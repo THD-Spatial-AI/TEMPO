@@ -1,0 +1,73 @@
+{
+  "model_name": "German Energy System",
+  "version": "1.0",
+  "description": "Comprehensive model of German energy infrastructure with renewable and conventional sources",
+  "geographic_scope": {
+    "region": "Germany",
+    "countries": ["Germany"],
+    "coverage": "Major German cities and industrial centers"
+  },
+  "temporal_scope": {
+    "start_date": "2024-01-01",
+    "end_date": "2024-12-31",
+    "timesteps": 8760,
+    "resolution": "1H"
+  },
+  "system_statistics": {
+    "total_locations": 12,
+    "demand_sites": 10,
+    "transmission_nodes": 2,
+    "transmission_links": 12,
+    "total_demand_TWh": 500,
+    "peak_demand_GW": 85
+  },
+  "technology_mix": {
+    "renewable": {
+      "solar_pv": {
+        "potential_capacity_GW": 50,
+        "technology_type": "Variable Renewable"
+      },
+      "wind_onshore": {
+        "potential_capacity_GW": 60,
+        "technology_type": "Variable Renewable"
+      },
+      "wind_offshore": {
+        "potential_capacity_GW": 30,
+        "technology_type": "Variable Renewable"
+      },
+      "biomass": {
+        "potential_capacity_GW": 8,
+        "technology_type": "Dispatchable Renewable"
+      }
+    },
+    "conventional": {
+      "gas_ccgt": {
+        "potential_capacity_GW": 35,
+        "technology_type": "Dispatchable"
+      },
+      "coal": {
+        "potential_capacity_GW": 20,
+        "technology_type": "Baseload"
+      }
+    },
+    "storage": {
+      "battery_storage": {
+        "potential_capacity_GW": 15,
+        "potential_storage_GWh": 60,
+        "technology_type": "Short-duration Storage"
+      }
+    }
+  },
+  "transmission_network": {
+    "voltage_levels": ["220kV", "380kV"],
+    "transmission_length_km": 2100,
+    "total_transmission_capacity_GW": 35
+  },
+  "model_features": [
+    "Energiewende transition modeling",
+    "High renewable penetration",
+    "Storage integration",
+    "Coal phase-out scenarios",
+    "Grid stability analysis"
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "scenarios": {
+    "base": ["run_mode"],
+    "high_renewable": ["run_mode", "high_res_targets"],
+    "low_carbon": ["run_mode", "carbon_limit"],
+    "storage_expansion": ["run_mode", "expand_storage"]
+  },
+  "overrides": {
+    "run_mode": {
+      "run": {
+        "mode": "plan",
+        "solver": "gurobi",
+        "ensure_feasibility": true
+      }
+    },
+    "high_res_targets": {
+      "locations": {
+        "Paris.techs.solar_pv.constraints.energy_cap_min": 500,
+        "Berlin.techs.wind_offshore.constraints.energy_cap_min": 800,
+        "Madrid.techs.solar_pv.constraints.energy_cap_min": 600
+      }
+    },
+    "carbon_limit": {
+      "model": {
+        "group_constraints": {
+          "systemwide_co2_cap": {
+            "cost_max": {
+              "emissions": 10000000
+            }
+          }
+        }
+      }
+    },
+    "expand_storage": {
+      "techs": {
+        "battery_storage.constraints.energy_cap_max": 5000,
+        "battery_storage.constraints.storage_cap_max": 10000
+      }
+    }
+  }
+}

@@ -1,0 +1,11 @@
+from,to,capacity,distance
+Solar_Farm_Bavaria,Munich,500,45
+Wind_Farm_North,Hamburg,800,120
+Hydro_Plant_Alps,Munich,350,180
+Coal_Plant_Ruhr,Cologne,600,25
+Gas_Plant_Rhine,Frankfurt,450,85
+Berlin,Hamburg,400,290
+Munich,Frankfurt,350,390
+Frankfurt,Cologne,300,190
+Hamburg,Berlin,400,290
+Solar_Farm_Bavaria,Frankfurt,250,340

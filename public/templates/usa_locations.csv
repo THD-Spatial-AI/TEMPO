@@ -1,0 +1,11 @@
+name,latitude,longitude,type
+New_York,40.7128,-74.0060,demand
+Los_Angeles,34.0522,-118.2437,demand
+Chicago,41.8781,-87.6298,demand
+Houston,29.7604,-95.3698,demand
+Phoenix,33.4484,-112.0740,demand
+Solar_Farm_California,35.3733,-119.0187,supply
+Wind_Farm_Texas,31.9686,-102.0779,supply
+Nuclear_Plant_Illinois,41.4241,-88.2718,supply
+Hydro_Plant_Washington,47.5162,-121.8269,supply
+Gas_Plant_Louisiana,30.4515,-91.1871,supply

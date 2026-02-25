@@ -1,0 +1,11 @@
+from,to,capacity,distance
+Wind_Farm_North_Sea,Amsterdam,1200,150
+Wind_Farm_North_Sea,London,900,400
+Solar_Farm_South,Paris,600,500
+Nuclear_Plant_France,Paris,1800,120
+Hydro_Plant_Alps,Brussels,400,650
+Gas_Plant_Netherlands,Amsterdam,800,50
+London,Paris,500,340
+Paris,Brussels,450,310
+Brussels,Amsterdam,400,175
+Amsterdam,Berlin,350,650

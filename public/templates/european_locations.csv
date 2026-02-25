@@ -1,0 +1,11 @@
+name,latitude,longitude,type
+London,51.5074,-0.1278,demand
+Paris,48.8566,2.3522,demand
+Brussels,50.8503,4.3517,demand
+Amsterdam,52.3676,4.9041,demand
+Berlin,52.5200,13.4050,demand
+Wind_Farm_North_Sea,54.5260,6.1440,supply
+Solar_Farm_South,48.5734,7.7521,supply
+Nuclear_Plant_France,49.4144,1.1520,supply
+Hydro_Plant_Alps,46.0569,7.6603,supply
+Gas_Plant_Netherlands,51.9244,4.4777,supply

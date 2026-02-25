@@ -1,0 +1,83 @@
+{
+  "model_name": "European Network Energy System",
+  "version": "1.0",
+  "description": "Pan-European energy network model covering 12 major cities and 3 transmission hubs",
+  "geographic_scope": {
+    "region": "Europe",
+    "countries": ["France", "Germany", "Spain", "Italy", "Netherlands", "Belgium", "Austria", "Poland", "Sweden", "Denmark", "Norway", "Portugal"],
+    "coverage": "Western and Central Europe"
+  },
+  "temporal_scope": {
+    "start_date": "2024-01-01",
+    "end_date": "2024-12-31",
+    "timesteps": 8760,
+    "resolution": "1H"
+  },
+  "system_statistics": {
+    "total_locations": 15,
+    "demand_sites": 12,
+    "transmission_hubs": 3,
+    "transmission_links": 18,
+    "total_demand_TWh": 2500,
+    "peak_demand_GW": 450
+  },
+  "technology_mix": {
+    "renewable": {
+      "solar_pv": {
+        "potential_capacity_GW": 100,
+        "technology_type": "Variable Renewable"
+      },
+      "wind_onshore": {
+        "potential_capacity_GW": 80,
+        "technology_type": "Variable Renewable"
+      },
+      "wind_offshore": {
+        "potential_capacity_GW": 60,
+        "technology_type": "Variable Renewable"
+      },
+      "hydro": {
+        "potential_capacity_GW": 40,
+        "technology_type": "Dispatchable Renewable"
+      },
+      "biomass": {
+        "potential_capacity_GW": 15,
+        "technology_type": "Dispatchable Renewable"
+      }
+    },
+    "conventional": {
+      "nuclear": {
+        "potential_capacity_GW": 80,
+        "technology_type": "Baseload"
+      },
+      "gas_ccgt": {
+        "potential_capacity_GW": 120,
+        "technology_type": "Dispatchable"
+      },
+      "coal": {
+        "potential_capacity_GW": 50,
+        "technology_type": "Baseload"
+      }
+    },
+    "storage": {
+      "battery_storage": {
+        "potential_capacity_GW": 50,
+        "potential_storage_GWh": 200,
+        "technology_type": "Short-duration Storage"
+      }
+    }
+  },
+  "transmission_network": {
+    "voltage_levels": ["220kV", "400kV"],
+    "ac_transmission_km": 4200,
+    "hvdc_transmission_km": 5800,
+    "total_transmission_capacity_GW": 95
+  },
+  "model_features": [
+    "Multi-country optimization",
+    "Cross-border power flows",
+    "Renewable energy integration",
+    "Storage optimization",
+    "Transmission expansion planning",
+    "Carbon emissions tracking"
+  ]
+}

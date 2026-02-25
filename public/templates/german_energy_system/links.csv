@@ -1,0 +1,13 @@
+from,to,distance_km,capacity_MW,voltage_kV,tech
+Berlin,Leipzig,149,2000,220,ac_transmission
+Berlin,Dresden,165,1800,220,ac_transmission
+Berlin,Hannover,250,2200,220,ac_transmission
+Berlin,Node_North,280,3000,380,ac_transmission
+Munich,Stuttgart,190,2000,220,ac_transmission
+Munich,Nuremberg,150,1800,220,ac_transmission
+Munich,Node_South,120,2500,380,ac_transmission
+Hamburg,Hannover,132,2500,220,ac_transmission
+Hamburg,Node_North,150,3000,380,ac_transmission
+Frankfurt,Cologne,152,2200,220,ac_transmission
+Frankfurt,Stuttgart,152,2000,220,ac_transmission
+Node_North,Node_South,450,4000,380,hvdc_transmission

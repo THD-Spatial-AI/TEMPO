@@ -1,0 +1,9 @@
+name,value,unit
+demand_total,2500,MWh
+supply_wind,1200,MW
+supply_solar,600,MW
+supply_nuclear,1800,MW
+supply_hydro,400,MW
+efficiency_transmission,0.92,ratio
+cost_electricity,65,EUR/MWh
+emission_factor_nuclear,0.05,tCO2/MWh

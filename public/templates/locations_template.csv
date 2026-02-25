@@ -1,0 +1,11 @@
+name,latitude,longitude,type
+Berlin,52.5200,13.4050,demand
+Munich,48.1351,11.5820,demand
+Hamburg,53.5511,9.9937,demand
+Frankfurt,50.1109,8.6821,demand
+Cologne,50.9375,6.9603,demand
+Solar_Farm_Bavaria,48.7758,11.4322,supply
+Wind_Farm_North,53.8700,8.6500,supply
+Hydro_Plant_Alps,47.4239,10.9859,supply
+Coal_Plant_Ruhr,51.4818,7.2162,supply
+Gas_Plant_Rhine,50.2667,7.3667,supply

@@ -1,0 +1,41 @@
+##
+# TECHNOLOGY DEFINITIONS
+##
+
+# Note: '-start' and '-end' is used in tutorial documentation only
+
+techs:
+#STORAGE    
+    
+# battery storage
+    battery:
+        essentials:
+            color: '#177202'
+            name: 'Battery energy storage' #(Ion -Litio)
+            parent: storage
+            carrier: electricity
+        constraints:
+            energy_eff: 0.9 
+            lifetime: 20  # {Brown et al. , Energy, 2018}
+            energy_cap_per_storage_cap_equals: 0.20  # 5 hours of storage
+        costs:
+            monetary:
+                interest_rate: 0.1
+                storage_cap: 1556  # https://www.cne.cl/wp-content/uploads/2024/06/ICTG-Mayo-2024.pdf
+
+    h2_storage:
+        essentials:
+            color: '#177202'
+            name: 'Hydrogen storage' # Liquefaction + storage
+            parent: storage
+            carrier: hydrogen
+        constraints:
+            energy_eff: 0.40
+            lifetime: 20  
+        costs:
+            monetary:
+                interest_rate: 0.1
+                storage_cap: 4578  # USD/kW https://iea.blob.core.windows.net/assets/36017d2f-747b-4993-b06d-33209fe143fa/GHR24AssumptionsAnnex.pdf#:~:text=This%20annex%20collects%20the%20various%20assumptions%20that%20underpin,Review%202024.%20For%20technologies%2C%20global%20averages%20are%20presented.
+                om_annual: 137  # USD/kW https://iea.blob.core.windows.net/assets/36017d2f-747b-4993-b06d-33209fe143fa/GHR24AssumptionsAnnex.pdf#:~:text=This%20annex%20collects%20the%20various%20assumptions%20that%20underpin,Review%202024.%20For%20technologies%2C%20global%20averages%20are%20presented.
+    # battery storage-end    
+    

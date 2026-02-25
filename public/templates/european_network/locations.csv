@@ -1,0 +1,16 @@
+name,latitude,longitude,techs,energy_cap_max,demand_types,resource_files
+Paris,48.8566,2.3522,"solar_pv,wind_onshore,nuclear,gas_ccgt,battery_storage",5000,power_demand,european_demand_2024
+Berlin,52.52,13.405,"solar_pv,wind_onshore,wind_offshore,gas_ccgt,battery_storage",4500,power_demand,european_demand_2024
+Madrid,40.4168,-3.7038,"solar_pv,wind_onshore,gas_ccgt,battery_storage",3500,power_demand,european_demand_2024
+Rome,41.9028,12.4964,"solar_pv,gas_ccgt,battery_storage",3000,power_demand,european_demand_2024
+Amsterdam,52.3676,4.9041,"wind_offshore,solar_pv,gas_ccgt,battery_storage",2800,power_demand,european_demand_2024
+Brussels,50.8503,4.3517,"wind_onshore,solar_pv,gas_ccgt,battery_storage",2500,power_demand,european_demand_2024
+Vienna,48.2082,16.3738,"solar_pv,hydro,biomass,gas_ccgt,battery_storage",2200,power_demand,european_demand_2024
+Warsaw,52.2297,21.0122,"solar_pv,wind_onshore,coal,gas_ccgt,battery_storage",2800,power_demand,european_demand_2024
+Stockholm,59.3293,18.0686,"hydro,wind_offshore,biomass,nuclear,battery_storage",2000,power_demand,european_demand_2024
+Copenhagen,55.6761,12.5683,"wind_offshore,solar_pv,biomass,battery_storage",1800,power_demand,european_demand_2024
+Oslo,59.9139,10.7522,"hydro,wind_offshore,gas_ccgt,battery_storage",1500,power_demand,european_demand_2024
+Lisbon,38.7223,-9.1393,"solar_pv,wind_onshore,hydro,gas_ccgt,battery_storage",2400,power_demand,european_demand_2024
+Hub_West,48.0,0.0,ac_transmission,10000,,
+Hub_Central,50.5,10.0,ac_transmission,12000,,
+Hub_North,57.0,12.0,ac_transmission,8000,,

@@ -1,0 +1,11 @@
+name,value,unit
+demand_electricity,1000,MWh
+supply_solar,450,MW
+supply_wind,800,MW
+supply_hydro,350,MW
+efficiency_transmission,0.95,ratio
+cost_electricity,50,EUR/MWh
+emission_factor_coal,0.95,tCO2/MWh
+emission_factor_gas,0.45,tCO2/MWh
+capacity_factor_solar,0.25,ratio
+capacity_factor_wind,0.35,ratio

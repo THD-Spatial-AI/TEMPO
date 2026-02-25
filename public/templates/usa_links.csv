@@ -1,0 +1,11 @@
+from,to,capacity,distance
+Solar_Farm_California,Los_Angeles,2000,280
+Wind_Farm_Texas,Houston,1500,450
+Nuclear_Plant_Illinois,Chicago,2200,80
+Hydro_Plant_Washington,Los_Angeles,600,1545
+Gas_Plant_Louisiana,Houston,1000,220
+New_York,Chicago,800,1270
+Los_Angeles,Phoenix,700,595
+Chicago,Houston,500,1530
+Phoenix,Los_Angeles,650,595
+New_York,Los_Angeles,400,4490

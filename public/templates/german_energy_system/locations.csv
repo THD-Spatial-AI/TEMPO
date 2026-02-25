@@ -1,0 +1,13 @@
+name,latitude,longitude,techs,energy_cap_max,demand_types,resource_files
+Berlin,52.52,13.405,"solar_pv,wind_onshore,battery_storage,gas_ccgt",4000,power_demand,german_demand_2024
+Munich,48.1351,11.582,"solar_pv,wind_onshore,gas_ccgt,battery_storage",3000,power_demand,german_demand_2024
+Hamburg,53.5511,9.9937,"wind_offshore,solar_pv,battery_storage,gas_ccgt",3500,power_demand,german_demand_2024
+Frankfurt,50.1109,8.6821,"solar_pv,gas_ccgt,battery_storage",2500,power_demand,german_demand_2024
+Cologne,50.9375,6.9603,"solar_pv,wind_onshore,gas_ccgt",2200,power_demand,german_demand_2024
+Stuttgart,48.7758,9.1829,"solar_pv,biomass,battery_storage",2000,power_demand,german_demand_2024
+Dresden,51.0504,13.7373,"solar_pv,wind_onshore,coal",1800,power_demand,german_demand_2024
+Hannover,52.3759,9.732,"wind_onshore,solar_pv,gas_ccgt",1700,power_demand,german_demand_2024
+Leipzig,51.3397,12.3731,"solar_pv,wind_onshore,battery_storage",1500,power_demand,german_demand_2024
+Nuremberg,49.4521,11.0767,"solar_pv,biomass,gas_ccgt",1800,power_demand,german_demand_2024
+Node_North,53.0,10.0,ac_transmission,8000,,
+Node_South,49.0,11.5,ac_transmission,7000,,
