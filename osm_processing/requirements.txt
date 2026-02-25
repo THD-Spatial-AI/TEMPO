@@ -1,0 +1,21 @@
+# OSM Data Processing Requirements
+
+# Core OSM processing library
+osmium>=3.7.0
+
+# Geospatial data handling
+shapely>=2.0.0
+pyproj>=3.6.0
+
+# Data manipulation
+pandas>=2.0.0
+geopandas>=0.14.0
+
+# JSON processing
+geojson>=3.0.0
+
+# Progress bars
+tqdm>=4.66.0
+
+# Optional: For faster processing
+numpy>=1.24.0

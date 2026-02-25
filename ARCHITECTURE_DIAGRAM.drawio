@@ -1,0 +1,302 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/29.3.6 Chrome/140.0.7339.249 Electron/38.8.0 Safari/537.36" version="29.3.6">
+  <diagram name="Calliope Visualizator - Complete Architecture" id="complete-architecture">
+    <mxGraphModel dx="977" dy="1789" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2000" pageHeight="1500" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=24;fontStyle=1;fontColor=#000000;" value="Calliope Visualizator - Complete Architecture &amp;amp; Dependencies" vertex="1">
+          <mxGeometry height="40" width="800" x="2540" y="400" as="geometry" />
+        </mxCell>
+        <mxCell id="legend" parent="1" style="swimlane;whiteSpace=wrap;html=1;fontSize=12;fontStyle=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#000000;" value="LEGEND" vertex="1">
+          <mxGeometry height="180" width="400" x="2050" y="3100" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-frontend" parent="legend" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;" value="Frontend Layer (React/Vite)" vertex="1">
+          <mxGeometry height="25" width="200" x="10" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-backend" parent="legend" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#000000;" value="Backend Layer (Go)" vertex="1">
+          <mxGeometry height="25" width="200" x="10" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-electron" parent="legend" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;" value="Electron Wrapper" vertex="1">
+          <mxGeometry height="25" width="200" x="10" y="90" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-external" parent="legend" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#000000;" value="External Services" vertex="1">
+          <mxGeometry height="25" width="200" x="10" y="120" as="geometry" />
+        </mxCell>
+        <mxCell id="stats" parent="1" style="swimlane;whiteSpace=wrap;html=1;fontSize=12;fontStyle=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#000000;" value="PROJECT STATISTICS" vertex="1">
+          <mxGeometry height="180" width="600" x="2490" y="3100" as="geometry" />
+        </mxCell>
+        <mxCell id="stats-detail" parent="stats" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;" value="Total Dependencies:&#xa;• Frontend: 42 npm packages&#xa;• Backend: 4 Go modules (+ transitive dependencies)&#xa;• Dev Tools: 11 packages&#xa;&#xa;Lines of Code:&#xa;• Creation.jsx: 4,824 lines&#xa;• Go Backend: ~750 lines (7 files)&#xa;• Total Frontend Components: ~15,000+ lines&#xa;&#xa;Binary Sizes:&#xa;• backend.exe: 19.4 MB (pure Go, no dependencies)&#xa;• Final installer: ~100 MB (includes Electron runtime)&#xa;&#xa;Build Time:&#xa;• Frontend (Vite): ~3-4 minutes&#xa;• Backend (Go): ~5-10 seconds&#xa;• Electron packaging: ~30-60 seconds" vertex="1">
+          <mxGeometry height="135" width="580" x="10" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="electron-container" parent="1" style="swimlane;whiteSpace=wrap;html=1;fontSize=16;fontStyle=1;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=3;fontColor=#000000;" value="&lt;font style=&quot;&quot;&gt;ELECTRON DESKTOP APPLICATION&lt;/font&gt;" vertex="1">
+          <mxGeometry height="1970" width="3270" x="2010" y="810" as="geometry" />
+        </mxCell>
+        <mxCell id="electron-main" parent="electron-container" style="swimlane;whiteSpace=wrap;html=1;fontSize=14;fontStyle=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;fontColor=#000000;" value="ELECTRON MAIN PROCESS" vertex="1">
+          <mxGeometry height="480" width="400" x="1770" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="electron-files" parent="electron-main" style="swimlane;whiteSpace=wrap;html=1;fontSize=12;fontStyle=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;" value="Files" vertex="1">
+          <mxGeometry height="140" width="360" x="20" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="main-js" parent="electron-files" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#000000;" value="electron/main.js&#xa;• BrowserWindow creation&#xa;• Backend process spawning&#xa;• IPC handlers&#xa;• App lifecycle management" vertex="1">
+          <mxGeometry height="50" width="340" x="10" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="preload-js" parent="electron-files" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#000000;" value="electron/preload.js&#xa;• Context bridge setup&#xa;• IPC communication API&#xa;• Security isolation" vertex="1">
+          <mxGeometry height="45" width="340" x="10" y="85" as="geometry" />
+        </mxCell>
+        <mxCell id="electron-deps" parent="electron-main" style="swimlane;whiteSpace=wrap;html=1;fontSize=12;fontStyle=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;" value="Dependencies" vertex="1">
+          <mxGeometry height="240" width="360" x="20" y="190" as="geometry" />
+        </mxCell>
+        <mxCell id="electron-pkg" parent="electron-deps" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;" value="electron@40.4.1&#xa;• Chromium engine&#xa;• Node.js integration&#xa;• Native APIs" vertex="1">
+          <mxGeometry height="45" width="340" x="10" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="electron-builder-pkg" parent="electron-deps" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;" value="electron-builder@26.7.0&#xa;• NSIS installer creation&#xa;• Code signing&#xa;• Auto-update support" vertex="1">
+          <mxGeometry height="45" width="340" x="10" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="electron-store-pkg" parent="electron-deps" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;" value="electron-store@11.0.2&#xa;• Persistent settings storage&#xa;• JSON configuration&#xa;• User preferences" vertex="1">
+          <mxGeometry height="45" width="340" x="10" y="130" as="geometry" />
+        </mxCell>
+        <mxCell id="concurrently-pkg" parent="electron-deps" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;" value="concurrently@9.2.1&#xa;wait-on@9.0.4&#xa;• Dev server coordination" vertex="1">
+          <mxGeometry height="45" width="340" x="10" y="180" as="geometry" />
+        </mxCell>
+        <mxCell id="frontend-container" parent="electron-container" style="swimlane;whiteSpace=wrap;html=1;fontSize=14;fontStyle=1;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=2;fontColor=#000000;" value="REACT FRONTEND (VITE)" vertex="1">
+          <mxGeometry height="920" width="720" x="920" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="frontend-core" parent="frontend-container" style="swimlane;whiteSpace=wrap;html=1;fontSize=12;fontStyle=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;" value="Core Framework" vertex="1">
+          <mxGeometry height="140" width="680" x="20" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="react-pkg" parent="frontend-core" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#000000;" value="react@19.2.0 + react-dom@19.2.0&#xa;• Component-based UI&#xa;• Virtual DOM&#xa;• Hooks (useState, useEffect, useCallback, useMemo)" vertex="1">
+          <mxGeometry height="45" width="660" x="10" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="vite-pkg" parent="frontend-core" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#000000;" value="vite@7.2.4 + @vitejs/plugin-react@5.1.1&#xa;• ES modules bundler&#xa;• Hot Module Replacement (HMR)&#xa;• Production optimization" vertex="1">
+          <mxGeometry height="45" width="660" x="10" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="frontend-ui" parent="frontend-container" style="swimlane;whiteSpace=wrap;html=1;fontSize=12;fontStyle=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;" value="UI Libraries &amp;amp; Styling" vertex="1">
+          <mxGeometry height="240" width="680" x="20" y="190" as="geometry" />
+        </mxCell>
+        <mxCell id="mui-pkg" parent="frontend-ui" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#000000;" value="@mui/material@7.3.7 + @mui/icons-material@7.3.7&#xa;@emotion/react@11.14.0 + @emotion/styled@11.14.1&#xa;• Material Design components&#xa;• CSS-in-JS styling" vertex="1">
+          <mxGeometry height="50" width="660" x="10" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="tailwind-pkg" parent="frontend-ui" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#000000;" value="tailwindcss@3.4.17 + autoprefixer@10.4.23 + postcss@8.5.6&#xa;• Utility-first CSS framework&#xa;• JIT compilation&#xa;• Custom design system" vertex="1">
+          <mxGeometry height="45" width="660" x="10" y="85" as="geometry" />
+        </mxCell>
+        <mxCell id="framer-pkg" parent="frontend-ui" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#000000;" value="framer-motion@12.23.27&#xa;• Animation library&#xa;• Gesture detection&#xa;• Transitions &amp;amp; spring physics" vertex="1">
+          <mxGeometry height="45" width="660" x="10" y="135" as="geometry" />
+        </mxCell>
+        <mxCell id="icons-pkg" parent="frontend-ui" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#000000;" value="react-icons@5.5.0 + lucide-react@0.562.0&#xa;• Icon libraries (Font Awesome, Heroicons, etc.)&#xa;• Lucide icon set" vertex="1">
+          <mxGeometry height="45" width="660" x="10" y="185" as="geometry" />
+        </mxCell>
+        <mxCell id="frontend-map" parent="frontend-container" style="swimlane;whiteSpace=wrap;html=1;fontSize=12;fontStyle=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;" value="Map &amp;amp; GIS Visualization" vertex="1">
+          <mxGeometry height="190" width="680" x="20" y="440" as="geometry" />
+        </mxCell>
+        <mxCell id="maplibre-pkg" parent="frontend-map" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#000000;" value="maplibre-gl@5.16.0 + react-map-gl@8.1.0&#xa;• Vector tile rendering&#xa;• WebGL acceleration&#xa;• Custom map styles&#xa;• GeoJSON layer support" vertex="1">
+          <mxGeometry height="60" width="660" x="10" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="deckgl-pkg" parent="frontend-map" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#000000;" value="deck.gl@9.2.5 + @deck.gl/core@9.2.5 + @deck.gl/layers@9.2.5 + @deck.gl/react@9.2.5&#xa;• GPU-accelerated data visualization&#xa;• Large dataset rendering (millions of points)&#xa;• Custom layer types (Scatterplot, Arc, Line, GeoJson)&#xa;• 3D visualization support" vertex="1">
+          <mxGeometry height="75" width="660" x="10" y="95" as="geometry" />
+        </mxCell>
+        <mxCell id="frontend-charts" parent="frontend-container" style="swimlane;whiteSpace=wrap;html=1;fontSize=12;fontStyle=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;" value="Charts &amp;amp; Data Visualization" vertex="1">
+          <mxGeometry height="140" width="680" x="20" y="640" as="geometry" />
+        </mxCell>
+        <mxCell id="echarts-pkg" parent="frontend-charts" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#000000;" value="echarts@6.0.0 + echarts-for-react@3.0.5&#xa;• Interactive charts (line, bar, scatter, heatmap)&#xa;• Real-time data updates" vertex="1">
+          <mxGeometry height="45" width="660" x="10" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="apexcharts-pkg" parent="frontend-charts" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#000000;" value="apexcharts@5.3.6 + react-apexcharts@1.9.0&#xa;recharts@3.6.0&#xa;• Additional charting options&#xa;• Responsive charts" vertex="1">
+          <mxGeometry height="45" width="660" x="10" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="frontend-utils" parent="frontend-container" style="swimlane;whiteSpace=wrap;html=1;fontSize=12;fontStyle=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;" value="Utilities &amp;amp; Data Processing" vertex="1">
+          <mxGeometry height="110" width="680" x="20" y="790" as="geometry" />
+        </mxCell>
+        <mxCell id="data-pkg" parent="frontend-utils" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#000000;" value="papaparse@5.5.3 • file-saver@2.0.5 • jszip@3.10.1&#xa;flatpickr@4.6.13 • clsx@2.1.1 • tailwind-merge@3.4.0&#xa;react-spring@10.0.3 • react-use-measure@2.1.7&#xa;• CSV parsing • File downloads • ZIP compression • Date pickers • Utility classes" vertex="1">
+          <mxGeometry height="65" width="660" x="10" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="creation-component" parent="frontend-container" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#000000;" value="&lt;font style=&quot;&quot;&gt;src/components/Creation.jsx (4824 lines)&lt;br&gt;• Main model creation interface&lt;br&gt;• MapLibre map integration&lt;br&gt;• Location management (add, edit, delete)&lt;br&gt;• Technology assignment&lt;br&gt;• Link creation between locations&lt;br&gt;• Run Model functionality (handleRunModel)&lt;br&gt;• Job polling with progress updates&lt;br&gt;• State: locations, links, technologies, isRunningModel, jobProgress&lt;/font&gt;" vertex="1">
+          <mxGeometry height="120" width="660" x="20" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="other-components" parent="frontend-container" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#000000;" value="Other Components&#xa;• src/components/Locations.jsx - Location list and editor&#xa;• src/components/Models.jsx - Saved models browser&#xa;• src/components/TimeSeries.jsx - Time series data editor&#xa;• src/components/CSVUploader.jsx - CSV import&#xa;• src/components/GlobalDataPanel.jsx - Global parameters&#xa;• src/services/api.js - Backend API client (port 8082)" vertex="1">
+          <mxGeometry height="110" width="660" x="20" y="170" as="geometry" />
+        </mxCell>
+        <mxCell id="backend-container" parent="electron-container" style="swimlane;whiteSpace=wrap;html=1;fontSize=14;fontStyle=1;fillColor=#f8cecc;strokeColor=#b85450;strokeWidth=2;fontColor=#000000;" value="GO BACKEND (REST API)" vertex="1">
+          <mxGeometry height="920" width="640" x="150" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="backend-core" parent="backend-container" style="swimlane;whiteSpace=wrap;html=1;fontSize=12;fontStyle=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;" value="Core Files" vertex="1">
+          <mxGeometry height="140" width="600" x="20" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="main-go" parent="backend-core" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#000000;" value="backend-go/main.go (50 lines)&#xa;• Entry point&#xa;• CLI flags (--port, --db)&#xa;• SQLite initialization&#xa;• Gin server startup&#xa;• PID file management" vertex="1">
+          <mxGeometry height="80" width="580" x="10" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="backend-api" parent="backend-container" style="swimlane;whiteSpace=wrap;html=1;fontSize=12;fontStyle=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;" value="API Server" vertex="1">
+          <mxGeometry height="220" width="600" x="20" y="190" as="geometry" />
+        </mxCell>
+        <mxCell id="server-go" parent="backend-api" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#000000;" value="internal/api/server.go (250 lines)&#xa;• Gin router with CORS middleware&#xa;• POST /api/models - Save model&#xa;• GET /api/models - List models&#xa;• GET /api/models/:id - Get model&#xa;• POST /api/models/:id/run - Execute optimization&#xa;• GET /api/jobs/:id - Job status&#xa;• GET /api/jobs/:id/results - Job results&#xa;• GET /api/osm/:layer - GeoServer data&#xa;• GET /api/osm/layers - Available layers&#xa;• GET /api/health - Health check" vertex="1">
+          <mxGeometry height="170" width="580" x="10" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="backend-clients" parent="backend-container" style="swimlane;whiteSpace=wrap;html=1;fontSize=12;fontStyle=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;" value="External Clients" vertex="1">
+          <mxGeometry height="220" width="600" x="20" y="420" as="geometry" />
+        </mxCell>
+        <mxCell id="calliope-client" parent="backend-clients" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#000000;" value="internal/calliope/client.go (180 lines)&#xa;• RunModel() - Submit model via multipart form&#xa;• GetJobStatus() - Poll job progress&#xa;• GetResults() - Fetch optimization results&#xa;• GenerateModelYAML() - Convert ModelConfig to Calliope YAML&#xa;  - Locations with coordinates&#xa;  - Technologies per location&#xa;  - Links with distance calculation&#xa;  - Technology definitions with constraints" vertex="1">
+          <mxGeometry height="90" width="580" x="10" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="geoserver-client" parent="backend-clients" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#000000;" value="internal/geoserver/client.go (100 lines)&#xa;• GetOSMLayer() - WFS GetFeature request&#xa;• URL: /wfs?service=WFS&amp;amp;version=2.0.0&amp;amp;request=GetFeature&#xa;• GeoJSON output format&#xa;• CQL filters for region&#xa;• 5-minute cache TTL&#xa;• Layers: substations, power_plants, power_lines, communes, districts" vertex="1">
+          <mxGeometry height="80" width="580" x="10" y="125" as="geometry" />
+        </mxCell>
+        <mxCell id="backend-data" parent="backend-container" style="swimlane;whiteSpace=wrap;html=1;fontSize=12;fontStyle=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;" value="Data &amp;amp; Storage" vertex="1">
+          <mxGeometry height="250" width="600" x="20" y="650" as="geometry" />
+        </mxCell>
+        <mxCell id="models-go" parent="backend-data" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#000000;" value="internal/models/model.go (120 lines)&#xa;• Location {id, name, lat, lon, technologies[], constraints{}}&#xa;• Link {id, source, target, distance, technology, constraints{}}&#xa;• Technology {name, type, carrier, carrier_in[], carrier_out[], constraints{}}&#xa;• ModelConfig - Complete model structure&#xa;• Job {id, model_id, status, progress, result, error}" vertex="1">
+          <mxGeometry height="80" width="580" x="10" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="storage-go" parent="backend-data" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#000000;" value="internal/storage/database.go (150 lines)&#xa;• SQLite database with pure Go driver (modernc.org/sqlite)&#xa;• TABLE models (id, name, config TEXT, created_at, updated_at)&#xa;• TABLE jobs (id TEXT, model_id, status, progress, result, error, created_at, updated_at)&#xa;• SaveModel(), GetModel(), ListModels()&#xa;• CreateJob(), UpdateJob(), GetJob()&#xa;• JSON serialization for config and results" vertex="1">
+          <mxGeometry height="90" width="580" x="10" y="115" as="geometry" />
+        </mxCell>
+        <mxCell id="config-file" parent="backend-data" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#000000;" value="config.yaml&#xa;• GeoServer URL, credentials&#xa;• Calliope webservice URL&#xa;• Server port: 8082" vertex="1">
+          <mxGeometry height="30" width="580" x="10" y="210" as="geometry" />
+        </mxCell>
+        <mxCell id="external-services" parent="electron-container" style="swimlane;whiteSpace=wrap;html=1;fontSize=14;fontStyle=1;fillColor=#ffe6cc;strokeColor=#d79b00;strokeWidth=2;fontColor=#000000;" value="EXTERNAL SERVICES" vertex="1">
+          <mxGeometry height="360" width="1840" x="160" y="1260" as="geometry" />
+        </mxCell>
+        <mxCell id="geoserver-service" parent="external-services" style="swimlane;whiteSpace=wrap;html=1;fontSize=12;fontStyle=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;" value="GEOSERVER (Port 8080)" vertex="1">
+          <mxGeometry height="280" width="560" x="40" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="geoserver-info" parent="geoserver-service" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#000000;" value="OSM Infrastructure Data Provider&#xa;&#xa;Technology:&#xa;• Jetty Server 10.0.25&#xa;• Web Feature Service (WFS) 2.0.0&#xa;• GeoJSON output format&#xa;&#xa;Available Layers:&#xa;• osm:substations - Electrical substations&#xa;• osm:power_plants - Power generation facilities&#xa;• osm:power_lines - Transmission lines&#xa;• osm:communes - Administrative boundaries&#xa;• osm:districts - Regional districts&#xa;&#xa;Features:&#xa;• CQL filtering by region&#xa;• Spatial queries&#xa;• Real-time OSM data&#xa;• Authentication: admin/geoserver" vertex="1">
+          <mxGeometry height="230" width="540" x="10" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="calliope-service" parent="external-services" style="swimlane;whiteSpace=wrap;html=1;fontSize=12;fontStyle=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;" value="CALLIOPE WEBSERVICE (Port 5000)" vertex="1">
+          <mxGeometry height="280" width="560" x="640" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="calliope-info" parent="calliope-service" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#000000;" value="Energy System Optimization Engine&#xa;&#xa;Technology:&#xa;• Python-based webservice&#xa;• Linear/Mixed-Integer Programming solver&#xa;• Asynchronous job processing&#xa;&#xa;API Endpoints:&#xa;• POST /api/run - Submit model (multipart form with YAML)&#xa;• GET /api/jobs/:id - Job status &amp;amp; progress&#xa;• GET /api/jobs/:id/results - Optimization results&#xa;&#xa;Input Format:&#xa;• model.yaml - Main model definition&#xa;• locations.yaml - Nodes &amp;amp; technologies&#xa;• techs.yaml - Technology parameters&#xa;&#xa;Output:&#xa;• Optimal capacity decisions&#xa;• Energy flows&#xa;• Cost breakdown&#xa;• System metrics" vertex="1">
+          <mxGeometry height="230" width="540" x="10" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="sqlite-db" parent="external-services" style="swimlane;whiteSpace=wrap;html=1;fontSize=12;fontStyle=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;" value="SQLITE DATABASE" vertex="1">
+          <mxGeometry height="280" width="560" x="1240" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="sqlite-info" parent="sqlite-db" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#000000;" value="Local Persistent Storage&#xa;&#xa;File: calliope.db&#xa;Driver: modernc.org/sqlite (Pure Go)&#xa;&#xa;Tables:&#xa;&#xa;models&#xa;• id INTEGER PRIMARY KEY AUTOINCREMENT&#xa;• name TEXT NOT NULL&#xa;• config TEXT NOT NULL (JSON serialized ModelConfig)&#xa;• created_at TIMESTAMP&#xa;• updated_at TIMESTAMP&#xa;&#xa;jobs&#xa;• id TEXT PRIMARY KEY (UUID)&#xa;• model_id INTEGER FOREIGN KEY&#xa;• status TEXT (pending, running, completed, failed)&#xa;• progress INTEGER (0-100)&#xa;• result TEXT (JSON results)&#xa;• error TEXT&#xa;• created_at TIMESTAMP&#xa;• updated_at TIMESTAMP" vertex="1">
+          <mxGeometry height="230" width="540" x="10" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="arrow1" edge="1" parent="electron-container" source="electron-main" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=3;strokeColor=#6c8ebf;endArrow=classic;endFill=1;fontColor=#000000;" target="frontend-container">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arrow1-label" connectable="0" parent="arrow1" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fontStyle=1;fontColor=#FFFFFF;" value="IPC&#xa;Communication" vertex="1">
+          <mxGeometry relative="1" x="-0.1" y="2" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arrow2" edge="1" parent="electron-container" source="frontend-container" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=3;strokeColor=#82b366;endArrow=classic;endFill=1;fontColor=#000000;" target="backend-container">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1280" y="1190" />
+              <mxPoint x="470" y="1190" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arrow2-label" connectable="0" parent="arrow2" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fontStyle=1;fontColor=#FFFFFF;" value="HTTP REST API&#xa;localhost:8082" vertex="1">
+          <mxGeometry relative="1" x="-0.1" y="2" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arrow3" edge="1" parent="electron-container" source="backend-container" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=3;strokeColor=#d79b00;endArrow=classic;endFill=1;startArrow=classic;startFill=1;fontColor=#000000;" target="geoserver-service">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="340" y="1190" />
+              <mxPoint x="340" y="1190" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arrow3-label" connectable="0" parent="arrow3" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fontStyle=1;fontColor=#FFFFFF;" value="WFS 2.0.0&#xa;GeoJSON" vertex="1">
+          <mxGeometry relative="1" x="-0.1" y="2" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arrow4" edge="1" parent="electron-container" source="backend-container" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=3;strokeColor=#d79b00;endArrow=classic;endFill=1;startArrow=classic;startFill=1;fontColor=#000000;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="calliope-service">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="820" y="560" />
+              <mxPoint x="820" y="1240" />
+              <mxPoint x="1080" y="1240" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arrow4-label" connectable="0" parent="arrow4" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fontStyle=1;fontColor=#FFFFFF;" value="Job Submission&#xa;Status Polling&#xa;Results Fetch" vertex="1">
+          <mxGeometry relative="1" x="-0.1" y="2" as="geometry">
+            <mxPoint y="10" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arrow5" edge="1" parent="electron-container" source="backend-container" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=3;strokeColor=#9673a6;endArrow=classic;endFill=1;startArrow=classic;startFill=1;fontColor=#000000;" target="sqlite-db">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="860" y="560" />
+              <mxPoint x="860" y="1120" />
+              <mxPoint x="1570" y="1120" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arrow5-label" connectable="0" parent="arrow5" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fontStyle=1;fontColor=#FFFFFF;" value="CRUD&#xa;Operations" vertex="1">
+          <mxGeometry relative="1" x="-0.1" y="2" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arrow6" edge="1" parent="electron-container" source="electron-main" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=3;strokeColor=#b85450;endArrow=classic;endFill=1;fontColor=#000000;" target="backend-container">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1970" y="60" />
+              <mxPoint x="860" y="60" />
+              <mxPoint x="860" y="560" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arrow6-label" connectable="0" parent="arrow6" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fontStyle=1;fontColor=#FFFFFF;" value="Process&#xa;Spawn/Kill" vertex="1">
+          <mxGeometry relative="1" x="-0.1" y="2" as="geometry">
+            <mxPoint x="20" y="-10" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="dev-tools" parent="electron-container" style="swimlane;whiteSpace=wrap;html=1;fontSize=12;fontStyle=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#000000;" value="DEVELOPMENT TOOLS" vertex="1">
+          <mxGeometry height="180" width="400" x="2230" y="950" as="geometry" />
+        </mxCell>
+        <mxCell id="eslint-info" parent="dev-tools" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;" value="ESLint (@eslint/js@9.39.1)&#xa;• Code quality&#xa;• React hooks plugin&#xa;• React refresh plugin" vertex="1">
+          <mxGeometry height="50" width="380" x="10" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="go-info" parent="dev-tools" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;" value="Go 1.26.0&#xa;• Cross-compilation&#xa;• Fast compilation&#xa;• Static binary output" vertex="1">
+          <mxGeometry height="50" width="380" x="10" y="85" as="geometry" />
+        </mxCell>
+        <mxCell id="build-info" parent="electron-container" style="swimlane;whiteSpace=wrap;html=1;fontSize=12;fontStyle=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#000000;" value="BUILD &amp;amp; DEPLOYMENT" vertex="1">
+          <mxGeometry height="180" width="400" x="2230" y="1150" as="geometry" />
+        </mxCell>
+        <mxCell id="nsis-info" parent="build-info" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;" value="NSIS Installer&#xa;• Windows installer creation&#xa;• Desktop shortcuts&#xa;• Start menu integration&#xa;• Uninstaller generation" vertex="1">
+          <mxGeometry height="65" width="380" x="10" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="dist-info" parent="build-info" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;" value="Distribution Package&#xa;• Single .exe installer&#xa;• Embedded backend.exe (19.4 MB)&#xa;• Self-contained runtime&#xa;• No external dependencies" vertex="1">
+          <mxGeometry height="65" width="380" x="10" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="ports-info" parent="electron-container" style="swimlane;whiteSpace=wrap;html=1;fontSize=12;fontStyle=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#000000;" value="PORT CONFIGURATION" vertex="1">
+          <mxGeometry height="180" width="400" x="2670" y="950" as="geometry" />
+        </mxCell>
+        <mxCell id="ports-detail" parent="ports-info" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#000000;" value="Port Allocation:&#xa;&#xa;• 8080 - GeoServer (Jetty)&#xa;• 8082 - Go Backend API&#xa;• 5000 - Calliope Webservice&#xa;• 5173 - Vite Dev Server (development only)&#xa;&#xa;Protocol: HTTP/REST&#xa;Format: JSON" vertex="1">
+          <mxGeometry height="135" width="380" x="10" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="dataflow-info" parent="electron-container" style="swimlane;whiteSpace=wrap;html=1;fontSize=12;fontStyle=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;" value="DATA FLOW" vertex="1">
+          <mxGeometry height="180" width="400" x="2670" y="1150" as="geometry" />
+        </mxCell>
+        <mxCell id="flow-detail" parent="dataflow-info" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#000000;" value="1. User creates model in React UI&#xa;2. Frontend calls api.saveModel() → Backend&#xa;3. Backend stores in SQLite&#xa;4. User clicks &#39;Run Model&#39;&#xa;5. Frontend calls api.runModel() → Backend&#xa;6. Backend calls Calliope webservice&#xa;7. Backend polls job status every 2s&#xa;8. Frontend displays progress updates&#xa;9. Results fetched and displayed" vertex="1">
+          <mxGeometry height="135" width="380" x="10" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="backend-deps" parent="electron-container" style="swimlane;whiteSpace=wrap;html=1;fontSize=12;fontStyle=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#000000;" value="Go Dependencies" vertex="1">
+          <mxGeometry height="280" width="380" x="2240" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="gin-pkg" parent="backend-deps" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;" value="gin-gonic/gin@1.10.0&#xa;• HTTP web framework&#xa;• Router &amp;amp; middleware&#xa;• JSON binding&#xa;• CORS support" vertex="1">
+          <mxGeometry height="60" width="280" x="40" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="sqlite-pkg" parent="backend-deps" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;" value="modernc.org/sqlite@1.29.1&#xa;• Pure Go SQLite driver&#xa;• No CGO required&#xa;• No C compiler needed&#xa;• Cross-platform" vertex="1">
+          <mxGeometry height="65" width="280" x="40" y="105" as="geometry" />
+        </mxCell>
+        <mxCell id="uuid-pkg" parent="backend-deps" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;" value="google/uuid@1.6.0&#xa;• UUID generation&#xa;• Job ID tracking" vertex="1">
+          <mxGeometry height="40" width="280" x="40" y="175" as="geometry" />
+        </mxCell>
+        <mxCell id="yaml-pkg" parent="backend-deps" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;" value="gopkg.in/yaml.v3@3.0.1&#xa;• YAML generation&#xa;• Calliope model files" vertex="1">
+          <mxGeometry height="40" width="280" x="40" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="frontend-components" parent="electron-container" style="swimlane;whiteSpace=wrap;html=1;fontSize=12;fontStyle=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#000000;" value="Main Components" vertex="1">
+          <mxGeometry height="380" width="680" x="2280" y="1420" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

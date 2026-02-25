@@ -1,0 +1,632 @@
+{
+  "power_lines": {
+    "essentials": {
+      "name": "Transmission Power Plants",
+      "color": "#966F9E",
+      "parent": "transmission",
+      "carrier": "electricity"
+    },
+    "constraints": {
+      "energy_cap_max": "inf",
+      "energy_eff": 1.0,
+      "lifetime": 40
+    },
+    "costs": {
+      "monetary": {
+        "interest_rate": 0.1,
+        "energy_cap_per_distance": 0.91
+      }
+    }
+  },
+  "11_kv": {
+    "essentials": {
+      "name": "11 KV",
+      "color": "#966F9E",
+      "parent": "transmission",
+      "carrier": "electricity"
+    },
+    "constraints": {
+      "energy_cap_max": 8500,
+      "lifetime": 40
+    },
+    "costs": {
+      "monetary": {
+        "interest_rate": 0.1,
+        "energy_cap_per_distance": 0.91
+      }
+    }
+  },
+  "13_kv": {
+    "essentials": {
+      "name": "13 KV",
+      "color": "#966F9E",
+      "parent": "transmission",
+      "carrier": "electricity"
+    },
+    "constraints": {
+      "energy_cap_max": 7366,
+      "lifetime": 40
+    },
+    "costs": {
+      "monetary": {
+        "interest_rate": 0.1,
+        "energy_cap_per_distance": 0.91
+      }
+    }
+  },
+  "13-8_kv": {
+    "essentials": {
+      "name": "13.8 KV",
+      "color": "#966F9E",
+      "parent": "transmission",
+      "carrier": "electricity"
+    },
+    "constraints": {
+      "energy_cap_max": 10002,
+      "lifetime": 40
+    },
+    "costs": {
+      "monetary": {
+        "interest_rate": 0.1,
+        "energy_cap_per_distance": 0.91
+      }
+    }
+  },
+  "23_kv": {
+    "essentials": {
+      "name": "23 KV",
+      "color": "#966F9E",
+      "parent": "transmission",
+      "carrier": "electricity"
+    },
+    "constraints": {
+      "energy_cap_max": 37697,
+      "lifetime": 40
+    },
+    "costs": {
+      "monetary": {
+        "interest_rate": 0.1,
+        "energy_cap_per_distance": 0.91
+      }
+    }
+  },
+  "33_kv": {
+    "essentials": {
+      "name": "33 KV",
+      "color": "#966F9E",
+      "parent": "transmission",
+      "carrier": "electricity"
+    },
+    "constraints": {
+      "energy_cap_max": 13399,
+      "lifetime": 40
+    },
+    "costs": {
+      "monetary": {
+        "interest_rate": 0.1,
+        "energy_cap_per_distance": 0.91
+      }
+    }
+  },
+  "44_kv": {
+    "essentials": {
+      "name": "44 KV",
+      "color": "#966F9E",
+      "parent": "transmission",
+      "carrier": "electricity"
+    },
+    "constraints": {
+      "energy_cap_max": 16007,
+      "lifetime": 40
+    },
+    "costs": {
+      "monetary": {
+        "interest_rate": 0.1,
+        "energy_cap_per_distance": 0.91
+      }
+    }
+  },
+  "66_kv": {
+    "essentials": {
+      "name": "66 KV",
+      "color": "#966F9E",
+      "parent": "transmission",
+      "carrier": "electricity"
+    },
+    "constraints": {
+      "energy_cap_max": 35704,
+      "lifetime": 40
+    },
+    "costs": {
+      "monetary": {
+        "interest_rate": 0.1,
+        "energy_cap_per_distance": 0.91
+      }
+    }
+  },
+  "69_kv": {
+    "essentials": {
+      "name": "69 KV",
+      "color": "#966F9E",
+      "parent": "transmission",
+      "carrier": "electricity"
+    },
+    "constraints": {
+      "energy_cap_max": 56327,
+      "lifetime": 40
+    },
+    "costs": {
+      "monetary": {
+        "interest_rate": 0.1,
+        "energy_cap_per_distance": 0.91
+      }
+    }
+  },
+  "100_kv": {
+    "essentials": {
+      "name": "100 KV",
+      "color": "#966F9E",
+      "parent": "transmission",
+      "carrier": "electricity"
+    },
+    "constraints": {
+      "energy_cap_max": 117106,
+      "lifetime": 40
+    },
+    "costs": {
+      "monetary": {
+        "interest_rate": 0.1,
+        "energy_cap_per_distance": 0.91
+      }
+    }
+  },
+  "110_kv": {
+    "essentials": {
+      "name": "110 KV",
+      "color": "#966F9E",
+      "parent": "transmission",
+      "carrier": "electricity"
+    },
+    "constraints": {
+      "energy_cap_max": 133138,
+      "lifetime": 40
+    },
+    "costs": {
+      "monetary": {
+        "interest_rate": 0.1,
+        "energy_cap_per_distance": 0.91
+      }
+    }
+  },
+  "154_kv": {
+    "essentials": {
+      "name": "154 KV",
+      "color": "#966F9E",
+      "parent": "transmission",
+      "carrier": "electricity"
+    },
+    "constraints": {
+      "energy_cap_max": 143492,
+      "lifetime": 40
+    },
+    "costs": {
+      "monetary": {
+        "interest_rate": 0.1,
+        "energy_cap_per_distance": 0.91
+      }
+    }
+  },
+  "220_kv": {
+    "essentials": {
+      "name": "220 KV",
+      "color": "#966F9E",
+      "parent": "transmission",
+      "carrier": "electricity"
+    },
+    "constraints": {
+      "energy_cap_max": 323104,
+      "lifetime": 40
+    },
+    "costs": {
+      "monetary": {
+        "interest_rate": 0.1,
+        "energy_cap_per_distance": 0.91
+      }
+    }
+  },
+  "345_kv": {
+    "essentials": {
+      "name": "345 KV",
+      "color": "#966F9E",
+      "parent": "transmission",
+      "carrier": "electricity"
+    },
+    "constraints": {
+      "energy_cap_max": 699142,
+      "lifetime": 40
+    },
+    "costs": {
+      "monetary": {
+        "interest_rate": 0.1,
+        "energy_cap_per_distance": 0.91
+      }
+    }
+  },
+  "500_kv": {
+    "essentials": {
+      "name": "500 KV",
+      "color": "#966F9E",
+      "parent": "transmission",
+      "carrier": "electricity"
+    },
+    "constraints": {
+      "energy_cap_max": 1702563,
+      "lifetime": 40
+    },
+    "costs": {
+      "monetary": {
+        "interest_rate": 0.1,
+        "energy_cap_per_distance": 0.91
+      }
+    }
+  },
+  "biogas": {
+    "essentials": {
+      "name": "Biogas power plant",
+      "color": "#5AA24D",
+      "parent": "supply",
+      "carrier_out": "electricity"
+    },
+    "constraints": {
+      "energy_cap_max": "inf",
+      "resource": "inf",
+      "energy_eff": 0.3,
+      "lifetime": 30
+    },
+    "costs": {
+      "monetary": {
+        "interest_rate": 0.1,
+        "energy_cap": 1384,
+        "om_annual": 26.82,
+        "om_prod": 0.0176
+      }
+    }
+  },
+  "biomass": {
+    "essentials": {
+      "name": "Biomass power plant",
+      "color": "#D800FF",
+      "parent": "supply",
+      "carrier_out": "electricity"
+    },
+    "constraints": {
+      "energy_cap_max": "inf",
+      "resource": "inf",
+      "energy_eff": 0.25,
+      "lifetime": 30
+    },
+    "costs": {
+      "monetary": {
+        "interest_rate": 0.1,
+        "energy_cap": 3885,
+        "om_annual": 75.16,
+        "om_prod": 0.005
+      }
+    }
+  },
+  "geo": {
+    "essentials": {
+      "name": "Geothermal power plant",
+      "color": "#873737",
+      "parent": "supply",
+      "carrier_out": "electricity"
+    },
+    "constraints": {
+      "energy_cap_max": "inf",
+      "resource": "inf",
+      "lifetime": 50,
+      "energy_eff": 0.15
+    },
+    "costs": {
+      "monetary": {
+        "interest_rate": 0.1,
+        "energy_cap": 5291,
+        "om_prod": 0.0011,
+        "om_annual": 153.54
+      }
+    }
+  },
+  "wind": {
+    "essentials": {
+      "name": "On-shore wind power",
+      "color": "#47D154",
+      "parent": "supply_plus",
+      "carrier_out": "electricity"
+    },
+    "constraints": {
+      "resource_unit": "energy_per_cap",
+      "lifetime": 25
+    },
+    "costs": {
+      "monetary": {
+        "interest_rate": 0.1,
+        "energy_cap": 1534,
+        "om_annual": 40.74
+      }
+    }
+  },
+  "pv": {
+    "essentials": {
+      "name": "Photovoltaic power farm-scale",
+      "color": "#F9FF2C",
+      "parent": "supply_plus",
+      "carrier_out": "electricity"
+    },
+    "constraints": {
+      "resource_unit": "energy_per_cap",
+      "lifetime": 30
+    },
+    "costs": {
+      "monetary": {
+        "interest_rate": 0.1,
+        "energy_cap": 941,
+        "om_annual": 19.22
+      }
+    }
+  },
+  "csp": {
+    "essentials": {
+      "name": "CSP Power",
+      "color": "#99CB48",
+      "parent": "supply_plus",
+      "carrier_out": "electricity"
+    },
+    "constraints": {
+      "resource_unit": "energy_per_cap",
+      "lifetime": 30
+    },
+    "costs": {
+      "monetary": {
+        "interest_rate": 0.1,
+        "energy_cap": 6381,
+        "om_annual": 123.74
+      }
+    }
+  },
+  "run-of-river-hydro": {
+    "essentials": {
+      "name": "Hydroelectric run-of-river power",
+      "color": "#64D7CE",
+      "parent": "supply_plus",
+      "carrier_out": "electricity"
+    },
+    "constraints": {
+      "resource_eff": 0.8,
+      "lifetime": 30
+    },
+    "costs": {
+      "monetary": {
+        "interest_rate": 0.1,
+        "energy_cap": 4746,
+        "om_annual": 138.03
+      }
+    }
+  },
+  "run-of-river-mini-hydro": {
+    "essentials": {
+      "name": "Mini Hydroelectric run-of-river power",
+      "color": "#00FFC5",
+      "parent": "supply_plus",
+      "carrier_out": "electricity"
+    },
+    "constraints": {
+      "resource_eff": 0.7,
+      "lifetime": 30
+    },
+    "costs": {
+      "monetary": {
+        "interest_rate": 0.1,
+        "energy_cap": 2274,
+        "om_annual": 69.24
+      }
+    }
+  },
+  "coal": {
+    "essentials": {
+      "name": "Coal plant traditional",
+      "color": "#5A5A5A",
+      "parent": "supply",
+      "carrier_out": "electricity"
+    },
+    "constraints": {
+      "energy_cap_max": "inf",
+      "resource": "inf",
+      "energy_eff": 0.4,
+      "energy_ramping": 0.6,
+      "lifetime": 35
+    },
+    "costs": {
+      "monetary": {
+        "interest_rate": 0.1,
+        "energy_cap": 816,
+        "om_annual": 23.73,
+        "om_prod": 0.043
+      }
+    }
+  },
+  "oil": {
+    "essentials": {
+      "name": "Oil",
+      "color": "#000000",
+      "parent": "supply",
+      "carrier_out": "electricity"
+    },
+    "constraints": {
+      "energy_cap_max": "inf",
+      "resource": "inf",
+      "energy_eff": 0.4,
+      "energy_ramping": 0.6,
+      "lifetime": 35
+    },
+    "costs": {
+      "monetary": {
+        "interest_rate": 0.1,
+        "energy_cap": 487,
+        "om_annual": 9.4,
+        "om_prod": 0.023
+      }
+    }
+  },
+  "diesel": {
+    "essentials": {
+      "name": "Diesel plant",
+      "color": "#000000",
+      "parent": "supply",
+      "carrier_out": "electricity"
+    },
+    "constraints": {
+      "energy_cap_max": "inf",
+      "resource": "inf",
+      "energy_eff": 0.4,
+      "energy_ramping": 0.6,
+      "lifetime": 35
+    },
+    "costs": {
+      "monetary": {
+        "interest_rate": 0.1,
+        "energy_cap": 487,
+        "om_annual": 9.4,
+        "om_prod": 0.023
+      }
+    }
+  },
+  "gas": {
+    "essentials": {
+      "name": "gas plant",
+      "color": "#5B7494",
+      "parent": "supply",
+      "carrier_out": "electricity"
+    },
+    "constraints": {
+      "energy_cap_max": "inf",
+      "resource": "inf",
+      "energy_eff": 0.5,
+      "energy_ramping": 0.6,
+      "lifetime": 35
+    },
+    "costs": {
+      "monetary": {
+        "interest_rate": 0.1,
+        "energy_cap": 1086,
+        "om_annual": 21.06,
+        "om_prod": 0.0052
+      }
+    }
+  },
+  "reservoir-hydro": {
+    "essentials": {
+      "name": "Hydroelectric power - reservoir and basin",
+      "color": "#50A6D4",
+      "parent": "supply",
+      "carrier_out": "electricity"
+    },
+    "constraints": {
+      "energy_cap_max": "inf",
+      "energy_eff": 0.85,
+      "lifetime": 80
+    },
+    "costs": {
+      "monetary": {
+        "interest_rate": 0.1,
+        "energy_cap": 5369,
+        "om_annual": 52.05
+      }
+    }
+  },
+  "battery": {
+    "essentials": {
+      "color": "#177202",
+      "name": "Battery energy storage",
+      "parent": "storage",
+      "carrier": "electricity"
+    },
+    "constraints": {
+      "energy_eff": 0.9,
+      "lifetime": 20,
+      "energy_cap_per_storage_cap_equals": 0.2
+    },
+    "costs": {
+      "monetary": {
+        "interest_rate": 0.1,
+        "storage_cap": 1556
+      }
+    }
+  },
+  "h2_storage": {
+    "essentials": {
+      "color": "#177202",
+      "name": "Hydrogen storage",
+      "parent": "storage",
+      "carrier": "hydrogen"
+    },
+    "constraints": {
+      "energy_eff": 0.4,
+      "lifetime": 20
+    },
+    "costs": {
+      "monetary": {
+        "interest_rate": 0.1,
+        "storage_cap": 4578,
+        "om_annual": 137
+      }
+    }
+  },
+  "power_demand": {
+    "essentials": {
+      "name": "Power demand",
+      "color": "#072486",
+      "parent": "demand",
+      "carrier": "electricity"
+    }
+  },
+  "electrolyzer": {
+    "essentials": {
+      "name": "Electrolyzer",
+      "color": "#FFD700",
+      "parent": "conversion_plus",
+      "carrier_in": "electricity",
+      "carrier_out": "hydrogen"
+    },
+    "constraints": {
+      "energy_eff": 0.7,
+      "lifetime": 20
+    },
+    "costs": {
+      "monetary": {
+        "interest_rate": 0.1,
+        "energy_cap": 1060,
+        "om_annual": 37
+      }
+    }
+  },
+  "fuel_cell": {
+    "essentials": {
+      "name": "Fuel Cell",
+      "color": "#FF8C00",
+      "parent": "conversion_plus",
+      "carrier_in": "hydrogen",
+      "carrier_out": "electricity"
+    },
+    "constraints": {
+      "energy_eff": 0.5,
+      "lifetime": 15
+    },
+    "costs": {
+      "monetary": {
+        "interest_rate": 0.1,
+        "energy_cap": 1600,
+        "om_annual": 80
+      }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+geoserver:
+  url: "http://localhost:8080/geoserver"
+  workspace: "osm"
+  username: "admin"
+  password: "geoserver"
+
+calliope:
+  url: "http://localhost:5000"
+  timeout: 600  # 10 minutes
+
+server:
+  port: 8082  # Backend API port (GeoServer uses 8080)

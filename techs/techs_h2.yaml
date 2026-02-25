@@ -1,0 +1,32 @@
+techs:
+    electrolyzer:
+        essentials:
+            name: 'Electrolyzer'
+            color: '#FFD700'
+            parent: conversion_plus
+            carrier_in: electricity
+            carrier_out: hydrogen
+        constraints:
+            energy_eff: 0.7
+            lifetime: 20
+        costs:
+            monetary:
+                interest_rate: 0.10
+                energy_cap: 1060 # USD/kW https://www.sciencedirect.com/science/article/pii/S0360544224014038
+                om_annual: 37 # USD/kW/year https://www.sciencedirect.com/science/article/pii/S0360544224014038
+
+    fuel_cell:
+        essentials:
+            name: 'Fuel Cell'
+            color: '#FF8C00'
+            parent: conversion_plus
+            carrier_in: hydrogen
+            carrier_out: electricity
+        constraints:
+            energy_eff: 0.5
+            lifetime: 15
+        costs:
+            monetary:
+                interest_rate: 0.10
+                energy_cap: 1600 # USD/kW https://www.sciencedirect.com/science/article/pii/S0360544224014038
+                om_annual: 80 # USD/kW/year https://www.sciencedirect.com/science/article/pii/S0360544224014038

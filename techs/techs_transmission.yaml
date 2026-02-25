@@ -1,0 +1,276 @@
+##
+# TECHNOLOGY DEFINITIONS
+##
+
+techs:
+#TRANSMISSION+++
+    # inter-zonal
+    power_lines:  # Generic HVAC inter-zonal transmission technology
+        essentials:
+            name: 'Transmission Power Plants'
+            color: '#966F9E'
+            parent: transmission
+            carrier: electricity
+        constraints:
+            energy_cap_max: .inf  # Capacidad infinita para conexión de plantas
+            energy_eff: 1.0       # Sin pérdidas (asumimos distancia corta)
+            lifetime: 40
+        costs:
+            monetary:
+                interest_rate: 0.1
+                energy_cap_per_distance: 0.91 # USD/kW/km 3.9 ($M/mile)/2656 MWe  https://www.sciencedirect.com/science/article/pii/S2589004221014668
+    # inter-zonal-end   
+     
+
+
+    # 11 KV
+    11_kv:  # Generic HVAC inter-zonal transmission technology
+        essentials:
+            name: '11 KV'
+            color: '#966F9E'
+            parent: transmission
+            carrier: electricity
+        constraints:
+            #energy_eff_per_distance: 0.97
+            energy_cap_max: 8500
+            lifetime: 40
+        costs:
+            monetary:
+                interest_rate: 0.1
+                energy_cap_per_distance: 0.91 # USD/kW/km 3.9 ($M/mile)/2656 MWe  https://www.sciencedirect.com/science/article/pii/S2589004221014668
+
+    # 11 KV-end       
+    
+    # 13 KV
+    13_kv: 
+        essentials:
+            name: '13 KV'
+            color: '#966F9E'
+            parent: transmission
+            carrier: electricity
+        constraints:
+            #energy_eff_per_distance: 0.97
+            energy_cap_max: 7366
+            lifetime: 40
+        costs:
+            monetary:
+                interest_rate: 0.1
+                energy_cap_per_distance: 0.91 # USD/kW/km 3.9 ($M/mile)/2656 MWe  https://www.sciencedirect.com/science/article/pii/S2589004221014668
+
+    # 13 KV-end           
+    
+    # 13,8 KV
+    13-8_kv:  
+        essentials:
+            name: '13.8 KV'
+            color: '#966F9E'
+            parent: transmission
+            carrier: electricity
+        constraints:
+            #energy_eff_per_distance: 0.97
+            energy_cap_max: 10002
+            lifetime: 40
+        costs:
+            monetary:
+                interest_rate: 0.1
+                energy_cap_per_distance: 0.91 # USD/kW/km 3.9 ($M/mile)/2656 MWe  https://www.sciencedirect.com/science/article/pii/S2589004221014668
+
+    # 13,8 KV-end  
+
+    # 23 KV
+    23_kv:  
+        essentials:
+            name: '23 KV'
+            color: '#966F9E'
+            parent: transmission
+            carrier: electricity
+        constraints:
+            #energy_eff_per_distance: 0.97
+            energy_cap_max: 37697
+            lifetime: 40
+        costs:
+            monetary:
+                interest_rate: 0.1
+                energy_cap_per_distance: 0.91 # USD/kW/km 3.9 ($M/mile)/2656 MWe  https://www.sciencedirect.com/science/article/pii/S2589004221014668
+
+    # 23 KV-end           
+    
+    # 33 KV
+    33_kv:  
+        essentials:
+            name: '33 KV'
+            color: '#966F9E'
+            parent: transmission
+            carrier: electricity
+        constraints:
+            #energy_eff_per_distance: 0.97
+            energy_cap_max: 13399
+            lifetime: 40
+        costs:
+            monetary:
+                interest_rate: 0.1
+                energy_cap_per_distance: 0.91 # USD/kW/km 3.9 ($M/mile)/2656 MWe  https://www.sciencedirect.com/science/article/pii/S2589004221014668  
+
+    # 33 KV-end           
+    
+    # 44 KV
+    44_kv:  
+        essentials:
+            name: '44 KV'
+            color: '#966F9E'
+            parent: transmission
+            carrier: electricity
+        constraints:
+            #energy_eff_per_distance: 0.97
+            energy_cap_max: 16007
+            lifetime: 40
+        costs:
+            monetary:
+                interest_rate: 0.1
+                energy_cap_per_distance: 0.91 # USD/kW/km 3.9 ($M/mile)/2656 MWe  https://www.sciencedirect.com/science/article/pii/S2589004221014668  
+
+    # 44 KV-end      
+
+    # 66 KV
+    66_kv:  
+        essentials:
+            name: '66 KV'
+            color: '#966F9E'
+            parent: transmission
+            carrier: electricity
+        constraints:
+            #energy_eff_per_distance: 0.97
+            energy_cap_max: 35704
+            lifetime: 40
+        costs:
+            monetary:
+                interest_rate: 0.1
+                energy_cap_per_distance: 0.91 # USD/kW/km 3.9 ($M/mile)/2656 MWe  https://www.sciencedirect.com/science/article/pii/S2589004221014668  
+
+    # 66 KV-end       
+    
+    # 69 KV
+    69_kv:  
+        essentials:
+            name: '69 KV'
+            color: '#966F9E'
+            parent: transmission
+            carrier: electricity
+        constraints:
+            #energy_eff_per_distance: 0.97
+            energy_cap_max: 56327
+            lifetime: 40
+        costs:
+            monetary:
+                interest_rate: 0.1
+                energy_cap_per_distance: 0.91 # USD/kW/km 3.9 ($M/mile)/2656 MWe  https://www.sciencedirect.com/science/article/pii/S2589004221014668  
+
+    # 69 KV-end       
+    
+    # 100 KV
+    100_kv: 
+        essentials:
+            name: '100 KV'
+            color: '#966F9E'
+            parent: transmission
+            carrier: electricity
+        constraints:
+            #energy_eff_per_distance: 0.97
+            energy_cap_max: 117106
+            lifetime: 40
+        costs:
+            monetary:
+                interest_rate: 0.1
+                energy_cap_per_distance: 0.91 # USD/kW/km 3.9 ($M/mile)/2656 MWe  https://www.sciencedirect.com/science/article/pii/S2589004221014668  
+
+    # 100 KV-end           
+ 
+    # 110 KV
+    110_kv:  
+        essentials:
+            name: '110 KV'
+            color: '#966F9E'
+            parent: transmission
+            carrier: electricity
+        constraints:
+            #energy_eff_per_distance: 0.97
+            energy_cap_max: 133138
+            lifetime: 40
+        costs:
+            monetary:
+                interest_rate: 0.1
+                energy_cap_per_distance: 0.91 # USD/kW/km 3.9 ($M/mile)/2656 MWe  https://www.sciencedirect.com/science/article/pii/S2589004221014668  
+
+    # 110 KV-end       
+
+    # 154 KV
+    154_kv: 
+        essentials:
+            name: '154 KV'
+            color: '#966F9E'
+            parent: transmission
+            carrier: electricity
+        constraints:
+            #energy_eff_per_distance: 0.97
+            energy_cap_max: 143492
+            lifetime: 40
+        costs:
+            monetary:
+                interest_rate: 0.1
+                energy_cap_per_distance: 0.91 # USD/kW/km 3.9 ($M/mile)/2656 MWe  https://www.sciencedirect.com/science/article/pii/S2589004221014668  
+
+    # 154 KV-end       
+
+    # 220 KV
+    220_kv:  
+        essentials:
+            name: '220 KV'
+            color: '#966F9E'
+            parent: transmission
+            carrier: electricity
+        constraints:
+            #energy_eff_per_distance: 0.97
+            energy_cap_max: 323104
+            lifetime: 40
+        costs:
+            monetary:
+                interest_rate: 0.1
+                energy_cap_per_distance: 0.91 # USD/kW/km 3.9 ($M/mile)/2656 MWe  https://www.sciencedirect.com/science/article/pii/S2589004221014668  
+
+    # 220 KV-end       
+
+    # 345 KV
+    345_kv:  
+        essentials:
+            name: '345 KV'
+            color: '#966F9E'
+            parent: transmission
+            carrier: electricity
+        constraints:
+            #energy_eff_per_distance: 0.97
+            energy_cap_max: 699142
+            lifetime: 40
+        costs:
+            monetary:
+                interest_rate: 0.1
+                energy_cap_per_distance: 0.91 # USD/kW/km 3.9 ($M/mile)/2656 MWe  https://www.sciencedirect.com/science/article/pii/S2589004221014668  
+
+    # 345 KV-end       
+
+    # 500 KV
+    500_kv:  
+        essentials:
+            name: '500 KV'
+            color: '#966F9E'
+            parent: transmission
+            carrier: electricity
+        constraints:
+            #energy_eff_per_distance: 0.97
+            energy_cap_max: 1702563
+            lifetime: 40
+        costs:
+            monetary:
+                interest_rate: 0.1
+                energy_cap_per_distance: 0.91 # USD/kW/km 3.9 ($M/mile)/2656 MWe  https://www.sciencedirect.com/science/article/pii/S2589004221014668  
+    # 500 KV-end       
+ 

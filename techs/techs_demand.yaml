@@ -1,0 +1,19 @@
+##
+# TECHNOLOGY DEFINITIONS
+##
+
+# Note: '-start' and '-end' is used in tutorial documentation only
+
+techs:
+    ##
+# Demand
+    ##
+    power_demand:
+        essentials:
+            name: 'Power demand'
+            color: '#072486'
+            parent: demand
+            carrier: electricity
+    
+
+   

@@ -1,0 +1,114 @@
+##
+# TECHNOLOGY DEFINITIONS
+##
+
+# Note: '-start' and '-end' is used in tutorial documentation only
+
+techs:
+
+    ##
+    # Supply
+    ##
+    
+    # coal
+    coal:
+        essentials:
+            name: 'Coal plant traditional'
+            color: '#5A5A5A'
+            parent: supply
+            carrier_out: electricity
+        constraints:
+            energy_cap_max: .inf  # Can be overridden at location level
+            resource: inf
+            energy_eff: 0.4
+            energy_ramping: 0.6 # Assume about 1% per minute times 60 minutes, based on {mit2011}
+            lifetime: 35
+        costs:
+            monetary:
+                interest_rate: 0.10
+                energy_cap: 816  # US/kW https://www.cne.cl/wp-content/uploads/2024/06/ICTG-Mayo-2024.pdf
+                om_annual: 23.73  # US/kW/year Report of the cost for every generation tecnology, may 2023
+                om_prod: 0.043 # USD/kWh 8,980 BTU/kWh (110USD/1000 kg)Report of the cost for every generation tecnology, may 2023
+    # coal-end
+    
+    # oil and other fossil
+    oil:
+        essentials:
+            name: 'Oil'
+            color: '#000000'
+            parent: supply
+            carrier_out: electricity
+        constraints:
+            energy_cap_max: .inf  # Can be overridden at location level
+            resource: inf
+            energy_eff: 0.4 #assumption
+            energy_ramping: 0.6 #assumption
+            lifetime: 35 #assumption
+        costs:
+            monetary:
+                interest_rate: 0.10
+                energy_cap: 487  # US/kW https://www.cne.cl/wp-content/uploads/2024/06/ICTG-Mayo-2024.pdf
+                om_annual: 9.4 # US/kW/year Report of the cost for every generation tecnology, may 2023
+                om_prod: 0.023 # USD/kWh 22,9 (USD/MWh) Report of the cost for every generation tecnology, may 2023
+
+    diesel:
+        essentials:
+            name: 'Diesel plant'
+            color: '#000000'
+            parent: supply
+            carrier_out: electricity
+        constraints:
+            energy_cap_max: .inf  # Can be overridden at location level
+            resource: inf
+            energy_eff: 0.4 #assumption
+            energy_ramping: 0.6 #assumption
+            lifetime: 35 #assumption
+        costs:
+            monetary:
+                interest_rate: 0.10
+                energy_cap: 487  # US/kW https://www.cne.cl/wp-content/uploads/2024/06/ICTG-Mayo-2024.pdf
+                om_annual: 9.4 # US/kW/year Report of the cost for every generation tecnology, may 2023
+                om_prod: 0.023 # USD/kWh 22,9 (USD/MWh) Report of the cost for every generation tecnology, may 2023
+
+    # oil and other fossil-end
+    
+    # oil and other fossil
+    gas:
+        essentials:
+            name: 'gas plant'
+            color: '#5B7494'
+            parent: supply
+            carrier_out: electricity
+        constraints:
+            energy_cap_max: .inf  # Can be overridden at location level
+            resource: inf
+            energy_eff: 0.5 #assumption
+            energy_ramping: 0.6 #assumption
+            lifetime: 35 #assumption
+        costs:
+            monetary:
+                interest_rate: 0.10
+                energy_cap: 1086 # US/kW https://www.cne.cl/wp-content/uploads/2024/06/ICTG-Mayo-2024.pdf
+                om_annual: 21.06 # USD/kW/year Report of the cost for every generation tecnology, may 2023
+                om_prod: 0.0052 # USD/kWh 5,2 (USD/MWh) https://www.cne.cl/wp-content/uploads/2024/06/ICTG-Mayo-2024.pdf
+    # oil and other fossil-end
+      
+        
+    #hydro reservoir and basin type
+    reservoir-hydro:
+        essentials:
+            name: 'Hydroelectric power - reservoir and basin'
+            color: '#50A6D4'
+            parent: supply
+            carrier_out: electricity
+        constraints:
+            energy_cap_max: .inf  # Can be overridden at location level
+            energy_eff: 0.85
+            lifetime: 80
+        costs:
+            monetary:
+                interest_rate: 0.10
+                energy_cap: 5369 # US/kW https://www.cne.cl/wp-content/uploads/2024/06/ICTG-Mayo-2024.pdf
+                om_annual: 52.05 # USD/kW/year Report of the cost for every generation tecnology, may 2023
+    #hydro reservoir and basin type-end
+    

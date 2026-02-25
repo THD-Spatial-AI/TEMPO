@@ -1,0 +1,45 @@
+{
+  "name": "calliope-visualizer-electron",
+  "version": "1.0.0",
+  "description": "Calliope Energy System Modeling Desktop Application",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:vite\" \"npm run dev:electron\"",
+    "dev:vite": "vite",
+    "dev:electron": "wait-on http://localhost:5173 && electron .",
+    "build": "vite build && electron-builder",
+    "build:backend": "cd backend-go && go build -o ../dist/backend.exe",
+    "preview": "vite preview"
+  },
+  "build": {
+    "appId": "com.calliope.visualizer",
+    "productName": "Calliope Visualizer",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "backend-go/backend.exe"
+    ],
+    "win": {
+      "target": ["nsis"],
+      "icon": "public/icon.ico"
+    },
+    "extraResources": [
+      {
+        "from": "backend-go/backend.exe",
+        "to": "backend.exe"
+      }
+    ]
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "electron": "^28.1.0",
+    "electron-builder": "^24.9.1",
+    "wait-on": "^7.2.0"
+  },
+  "dependencies": {
+    "electron-store": "^8.1.0"
+  }
+}
