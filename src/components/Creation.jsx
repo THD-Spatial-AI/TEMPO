@@ -811,27 +811,17 @@ const Creation = () => {
     calliopeVersion: '0.6.8',
     startDate: '2024-01-01',
     endDate: '2024-12-31',
-    solver: 'gurobi',
+    solver: 'highs',
     ensureFeasibility: true,
     cyclicStorage: false,
     mode: 'plan',
     objectiveCostClass: 'monetary',
     solverOptions: {
-      threads: 24,
-      method: 2,
-      barConvTol: 1e-3,
-      feasibilityTol: 1e-3,
-      optimalityTol: 1e-3,
-      mipGap: 1e-3,
-      numericFocus: 2,
-      crossover: 0,
-      barHomogeneous: 1,
-      presolve: 2,
-      aggFill: 10,
-      preDual: 2,
-      rins: 100,
-      nodefileStart: 0.5,
-      seed: 42
+      threads: 4,
+      mip_rel_gap: 1e-3,
+      primal_feasibility_tolerance: 1e-6,
+      dual_feasibility_tolerance: 1e-6,
+      ipm_optimality_tolerance: 1e-6,
     }
   });
 
