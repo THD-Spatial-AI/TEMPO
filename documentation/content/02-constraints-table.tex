@@ -1,12 +1,17 @@
 \vfill
 \begin{table}[h!]
     \centering
-    \caption{External and organizational constrains.}
-    \begin{tabular}{c l} 
+    \caption{External and organizational constraints.}
+    \begin{tabular}{c p{11cm}} 
         \toprule
         Nr. & Constraint \\ [0.5ex] 
         \midrule
-        01 & - \\ [1ex] 
+        01 & Target platform is Windows 10/11 x64; Electron packaging and Go binary are compiled for this platform. \\ [1ex]
+        02 & Python 3.9 or newer with the Calliope package must be installed on the host machine for model execution. \\ [1ex]
+        03 & Generated YAML output must be compliant with the Calliope 0.7 framework specification. \\ [1ex]
+        04 & No external database server; all persistence is handled by a local SQLite file. \\ [1ex]
+        05 & OSM power infrastructure data must be pre-processed via the provided Python scripts before regional map layers are available. \\ [1ex]
+        06 & The project is maintained under the institutional GitLab at Deggendorf Institute of Technology. \\ [1ex]
         \bottomrule
     \end{tabular}
     \label{table:2}
