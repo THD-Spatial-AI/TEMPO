@@ -24,7 +24,6 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import api from '../services/api';
 import regionsDb from '../../public/data/osm_extracts/regions_database.json';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -171,6 +170,10 @@ function buildTree(paths) {
 }
 
 // ── hook ──────────────────────────────────────────────────────────────────────
+// Build the region tree directly from the bundled regions_database.json.
+// This removes the PostGIS/GeoServer dependency — all defined regions are
+// always available; live OSM data for any selected region is fetched on-demand
+// via the Overpass API.
 
 export function useLoadedRegions() {
   const [tree,    setTree]    = useState({});
@@ -178,14 +181,36 @@ export function useLoadedRegions() {
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState(null);
 
+  // Flatten the nested regions_database.json into a list of path strings and
+  // build the tree in one pass.  Uses the statically-bundled import so this
+  // works in both Vite dev mode AND Electron file:// production mode.
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const result = await api.getLoadedRegions();
-      const regionPaths = result?.regions ?? [];
-      setPaths(regionPaths);
-      setTree(buildTree(regionPaths));
+      const continents = regionsDb.continents || regionsDb;
+
+      // Collect all paths (continent/country, and deeper if present)
+      const allPaths = [];
+      for (const [cont, contData] of Object.entries(continents)) {
+        const countries = contData.countries || contData;
+        for (const [country, countryData] of Object.entries(countries)) {
+          if (typeof countryData !== 'object') continue;
+          allPaths.push(`${cont}/${country}`);
+          const regions = countryData.regions || {};
+          for (const [region, regionData] of Object.entries(regions)) {
+            if (typeof regionData !== 'object') continue;
+            allPaths.push(`${cont}/${country}/${region}`);
+            const subregions = regionData.subregions || {};
+            for (const subregion of Object.keys(subregions)) {
+              allPaths.push(`${cont}/${country}/${region}/${subregion}`);
+            }
+          }
+        }
+      }
+
+      setPaths(allPaths);
+      setTree(buildTree(allPaths));
     } catch (err) {
       console.error('useLoadedRegions:', err);
       setError(err.message);

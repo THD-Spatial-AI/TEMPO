@@ -202,6 +202,9 @@ async function ensureMiniconda(sendProgress) {
 /**
  * calliope:check
  * → { condaFound: bool, envExists: bool, version: string|null, condaPath: string|null }
+ *
+ * Uses `conda env list` (fast, no Python startup) to detect the environment,
+ * with a 20-second timeout so it never hangs the setup screen.
  */
 ipcMain.handle('calliope:check', async () => {
   const conda = findConda();
@@ -210,19 +213,43 @@ ipcMain.handle('calliope:check', async () => {
   }
 
   return new Promise(resolve => {
-    const child = spawn(conda, [
-      'run', '-n', 'calliope', '--no-capture-output',
-      'python', '-c', 'import calliope; print(calliope.__version__)',
-    ], { shell: false });
+    // Use `conda env list` — it merely reads directory listings, executes in
+    // under 2 seconds even on first run, and never hangs.
+    const child = spawn(conda, ['env', 'list', '--json'], { shell: false });
 
-    let version = '';
-    child.stdout.on('data', d => { version += d.toString(); });
+    let stdout = '';
+    let timer = setTimeout(() => {
+      try { child.kill(); } catch (_) {}
+      // Timed out → assume env does not exist so setup runs
+      resolve({ condaFound: true, envExists: false, version: null, condaPath: conda });
+    }, 20000);
+
+    child.stdout.on('data', d => { stdout += d.toString(); });
     child.on('close', code => {
-      if (code === 0) {
-        resolve({ condaFound: true, envExists: true, version: version.trim(), condaPath: conda });
-      } else {
+      clearTimeout(timer);
+      if (code !== 0) {
         resolve({ condaFound: true, envExists: false, version: null, condaPath: conda });
+        return;
       }
+      try {
+        const parsed = JSON.parse(stdout);
+        const envs = parsed.envs || [];
+        // Any path that ends with /calliope or \calliope (or is named calliope)
+        const envExists = envs.some(p =>
+          p.toLowerCase().endsWith(`${path.sep}calliope`) ||
+          p.toLowerCase().endsWith('/calliope')
+        );
+        resolve({ condaFound: true, envExists, version: envExists ? 'installed' : null, condaPath: conda });
+      } catch (_) {
+        // JSON parse failed — fall back to plain text scan
+        const envExists = stdout.toLowerCase().includes(`${path.sep}calliope`) ||
+                          stdout.toLowerCase().includes('/calliope');
+        resolve({ condaFound: true, envExists, version: null, condaPath: conda });
+      }
+    });
+    child.on('error', () => {
+      clearTimeout(timer);
+      resolve({ condaFound: true, envExists: false, version: null, condaPath: conda });
     });
   });
 });
