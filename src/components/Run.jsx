@@ -1,6 +1,10 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
-import { FiPlay, FiStopCircle, FiCheckCircle, FiAlertCircle, FiClock, FiCpu, FiZap, FiActivity, FiSettings } from 'react-icons/fi';
+import {
+  FiPlay, FiStopCircle, FiCheckCircle, FiAlertCircle,
+  FiClock, FiCpu, FiZap, FiActivity, FiSettings,
+  FiTerminal, FiTrash2, FiAlertTriangle,
+} from 'react-icons/fi';
 
 const MODELING_FRAMEWORKS = [
   {
@@ -9,7 +13,7 @@ const MODELING_FRAMEWORKS = [
     description: 'Multi-scale energy system modeling framework',
     icon: FiZap,
     color: 'from-blue-500 to-blue-600',
-    supported: true
+    supported: true,
   },
   {
     id: 'pypsa',
@@ -17,7 +21,7 @@ const MODELING_FRAMEWORKS = [
     description: 'Python for Power System Analysis',
     icon: FiActivity,
     color: 'from-green-500 to-green-600',
-    supported: false
+    supported: false,
   },
   {
     id: 'osemosys',
@@ -25,60 +29,149 @@ const MODELING_FRAMEWORKS = [
     description: 'Open Source Energy Modelling System',
     icon: FiCpu,
     color: 'from-purple-500 to-purple-600',
-    supported: false
+    supported: false,
   },
-  {
-    id: 'adoptnet',
-    name: 'AdoptNET',
-    description: 'Adoption Network Energy Transition',
-    icon: FiSettings,
-    color: 'from-orange-500 to-orange-600',
-    supported: false
-  }
 ];
 
 const SOLVER_OPTIONS = {
-  calliope: ['gurobi', 'glpk', 'cplex', 'cbc'],
-  pypsa: ['gurobi', 'glpk', 'cplex', 'highs'],
-  osemosys: ['glpk', 'gurobi', 'cplex', 'cbc'],
-  adoptnet: ['gurobi', 'cplex']
+  calliope: ['glpk', 'cbc', 'gurobi', 'cplex'],
 };
 
+// â”€â”€â”€ Helper: is this running in Electron? â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const isElectron = () => typeof window !== 'undefined' && !!window.electronAPI;
+
 const Run = () => {
-  const { models, getCurrentModel, showNotification } = useData();
-  const [selectedModel, setSelectedModel] = useState(null);
+  const { models, getCurrentModel, showNotification, addCompletedJob, removeCompletedJob, completedJobs } = useData();
+
+  const [selectedModel, setSelectedModel]       = useState(null);
   const [selectedFramework, setSelectedFramework] = useState('calliope');
-  const [selectedSolver, setSelectedSolver] = useState('gurobi');
-  const [runningJobs, setRunningJobs] = useState([]);
-  const [completedJobs, setCompletedJobs] = useState([]);
+  const [selectedSolver, setSelectedSolver]     = useState('glpk');
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
-  
-  // Calliope webservice API endpoint - configure this URL before deployment
-  const API_ENDPOINT = 'http://localhost:5000/api';
-  
-  // Advanced settings
   const [advancedSettings, setAdvancedSettings] = useState({
     threads: 4,
     timeLimit: 3600,
     mipGap: 0.001,
-    feasibilityTol: 1e-6,
-    optimalityTol: 1e-6
   });
 
+  // Calliope environment status
+  const [calliopeStatus, setCalliopeStatus] = useState(null); // null = unchecked
+
+  // Active (running) jobs: { id, modelName, solver, startTime, logs: [] }
+  const [runningJobs, setRunningJobs] = useState([]);
+
+  // Log panel state
+  const [expandedLog, setExpandedLog] = useState(null); // jobId whose log is visible
+  const logEndRef = useRef(null);
+
+  // â”€â”€ Mount: pre-select current model & check Calliope env â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
   useEffect(() => {
-    const currentModel = getCurrentModel();
-    if (currentModel) {
-      setSelectedModel(currentModel);
-    }
+    const current = getCurrentModel();
+    if (current) setSelectedModel(current);
   }, [getCurrentModel]);
 
   useEffect(() => {
-    // Update solver when framework changes
-    const availableSolvers = SOLVER_OPTIONS[selectedFramework] || [];
-    if (availableSolvers.length > 0) {
-      setSelectedSolver(availableSolvers[0]);
+    if (!isElectron()) {
+      setCalliopeStatus({ condaFound: false, envExists: false });
+      return;
     }
+    window.electronAPI.checkCalliope().then(setCalliopeStatus).catch(() => {
+      setCalliopeStatus({ condaFound: false, envExists: false });
+    });
+  }, []);
+
+  useEffect(() => {
+    const solvers = SOLVER_OPTIONS[selectedFramework] || [];
+    if (solvers.length > 0) setSelectedSolver(solvers[0]);
   }, [selectedFramework]);
+
+  // Scroll log to bottom whenever logs grow
+  useEffect(() => {
+    if (logEndRef.current) logEndRef.current.scrollIntoView({ behavior: 'smooth' });
+  }, [runningJobs]);
+
+  // â”€â”€ Subscribe to Calliope events from Electron â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+  useEffect(() => {
+    if (!isElectron()) return;
+
+    const removeListener = window.electronAPI.onCalliopeEvent((event) => {
+      const { type, jobId, line, result, error } = event;
+
+      if (type === 'log') {
+        setRunningJobs(prev =>
+          prev.map(j => j.id === jobId
+            ? { ...j, logs: [...j.logs, line] }
+            : j
+          )
+        );
+      }
+
+      if (type === 'done') {
+        setRunningJobs(prev => {
+          const job = prev.find(j => j.id === jobId);
+          if (job) {
+            const endTime = new Date().toISOString();
+            const durationMs = Date.now() - new Date(job.startTime).getTime();
+            const duration = durationMs < 60000
+              ? `${(durationMs / 1000).toFixed(1)}s`
+              : `${Math.round(durationMs / 60000)}m ${Math.round((durationMs % 60000) / 1000)}s`;
+
+            const completedJob = {
+              id: jobId,
+              modelName: job.modelName,
+              framework: job.framework,
+              solver: job.solver,
+              status: result?.success === false ? 'failed' : 'completed',
+              completedAt: endTime,
+              duration,
+              objective: result?.objective || null,
+              terminationCondition: result?.termination_condition || 'optimal',
+              result: result || {},
+              logs: job.logs,
+            };
+
+            addCompletedJob(completedJob);
+            showNotification(
+              result?.success === false
+                ? `Model run failed: ${result.error}`
+                : `Model run completed in ${duration}`,
+              result?.success === false ? 'error' : 'success'
+            );
+          }
+          return prev.filter(j => j.id !== jobId);
+        });
+      }
+
+      if (type === 'error') {
+        setRunningJobs(prev => {
+          const job = prev.find(j => j.id === jobId);
+          if (job) {
+            const completedJob = {
+              id: jobId,
+              modelName: job.modelName,
+              framework: job.framework,
+              solver: job.solver,
+              status: 'failed',
+              completedAt: new Date().toISOString(),
+              duration: 'N/A',
+              objective: null,
+              terminationCondition: 'error',
+              result: { success: false, error },
+              logs: [...job.logs, `[ERROR] ${error}`],
+            };
+            addCompletedJob(completedJob);
+            showNotification(`Run failed: ${error}`, 'error');
+          }
+          return prev.filter(j => j.id !== jobId);
+        });
+      }
+    });
+
+    return removeListener;
+  }, [addCompletedJob, showNotification]);
+
+  // â”€â”€ Run model â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const handleRunModel = async () => {
     if (!selectedModel) {
@@ -87,228 +180,154 @@ const Run = () => {
     }
 
     const framework = MODELING_FRAMEWORKS.find(f => f.id === selectedFramework);
-    if (!framework.supported) {
-      showNotification(`${framework.name} support is coming soon!`, 'info');
+    if (!framework?.supported) {
+      showNotification(`${framework?.name} support is coming soon!`, 'info');
       return;
     }
 
-    const jobId = `job_${Date.now()}`;
-    const newJob = {
-      id: jobId,
-      modelName: selectedModel.name,
-      framework: selectedFramework,
-      solver: selectedSolver,
-      status: 'running',
-      progress: 0,
-      startTime: new Date().toISOString(),
-      settings: { ...advancedSettings }
-    };
+    if (!isElectron()) {
+      showNotification('Calliope runs locally in the desktop app only.', 'warning');
+      return;
+    }
 
-    setRunningJobs(prev => [...prev, newJob]);
-    showNotification(`Started ${framework.name} run for ${selectedModel.name}`, 'success');
+    if (!calliopeStatus?.envExists) {
+      showNotification('Calliope environment not found. Run the setup script first.', 'error');
+      return;
+    }
 
     try {
-      // Call actual Calliope webservice API
-      const response = await fetch(`${API_ENDPOINT}/run`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: selectedModel,
-          framework: selectedFramework,
-          solver: selectedSolver,
-          settings: advancedSettings
-        })
+      const { jobId } = await window.electronAPI.runCalliope({
+        modelData: selectedModel,
+        solver: selectedSolver,
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to submit job to webservice');
-      }
+      const newJob = {
+        id: jobId,
+        modelName: selectedModel.name,
+        framework: selectedFramework,
+        solver: selectedSolver,
+        startTime: new Date().toISOString(),
+        logs: [],
+      };
 
-      const data = await response.json();
-      
-      // Poll for job status
-      pollJobStatus(jobId, data.jobId || jobId);
-      
-    } catch (error) {
-      console.error('API Error:', error);
-      showNotification(`Failed to connect to API: ${error.message}. Running simulation instead.`, 'warning');
-      
-      // Fallback to simulation if API fails
-      simulateModelRun(jobId);
+      setRunningJobs(prev => [...prev, newJob]);
+      setExpandedLog(jobId);
+      showNotification(`Started Calliope run for "${selectedModel.name}"`, 'success');
+    } catch (err) {
+      showNotification(`Failed to start run: ${err.message}`, 'error');
     }
   };
 
-  const pollJobStatus = async (localJobId, remoteJobId) => {
-    const pollInterval = setInterval(async () => {
-      try {
-        const response = await fetch(`${API_ENDPOINT}/job/${remoteJobId}`);
-        const data = await response.json();
-        
-        if (data.status === 'completed') {
-          clearInterval(pollInterval);
-          setRunningJobs(prev => prev.filter(job => job.id !== localJobId));
-          
-          const completedJob = {
-            id: localJobId,
-            modelName: selectedModel.name,
-            framework: selectedFramework,
-            solver: selectedSolver,
-            status: 'completed',
-            progress: 100,
-            startTime: data.startTime,
-            endTime: new Date().toISOString(),
-            duration: data.duration || 'N/A',
-            objective: data.objective,
-            results: data.results,
-            settings: { ...advancedSettings }
-          };
-          
-          setCompletedJobs(prev => [completedJob, ...prev]);
-          showNotification(`Model run completed successfully!`, 'success');
-        } else if (data.status === 'failed') {
-          clearInterval(pollInterval);
-          setRunningJobs(prev => prev.filter(job => job.id !== localJobId));
-          showNotification(`Model run failed: ${data.error}`, 'error');
-        } else {
-          // Update progress
-          setRunningJobs(prev => prev.map(job => 
-            job.id === localJobId ? { ...job, progress: data.progress || 0 } : job
-          ));
-        }
-      } catch (error) {
-        console.error('Polling error:', error);
-      }
-    }, 2000); // Poll every 2 seconds
-  };
-
-  const simulateModelRun = (jobId) => {
-    let progress = 0;
-    const interval = setInterval(() => {
-      progress += Math.random() * 15;
-      
-      if (progress >= 100) {
-        clearInterval(interval);
-        setRunningJobs(prev => prev.filter(job => job.id !== jobId));
-        
-        const completedJob = {
-          id: jobId,
-          modelName: selectedModel.name,
-          framework: selectedFramework,
-          solver: selectedSolver,
-          status: 'completed',
-          progress: 100,
-          startTime: new Date(Date.now() - 30000).toISOString(),
-          endTime: new Date().toISOString(),
-          duration: '30s',
-          objective: Math.random() * 1000000,
-          settings: { ...advancedSettings }
-        };
-        
-        setCompletedJobs(prev => [completedJob, ...prev]);
-        showNotification(`Model run completed successfully!`, 'success');
-      } else {
-        setRunningJobs(prev => prev.map(job => 
-          job.id === jobId ? { ...job, progress: Math.min(progress, 100) } : job
-        ));
-      }
-    }, 1000);
-  };
-
-  const handleStopJob = (jobId) => {
-    setRunningJobs(prev => prev.filter(job => job.id !== jobId));
+  const handleStopJob = async (jobId) => {
+    if (isElectron()) {
+      await window.electronAPI.stopCalliope(jobId);
+    }
+    setRunningJobs(prev => prev.filter(j => j.id !== jobId));
     showNotification('Model run stopped', 'info');
   };
 
-  const handleDeleteJob = (jobId) => {
-    setCompletedJobs(prev => prev.filter(job => job.id !== jobId));
-  };
+  // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+  const calliopeReady = calliopeStatus?.envExists;
+  const calliopeChecking = calliopeStatus === null;
 
   return (
     <div className="h-full bg-gradient-to-br from-slate-50 to-slate-100 overflow-y-auto">
       <div className="max-w-7xl mx-auto p-8">
+
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-electric-600 to-violet-600 bg-clip-text text-transparent mb-2">
             Run Model
           </h1>
-          <p className="text-slate-600">
-            Execute your energy model using different modeling frameworks and solvers
-          </p>
+          <p className="text-slate-600">Execute your energy model locally using Calliope</p>
         </div>
 
+        {/* Calliope Environment Banner */}
+        {calliopeChecking ? (
+          <div className="mb-6 flex items-center gap-3 p-4 bg-slate-100 border border-slate-200 rounded-xl text-slate-600 text-sm">
+            <FiCpu className="animate-spin text-slate-400 flex-shrink-0" size={20} />
+            Checking Calliope environment â€¦
+          </div>
+        ) : calliopeReady ? (
+          <div className="mb-6 flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-xl text-green-800 text-sm">
+            <FiCheckCircle className="flex-shrink-0 text-green-600" size={20} />
+            <span>
+              Calliope <strong>{calliopeStatus.version}</strong> is ready.
+              Runs execute locally using the <strong>calliope</strong> conda environment.
+            </span>
+          </div>
+        ) : (
+          <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-sm">
+            <div className="flex items-start gap-3">
+              <FiAlertTriangle className="flex-shrink-0 text-amber-500 mt-0.5" size={20} />
+              <div>
+                <p className="font-semibold mb-1">Calliope environment not available</p>
+                <p className="text-amber-800">
+                  {!calliopeStatus?.condaFound
+                    ? 'conda was not found on this system. Please restart the app to run the setup wizard.'
+                    : 'The calliope environment could not be loaded. Please restart the app to reinstall it.'}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Panel - Model Selection & Framework */}
+
+          {/* â”€â”€ Left: Configuration â”€â”€ */}
           <div className="lg:col-span-2 space-y-6">
+
             {/* Model Selection */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
               <h2 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
                 <FiSettings className="text-electric-500" />
                 Model Selection
               </h2>
-              
-              <div className="space-y-3">
-                <label className="block text-sm font-medium text-slate-700">
-                  Select Model to Run
-                </label>
-                <select
-                  value={selectedModel?.id || ''}
-                  onChange={(e) => {
-                    const model = models.find(m => m.id === e.target.value);
-                    setSelectedModel(model);
-                  }}
-                  className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-electric-500 focus:border-transparent bg-white"
-                >
-                  <option value="">-- Select a model --</option>
-                  {models.map(model => (
-                    <option key={model.id} value={model.id}>
-                      {model.name} ({model.locations?.length || 0} locations, {model.links?.length || 0} links)
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <select
+                value={selectedModel?.id || ''}
+                onChange={e => setSelectedModel(models.find(m => m.id === e.target.value))}
+                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-electric-500 focus:border-transparent bg-white"
+              >
+                <option value="">-- Select a model --</option>
+                {models.map(m => (
+                  <option key={m.id} value={m.id}>
+                    {m.name} ({m.locations?.length || 0} locations, {m.links?.length || 0} links)
+                  </option>
+                ))}
+              </select>
             </div>
 
-            {/* Framework Selection */}
+            {/* Framework */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
               <h2 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
                 <FiCpu className="text-electric-500" />
                 Modeling Framework
               </h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {MODELING_FRAMEWORKS.map(framework => {
-                  const Icon = framework.icon;
-                  const isSelected = selectedFramework === framework.id;
-                  
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {MODELING_FRAMEWORKS.map(fw => {
+                  const Icon = fw.icon;
+                  const selected = selectedFramework === fw.id;
                   return (
                     <button
-                      key={framework.id}
-                      onClick={() => setSelectedFramework(framework.id)}
-                      disabled={!framework.supported}
+                      key={fw.id}
+                      onClick={() => setSelectedFramework(fw.id)}
+                      disabled={!fw.supported}
                       className={`relative p-4 rounded-xl border-2 transition-all duration-200 text-left ${
-                        isSelected
-                          ? `border-transparent bg-gradient-to-r ${framework.color} text-white shadow-lg`
-                          : framework.supported
+                        selected
+                          ? `border-transparent bg-gradient-to-r ${fw.color} text-white shadow-lg`
+                          : fw.supported
                           ? 'border-slate-200 hover:border-slate-300 bg-white hover:shadow-md'
                           : 'border-slate-200 bg-slate-50 opacity-50 cursor-not-allowed'
                       }`}
                     >
-                      <div className="flex items-start gap-3">
-                        <Icon size={24} className={isSelected ? 'text-white' : 'text-slate-400'} />
-                        <div className="flex-1">
-                          <div className="font-semibold mb-1">{framework.name}</div>
-                          <div className={`text-xs ${isSelected ? 'text-white/90' : 'text-slate-500'}`}>
-                            {framework.description}
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {!framework.supported && (
-                        <div className="absolute top-2 right-2 bg-slate-200 text-slate-700 text-xs px-2 py-1 rounded">
-                          Coming Soon
-                        </div>
+                      <Icon size={22} className={selected ? 'text-white mb-2' : 'text-slate-400 mb-2'} />
+                      <div className="font-semibold text-sm">{fw.name}</div>
+                      <div className={`text-xs mt-1 ${selected ? 'text-white/80' : 'text-slate-500'}`}>{fw.description}</div>
+                      {!fw.supported && (
+                        <span className="absolute top-2 right-2 text-xs bg-slate-200 text-slate-600 px-2 py-0.5 rounded">
+                          Soon
+                        </span>
                       )}
                     </button>
                   );
@@ -316,91 +335,52 @@ const Run = () => {
               </div>
             </div>
 
-            {/* Solver & Settings */}
+            {/* Solver */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-              <h2 className="text-lg font-semibold text-slate-800 mb-4">
-                Solver Configuration
-              </h2>
-              
+              <h2 className="text-lg font-semibold text-slate-800 mb-4">Solver Configuration</h2>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Solver
-                  </label>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Solver</label>
                   <select
                     value={selectedSolver}
-                    onChange={(e) => setSelectedSolver(e.target.value)}
+                    onChange={e => setSelectedSolver(e.target.value)}
                     className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-electric-500 focus:border-transparent bg-white"
                   >
-                    {(SOLVER_OPTIONS[selectedFramework] || []).map(solver => (
-                      <option key={solver} value={solver}>
-                        {solver.toUpperCase()}
-                      </option>
+                    {(SOLVER_OPTIONS[selectedFramework] || []).map(s => (
+                      <option key={s} value={s}>{s.toUpperCase()}</option>
                     ))}
                   </select>
+                  <p className="text-xs text-slate-500 mt-1">
+                    GLPK and CBC are free and open-source. Gurobi/CPLEX require a commercial licence.
+                  </p>
                 </div>
 
-                {/* Advanced Settings Toggle */}
                 <button
-                  onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
+                  onClick={() => setShowAdvancedSettings(v => !v)}
                   className="flex items-center gap-2 text-sm text-electric-600 hover:text-electric-700 font-medium"
                 >
-                  <FiSettings size={16} />
-                  {showAdvancedSettings ? 'Hide' : 'Show'} Advanced Settings
+                  <FiSettings size={14} />
+                  {showAdvancedSettings ? 'Hide' : 'Show'} advanced settings
                 </button>
 
-                {/* Advanced Settings */}
                 {showAdvancedSettings && (
                   <div className="grid grid-cols-2 gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
-                    <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1">
-                        Threads
-                      </label>
-                      <input
-                        type="number"
-                        value={advancedSettings.threads}
-                        onChange={(e) => setAdvancedSettings({...advancedSettings, threads: parseInt(e.target.value)})}
-                        className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-electric-500 focus:border-transparent"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1">
-                        Time Limit (s)
-                      </label>
-                      <input
-                        type="number"
-                        value={advancedSettings.timeLimit}
-                        onChange={(e) => setAdvancedSettings({...advancedSettings, timeLimit: parseInt(e.target.value)})}
-                        className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-electric-500 focus:border-transparent"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1">
-                        MIP Gap
-                      </label>
-                      <input
-                        type="number"
-                        step="0.0001"
-                        value={advancedSettings.mipGap}
-                        onChange={(e) => setAdvancedSettings({...advancedSettings, mipGap: parseFloat(e.target.value)})}
-                        className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-electric-500 focus:border-transparent"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1">
-                        Feasibility Tol
-                      </label>
-                      <input
-                        type="number"
-                        step="0.000001"
-                        value={advancedSettings.feasibilityTol}
-                        onChange={(e) => setAdvancedSettings({...advancedSettings, feasibilityTol: parseFloat(e.target.value)})}
-                        className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-electric-500 focus:border-transparent"
-                      />
-                    </div>
+                    {[
+                      { label: 'Threads', key: 'threads', type: 'number', step: 1 },
+                      { label: 'Time Limit (s)', key: 'timeLimit', type: 'number', step: 1 },
+                      { label: 'MIP Gap', key: 'mipGap', type: 'number', step: 0.0001 },
+                    ].map(({ label, key, type, step }) => (
+                      <div key={key}>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">{label}</label>
+                        <input
+                          type={type}
+                          step={step}
+                          value={advancedSettings[key]}
+                          onChange={e => setAdvancedSettings(p => ({ ...p, [key]: parseFloat(e.target.value) }))}
+                          className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-electric-500 focus:border-transparent"
+                        />
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -409,110 +389,125 @@ const Run = () => {
             {/* Run Button */}
             <button
               onClick={handleRunModel}
-              disabled={!selectedModel || !MODELING_FRAMEWORKS.find(f => f.id === selectedFramework)?.supported}
-              className="w-full py-4 bg-gradient-to-r from-electric-500 to-electric-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl hover:from-electric-600 hover:to-electric-700 disabled:from-slate-300 disabled:to-slate-400 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2"
+              disabled={!selectedModel || !calliopeReady || runningJobs.length > 0}
+              className="w-full py-4 bg-gradient-to-r from-electric-500 to-electric-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl hover:from-electric-600 hover:to-electric-700 disabled:from-slate-300 disabled:to-slate-400 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2 text-lg"
             >
               <FiPlay size={20} />
-              Run Model
+              {runningJobs.length > 0 ? 'Run in Progressâ€¦' : 'Run Model'}
             </button>
           </div>
 
-          {/* Right Panel - Job Queue & Status */}
+          {/* â”€â”€ Right: Job Status â”€â”€ */}
           <div className="space-y-6">
-            {/* Running Jobs */}
+
+            {/* Active jobs */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
               <h2 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
                 <FiActivity className="text-orange-500" />
-                Running Jobs ({runningJobs.length})
+                Running ({runningJobs.length})
               </h2>
-              
+
               {runningJobs.length === 0 ? (
                 <div className="text-center py-8 text-slate-400">
-                  <FiClock size={32} className="mx-auto mb-2 opacity-50" />
+                  <FiClock size={32} className="mx-auto mb-2 opacity-40" />
                   <p className="text-sm">No running jobs</p>
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {runningJobs.map(job => (
                     <div key={job.id} className="p-4 bg-orange-50 border border-orange-100 rounded-lg">
-                      <div className="flex justify-between items-start mb-2">
-                        <div className="flex-1">
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
                           <div className="font-medium text-sm text-slate-800">{job.modelName}</div>
-                          <div className="text-xs text-slate-500">
-                            {MODELING_FRAMEWORKS.find(f => f.id === job.framework)?.name} · {job.solver.toUpperCase()}
+                          <div className="text-xs text-slate-500 mt-0.5">
+                            Calliope Â· {job.solver.toUpperCase()}
                           </div>
                         </div>
                         <button
                           onClick={() => handleStopJob(job.id)}
-                          className="p-1 text-red-600 hover:bg-red-50 rounded"
-                          title="Stop job"
+                          className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"
+                          title="Stop run"
                         >
                           <FiStopCircle size={16} />
                         </button>
                       </div>
-                      
-                      {/* Progress Bar */}
-                      <div className="mt-2">
-                        <div className="flex justify-between text-xs text-slate-600 mb-1">
-                          <span>Progress</span>
-                          <span>{Math.round(job.progress)}%</span>
-                        </div>
-                        <div className="w-full bg-orange-100 rounded-full h-2">
-                          <div
-                            className="bg-gradient-to-r from-orange-500 to-orange-600 h-2 rounded-full transition-all duration-500"
-                            style={{ width: `${job.progress}%` }}
-                          />
-                        </div>
+
+                      {/* Animated progress indicator */}
+                      <div className="w-full bg-orange-100 rounded-full h-1.5 mb-3 overflow-hidden">
+                        <div className="h-1.5 bg-orange-400 rounded-full animate-pulse" style={{ width: '60%' }} />
                       </div>
+
+                      {/* Log toggle */}
+                      <button
+                        onClick={() => setExpandedLog(expandedLog === job.id ? null : job.id)}
+                        className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700"
+                      >
+                        <FiTerminal size={12} />
+                        {expandedLog === job.id ? 'Hide' : 'Show'} logs ({job.logs.length} lines)
+                      </button>
+
+                      {expandedLog === job.id && (
+                        <div className="mt-2 bg-slate-900 text-green-400 rounded-lg p-3 text-xs font-mono h-40 overflow-y-auto">
+                          {job.logs.length === 0
+                            ? <span className="text-slate-500">Waiting for outputâ€¦</span>
+                            : job.logs.map((line, i) => <div key={i}>{line}</div>)
+                          }
+                          <div ref={logEndRef} />
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
               )}
             </div>
 
-            {/* Completed Jobs */}
+            {/* Completed jobs */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
               <h2 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
                 <FiCheckCircle className="text-green-500" />
                 Completed ({completedJobs.length})
               </h2>
-              
+
               {completedJobs.length === 0 ? (
                 <div className="text-center py-8 text-slate-400">
-                  <FiCheckCircle size={32} className="mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">No completed jobs</p>
+                  <FiCheckCircle size={32} className="mx-auto mb-2 opacity-40" />
+                  <p className="text-sm">No completed jobs yet</p>
                 </div>
               ) : (
                 <div className="space-y-3 max-h-96 overflow-y-auto">
                   {completedJobs.map(job => (
-                    <div key={job.id} className="p-4 bg-green-50 border border-green-100 rounded-lg">
-                      <div className="flex justify-between items-start mb-2">
-                        <div className="flex-1">
-                          <div className="font-medium text-sm text-slate-800">{job.modelName}</div>
-                          <div className="text-xs text-slate-500">
-                            {MODELING_FRAMEWORKS.find(f => f.id === job.framework)?.name} · {job.solver.toUpperCase()}
+                    <div
+                      key={job.id}
+                      className={`p-4 rounded-lg border ${
+                        job.status === 'failed'
+                          ? 'bg-red-50 border-red-100'
+                          : 'bg-green-50 border-green-100'
+                      }`}
+                    >
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm text-slate-800 truncate">{job.modelName}</div>
+                          <div className="text-xs text-slate-500 mt-0.5">
+                            {job.solver?.toUpperCase()} Â· {job.duration}
                           </div>
-                          <div className="text-xs text-green-600 mt-1">
-                            Duration: {job.duration}
-                          </div>
-                          {job.objective && (
-                            <div className="text-xs text-slate-600 mt-1">
-                              Objective: {job.objective.toFixed(2)}
+                          {job.status === 'failed' ? (
+                            <div className="text-xs text-red-600 mt-1">
+                              {job.result?.error?.slice(0, 60) || 'Failed'}
                             </div>
-                          )}
+                          ) : job.objective != null ? (
+                            <div className="text-xs font-semibold text-electric-600 mt-1">
+                              Objective: {job.objective.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                            </div>
+                          ) : null}
                         </div>
                         <button
-                          onClick={() => handleDeleteJob(job.id)}
-                          className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded"
-                          title="Delete job"
+                          onClick={() => removeCompletedJob(job.id)}
+                          className="p-1 text-slate-300 hover:text-red-500 ml-2 flex-shrink-0"
+                          title="Remove"
                         >
-                          <FiAlertCircle size={16} />
+                          <FiTrash2 size={14} />
                         </button>
                       </div>
-                      
-                      <button className="mt-2 w-full text-xs py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
-                        View Results
-                      </button>
                     </div>
                   ))}
                 </div>
