@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"calliope-backend/internal/calliope"
-	"calliope-backend/internal/geoserver"
 	"calliope-backend/internal/models"
+	"calliope-backend/internal/overpass"
 	"calliope-backend/internal/storage"
 
 	"github.com/gin-gonic/gin"
@@ -17,11 +17,11 @@ import (
 )
 
 type Server struct {
-	db            *storage.DB
-	geoServer     *geoserver.Client
-	calliopeAPI   *calliope.Client
-	router        *gin.Engine
-	port          string
+	db          *storage.DB
+	osm         *overpass.Client
+	calliopeAPI *calliope.Client
+	router      *gin.Engine
+	port        string
 }
 
 func NewServer(db *storage.DB, port string) *Server {
@@ -46,8 +46,8 @@ func NewServer(db *storage.DB, port string) *Server {
 
 	server := &Server{
 		db:          db,
-		geoServer:   geoserver.NewClient("http://localhost:8080/geoserver"), // TODO: Make configurable
-		calliopeAPI: calliope.NewClient("http://localhost:5000"),             // TODO: Make configurable
+		osm:         overpass.NewClient(), // queries Overpass API + Nominatim directly
+		calliopeAPI: calliope.NewClient("http://localhost:5000"),
 		router:      router,
 		port:        port,
 	}
@@ -71,10 +71,11 @@ func (s *Server) setupRoutes() {
 		api.GET("/jobs/:id", s.getJobStatus)
 		api.GET("/jobs/:id/results", s.getJobResults)
 
-		// GeoServer integration
+		// OSM / Overpass integration
 		api.GET("/osm/:layer", s.getOSMLayer)
 		api.GET("/osm/layers", s.getAvailableLayers)
 		api.GET("/osm/regions", s.getLoadedRegions)
+		api.GET("/geocode", s.geocode)
 
 		// Health check
 		api.GET("/health", func(c *gin.Context) {
@@ -351,32 +352,28 @@ func (s *Server) getJobResults(c *gin.Context) {
 	c.JSON(http.StatusOK, results)
 }
 
-// getOSMLayer fetches OSM data from GeoServer.
+// getOSMLayer fetches OSM infrastructure data via the Overpass API and
+// returns GeoJSON.  No GeoServer or PostGIS setup is required.
 //
 // Query parameters:
-//   bbox   (optional) minLon,minLat,maxLon,maxLat
-//   region (optional) region path prefix, e.g. "Europe/Germany" or
-//                     "South_America/Chile". Omit to return all loaded regions.
+//   bbox  (required) minLon,minLat,maxLon,maxLat
 //
 // Examples:
-//   /api/osm/osm_substations
-//   /api/osm/osm_substations?region=Europe/Germany
-//   /api/osm/osm_substations?region=South_America/Chile&bbox=-74,-36,-69,-17
+//   /api/osm/osm_substations?bbox=-74,-36,-69,-17
+//   /api/osm/osm_power_lines?bbox=8,47,10,49
 func (s *Server) getOSMLayer(c *gin.Context) {
 	layer := c.Param("layer")
 	bboxStr := c.Query("bbox")
-	regionPath := c.Query("region") // e.g. "Europe/Germany/Bayern"
 
-	var bbox *geoserver.BBox
+	var bbox *overpass.BBox
 	if bboxStr != "" {
-		// Parse bbox: minLon,minLat,maxLon,maxLat
 		var minLon, minLat, maxLon, maxLat float64
 		_, err := fmt.Sscanf(bboxStr, "%f,%f,%f,%f", &minLon, &minLat, &maxLon, &maxLat)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid bbox format, use: minLon,minLat,maxLon,maxLat"})
 			return
 		}
-		bbox = &geoserver.BBox{
+		bbox = &overpass.BBox{
 			MinLon: minLon,
 			MinLat: minLat,
 			MaxLon: maxLon,
@@ -384,34 +381,43 @@ func (s *Server) getOSMLayer(c *gin.Context) {
 		}
 	}
 
-	data, err := s.geoServer.GetOSMLayer(layer, bbox, regionPath)
+	data, err := s.osm.GetOSMLayer(layer, bbox)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.Data(http.StatusOK, "application/json", []byte(`{"type":"FeatureCollection","features":[]}`))
 		return
 	}
-
 	c.Data(http.StatusOK, "application/json", data)
 }
 
-// getLoadedRegions returns the distinct region_paths present in PostGIS.
-// Useful for the frontend to populate region selectors.
+// getLoadedRegions returns an empty list — region selection is now driven
+// by the static regions_database.json bundled with the frontend.
+// The Overpass API fetches live data for any region the user selects.
 func (s *Server) getLoadedRegions(c *gin.Context) {
-	regions, err := s.geoServer.GetLoadedRegions()
-	if err != nil {
-		// Graceful fallback: return empty list so the UI still works
-		c.JSON(http.StatusOK, gin.H{"regions": []string{}})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"regions": regions})
+	c.JSON(http.StatusOK, gin.H{"regions": []string{}})
 }
 
-// getAvailableLayers returns available OSM layers
+// getAvailableLayers returns the available OSM layer names.
 func (s *Server) getAvailableLayers(c *gin.Context) {
-	layers, err := s.geoServer.GetAvailableLayers()
+	layers, _ := s.osm.GetAvailableLayers()
+	c.JSON(http.StatusOK, gin.H{"layers": layers})
+}
+
+// geocode proxies a Nominatim geocoding request for the given query string.
+//
+// Query parameters:
+//   q  (required) free-text search, e.g. "Germany" or "Santiago, Chile"
+//
+// Returns the raw Nominatim JSON array.
+func (s *Server) geocode(c *gin.Context) {
+	q := c.Query("q")
+	if q == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "q parameter required"})
+		return
+	}
+	data, err := s.osm.Geocode(q)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-
-	c.JSON(http.StatusOK, gin.H{"layers": layers})
+	c.Data(http.StatusOK, "application/json", data)
 }

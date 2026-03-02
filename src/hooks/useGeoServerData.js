@@ -2,7 +2,7 @@
 // Custom hook to fetch OSM data from GeoServer via backend API
 
 import { useState, useCallback } from 'react';
-import api from '../services/api';
+import { api } from '../services/api';
 
 export const useGeoServerData = () => {
   const [loading, setLoading] = useState(false);

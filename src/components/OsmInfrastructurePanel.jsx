@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { FiMap, FiChevronDown, FiChevronRight, FiLayers, FiX, FiMapPin, FiGlobe } from 'react-icons/fi';
 import RegionSelectionStepper from './RegionSelectionStepper';
+import regionsDb from '../../public/data/osm_extracts/regions_database.json';
 
 const OsmInfrastructurePanel = ({ 
   collapsed, 
@@ -49,8 +50,7 @@ const OsmInfrastructurePanel = ({
   const loadRegionsDatabase = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/data/osm_extracts/regions_database.json');
-      const data = await response.json();
+      const data = regionsDb;
       setRegionsDatabase(data);
       
       // Set available continents

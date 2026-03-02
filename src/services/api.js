@@ -103,6 +103,16 @@ export const api = {
     return response.json();
   },
 
+  // Geocode a free-text query via Nominatim (proxied through the backend).
+  // Returns an array of Nominatim result objects:
+  //   { display_name, lat, lon, boundingbox: [lat_min, lat_max, lon_min, lon_max], ... }
+  async geocode(query) {
+    if (!query) return [];
+    const response = await fetch(`${BACKEND_URL}/api/geocode?q=${encodeURIComponent(query)}`);
+    if (!response.ok) return [];
+    return response.json();
+  },
+
   // Health Check
   async checkHealth() {
     try {
