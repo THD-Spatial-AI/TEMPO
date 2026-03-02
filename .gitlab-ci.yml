@@ -1,0 +1,17 @@
+stages:          # List of stages for jobs, and their order of execution
+  - build
+
+
+pdfgen:
+    stage: build
+    image: registry.mygit.th-deg.de/textools/streeker:latest
+
+    script:
+        - cd documentation
+        - make all
+        - cd ../requirement-specification
+        - make all
+    artifacts:
+        paths:
+            - "documentation/documentation.pdf"
+            - "requirement-specification/requirement-specification.pdf"
