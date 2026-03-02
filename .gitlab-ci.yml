@@ -9,9 +9,9 @@ pdfgen:
     script:
         - cd documentation
         - make all
-        - cd ../requirement-specification
-        - make all
+        #- cd ../requirement-specification
+        #- make all
     artifacts:
         paths:
             - "documentation/documentation.pdf"
-            - "requirement-specification/requirement-specification.pdf"
+            #- "requirement-specification/requirement-specification.pdf"
