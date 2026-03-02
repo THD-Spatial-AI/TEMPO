@@ -171,7 +171,7 @@ def run_model(model_data, work_dir):
     technologies = model_data.get('technologies', [])
     loc_tech_assign = model_data.get('locationTechAssignments', {})
     parameters = model_data.get('parameters') or []
-    solver = model_data.get('solver', 'glpk')
+    solver = model_data.get('solver', 'highs')   # default: HiGHS (free, open-source, fast)
     overrides = model_data.get('overrides') or {}
     scenarios = model_data.get('scenarios') or {}
 
@@ -244,6 +244,20 @@ def run_model(model_data, work_dir):
         f.write(dump_yaml(locations_doc))
     log("  Wrote locations.yaml")
 
+    # Solver-specific options
+    solver_options = {}
+    if solver in ('highs', 'highs_direct'):
+        solver_options = {
+            'mip_rel_gap': 1e-3,
+            'primal_feasibility_tolerance': 1e-6,
+            'dual_feasibility_tolerance': 1e-6,
+            'ipm_optimality_tolerance': 1e-6,
+        }
+    elif solver in ('cbc',):
+        solver_options = {'ratioGap': 1e-3}
+    elif solver == 'glpk':
+        solver_options = {'mipgap': 1e-3}
+
     run_cfg = {
         'solver': solver,
         'backend': 'pyomo',
@@ -253,6 +267,8 @@ def run_model(model_data, work_dir):
         'zero_threshold': 1e-10,
         'mode': 'plan',
     }
+    if solver_options:
+        run_cfg['solver_options'] = solver_options
 
     model_yaml = {
         'import': ['model_config/techs.yaml', 'model_config/locations.yaml'],

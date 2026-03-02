@@ -34,7 +34,7 @@ const MODELING_FRAMEWORKS = [
 ];
 
 const SOLVER_OPTIONS = {
-  calliope: ['glpk', 'cbc', 'gurobi', 'cplex'],
+  calliope: ['highs', 'glpk', 'cbc', 'gurobi', 'cplex'],
 };
 
 // â”€â”€â”€ Helper: is this running in Electron? â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -45,7 +45,7 @@ const Run = () => {
 
   const [selectedModel, setSelectedModel]       = useState(null);
   const [selectedFramework, setSelectedFramework] = useState('calliope');
-  const [selectedSolver, setSelectedSolver]     = useState('glpk');
+  const [selectedSolver, setSelectedSolver]     = useState('highs');
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [advancedSettings, setAdvancedSettings] = useState({
     threads: 4,
@@ -191,7 +191,7 @@ const Run = () => {
     }
 
     if (!calliopeStatus?.envExists) {
-      showNotification('Calliope environment not found. Run the setup script first.', 'error');
+      showNotification('Calliope environment is not ready. Please restart the app.', 'error');
       return;
     }
 
@@ -243,11 +243,11 @@ const Run = () => {
           <p className="text-slate-600">Execute your energy model locally using Calliope</p>
         </div>
 
-        {/* Calliope Environment Banner */}
-        {calliopeChecking ? (
+        {/* Calliope Environment Banner — Electron only */}
+        {isElectron() && (calliopeChecking ? (
           <div className="mb-6 flex items-center gap-3 p-4 bg-slate-100 border border-slate-200 rounded-xl text-slate-600 text-sm">
             <FiCpu className="animate-spin text-slate-400 flex-shrink-0" size={20} />
-            Checking Calliope environment â€¦
+            Checking Calliope environment…
           </div>
         ) : calliopeReady ? (
           <div className="mb-6 flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-xl text-green-800 text-sm">
@@ -265,13 +265,13 @@ const Run = () => {
                 <p className="font-semibold mb-1">Calliope environment not available</p>
                 <p className="text-amber-800">
                   {!calliopeStatus?.condaFound
-                    ? 'conda was not found on this system. Please restart the app to run the setup wizard.'
-                    : 'The calliope environment could not be loaded. Please restart the app to reinstall it.'}
+                    ? 'conda was not found. Please restart the app — it will install everything automatically.'
+                    : 'The calliope environment is not ready. Please restart the app to trigger the setup wizard.'}
                 </p>
               </div>
             </div>
           </div>
-        )}
+        ))}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
