@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { DataProvider, useData } from "./context/DataContext";
 import Sidebar from "./components/Sidebar";
 import Dashboard from "./components/Dashboard";
@@ -18,6 +18,7 @@ import Settings from "./components/Settings";
 import Export from "./components/Export";
 import Run from "./components/Run";
 import Results from "./components/Results";
+import SetupScreen from "./components/SetupScreen";
 
 function AppContent() {
   const [selected, setSelected] = useState("Dashboard");
@@ -119,6 +120,39 @@ function AppContent() {
 }
 
 function App() {
+  // 'checking' | 'setup' | 'ready'
+  const [appState, setAppState] = useState('checking');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.electronAPI) {
+      window.electronAPI.checkCalliope().then(status => {
+        if (status.envExists) {
+          setAppState('ready');
+        } else {
+          setAppState('setup');
+        }
+      }).catch(() => {
+        // If check fails for any reason, show setup screen
+        setAppState('setup');
+      });
+    } else {
+      // Browser / dev mode without Electron — skip setup
+      setAppState('ready');
+    }
+  }, []);
+
+  if (appState === 'checking') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (appState === 'setup') {
+    return <SetupScreen onComplete={() => setAppState('ready')} />;
+  }
+
   return (
     <DataProvider>
       <AppContent />

@@ -25,10 +25,12 @@
     "files": [
       "dist/**/*",
       "electron/**/*",
-      "backend-go/**/*"
+      "backend-go/**/*",
+      "python/**/*"
     ],
     "asarUnpack": [
-      "backend-go/**/*"
+      "backend-go/**/*",
+      "python/**/*"
     ],
     "win": {
       "target": [

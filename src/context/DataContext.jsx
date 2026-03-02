@@ -69,6 +69,14 @@ export const DataProvider = ({ children }) => {
   const [navigationWarning, setNavigationWarning] = useState(null);
   const [backendAvailable, setBackendAvailable] = useState(false);
 
+  // Completed Calliope jobs – shared between Run and Results views
+  const [completedJobs, setCompletedJobs] = useState(() => {
+    try {
+      const saved = localStorage.getItem('calliopeCompletedJobs');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+
   // Tracks model IDs whose initial POST to the backend is still in-flight.
   // updateCurrentModel must not PUT until the real DB id is confirmed.
   const pendingSaveIds = useRef(new Set());
@@ -376,6 +384,22 @@ export const DataProvider = ({ children }) => {
   }, [locations, links, parameters, technologies, timeSeries, overrides, scenarios, currentModelId, updateCurrentModel]);
 
   // ── Context value ─────────────────────────────────────────────────────────
+
+  // Persist completed jobs to localStorage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem('calliopeCompletedJobs', JSON.stringify(completedJobs));
+    } catch {}
+  }, [completedJobs]);
+
+  const addCompletedJob = (job) => {
+    setCompletedJobs(prev => [job, ...prev].slice(0, 50)); // keep latest 50
+  };
+
+  const removeCompletedJob = (jobId) => {
+    setCompletedJobs(prev => prev.filter(j => j.id !== jobId));
+  };
+
   const value = {
     models,
     currentModelId,
@@ -398,6 +422,9 @@ export const DataProvider = ({ children }) => {
     setModels,
     navigationWarning,
     setNavigationWarning,
+    completedJobs,
+    addCompletedJob,
+    removeCompletedJob,
   };
 
   return (
