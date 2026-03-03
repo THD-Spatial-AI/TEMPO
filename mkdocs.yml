@@ -1,13 +1,13 @@
 # Project information
-site_name: THD-Spatial GitHub Template
-site_author: THD-Spatial Group
+site_name: Calliope Visualizator
+site_author: THD-Spatial Group — Deggendorf Institute of Technology
 site_description: >-
-  Template repository for open source projects in the THD-Spatial organization
-site_url: https://THD-Spatial.github.io/GitHub-Template
+  Desktop application for building, running, and visualizing Calliope energy system models.
+site_url: https://THD-Spatial.github.io/TEMPO
 
 # Repository
-repo_name: THD-Spatial/GitHub-Template
-repo_url: https://github.com/THD-Spatial/GitHub-Template
+repo_name: THD-Spatial/TEMPO
+repo_url: https://github.com/THD-Spatial/TEMPO
 edit_uri: edit/main/docs/
 
 # Theme configuration
@@ -62,6 +62,7 @@ plugins:
       separator: '[\s\u200b\-_,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
   - git-revision-date-localized:
       enable_creation_date: true
+      enable_git_follow: false
 
 # Extensions
 markdown_extensions:
@@ -110,9 +111,36 @@ markdown_extensions:
 # Page tree
 nav:
   - Home: index.md
-  - Checklist: getting-started/open-source-checklist.md
-  - Repository Naming: getting-started/repository-naming.md
+  - Getting Started:
+      - Installation: getting-started/installation.md
+      - Configuration: getting-started/configuration.md
+      - Quick Start: getting-started/quick-start.md
+  - User Guide:
+      - Creating a Model: user-guide/creating-a-model.md
+      - Locations: user-guide/locations.md
+      - Links: user-guide/links.md
+      - Technologies: user-guide/technologies.md
+      - Time Series: user-guide/time-series.md
+      - Parameters & Scenarios: user-guide/parameters-scenarios.md
+      - Running Optimization: user-guide/running-optimization.md
+      - Results: user-guide/results.md
+      - Import & Export: user-guide/import-export.md
+  - Map & Geographic Data:
+      - Map Interface: map/map-interface.md
+      - OSM Infrastructure Layers: map/osm-layers.md
+      - GeoServer Setup: map/geoserver.md
+  - OSM Data Processing:
+      - Overview: osm-processing/overview.md
+      - Downloading OSM Data: osm-processing/downloading-data.md
+      - Extracting Power Infrastructure: osm-processing/extracting-data.md
+  - Development:
+      - Development Setup: development/setup.md
+      - Building the Desktop App: development/building.md
+      - Project Structure: development/project-structure.md
+  - Reference:
+      - Technology Templates: reference/technology-templates.md
+      - Backend API: reference/api-endpoints.md
 
 # Copyright
 copyright: |
-  &copy; 2026 <a href="https://github.com/THD-Spatial"  target="_blank" rel="noopener">THD-Spatial Group</a>
+  &copy; 2026 <a href="https://github.com/THD-Spatial" target="_blank" rel="noopener">THD-Spatial Group — Deggendorf Institute of Technology</a>
