@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =============================================================================
 # Setup Calliope Conda Environment  (Linux / macOS)
-# Run this once before launching the Calliope Visualizator app.
+# Run this once before launching the TEMPO app.
 #
 # Usage:
 #   bash scripts/setup_calliope_env.sh
@@ -84,6 +84,6 @@ $CONDA_CMD run -n calliope python -c "import calliope; print('calliope version:'
 echo ""
 echo "======================================="
 echo "  Setup complete! You can now run the  "
-echo "  Calliope Visualizator application.   "
+echo "  TEMPO application.   "
 echo "======================================="
 echo ""

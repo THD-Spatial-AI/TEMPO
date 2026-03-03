@@ -6,7 +6,7 @@ Technologies are the core components of a Calliope energy system. They represent
 
 ## Technology types
 
-Calliope defines the following base technology types, all of which are supported in Calliope Visualizator:
+Calliope defines the following base technology types, all of which are supported in TEMPO:
 
 | Type | Description |
 |---|---|

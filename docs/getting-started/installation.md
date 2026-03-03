@@ -1,6 +1,6 @@
 # Installation
 
-Calliope Visualizator runs as a desktop application on Windows. The frontend can also be served as a web application in development mode.
+TEMPO runs as a desktop application on Windows. The frontend can also be served as a web application in development mode.
 
 ---
 
@@ -40,7 +40,7 @@ pip install calliope
 1. Go to the [Releases page](https://github.com/THD-Spatial/TEMPO/releases) on GitHub.
 2. Download the latest `Calliope-Visualizator-Setup-x.x.x.exe`.
 3. Run the installer. You can choose the installation directory and whether to create desktop and start menu shortcuts.
-4. Launch **Calliope Visualizator**.
+4. Launch **TEMPO**.
 
 ### 3. First launch — environment setup
 
@@ -103,4 +103,4 @@ Open the application and check the status indicator in the Settings screen:
 
 ## Uninstalling
 
-Use **Add or remove programs** in Windows settings and search for **Calliope Visualizator**. The uninstaller removes the application files. Your model database (`%AppData%\Calliope Visualizator\calliope.db`) is preserved and must be deleted manually if you want a clean removal.
+Use **Add or remove programs** in Windows settings and search for **TEMPO**. The uninstaller removes the application files. Your model database (`%AppData%\TEMPO\calliope.db`) is preserved and must be deleted manually if you want a clean removal.

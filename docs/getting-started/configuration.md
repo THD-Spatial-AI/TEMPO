@@ -57,9 +57,9 @@ All application data is stored in the Electron user-data directory:
 
 | File/Folder | Path (Windows) |
 |---|---|
-| Model database | `%AppData%\Calliope Visualizator\calliope.db` |
-| Settings | `%AppData%\Calliope Visualizator\config.json` |
-| Installed Miniconda (if used) | `%AppData%\Calliope Visualizator\miniconda3\` |
+| Model database | `%AppData%\TEMPO\calliope.db` |
+| Settings | `%AppData%\TEMPO\config.json` |
+| Installed Miniconda (if used) | `%AppData%\TEMPO\miniconda3\` |
 
 ---
 
