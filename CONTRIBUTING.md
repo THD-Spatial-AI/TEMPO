@@ -1,6 +1,6 @@
 # Contributing
 
-Thank you for taking the time to contribute to TEMPO.
+Thank you for taking the time to contribute to **Calliope Visualizator**.
 
 This project welcomes contributions such as bug reports, feature requests, documentation improvements, code changes, and general feedback.
 
@@ -34,8 +34,8 @@ Before creating a new issue or pull request, please:
 
 Use the project issue tracker for bug reports, feature requests, and documentation issues.
 
-- **Issue tracker:** [INSERT_ISSUE_TRACKER_URL]
-- **Discussions / Questions (optional):** [INSERT_DISCUSSION_URL_OR_REMOVE]
+- **Issue tracker:** https://github.com/THD-Spatial/TEMPO/issues
+- **GitLab (primary):** https://mygit.th-deg.de/thd-spatial-ai/calliope_editiontool/-/issues
 
 When reporting an issue, please include:
 
@@ -54,8 +54,8 @@ The exact setup steps may differ by project. Please check the `README.md` and pr
 If you do not have direct write access, fork the repository first, then clone your fork:
 
 ```bash
-git clone [REPOSITORY_URL]
-cd [REPOSITORY_DIRECTORY]
+git clone https://github.com/THD-Spatial/TEMPO.git
+cd TEMPO
 ```
 
 If you have direct write access, clone the main repository instead.
@@ -154,18 +154,14 @@ If you are updating docs:
 - Check links and commands
 - Match the style used in existing documentation
 
-## Project-Specific Notes (Template Placeholder)
+## Project-Specific Notes
 
-Replace or remove this section in project repositories.
-
-Examples of what may go here:
-
-- Setup links (Windows/Linux/Docker)
-- Testing commands (`npm test`, `pytest`, `go test ./...`)
-- Branching strategy
-- Review/approval rules
-- CI requirements
-- Changelog policy
+- Frontend: `npm install` then `npm run dev` (requires Node.js ≥ 16)
+- Backend: `cd backend-go && go build -o backend.exe .`
+- Calliope runner: requires Python ≥ 3.9 with Calliope installed in a conda environment
+- OSM processing scripts: `pip install -r osm_processing/requirements.txt`
+- Linting: `npm run lint`
+- Full desktop build: `npm run build:electron`
 
 ## Licensing of Contributions
 
@@ -176,19 +172,4 @@ By contributing to this project, you confirm that:
 
 ## Need Help?
 
-If you are unsure where to start, open an issue or discussion and ask. Maintainers can help point you in the right direction.
-
----
-
-## Maintainer Note (Template)
-
-> [!CAUTION]
-> This file is a template. Replace placeholders such as:
-
-- `[PROJECT_NAME]`
-- `[INSERT_ISSUE_TRACKER_URL]`
-- `[INSERT_DISCUSSION_URL_OR_REMOVE]`
-- `[REPOSITORY_URL]`
-- `[REPOSITORY_DIRECTORY]`
-
-Remove sections that do not apply to your project.
+If you are unsure where to start, open an issue on GitHub or GitLab and ask. Maintainers can help point you in the right direction.
