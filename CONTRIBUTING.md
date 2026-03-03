@@ -1,6 +1,6 @@
 # Contributing
 
-Thank you for taking the time to contribute to **Calliope Visualizator**.
+Thank you for taking the time to contribute to **TEMPO**.
 
 This project welcomes contributions such as bug reports, feature requests, documentation improvements, code changes, and general feedback.
 

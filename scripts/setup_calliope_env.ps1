@@ -1,6 +1,6 @@
 # =============================================================================
 # Setup Calliope Conda Environment  (Windows)
-# Run this once before launching the Calliope Visualizator app.
+# Run this once before launching the TEMPO app.
 #
 # Usage:
 #   .\scripts\setup_calliope_env.ps1
@@ -107,6 +107,6 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host ""
 Write-Host "=======================================" -ForegroundColor Green
 Write-Host "  Setup complete! You can now run the  " -ForegroundColor Green
-Write-Host "  Calliope Visualizator application.   " -ForegroundColor Green
+Write-Host "  TEMPO application.   " -ForegroundColor Green
 Write-Host "=======================================" -ForegroundColor Green
 Write-Host ""

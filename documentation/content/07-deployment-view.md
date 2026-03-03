@@ -18,7 +18,7 @@ At runtime the process topology is:
 
 All network communication between Electron and the Go backend is confined to the loopback interface. No ports are exposed externally.
 
-The SQLite database file is stored in the system user-data directory (`%APPDATA%/Calliope Visualizator/calliope.db` on Windows), which persists across application updates.
+The SQLite database file is stored in the system user-data directory (`%APPDATA%/TEMPO/calliope.db` on Windows), which persists across application updates.
 
 ## Development Deployment
 

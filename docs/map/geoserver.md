@@ -37,7 +37,7 @@ The script accepts a `-Region` parameter specifying which continent/country data
 
 After the containers are running:
 
-1. Open **Settings** in Calliope Visualizator.
+1. Open **Settings** in TEMPO.
 2. Set **GeoServer URL** to `http://localhost:8080/geoserver`.
 3. Set **Workspace** to `osm` (the default workspace created by the setup script).
 4. Close Settings. The next time you open the OSM Infrastructure Panel, the application will use GeoServer instead of the Overpass API.

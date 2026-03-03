@@ -1,5 +1,5 @@
 # Context & Scope
-Calliope Visualizator is a standalone desktop application that mediates between three external domains: the user, the Calliope optimization framework, and geographic data sources.
+TEMPO is a standalone desktop application that mediates between three external domains: the user, the Calliope optimization framework, and geographic data sources.
 
 ## Business Context
 

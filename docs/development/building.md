@@ -68,7 +68,7 @@ The NSIS installer is configured as a one-click or guided install (user's choice
 
 | Artifact | Location |
 |---|---|
-| Installer (`.exe`) | `C:\temp\calliope-release\Calliope Visualizator Setup x.x.x.exe` |
+| Installer (`.exe`) | `C:\temp\calliope-release\TEMPO Setup x.x.x.exe` |
 | Unpacked app dir | `C:\temp\calliope-release\win-unpacked\` |
 
 ---

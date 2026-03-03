@@ -1,6 +1,6 @@
 # Import & Export
 
-Calliope Visualizator can import location and link data from CSV files and export the full model as Calliope-ready YAML files.
+TEMPO can import location and link data from CSV files and export the full model as Calliope-ready YAML files.
 
 ---
 

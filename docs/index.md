@@ -1,12 +1,12 @@
-# Calliope Visualizator
+# TEMPO
 
-**Calliope Visualizator** is a desktop application developed at the [Deggendorf Institute of Technology](https://www.th-deg.de) that makes it easy to build, run, and visualize [Calliope](https://callio.pe/) energy system optimization models — without writing YAML by hand.
+**TEMPO** is a desktop application developed at the [Deggendorf Institute of Technology](https://www.th-deg.de) that makes it easy to build, run, and visualize [Calliope](https://callio.pe/) energy system optimization models — without writing YAML by hand.
 
 ---
 
 ## What it does
 
-Calliope Visualizator takes you through the entire modelling workflow in one place:
+TEMPO takes you through the entire modelling workflow in one place:
 
 1. **Define your energy system** — add locations, transmission links, and technologies using form-based screens.
 2. **Visualize it on a map** — see your model topology overlaid on real geographic data, including OpenStreetMap power infrastructure (substations, power plants, transmission lines).
@@ -70,4 +70,4 @@ Calliope Visualizator takes you through the entire modelling workflow in one pla
 ---
 
 !!! info "Calliope documentation"
-    This documentation covers the Calliope Visualizator application. For the underlying Calliope framework, see the [official Calliope documentation](https://callio.pe/docs/).
+    This documentation covers the TEMPO application. For the underlying Calliope framework, see the [official Calliope documentation](https://callio.pe/docs/).

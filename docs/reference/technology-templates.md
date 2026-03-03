@@ -1,6 +1,6 @@
 # Technology Templates
 
-Calliope Visualizator ships with pre-configured technology YAML templates in the `techs/` directory. These templates define default parameter values that accelerate model creation without requiring users to research typical values from scratch.
+TEMPO ships with pre-configured technology YAML templates in the `techs/` directory. These templates define default parameter values that accelerate model creation without requiring users to research typical values from scratch.
 
 ---
 

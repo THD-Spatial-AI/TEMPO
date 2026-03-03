@@ -1,6 +1,6 @@
 # Introduction & Goals
 
-Calliope Visualizator is a desktop application developed at the Deggendorf Institute of Technology (DIT) to support researchers and engineers working with the Calliope energy system modelling framework. The application removes the need to manually write YAML configuration files by providing a graphical interface for composing, managing, and executing Calliope optimization models.
+TEMPO is a desktop application developed at the Deggendorf Institute of Technology (DIT) to support researchers and engineers working with the Calliope energy system modelling framework. The application removes the need to manually write YAML configuration files by providing a graphical interface for composing, managing, and executing Calliope optimization models.
 
 The primary goals of the system are:
 
