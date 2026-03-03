@@ -1,4 +1,6 @@
-# Calliope Visualizator
+# TEMPO
+
+## Tool for Energy Model Planning and Optimization
 
 A desktop + web application for building, running, and visualizing energy system models. Combines an interactive map interface with a Go backend, a Python Calliope runner, and OSM infrastructure data pipelines.
 
