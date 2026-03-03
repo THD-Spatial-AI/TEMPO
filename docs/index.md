@@ -1,46 +1,73 @@
-# THD-Spatial GitHub Template
+# Calliope Visualizator
 
-Welcome to the THD-Spatial GitHub Template documentation! This template helps group members create standardized, open-source ready repositories.
+**Calliope Visualizator** is a desktop application developed at the [Deggendorf Institute of Technology](https://www.th-deg.de) that makes it easy to build, run, and visualize [Calliope](https://callio.pe/) energy system optimization models — without writing YAML by hand.
 
-## Quick Overview
+---
 
-This template repository provides a complete starting point for open-sourcing projects under the THD-Spatial organization. It includes essential files, guidelines, and a comprehensive checklist to ensure your project meets all requirements.
+## What it does
 
-## What's Included
+Calliope Visualizator takes you through the entire modelling workflow in one place:
 
-- **Essential Documentation Templates**: LICENSE, README, CONTRIBUTING
-- **Open Source Checklist**: Step-by-step verification of requirements
-- **Git LFS Configuration**: For managing large data files
-- **Best Practices**: Guidelines for creating high-quality open source projects
+1. **Define your energy system** — add locations, transmission links, and technologies using form-based screens.
+2. **Visualize it on a map** — see your model topology overlaid on real geographic data, including OpenStreetMap power infrastructure (substations, power plants, transmission lines).
+3. **Run the optimizer** — submit the model to the Calliope solver and watch the log stream live.
+4. **Inspect results** — explore the optimization output in the built-in results view.
+5. **Export** — download a fully Calliope-compliant YAML package ready for independent use on the command line.
 
-## Getting Started
+---
 
-1. **Use this template**: Click "Use this template" button on GitHub
-2. **Customize files**: Update all template files for your specific project
-3. **Complete checklist**: Use [Open Source Checklist](getting-started/open-source-checklist.md) to track progress
-4. **Make it public**: Once all requirements are met, publish your repository
+## Key features
 
-## Key Requirements
+| Feature | Description |
+|---|---|
+| Interactive map | MapLibre GL + Deck.gl rendering of model topology and real OSM infrastructure |
+| Technology library | Pre-built YAML templates for solar, wind, storage, hydrogen, conventional, and transmission technologies |
+| Bulk import | Import locations and links from CSV in one step |
+| Live solver log | Real-time log output from the Calliope Python process |
+| Multi-model management | Create, switch between, and compare multiple models and scenarios |
+| YAML / ZIP export | Export clean, Calliope-ready files at any time |
+| GeoServer integration | Optional vector tile layers from a local GeoServer instance |
 
-!!! warning "Before Going Public"
-    Your repository **must** include a LICENSE file before it can be made public under the THD-Spatial organization.
+---
 
-### Essential Files
+## Architecture overview
 
-- **LICENSE** - Required for all public repositories
-- **README.md** - Project overview and documentation
-- **CONTRIBUTING.md** - Guidelines for contributors
-- **CODE_OF_CONDUCT.md** - Community standards
+```
+┌─────────────────────┐    HTTP (localhost:8082)    ┌──────────────────┐
+│  React 19 frontend  │ ─────────────────────────▶  │   Go REST API    │
+│  (Vite + MapLibre)  │                             │   + SQLite DB    │
+└─────────────────────┘                             └──────────────────┘
+          │                                                  │
+     Electron shell                                  spawns Python
+     (desktop app)                                   calliope_runner.py
+```
 
-### Data Management
+- **Frontend**: React 19 · Vite · Tailwind CSS · MapLibre GL · Deck.gl · MUI
+- **Backend**: Go · Gin · SQLite
+- **Desktop**: Electron + NSIS installer (Windows)
+- **Solver runner**: Python · Calliope 0.7
 
-- **Git LFS** - Required for repositories with large data files
+---
 
-## Next Steps
+## Quick navigation
 
-- [Open Source Checklist](getting-started/open-source-checklist.md) - Complete all requirements
-- [Repository Naming Guidelines](getting-started/repository-naming.md) - Learn about naming conventions
+<div class="grid cards" markdown>
 
-## Support
+- :material-download: **[Installation](getting-started/installation.md)**  
+  Install on Windows using the desktop installer or run in dev mode.
 
-For questions or issues with this template, please [open an issue](https://github.com/thd-spatial/github-template/issues) or contact the THD-Spatial group administrators.
+- :material-rocket-launch: **[Quick Start](getting-started/quick-start.md)**  
+  Build and run your first energy model in minutes.
+
+- :material-map: **[Map Interface](map/map-interface.md)**  
+  Explore the geographic view and OSM infrastructure layers.
+
+- :material-code-braces: **[Development Setup](development/setup.md)**  
+  Set up the full development environment.
+
+</div>
+
+---
+
+!!! info "Calliope documentation"
+    This documentation covers the Calliope Visualizator application. For the underlying Calliope framework, see the [official Calliope documentation](https://callio.pe/docs/).
