@@ -1,6 +1,6 @@
 # Creating a Model
 
-A **model** in Calliope Visualizator is the top-level container for all the components of an energy system: locations, links, technologies, time series, parameters, and scenarios. All data is saved automatically to the local database as you work.
+A **model** in TEMPO is the top-level container for all the components of an energy system: locations, links, technologies, time series, parameters, and scenarios. All data is saved automatically to the local database as you work.
 
 ---
 

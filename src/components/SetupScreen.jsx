@@ -294,7 +294,7 @@ function FullScreenCard({ children, wide }) {
       <div className={`relative bg-white rounded-2xl shadow-2xl border border-slate-100 p-10 flex flex-col items-center ${wide ? 'max-w-2xl w-full' : 'max-w-md w-full'}`}>
         <div className="mb-6 text-center">
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 rounded-full text-blue-600 text-xs font-semibold tracking-wide mb-2">
-            CALLIOPE VISUALIZATOR · FIRST-TIME SETUP
+            TEMPO · FIRST-TIME SETUP
           </div>
         </div>
         {children}

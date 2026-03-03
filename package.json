@@ -19,7 +19,7 @@
   },
   "build": {
     "appId": "com.calliope.visualizator",
-    "productName": "Calliope Visualizator",
+    "productName": "TEMPO",
     "directories": {
       "output": "C:\\temp\\calliope-release"
     },

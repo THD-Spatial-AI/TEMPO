@@ -1,6 +1,6 @@
 # Map Interface
 
-The map is the central hub of Calliope Visualizator. It shows your model topology overlaid on a geographic base map and lets you interact with locations and links directly.
+The map is the central hub of TEMPO. It shows your model topology overlaid on a geographic base map and lets you interact with locations and links directly.
 
 ---
 
