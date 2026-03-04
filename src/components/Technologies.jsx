@@ -131,7 +131,7 @@ const TechCard = ({ techName, tech, isCustom, onDuplicate, onEdit, onDelete }) =
             >
               {instances.map((inst, idx) => (
                 <option key={inst.id || idx} value={idx}>
-                  {inst.label || `Option ${idx + 1}`}
+                  {inst.displayLabel || `Variant ${idx + 1}`}
                 </option>
               ))}
             </select>

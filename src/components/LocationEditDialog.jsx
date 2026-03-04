@@ -11,6 +11,66 @@ const formatTechName = (techName) => {
   return formatted.charAt(0).toUpperCase() + formatted.slice(1).toLowerCase();
 };
 
+// Common cost names tech templates use
+const COMMON_COST_KEYS = ['energy_cap', 'om_annual', 'om_prod', 'om_con', 'purchase', 'resource_cap', 'storage_cap'];
+
+// Inline helper: select an available constraint from the parent's list and add it
+const AddConstraintInline = ({ techTemplate, existing, onAdd }) => {
+  const parentType = techTemplate?.parent;
+  const available = (PARENT_CONSTRAINTS[parentType] || []).filter(c => !(c in existing));
+  const [selected, setSelected] = useState('');
+  if (available.length === 0) return null;
+  return (
+    <div className="flex gap-1 mt-1.5">
+      <select
+        value={selected}
+        onChange={(e) => setSelected(e.target.value)}
+        className="flex-1 text-xs border border-slate-200 rounded px-2 py-0.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-1 focus:ring-gray-400"
+      >
+        <option value="">+ Add constraint…</option>
+        {available.map(c => (
+          <option key={c} value={c}>{c}</option>
+        ))}
+      </select>
+      <button
+        onClick={() => { if (selected) { onAdd(selected); setSelected(''); } }}
+        disabled={!selected}
+        className="px-2 py-0.5 text-xs bg-gray-600 text-white rounded disabled:bg-gray-300"
+      >
+        Add
+      </button>
+    </div>
+  );
+};
+
+// Inline helper: select a common cost key and add it
+const AddCostInline = ({ existing, onAdd }) => {
+  const available = COMMON_COST_KEYS.filter(k => !(k in existing));
+  const [selected, setSelected] = useState('');
+  if (available.length === 0) return null;
+  return (
+    <div className="flex gap-1 mt-1.5">
+      <select
+        value={selected}
+        onChange={(e) => setSelected(e.target.value)}
+        className="flex-1 text-xs border border-slate-200 rounded px-2 py-0.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-1 focus:ring-gray-400"
+      >
+        <option value="">+ Add cost…</option>
+        {available.map(k => (
+          <option key={k} value={k}>{k}</option>
+        ))}
+      </select>
+      <button
+        onClick={() => { if (selected) { onAdd(selected); setSelected(''); } }}
+        disabled={!selected}
+        className="px-2 py-0.5 text-xs bg-gray-600 text-white rounded disabled:bg-gray-300"
+      >
+        Add
+      </button>
+    </div>
+  );
+};
+
 const LocationEditDialog = ({
   isOpen,
   onClose,
@@ -38,6 +98,8 @@ const LocationEditDialog = ({
   const [selectedCostGroup, setSelectedCostGroup] = useState({});
   const [showNodeConfirmDialog, setShowNodeConfirmDialog] = useState(false);
   const [originalLocationData, setOriginalLocationData] = useState(null);
+  // Instance selection state: key = techName, value = selected index
+  const [selectedInstances, setSelectedInstances] = useState({});
 
   // Initialize dialog state when location changes
   useEffect(() => {
@@ -79,11 +141,34 @@ const LocationEditDialog = ({
     }
   }, [isOpen, location]);
 
-  // Add technology to dialog
-  const addTechToDialog = (techName) => {
-    if (!dialogTechs.includes(techName)) {
-      setDialogTechs([...dialogTechs, techName]);
-    }
+  // Add technology to dialog, optionally with instance params pre-filled
+  const addTechToDialog = (techName, instanceParams) => {
+    if (dialogTechs.includes(techName)) return;
+    const techTemplate = techMap[techName];
+    setDialogTechs(prev => [...prev, techName]);
+    // Seed constraints
+    const baseConstraints = techTemplate?.constraints ? { ...techTemplate.constraints } : {};
+    setEditingConstraints(prev => ({
+      ...prev,
+      [techName]: instanceParams?.constraints
+        ? { ...baseConstraints, ...instanceParams.constraints }
+        : baseConstraints
+    }));
+    // Seed essentials
+    setEditingEssentials(prev => ({
+      ...prev,
+      [techName]: techTemplate?.essentials ? { ...techTemplate.essentials } : {}
+    }));
+    // Seed costs
+    const baseCosts = techTemplate?.costs?.monetary
+      ? { ...techTemplate.costs.monetary }
+      : techTemplate?.costs ? { ...techTemplate.costs } : {};
+    setEditingCosts(prev => ({
+      ...prev,
+      [techName]: instanceParams?.monetary
+        ? { ...baseCosts, ...instanceParams.monetary }
+        : baseCosts
+    }));
   };
 
   // Remove technology from dialog
@@ -295,6 +380,7 @@ const LocationEditDialog = ({
     setCostSearch({});
     setSelectedConstraintGroup({});
     setSelectedCostGroup({});
+    setSelectedInstances({});
     setOriginalLocationData(null);
     onClose();
   };
@@ -457,12 +543,79 @@ const LocationEditDialog = ({
                             </div>
                           )}
                           
-                          {/* Collapsible Tech Editor - Will be added in next message due to size */}
+                          {/* Expanded tech editor: constraints + costs */}
                           {isExpanded && (
-                            <div className="mt-3 pt-3 border-t border-slate-200 space-y-4">
-                              <p className="text-xs text-slate-500 italic">
-                                Advanced editing (constraints, costs, essentials) available in full version
-                              </p>
+                            <div className="mt-3 pt-3 border-t border-slate-200 space-y-3">
+                              {/* Constraints */}
+                              <div>
+                                <p className="text-xs font-semibold text-slate-600 mb-1">Constraints</p>
+                                {Object.entries(editingConstraints[techName] || {}).length === 0 && (
+                                  <p className="text-xs text-slate-400 italic mb-1">No constraints set</p>
+                                )}
+                                <div className="space-y-1">
+                                  {Object.entries(editingConstraints[techName] || {}).map(([key, val]) => (
+                                    <div key={key} className="flex items-center gap-1">
+                                      <span className="text-[11px] text-slate-500 w-36 flex-shrink-0 font-mono">{key}</span>
+                                      <input
+                                        type="text"
+                                        value={val ?? ''}
+                                        onChange={(e) => updateDialogConstraint(techName, key, e.target.value)}
+                                        className="flex-1 px-2 py-0.5 text-xs border border-slate-200 rounded focus:ring-1 focus:ring-gray-400 font-mono"
+                                      />
+                                      <button
+                                        onClick={() => {
+                                          const c = { ...editingConstraints[techName] };
+                                          delete c[key];
+                                          setEditingConstraints({ ...editingConstraints, [techName]: c });
+                                        }}
+                                        className="text-slate-400 hover:text-red-500"
+                                      >
+                                        <FiX size={12} />
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                                {/* Quick-add common constraint */}
+                                <AddConstraintInline
+                                  techTemplate={techTemplate}
+                                  existing={editingConstraints[techName] || {}}
+                                  onAdd={(key) => updateDialogConstraint(techName, key, '')}
+                                />
+                              </div>
+                              {/* Costs */}
+                              <div>
+                                <p className="text-xs font-semibold text-slate-600 mb-1">Costs (monetary)</p>
+                                {Object.entries(editingCosts[techName] || {}).length === 0 && (
+                                  <p className="text-xs text-slate-400 italic mb-1">No costs set</p>
+                                )}
+                                <div className="space-y-1">
+                                  {Object.entries(editingCosts[techName] || {}).map(([key, val]) => (
+                                    <div key={key} className="flex items-center gap-1">
+                                      <span className="text-[11px] text-slate-500 w-36 flex-shrink-0 font-mono">{key}</span>
+                                      <input
+                                        type="text"
+                                        value={val ?? ''}
+                                        onChange={(e) => updateDialogCost(techName, key, e.target.value)}
+                                        className="flex-1 px-2 py-0.5 text-xs border border-slate-200 rounded focus:ring-1 focus:ring-gray-400 font-mono"
+                                      />
+                                      <button
+                                        onClick={() => {
+                                          const c = { ...editingCosts[techName] };
+                                          delete c[key];
+                                          setEditingCosts({ ...editingCosts, [techName]: c });
+                                        }}
+                                        className="text-slate-400 hover:text-red-500"
+                                      >
+                                        <FiX size={12} />
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                                <AddCostInline
+                                  existing={editingCosts[techName] || {}}
+                                  onAdd={(key) => updateDialogCost(techName, key, '')}
+                                />
+                              </div>
                             </div>
                           )}
                         </div>
@@ -471,59 +624,125 @@ const LocationEditDialog = ({
                   </div>
                 )}
 
-                {/* Available Technologies */}
-                <div className="max-h-96 overflow-y-auto border border-slate-200 rounded-lg p-3">
+                {/* Technology Library */}
+                <div className="max-h-[480px] overflow-y-auto border border-slate-200 rounded-lg p-3">
                   <p className="text-xs font-semibold text-slate-600 mb-3">
-                    Available Technologies ({Object.keys(techMap).length})
+                    Technology Library ({Object.keys(techMap).length})
                   </p>
                   {Object.keys(techMap).length === 0 ? (
                     <div className="text-center py-8 text-slate-500 text-sm">
                       <p>No technologies available.</p>
-                      <p className="text-xs mt-2">Load a model or add technologies in the Technologies section.</p>
+                      <p className="text-xs mt-2">The API catalog will load automatically.</p>
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      {['supply', 'supply_plus', 'demand', 'storage', 'conversion', 'conversion_plus'].map(parentType => {
-                        const techsInCategory = Object.entries(techMap).filter(([name, tech]) => tech.parent === parentType);
-                        
+                      {[
+                        { key: 'supply_plus', label: 'Variable Renewables' },
+                        { key: 'supply',      label: 'Dispatchable Generation' },
+                        { key: 'demand',      label: 'Demand' },
+                        { key: 'storage',     label: 'Storage' },
+                        { key: 'conversion_plus', label: 'Sector Coupling' },
+                        { key: 'conversion',  label: 'Conversion' },
+                      ].map(({ key: parentType, label: categoryLabel }) => {
+                        const techsInCategory = Object.entries(techMap).filter(([, tech]) => tech.parent === parentType);
                         if (techsInCategory.length === 0) return null;
-                        
-                        const isExpanded = expandedCategories[`dialog_${parentType}`];
-                        
+                        const catExpanded = expandedCategories[`dialog_${parentType}`];
                         return (
                           <div key={parentType} className="border border-slate-200 rounded-lg overflow-hidden">
+                            {/* Category header */}
                             <button
                               onClick={() => toggleCategory(`dialog_${parentType}`)}
-                              className="w-full flex items-center justify-between px-3 py-2 bg-slate-50 hover:bg-slate-100 transition-colors"
+                              className="w-full flex items-center justify-between px-3 py-2 bg-slate-100 hover:bg-slate-200 transition-colors"
                             >
                               <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">
-                                {formatTechName(parentType)} ({techsInCategory.length})
+                                {categoryLabel} ({techsInCategory.length})
                               </span>
-                              {isExpanded ? <FiChevronDown size={14} /> : <FiChevronRight size={14} />}
+                              {catExpanded ? <FiChevronDown size={14} /> : <FiChevronRight size={14} />}
                             </button>
-                            
-                            {isExpanded && (
-                              <div className="p-2 bg-white">
-                                <div className="grid grid-cols-2 gap-2">
-                                  {techsInCategory.map(([techName, tech]) => {
-                                    const isSelected = dialogTechs.includes(techName);
-                                    return (
+                            {catExpanded && (
+                              <div className="bg-white divide-y divide-slate-100">
+                                {techsInCategory.map(([techName, tech]) => {
+                                  const instances = tech.instances || [];
+                                  // True if every instance of this tech has been added
+                                  const allAdded = instances.length > 0
+                                    ? instances.every((inst, idx) => dialogTechs.includes(idx === 0 ? techName : `${techName}__${idx}`))
+                                    : dialogTechs.includes(techName);
+                                  const subKey = `dialog_${parentType}_${techName}`;
+                                  const subExpanded = expandedCategories[subKey];
+                                  return (
+                                    <div key={techName}>
+                                      {/* Tech subcategory header */}
                                       <button
-                                        key={techName}
-                                        onClick={() => !isSelected && addTechToDialog(techName)}
-                                        disabled={isSelected}
-                                        className={`p-2 rounded text-xs text-left transition-colors ${
-                                          isSelected
-                                            ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                                            : 'bg-slate-50 hover:bg-gray-50 text-slate-700 hover:text-gray-700 border border-slate-200'
+                                        onClick={() => toggleCategory(subKey)}
+                                        className={`w-full flex items-center justify-between px-4 py-2 text-left transition-colors ${
+                                          allAdded ? 'bg-gray-50 opacity-60' : 'hover:bg-slate-50'
                                         }`}
-                                        title={tech.description || techName}
                                       >
-                                        {isSelected ? '✓ ' : '+ '}{formatTechName(techName)}
+                                        <span className="text-xs font-semibold text-slate-700">{formatTechName(techName)}</span>
+                                        <div className="flex items-center gap-2">
+                                          {instances.length > 0 && (
+                                            <span className="text-[10px] text-slate-400">{instances.length} variant{instances.length !== 1 ? 's' : ''}</span>
+                                          )}
+                                          {subExpanded ? <FiChevronDown size={12} className="text-slate-400" /> : <FiChevronRight size={12} className="text-slate-400" />}
+                                        </div>
                                       </button>
-                                    );
-                                  })}
-                                </div>
+                                      {/* Instance rows */}
+                                      {subExpanded && (
+                                        <div className="pl-4 pr-2 pb-2 bg-slate-50 space-y-1">
+                                          {(instances.length > 0 ? instances : [null]).map((inst, idx) => {
+                                            const instTechName = instances.length > 0 && idx > 0 ? `${techName}__${idx}` : techName;
+                                            const isAdded = dialogTechs.includes(instTechName) ||
+                                              (idx === 0 && dialogTechs.includes(techName));
+                                            const eff = inst?.constraints?.energy_eff;
+                                            const lifetime = inst?.constraints?.lifetime;
+                                            const capex = inst?.monetary?.energy_cap;
+                                            const rowLabel = inst?.displayLabel || inst?.label || inst?.raw?.label || `Variant ${idx + 1}`;
+                                            return (
+                                              <div
+                                                key={idx}
+                                                className={`flex items-center justify-between gap-2 rounded px-2 py-1.5 ${
+                                                  isAdded ? 'bg-gray-100 opacity-60' : 'bg-white border border-slate-200'
+                                                }`}
+                                              >
+                                                <div className="flex-1 min-w-0">
+                                                  <p className="text-[11px] font-medium text-slate-700 truncate">
+                                                    {rowLabel}
+                                                  </p>
+                                                  {(eff != null || lifetime != null || capex != null) && (
+                                                    <div className="flex gap-1 mt-0.5 flex-wrap">
+                                                      {eff != null && (
+                                                        <span className="text-[9px] text-slate-400 bg-slate-100 px-1 py-0.5 rounded">
+                                                          η {typeof eff === 'number' && eff <= 1 ? `${Math.round(eff * 100)}%` : eff}
+                                                        </span>
+                                                      )}
+                                                      {lifetime != null && (
+                                                        <span className="text-[9px] text-slate-400 bg-slate-100 px-1 py-0.5 rounded">{lifetime} yr</span>
+                                                      )}
+                                                      {capex != null && (
+                                                        <span className="text-[9px] text-slate-400 bg-slate-100 px-1 py-0.5 rounded">CAPEX {capex}</span>
+                                                      )}
+                                                    </div>
+                                                  )}
+                                                </div>
+                                                <button
+                                                  onClick={() => { if (!isAdded) addTechToDialog(techName, inst); }}
+                                                  disabled={isAdded}
+                                                  className={`flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold transition-colors ${
+                                                    isAdded
+                                                      ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                                                      : 'bg-gray-600 text-white hover:bg-gray-700'
+                                                  }`}
+                                                >
+                                                  {isAdded ? '✓' : '+ Add'}
+                                                </button>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
                               </div>
                             )}
                           </div>
