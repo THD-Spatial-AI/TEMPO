@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { FiMapPin, FiLink, FiCpu, FiTrash2, FiSave, FiX, FiPlus, FiCheck, FiChevronDown,FiChevronLeft, FiChevronRight, FiSun, FiWind, FiBattery, FiZap, FiActivity, FiDroplet, FiHome, FiCircle, FiHelpCircle, FiArrowRight, FiLayers, FiSearch, FiMaximize2, FiMinimize2, FiEdit2, FiSettings, FiCalendar, FiZoomIn, FiZoomOut, FiPlay } from "react-icons/fi";
 import { useData } from "../context/DataContext";
-import { TECH_TEMPLATES } from "./TechnologiesData";
+import { TECH_TEMPLATES, useLiveTechTemplates } from "./TechnologiesData";
 import { renderToStaticMarkup } from 'react-dom/server';
 import DeckGL from '@deck.gl/react';
 import { ScatterplotLayer, LineLayer, IconLayer, GeoJsonLayer, PathLayer } from '@deck.gl/layers';
@@ -777,19 +777,31 @@ const Creation = () => {
   const [jobProgress, setJobProgress] = useState(0);
   const [modelResults, setModelResults] = useState(null);
   
-  // Create technology map from context
+  // Create technology map — live API catalog first, then static fallback, then model-specific overrides
+  const { techTemplates: liveTechTemplates } = useLiveTechTemplates();
   const techMap = useMemo(() => {
     const map = {};
-    
-    // Add model-specific technologies
+
+    // Start with live templates (falls back to static TECH_TEMPLATES inside the hook)
+    const source = liveTechTemplates && Object.keys(liveTechTemplates).length > 0
+      ? liveTechTemplates
+      : TECH_TEMPLATES;
+    Object.values(source).forEach(categoryTechs => {
+      if (Array.isArray(categoryTechs)) {
+        categoryTechs.forEach(tech => { map[tech.name] = tech; });
+      }
+    });
+
+    // Override / extend with any model-specific technologies, but KEEP instances from live API
     if (Array.isArray(technologies) && technologies.length > 0) {
       technologies.forEach(tech => {
-        map[tech.name] = tech;
+        const existingInstances = map[tech.name]?.instances;
+        map[tech.name] = existingInstances ? { ...tech, instances: existingInstances } : tech;
       });
     }
-    
+
     return map;
-  }, [technologies]);
+  }, [liveTechTemplates, technologies]);
   
   // Deck.gl Map States
   const [viewState, setViewState] = useState({
