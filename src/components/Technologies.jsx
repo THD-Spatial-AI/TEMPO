@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import useMeasure from 'react-use-measure';
 import { FiChevronLeft, FiChevronRight, FiSearch, FiEdit2, FiX, FiSave, FiPlus, FiTrash2, FiChevronDown, FiChevronRight as FiChevronRightIcon, FiArrowRight, FiHelpCircle } from 'react-icons/fi';
 import { useData } from '../context/DataContext';
-import { TECH_TEMPLATES, TECH_IMAGES, PARENT_TYPES } from './TechnologiesData';
+import { TECH_TEMPLATES, TECH_IMAGES, PARENT_TYPES, useLiveTechTemplates } from './TechnologiesData';
 
 // Card dimensions
 const CARD_WIDTH = 280;
@@ -88,7 +88,10 @@ const customScrollbarStyles = `
 // TechCard component
 const TechCard = ({ techName, tech, isCustom, onDuplicate, onEdit, onDelete }) => {
   const [expanded, setExpanded] = useState(false);
-  const imageUrl = TECH_IMAGES[techName] || TECH_IMAGES[tech.parent] || TECH_IMAGES.default;
+  // Look up by id first (OEO API catalog), then by techName, then by parent type
+  const imageUrl = TECH_IMAGES[tech.id] || TECH_IMAGES[techName] ||
+    TECH_IMAGES[(techName || '').replace(/\s+/g, '_').toLowerCase()] ||
+    TECH_IMAGES[tech.parent] || TECH_IMAGES.default;
 
   const renderObjectEntries = (obj, parentKey = '') => {
     if (!obj || typeof obj !== 'object') return null;
@@ -316,6 +319,9 @@ function Technologies() {
   const [editingTech, setEditingTech] = useState(null);
   const [editForm, setEditForm] = useState(null);
   
+  // Live OEO API data (falls back to static TECH_TEMPLATES when offline)
+  const { techTemplates: liveTechTemplates, isLive: isApiLive, isLoading: isApiLoading } = useLiveTechTemplates();
+
   // Constraint and cost management states
   const [constraintSearch, setConstraintSearch] = useState({});
   const [costSearch, setCostSearch] = useState({});
@@ -326,8 +332,8 @@ function Technologies() {
   const allTechnologies = useMemo(() => {
     const combined = {};
     
-    // Add all templates
-    Object.values(TECH_TEMPLATES).forEach(categoryTechs => {
+    // Add all templates (live from OEO API if available, otherwise static)
+    Object.values(liveTechTemplates).forEach(categoryTechs => {
       if (Array.isArray(categoryTechs)) {
         categoryTechs.forEach(tech => {
           combined[tech.name] = { ...tech, isTemplate: true };
@@ -339,7 +345,7 @@ function Technologies() {
     // Custom technologies will be shown in "My Technologies" section
     
     return combined;
-  }, [technologies]);
+  }, [technologies, liveTechTemplates]);
 
   // Handle duplicate
   const handleDuplicate = (techName) => {
@@ -510,7 +516,27 @@ function Technologies() {
       <div className="flex h-screen overflow-x-hidden">
         {/* Sidebar */}
         <div className="w-72 flex-shrink-0 bg-white/80 backdrop-blur-sm shadow-lg p-6 overflow-y-auto">
-          <h2 className="text-2xl font-bold text-slate-800 mb-6">Technology Library</h2>
+          <h2 className="text-2xl font-bold text-slate-800 mb-2">Technology Library</h2>
+
+          {/* OEO API status badge */}
+          <div className="mb-5">
+            {isApiLoading ? (
+              <span className="inline-flex items-center gap-1.5 text-xs text-slate-400 px-2 py-1 bg-slate-100 rounded-full">
+                <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-pulse" />
+                Checking live data…
+              </span>
+            ) : isApiLive ? (
+              <span className="inline-flex items-center gap-1.5 text-xs text-emerald-700 px-2 py-1 bg-emerald-50 rounded-full border border-emerald-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                Live OEO data
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 text-xs text-amber-700 px-2 py-1 bg-amber-50 rounded-full border border-amber-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                Static data (API offline)
+              </span>
+            )}
+          </div>
 
           {/* Search */}
           <div className="mb-6">
