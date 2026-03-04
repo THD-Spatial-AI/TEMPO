@@ -70,7 +70,7 @@ body {
   font-family: var(--font-display);
   background: var(--color-slate-50);
   background-image: var(--gradient-mesh);
-  background-attachment: fixed;
+  /* background-attachment: fixed removed — it opted out of GPU scroll compositing */
   color: var(--color-slate-900);
   line-height: 1.6;
 }
@@ -259,3 +259,14 @@ code, pre {
   background-color: rgba(129, 140, 248, 0.9);
 }
 
+/* Respect user reduced-motion preference (WCAG 2.3 / best-practices) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

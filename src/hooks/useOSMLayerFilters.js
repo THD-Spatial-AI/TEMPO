@@ -23,11 +23,12 @@ export const useOSMLayerFilters = (
       // Check if type is selected
       if (!substationFilters.selectedTypes.includes(type)) return false;
       
-      // Check voltage filter
+      // Check voltage filter (GeoServer stores in Volts; convert to kV for comparison)
       const voltageStr = props.voltage || props.voltage_primary || '';
       if (voltageStr) {
-        const voltage = parseFloat(voltageStr.toString().replace(/[^0-9.]/g, ''));
+        let voltage = parseFloat(voltageStr.toString().replace(/[^0-9.]/g, ''));
         if (!isNaN(voltage)) {
+          if (voltage > 1000) voltage = voltage / 1000; // V → kV
           if (voltage < substationFilters.minVoltage || voltage > substationFilters.maxVoltage) {
             return false;
           }
@@ -71,14 +72,8 @@ export const useOSMLayerFilters = (
   // Filter power lines
   const filteredPowerLines = useMemo(() => {
     if (!osmPowerLines || !osmPowerLines.features) {
-      console.log('❌ No power lines data to filter');
       return { type: 'FeatureCollection', features: [] };
     }
-    
-    console.log('🔍 Filtering power lines:', {
-      total: osmPowerLines.features.length,
-      filters: powerLineFilters
-    });
     
     const filtered = osmPowerLines.features.filter(f => {
       const props = f.properties;
@@ -106,15 +101,6 @@ export const useOSMLayerFilters = (
       if (type === 'overhead' && powerLineFilters.showOverhead === false) return false;
       
       return true;
-    });
-    
-    console.log('✅ Filtered power lines:', {
-      filtered: filtered.length,
-      sample: filtered[0] ? {
-        voltage: filtered[0].properties.voltage,
-        geometryType: filtered[0].geometry?.type,
-        coordsCount: filtered[0].geometry?.coordinates?.length
-      } : null
     });
     
     return { type: 'FeatureCollection', features: filtered };

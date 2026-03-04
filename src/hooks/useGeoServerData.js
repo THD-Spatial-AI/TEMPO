@@ -22,7 +22,6 @@ export const useGeoServerData = () => {
     setError(null);
 
     const region = regionPath || null; // normalise empty string → null
-    console.log('Loading from GeoServer:', region || '(all regions)', bbox ? 'with bbox' : '');
 
     try {
       const layers = {
@@ -37,23 +36,24 @@ export const useGeoServerData = () => {
       const requests = [];
       const layerKeys = [];
 
-      if (filters.showSubstations !== false) {
+      // Accept both naming conventions: showSubstations (old) and substations (new)
+      if (filters.substations !== false && filters.showSubstations !== false) {
         requests.push(api.getOSMLayer('osm_substations', bbox, region));
         layerKeys.push('substations');
       }
-      if (filters.showPowerPlants !== false) {
+      if (filters.powerPlants !== false && filters.showPowerPlants !== false) {
         requests.push(api.getOSMLayer('osm_power_plants', bbox, region));
         layerKeys.push('powerPlants');
       }
-      if (filters.showPowerLines !== false) {
+      if (filters.powerLines !== false && filters.showPowerLines !== false) {
         requests.push(api.getOSMLayer('osm_power_lines', bbox, region));
         layerKeys.push('powerLines');
       }
-      if (filters.showCommunes !== false) {
+      if (filters.communes !== false && filters.showCommunes !== false) {
         requests.push(api.getOSMLayer('osm_communes', bbox, region));
         layerKeys.push('communes');
       }
-      if (filters.showDistricts !== false) {
+      if (filters.districts !== false && filters.showDistricts !== false) {
         requests.push(api.getOSMLayer('osm_districts', bbox, region));
         layerKeys.push('districts');
       }
@@ -62,7 +62,6 @@ export const useGeoServerData = () => {
 
       results.forEach((data, i) => {
         layers[layerKeys[i]] = data;
-        console.log(`✓ ${layerKeys[i]}: ${data.features?.length ?? 0} features`);
       });
 
       setLoading(false);
@@ -88,7 +87,6 @@ export const useGeoServerData = () => {
 
     try {
       const data = await api.getOSMLayer(layerName, bbox, regionPath);
-      console.log(`✓ Loaded ${data.features?.length || 0} ${layerName} from GeoServer`);
       setLoading(false);
       return data;
     } catch (err) {
