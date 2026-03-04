@@ -15,7 +15,35 @@ import os
 import tempfile
 import shutil
 import traceback
+import logging
 from pathlib import Path
+
+# ---------------------------------------------------------------------------
+# OEO Tech Database integration (optional – graceful fallback if offline)
+# ---------------------------------------------------------------------------
+
+try:
+    # Allow running from the repo root or from the python/ sub-directory
+    _this_dir = Path(__file__).resolve().parent
+    if str(_this_dir) not in sys.path:
+        sys.path.insert(0, str(_this_dir.parent))  # add repo root
+    if str(_this_dir) not in sys.path:
+        sys.path.insert(0, str(_this_dir))          # add python/
+
+    from python.services.tech_database import (
+        get_technology,
+        is_api_available,
+        TechDatabaseOfflineError,
+        TechNotFoundError,
+        configure as configure_tech_db,
+    )
+    from python.adapters.calliope_adapter import enrich_calliope_tech_dict, to_calliope_tech
+
+    _OEO_INTEGRATION_AVAILABLE = True
+except ImportError:
+    _OEO_INTEGRATION_AVAILABLE = False
+
+logging.basicConfig(level=logging.WARNING)
 
 
 def log(msg):
@@ -63,6 +91,118 @@ def dump_yaml(data):
 def _tech_id(tech):
     """Derive a clean snake_case Calliope tech identifier."""
     return (tech.get('name') or tech.get('id') or 'unknown').replace(' ', '_').lower()
+
+
+# ---------------------------------------------------------------------------
+# OEO API enrichment helper
+# ---------------------------------------------------------------------------
+
+def _enrich_tech_from_oeo_api(tech: dict, oeo_api_id: str) -> dict:
+    """
+    Attempt to fetch updated parameters for *tech* from the OEO API and merge
+    them into the existing tech dict (in Calliope format).
+
+    Returns the (possibly enriched) tech dict unchanged if:
+    - the OEO integration modules are not importable, or
+    - the API is offline, or
+    - the technology is not found in the API catalog.
+
+    Parameters
+    ----------
+    tech : dict
+        Existing technology dict in the shape the UI sends
+        (keys: name, parent, essentials, constraints, costs, …).
+    oeo_api_id : str
+        The identifier to look up in the OEO API.
+
+    Returns
+    -------
+    dict  – enriched (or original) tech dict.
+    """
+    if not _OEO_INTEGRATION_AVAILABLE:
+        return tech
+
+    try:
+        oeo_tech = get_technology(oeo_api_id)
+    except TechDatabaseOfflineError:
+        log(f"  [OEO] API offline – using local data for '{oeo_api_id}'")
+        return tech
+    except TechNotFoundError:
+        log(f"  [OEO] '{oeo_api_id}' not in API catalog – keeping local data")
+        return tech
+    except Exception as exc:
+        log(f"  [OEO] Unexpected error for '{oeo_api_id}': {exc}")
+        return tech
+
+    # Build a minimal Calliope-style dict from the tech (as the runner expects)
+    # so enrich_calliope_tech_dict can merge into it.
+    tid = _tech_id(tech)
+    existing_block = {
+        tid: {
+            'essentials': tech.get('essentials', {
+                'name': tech.get('name', tid),
+                'parent': tech.get('parent', 'supply'),
+                'carrier_out': 'electricity',
+            }),
+            'constraints': tech.get('constraints', {}),
+            'costs': tech.get('costs', {}),
+        }
+    }
+
+    try:
+        enriched_block = enrich_calliope_tech_dict(
+            existing_block, oeo_tech, overwrite=True
+        )
+        # Unpack back into the flat tech dict the runner uses
+        enriched_def = enriched_block[tid]
+        result = dict(tech)
+        result['essentials'] = enriched_def.get('essentials', tech.get('essentials', {}))
+        result['constraints'] = enriched_def.get('constraints', tech.get('constraints', {}))
+        result['costs'] = enriched_def.get('costs', tech.get('costs', {}))
+        log(f"  [OEO] Enriched '{tid}' with live data (source: {oeo_tech.source_url or 'API'})")
+        return result
+    except Exception as exc:
+        log(f"  [OEO] Enrichment merge failed for '{tid}': {exc} – keeping local data")
+        return tech
+
+
+def enrich_technologies_from_oeo_api(technologies: list) -> list:
+    """
+    Attempt to enrich *all* technologies in the list with live OEO API data.
+
+    This function is called automatically in ``run_model()`` when the API is
+    reachable.  Each technology is matched to an OEO API identifier using a
+    best-effort name-normalisation strategy.
+
+    Parameters
+    ----------
+    technologies : list[dict]
+        The technologies list from the model payload.
+
+    Returns
+    -------
+    list[dict]  – (possibly partially) enriched technologies.
+    """
+    if not _OEO_INTEGRATION_AVAILABLE:
+        return technologies
+
+    if not is_api_available():
+        log("[OEO] Tech Database API unreachable – running with local technology data.")
+        return technologies
+
+    log(f"[OEO] Tech Database API is online – enriching {len(technologies)} technologies …")
+
+    enriched = []
+    for tech in technologies:
+        # Derive the API lookup ID: prefer explicit 'id' field, otherwise normalise name
+        api_id = (
+            tech.get('id')
+            or tech.get('name', '')
+        ).replace(' ', '_').lower()
+
+        enriched.append(_enrich_tech_from_oeo_api(tech, api_id))
+
+    return enriched
 
 
 def build_techs_config(technologies):
@@ -177,6 +317,11 @@ def run_model(model_data, work_dir):
 
     log(f"Building model '{model_name}'")
     log(f"  Locations: {len(locations)}  Technologies: {len(technologies)}  Links: {len(links)}")
+
+    # ------------------------------------------------------------------
+    # Phase 0: Enrich technology parameters from OEO API (if available)
+    # ------------------------------------------------------------------
+    technologies = enrich_technologies_from_oeo_api(technologies)
 
     config_dir = Path(work_dir) / 'model_config'
     config_dir.mkdir(exist_ok=True)
