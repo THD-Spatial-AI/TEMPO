@@ -1,6 +1,6 @@
 ﻿// Technology images mapping - using local image files
 import React from "react";
-import { enrichTechsFromApi, isTechApiAvailable } from '../services/techDatabaseApi';
+import { enrichTechsFromApi, isTechApiAvailable, fetchFullCatalogWithInstances } from '../services/techDatabaseApi';
 
 import pv from "../assets/img/pv.jpg";
 import wind from "../assets/img/wind.jpg";
@@ -710,22 +710,40 @@ export async function fetchLiveTechTemplates() {
   try {
     const online = await isTechApiAvailable(3000);
     if (!online) {
-      console.info('[OEO] API offline â€“ using static TECH_TEMPLATES.');
+      console.info('[OEO] API offline - using static TECH_TEMPLATES.');
       return TECH_TEMPLATES;
     }
 
-    // Enrich each category's tech array in parallel
-    const enrichedEntries = await Promise.all(
-      Object.entries(TECH_TEMPLATES).map(async ([category, techs]) => {
-        if (!Array.isArray(techs)) return [category, techs];
-        const enriched = await enrichTechsFromApi(techs);
-        return [category, enriched];
-      })
-    );
+    // Fetch full catalog with instances from v1 API
+    console.info('[OEO] Fetching full catalog with instances from API...');
+    const apiTechs = await fetchFullCatalogWithInstances();
 
-    const liveCatalog = Object.fromEntries(enrichedEntries);
-    console.info('[OEO] TECH_TEMPLATES enriched with live API data.');
-    return liveCatalog;
+    if (!apiTechs || apiTechs.length === 0) {
+      console.warn('[OEO] fetchFullCatalogWithInstances returned empty - using static.');
+      return TECH_TEMPLATES;
+    }
+
+    // Group by parent type (generation split into supply/supply_plus by apiCategoryToParent)
+    const grouped = {};
+    apiTechs.forEach(tech => {
+      const parent = tech.parent;
+      if (!grouped[parent]) grouped[parent] = [];
+      grouped[parent].push(tech);
+    });
+
+    // Demand is not in the API - always keep from static templates
+    grouped.demand = TECH_TEMPLATES.demand || [];
+
+    // Fill missing categories from static templates as fallback
+    ['supply_plus', 'supply', 'storage', 'conversion_plus', 'transmission'].forEach(cat => {
+      if (!grouped[cat] || grouped[cat].length === 0) {
+        grouped[cat] = TECH_TEMPLATES[cat] || [];
+        console.info(`[OEO] Category '${cat}' not in API - using static templates.`);
+      }
+    });
+
+    console.info(`[OEO] Live catalog built: ${apiTechs.length} technologies with instances.`);
+    return grouped;
   } catch (err) {
     console.warn('[OEO] fetchLiveTechTemplates failed, falling back to static data:', err);
     return TECH_TEMPLATES;
