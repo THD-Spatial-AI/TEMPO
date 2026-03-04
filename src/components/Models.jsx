@@ -1428,7 +1428,7 @@ const Models = () => {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-slate-800 mb-2">Energy System Models</h1>
-            <p className="text-slate-600">Create, manage and configure your Calliope models</p>
+            <p className="text-slate-600">Create, manage and configure your own models</p>
           </div>
           <div className="flex gap-3">
             <button

@@ -238,9 +238,7 @@ const OsmInfrastructurePanel = ({
   };
 
   return (
-    <div className={`flex flex-col h-full bg-white border-l border-slate-200 shadow-lg transition-all duration-300 ${
-      collapsed ? 'w-14' : 'w-80'
-    }`}>
+    <div className="flex flex-col h-full w-full bg-white border-l border-slate-200 shadow-lg">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-slate-200">
         {!collapsed && (

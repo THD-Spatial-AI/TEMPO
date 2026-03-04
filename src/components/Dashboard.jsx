@@ -13,15 +13,15 @@ const Dashboard = () => {
 
   // Create technology color map from model definitions OR from location techs
   const techMap = useMemo(() => {
-    console.log('🔍 Technologies object:', technologies);
-    console.log('🔍 Locations count:', locations?.length);
+    import.meta.env.DEV && console.log('🔍 Technologies object:', technologies);
+    import.meta.env.DEV && console.log('🔍 Locations count:', locations?.length);
     
     const map = new Map();
     
     // Try to get colors from technologies object first
     if (technologies && typeof technologies === 'object') {
       Object.entries(technologies).forEach(([techName, techDef]) => {
-        console.log(`  Tech from technologies: ${techName}`, techDef);
+        import.meta.env.DEV && console.log(`  Tech from technologies: ${techName}`, techDef);
         map.set(techName, techDef);
       });
     }
@@ -32,7 +32,7 @@ const Dashboard = () => {
         if (location.techs) {
           Object.entries(location.techs).forEach(([techName, techData]) => {
             if (!map.has(techName) && techData) {
-              console.log(`  Tech from location: ${techName}`, techData);
+              import.meta.env.DEV && console.log(`  Tech from location: ${techName}`, techData);
               map.set(techName, techData);
             }
           });
@@ -40,8 +40,8 @@ const Dashboard = () => {
       });
     }
     
-    console.log(`✅ TechMap size: ${map.size}`);
-    console.log('📋 Tech names in map:', Array.from(map.keys()));
+    import.meta.env.DEV && console.log(`✅ TechMap size: ${map.size}`);
+    import.meta.env.DEV && console.log('📋 Tech names in map:', Array.from(map.keys()));
     return map;
   }, [technologies, locations]);
 
@@ -59,19 +59,19 @@ const Dashboard = () => {
     
     // Try constraints.color first (where it's actually stored in the model)
     if (tech?.constraints?.color) {
-      console.log(`✅ Using constraints.color for ${techName}: ${tech.constraints.color}`);
+      import.meta.env.DEV && console.log(`✅ Using constraints.color for ${techName}: ${tech.constraints.color}`);
       return tech.constraints.color;
     }
     
     // Try essentials.color (from YAML tech definitions)
     if (tech?.essentials?.color) {
-      console.log(`✅ Using essentials.color for ${techName}: ${tech.essentials.color}`);
+      import.meta.env.DEV && console.log(`✅ Using essentials.color for ${techName}: ${tech.essentials.color}`);
       return tech.essentials.color;
     }
     
     // Try color at root level (sometimes it's stored there)
     if (tech?.color) {
-      console.log(`✅ Using root color for ${techName}: ${tech.color}`);
+      import.meta.env.DEV && console.log(`✅ Using root color for ${techName}: ${tech.color}`);
       return tech.color;
     }
     
@@ -103,7 +103,7 @@ const Dashboard = () => {
     const lowerTechName = techName.toLowerCase();
     for (const [key, color] of Object.entries(chileColors)) {
       if (lowerTechName.includes(key)) {
-        console.log(`✅ Using Chilean default for ${techName}: ${color}`);
+        import.meta.env.DEV && console.log(`✅ Using Chilean default for ${techName}: ${color}`);
         return color;
       }
     }
@@ -112,7 +112,7 @@ const Dashboard = () => {
     const vibrantColors = ['#E74C3C', '#3498DB', '#2ECC71', '#F39C12', '#9B59B6', '#1ABC9C', '#E67E22', '#16A085', '#27AE60', '#2980B9', '#8E44AD', '#C0392B', '#D35400', '#7F8C8D'];
     const hash = techName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
     const fallbackColor = vibrantColors[hash % vibrantColors.length];
-    console.log(`⚠️ Using fallback color for ${techName}: ${fallbackColor}`);
+    import.meta.env.DEV && console.log(`⚠️ Using fallback color for ${techName}: ${fallbackColor}`);
     return fallbackColor;
   };
 
@@ -259,8 +259,8 @@ const Dashboard = () => {
       }))
       .sort((a, b) => b.value - a.value);
 
-    console.log('📊 FINAL Energy Mix with colors:', energyMix);
-    console.log('🎨 FINAL Tech Capacities with colors:', techCapacitiesWithColors);
+    import.meta.env.DEV && console.log('📊 FINAL Energy Mix with colors:', energyMix);
+    import.meta.env.DEV && console.log('🎨 FINAL Tech Capacities with colors:', techCapacitiesWithColors);
 
     const totalTimeSeries = Object.keys(timeSeries || {}).length;
     const totalTemplates = Object.keys(technologies || {}).length;

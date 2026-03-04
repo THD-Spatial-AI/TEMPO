@@ -185,6 +185,8 @@ const Option = ({ Icon, title, selected, setSelected, open, notifs, isNested = f
       onClick={() => setSelected(title)}
       whileHover={{ x: 2 }}
       whileTap={{ scale: 0.98 }}
+      aria-label={title}
+      aria-current={isSelected ? "page" : undefined}
       className={`relative flex h-11 w-full items-center rounded-xl transition-all duration-200 ${
         isSelected
           ? "bg-gradient-to-r from-electric-500 to-electric-600 text-white shadow-md"
@@ -234,6 +236,8 @@ const DropdownSection = ({ Icon, title, open, isExpanded, setIsExpanded, childre
         layout
         onClick={() => setIsExpanded(!isExpanded)}
         whileHover={{ x: 2 }}
+        aria-expanded={isExpanded}
+        aria-label={title}
         className="relative flex h-11 w-full items-center rounded-xl text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all duration-200"
       >
         <motion.div
@@ -294,8 +298,8 @@ const TitleSection = ({ open }) => {
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.1, type: "spring", stiffness: 200 }}
             >
-              <span className="block text-sm font-bold bg-gradient-to-r from-electric-600 to-violet-600 bg-clip-text text-transparent">Calliope</span>
-              <span className="block text-[11px] text-slate-500 font-medium tracking-wide">VISUALIZATOR</span>
+              <span className="block text-sm font-bold bg-gradient-to-r from-electric-600 to-violet-600 bg-clip-text text-transparent">TEMPO</span>
+              <span className="block text-[11px] text-slate-500 font-medium tracking-wide">Tool for Energy Model Planning and Optimization</span>
             </motion.div>
           )}
         </div>
@@ -318,6 +322,8 @@ const Logo = () => {
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
         className="fill-slate-50"
+        aria-hidden="true"
+        focusable="false"
       >
         <path
           d="M16.4992 2H37.5808L22.0816 24.9729H1L16.4992 2Z"
@@ -337,6 +343,7 @@ const ToggleClose = ({ open, setOpen }) => {
     <motion.button
       layout
       onClick={() => setOpen((pv) => !pv)}
+      aria-label={open ? "Collapse sidebar" : "Expand sidebar"}
       className="border-t border-slate-200 transition-all duration-200 hover:bg-slate-50 mt-3"
     >
       <div className="flex items-center p-2.5">
