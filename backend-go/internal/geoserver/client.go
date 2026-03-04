@@ -50,7 +50,11 @@ func NewClient(baseURL string) *Client {
 //   GetOSMLayer("osm_substations", &BBox{...}, "Europe/Germany/Bayern")
 func (c *Client) GetOSMLayer(layerName string, bbox *BBox, regionPath string) ([]byte, error) {
 	// Check cache first (5 minute TTL)
-	cacheKey := fmt.Sprintf("%s:%v:%s", layerName, bbox, regionPath)
+	var bboxKey string
+	if bbox != nil {
+		bboxKey = fmt.Sprintf("%.4f,%.4f,%.4f,%.4f", bbox.MinLon, bbox.MinLat, bbox.MaxLon, bbox.MaxLat)
+	}
+	cacheKey := fmt.Sprintf("%s:%s:%s", layerName, bboxKey, regionPath)
 	if entry, ok := c.cache[cacheKey]; ok {
 		if time.Since(entry.timestamp) < 5*time.Minute {
 			return entry.data, nil
@@ -66,18 +70,14 @@ func (c *Client) GetOSMLayer(layerName string, bbox *BBox, regionPath string) ([
 	params.Add("outputFormat", "application/json")
 	params.Add("srsName", "EPSG:4326")
 
-	// Add bounding box spatial filter if provided
+	// Add bounding box spatial filter when provided.
+	// The PostGIS tables do not have a region_path column, so bbox is the
+	// only spatial filter we need. GeoServer's data only covers the user's
+	// loaded regions (Niederbayern, Chile, …), so any viewport bbox will
+	// naturally return only the relevant features.
 	if bbox != nil {
-		// BBOX format: minLon,minLat,maxLon,maxLat,CRS
 		params.Add("bbox", fmt.Sprintf("%f,%f,%f,%f,EPSG:4326",
 			bbox.MinLon, bbox.MinLat, bbox.MaxLon, bbox.MaxLat))
-	}
-
-	// Add CQL region filter if provided.
-	// Use LIKE with a trailing wildcard so "Europe/Germany" also matches
-	// sub-regions like "Europe/Germany/Bayern/Niederbayern".
-	if regionPath != "" {
-		params.Add("CQL_FILTER", fmt.Sprintf("region_path LIKE '%s%%'", regionPath))
 	}
 
 	reqURL := fmt.Sprintf("%s/wfs?%s", c.baseURL, params.Encode())

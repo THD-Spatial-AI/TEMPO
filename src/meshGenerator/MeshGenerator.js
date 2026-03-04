@@ -20,15 +20,15 @@ export const generatePowerMesh = (powerLinesGeoJson, options = {}) => {
     maxVoltage = 1000
   } = options;
 
-  console.log('🔧 Starting mesh generation...');
+  import.meta.env.DEV && console.log('🔧 Starting mesh generation...');
 
   // Step 1: Extract all line endpoints
-  console.log('📍 Extracting line endpoints...');
+  import.meta.env.DEV && console.log('📍 Extracting line endpoints...');
   const endpoints = extractLineEndpoints(powerLinesGeoJson);
-  console.log(`  Found ${endpoints.length} endpoints`);
+  import.meta.env.DEV && console.log(`  Found ${endpoints.length} endpoints`);
 
   if (endpoints.length === 0) {
-    console.warn('⚠️ No endpoints found');
+    import.meta.env.DEV && console.warn('⚠️ No endpoints found');
     return {
       nodes: [],
       edges: [],
@@ -39,7 +39,7 @@ export const generatePowerMesh = (powerLinesGeoJson, options = {}) => {
   }
 
   // Step 2: Parse names and voltages
-  console.log('📝 Parsing location names and voltages...');
+  import.meta.env.DEV && console.log('📝 Parsing location names and voltages...');
   const enrichedEndpoints = endpoints.map(ep => ({
     ...ep,
     name: parseLocationName(ep),
@@ -51,24 +51,24 @@ export const generatePowerMesh = (powerLinesGeoJson, options = {}) => {
     const voltage = ep.voltage || 0;
     return voltage >= minVoltage && voltage <= maxVoltage;
   });
-  console.log(`  Filtered to ${filteredEndpoints.length} endpoints by voltage range`);
+  import.meta.env.DEV && console.log(`  Filtered to ${filteredEndpoints.length} endpoints by voltage range`);
 
   // Step 4: Deduplicate nearby points
-  console.log('🔄 Deduplicating nearby points...');
+  import.meta.env.DEV && console.log('🔄 Deduplicating nearby points...');
   const meshNodes = deduplicatePoints(filteredEndpoints, deduplicationThreshold);
-  console.log(`  Created ${meshNodes.length} mesh nodes from ${filteredEndpoints.length} endpoints`);
+  import.meta.env.DEV && console.log(`  Created ${meshNodes.length} mesh nodes from ${filteredEndpoints.length} endpoints`);
 
   // Step 5: Build connectivity graph
-  console.log('🔗 Building connectivity graph...');
+  import.meta.env.DEV && console.log('🔗 Building connectivity graph...');
   const graph = buildConnectivityGraph(powerLinesGeoJson, meshNodes, snapThreshold);
-  console.log(`  Generated ${graph.edges.length} edges connecting nodes`);
+  import.meta.env.DEV && console.log(`  Generated ${graph.edges.length} edges connecting nodes`);
 
   // Step 6: Calculate statistics
-  console.log('📊 Calculating mesh statistics...');
+  import.meta.env.DEV && console.log('📊 Calculating mesh statistics...');
   const statistics = calculateMeshStatistics(graph);
 
-  console.log('✅ Mesh generation complete!');
-  console.log('Statistics:', statistics);
+  import.meta.env.DEV && console.log('✅ Mesh generation complete!');
+  import.meta.env.DEV && console.log('Statistics:', statistics);
 
   return {
     nodes: graph.nodes,

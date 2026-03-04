@@ -1,24 +1,27 @@
-import React, { useState, useEffect } from "react";
+import React, { Suspense, lazy, useState, useEffect } from "react";
 import { DataProvider, useData } from "./context/DataContext";
 import Sidebar from "./components/Sidebar";
+import ErrorBoundary from "./components/ErrorBoundary";
+// Dashboard is the initial view — load eagerly
 import Dashboard from "./components/Dashboard";
-import Tutorial from "./components/Tutorial";
-import Models from "./components/Models";
-import MapView from "./components/MapView";
-import Configuration from "./components/Configuration";
-import Creation from "./components/Creation";
-import Locations from "./components/Locations";
-import Links from "./components/Links";
-import Overrides from "./components/Overrides";
-import Scenarios from "./components/Scenarios";
-import Parameters from "./components/Parameters";
-import Technologies from "./components/Technologies";
-import TimeSeries from "./components/TimeSeries";
-import Settings from "./components/Settings";
-import Export from "./components/Export";
-import Run from "./components/Run";
-import Results from "./components/Results";
-import SetupScreen from "./components/SetupScreen";
+// All other views are lazy-loaded to reduce initial bundle size (LCP/INP fix)
+const Tutorial = lazy(() => import("./components/Tutorial"));
+const Models = lazy(() => import("./components/Models"));
+const MapView = lazy(() => import("./components/MapView"));
+const Configuration = lazy(() => import("./components/Configuration"));
+const Creation = lazy(() => import("./components/Creation"));
+const Locations = lazy(() => import("./components/Locations"));
+const Links = lazy(() => import("./components/Links"));
+const Overrides = lazy(() => import("./components/Overrides"));
+const Scenarios = lazy(() => import("./components/Scenarios"));
+const Parameters = lazy(() => import("./components/Parameters"));
+const Technologies = lazy(() => import("./components/Technologies"));
+const TimeSeries = lazy(() => import("./components/TimeSeries"));
+const Settings = lazy(() => import("./components/Settings"));
+const Export = lazy(() => import("./components/Export"));
+const Run = lazy(() => import("./components/Run"));
+const Results = lazy(() => import("./components/Results"));
+const SetupScreen = lazy(() => import("./components/SetupScreen"));
 
 function AppContent() {
   const [selected, setSelected] = useState("Dashboard");
@@ -45,44 +48,59 @@ function AppContent() {
   };
 
   const renderContent = () => {
-    const viewMap = {
-      "Dashboard": <Dashboard />,
-      "Tutorial": <Tutorial />,
-      "Models": <Models />,
-      "Map View": <MapView />,
-      "Configuration": <Configuration />,
-      "Creation": <Creation />,
-      "Locations": <Locations />,
-      "Links": <Links />,
-      "Overrides": <Overrides />,
-      "Scenarios": <Scenarios />,
-      "Parameters": <Parameters />,
-      "Technologies": <Technologies />,
-      "TimeSeries": <TimeSeries />,
-      "Settings": <Settings />,
-      "Run": <Run />,
-      "Results": <Results />,
-      "Export": <Export />,
-    };
-    
-    return viewMap[selected] || <Dashboard />;
+    // Switch pattern avoids creating React elements for inactive views (INP fix)
+    switch (selected) {
+      case "Dashboard":      return <Dashboard />;
+      case "Tutorial":       return <Tutorial />;
+      case "Models":         return <Models />;
+      case "Map View":       return <MapView />;
+      case "Configuration":  return <Configuration />;
+      case "Creation":       return <Creation />;
+      case "Locations":      return <Locations />;
+      case "Links":          return <Links />;
+      case "Overrides":      return <Overrides />;
+      case "Scenarios":      return <Scenarios />;
+      case "Parameters":     return <Parameters />;
+      case "Technologies":   return <Technologies />;
+      case "TimeSeries":     return <TimeSeries />;
+      case "Settings":       return <Settings />;
+      case "Run":            return <Run />;
+      case "Results":        return <Results />;
+      case "Export":         return <Export />;
+      default:               return <Dashboard />;
+    }
   };
 
   return (
     <>
+      {/* Skip link — keyboard users jump past sidebar (WCAG 2.4.1) */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[99999] focus:px-4 focus:py-2 focus:bg-electric-600 focus:text-white focus:rounded-lg focus:shadow-lg focus:outline-none"
+      >
+        Skip to main content
+      </a>
+
       <div className="flex h-screen overflow-hidden relative">
-        {/* Animated background accent */}
-        <div className="fixed inset-0 pointer-events-none">
-          <div className="absolute top-0 right-0 w-96 h-96 bg-electric-500/5 rounded-full blur-3xl animate-pulse-slow"></div>
-          <div className="absolute bottom-0 left-0 w-96 h-96 bg-violet-500/5 rounded-full blur-3xl animate-pulse-slow" style={{ animationDelay: '1s' }}></div>
+        {/* Animated background accent — will-change hints allow GPU compositing (paint perf fix) */}
+        <div className="fixed inset-0 pointer-events-none" aria-hidden="true">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-electric-500/5 rounded-full blur-3xl animate-pulse-slow" style={{ willChange: 'opacity' }}></div>
+          <div className="absolute bottom-0 left-0 w-96 h-96 bg-violet-500/5 rounded-full blur-3xl animate-pulse-slow" style={{ willChange: 'opacity', animationDelay: '1s' }}></div>
         </div>
         
         <Sidebar selected={selected} setSelected={handleNavigation} />
         
-        <main className="flex-1 overflow-y-auto relative z-10">
-          <div className="animate-fadeIn">
-            {renderContent()}
-          </div>
+        <main id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto relative z-10">
+          {/* Suspense boundary for lazy-loaded view chunks */}
+          <Suspense fallback={
+            <div className="flex-1 flex items-center justify-center h-full">
+              <div className="w-8 h-8 border-4 border-sky-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          }>
+            <div className="animate-fadeIn">
+              {renderContent()}
+            </div>
+          </Suspense>
         </main>
       </div>
 
@@ -154,9 +172,11 @@ function App() {
   }
 
   return (
-    <DataProvider>
-      <AppContent />
-    </DataProvider>
+    <ErrorBoundary>
+      <DataProvider>
+        <AppContent />
+      </DataProvider>
+    </ErrorBoundary>
   );
 }
 

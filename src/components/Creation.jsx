@@ -618,6 +618,8 @@ const Creation = () => {
   const [osmCommunes, setOsmCommunes] = useState(null);
   const [osmDistricts, setOsmDistricts] = useState(null);
   const [currentBbox, setCurrentBbox] = useState(null);
+  // Region path sent to GeoServer's CQL_FILTER (e.g. "Europe/Germany/Bayern/Niederbayern")
+  const [osmRegionPath, setOsmRegionPath] = useState(null);
   
   // OSM Filters
   const [powerLineFilters, setPowerLineFilters] = useState({
@@ -883,7 +885,6 @@ const Creation = () => {
     );
     
     if (!feature) {
-      console.log(`⚠️ No boundary found for region: ${regionName}`);
       return null;
     }
     
@@ -986,7 +987,6 @@ const Creation = () => {
   useEffect(() => {
     const loadOsmData = async () => {
       if (!currentBbox) {
-        console.log('No bounding box set, OSM data cleared');
         setOsmSubstations(null);
         setOsmPowerPlants(null);
         setOsmPowerLines(null);
@@ -995,11 +995,10 @@ const Creation = () => {
         return;
       }
 
-      console.log('Loading OSM data from GeoServer for bbox:', currentBbox);
-      
       try {
-        // Load data from GeoServer using bbox
-        const data = await loadRegionData(null, showOsmLayers, currentBbox);
+        // Load data prioritising GeoServer (curated local data) with Overpass as fallback.
+        // Pass the region path so GeoServer can use its CQL_FILTER on region_path column.
+        const data = await loadRegionData(osmRegionPath, showOsmLayers, currentBbox);
         
         if (data) {
           setOsmSubstations(data.substations);
@@ -1007,13 +1006,6 @@ const Creation = () => {
           setOsmPowerLines(data.powerLines);
           setOsmCommunes(data.communes);
           setOsmDistricts(data.districts);
-          console.log('✓ GeoServer data loaded successfully');
-          console.log('Power lines data:', {
-            hasData: !!data.powerLines,
-            featureCount: data.powerLines?.features?.length || 0,
-            firstFeature: data.powerLines?.features?.[0],
-            type: data.powerLines?.type
-          });
         }
       } catch (error) {
         console.error('Error loading GeoServer data:', error);
@@ -1026,11 +1018,10 @@ const Creation = () => {
     };
     
     loadOsmData();
-  }, [currentBbox, showOsmLayers, loadRegionData]);
+  }, [currentBbox, osmRegionPath, showOsmLayers, loadRegionData]);
   
   // Handle bbox changes from OsmInfrastructurePanel
   const handleBboxChange = useCallback((bbox) => {
-    console.log('Bbox updated:', bbox);
     setCurrentBbox(bbox);
     
     // Zoom to the bbox center
@@ -1057,13 +1048,25 @@ const Creation = () => {
         transitionDuration: 1000,
         transitionInterpolator: new FlyToInterpolator()
       }));
-      console.log(`🔍 Zooming to bbox center: [${centerLat}, ${centerLon}] @ zoom ${zoom}`);
     }
   }, []);
   
   // Handle region selection from OsmInfrastructurePanel
   const handleRegionSelect = useCallback((regionInfo) => {
-    console.log('Region selected:', regionInfo);
+    // Build the GeoServer region_path from the selection hierarchy.
+    // Parts are only added when defined (country selection = "Europe/Germany",
+    // subregion selection = "Europe/Germany/Bayern/Niederbayern").
+    if (regionInfo) {
+      const parts = [
+        regionInfo.continent,
+        regionInfo.country,
+        regionInfo.region,
+        regionInfo.subregion,
+      ].filter(Boolean);
+      setOsmRegionPath(parts.length >= 2 ? parts.join('/') : null);
+    } else {
+      setOsmRegionPath(null);
+    }
     
     // Calculate bounding box from center and zoom
     if (regionInfo && regionInfo.center && regionInfo.zoom) {
@@ -1081,10 +1084,7 @@ const Creation = () => {
         maxLat: latitude + delta
       };
       
-      console.log('Calculated bbox from region:', bbox);
       handleBboxChange(bbox);
-    } else {
-      console.warn('Region info missing center or zoom:', regionInfo);
     }
   }, [handleBboxChange]);
   
@@ -1189,8 +1189,6 @@ const Creation = () => {
       return;
     }
 
-    console.log('🔧 Generating power mesh from OSM data...');
-    
     // Generate mesh with current filters
     const meshOptions = {
       deduplicationThreshold: 0.5,
@@ -1738,29 +1736,20 @@ const Creation = () => {
             layers={[
               // OSM Power Lines Layer  
               ...(osmPowerLines && layerVisibility.powerLines && filteredPowerLines?.features?.length > 0 ? (() => {
-                console.log('🎨 RENDERING POWER LINES LAYER:', {
-                  totalFeatures: filteredPowerLines.features.length,
-                  layerVisibility: layerVisibility.powerLines,
-                  sampleFeature: filteredPowerLines.features[0],
-                  sampleGeometry: filteredPowerLines.features[0]?.geometry,
-                  sampleCoords: filteredPowerLines.features[0]?.geometry?.coordinates?.slice(0, 3),
-                  firstLineVoltage: filteredPowerLines.features[0]?.properties?.voltage,
-                  firstLineFullCoords: filteredPowerLines.features[0]?.geometry?.coordinates
+                // Flatten MultiLineString → multiple LineString entries so PathLayer renders correctly
+                const lineData = filteredPowerLines.features.flatMap(f => {
+                  if (f.geometry?.type === 'MultiLineString') {
+                    return f.geometry.coordinates.map(coords => ({
+                      ...f, geometry: { type: 'LineString', coordinates: coords }
+                    }));
+                  }
+                  return [f];
                 });
-                console.log('📍 Full sample line coordinates:', filteredPowerLines.features[0]?.geometry?.coordinates);
-                
                 return [
                   new PathLayer({
                     id: 'osm-power-lines',
-                    data: filteredPowerLines.features,
-                    getPath: d => {
-                      const path = d.geometry.coordinates;
-                      if (!path || path.length === 0) {
-                        console.warn('⚠️ Empty path for line:', d.properties);
-                        return [];
-                      }
-                      return path;
-                    },
+                    data: lineData,
+                    getPath: d => d.geometry?.coordinates || [],
                     getColor: d => {
                       const voltageStr = d.properties.voltage || '0';
                       let voltage = parseFloat(String(voltageStr).replace(/[^0-9.]/g, '')) || 0;
@@ -1817,21 +1806,27 @@ const Creation = () => {
                     }
                   })
                 ];
-              })() : (() => {
-                console.log('❌ Power lines layer NOT rendered:', {
-                  hasOsmPowerLines: !!osmPowerLines,
-                  layerVisible: layerVisibility.powerLines,
-                  filteredCount: filteredPowerLines?.features?.length || 0
-                });
-                return [];
-              })()),
+              })() : []),
 
               // OSM Power Plants Layer
               ...(osmPowerPlants && layerVisibility.powerPlants && filteredPowerPlants?.features?.length > 0 ? [
                 new ScatterplotLayer({
                   id: 'osm-power-plants',
                   data: filteredPowerPlants.features,
-                  getPosition: d => d.geometry.coordinates,
+                  getPosition: d => {
+                    const g = d.geometry;
+                    if (!g) return [0, 0];
+                    if (g.type === 'Point') return g.coordinates;
+                    if (g.type === 'Polygon') {
+                      const ring = g.coordinates[0];
+                      return [ring.reduce((s,c)=>s+c[0],0)/ring.length, ring.reduce((s,c)=>s+c[1],0)/ring.length];
+                    }
+                    if (g.type === 'MultiPolygon') {
+                      const ring = g.coordinates[0][0];
+                      return [ring.reduce((s,c)=>s+c[0],0)/ring.length, ring.reduce((s,c)=>s+c[1],0)/ring.length];
+                    }
+                    return [0, 0];
+                  },
                   getRadius: d => {
                     const capacity = d.properties.capacity__MW_ || 1;
                     const zoom = viewState.zoom;
@@ -1875,8 +1870,20 @@ const Creation = () => {
               ...(osmSubstations && layerVisibility.substations && filteredSubstations?.features?.length > 0 ? [
                 new IconLayer({
                   id: 'osm-substations',
-                  data: filteredSubstations.features,
-                  getPosition: d => d.geometry.coordinates,
+                  data: filteredSubstations.features.filter(f => f.geometry),
+                  getPosition: d => {
+                    const g = d.geometry;
+                    if (g.type === 'Point') return g.coordinates;
+                    if (g.type === 'Polygon') {
+                      const ring = g.coordinates[0];
+                      return [ring.reduce((s,c)=>s+c[0],0)/ring.length, ring.reduce((s,c)=>s+c[1],0)/ring.length];
+                    }
+                    if (g.type === 'MultiPolygon') {
+                      const ring = g.coordinates[0][0];
+                      return [ring.reduce((s,c)=>s+c[0],0)/ring.length, ring.reduce((s,c)=>s+c[1],0)/ring.length];
+                    }
+                    return [0, 0];
+                  },
                   getIcon: d => getSubstationIcon(d.properties.substation || 'other'),
                   getSize: d => {
                     const zoom = viewState.zoom;
@@ -2221,68 +2228,215 @@ const Creation = () => {
         </div>
       </div>
 
-      {/* Right Sidebar */}
-      <div className={`bg-white border-l border-gray-200 transition-all duration-300 ${rightSidebarCollapsed ? 'w-16' : 'w-96'} flex flex-col overflow-hidden`}>
-        <div className="p-2 border-b border-gray-200 flex justify-between items-center">
-          {!rightSidebarCollapsed && (
-            <h2 className="text-lg font-bold text-gray-800">OSM Infrastructure</h2>
-          )}
-          <button
-            onClick={() => setRightSidebarCollapsed(!rightSidebarCollapsed)}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors ml-auto"
-          >
-            {rightSidebarCollapsed ? <FiChevronLeft size={20} /> : <FiChevronRight size={20} />}
-          </button>
-        </div>
-
-        {!rightSidebarCollapsed && (
-          <div className="flex-1 overflow-y-auto">
-            <OsmInfrastructurePanel
-              collapsed={rightSidebarCollapsed}
-              onRegionSelect={handleRegionSelect}
-              showOsmLayers={showOsmLayers}
-              onOsmLayersChange={setShowOsmLayers}
-              infrastructureSizes={infrastructureSizes}
-              onInfrastructureSizesChange={setInfrastructureSizes}
-              powerLineFilters={powerLineFilters}
-              onPowerLineFiltersChange={setPowerLineFilters}
-              powerPlantFilters={powerPlantFilters}
-              onPowerPlantFiltersChange={setPowerPlantFilters}
-              substationFilters={substationFilters}
-              onSubstationFiltersChange={setSubstationFilters}
-            />
-          </div>
-        )}
+      {/* Right Sidebar — OSM Infrastructure Panel (owns its own header + collapse button) */}
+      <div className={`flex-shrink-0 transition-all duration-300 ${rightSidebarCollapsed ? 'w-14' : 'w-96'}`}>
+        <OsmInfrastructurePanel
+          collapsed={rightSidebarCollapsed}
+          onToggleCollapse={() => setRightSidebarCollapsed(c => !c)}
+          onRegionSelect={handleRegionSelect}
+          showOsmLayers={showOsmLayers}
+          onOsmLayersChange={setShowOsmLayers}
+          infrastructureSizes={infrastructureSizes}
+          onInfrastructureSizesChange={setInfrastructureSizes}
+          powerLineFilters={powerLineFilters}
+          onPowerLineFiltersChange={setPowerLineFilters}
+          powerPlantFilters={powerPlantFilters}
+          onPowerPlantFiltersChange={setPowerPlantFilters}
+          substationFilters={substationFilters}
+          onSubstationFiltersChange={setSubstationFilters}
+        />
       </div>
 
       {/* Save Model Dialog */}
       {showSaveDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000]">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="p-6 border-b border-gray-200">
-              <h3 className="text-xl font-bold text-gray-800">Save as New Model</h3>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000] p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-bold text-gray-800">Save as New Model</h3>
+                <p className="text-sm text-gray-500 mt-0.5">{locationManager.tempLocations.length} locations · {locationManager.tempLinks.length} links</p>
+              </div>
+              <button onClick={() => setShowSaveDialog(false)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                <FiX size={20} className="text-gray-500" />
+              </button>
             </div>
-            <div className="p-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Model Name *</label>
-              <input
-                type="text"
-                value={modelName}
-                onChange={(e) => setModelName(e.target.value)}
-                placeholder="Enter model name..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+
+            <div className="p-6 space-y-5">
+              {/* Name + Description */}
+              <div className="grid grid-cols-1 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Model Name <span className="text-red-500">*</span></label>
+                  <input
+                    type="text"
+                    value={modelName}
+                    onChange={(e) => setModelName(e.target.value)}
+                    placeholder="e.g. Germany 2030 High-Res"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Description</label>
+                  <textarea
+                    value={modelConfig.description || ''}
+                    onChange={(e) => setModelConfig(c => ({ ...c, description: e.target.value }))}
+                    placeholder="Optional notes about this model..."
+                    rows={2}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm resize-none"
+                  />
+                </div>
+              </div>
+
+              <hr className="border-gray-200" />
+
+              {/* Time horizon */}
+              <div>
+                <h4 className="text-sm font-semibold text-gray-700 mb-3">Time Horizon</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Start Date</label>
+                    <input
+                      type="date"
+                      value={modelConfig.startDate}
+                      onChange={(e) => setModelConfig(c => ({ ...c, startDate: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">End Date</label>
+                    <input
+                      type="date"
+                      value={modelConfig.endDate}
+                      onChange={(e) => setModelConfig(c => ({ ...c, endDate: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <hr className="border-gray-200" />
+
+              {/* Solver + Mode */}
+              <div>
+                <h4 className="text-sm font-semibold text-gray-700 mb-3">Solver &amp; Mode</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Solver</label>
+                    <select
+                      value={modelConfig.solver}
+                      onChange={(e) => setModelConfig(c => ({ ...c, solver: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white"
+                    >
+                      <option value="highs">HiGHS (recommended)</option>
+                      <option value="glpk">GLPK (open-source)</option>
+                      <option value="cplex">CPLEX (commercial)</option>
+                      <option value="gurobi">Gurobi (commercial)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Mode</label>
+                    <select
+                      value={modelConfig.mode}
+                      onChange={(e) => setModelConfig(c => ({ ...c, mode: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white"
+                    >
+                      <option value="plan">Planning (optimise capacity)</option>
+                      <option value="operate">Operate (fixed capacity)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Calliope Version</label>
+                    <select
+                      value={modelConfig.calliopeVersion}
+                      onChange={(e) => setModelConfig(c => ({ ...c, calliopeVersion: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white"
+                    >
+                      <option value="0.6.8">0.6.8</option>
+                      <option value="0.6.7">0.6.7</option>
+                      <option value="0.7.0">0.7.0 (beta)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Objective Cost Class</label>
+                    <select
+                      value={modelConfig.objectiveCostClass}
+                      onChange={(e) => setModelConfig(c => ({ ...c, objectiveCostClass: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white"
+                    >
+                      <option value="monetary">Monetary</option>
+                      <option value="co2">CO₂</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <hr className="border-gray-200" />
+
+              {/* Advanced toggles */}
+              <div>
+                <h4 className="text-sm font-semibold text-gray-700 mb-3">Advanced Options</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={modelConfig.ensureFeasibility}
+                      onChange={(e) => setModelConfig(c => ({ ...c, ensureFeasibility: e.target.checked }))}
+                      className="w-4 h-4 rounded text-blue-600"
+                    />
+                    <span className="text-sm text-gray-700">Ensure Feasibility</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={modelConfig.cyclicStorage}
+                      onChange={(e) => setModelConfig(c => ({ ...c, cyclicStorage: e.target.checked }))}
+                      className="w-4 h-4 rounded text-blue-600"
+                    />
+                    <span className="text-sm text-gray-700">Cyclic Storage</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Solver threads */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Solver Threads</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={32}
+                    value={modelConfig.solverOptions?.threads ?? 4}
+                    onChange={(e) => setModelConfig(c => ({ ...c, solverOptions: { ...c.solverOptions, threads: parseInt(e.target.value) || 1 } }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">MIP Relative Gap</label>
+                  <input
+                    type="number"
+                    step="0.001"
+                    min={0}
+                    value={modelConfig.solverOptions?.mip_rel_gap ?? 0.001}
+                    onChange={(e) => setModelConfig(c => ({ ...c, solverOptions: { ...c.solverOptions, mip_rel_gap: parseFloat(e.target.value) || 0.001 } }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  />
+                </div>
+              </div>
             </div>
-            <div className="p-6 border-t border-gray-200 flex justify-end gap-2">
+
+            {/* Footer */}
+            <div className="p-6 border-t border-gray-200 flex justify-end gap-3 bg-gray-50 rounded-b-xl">
               <button
                 onClick={() => setShowSaveDialog(false)}
-                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                className="px-5 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors text-sm font-medium"
               >
                 Cancel
               </button>
               <button
                 onClick={saveToMainData}
                 disabled={!modelName.trim()}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors text-sm font-medium"
               >
                 Save Model
               </button>

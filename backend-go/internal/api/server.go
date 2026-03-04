@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"time"
 
 	"calliope-backend/internal/calliope"
+	"calliope-backend/internal/geoserver"
 	"calliope-backend/internal/models"
 	"calliope-backend/internal/overpass"
 	"calliope-backend/internal/storage"
@@ -16,9 +18,12 @@ import (
 	"github.com/google/uuid"
 )
 
+const geoServerURL = "http://localhost:8080/geoserver"
+
 type Server struct {
 	db          *storage.DB
-	osm         *overpass.Client
+	geoServer   *geoserver.Client // primary: local curated PostGIS data
+	osm         *overpass.Client  // fallback: live public OSM via Overpass API
 	calliopeAPI *calliope.Client
 	router      *gin.Engine
 	port        string
@@ -33,7 +38,7 @@ func NewServer(db *storage.DB, port string) *Server {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		
+
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
 			return
@@ -46,11 +51,24 @@ func NewServer(db *storage.DB, port string) *Server {
 
 	server := &Server{
 		db:          db,
-		osm:         overpass.NewClient(), // queries Overpass API + Nominatim directly
+		geoServer:   geoserver.NewClient(geoServerURL),
+		osm:         overpass.NewClient(),
 		calliopeAPI: calliope.NewClient("http://localhost:5000"),
 		router:      router,
 		port:        port,
 	}
+
+	// Probe GeoServer at startup so the log is informative.
+	go func() {
+		client := &http.Client{Timeout: 3 * time.Second}
+		resp, err := client.Get(geoServerURL + "/web/")
+		if err == nil {
+			resp.Body.Close()
+			log.Println("[OSM] GeoServer reachable at", geoServerURL, "– using local PostGIS data as primary source")
+		} else {
+			log.Println("[OSM] GeoServer not reachable – OSM data will come from Overpass API (live public data)")
+		}
+	}()
 
 	server.setupRoutes()
 	return server
@@ -352,53 +370,91 @@ func (s *Server) getJobResults(c *gin.Context) {
 	c.JSON(http.StatusOK, results)
 }
 
-// getOSMLayer fetches OSM infrastructure data via the Overpass API and
-// returns GeoJSON.  No GeoServer or PostGIS setup is required.
+// isEmptyFC returns true if the GeoJSON bytes are an empty FeatureCollection.
+func isEmptyFC(data []byte) bool {
+	var fc struct {
+		Features []json.RawMessage `json:"features"`
+	}
+	if err := json.Unmarshal(data, &fc); err != nil {
+		return true
+	}
+	return len(fc.Features) == 0
+}
+
+// getOSMLayer returns GeoJSON for the requested layer.
+//
+// Strategy:
+//  1. Try GeoServer (local PostGIS – returns the user's curated OSM data).
+//  2. If GeoServer is unavailable or returns no features, fall back to the
+//     public Overpass API so the map still shows something useful.
 //
 // Query parameters:
-//   bbox  (required) minLon,minLat,maxLon,maxLat
 //
-// Examples:
-//   /api/osm/osm_substations?bbox=-74,-36,-69,-17
-//   /api/osm/osm_power_lines?bbox=8,47,10,49
+//	bbox    (optional) minLon,minLat,maxLon,maxLat
+//	region  (optional) region path filter, e.g. "Europe/Germany/Bayern"
 func (s *Server) getOSMLayer(c *gin.Context) {
 	layer := c.Param("layer")
 	bboxStr := c.Query("bbox")
+	regionPath := c.Query("region")
 
-	var bbox *overpass.BBox
+	var minLon, minLat, maxLon, maxLat float64
+	hasBBox := false
 	if bboxStr != "" {
-		var minLon, minLat, maxLon, maxLat float64
 		_, err := fmt.Sscanf(bboxStr, "%f,%f,%f,%f", &minLon, &minLat, &maxLon, &maxLat)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid bbox format, use: minLon,minLat,maxLon,maxLat"})
 			return
 		}
-		bbox = &overpass.BBox{
-			MinLon: minLon,
-			MinLat: minLat,
-			MaxLon: maxLon,
-			MaxLat: maxLat,
-		}
+		hasBBox = true
 	}
 
-	data, err := s.osm.GetOSMLayer(layer, bbox)
+	// ── 1. GeoServer (primary) ───────────────────────────────────────────────
+	var gsBBox *geoserver.BBox
+	if hasBBox {
+		gsBBox = &geoserver.BBox{MinLon: minLon, MinLat: minLat, MaxLon: maxLon, MaxLat: maxLat}
+	}
+	data, err := s.geoServer.GetOSMLayer(layer, gsBBox, regionPath)
+	if err == nil && !isEmptyFC(data) {
+		log.Printf("[OSM] GeoServer ✓ %s (%d B)", layer, len(data))
+		c.Data(http.StatusOK, "application/json", data)
+		return
+	}
 	if err != nil {
+		log.Printf("[OSM] GeoServer unavailable for %s: %v – falling back to Overpass", layer, err)
+	} else {
+		log.Printf("[OSM] GeoServer returned empty for %s – falling back to Overpass", layer)
+	}
+
+	// ── 2. Overpass API (fallback) ───────────────────────────────────────────
+	var opBBox *overpass.BBox
+	if hasBBox {
+		opBBox = &overpass.BBox{MinLon: minLon, MinLat: minLat, MaxLon: maxLon, MaxLat: maxLat}
+	}
+	data, err = s.osm.GetOSMLayer(layer, opBBox)
+	if err != nil {
+		log.Printf("[OSM] Overpass also failed for %s: %v", layer, err)
 		c.Data(http.StatusOK, "application/json", []byte(`{"type":"FeatureCollection","features":[]}`))
 		return
 	}
+	log.Printf("[OSM] Overpass ✓ %s (%d B)", layer, len(data))
 	c.Data(http.StatusOK, "application/json", data)
 }
 
-// getLoadedRegions returns an empty list — region selection is now driven
-// by the static regions_database.json bundled with the frontend.
-// The Overpass API fetches live data for any region the user selects.
+// getLoadedRegions returns the distinct region_paths stored in PostGIS.
+// Falls back to an empty list if GeoServer is unavailable (frontend then uses
+// the static regions_database.json for the selector UI).
 func (s *Server) getLoadedRegions(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"regions": []string{}})
+	regions, err := s.geoServer.GetLoadedRegions()
+	if err != nil || len(regions) == 0 {
+		c.JSON(http.StatusOK, gin.H{"regions": []string{}})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"regions": regions})
 }
 
-// getAvailableLayers returns the available OSM layer names.
+// getAvailableLayers returns the known OSM layer names.
 func (s *Server) getAvailableLayers(c *gin.Context) {
-	layers, _ := s.osm.GetAvailableLayers()
+	layers, _ := s.geoServer.GetAvailableLayers()
 	c.JSON(http.StatusOK, gin.H{"layers": layers})
 }
 

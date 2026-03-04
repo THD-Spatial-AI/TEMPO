@@ -183,7 +183,7 @@ export const DataProvider = ({ children }) => {
     overridesData = {},
     scenariosData = {}
   ) => {
-    console.log('DataContext.createModel called with:', {
+    import.meta.env.DEV && console.log('DataContext.createModel called with:', {
       name,
       locationsCount: locationsData?.length,
       linksCount: linksData?.length,
@@ -227,7 +227,7 @@ export const DataProvider = ({ children }) => {
     setOverrides(newModel.overrides);
     setScenarios(newModel.scenarios);
 
-    console.log('Model created (optimistic):', { id: tempId, locationsSet: newModel.locations.length });
+    import.meta.env.DEV && console.log('Model created (optimistic):', { id: tempId, locationsSet: newModel.locations.length });
 
     // ── Async backend persist ────────────────────────────────────────────────
     if (stateRef.current.backendAvailable) {
@@ -240,7 +240,7 @@ export const DataProvider = ({ children }) => {
         showNotification('Model saved locally (serialization error).', 'warning');
         return tempId;
       }
-      console.log(`Saving model to backend, payload size: ${(payload.length / 1024).toFixed(1)} KB`);
+      import.meta.env.DEV && console.log(`Saving model to backend, payload size: ${(payload.length / 1024).toFixed(1)} KB`);
 
       pendingSaveIds.current.add(tempId);
       api.saveModel({ ...newModel, timeSeries: [] })
@@ -254,7 +254,7 @@ export const DataProvider = ({ children }) => {
               prev.map(m => m.id === tempId ? { ...m, id: finalId } : m)
             );
             setCurrentModelId(prev => prev === tempId ? finalId : prev);
-            console.log('Model id updated to backend id:', finalId);
+            import.meta.env.DEV && console.log('Model id updated to backend id:', finalId);
           }
         })
         .catch(e => {
