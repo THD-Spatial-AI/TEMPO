@@ -21,6 +21,7 @@
 // ---------------------------------------------------------------------------
 
 export const OEO_API_BASE_URL = 'http://127.0.0.1:8005';
+const API_V1 = `${OEO_API_BASE_URL}/api/v1`;
 const DEFAULT_TIMEOUT_MS = 8000;
 
 // ---------------------------------------------------------------------------
@@ -170,13 +171,16 @@ export function oeoToCalliope(apiTech) {
  */
 export async function isTechApiAvailable(timeoutMs = 3000) {
   try {
-    // Try /health first, fall back to a catalog call
     await apiFetch('/health', timeoutMs);
     return true;
   } catch {
     try {
-      await apiFetch('/api/technologies', timeoutMs);
-      return true;
+      // Check v1 catalog endpoint
+      const controller = new AbortController();
+      const t = setTimeout(() => controller.abort(), timeoutMs);
+      const r = await fetch(`${API_V1}/technologies`, { signal: controller.signal });
+      clearTimeout(t);
+      return r.ok;
     } catch {
       return false;
     }
@@ -199,6 +203,134 @@ export async function fetchRawTechCatalog() {
     }
   }
   return [];
+}
+
+// ---------------------------------------------------------------------------
+// v1 API: instance-aware catalog helpers
+// ---------------------------------------------------------------------------
+
+/** VRE keywords used to distinguish supply_plus from supply in API 'generation' category */
+const VRE_KEYWORDS = ['solar', 'wind', 'marine', 'run-of-river', 'wave', 'tidal'];
+
+function apiCategoryToParent(name, category) {
+  if (category === 'storage') return 'storage';
+  if (category === 'transmission') return 'transmission';
+  if (category === 'generation') {
+    const lower = (name || '').toLowerCase();
+    return VRE_KEYWORDS.some(k => lower.includes(k)) ? 'supply_plus' : 'supply';
+  }
+  if (category === 'conversion') return 'conversion_plus';
+  return 'supply';
+}
+
+/**
+ * Convert a raw API instance object into flat constraints/monetary dicts.
+ * Each param field is an object with { value, unit, min, max, source }.
+ */
+export function instanceToParams(inst) {
+  const v = (obj) => (obj != null && obj.value != null ? obj.value : null);
+
+  const constraints = {};
+  const monetary = { interest_rate: 0.10 };
+
+  if (v(inst.electrical_efficiency) != null) constraints.energy_eff = v(inst.electrical_efficiency);
+  if (v(inst.economic_lifetime_yr) != null) constraints.lifetime = v(inst.economic_lifetime_yr);
+  if (v(inst.capacity_kw) != null) constraints.energy_cap_max = v(inst.capacity_kw);
+  if (v(inst.ramp_up_rate) != null) constraints.energy_ramping = parseFloat((v(inst.ramp_up_rate) / 100).toFixed(3));
+
+  if (v(inst.capex_per_kw) != null) monetary.energy_cap = v(inst.capex_per_kw);
+  if (v(inst.opex_fixed_per_kw_yr) != null) monetary.om_annual = v(inst.opex_fixed_per_kw_yr);
+  if (v(inst.opex_variable_per_mwh) != null) monetary.om_prod = parseFloat((v(inst.opex_variable_per_mwh) / 1000).toFixed(6));
+
+  return {
+    id: inst.id,
+    label: inst.label || `Instance`,
+    life_cycle_stage: inst.life_cycle_stage || null,
+    constraints,
+    monetary,
+    raw: inst,
+  };
+}
+
+/**
+ * Convert a v1 API tech detail object (with .instances[]) into a Calliope-style
+ * tech definition. The first instance is used as the default parameters.
+ *
+ * @param {Object} detail - Raw v1 API tech detail
+ * @returns {Object} Calliope-style tech with an extra `instances` array
+ */
+export function oeoDetailToCalliope(detail) {
+  const category = detail.category || 'supply';
+  const parent = apiCategoryToParent(detail.name, category);
+  const inputCarriers = detail.input_carriers || [];
+  const outputCarriers = detail.output_carriers || [];
+
+  const instances = (detail.instances || []).map(instanceToParams);
+  const def = instances[0] || { constraints: {}, monetary: {} };
+
+  const essentials = {
+    name: detail.name,
+    parent,
+    color: '#888888',
+  };
+
+  if (['storage', 'transmission'].includes(parent)) {
+    essentials.carrier = outputCarriers[0] || inputCarriers[0] || 'electricity';
+  } else if (parent === 'conversion_plus') {
+    if (inputCarriers[0]) essentials.carrier_in = inputCarriers[0];
+    if (outputCarriers[0]) essentials.carrier_out = outputCarriers[0];
+  } else {
+    essentials.carrier_out = outputCarriers[0] || 'electricity';
+  }
+
+  return {
+    id: detail.id,
+    name: detail.name,
+    parent,
+    description: detail.description || detail.name,
+    oeo_class: detail.oeo_class || '',
+    instances,           // <-- the three models, each with label + params
+    essentials,
+    constraints: def.constraints,
+    costs: { monetary: def.monetary },
+  };
+}
+
+/**
+ * Fetch the full v1 catalog, then fetch each tech's detail (with instances)
+ * in parallel.  Returns an array of Calliope-style tech objects with
+ * `instances` populated.
+ *
+ * Falls back to an empty array on error (caller uses static TECH_TEMPLATES).
+ *
+ * @returns {Promise<Object[]>}
+ */
+export async function fetchFullCatalogWithInstances() {
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+  let catalog;
+  try {
+    const resp = await fetch(`${API_V1}/technologies`, { signal: controller.signal });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    catalog = data?.technologies || (Array.isArray(data) ? data : []);
+  } finally {
+    clearTimeout(t);
+  }
+
+  // Fetch all details in parallel
+  const detailResults = await Promise.allSettled(
+    catalog.map(entry => {
+      const ctrl = new AbortController();
+      setTimeout(() => ctrl.abort(), DEFAULT_TIMEOUT_MS);
+      return fetch(`${API_V1}/technologies/${entry.id}`, { signal: ctrl.signal })
+        .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)));
+    })
+  );
+
+  return detailResults
+    .filter(r => r.status === 'fulfilled')
+    .map(r => oeoDetailToCalliope(r.value));
 }
 
 /**
