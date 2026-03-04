@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { FiEdit2, FiTrash2, FiCheck, FiX, FiPlus, FiChevronDown, FiChevronRight, FiCpu, FiSun, FiWind, FiBattery, FiZap, FiActivity, FiDroplet, FiHome, FiCircle, FiSearch, FiArrowRight, FiHelpCircle, FiSave } from "react-icons/fi";
 import { useData } from "../context/DataContext";
-import { TECH_TEMPLATES } from "./TechnologiesData";
+import { TECH_TEMPLATES, useLiveTechTemplates } from "./TechnologiesData";
 
 // Constraint definitions with categories (complete from Creation.jsx)
 const CONSTRAINT_DEFINITIONS = {
@@ -148,6 +148,10 @@ const PARENT_CONSTRAINTS = {
 const Locations = () => {
   const { locations, setLocations, getCurrentModel, technologies, links, showNotification, models, setModels, setNavigationWarning, timeSeries, setTimeSeries } = useData();
   const currentModel = getCurrentModel();
+  // Live tech templates from OEO API (falls back to static TECH_TEMPLATES)
+  const { techTemplates: liveTechTemplates, isLoading: techsLoading } = useLiveTechTemplates();
+  // Track selected instance index per tech in the picker: key = `${locationIndex}_${techName}`
+  const [selectedTechInstances, setSelectedTechInstances] = useState({});
   const [editingIndex, setEditingIndex] = useState(null);
   const [editData, setEditData] = useState({});
   const [isAdding, setIsAdding] = useState(false);
@@ -197,25 +201,27 @@ const Locations = () => {
   }, [hasChanges, navigationWarningCallback]); // Remove setNavigationWarning from dependencies
 
   // Convert technologies array to object for easier access
-  // Always use TECH_TEMPLATES to show all available technologies in the database
+  // Use live tech templates from API; fall back to static TECH_TEMPLATES
   const techMap = useMemo(() => {
     const map = {};
-    // Use all templates from TECH_TEMPLATES database
-    Object.values(TECH_TEMPLATES).forEach(categoryTechs => {
+    // Use live templates (which fall back to static if API unavailable)
+    const source = liveTechTemplates && Object.keys(liveTechTemplates).length > 0 ? liveTechTemplates : TECH_TEMPLATES;
+    Object.values(source).forEach(categoryTechs => {
       if (Array.isArray(categoryTechs)) {
         categoryTechs.forEach(tech => {
           map[tech.name] = tech;
         });
       }
     });
-    // Then override with any model-specific technologies
+    // Then override with any model-specific technologies, but KEEP instances from live API
     if (Array.isArray(technologies) && technologies.length > 0) {
       technologies.forEach(tech => {
-        map[tech.name] = tech;
+        const existingInstances = map[tech.name]?.instances;
+        map[tech.name] = existingInstances ? { ...tech, instances: existingInstances } : tech;
       });
     }
     return map;
-  }, [technologies]);
+  }, [liveTechTemplates, technologies]);
   const [newLocation, setNewLocation] = useState({
     name: '',
     latitude: '',
@@ -445,19 +451,37 @@ const Locations = () => {
     }
   };
 
-  const addTechnologyToLocation = (locationIndex, techName) => {
+  const addTechnologyToLocation = (locationIndex, techName, instanceParams) => {
     const updatedLocations = [...locations];
     if (!updatedLocations[locationIndex].techs) {
       updatedLocations[locationIndex].techs = {};
     }
     
-    // Copy structure from techMap
+    // Copy structure from techMap, then overlay selected instance params
     const techTemplate = techMap[techName];
+    const baseConstraints = techTemplate?.constraints ? { ...techTemplate.constraints } : {};
+    const baseCosts = techTemplate?.costs?.monetary ? { ...techTemplate.costs.monetary } : 
+                      techTemplate?.costs ? { ...techTemplate.costs } : {};
+
+    // Merge instance-specific constraints and costs if provided
+    const mergedConstraints = instanceParams?.constraints
+      ? { ...baseConstraints, ...instanceParams.constraints }
+      : baseConstraints;
+    const mergedCosts = instanceParams?.monetary
+      ? { ...baseCosts, ...instanceParams.monetary }
+      : baseCosts;
+
     updatedLocations[locationIndex].techs[techName] = {
       essentials: techTemplate?.essentials ? { ...techTemplate.essentials } : {},
-      constraints: techTemplate?.constraints ? { ...techTemplate.constraints } : {},
-      costs: techTemplate?.costs ? { monetary: { ...techTemplate.costs.monetary } } : {}
+      constraints: mergedConstraints,
+      costs: { monetary: mergedCosts }
     };
+
+    // Store the instance label as metadata if present
+    if (instanceParams?.label) {
+      updatedLocations[locationIndex].techs[techName]._instance = instanceParams.label;
+    }
+
     setLocations(updatedLocations);
   };
 
@@ -980,51 +1004,120 @@ const Locations = () => {
                     {/* Add Technology from Library - Organized by Category */}
                     {techMap && Object.keys(techMap).length > 0 && (
                       <div className="border-t border-slate-200 pt-3">
-                        <label className="text-xs font-semibold text-slate-600 mb-2 block">
-                          Add Technology from Library ({Object.entries(techMap).filter(([name, tech]) => tech.parent !== 'transmission').length} available):
-                        </label>
-                        <div className="space-y-2 max-h-96 overflow-y-auto">
-                          {['supply', 'supply_plus', 'demand', 'storage', 'conversion', 'conversion_plus'].map(parentType => {
-                            const techsInCategory = Object.entries(techMap).filter(([name, tech]) => tech.parent === parentType);
-                            
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="text-xs font-semibold text-slate-600">
+                            Add Technology from Library
+                          </label>
+                          {techsLoading && (
+                            <span className="text-xs text-gray-400 italic">Loading catalog…</span>
+                          )}
+                        </div>
+                        <div className="space-y-2 max-h-[480px] overflow-y-auto">
+                          {[
+                            { key: 'supply_plus', label: 'Variable Renewables' },
+                            { key: 'supply', label: 'Dispatchable Generation' },
+                            { key: 'demand', label: 'Demand' },
+                            { key: 'storage', label: 'Storage' },
+                            { key: 'conversion_plus', label: 'Sector Coupling' },
+                            { key: 'conversion', label: 'Conversion' },
+                          ].map(({ key: parentType, label: categoryLabel }) => {
+                            const techsInCategory = Object.entries(techMap).filter(([, tech]) => tech.parent === parentType);
                             if (techsInCategory.length === 0) return null;
-                            
+
                             const categoryKey = `${originalIndex}_${parentType}`;
                             const isCategoryExpanded = expandedTechCategories[categoryKey];
-                            
+
                             return (
                               <div key={parentType} className="border border-slate-200 rounded-lg overflow-hidden">
+                                {/* Category header */}
                                 <button
                                   onClick={() => setExpandedTechCategories({ ...expandedTechCategories, [categoryKey]: !isCategoryExpanded })}
-                                  className="w-full flex items-center justify-between px-3 py-2 bg-slate-50 hover:bg-slate-100 transition-colors"
+                                  className="w-full flex items-center justify-between px-3 py-2 bg-slate-100 hover:bg-slate-200 transition-colors"
                                 >
                                   <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">
-                                    {formatTechName(parentType)} ({techsInCategory.length})
+                                    {categoryLabel} ({techsInCategory.length})
                                   </span>
                                   {isCategoryExpanded ? <FiChevronDown size={14} /> : <FiChevronRight size={14} />}
                                 </button>
                                 {isCategoryExpanded && (
-                                  <div className="p-2 bg-white">
-                                    <div className="flex flex-wrap gap-2">
-                                      {techsInCategory.map(([techName, techData]) => {
-                                        const isAssigned = location.techs && location.techs[techName];
-                                        return (
+                                  <div className="bg-white divide-y divide-slate-100">
+                                    {techsInCategory.map(([techName, techData]) => {
+                                      const instances = techData.instances || [];
+                                      const subKey = `${originalIndex}_${parentType}_${techName}`;
+                                      const isSubExpanded = expandedTechCategories[subKey];
+                                      return (
+                                        <div key={techName}>
+                                          {/* Tech subcategory header */}
                                           <button
-                                            key={techName}
-                                            onClick={() => !isAssigned && addTechnologyToLocation(originalIndex, techName)}
-                                            disabled={isAssigned}
-                                            className={`px-3 py-1 rounded text-xs font-medium transition-colors flex items-center gap-1 ${
-                                              isAssigned
-                                                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                            }`}
+                                            onClick={() => setExpandedTechCategories({ ...expandedTechCategories, [subKey]: !isSubExpanded })}
+                                            className="w-full flex items-center justify-between px-4 py-2 text-left hover:bg-slate-50 transition-colors"
                                           >
-                                            {getTechIcon(techName)}
-                                            {isAssigned ? '✓ ' : '+ '}{formatTechName(techName)}
+                                            <div className="flex items-center gap-1.5">
+                                              {getTechIcon(techName)}
+                                              <span className="text-xs font-semibold text-slate-700">{formatTechName(techName)}</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                              {instances.length > 0 && (
+                                                <span className="text-[10px] text-slate-400">{instances.length} variant{instances.length !== 1 ? 's' : ''}</span>
+                                              )}
+                                              {isSubExpanded ? <FiChevronDown size={12} className="text-slate-400" /> : <FiChevronRight size={12} className="text-slate-400" />}
+                                            </div>
                                           </button>
-                                        );
-                                      })}
-                                    </div>
+                                          {/* Instance rows */}
+                                          {isSubExpanded && (
+                                            <div className="pl-4 pr-2 pb-2 bg-slate-50 space-y-1">
+                                              {(instances.length > 0 ? instances : [null]).map((inst, idx) => {
+                                                const isAssigned = location.techs && location.techs[techName];
+                                                const eff = inst?.constraints?.energy_eff ?? inst?.constraints?.electrical_efficiency;
+                                                const lifetime = inst?.constraints?.lifetime;
+                                                const capex = inst?.monetary?.energy_cap;
+                                                const rowLabel = inst?.displayLabel || inst?.label || inst?.raw?.label || `Variant ${idx + 1}`;
+                                                return (
+                                                  <div
+                                                    key={idx}
+                                                    className={`flex items-center justify-between gap-2 rounded px-2 py-1.5 ${
+                                                      isAssigned ? 'bg-gray-100 opacity-60' : 'bg-white border border-slate-200'
+                                                    }`}
+                                                  >
+                                                    <div className="flex-1 min-w-0">
+                                                      <p className="text-[11px] font-medium text-slate-700 truncate">
+                                                        {rowLabel}
+                                                      </p>
+                                                      {(eff != null || lifetime != null || capex != null) && (
+                                                        <div className="flex gap-1 mt-0.5 flex-wrap">
+                                                          {eff != null && (
+                                                            <span className="text-[9px] text-slate-400 bg-slate-100 px-1 py-0.5 rounded">
+                                                              η {typeof eff === 'number' && eff <= 1 ? `${Math.round(eff * 100)}%` : eff}
+                                                            </span>
+                                                          )}
+                                                          {lifetime != null && (
+                                                            <span className="text-[9px] text-slate-400 bg-slate-100 px-1 py-0.5 rounded">{lifetime} yr</span>
+                                                          )}
+                                                          {capex != null && (
+                                                            <span className="text-[9px] text-slate-400 bg-slate-100 px-1 py-0.5 rounded">CAPEX {capex}</span>
+                                                          )}
+                                                        </div>
+                                                      )}
+                                                    </div>
+                                                    <button
+                                                      onClick={() => { if (!isAssigned) addTechnologyToLocation(originalIndex, techName, inst); }}
+                                                      disabled={!!isAssigned}
+                                                      className={`flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold transition-colors ${
+                                                        isAssigned
+                                                          ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                                                          : 'bg-gray-600 text-white hover:bg-gray-700'
+                                                      }`}
+                                                    >
+                                                      {isAssigned ? '✓' : '+ Add'}
+                                                    </button>
+                                                  </div>
+                                                );
+                                              })}
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
                                   </div>
                                 )}
                               </div>

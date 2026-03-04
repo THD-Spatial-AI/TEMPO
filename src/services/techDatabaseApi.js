@@ -228,23 +228,85 @@ function apiCategoryToParent(name, category) {
  * Each param field is an object with { value, unit, min, max, source }.
  */
 export function instanceToParams(inst) {
-  const v = (obj) => (obj != null && obj.value != null ? obj.value : null);
+  // Helper: extract a numeric value from either a direct number or a {value} wrapper
+  const v = (directKey, ...aliases) => {
+    for (const key of [directKey, ...aliases]) {
+      const raw = inst[key];
+      if (raw == null) continue;
+      if (typeof raw === 'number') return raw;
+      if (typeof raw === 'object' && raw.value != null) return raw.value;
+    }
+    return null;
+  };
+
+  // DEBUG: log all keys so we can see what fields the API actually provides
+  if (typeof window !== 'undefined' && window.__oeoDebug) {
+    console.log('[OEO instanceToParams] keys:', Object.keys(inst), 'instance_name:', inst.instance_name, 'name:', inst.name);
+  }
 
   const constraints = {};
   const monetary = { interest_rate: 0.10 };
 
-  if (v(inst.electrical_efficiency) != null) constraints.energy_eff = v(inst.electrical_efficiency);
-  if (v(inst.economic_lifetime_yr) != null) constraints.lifetime = v(inst.economic_lifetime_yr);
-  if (v(inst.capacity_kw) != null) constraints.energy_cap_max = v(inst.capacity_kw);
-  if (v(inst.ramp_up_rate) != null) constraints.energy_ramping = parseFloat((v(inst.ramp_up_rate) / 100).toFixed(3));
+  // Efficiency: API returns `electrical_efficiency: { value: 0.67 }` (already 0-1 fraction)
+  const eff = v('electrical_efficiency', 'efficiency_percent', 'efficiency');
+  if (eff != null) {
+    // If > 1 it was a percentage, convert to fraction
+    constraints.energy_eff = parseFloat((eff > 1 ? eff / 100 : eff).toFixed(4));
+  }
 
-  if (v(inst.capex_per_kw) != null) monetary.energy_cap = v(inst.capex_per_kw);
-  if (v(inst.opex_fixed_per_kw_yr) != null) monetary.om_annual = v(inst.opex_fixed_per_kw_yr);
-  if (v(inst.opex_variable_per_mwh) != null) monetary.om_prod = parseFloat((v(inst.opex_variable_per_mwh) / 1000).toFixed(6));
+  // Lifetime: `economic_lifetime_yr`, fallback to `lifetime_years`
+  const lt = v('economic_lifetime_yr', 'lifetime_years', 'lifetime');
+  if (lt != null) constraints.lifetime = lt;
+
+  // Capacity: API uses `capacity_kw: { value }` (already in kW)
+  const capKw = v('capacity_kw', 'typical_capacity_mw');
+  if (capKw != null) {
+    // If the value looks like MW scale (e.g. 0.001 – 100) and field is typical_capacity_mw, convert
+    const isMwField = inst['typical_capacity_mw'] != null && inst['capacity_kw'] == null;
+    constraints.energy_cap_max = isMwField ? capKw * 1000 : capKw;
+  }
+
+  // Ramping: `ramp_up_rate: { value: 10, unit: "%capacity/min" }` → fraction/hr
+  const ramp = v('ramp_up_rate', 'ramping_rate_percent_per_min');
+  if (ramp != null) constraints.energy_ramping = parseFloat((ramp * 60 / 100).toFixed(3));
+
+  // CAPEX: `capex_per_kw: { value }` (USD/kW)
+  const capex = v('capex_per_kw', 'capex_usd_per_kw', 'capex');
+  if (capex != null) monetary.energy_cap = capex;
+
+  // Fixed O&M: `opex_fixed_per_kw_yr: { value }` (USD/kW/yr)
+  const opexFixed = v('opex_fixed_per_kw_yr', 'opex_fixed_usd_per_kw_yr');
+  if (opexFixed != null) monetary.om_annual = opexFixed;
+
+  // Variable O&M: `opex_variable_per_mwh: { value }` (USD/MWh) → convert to USD/kWh
+  const opexVar = v('opex_variable_per_mwh', 'opex_var_usd_per_mwh', 'opex_variable_per_kwh');
+  if (opexVar != null) monetary.om_prod = parseFloat((opexVar / 1000).toFixed(6));
+
+  // Build the human-readable display label — try every plausible field name
+  // Real API uses `label` field; fallbacks for other schemas
+  const instanceName =
+    inst.label ||
+    inst.instance_name ||
+    inst.instanceName ||
+    inst.title ||
+    inst.name ||
+    null;
+
+  const stage = inst.life_cycle_stage || inst.lifeCycleStage || inst.stage ||
+    inst.scenario || (inst.extra && (inst.extra.stage || inst.extra.life_cycle_stage));
+
+  const displayLabel = instanceName ||
+    (stage ? String(stage).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : null);
+
+  // Log what we resolved (unconditionally on first 3 instances for easy debugging)
+  if (typeof window !== 'undefined') {
+    console.log('[OEO] instanceToParams →', { label: inst.label, instance_name: inst.instance_name, displayLabel, id: inst.instance_id || inst.id });
+  }
 
   return {
-    id: inst.id,
-    label: inst.label || `Instance`,
+    id: inst.id || inst.instance_id,
+    label: instanceName || 'Instance',
+    displayLabel,
     life_cycle_stage: inst.life_cycle_stage || null,
     constraints,
     monetary,
@@ -260,16 +322,22 @@ export function instanceToParams(inst) {
  * @returns {Object} Calliope-style tech with an extra `instances` array
  */
 export function oeoDetailToCalliope(detail) {
-  const category = detail.category || 'supply';
-  const parent = apiCategoryToParent(detail.name, category);
-  const inputCarriers = detail.input_carriers || [];
-  const outputCarriers = detail.output_carriers || [];
+  // Support both JSON-native names (technology_id, domain, carrier) and old API names (id, category)
+  const name = detail.technology_name || detail.name || '';
+  const id   = detail.technology_id   || detail.id   || name;
+  const category = detail.domain || detail.category || 'supply';
+  const parent = apiCategoryToParent(name, category);
+
+  // Carriers — new format uses a single `carrier` string; old format uses arrays
+  const carrier  = detail.carrier || null;
+  const inputCarriers  = detail.input_carriers  || (carrier ? [carrier] : []);
+  const outputCarriers = detail.output_carriers || (carrier ? [carrier] : []);
 
   const instances = (detail.instances || []).map(instanceToParams);
   const def = instances[0] || { constraints: {}, monetary: {} };
 
   const essentials = {
-    name: detail.name,
+    name,
     parent,
     color: '#888888',
   };
@@ -284,12 +352,12 @@ export function oeoDetailToCalliope(detail) {
   }
 
   return {
-    id: detail.id,
-    name: detail.name,
+    id,
+    name,
     parent,
-    description: detail.description || detail.name,
+    description: detail.description || name,
     oeo_class: detail.oeo_class || '',
-    instances,           // <-- the three models, each with label + params
+    instances,
     essentials,
     constraints: def.constraints,
     costs: { monetary: def.monetary },
@@ -313,20 +381,43 @@ export async function fetchFullCatalogWithInstances() {
     const resp = await fetch(`${API_V1}/technologies`, { signal: controller.signal });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
-    catalog = data?.technologies || (Array.isArray(data) ? data : []);
+    // Support { technologies: [...] } wrapper, plain array, or { data: [...] }
+    catalog = data?.technologies || data?.data || (Array.isArray(data) ? data : []);
   } finally {
     clearTimeout(t);
   }
 
-  // Fetch all details in parallel
+  // Debug: log first catalog entry to understand structure
+  if (catalog.length > 0) {
+    const first = catalog[0];
+    console.log('[OEO] catalog[0] keys:', Object.keys(first));
+    console.log('[OEO] catalog[0] sample:', JSON.stringify(first).slice(0, 400));
+    if (Array.isArray(first.instances) && first.instances.length > 0) {
+      console.log('[OEO] instances[0] keys:', Object.keys(first.instances[0]));
+      console.log('[OEO] instances[0] sample:', JSON.stringify(first.instances[0]).slice(0, 300));
+    }
+  }
+
+  // Fast path: if entries already have instances populated, skip detail fetches
+  if (catalog.length > 0 && Array.isArray(catalog[0]?.instances)) {
+    return catalog.map(oeoDetailToCalliope);
+  }
+
+  // Fetch all details in parallel — id may be technology_id or id
   const detailResults = await Promise.allSettled(
     catalog.map(entry => {
+      const techId = entry.technology_id || entry.id;
       const ctrl = new AbortController();
       setTimeout(() => ctrl.abort(), DEFAULT_TIMEOUT_MS);
-      return fetch(`${API_V1}/technologies/${entry.id}`, { signal: ctrl.signal })
-        .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)));
+      return fetch(`${API_V1}/technologies/${techId}`, { signal: ctrl.signal })
+        .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status} for ${techId}`)));
     })
   );
+
+  const failed = detailResults.filter(r => r.status === 'rejected');
+  if (failed.length > 0) {
+    console.warn(`[OEO] ${failed.length} detail fetches failed:`, failed.slice(0, 3).map(r => r.reason?.message));
+  }
 
   return detailResults
     .filter(r => r.status === 'fulfilled')
