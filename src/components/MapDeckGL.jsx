@@ -3,9 +3,9 @@ import DeckGL from '@deck.gl/react';
 import { ScatterplotLayer, IconLayer, LineLayer } from '@deck.gl/layers';
 import { Map as MapGL } from 'react-map-gl/maplibre';
 import { useData } from '../context/DataContext';
-import { FiLayers, FiPlus, FiLink, FiEye, FiEdit2, FiMapPin, FiTrash2, FiCpu, FiChevronDown, FiChevronRight, FiZoomIn, FiZoomOut, FiMaximize2, FiX, FiCheck, FiHelpCircle, FiArrowRight, FiActivity, FiZap, FiCircle } from 'react-icons/fi';
+import { FiLayers, FiPlus, FiLink, FiEye, FiEdit2, FiMapPin, FiTrash2, FiCpu, FiChevronDown, FiChevronRight, FiChevronLeft, FiZoomIn, FiZoomOut, FiMaximize2, FiX, FiCheck, FiHelpCircle, FiArrowRight, FiActivity, FiZap, FiCircle, FiNavigation, FiSave, FiFolder } from 'react-icons/fi';
 import ChangeHistoryIcon from '@mui/icons-material/ChangeHistory';
-import { TECH_TEMPLATES } from './TechnologiesData';
+import { TECH_TEMPLATES, useLiveTechTemplates } from './TechnologiesData';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 // Technology color mapping for power plants and other types
@@ -565,7 +565,8 @@ const MAP_STYLES = {
 };
 
 const MapDeckGL = () => {
-  const { locations, setLocations, links, setLinks, showNotification, technologies } = useData();
+  const { locations, setLocations, links, setLinks, showNotification, technologies, models, currentModelId, loadModel, updateCurrentModel, createModel } = useData();
+  const { techTemplates: liveTechTemplates } = useLiveTechTemplates();
   const [viewState, setViewState] = useState({
     longitude: -70.6693,
     latitude: -33.4489,
@@ -579,6 +580,12 @@ const MapDeckGL = () => {
   const [currentStyle, setCurrentStyle] = useState('streets');
   const [mode, setMode] = useState('view');
   const [linkStart, setLinkStart] = useState(null);
+  const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false);
+  const [locationsExpanded, setLocationsExpanded] = useState(true);
+  const [linksExpanded, setLinksExpanded] = useState(true);
+  const [lastPolylineLocation, setLastPolylineLocation] = useState(null);
+  const [isNewLocation, setIsNewLocation] = useState(false);
+  const [showModelPanel, setShowModelPanel] = useState(false);
   const [showLocationsSection, setShowLocationsSection] = useState(false);
   const [showLinksSection, setShowLinksSection] = useState(false);
   const [showTimeseriesSection, setShowTimeseriesSection] = useState(false);
@@ -604,6 +611,7 @@ const MapDeckGL = () => {
   const [constraintCsvFiles, setConstraintCsvFiles] = useState({});
   const [expandedSections, setExpandedSections] = useState({});
   const [expandedCategories, setExpandedCategories] = useState({});
+  const [expandedTechSubcategories, setExpandedTechSubcategories] = useState({});
   const [mapReady, setMapReady] = useState(false);
   const [draggedLocation, setDraggedLocation] = useState(null);
   const [draggingPosition, setDraggingPosition] = useState(null);
@@ -624,28 +632,26 @@ const MapDeckGL = () => {
     });
   }, []);
   
-  // Create technology map from context
+  // Create technology map — live API catalog with instance arrays, fallback to static
   const techMap = useMemo(() => {
     const map = {};
-    
-    // Start with ALL technologies from TECH_TEMPLATES database
-    Object.values(TECH_TEMPLATES).forEach(categoryTechs => {
+    const source = liveTechTemplates && Object.keys(liveTechTemplates).length > 0
+      ? liveTechTemplates
+      : TECH_TEMPLATES;
+    Object.values(source).forEach(categoryTechs => {
       if (Array.isArray(categoryTechs)) {
-        categoryTechs.forEach(tech => {
-          map[tech.name] = tech;
-        });
+        categoryTechs.forEach(tech => { map[tech.name] = tech; });
       }
     });
-    
-    // Then override with any model-specific technologies
+    // Override with model-specific techs but preserve instances from live API
     if (Array.isArray(technologies) && technologies.length > 0) {
       technologies.forEach(tech => {
-        map[tech.name] = tech;
+        const existingInstances = map[tech.name]?.instances;
+        map[tech.name] = existingInstances ? { ...tech, instances: existingInstances } : tech;
       });
     }
-    
     return map;
-  }, [technologies]);
+  }, [liveTechTemplates, technologies]);
   
   // Helper functions for edit dialog
   const toggleTechConstraints = (techName) => {
@@ -705,20 +711,29 @@ const MapDeckGL = () => {
     }
   };
 
-  const addTechToDialog = (techName) => {
+  const addTechToDialog = (techName, instanceParams = null) => {
     if (!dialogTechs.includes(techName)) {
       setDialogTechs([...dialogTechs, techName]);
-      // Initialize with template data
       const techTemplate = techMap[techName];
       if (techTemplate && editingLocation) {
         if (!editingLocation.techs) editingLocation.techs = {};
-        editingLocation.techs[techName] = {
+        const baseTech = {
           parent: techTemplate.parent || 'unknown',
           essentials: { ...techTemplate.essentials },
-          constraints: { ...techTemplate.constraints },
+          constraints: { ...(techTemplate.constraints || {}) },
           costs: { monetary: { ...(techTemplate.costs?.monetary || {}) } }
         };
+        // Merge instance-specific params if provided
+        if (instanceParams) {
+          baseTech.constraints = { ...baseTech.constraints, ...(instanceParams.constraints || {}) };
+          baseTech.costs = { monetary: { ...baseTech.costs.monetary, ...(instanceParams.monetary || {}) } };
+          baseTech._instance = instanceParams.label;
+        }
+        editingLocation.techs[techName] = baseTech;
         setEditingLocation({ ...editingLocation });
+        // Seed editable constraint/cost rows
+        setEditingConstraints(prev => ({ ...prev, [techName]: { ...baseTech.constraints } }));
+        setEditingCosts(prev => ({ ...prev, [techName]: { ...baseTech.costs.monetary } }));
       }
     }
   };
@@ -750,6 +765,7 @@ const MapDeckGL = () => {
   };
 
   const hasLocationChanged = () => {
+    if (isNewLocation) return true;
     if (!originalLocationData) return true;
     if (editingLocation.latitude !== originalLocationData.latitude) return true;
     if (editingLocation.longitude !== originalLocationData.longitude) return true;
@@ -761,7 +777,8 @@ const MapDeckGL = () => {
     return false;
   };
 
-  const handleEditLocation = (location, locationIndex) => {
+  const handleEditLocation = (location, locationIndex, isNew = false) => {
+    setIsNewLocation(isNew);
     // Create a deep copy that preserves all properties including demandProfile
     const locationCopy = {
       ...location,
@@ -837,6 +854,7 @@ const MapDeckGL = () => {
     const updatedLocations = [...locations];
     updatedLocations[editingIndex] = updatedLocation;
     setLocations(updatedLocations);
+    setIsNewLocation(false);
     showNotification(`Location "${updatedLocation.name}" updated successfully`, 'success');
     setShowEditDialog(false);
     setEditingLocation(null);
@@ -1096,10 +1114,37 @@ const MapDeckGL = () => {
     }
   };
   
+  // Helper: haversine distance in km between two {latitude, longitude} points
+  const calcDistanceKm = (a, b) => {
+    const R = 6371;
+    const dLat = (b.latitude - a.latitude) * Math.PI / 180;
+    const dLon = (b.longitude - a.longitude) * Math.PI / 180;
+    const s = Math.sin(dLat / 2) ** 2 +
+      Math.cos(a.latitude * Math.PI / 180) * Math.cos(b.latitude * Math.PI / 180) *
+      Math.sin(dLon / 2) ** 2;
+    return Math.round(6371 * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s)) * 100) / 100;
+  };
+
   // Handle map click for adding locations
   const handleMapClick = (event) => {
-    if (mode === 'add-location' && event.coordinate) {
-      const [longitude, latitude] = event.coordinate;
+    if (!event.coordinate) return;
+    const [longitude, latitude] = event.coordinate;
+
+    if (mode === 'single' || mode === 'add-location') {
+      const newLocation = {
+        name: `Location ${locations.length + 1}`,
+        latitude,
+        longitude,
+        techs: {},
+        isNode: false
+      };
+      const newLocations = [...locations, newLocation];
+      setLocations(newLocations);
+      handleEditLocation(newLocation, newLocations.length - 1, true);
+      return;
+    }
+
+    if (mode === 'multiple') {
       const newLocation = {
         name: `Location ${locations.length + 1}`,
         latitude,
@@ -1109,6 +1154,31 @@ const MapDeckGL = () => {
       };
       setLocations([...locations, newLocation]);
       showNotification('Location added!', 'success');
+      return;
+    }
+
+    if (mode === 'polyline') {
+      const newLocation = {
+        name: `Point ${locations.length + 1}`,
+        latitude,
+        longitude,
+        techs: {},
+        isNode: false
+      };
+      const newLocations = [...locations, newLocation];
+      setLocations(newLocations);
+      if (lastPolylineLocation) {
+        const dist = calcDistanceKm(lastPolylineLocation, newLocation);
+        setLinks(prev => [...prev, {
+          from: lastPolylineLocation.name,
+          to: newLocation.name,
+          distance: dist,
+          techs: {}
+        }]);
+      }
+      setLastPolylineLocation(newLocation);
+      showNotification(`Point added${lastPolylineLocation ? ' and linked' : ''}`, 'success');
+      return;
     }
   };
   
@@ -1195,7 +1265,7 @@ const MapDeckGL = () => {
   const getCursorStyle = useCallback(({isHovering, isDragging}) => {
     if (isDragging) return 'grabbing';
     if (isHovering) return 'pointer';
-    if (mode === 'add-location') return 'crosshair';
+    if (mode === 'add-location' || mode === 'single' || mode === 'multiple' || mode === 'polyline') return 'crosshair';
     return 'grab';
   }, [mode]);
   
@@ -1214,302 +1284,496 @@ const MapDeckGL = () => {
   return (
     <div className="flex-1 h-screen overflow-hidden flex">
       {/* Left Panel - Sidebar */}
-      <div className="w-80 bg-white border-r border-slate-200 flex flex-col">
-        <div className="p-4 border-b border-slate-200">
-          <h2 className="text-xl font-bold text-slate-800 mb-1">Map View</h2>
+      <div className={`${leftSidebarCollapsed ? 'w-16' : 'w-80'} bg-white border-r border-slate-200 flex flex-col transition-all duration-200 overflow-hidden`}>
+        {/* Header */}
+        <div className="p-3 border-b border-slate-200 flex items-center gap-1.5 shrink-0">
+          {!leftSidebarCollapsed && (
+            <h2 className="text-base font-bold text-slate-800 truncate flex-1">Map View</h2>
+          )}
+          {!leftSidebarCollapsed && (
+            <>
+              {/* Save current model */}
+              <button
+                onClick={() => { updateCurrentModel(); showNotification('Model saved!', 'success'); }}
+                className="p-1.5 rounded hover:bg-green-100 text-slate-500 hover:text-green-700 transition-colors"
+                title="Save current model"
+              >
+                <FiSave size={16} />
+              </button>
+              {/* Load model panel toggle */}
+              <button
+                onClick={() => setShowModelPanel(v => !v)}
+                className={`p-1.5 rounded transition-colors ${showModelPanel ? 'bg-blue-100 text-blue-700' : 'hover:bg-blue-100 text-slate-500 hover:text-blue-700'}`}
+                title="Switch / load model"
+              >
+                <FiFolder size={16} />
+              </button>
+            </>
+          )}
+          <button
+            onClick={() => setLeftSidebarCollapsed(!leftSidebarCollapsed)}
+            className="p-1.5 rounded hover:bg-slate-100 text-slate-600 transition-colors"
+            title={leftSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {leftSidebarCollapsed ? <FiChevronRight size={18} /> : <FiChevronLeft size={18} />}
+          </button>
         </div>
 
-        {/* Mode Selection */}
-        <div className="p-4 border-b border-slate-200">
-          <label className="block text-sm font-semibold text-slate-700 mb-2">Mode</label>
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              onClick={() => { setMode('view'); setLinkStart(null); }}
-              className={`p-3 rounded-lg border-2 transition-all ${
-                mode === 'view'
-                  ? 'border-gray-900 bg-gray-900 text-white'
-                  : 'border-gray-300 hover:border-gray-400 text-gray-700'
-              }`}
-            >
-              <FiEye className="mx-auto mb-1" size={20} />
-              <div className="text-xs font-medium">View</div>
-            </button>
-            <button
-              onClick={() => { setMode('add-location'); setLinkStart(null); }}
-              className={`p-3 rounded-lg border-2 transition-all ${
-                mode === 'add-location'
-                  ? 'border-gray-900 bg-gray-900 text-white'
-                  : 'border-gray-300 hover:border-gray-400 text-gray-700'
-              }`}
-            >
-              <FiMapPin className="mx-auto mb-1" size={20} />
-              <div className="text-xs font-medium">Add Location</div>
-            </button>
-            <button
-              onClick={() => { setMode('add-link'); setLinkStart(null); }}
-              className={`p-3 rounded-lg border-2 transition-all ${
-                mode === 'add-link'
-                  ? 'border-gray-900 bg-gray-900 text-white'
-                  : 'border-gray-300 hover:border-gray-400 text-gray-700'
-              }`}
-            >
-              <FiLink className="mx-auto mb-1" size={20} />
-              <div className="text-xs font-medium">Link</div>
-            </button>
+        {/* Model Panel */}
+        {!leftSidebarCollapsed && showModelPanel && (
+          <div className="border-b border-slate-200 bg-slate-50 shrink-0">
+            <div className="px-3 pt-2 pb-1">
+              <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">Saved Models</p>
+              {models.length === 0 ? (
+                <p className="text-xs text-slate-400 pb-2">No saved models yet</p>
+              ) : (
+                <div className="space-y-1 max-h-44 overflow-y-auto">
+                  {models.map(m => (
+                    <button
+                      key={m.id}
+                      onClick={() => { loadModel(m.id); setShowModelPanel(false); showNotification(`Loaded "${m.name}"`, 'success'); }}
+                      className={`w-full text-left px-2 py-1.5 rounded text-xs transition-colors ${
+                        m.id === currentModelId
+                          ? 'bg-blue-100 text-blue-800 font-semibold'
+                          : 'hover:bg-white text-slate-700'
+                      }`}
+                    >
+                      <span className="truncate block">{m.name}</span>
+                      {m.id === currentModelId && <span className="text-blue-500 text-xs">● current</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <button
+                onClick={() => {
+                  const name = prompt('New model name:');
+                  if (name) { createModel(name); setShowModelPanel(false); }
+                }}
+                className="mt-2 mb-1 w-full text-xs text-center py-1.5 rounded border border-dashed border-slate-300 text-slate-500 hover:border-blue-400 hover:text-blue-600 transition-colors"
+              >
+                + New empty model
+              </button>
+            </div>
           </div>
+        )}
 
-          {mode === 'view' && (
-            <div className="mt-3 p-3 bg-gray-100 rounded-lg text-xs text-gray-900">
-              View locations and links
+        {/* Mode Selection */}
+        <div className={`border-b border-slate-200 shrink-0 ${leftSidebarCollapsed ? 'p-2' : 'p-3'}`}>
+          {leftSidebarCollapsed ? (
+            /* Collapsed: icon-only column */
+            <div className="flex flex-col items-center gap-1.5">
+              {[
+                { m: 'view', Icon: FiEye, title: 'View' },
+                { m: 'single', Icon: FiMapPin, title: 'Single' },
+                { m: 'multiple', Icon: FiPlus, title: 'Multiple' },
+                { m: 'add-link', Icon: FiLink, title: 'Link' },
+                { m: 'polyline', Icon: FiNavigation, title: 'Polyline' },
+              ].map(({ m, Icon, title }) => (
+                <button
+                  key={m}
+                  onClick={() => { setMode(m); setLinkStart(null); if (m !== 'polyline') setLastPolylineLocation(null); }}
+                  title={title}
+                  className={`p-2 rounded-lg border-2 w-full flex justify-center transition-all ${
+                    mode === m
+                      ? 'border-gray-900 bg-gray-900 text-white'
+                      : 'border-gray-200 hover:border-gray-400 text-gray-600'
+                  }`}
+                >
+                  <Icon size={16} />
+                </button>
+              ))}
             </div>
-          )}
-          {mode === 'add-location' && (
-            <div className="mt-3 p-3 bg-gray-100 rounded-lg text-xs text-gray-900">
-              Click on the map to add a new location
-            </div>
-          )}
-          {mode === 'add-link' && (
-            <div className="mt-3 p-3 bg-gray-100 rounded-lg text-xs text-gray-900">
-              {linkStart ? `Click on another location to complete the link from ${linkStart.name}` : 'Click on a location to start a link'}
-            </div>
+          ) : (
+            /* Expanded: full mode grid */
+            <>
+              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">Mode</label>
+              {/* View — full width */}
+              <button
+                onClick={() => { setMode('view'); setLinkStart(null); setLastPolylineLocation(null); }}
+                className={`w-full mb-2 p-2 rounded-lg border-2 flex items-center gap-2 transition-all ${
+                  mode === 'view'
+                    ? 'border-gray-900 bg-gray-900 text-white'
+                    : 'border-gray-200 hover:border-gray-400 text-gray-700'
+                }`}
+              >
+                <FiEye size={16} className="shrink-0" />
+                <span className="text-xs font-medium">View</span>
+              </button>
+              {/* 2×2: Single / Multiple / Link / Polyline */}
+              <div className="grid grid-cols-2 gap-1.5">
+                {[
+                  { m: 'single', Icon: FiMapPin, label: 'Single' },
+                  { m: 'multiple', Icon: FiPlus, label: 'Multiple' },
+                  { m: 'add-link', Icon: FiLink, label: 'Link' },
+                  { m: 'polyline', Icon: FiNavigation, label: 'Polyline' },
+                ].map(({ m, Icon, label }) => (
+                  <button
+                    key={m}
+                    onClick={() => { setMode(m); setLinkStart(null); if (m !== 'polyline') setLastPolylineLocation(null); }}
+                    className={`p-2.5 rounded-lg border-2 transition-all ${
+                      mode === m
+                        ? 'border-gray-900 bg-gray-900 text-white'
+                        : 'border-gray-200 hover:border-gray-400 text-gray-700'
+                    }`}
+                  >
+                    <Icon className="mx-auto mb-0.5" size={16} />
+                    <div className="text-xs font-medium">{label}</div>
+                  </button>
+                ))}
+              </div>
+              {/* Hint text */}
+              <div className="mt-2 p-2 bg-slate-100 rounded text-xs text-slate-600">
+                {mode === 'view' && 'Click a location on the map to view details'}
+                {(mode === 'single' || mode === 'add-location') && 'Click the map to add a location and edit it'}
+                {mode === 'multiple' && 'Click the map to quickly add multiple locations'}
+                {mode === 'add-link' && (linkStart ? `Select destination for link from "${linkStart.name}"` : 'Click a location to start a link')}
+                {mode === 'polyline' && (lastPolylineLocation ? `Continue from "${lastPolylineLocation.name}" — click to extend` : 'Click the map to start a polyline chain')}
+              </div>
+            </>
           )}
         </div>
 
         {/* Locations & Links List */}
-        <div className="flex-1 overflow-y-auto">
-          {locations.length > 0 ? (
-            <div>
-              {/* Locations Section */}
-              <div className="border-b border-slate-200">
+        {!leftSidebarCollapsed && (
+          <div className="flex-1 overflow-y-auto">
+            {/* Locations Section */}
+            <div className="border-b border-slate-200">
+              <div className="flex items-center">
                 <button
-                  onClick={() => setShowLocationsSection(!showLocationsSection)}
-                  className="w-full p-4 flex items-center justify-between hover:bg-slate-50 transition-colors"
+                  onClick={() => setLocationsExpanded(!locationsExpanded)}
+                  className="flex-1 px-4 py-3 flex items-center gap-2 hover:bg-slate-50 transition-colors text-left"
                 >
-                  <div className="flex items-center gap-2">
-                    <FiMapPin size={16} className="text-slate-700" />
-                    <span className="text-sm font-semibold text-slate-700">Locations ({locations.length})</span>
-                  </div>
-                  {showLocationsSection ? <FiChevronDown size={16} /> : <FiChevronRight size={16} />}
+                  <FiMapPin size={14} className="text-slate-600" />
+                  <span className="text-sm font-semibold text-slate-700">Locations</span>
+                  <span className="text-xs bg-slate-200 text-slate-600 rounded-full px-1.5">{locations.length}</span>
+                  <span className="ml-auto">{locationsExpanded ? <FiChevronDown size={14} /> : <FiChevronRight size={14} />}</span>
                 </button>
-                
-                {showLocationsSection && (
-                  <div className="p-4 bg-slate-50">
-                    <div className="mb-3 p-3 bg-gray-50 rounded-lg text-sm text-gray-700">
-                      Click any location on the map to view details and edit
-                    </div>
-                    <div className="text-xs text-slate-600">
-                      Total: {locations.length} locations • {locations.filter(l => Object.keys(l.techs || {}).length > 0).length} with technologies
-                    </div>
-                  </div>
+                {locations.length > 0 && (
+                  <button
+                    onClick={() => {
+                      if (window.confirm(`Delete all ${locations.length} locations? This will also remove all links.`)) {
+                        setLocations([]);
+                        setLinks([]);
+                        showNotification('All locations and links deleted', 'success');
+                      }
+                    }}
+                    className="p-2 mr-2 rounded hover:bg-red-100 text-slate-400 hover:text-red-600 transition-colors"
+                    title="Delete all locations"
+                  >
+                    <FiTrash2 size={13} />
+                  </button>
                 )}
               </div>
 
-              {/* Links Section */}
-              {links.length > 0 && (
-                <div className="border-b border-slate-200">
-                  <button
-                    onClick={() => setShowLinksSection(!showLinksSection)}
-                    className="w-full p-4 flex items-center justify-between hover:bg-slate-50 transition-colors"
-                  >
-                    <div className="flex items-center gap-2">
-                      <FiLink size={16} className="text-slate-700" />
-                      <span className="text-sm font-semibold text-slate-700">Links ({links.length})</span>
+              {locationsExpanded && (
+                <div className="pb-2 space-y-1.5 px-2">
+                  {locations.length === 0 ? (
+                    <div className="text-center py-4 text-xs text-slate-400">
+                      No locations yet — use Single, Multiple, or Polyline mode to add
                     </div>
-                    {showLinksSection ? <FiChevronDown size={16} /> : <FiChevronRight size={16} />}
-                  </button>
-                  
-                  {showLinksSection && (
-                    <div className="p-4 bg-slate-50">
-                      <div className="text-xs text-slate-600">
-                        Total transmission links: {links.length}
-                      </div>
-                    </div>
+                  ) : (
+                    locations.map((loc, idx) => {
+                      const techKeys = Object.keys(loc.techs || {});
+                      return (
+                        <div
+                          key={`${loc.name}-${idx}`}
+                          onClick={() => { setSelectedLocation(loc); handleLocationSelect(loc); }}
+                          className={`rounded-lg border p-2.5 cursor-pointer transition-all hover:shadow-sm ${
+                            selectedLocation?.name === loc.name
+                              ? 'border-gray-700 bg-gray-50'
+                              : 'border-slate-200 hover:border-slate-400 bg-white'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-1">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold text-slate-800 truncate">{loc.name}</p>
+                              <p className="text-xs text-slate-400 mt-0.5">
+                                {typeof loc.latitude === 'number' ? loc.latitude.toFixed(4) : '—'},&nbsp;
+                                {typeof loc.longitude === 'number' ? loc.longitude.toFixed(4) : '—'}
+                              </p>
+                              {techKeys.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {techKeys.slice(0, 3).map(t => (
+                                    <span key={t} className="text-xs bg-blue-100 text-blue-700 rounded px-1 py-0.5 truncate max-w-[80px]">
+                                      {formatTechName(t)}
+                                    </span>
+                                  ))}
+                                  {techKeys.length > 3 && (
+                                    <span className="text-xs bg-slate-100 text-slate-500 rounded px-1 py-0.5">+{techKeys.length - 3}</span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-0.5 shrink-0">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleEditLocation(loc, idx); }}
+                                className="p-1 rounded hover:bg-blue-100 text-slate-400 hover:text-blue-600 transition-colors"
+                                title="Edit location"
+                              >
+                                <FiEdit2 size={12} />
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleDeleteLocation(idx); }}
+                                className="p-1 rounded hover:bg-red-100 text-slate-400 hover:text-red-600 transition-colors"
+                                title="Delete location"
+                              >
+                                <FiTrash2 size={12} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
                   )}
                 </div>
               )}
+            </div>
 
-              {/* Timeseries Section */}
-              {(() => {
-                const locationsWithDemand = locations.filter(loc => loc.demandProfile);
-                return locationsWithDemand.length > 0 ? (
-                  <div className="border-b border-slate-200">
-                    <button
-                      onClick={() => setShowTimeseriesSection(!showTimeseriesSection)}
-                      className="w-full p-4 flex items-center justify-between hover:bg-slate-50 transition-colors"
-                    >
-                      <div className="flex items-center gap-2">
-                        <FiActivity size={16} className="text-slate-700" />
-                        <span className="text-sm font-semibold text-slate-700">Timeseries Data ({locationsWithDemand.length})</span>
+            {/* Links Section */}
+            <div className="border-b border-slate-200">
+              <div className="flex items-center">
+                <button
+                  onClick={() => setLinksExpanded(!linksExpanded)}
+                  className="flex-1 px-4 py-3 flex items-center gap-2 hover:bg-slate-50 transition-colors text-left"
+                >
+                  <FiLink size={14} className="text-slate-600" />
+                  <span className="text-sm font-semibold text-slate-700">Links</span>
+                  <span className="text-xs bg-slate-200 text-slate-600 rounded-full px-1.5">{links.length}</span>
+                  <span className="ml-auto">{linksExpanded ? <FiChevronDown size={14} /> : <FiChevronRight size={14} />}</span>
+                </button>
+                {links.length > 0 && (
+                  <button
+                    onClick={() => {
+                      if (window.confirm(`Delete all ${links.length} links?`)) {
+                        setLinks([]);
+                        showNotification('All links deleted', 'success');
+                      }
+                    }}
+                    className="p-2 mr-2 rounded hover:bg-red-100 text-slate-400 hover:text-red-600 transition-colors"
+                    title="Delete all links"
+                  >
+                    <FiTrash2 size={13} />
+                  </button>
+                )}
+              </div>
+
+              {linksExpanded && (
+                <div className="pb-2 space-y-1.5 px-2">
+                  {links.length === 0 ? (
+                    <div className="text-center py-4 text-xs text-slate-400">
+                      No links yet — use Link or Polyline mode
+                    </div>
+                  ) : (
+                    links.map((link, idx) => (
+                      <div
+                        key={`${link.from}-${link.to}-${idx}`}
+                        className="rounded-lg border border-slate-200 p-2.5 bg-white hover:border-slate-400 transition-all"
+                      >
+                        <div className="flex items-start justify-between gap-1">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1 text-xs font-semibold text-slate-800">
+                              <span className="truncate max-w-[60px]">{link.from}</span>
+                              <FiArrowRight size={10} className="shrink-0 text-slate-400" />
+                              <span className="truncate max-w-[60px]">{link.to}</span>
+                            </div>
+                            {link.distance != null && (
+                              <span className="text-xs text-slate-400 mt-0.5 block">{link.distance} km</span>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => {
+                              if (window.confirm(`Delete link ${link.from} → ${link.to}?`)) {
+                                setLinks(links.filter((_, i) => i !== idx));
+                              }
+                            }}
+                            className="p-1 rounded hover:bg-red-100 text-slate-400 hover:text-red-600 transition-colors shrink-0"
+                            title="Delete link"
+                          >
+                            <FiTrash2 size={12} />
+                          </button>
+                        </div>
                       </div>
-                      {showTimeseriesSection ? <FiChevronDown size={16} /> : <FiChevronRight size={16} />}
-                    </button>
-                    
-                    {showTimeseriesSection && (
-                      <div className="p-4 bg-slate-50 space-y-3">
-                        {/* Statistics Summary */}
-                        {locationsWithDemand.length > 0 && (() => {
-                          const totalMWh = locationsWithDemand.reduce((sum, loc) => sum + parseFloat(loc.totalDemandMWh || 0), 0);
-                          const totalGWh = totalMWh / 1000;
-                          const avgMWh = totalMWh / locationsWithDemand.length;
-                          return (
-                            <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-3 rounded-lg border border-gray-200">
-                              <div className="text-xs font-bold text-gray-900 mb-2 uppercase tracking-wide">Demand Statistics</div>
-                              <div className="grid grid-cols-2 gap-2 text-xs">
-                                <div className="bg-white/60 p-2 rounded">
-                                  <div className="text-slate-600">Total Energy</div>
-                                  <div className="font-bold text-gray-700">{totalGWh.toFixed(2)} GWh</div>
-                                </div>
-                                <div className="bg-white/60 p-2 rounded">
-                                  <div className="text-slate-600">Avg/Substation</div>
-                                  <div className="font-bold text-gray-700">{avgMWh.toFixed(2)} MWh</div>
-                                </div>
-                                <div className="bg-white/60 p-2 rounded">
-                                  <div className="text-slate-600">Substations</div>
-                                  <div className="font-bold text-gray-700">{locationsWithDemand.length}</div>
-                                </div>
-                                <div className="bg-white/60 p-2 rounded">
-                                  <div className="text-slate-600">Time Period</div>
-                                  <div className="font-bold text-gray-700">{locationsWithDemand[0]?.demandProfile?.hours || 0}h</div>
-                                </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Timeseries Section */}
+            {(() => {
+              const locationsWithDemand = locations.filter(loc => loc.demandProfile);
+              return locationsWithDemand.length > 0 ? (
+                <div className="border-b border-slate-200">
+                  <button
+                    onClick={() => setShowTimeseriesSection(!showTimeseriesSection)}
+                    className="w-full p-4 flex items-center justify-between hover:bg-slate-50 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <FiActivity size={16} className="text-slate-700" />
+                      <span className="text-sm font-semibold text-slate-700">Timeseries Data ({locationsWithDemand.length})</span>
+                    </div>
+                    {showTimeseriesSection ? <FiChevronDown size={16} /> : <FiChevronRight size={16} />}
+                  </button>
+                  
+                  {showTimeseriesSection && (
+                    <div className="p-4 bg-slate-50 space-y-3">
+                      {/* Statistics Summary */}
+                      {locationsWithDemand.length > 0 && (() => {
+                        const totalMWh = locationsWithDemand.reduce((sum, loc) => sum + parseFloat(loc.totalDemandMWh || 0), 0);
+                        const totalGWh = totalMWh / 1000;
+                        const avgMWh = totalMWh / locationsWithDemand.length;
+                        return (
+                          <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-3 rounded-lg border border-gray-200">
+                            <div className="text-xs font-bold text-gray-900 mb-2 uppercase tracking-wide">Demand Statistics</div>
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                              <div className="bg-white/60 p-2 rounded">
+                                <div className="text-slate-600">Total Energy</div>
+                                <div className="font-bold text-gray-700">{totalGWh.toFixed(2)} GWh</div>
+                              </div>
+                              <div className="bg-white/60 p-2 rounded">
+                                <div className="text-slate-600">Avg/Substation</div>
+                                <div className="font-bold text-gray-700">{avgMWh.toFixed(2)} MWh</div>
+                              </div>
+                              <div className="bg-white/60 p-2 rounded">
+                                <div className="text-slate-600">Substations</div>
+                                <div className="font-bold text-gray-700">{locationsWithDemand.length}</div>
+                              </div>
+                              <div className="bg-white/60 p-2 rounded">
+                                <div className="text-slate-600">Time Period</div>
+                                <div className="font-bold text-gray-700">{locationsWithDemand[0]?.demandProfile?.hours || 0}h</div>
                               </div>
                             </div>
-                          );
-                        })()}
-
-                        {/* Filter Controls */}
-                        {locationsWithDemand.length > 0 && (
-                          <div className="space-y-2">
-                            <input
-                              type="text"
-                              placeholder="Filter substations..."
-                              value={timeseriesFilter}
-                              onChange={(e) => setTimeseriesFilter(e.target.value)}
-                              className="w-full px-3 py-2 text-xs border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-gray-500"
-                            />
-                            <select
-                              value={timeseriesSortBy}
-                              onChange={(e) => setTimeseriesSortBy(e.target.value)}
-                              className="w-full px-3 py-2 text-xs border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-gray-500"
-                            >
-                              <option value="name">Sort by Name</option>
-                              <option value="total">Sort by Total (High to Low)</option>
-                              <option value="total-asc">Sort by Total (Low to High)</option>
-                              <option value="avg">Sort by Average (High to Low)</option>
-                              <option value="max">Sort by Peak Demand</option>
-                            </select>
                           </div>
-                        )}
+                        );
+                      })()}
+
+                      {/* Filter Controls */}
+                      {locationsWithDemand.length > 0 && (
+                        <div className="space-y-2">
+                          <input
+                            type="text"
+                            placeholder="Filter substations..."
+                            value={timeseriesFilter}
+                            onChange={(e) => setTimeseriesFilter(e.target.value)}
+                            className="w-full px-3 py-2 text-xs border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-gray-500"
+                          />
+                          <select
+                            value={timeseriesSortBy}
+                            onChange={(e) => setTimeseriesSortBy(e.target.value)}
+                            className="w-full px-3 py-2 text-xs border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-gray-500"
+                          >
+                            <option value="name">Sort by Name</option>
+                            <option value="total">Sort by Total (High to Low)</option>
+                            <option value="total-asc">Sort by Total (Low to High)</option>
+                            <option value="avg">Sort by Average (High to Low)</option>
+                            <option value="max">Sort by Peak Demand</option>
+                          </select>
+                        </div>
+                      )}
+                      
+                      {/* Demand Profiles List */}
+                      {locationsWithDemand.length > 0 && (() => {
+                        let filtered = locationsWithDemand.filter(loc => 
+                          !timeseriesFilter || loc.name.toLowerCase().includes(timeseriesFilter.toLowerCase())
+                        );
                         
-                        {/* Demand Profiles List */}
-                        {locationsWithDemand.length > 0 && (() => {
-                          let filtered = locationsWithDemand.filter(loc => 
-                            !timeseriesFilter || loc.name.toLowerCase().includes(timeseriesFilter.toLowerCase())
-                          );
-                          
-                          // Sort
-                          switch(timeseriesSortBy) {
-                            case 'total':
-                              filtered.sort((a, b) => parseFloat(b.totalDemandMWh) - parseFloat(a.totalDemandMWh));
-                              break;
-                            case 'total-asc':
-                              filtered.sort((a, b) => parseFloat(a.totalDemandMWh) - parseFloat(b.totalDemandMWh));
-                              break;
-                            case 'avg':
-                              filtered.sort((a, b) => parseFloat(b.demandProfile.avgMW) - parseFloat(a.demandProfile.avgMW));
-                              break;
-                            case 'max':
-                              filtered.sort((a, b) => parseFloat(b.demandProfile.maxMW) - parseFloat(a.demandProfile.maxMW));
-                              break;
-                            default:
-                              filtered.sort((a, b) => a.name.localeCompare(b.name));
-                          }
-                          
-                          return (
-                            <div className="space-y-2">
-                              <div className="text-xs font-semibold text-gray-700 uppercase tracking-wide flex items-center justify-between">
-                                <span>Demand Profiles</span>
-                                <span className="text-slate-500 font-normal">{filtered.length} of {locationsWithDemand.length}</span>
-                              </div>
-                              <div className="max-h-96 overflow-y-auto space-y-1.5">
-                                {filtered.map(loc => (
-                                  <div 
-                                    key={loc.name}
-                                    onClick={() => {
-                                      setSelectedLocation(loc);
-                                      setViewState({
-                                        ...viewState,
-                                        longitude: loc.longitude,
-                                        latitude: loc.latitude,
-                                        zoom: 10,
-                                        transitionDuration: 1000
-                                      });
-                                    }}
-                                    className="p-2.5 bg-white rounded border border-slate-200 hover:border-gray-400 hover:shadow-sm cursor-pointer transition-all"
-                                  >
-                                    <div className="text-xs font-semibold text-slate-800 mb-1">{loc.name}</div>
-                                    <div className="grid grid-cols-2 gap-1 text-xs">
-                                      <div className="text-slate-600">
-                                        <span className="font-medium">Total:</span> {(parseFloat(loc.totalDemandMWh) / 1000).toFixed(2)} GWh
+                        // Sort
+                        switch(timeseriesSortBy) {
+                          case 'total':
+                            filtered.sort((a, b) => parseFloat(b.totalDemandMWh) - parseFloat(a.totalDemandMWh));
+                            break;
+                          case 'total-asc':
+                            filtered.sort((a, b) => parseFloat(a.totalDemandMWh) - parseFloat(b.totalDemandMWh));
+                            break;
+                          case 'avg':
+                            filtered.sort((a, b) => parseFloat(b.demandProfile.avgMW) - parseFloat(a.demandProfile.avgMW));
+                            break;
+                          case 'max':
+                            filtered.sort((a, b) => parseFloat(b.demandProfile.maxMW) - parseFloat(a.demandProfile.maxMW));
+                            break;
+                          default:
+                            filtered.sort((a, b) => a.name.localeCompare(b.name));
+                        }
+                        
+                        return (
+                          <div className="space-y-2">
+                            <div className="text-xs font-semibold text-gray-700 uppercase tracking-wide flex items-center justify-between">
+                              <span>Demand Profiles</span>
+                              <span className="text-slate-500 font-normal">{filtered.length} of {locationsWithDemand.length}</span>
+                            </div>
+                            <div className="max-h-96 overflow-y-auto space-y-1.5">
+                              {filtered.map(loc => (
+                                <div 
+                                  key={loc.name}
+                                  onClick={() => {
+                                    setSelectedLocation(loc);
+                                    setViewState({
+                                      ...viewState,
+                                      longitude: loc.longitude,
+                                      latitude: loc.latitude,
+                                      zoom: 10,
+                                      transitionDuration: 1000
+                                    });
+                                  }}
+                                  className="p-2.5 bg-white rounded border border-slate-200 hover:border-gray-400 hover:shadow-sm cursor-pointer transition-all"
+                                >
+                                  <div className="text-xs font-semibold text-slate-800 mb-1">{loc.name}</div>
+                                  <div className="grid grid-cols-2 gap-1 text-xs">
+                                    <div className="text-slate-600">
+                                      <span className="font-medium">Total:</span> {(parseFloat(loc.totalDemandMWh) / 1000).toFixed(2)} GWh
+                                    </div>
+                                    <div className="text-slate-600">
+                                      <span className="font-medium">Avg:</span> {loc.demandProfile.avgMW} MW
+                                    </div>
+                                    <div className="text-slate-600">
+                                      <span className="font-medium">Peak:</span> {loc.demandProfile.maxMW} MW
+                                    </div>
+                                    <div className="text-slate-600">
+                                      <span className="font-medium">Min:</span> {loc.demandProfile.minMW} MW
+                                    </div>
+                                  </div>
+                                  {timeseriesPreview === loc.name && loc.demandProfile.timeseries && (
+                                    <div className="mt-2 pt-2 border-t border-slate-200">
+                                      <div className="h-12 flex items-end gap-0.5">
+                                        {loc.demandProfile.timeseries.slice(0, 168).map((val, idx) => {
+                                          const height = (val / parseFloat(loc.demandProfile.maxMW)) * 100;
+                                          return (
+                                            <div
+                                              key={idx}
+                                              className="flex-1 bg-gray-400 rounded-t"
+                                              style={{ height: `${height}%`, minWidth: '1px' }}
+                                              title={`Hour ${idx}: ${val.toFixed(0)} MW`}
+                                            />
+                                          );
+                                        })}
                                       </div>
-                                      <div className="text-slate-600">
-                                        <span className="font-medium">Avg:</span> {loc.demandProfile.avgMW} MW
-                                      </div>
-                                      <div className="text-slate-600">
-                                        <span className="font-medium">Peak:</span> {loc.demandProfile.maxMW} MW
-                                      </div>
-                                      <div className="text-slate-600">
-                                        <span className="font-medium">Min:</span> {loc.demandProfile.minMW} MW
+                                      <div className="text-xs text-slate-500 mt-1 text-center">
+                                        First 7 days • Click location for full details
                                       </div>
                                     </div>
-                                    {timeseriesPreview === loc.name && loc.demandProfile.timeseries && (
-                                      <div className="mt-2 pt-2 border-t border-slate-200">
-                                        <div className="h-12 flex items-end gap-0.5">
-                                          {loc.demandProfile.timeseries.slice(0, 168).map((val, idx) => {
-                                            const height = (val / parseFloat(loc.demandProfile.maxMW)) * 100;
-                                            return (
-                                              <div
-                                                key={idx}
-                                                className="flex-1 bg-gray-400 rounded-t"
-                                                style={{ height: `${height}%`, minWidth: '1px' }}
-                                                title={`Hour ${idx}: ${val.toFixed(0)} MW`}
-                                              />
-                                            );
-                                          })}
-                                        </div>
-                                        <div className="text-xs text-slate-500 mt-1 text-center">
-                                          First 7 days • Click location for full details
-                                        </div>
-                                      </div>
-                                    )}
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setTimeseriesPreview(timeseriesPreview === loc.name ? null : loc.name);
-                                      }}
-                                      className="mt-2 w-full text-xs text-gray-600 hover:text-gray-800 font-medium"
-                                    >
-                                      {timeseriesPreview === loc.name ? '− Hide Preview' : '+ Show Preview'}
-                                    </button>
-                                  </div>
-                                ))}
-                              </div>
+                                  )}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setTimeseriesPreview(timeseriesPreview === loc.name ? null : loc.name);
+                                    }}
+                                    className="mt-2 w-full text-xs text-gray-600 hover:text-gray-800 font-medium"
+                                  >
+                                    {timeseriesPreview === loc.name ? '− Hide Preview' : '+ Show Preview'}
+                                  </button>
+                                </div>
+                              ))}
                             </div>
-                          );
-                        })()}
-                      </div>
-                    )}
-                  </div>
-                ) : null;
-              })()}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-slate-500">
-              <FiMapPin className="mx-auto mb-2" size={32} />
-              <p className="text-sm">No locations yet</p>
-              <p className="text-xs mt-1">Switch to "Add Location" mode and click on the map</p>
-            </div>
-          )}
-        </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </div>
+              ) : null;
+            })()}
+          </div>
+        )}
       </div>
 
       {/* Right Panel - Map */}
@@ -2784,48 +3048,93 @@ const MapDeckGL = () => {
                       <p className="text-xs mt-2">Load a model or add technologies in the Technologies section.</p>
                     </div>
                   ) : (
-                    <div className="space-y-2">
-                      {['supply', 'supply_plus', 'demand', 'storage', 'conversion', 'conversion_plus'].map(parentType => {
-                        const techsInCategory = Object.entries(techMap).filter(([name, tech]) => tech.parent === parentType);
-                        
+                    <div className="space-y-1">
+                      {([
+                        { key: 'supply_plus', label: 'Variable Renewables' },
+                        { key: 'supply',      label: 'Dispatchable Supply' },
+                        { key: 'storage',     label: 'Storage' },
+                        { key: 'conversion_plus', label: 'Conversion' },
+                        { key: 'transmission', label: 'Transmission' },
+                        { key: 'demand',      label: 'Demand' },
+                      ]).map(({ key: parentType, label: categoryLabel }) => {
+                        const techsInCategory = Object.entries(techMap).filter(([, tech]) => tech.parent === parentType);
                         if (techsInCategory.length === 0) return null;
-                        
-                        const isExpanded = expandedSections[`add_${parentType}`];
-                        
+                        const isCatExpanded = expandedSections[`add_${parentType}`];
                         return (
-                          <div key={parentType} className="border border-slate-200 rounded-lg overflow-hidden">
+                          <div key={parentType}>
+                            {/* Category header */}
                             <button
-                              onClick={() => setExpandedSections({ ...expandedSections, [`add_${parentType}`]: !isExpanded })}
-                              className="w-full flex items-center justify-between px-3 py-2 bg-slate-50 hover:bg-slate-100 transition-colors"
+                              onClick={() => setExpandedSections(prev => ({ ...prev, [`add_${parentType}`]: !isCatExpanded }))}
+                              className="w-full flex items-center justify-between px-3 py-2 bg-slate-100 hover:bg-slate-200 transition-colors rounded"
                             >
-                              <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">
-                                {formatTechName(parentType)} ({techsInCategory.length})
-                              </span>
-                              {isExpanded ? <FiChevronDown size={14} /> : <FiChevronRight size={14} />}
+                              <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">{categoryLabel}</span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] text-slate-400">{techsInCategory.length}</span>
+                                {isCatExpanded ? <FiChevronDown size={12} /> : <FiChevronRight size={12} />}
+                              </div>
                             </button>
-                            
-                            {isExpanded && (
-                              <div className="p-2 bg-white">
-                                <div className="space-y-1">
-                                  {techsInCategory.map(([techName, tech]) => {
-                                    const isAssigned = dialogTechs.includes(techName);
-                                    return (
+                            {isCatExpanded && (
+                              <div className="ml-2 mt-0.5 space-y-0.5">
+                                {techsInCategory.map(([techName, tech]) => {
+                                  const instances = tech.instances || [];
+                                  const subKey = `sub_${parentType}_${techName}`;
+                                  const isSubExpanded = expandedTechSubcategories[subKey];
+                                  const isAssigned = dialogTechs.includes(techName);
+                                  return (
+                                    <div key={techName}>
+                                      {/* Tech subcategory row */}
                                       <button
-                                        key={techName}
-                                        onClick={() => !isAssigned && addTechToDialog(techName)}
-                                        disabled={isAssigned}
-                                        className={`w-full text-left p-2 rounded text-xs transition-colors ${
-                                          isAssigned
-                                            ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                                            : 'bg-slate-50 hover:bg-gray-50 text-slate-700 hover:text-gray-700 border border-slate-200'
-                                        }`}
-                                        title={tech.description || techName}
+                                        onClick={() => setExpandedTechSubcategories(prev => ({ ...prev, [subKey]: !isSubExpanded }))}
+                                        className="w-full flex items-center justify-between px-3 py-1.5 text-left hover:bg-slate-50 transition-colors rounded"
                                       >
-                                        {isAssigned ? '✓ ' : '+ '}{formatTechName(techName)}
+                                        <span className="text-xs font-semibold text-slate-700">{formatTechName(techName)}</span>
+                                        <div className="flex items-center gap-1.5">
+                                          {instances.length > 0 && <span className="text-[10px] text-slate-400">{instances.length} variant{instances.length !== 1 ? 's' : ''}</span>}
+                                          {isSubExpanded ? <FiChevronDown size={12} className="text-slate-400" /> : <FiChevronRight size={12} className="text-slate-400" />}
+                                        </div>
                                       </button>
-                                    );
-                                  })}
-                                </div>
+                                      {/* Instance rows */}
+                                      {isSubExpanded && (
+                                        <div className="pl-3 pr-2 pb-1 space-y-1">
+                                          {(instances.length > 0 ? instances : [null]).map((inst, idx) => {
+                                            const rowLabel = inst?.displayLabel || inst?.label || inst?.raw?.label || `Variant ${idx + 1}`;
+                                            return (
+                                              <div key={idx} className={`flex items-center justify-between gap-2 rounded px-2 py-1.5 ${
+                                                isAssigned ? 'bg-gray-100 opacity-60' : 'bg-white border border-slate-200'
+                                              }`}>
+                                                <div className="flex-1 min-w-0">
+                                                  <p className="text-[11px] font-medium text-slate-700 truncate">{rowLabel}</p>
+                                                  <div className="flex gap-1 mt-0.5 flex-wrap">
+                                                    {inst?.constraints?.energy_eff != null && (
+                                                      <span className="text-[9px] text-slate-400 bg-slate-100 px-1 py-0.5 rounded">
+                                                        η {Math.round(inst.constraints.energy_eff * 100)}%
+                                                      </span>
+                                                    )}
+                                                    {inst?.constraints?.lifetime != null && (
+                                                      <span className="text-[9px] text-slate-400 bg-slate-100 px-1 py-0.5 rounded">{inst.constraints.lifetime} yr</span>
+                                                    )}
+                                                    {inst?.monetary?.energy_cap != null && (
+                                                      <span className="text-[9px] text-slate-400 bg-slate-100 px-1 py-0.5 rounded">CAPEX {inst.monetary.energy_cap}</span>
+                                                    )}
+                                                  </div>
+                                                </div>
+                                                <button
+                                                  onClick={() => !isAssigned && addTechToDialog(techName, inst)}
+                                                  disabled={!!isAssigned}
+                                                  className={`flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold transition-colors ${
+                                                    isAssigned ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-gray-600 text-white hover:bg-gray-700'
+                                                  }`}
+                                                >
+                                                  {isAssigned ? '✓' : '+'}
+                                                </button>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
                               </div>
                             )}
                           </div>
