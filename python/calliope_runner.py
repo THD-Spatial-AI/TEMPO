@@ -94,6 +94,30 @@ def _tech_id(tech):
 
 
 # ---------------------------------------------------------------------------
+# Default parameters for each link type (mirrors src/config/linkTypes.js)
+# ---------------------------------------------------------------------------
+
+_LINK_TYPE_DEFAULTS = {
+    'hvac_overhead':   {'calliopeTech': 'hvac_overhead_lines',       'carrier': 'electricity', 'energy_eff': 0.98, 'lifetime': 40, 'energy_cap_per_distance': 0.91},
+    'hvdc_overhead':   {'calliopeTech': 'hvdc_overhead_lines',        'carrier': 'electricity', 'energy_eff': 0.97, 'lifetime': 40, 'energy_cap_per_distance': 1.10},
+    'hvac_cable':      {'calliopeTech': 'hvac_underground_cables',    'carrier': 'electricity', 'energy_eff': 0.97, 'lifetime': 40, 'energy_cap_per_distance': 3.00},
+    'hvdc_subsea':     {'calliopeTech': 'hvdc_subsea_cables',         'carrier': 'electricity', 'energy_eff': 0.96, 'lifetime': 40, 'energy_cap_per_distance': 4.50},
+    'district_heat':   {'calliopeTech': 'district_heating_networks',  'carrier': 'heat',        'energy_eff': 0.90, 'lifetime': 40, 'energy_cap_per_distance': 0.60},
+    'district_cooling':{'calliopeTech': 'district_cooling_networks',  'carrier': 'cooling',     'energy_eff': 0.92, 'lifetime': 40, 'energy_cap_per_distance': 0.70},
+    'h2_pipeline':     {'calliopeTech': 'hydrogen_pipelines',         'carrier': 'hydrogen',    'energy_eff': 0.98, 'lifetime': 40, 'energy_cap_per_distance': 1.20},
+    'h2_truck':        {'calliopeTech': 'hydrogen_truck',             'carrier': 'hydrogen',    'energy_eff': 0.95, 'lifetime': 15, 'energy_cap_per_distance': 0.20},
+    'gas_pipeline':    {'calliopeTech': 'natural_gas_pipelines',      'carrier': 'gas',         'energy_eff': 0.99, 'lifetime': 50, 'energy_cap_per_distance': 0.50},
+    'biogas_pipeline': {'calliopeTech': 'biogas_pipelines',           'carrier': 'biogas',      'energy_eff': 0.98, 'lifetime': 30, 'energy_cap_per_distance': 0.40},
+    'co2_pipeline':    {'calliopeTech': 'co2_pipelines',              'carrier': 'co2',         'energy_eff': 0.99, 'lifetime': 40, 'energy_cap_per_distance': 0.80},
+    'biomass_truck':   {'calliopeTech': 'biomass_truck',              'carrier': 'biomass',     'energy_eff': 0.97, 'lifetime': 15, 'energy_cap_per_distance': 0.10},
+    'biomass_train':   {'calliopeTech': 'biomass_train',              'carrier': 'biomass',     'energy_eff': 0.98, 'lifetime': 30, 'energy_cap_per_distance': 0.05},
+    'oil_pipeline':    {'calliopeTech': 'oil_pipelines',              'carrier': 'oil',         'energy_eff': 0.995,'lifetime': 50, 'energy_cap_per_distance': 0.45},
+    'oil_truck':       {'calliopeTech': 'fuel_truck',                 'carrier': 'oil',         'energy_eff': 0.98, 'lifetime': 15, 'energy_cap_per_distance': 0.15},
+    'water_pipeline':  {'calliopeTech': 'water_pipelines',            'carrier': 'water',       'energy_eff': 0.99, 'lifetime': 60, 'energy_cap_per_distance': 0.30},
+}
+
+
+# ---------------------------------------------------------------------------
 # OEO API enrichment helper
 # ---------------------------------------------------------------------------
 
@@ -281,6 +305,55 @@ def build_locations_config(locations, location_tech_assignments, technologies):
     return locs
 
 
+def _ensure_link_techs_defined(techs_dict, links):
+    """
+    For each link that references a tech not yet in *techs_dict*, auto-generate
+    a minimal transmission tech entry using _LINK_TYPE_DEFAULTS.
+    Modifies *techs_dict* in-place.
+    """
+    for link in links:
+        # Derive the Calliope tech key used by this link
+        tech_key = link.get('tech')
+        if not tech_key:
+            link_type = link.get('linkType')
+            if link_type and link_type in _LINK_TYPE_DEFAULTS:
+                tech_key = _LINK_TYPE_DEFAULTS[link_type]['calliopeTech']
+            else:
+                tech_key = 'ac_transmission'
+        tech_key = tech_key.replace(' ', '_').lower()
+
+        if tech_key in techs_dict:
+            continue  # already defined – nothing to add
+
+        # Try to build from _LINK_TYPE_DEFAULTS
+        link_type = link.get('linkType', '')
+        defaults = _LINK_TYPE_DEFAULTS.get(link_type, {})
+        carrier = link.get('carrier') or defaults.get('carrier', 'electricity')
+        energy_eff = defaults.get('energy_eff', 0.95)
+        lifetime = defaults.get('lifetime', 25)
+        energy_cap_per_distance = defaults.get('energy_cap_per_distance', 1.0)
+
+        log(f"  Auto-defining missing transmission tech '{tech_key}' (carrier: {carrier})")
+        techs_dict[tech_key] = {
+            'essentials': {
+                'name': tech_key.replace('_', ' ').title(),
+                'parent': 'transmission',
+                'carrier': carrier,
+            },
+            'constraints': {
+                'energy_cap_max': float('inf'),
+                'energy_eff': energy_eff,
+                'lifetime': lifetime,
+            },
+            'costs': {
+                'monetary': {
+                    'interest_rate': 0.05,
+                    'energy_cap_per_distance': energy_cap_per_distance,
+                }
+            },
+        }
+
+
 def build_links_config(links):
     """Convert the app's links list to a Calliope `links:` dict."""
     calliope_links = {}
@@ -290,10 +363,29 @@ def build_links_config(links):
         if not from_loc or not to_loc:
             continue
 
-        link_techs = link.get('techs') or ['ac_transmission']
-        calliope_links[f"{from_loc},{to_loc}"] = {
-            'techs': {t.replace(' ', '_').lower(): None for t in link_techs}
-        }
+        # New format: single 'tech' string (Calliope tech key)
+        # Fallback: legacy 'techs' list, then default
+        tech_field = link.get('tech')
+        if not tech_field:
+            link_type = link.get('linkType')
+            if link_type and link_type in _LINK_TYPE_DEFAULTS:
+                tech_field = _LINK_TYPE_DEFAULTS[link_type]['calliopeTech']
+            else:
+                old_techs = link.get('techs')
+                tech_field = (old_techs[0] if old_techs else None) or 'ac_transmission'
+        tech_key = tech_field.replace(' ', '_').lower()
+
+        link_entry = {'techs': {tech_key: None}}
+
+        # Include distance at the link level (Calliope 0.6 format)
+        distance = link.get('distance')
+        if distance is not None:
+            try:
+                link_entry['distance'] = float(distance)
+            except (ValueError, TypeError):
+                pass
+
+        calliope_links[f"{from_loc},{to_loc}"] = link_entry
     return calliope_links
 
 
@@ -343,6 +435,9 @@ def run_model(model_data, work_dir):
     # Technologies
     # ------------------------------------------------------------------
     techs = build_techs_config(technologies)
+
+    # Auto-define any transmission techs referenced by links but not in technologies list
+    _ensure_link_techs_defined(techs, links)
 
     # Ensure at least one demand tech exists
     has_demand = any(

@@ -3,6 +3,7 @@ import { useData } from '../context/DataContext';
 import { FiDownload, FiFolder, FiFile, FiCheckCircle, FiAlertCircle, FiPackage, FiZap, FiActivity, FiCpu, FiSettings } from 'react-icons/fi';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
+import { LINK_TYPES } from '../config/linkTypes';
 
 const EXPORT_FORMATS = [
   {
@@ -87,6 +88,7 @@ const Export = () => {
     - 'model_config/techs/techs_demand.yaml'
     - 'model_config/techs/techs_storage.yaml'
     - 'model_config/techs/techs_transmission.yaml'
+    - 'model_config/techs/techs_conversion.yaml'
 
     # Scenarios and Overrides
     - 'scenarios/overrides.yaml'
@@ -144,69 +146,81 @@ model:
     return yaml;
   };
 
-  const generateLinksYaml = (links, linkType = 'transmission') => {
+  const generateLinksYaml = (links) => {
+    if (!links || links.length === 0) return 'links: {}\n';
     let yaml = 'links:\n';
-    
     links.forEach(link => {
-      const linkId = `${link.from},${link.to}`;
-      yaml += `    ${linkId}:\n`;
+      const from = (link.from || '').replace(/\s+/g, '_');
+      const to   = (link.to   || '').replace(/\s+/g, '_');
+      if (!from || !to) return;
+
+      // Derive Calliope tech key: prefer stored 'tech' field, then map linkType → calliopeTech
+      const lt = link.linkType ? LINK_TYPES[link.linkType] : null;
+      const techKey = link.tech || lt?.calliopeTech || link.linkType || 'ac_transmission';
+      const capMax  = link.capacity || link.energy_cap_max || 1000;
+
+      yaml += `    ${from},${to}:\n`;
       yaml += `        techs:\n`;
-      yaml += `            ${link.tech || 'ac_transmission'}:\n`;
+      yaml += `            ${techKey}:\n`;
       yaml += `                constraints:\n`;
-      yaml += `                    energy_cap_max: ${link.capacity || 1000}\n`;
-      
+      yaml += `                    energy_cap_max: ${capMax}\n`;
       if (link.distance) {
-        yaml += `                    distance: ${link.distance}\n`;
+        // distance is a link-level property in Calliope 0.6.x
+        yaml += `        distance: ${link.distance}\n`;
       }
     });
-    
     return yaml;
   };
 
   const generateTechsYaml = (techsList, parentType) => {
-    let yaml = 'techs:\n';
-    
     const filteredTechs = techsList.filter(t => {
       const techParent = t.parent || t.essentials?.parent || 'supply';
-      return techParent === parentType || (parentType === 'supply' && techParent === 'supply_plus');
+      if (parentType === 'supply') return techParent === 'supply' || techParent === 'supply_plus';
+      return techParent === parentType;
     });
-    
-    if (filteredTechs.length === 0) {
-      return 'techs: {}\n';
-    }
-    
+    if (filteredTechs.length === 0) return 'techs: {}\n';
+
+    // Helper: format a single YAML value (handles inf, arrays, strings, numbers)
+    const fmtVal = (v) => {
+      if (v === Infinity || v === 'inf' || v === '.inf') return '.inf';
+      if (v === -Infinity || v === '-inf' || v === '-.inf') return '-.inf';
+      if (Array.isArray(v)) return '[' + v.map(i => typeof i === 'string' ? `'${i}'` : i).join(', ') + ']';
+      if (typeof v === 'string') return `'${v}'`;
+      return v;
+    };
+
+    let yaml = 'techs:\n';
     filteredTechs.forEach(tech => {
-      yaml += `    ${tech.name}:\n`;
-      
+      const id = (tech.name || tech.id || 'unknown').replace(/\s+/g, '_').toLowerCase();
+      yaml += `    ${id}:\n`;
+
       if (tech.essentials) {
         yaml += `        essentials:\n`;
         Object.entries(tech.essentials).forEach(([key, value]) => {
           if (value !== undefined && value !== null) {
-            yaml += `            ${key}: ${typeof value === 'string' ? `'${value}'` : value}\n`;
+            yaml += `            ${key}: ${fmtVal(value)}\n`;
           }
         });
       }
-      
+
       if (tech.constraints && Object.keys(tech.constraints).length > 0) {
         yaml += `        constraints:\n`;
         Object.entries(tech.constraints).forEach(([key, value]) => {
           if (value !== undefined && value !== null) {
-            yaml += `            ${key}: ${value}\n`;
+            yaml += `            ${key}: ${fmtVal(value)}\n`;
           }
         });
       }
-      
-      if (tech.costs && tech.costs.monetary && Object.keys(tech.costs.monetary).length > 0) {
-        yaml += `        costs:\n`;
-        yaml += `            monetary:\n`;
+
+      if (tech.costs?.monetary && Object.keys(tech.costs.monetary).length > 0) {
+        yaml += `        costs:\n            monetary:\n`;
         Object.entries(tech.costs.monetary).forEach(([key, value]) => {
           if (value !== undefined && value !== null) {
-            yaml += `                ${key}: ${value}\n`;
+            yaml += `                ${key}: ${fmtVal(value)}\n`;
           }
         });
       }
     });
-    
     return yaml;
   };
 
@@ -370,40 +384,53 @@ model:
       const locationsYaml = generateLocationsYaml(currentModel.locations || []);
       locationsFolder.file('locations.yaml', locationsYaml);
 
-      // 3. Generate links
+      // 3. Generate links — all in transmission_links.yaml
       const linksFolder = zip.folder('model_config').folder('links');
-      const transmissionLinks = (currentModel.links || []).filter(l => !l.tech || l.tech.includes('transmission'));
-      const powerLinks = (currentModel.links || []).filter(l => l.tech && !l.tech.includes('transmission'));
-      
-      linksFolder.file('transmission_links.yaml', generateLinksYaml(transmissionLinks, 'transmission'));
-      linksFolder.file('power_links.yaml', generateLinksYaml(powerLinks, 'power'));
+      linksFolder.file('transmission_links.yaml', generateLinksYaml(currentModel.links || []));
+      linksFolder.file('power_links.yaml', 'links: {}\n'); // reserved for future use
 
       // 4. Generate technologies
-      const techsFolder = zip.folder('model_config').folder('techs');
-      
-      const techsByParent = {
-        'supply': [],
-        'supply_plus': [],
-        'demand': [],
-        'storage': [],
-        'transmission': [],
-        'conversion': [],
-        'conversion_plus': []
-      };
-
-      (technologies || []).forEach(tech => {
-        const parent = tech.parent || tech.essentials?.parent || 'supply';
-        if (techsByParent[parent]) {
-          techsByParent[parent].push(tech);
-        } else {
-          techsByParent['supply'].push(tech);
-        }
+      // Auto-collect transmission tech definitions from links (if not already in technologies list)
+      const allTechs = [...(technologies || [])];
+      const techNames = new Set(allTechs.map(t => (t.name || t.id || '').replace(/\s+/g, '_').toLowerCase()));
+      (currentModel.links || []).forEach(link => {
+        const lt = link.linkType ? LINK_TYPES[link.linkType] : null;
+        const techId = link.tech || lt?.calliopeTech || link.linkType;
+        if (!techId || techNames.has(techId)) return;
+        techNames.add(techId);
+        allTechs.push({
+          name: techId,
+          parent: 'transmission',
+          essentials: { name: lt?.label || techId, parent: 'transmission', carrier: link.carrier || lt?.carrier || 'electricity' },
+          constraints: {
+            energy_cap_max: 'inf',
+            energy_eff: lt?.defaults?.energy_eff ?? 0.98,
+            lifetime: lt?.defaults?.lifetime ?? 40,
+          },
+          costs: {
+            monetary: {
+              interest_rate: 0.05,
+              ...(lt?.defaults?.energy_cap_per_distance != null
+                ? { energy_cap_per_distance: lt.defaults.energy_cap_per_distance }
+                : {}),
+            },
+          },
+        });
       });
 
-      techsFolder.file('techs_supply.yaml', generateTechsYaml(techsByParent['supply'].concat(techsByParent['supply_plus']), 'supply'));
+      const techsFolder = zip.folder('model_config').folder('techs');
+      const techsByParent = { supply: [], demand: [], storage: [], transmission: [], conversion: [], conversion_plus: [] };
+      allTechs.forEach(tech => {
+        const p = tech.parent || tech.essentials?.parent || 'supply';
+        const key = p === 'supply_plus' ? 'supply' : (techsByParent[p] ? p : 'supply');
+        techsByParent[key].push(tech);
+      });
+      techsFolder.file('techs_supply.yaml', generateTechsYaml(techsByParent['supply'], 'supply'));
       techsFolder.file('techs_demand.yaml', generateTechsYaml(techsByParent['demand'], 'demand'));
       techsFolder.file('techs_storage.yaml', generateTechsYaml(techsByParent['storage'], 'storage'));
       techsFolder.file('techs_transmission.yaml', generateTechsYaml(techsByParent['transmission'], 'transmission'));
+      techsFolder.file('techs_conversion.yaml',
+        generateTechsYaml([...techsByParent['conversion'], ...techsByParent['conversion_plus']], 'conversion'));
 
       // 5. Generate scenarios
       const scenariosFolder = zip.folder('scenarios');

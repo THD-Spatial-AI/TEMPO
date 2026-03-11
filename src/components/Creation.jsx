@@ -1135,15 +1135,19 @@ const Creation = () => {
     const finalLinks = locationManager.tempLinks.map(link => {
       const fromLoc = locationManager.tempLocations.find(l => l.id === link.from);
       const toLoc = locationManager.tempLocations.find(l => l.id === link.to);
+      const lt = link.linkType ? LINK_TYPES[link.linkType] : null;
       return {
         from: fromLoc.name,
         to: toLoc.name,
         distance: link.distance,
-        techs: {}
+        linkType: link.linkType || null,
+        carrier: link.carrier || lt?.carrier || 'electricity',
+        // Calliope tech key used in techs.yaml and links section
+        tech: lt?.calliopeTech || link.linkType || 'ac_transmission',
       };
     });
 
-    // Collect all unique technologies
+    // Collect all unique technologies from locations
     const techsToAdd = [];
     locationManager.tempLocations.forEach(loc => {
       if (loc.techs) {
@@ -1162,6 +1166,35 @@ const Creation = () => {
           }
         });
       }
+    });
+
+    // Auto-add transmission tech definitions for each unique link type used
+    const seenTechs = new Set(techsToAdd.map(t => t.name));
+    locationManager.tempLinks.forEach(link => {
+      if (!link.linkType) return;
+      const lt = LINK_TYPES[link.linkType];
+      if (!lt) return;
+      const techId = lt.calliopeTech;
+      if (seenTechs.has(techId)) return;
+      seenTechs.add(techId);
+      techsToAdd.push({
+        name: techId,
+        parent: 'transmission',
+        essentials: { name: lt.label, parent: 'transmission', carrier: lt.carrier, color: '#94A3B8' },
+        constraints: {
+          energy_cap_max: 'inf',
+          energy_eff: lt.defaults.energy_eff ?? 0.98,
+          lifetime: lt.defaults.lifetime ?? 40,
+        },
+        costs: {
+          monetary: {
+            interest_rate: 0.05,
+            ...(lt.defaults.energy_cap_per_distance != null
+              ? { energy_cap_per_distance: lt.defaults.energy_cap_per_distance }
+              : {}),
+          },
+        },
+      });
     });
 
     // Create new model
