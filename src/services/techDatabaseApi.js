@@ -1,28 +1,38 @@
 /**
  * techDatabaseApi.js
  * ------------------
- * Frontend client for the local OEO Technology Database API
- * (default: http://127.0.0.1:8005).
+ * Frontend client for the opentech-db Technology Catalog API
+ * (default: http://localhost:8000).
  *
- * All functions return Promises and resolve to either live API data or
- * fallback static data from TechnologiesData.js when the API is offline.
+ * Supported endpoints:
+ *   GET  /api/v1/technologies                     – paginated catalog list
+ *   GET  /api/v1/technologies/{id}                – full tech detail + instances
+ *   GET  /api/v1/technologies/category/{cat}       – filter by category
+ *   GET  /api/v1/technologies/{id}/instances       – all instances for one tech
+ *   GET  /api/v1/technologies/{id}/instances/{iid} – one specific instance
+ *   GET  /api/v1/technologies/calliope             – all techs as Calliope techs: block
+ *   GET  /api/v1/technologies/{id}/calliope        – single tech in Calliope format
+ *   GET  /health                                   – health check
  *
- * Usage
- * -----
- *   import { fetchTechCatalog, fetchTechnology, isTechApiAvailable } from './techDatabaseApi';
+ * Valid categories: generation | storage | transmission | conversion
  *
- *   const techs = await fetchTechCatalog();              // full catalog
- *   const solar = await fetchTechnology('solar_pv');     // single tech
- *   const online = await isTechApiAvailable();           // health check
+ * All functions return Promises. Callers fall back to TECH_TEMPLATES when
+ * the API is offline — no exceptions bubble to UI.
  */
 
 // ---------------------------------------------------------------------------
 // Configuration
 // ---------------------------------------------------------------------------
 
-export const OEO_API_BASE_URL = 'http://127.0.0.1:8005';
+export const OEO_API_BASE_URL =
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_TECH_API_URL) ||
+  '/tech'; // Vite dev proxy: /tech/* → :8000; Go backend proxy in production
+
 const API_V1 = `${OEO_API_BASE_URL}/api/v1`;
-const DEFAULT_TIMEOUT_MS = 8000;
+const DEFAULT_TIMEOUT_MS = 10_000;
+
+/** Valid opentech-db category names */
+export const TECH_CATEGORIES = ['generation', 'storage', 'transmission', 'conversion'];
 
 // ---------------------------------------------------------------------------
 // Low-level fetch helper (with timeout + graceful error handling)
@@ -35,7 +45,7 @@ const DEFAULT_TIMEOUT_MS = 8000;
  * @throws {Error} if the request fails or times out
  */
 async function apiFetch(path, timeoutMs = DEFAULT_TIMEOUT_MS) {
-  const url = `${OEO_API_BASE_URL}${path}`;
+  const url = path.startsWith('http') ? path : `${OEO_API_BASE_URL}${path}`;
 
   const controller = new AbortController();
   const timerId = setTimeout(() => controller.abort(), timeoutMs);
@@ -43,12 +53,12 @@ async function apiFetch(path, timeoutMs = DEFAULT_TIMEOUT_MS) {
   try {
     const response = await fetch(url, { signal: controller.signal });
     if (!response.ok) {
-      throw new Error(`OEO API returned ${response.status}: ${response.statusText} (${url})`);
+      throw new Error(`HTTP ${response.status}: ${response.statusText} (${url})`);
     }
     return await response.json();
   } catch (err) {
     if (err.name === 'AbortError') {
-      throw new Error(`OEO API request timed out after ${timeoutMs}ms (${url})`);
+      throw new Error(`Request timed out after ${timeoutMs}ms (${url})`);
     }
     throw err;
   } finally {
@@ -164,7 +174,7 @@ export function oeoToCalliope(apiTech) {
 // ---------------------------------------------------------------------------
 
 /**
- * Check whether the OEO Tech Database API is reachable.
+ * Check whether the opentech-db API is reachable.
  *
  * @param {number} [timeoutMs=3000]
  * @returns {Promise<boolean>}
@@ -175,16 +185,91 @@ export async function isTechApiAvailable(timeoutMs = 3000) {
     return true;
   } catch {
     try {
-      // Check v1 catalog endpoint
       const controller = new AbortController();
       const t = setTimeout(() => controller.abort(), timeoutMs);
-      const r = await fetch(`${API_V1}/technologies`, { signal: controller.signal });
+      const r = await fetch(`${API_V1}/technologies?limit=1`, { signal: controller.signal });
       clearTimeout(t);
       return r.ok;
     } catch {
       return false;
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Public API — catalog list
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch technologies in a specific category.
+ *
+ * @param {'generation'|'storage'|'transmission'|'conversion'} category
+ * @param {{ limit?: number, skip?: number }} [opts]
+ * @returns {Promise<Object[]>}
+ */
+export async function fetchTechsByCategory(category, { limit = 200, skip = 0 } = {}) {
+  const params = new URLSearchParams({ limit, skip });
+  const data = await apiFetch(`/api/v1/technologies/category/${category}?${params}`);
+  return data?.technologies || data?.items || (Array.isArray(data) ? data : []);
+}
+
+/**
+ * Fetch a single technology detail (includes `instances` array).
+ *
+ * @param {string} techId
+ * @returns {Promise<Object>}
+ */
+export async function fetchTechDetail(techId) {
+  return apiFetch(`/api/v1/technologies/${encodeURIComponent(techId)}`);
+}
+
+/**
+ * Fetch all instances for a technology via the dedicated /instances endpoint.
+ *
+ * @param {string} techId
+ * @param {{ lifecycle?: 'commercial'|'projection'|'demonstration', limit?: number }} [opts]
+ * @returns {Promise<Object[]>}
+ */
+export async function fetchTechInstances(techId, { lifecycle, limit = 100 } = {}) {
+  const params = new URLSearchParams({ limit });
+  if (lifecycle) params.set('lifecycle', lifecycle);
+  const data = await apiFetch(`/api/v1/technologies/${encodeURIComponent(techId)}/instances?${params}`);
+  return Array.isArray(data) ? data : data?.instances || data?.items || [];
+}
+
+/**
+ * Fetch a single specific instance by ID.
+ *
+ * @param {string} techId
+ * @param {string} instanceId
+ * @returns {Promise<Object>}
+ */
+export async function fetchSingleInstance(techId, instanceId) {
+  return apiFetch(`/api/v1/technologies/${encodeURIComponent(techId)}/instances/${encodeURIComponent(instanceId)}`);
+}
+
+/**
+ * Fetch all (or category-filtered) technologies as a server-side Calliope `techs:` block.
+ *
+ * @param {{ category?: string, instance_index?: number, cost_class?: string }} [opts]
+ * @returns {Promise<{ techs: Object }>}
+ */
+export async function fetchCalliopeTechBlock({ category, instance_index = 0, cost_class = 'monetary' } = {}) {
+  const params = new URLSearchParams({ instance_index, cost_class });
+  if (category) params.set('category', category);
+  return apiFetch(`/api/v1/technologies/calliope?${params}`);
+}
+
+/**
+ * Fetch a single technology in Calliope format from the server-side adapter.
+ *
+ * @param {string} techId
+ * @param {{ instance_index?: number, cost_class?: string }} [opts]
+ * @returns {Promise<Object>}
+ */
+export async function fetchSingleTechCalliope(techId, { instance_index = 0, cost_class = 'monetary' } = {}) {
+  const params = new URLSearchParams({ instance_index, cost_class });
+  return apiFetch(`/api/v1/technologies/${encodeURIComponent(techId)}/calliope?${params}`);
 }
 
 /**
@@ -194,7 +279,7 @@ export async function isTechApiAvailable(timeoutMs = 3000) {
  * @throws {Error}  If the API is offline.
  */
 export async function fetchRawTechCatalog() {
-  const data = await apiFetch('/api/technologies');
+  const data = await apiFetch('/api/v1/technologies?limit=200');
   // Normalise: API may return an array or a wrapper object
   if (Array.isArray(data)) return data;
   if (data && typeof data === 'object') {
@@ -210,7 +295,7 @@ export async function fetchRawTechCatalog() {
 // ---------------------------------------------------------------------------
 
 /** VRE keywords used to distinguish supply_plus from supply in API 'generation' category */
-const VRE_KEYWORDS = ['solar', 'wind', 'marine', 'run-of-river', 'wave', 'tidal'];
+const VRE_KEYWORDS = ['solar', 'wind', 'marine', 'run-of-river', 'wave', 'tidal', 'hydro', 'geothermal'];
 
 function apiCategoryToParent(name, category) {
   if (category === 'storage') return 'storage';
@@ -225,89 +310,116 @@ function apiCategoryToParent(name, category) {
 
 /**
  * Convert a raw API instance object into flat constraints/monetary dicts.
- * Each param field is an object with { value, unit, min, max, source }.
+ *
+ * New API field names (opentech-db schema):
+ *   instance_id / instance_name  – identity
+ *   typical_capacity_mw          – capacity in MW → converted to kW
+ *   efficiency_percent           – efficiency / CF in % (0-100) → converted to fraction
+ *   capex_usd_per_kw             – capital cost USD/kW
+ *   opex_fixed_usd_per_kw_year   – fixed O&M USD/kW/yr
+ *   opex_variable_usd_per_kwh    – variable O&M USD/kWh
+ *   lifetime_years               – economic lifetime
+ *   ramp_rate_percent_per_min    – ramp rate %/min
+ *   life_cycle_stage             – commercial | projection | demonstration
+ *
+ * Also handles old OEO API field names for backwards compatibility.
  */
 export function instanceToParams(inst) {
-  // Helper: extract a numeric value from either a direct number or a {value} wrapper
-  const v = (directKey, ...aliases) => {
-    for (const key of [directKey, ...aliases]) {
+  if (!inst || typeof inst !== 'object') return null;
+
+  /** Extract a numeric value from a plain number or a {value} wrapper */
+  const v = (...keys) => {
+    for (const key of keys) {
       const raw = inst[key];
       if (raw == null) continue;
       if (typeof raw === 'number') return raw;
-      if (typeof raw === 'object' && raw.value != null) return raw.value;
+      if (typeof raw === 'object' && raw.value != null) return Number(raw.value);
     }
     return null;
   };
 
-  // DEBUG: log all keys so we can see what fields the API actually provides
-  if (typeof window !== 'undefined' && window.__oeoDebug) {
-    console.log('[OEO instanceToParams] keys:', Object.keys(inst), 'instance_name:', inst.instance_name, 'name:', inst.name);
-  }
-
   const constraints = {};
   const monetary = { interest_rate: 0.10 };
 
-  // Efficiency: API returns `electrical_efficiency: { value: 0.67 }` (already 0-1 fraction)
-  const eff = v('electrical_efficiency', 'efficiency_percent', 'efficiency');
-  if (eff != null) {
-    // If > 1 it was a percentage, convert to fraction
-    constraints.energy_eff = parseFloat((eff > 1 ? eff / 100 : eff).toFixed(4));
+  // ── Efficiency ──────────────────────────────────────────────────────────
+  // New API: efficiency_percent (0-100). Old API: electrical_efficiency (0-1).
+  const effPct  = v('efficiency_percent');
+  const effFrac = v('electrical_efficiency', 'efficiency');
+  if (effPct != null) {
+    constraints.energy_eff = parseFloat((effPct / 100).toFixed(4));
+  } else if (effFrac != null) {
+    constraints.energy_eff = parseFloat((effFrac > 1 ? effFrac / 100 : effFrac).toFixed(4));
   }
 
-  // Lifetime: `economic_lifetime_yr`, fallback to `lifetime_years`
-  const lt = v('economic_lifetime_yr', 'lifetime_years', 'lifetime');
+  // ── Capacity ──────────────────────────────────────────────────────────────
+  // New API: typical_capacity_mw (MW) → convert to kW. Old API: capacity_kw.
+  const capMw = v('typical_capacity_mw');
+  const capKw = v('capacity_kw');
+  if (capMw != null) {
+    constraints.energy_cap_max = Math.round(capMw * 1000);
+  } else if (capKw != null) {
+    constraints.energy_cap_max = capKw;
+  }
+
+  // ── Lifetime ──────────────────────────────────────────────────────────────
+  const lt = v('lifetime_years', 'economic_lifetime_yr', 'lifetime');
   if (lt != null) constraints.lifetime = lt;
 
-  // Capacity: API uses `capacity_kw: { value }` (already in kW)
-  const capKw = v('capacity_kw', 'typical_capacity_mw');
-  if (capKw != null) {
-    // If the value looks like MW scale (e.g. 0.001 – 100) and field is typical_capacity_mw, convert
-    const isMwField = inst['typical_capacity_mw'] != null && inst['capacity_kw'] == null;
-    constraints.energy_cap_max = isMwField ? capKw * 1000 : capKw;
-  }
-
-  // Ramping: `ramp_up_rate: { value: 10, unit: "%capacity/min" }` → fraction/hr
-  const ramp = v('ramp_up_rate', 'ramping_rate_percent_per_min');
+  // ── Ramp rate ─────────────────────────────────────────────────────────────
+  // %/min → fraction/hr
+  const ramp = v('ramp_rate_percent_per_min', 'ramp_up_rate', 'ramping_rate_percent_per_min');
   if (ramp != null) constraints.energy_ramping = parseFloat((ramp * 60 / 100).toFixed(3));
 
-  // CAPEX: `capex_per_kw: { value }` (USD/kW)
-  const capex = v('capex_per_kw', 'capex_usd_per_kw', 'capex');
+  // ── CAPEX ─────────────────────────────────────────────────────────────────
+  const capex = v('capex_usd_per_kw', 'capex_per_kw', 'capex');
   if (capex != null) monetary.energy_cap = capex;
 
-  // Fixed O&M: `opex_fixed_per_kw_yr: { value }` (USD/kW/yr)
-  const opexFixed = v('opex_fixed_per_kw_yr', 'opex_fixed_usd_per_kw_yr');
+  // ── Fixed O&M ─────────────────────────────────────────────────────────────
+  const opexFixed = v('opex_fixed_usd_per_kw_year', 'opex_fixed_per_kw_yr', 'opex_fixed_usd_per_kw_yr');
   if (opexFixed != null) monetary.om_annual = opexFixed;
 
-  // Variable O&M: `opex_variable_per_mwh: { value }` (USD/MWh) → convert to USD/kWh
-  const opexVar = v('opex_variable_per_mwh', 'opex_var_usd_per_mwh', 'opex_variable_per_kwh');
-  if (opexVar != null) monetary.om_prod = parseFloat((opexVar / 1000).toFixed(6));
-
-  // Build the human-readable display label — try every plausible field name
-  // Real API uses `label` field; fallbacks for other schemas
-  const instanceName =
-    inst.label ||
-    inst.instance_name ||
-    inst.instanceName ||
-    inst.title ||
-    inst.name ||
-    null;
-
-  const stage = inst.life_cycle_stage || inst.lifeCycleStage || inst.stage ||
-    inst.scenario || (inst.extra && (inst.extra.stage || inst.extra.life_cycle_stage));
-
-  const displayLabel = instanceName ||
-    (stage ? String(stage).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : null);
-
-  // Log what we resolved (unconditionally on first 3 instances for easy debugging)
-  if (typeof window !== 'undefined') {
-    console.log('[OEO] instanceToParams →', { label: inst.label, instance_name: inst.instance_name, displayLabel, id: inst.instance_id || inst.id });
+  // ── Variable O&M ──────────────────────────────────────────────────────────
+  // New API: opex_variable_usd_per_kwh. Old API: opex_variable_per_mwh (MWh → /1000 to get kWh).
+  const opexVarKwh = v('opex_variable_usd_per_kwh');
+  const opexVarMwh = v('opex_variable_per_mwh', 'opex_var_usd_per_mwh');
+  if (opexVarKwh != null) {
+    monetary.om_prod = opexVarKwh;
+  } else if (opexVarMwh != null) {
+    monetary.om_prod = parseFloat((opexVarMwh / 1000).toFixed(6));
   }
 
+  // ── Storage-specific ──────────────────────────────────────────────────────
+  const capexKwh = v('capex_usd_per_kwh', 'storage_capex');
+  if (capexKwh != null) monetary.storage_cap = capexKwh;
+
+  const cRate = v('energy_cap_per_storage_cap', 'c_rate');
+  if (cRate != null) constraints.energy_cap_per_storage_cap_equals = cRate;
+
+  // ── Transmission-specific ─────────────────────────────────────────────────
+  const capexPerKm = v('capex_per_distance_usd_per_kw_km', 'capex_usd_per_kw_km', 'line_capex_per_km');
+  if (capexPerKm != null) monetary.energy_cap_per_distance = capexPerKm;
+
+  // ── Identity & metadata ───────────────────────────────────────────────────
+  // New API: instance_id (slug) + instance_name (display). Old API: label / id.
+  const instanceId = inst.instance_id || inst.id || null;
+  const instanceName =
+    inst.instance_name ||
+    inst.label ||
+    inst.name ||
+    inst.title ||
+    null;
+
+  const stage = inst.life_cycle_stage || inst.lifecycle_stage || inst.lifeCycleStage || inst.stage || null;
+  const displayLabel = instanceName || instanceId || (stage ? String(stage) : null);
+
   return {
-    id: inst.id || inst.instance_id,
-    label: instanceName || 'Instance',
+    id: instanceId,
+    label: instanceName || instanceId || 'Instance',
     displayLabel,
-    life_cycle_stage: inst.life_cycle_stage || null,
+    life_cycle_stage: stage,
+    typical_capacity_mw: capMw,
+    capex_usd_per_kw: capex,
+    efficiency_percent: effPct,
     constraints,
     monetary,
     raw: inst,
@@ -318,34 +430,40 @@ export function instanceToParams(inst) {
  * Convert a v1 API tech detail object (with .instances[]) into a Calliope-style
  * tech definition. The first instance is used as the default parameters.
  *
+ * Handles both new (technology_id / domain) and old (id / category) field names.
+ *
  * @param {Object} detail - Raw v1 API tech detail
  * @returns {Object} Calliope-style tech with an extra `instances` array
  */
 export function oeoDetailToCalliope(detail) {
-  // Support both JSON-native names (technology_id, domain, carrier) and old API names (id, category)
-  const name = detail.technology_name || detail.name || '';
-  const id   = detail.technology_id   || detail.id   || name;
-  const category = detail.domain || detail.category || 'supply';
+  if (!detail || typeof detail !== 'object') return null;
+
+  // Identity — new API: technology_id / technology_name
+  const id   = detail.technology_id   || detail.id   || '';
+  const name = detail.technology_name || detail.name  || id;
+
+  // Category — new API uses `domain` (generation|storage|transmission|conversion)
+  const category = detail.domain || detail.category || 'generation';
   const parent = apiCategoryToParent(name, category);
 
-  // Carriers — new format uses a single `carrier` string; old format uses arrays
-  const carrier  = detail.carrier || null;
+  // Carriers
+  const carrier = detail.carrier || null;
   const inputCarriers  = detail.input_carriers  || (carrier ? [carrier] : []);
   const outputCarriers = detail.output_carriers || (carrier ? [carrier] : []);
 
-  const instances = (detail.instances || []).map(instanceToParams);
-  const def = instances[0] || { constraints: {}, monetary: {} };
+  const instances = (detail.instances || []).map(instanceToParams).filter(Boolean);
+  const def = instances[0] || { constraints: {}, monetary: { interest_rate: 0.10 } };
 
   const essentials = {
     name,
     parent,
-    color: '#888888',
+    color: detail.color || detail.display_color || '#888888',
   };
 
   if (['storage', 'transmission'].includes(parent)) {
     essentials.carrier = outputCarriers[0] || inputCarriers[0] || 'electricity';
   } else if (parent === 'conversion_plus') {
-    if (inputCarriers[0]) essentials.carrier_in = inputCarriers[0];
+    if (inputCarriers[0])  essentials.carrier_in  = inputCarriers[0];
     if (outputCarriers[0]) essentials.carrier_out = outputCarriers[0];
   } else {
     essentials.carrier_out = outputCarriers[0] || 'electricity';
@@ -355,151 +473,164 @@ export function oeoDetailToCalliope(detail) {
     id,
     name,
     parent,
+    category,
     description: detail.description || name,
-    oeo_class: detail.oeo_class || '',
+    tags: detail.tags || [],
+    oeo_class: detail.oeo_class || detail.type_uri || '',
+    source_url: detail.source_url || detail.source || '',
+    n_instances: detail.n_instances || instances.length,
     instances,
     essentials,
-    constraints: def.constraints,
-    costs: { monetary: def.monetary },
+    constraints: { ...def.constraints },
+    costs: { monetary: { ...def.monetary } },
   };
 }
 
 /**
- * Fetch the full v1 catalog, then fetch each tech's detail (with instances)
- * in parallel.  Returns an array of Calliope-style tech objects with
- * `instances` populated.
+ * Fetch the full technology catalog with all instances populated.
  *
- * Falls back to an empty array on error (caller uses static TECH_TEMPLATES).
+ * Strategy:
+ * 1. Fetch catalog list (summary objects: technology_id, technology_name, category, n_instances)
+ * 2. Fetch full detail for every tech in parallel (detail includes instances[])
+ * 3. Map each detail via oeoDetailToCalliope()
+ *
+ * Falls back to an empty array on error — callers use TECH_TEMPLATES.
  *
  * @returns {Promise<Object[]>}
  */
 export async function fetchFullCatalogWithInstances() {
-  const controller = new AbortController();
-  const t = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
-  let catalog;
+  // Step 1: fetch list
+  let catalogList;
   try {
-    const resp = await fetch(`${API_V1}/technologies`, { signal: controller.signal });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const data = await resp.json();
-    // Support { technologies: [...] } wrapper, plain array, or { data: [...] }
-    catalog = data?.technologies || data?.data || (Array.isArray(data) ? data : []);
-  } finally {
-    clearTimeout(t);
+    const data = await apiFetch(`/api/v1/technologies?limit=200`);
+    catalogList = data?.technologies || data?.data || (Array.isArray(data) ? data : []);
+  } catch (err) {
+    console.warn('[OEO] Failed to fetch technology catalog list:', err.message);
+    return [];
   }
 
-  // Debug: log first catalog entry to understand structure
-  if (catalog.length > 0) {
-    const first = catalog[0];
-    console.log('[OEO] catalog[0] keys:', Object.keys(first));
-    console.log('[OEO] catalog[0] sample:', JSON.stringify(first).slice(0, 400));
-    if (Array.isArray(first.instances) && first.instances.length > 0) {
-      console.log('[OEO] instances[0] keys:', Object.keys(first.instances[0]));
-      console.log('[OEO] instances[0] sample:', JSON.stringify(first.instances[0]).slice(0, 300));
-    }
+  if (!Array.isArray(catalogList) || catalogList.length === 0) {
+    console.warn('[OEO] Technology catalog returned empty list');
+    return [];
   }
 
-  // Fast path: if entries already have instances populated, skip detail fetches
-  if (catalog.length > 0 && Array.isArray(catalog[0]?.instances)) {
-    return catalog.map(oeoDetailToCalliope);
+  console.info(`[OEO] Catalog list: ${catalogList.length} technologies`);
+
+  // Fast path: if list entries already include populated instances[], use directly
+  if (Array.isArray(catalogList[0]?.instances) && catalogList[0].instances.length > 0) {
+    return catalogList.map(oeoDetailToCalliope).filter(Boolean);
   }
 
-  // Fetch all details in parallel — id may be technology_id or id
+  // Step 2: fetch detail for every tech in parallel
   const detailResults = await Promise.allSettled(
-    catalog.map(entry => {
+    catalogList.map(entry => {
+      const techId = entry.technology_id || entry.id;
+      if (!techId) return Promise.reject(new Error('Missing technology_id'));
+      const ctrl = new AbortController();
+      setTimeout(() => ctrl.abort(), DEFAULT_TIMEOUT_MS);
+      return fetch(`${API_V1}/technologies/${encodeURIComponent(techId)}`, { signal: ctrl.signal })
+        .then(r => {
+          if (!r.ok) throw new Error(`HTTP ${r.status} for ${techId}`);
+          return r.json();
+        });
+    })
+  );
+
+  const failures = detailResults.filter(r => r.status === 'rejected');
+  if (failures.length > 0) {
+    console.warn(`[OEO] ${failures.length}/${catalogList.length} detail fetches failed:`,
+      failures.slice(0, 3).map(r => r.reason?.message).join(', '));
+  }
+
+  const successful = detailResults
+    .filter(r => r.status === 'fulfilled')
+    .map(r => oeoDetailToCalliope(r.value))
+    .filter(Boolean);
+
+  console.info(`[OEO] Resolved ${successful.length} technologies with instances`);
+  return successful;
+}
+
+/**
+ * Fetch the complete technology catalog by fetching each category separately.
+ * Useful if the main endpoint does not return all technologies reliably.
+ *
+ * @returns {Promise<Object[]>}
+ */
+export async function fetchFullCatalogByCategory() {
+  const allResults = await Promise.allSettled(
+    TECH_CATEGORIES.map(cat => fetchTechsByCategory(cat))
+  );
+
+  const allEntries = [];
+  for (const result of allResults) {
+    if (result.status === 'fulfilled') allEntries.push(...result.value);
+  }
+
+  if (allEntries.length === 0) {
+    console.warn('[OEO] fetchFullCatalogByCategory: no entries found');
+    return [];
+  }
+
+  // Deduplicate by technology_id
+  const seen = new Set();
+  const uniqueEntries = allEntries.filter(e => {
+    const id = e.technology_id || e.id;
+    if (!id || seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+
+  const detailResults = await Promise.allSettled(
+    uniqueEntries.map(entry => {
       const techId = entry.technology_id || entry.id;
       const ctrl = new AbortController();
       setTimeout(() => ctrl.abort(), DEFAULT_TIMEOUT_MS);
-      return fetch(`${API_V1}/technologies/${techId}`, { signal: ctrl.signal })
+      return fetch(`${API_V1}/technologies/${encodeURIComponent(techId)}`, { signal: ctrl.signal })
         .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status} for ${techId}`)));
     })
   );
 
-  const failed = detailResults.filter(r => r.status === 'rejected');
-  if (failed.length > 0) {
-    console.warn(`[OEO] ${failed.length} detail fetches failed:`, failed.slice(0, 3).map(r => r.reason?.message));
-  }
-
   return detailResults
     .filter(r => r.status === 'fulfilled')
-    .map(r => oeoDetailToCalliope(r.value));
+    .map(r => oeoDetailToCalliope(r.value))
+    .filter(Boolean);
 }
 
-/**
- * Fetch the full technology catalog and convert to Calliope-style objects.
- *
- * Falls back to an empty array if the API is offline (caller should use
- * TECH_TEMPLATES as fallback).
- *
- * @returns {Promise<Object[]>}  Array of Calliope-style tech definitions.
- */
+/** @deprecated Use fetchFullCatalogWithInstances */
 export async function fetchTechCatalog() {
   const raw = await fetchRawTechCatalog();
   return raw.map(oeoToCalliope);
 }
 
-/**
- * Fetch a single technology by OEO identifier and convert to Calliope format.
- *
- * @param {string} techId  - Technology ID in the OEO API, e.g. "solar_pv".
- * @returns {Promise<Object>}  Calliope-style tech definition.
- * @throws {Error}  If the API is offline or the tech is not found.
- */
+/** Fetch a single technology by ID and convert to Calliope format. */
 export async function fetchTechnology(techId) {
-  const raw = await apiFetch(`/api/technologies/${techId}`);
-  return oeoToCalliope(raw);
+  const raw = await fetchTechDetail(techId);
+  return oeoDetailToCalliope(raw);
 }
 
-/**
- * Fetch technologies of a specific functional type.
- *
- * @param {string} techType  - "supply" | "storage" | "conversion_plus" | etc.
- * @returns {Promise<Object[]>}  Array of Calliope-style tech definitions.
- */
+/** Fetch technologies filtered by Calliope parent type (client-side filter). */
 export async function fetchTechsByType(techType) {
+  // Map Calliope parent type to opentech-db category for efficient server-side filtering
+  const catMap = { supply: 'generation', supply_plus: 'generation', storage: 'storage', transmission: 'transmission', conversion_plus: 'conversion' };
+  const cat = catMap[techType];
   try {
-    const data = await apiFetch(`/api/technologies/types/${techType}`);
-    const list = Array.isArray(data) ? data : [];
-    return list.map(oeoToCalliope);
-  } catch {
-    // Fallback: fetch full catalog and filter client-side
-    const all = await fetchTechCatalog();
-    return all.filter(
-      (t) => t.parent === techType || t.essentials?.parent === techType
-    );
-  }
+    if (cat) {
+      const entries = await fetchTechsByCategory(cat);
+      const details = await Promise.allSettled(entries.map(e => fetchTechDetail(e.technology_id || e.id)));
+      return details.filter(r => r.status === 'fulfilled').map(r => oeoDetailToCalliope(r.value)).filter(Boolean);
+    }
+  } catch { /* fall through */ }
+  // Last-resort: fetch everything and filter client-side
+  const all = await fetchFullCatalogWithInstances();
+  return all.filter(t => t.parent === techType || t.essentials?.parent === techType);
 }
 
-/**
- * Fetch multiple specific technologies by ID in a single request (batch).
- *
- * Falls back to parallel individual fetches if the batch endpoint is absent.
- *
- * @param {string[]} techIds
- * @returns {Promise<Object[]>}  Array of Calliope-style tech definitions.
- */
+/** Batch-fetch multiple technologies by ID. */
 export async function fetchTechsBatch(techIds) {
   if (!techIds || techIds.length === 0) return [];
-
-  try {
-    const response = await fetch(`${OEO_API_BASE_URL}/api/technologies/batch`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids: techIds }),
-    });
-    if (response.ok) {
-      const data = await response.json();
-      const list = Array.isArray(data) ? data : [];
-      return list.map(oeoToCalliope);
-    }
-  } catch {
-    // fall through to individual fetches
-  }
-
-  // Individual fallback (runs in parallel)
-  const results = await Promise.allSettled(techIds.map((id) => fetchTechnology(id)));
-  return results
-    .filter((r) => r.status === 'fulfilled')
-    .map((r) => r.value);
+  const results = await Promise.allSettled(techIds.map(id => fetchTechnology(id)));
+  return results.filter(r => r.status === 'fulfilled').map(r => r.value);
 }
 
 /**
@@ -538,10 +669,8 @@ export async function enrichTechsFromApi(existingTechs) {
           ...tech,
           oeo_class: apiTech.oeo_class || tech.oeo_class,
           source_url: apiTech.source_url || tech.source_url,
-          constraints: {
-            ...tech.constraints,
-            ...apiTech.constraints,
-          },
+          instances: apiTech.instances?.length ? apiTech.instances : (tech.instances || []),
+          constraints: { ...tech.constraints, ...apiTech.constraints },
           costs: {
             monetary: {
               ...(tech.costs?.monetary || {}),

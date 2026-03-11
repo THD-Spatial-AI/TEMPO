@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { FiX, FiTrash2, FiCheck, FiChevronDown, FiChevronRight, FiHelpCircle, FiCpu, FiArrowRight } from 'react-icons/fi';
+import { FiX, FiTrash2, FiCheck, FiChevronDown, FiChevronRight, FiHelpCircle, FiCpu, FiArrowRight, FiPlus } from 'react-icons/fi';
 import { CONSTRAINT_DEFINITIONS, COST_DEFINITIONS, ESSENTIAL_DEFINITIONS, PARENT_CONSTRAINTS } from '../utils/constraintDefinitions';
+import { CARRIERS_BY_GROUP } from '../config/carriers';
 
 // Format technology name: capitalize first letter only and replace underscores and hyphens
 const formatTechName = (techName) => {
@@ -546,6 +547,80 @@ const LocationEditDialog = ({
                           {/* Expanded tech editor: constraints + costs */}
                           {isExpanded && (
                             <div className="mt-3 pt-3 border-t border-slate-200 space-y-3">
+                              {/* Essentials (carrier fields) */}
+                              <div>
+                                <p className="text-xs font-semibold text-slate-600 mb-1">Essentials</p>
+                                {Object.keys(editingEssentials[techName] || {}).filter(
+                                  k => !['name','color','parent'].includes(k)
+                                ).length === 0 && (
+                                  <p className="text-xs text-slate-400 italic mb-1">No essentials overridden</p>
+                                )}
+                                <div className="space-y-1">
+                                  {Object.entries(editingEssentials[techName] || {})
+                                    .filter(([k]) => !['name','color','parent'].includes(k))
+                                    .map(([key, val]) => (
+                                    <div key={key} className="flex items-center gap-1">
+                                      <span className="text-[11px] text-slate-500 w-24 flex-shrink-0 font-mono">{key}</span>
+                                      {['carrier','carrier_in','carrier_out'].includes(key) ? (
+                                        <select
+                                          value={Array.isArray(val) ? val[0] : (val || '')}
+                                          onChange={e => updateDialogEssential(techName, key, e.target.value)}
+                                          className="flex-1 text-xs border border-slate-200 rounded px-2 py-0.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                                        >
+                                          <option value="">— select carrier —</option>
+                                          {Object.entries(CARRIERS_BY_GROUP).map(([group, carriers]) => (
+                                            <optgroup key={group} label={group}>
+                                              {carriers.map(c => (
+                                                <option key={c.id} value={c.id}>{c.icon} {c.label}</option>
+                                              ))}
+                                            </optgroup>
+                                          ))}
+                                        </select>
+                                      ) : (
+                                        <input
+                                          type="text"
+                                          value={val ?? ''}
+                                          onChange={e => updateDialogEssential(techName, key, e.target.value)}
+                                          className="flex-1 px-2 py-0.5 text-xs border border-slate-200 rounded focus:ring-1 focus:ring-gray-400 font-mono"
+                                        />
+                                      )}
+                                      <button
+                                        onClick={() => {
+                                          const e = { ...editingEssentials[techName] };
+                                          delete e[key];
+                                          setEditingEssentials({ ...editingEssentials, [techName]: e });
+                                        }}
+                                        className="text-slate-400 hover:text-red-500"
+                                      >
+                                        <FiX size={12} />
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                                {/* Quick-add carrier keys */}
+                                {(() => {
+                                  const existing = Object.keys(editingEssentials[techName] || {});
+                                  const parent = techTemplate?.parent;
+                                  const suggestions = [];
+                                  if (!existing.includes('carrier')) suggestions.push('carrier');
+                                  if (!existing.includes('carrier_in') && ['conversion','conversion_plus'].includes(parent)) suggestions.push('carrier_in');
+                                  if (!existing.includes('carrier_out') && ['conversion','conversion_plus','supply','supply_plus'].includes(parent)) suggestions.push('carrier_out');
+                                  if (suggestions.length === 0) return null;
+                                  return (
+                                    <div className="flex flex-wrap gap-1 mt-1.5">
+                                      {suggestions.map(key => (
+                                        <button
+                                          key={key}
+                                          onClick={() => updateDialogEssential(techName, key, '')}
+                                          className="flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] border border-dashed border-slate-300 rounded text-slate-500 hover:border-gray-400 hover:text-gray-700"
+                                        >
+                                          <FiPlus size={9} /> {key}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  );
+                                })()}
+                              </div>
                               {/* Constraints */}
                               <div>
                                 <p className="text-xs font-semibold text-slate-600 mb-1">Constraints</p>

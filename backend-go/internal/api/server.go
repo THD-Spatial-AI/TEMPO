@@ -19,6 +19,7 @@ import (
 )
 
 const geoServerURL = "http://localhost:8080/geoserver"
+const techAPIURL = "http://localhost:8000"
 
 type Server struct {
 	db          *storage.DB
@@ -100,6 +101,10 @@ func (s *Server) setupRoutes() {
 			c.JSON(200, gin.H{"status": "ok"})
 		})
 	}
+
+	// Proxy /tech/* to the opentech-db Python API (port 8000, not reachable from browser)
+	s.router.GET("/tech/health", s.proxyTechAPIHealth)
+	s.router.Any("/tech/api/v1/*path", s.proxyTechAPI)
 }
 
 func (s *Server) Start() error {
@@ -456,6 +461,61 @@ func (s *Server) getLoadedRegions(c *gin.Context) {
 func (s *Server) getAvailableLayers(c *gin.Context) {
 	layers, _ := s.geoServer.GetAvailableLayers()
 	c.JSON(http.StatusOK, gin.H{"layers": layers})
+}
+
+// proxyTechAPI forwards /tech/api/v1/* requests to the opentech-db Python API on port 8000.
+func (s *Server) proxyTechAPI(c *gin.Context) {
+	path := c.Param("path") // e.g. "/technologies?limit=200"
+	target := techAPIURL + "/api/v1" + path
+	if c.Request.URL.RawQuery != "" {
+		target += "?" + c.Request.URL.RawQuery
+	}
+
+	req, err := http.NewRequestWithContext(c.Request.Context(), c.Request.Method, target, c.Request.Body)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		return
+	}
+	// Forward relevant headers
+	if ct := c.GetHeader("Content-Type"); ct != "" {
+		req.Header.Set("Content-Type", ct)
+	}
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "tech API unavailable: " + err.Error()})
+		return
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		return
+	}
+	contentType := resp.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = "application/json"
+	}
+	c.Data(resp.StatusCode, contentType, body)
+}
+
+// proxyTechAPIHealth forwards /tech/health to the opentech-db Python API health endpoint.
+func (s *Server) proxyTechAPIHealth(c *gin.Context) {
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get(techAPIURL + "/health")
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"status": "unavailable", "error": err.Error()})
+		return
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	contentType := resp.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = "application/json"
+	}
+	c.Data(resp.StatusCode, contentType, body)
 }
 
 // geocode proxies a Nominatim geocoding request for the given query string.
