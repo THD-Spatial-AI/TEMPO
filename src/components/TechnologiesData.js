@@ -619,7 +619,7 @@ export const TECH_TEMPLATES = {
       id: 'co2_pipelines',
       name: 'CO2 Pipelines',
       parent: 'transmission',
-      description: 'COâ‚‚ transport pipelines for carbon capture & storage',
+      description: 'CO₂ transport pipelines for carbon capture & storage',
       essentials: { name: 'CO2 Pipelines', color: '#616161', parent: 'transmission', carrier: 'co2' },
       constraints: { energy_cap_max: 'inf', energy_eff: 0.99, lifetime: 40 },
       costs: { monetary: { interest_rate: 0.06, energy_cap_per_distance: 0.80 } }
@@ -634,6 +634,9 @@ export const TECH_TEMPLATES = {
       costs: { monetary: { interest_rate: 0.05, energy_cap_per_distance: 0.60 } }
     }
   ],
+  // Note: additional multi-carrier transmission techs (cooling pipelines, H₂ trucks,
+  // biomass transport, oil pipelines, water pipelines, etc.) are provided by the
+  // opentech-db API when online. Add them there instead of here.
 
   // â”€â”€ 5. Demand Technologies (framework-internal, not in OEO catalog) â”€â”€â”€â”€â”€â”€â”€
   demand: [

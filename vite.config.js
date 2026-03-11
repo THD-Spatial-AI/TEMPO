@@ -5,6 +5,16 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   base: './',   // relative paths so Electron can load dist/index.html from file://
+  server: {
+    proxy: {
+      // Forward /tech/* to the opentech-db Python API (not directly reachable from browser)
+      '/tech': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/tech/, ''),
+      },
+    },
+  },
   build: {
     // Target modern browsers for smaller, faster output
     target: 'esnext',

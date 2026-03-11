@@ -49,10 +49,10 @@ export const useMapInteractions = (mode, addLocation, handleLocationClickForLink
   
   // Handle location click for link creation
   const handleLocationClick = useCallback((location, callbacks = {}) => {
-    const { onLinkCreated, onLocationSelected } = callbacks;
+    const { onLinkCreated, onLocationSelected, linkOptions } = callbacks;
     
     if (mode === 'link') {
-      const link = handleLocationClickForLink(location);
+      const link = handleLocationClickForLink(location, linkOptions || {});
       if (link && onLinkCreated) {
         onLinkCreated(link);
       }
