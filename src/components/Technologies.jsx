@@ -1,9 +1,83 @@
 ﻿import React, { useState, useMemo } from 'react';
 import { FiSearch, FiEdit2, FiX, FiSave, FiTrash2, FiChevronDown,
          FiChevronRight as FiChevronRightIcon, FiArrowRight, FiHelpCircle, FiCopy, FiZap,
-         FiSun, FiDatabase, FiRefreshCw, FiShare2, FiBarChart2, FiStar } from 'react-icons/fi';
+         FiSun, FiDatabase, FiRefreshCw, FiShare2, FiBarChart2, FiStar, FiPlus } from 'react-icons/fi';
 import { useData } from '../context/DataContext';
 import { TECH_TEMPLATES, PARENT_TYPES, useLiveTechTemplates } from './TechnologiesData';
+import { CARRIERS, CARRIERS_BY_GROUP, getCarrierColor, getCarrierLabel } from '../config/carriers';
+
+// ── Carrier helpers ──────────────────────────────────────────────────────────
+function CarrierPill({ carrierId }) {
+  const color = getCarrierColor(carrierId);
+  const label = getCarrierLabel(carrierId);
+  const icon  = CARRIERS[carrierId]?.icon ?? '•';
+  return (
+    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium border"
+      style={{ backgroundColor: `${color}18`, borderColor: `${color}40`, color }}>
+      {icon} {label}
+    </span>
+  );
+}
+
+/** A compact grouped carrier <select> for single selections */
+function CarrierSelect({ value, onChange, className = '' }) {
+  return (
+    <select value={value ?? ''} onChange={onChange} className={className}>
+      <option value="">— select —</option>
+      {Object.entries(CARRIERS_BY_GROUP).map(([group, carriers]) => (
+        <optgroup key={group} label={group}>
+          {carriers.map(c => (
+            <option key={c.id} value={c.id}>{c.icon}  {c.label}</option>
+          ))}
+        </optgroup>
+      ))}
+    </select>
+  );
+}
+
+/**
+ * Multi-carrier editor: manages an array of carrier ids.
+ * Renders pills for each selected carrier + add button.
+ */
+function MultiCarrierEditor({ values = [], onChange }) {
+  const [adding, setAdding] = useState(false);
+  const [picked, setPicked]   = useState('');
+
+  const remove = (id) => onChange(values.filter(v => v !== id));
+  const add = () => {
+    if (picked && !values.includes(picked)) onChange([...values, picked]);
+    setPicked('');
+    setAdding(false);
+  };
+
+  return (
+    <div className="flex flex-wrap gap-1.5 items-center">
+      {values.map(id => (
+        <span key={id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border"
+          style={{ backgroundColor: `${getCarrierColor(id)}18`, borderColor: `${getCarrierColor(id)}40`, color: getCarrierColor(id) }}>
+          {CARRIERS[id]?.icon ?? '•'} {getCarrierLabel(id)}
+          <button type="button" onClick={() => remove(id)}
+            className="ml-0.5 hover:text-red-500 text-inherit opacity-60 hover:opacity-100">&times;</button>
+        </span>
+      ))}
+      {!adding ? (
+        <button type="button" onClick={() => setAdding(true)}
+          className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs border border-dashed border-slate-400 text-slate-500 hover:border-blue-400 hover:text-blue-600">
+          <FiPlus size={10}/> Add
+        </button>
+      ) : (
+        <span className="flex items-center gap-1">
+          <CarrierSelect value={picked} onChange={e => setPicked(e.target.value)}
+            className="text-xs border border-slate-300 rounded px-1.5 py-0.5 focus:outline-none" />
+          <button type="button" onClick={add} disabled={!picked}
+            className="text-xs text-emerald-600 hover:text-emerald-800 disabled:opacity-30">✓</button>
+          <button type="button" onClick={() => { setAdding(false); setPicked(''); }}
+            className="text-xs text-slate-400 hover:text-red-500">&times;</button>
+        </span>
+      )}
+    </div>
+  );
+}
 
 // Constraint definitions
 const CONSTRAINT_DEFINITIONS = {
@@ -100,6 +174,13 @@ const TechCard = ({ techName, tech, isCustom, onDuplicate, onEdit, onDelete }) =
   const lifetime   = constraints.lifetime;
   const capex      = monetary.energy_cap;
 
+  // Collect carrier info for display
+  const ess = tech.essentials || {};
+  const carrierIn  = ess.carrier_in  ? (Array.isArray(ess.carrier_in)  ? ess.carrier_in  : [ess.carrier_in])  : [];
+  const carrierOut = ess.carrier_out ? (Array.isArray(ess.carrier_out) ? ess.carrier_out : [ess.carrier_out]) : [];
+  const carrier    = ess.carrier     ? [ess.carrier] : [];
+  const allCarriers = [...new Set([...carrierIn, ...carrierOut, ...carrier])];
+
   const handleDup = () => {
     const techToUse = currentInstance
       ? {
@@ -138,6 +219,14 @@ const TechCard = ({ techName, tech, isCustom, onDuplicate, onEdit, onDelete }) =
           </div>
         )}
 
+        {/* Carrier pills */}
+        {allCarriers.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-2">
+            {carrierIn.map(c  => <CarrierPill key={`in-${c}`}  carrierId={c} />)}
+            {carrierOut.map(c => <CarrierPill key={`out-${c}`} carrierId={c} />)}
+            {carrier.map(c    => <CarrierPill key={`c-${c}`}   carrierId={c} />)}
+          </div>
+        )}
         {/* Key stats pills */}
         {(efficiency != null || lifetime != null || capex != null) && (
           <div className="flex flex-wrap gap-1 mt-2">
@@ -498,37 +587,101 @@ function Technologies() {
               <section>
                 <h3 className="text-sm font-semibold text-slate-700 mb-3"> Essentials</h3>
                 <div className="grid grid-cols-2 gap-4">
-                  {Object.entries(editForm.essentials || {}).map(([key, value]) => (
-                    <div key={key}>
-                      <label className="block text-xs font-medium text-slate-600 mb-1">{key}</label>
-                      {key === 'color' ? (
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="color"
-                            value={value}
-                            onChange={e => setEditForm({ ...editForm, essentials: { ...editForm.essentials, [key]: e.target.value } })}
-                            className="w-10 h-9 border border-slate-300 rounded cursor-pointer"
-                          />
-                          <input
-                            type="text"
-                            value={value}
-                            onChange={e => setEditForm({ ...editForm, essentials: { ...editForm.essentials, [key]: e.target.value } })}
-                            className="flex-1 px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none"
-                          />
+                  {Object.entries(editForm.essentials || {}).map(([key, value]) => {
+                    const setEss = (v) => setEditForm({ ...editForm, essentials: { ...editForm.essentials, [key]: v } });
+                    // ── Carrier fields ──────────────────────────────────────
+                    if (key === 'carrier') {
+                      return (
+                        <div key={key} className="col-span-2">
+                          <div className="flex items-center gap-2 mb-1">
+                            <label className="text-xs font-medium text-slate-600">carrier</label>
+                            <span className="text-xs text-slate-400">(single carrier for storage / transmission)</span>
+                          </div>
+                          <CarrierSelect value={value} onChange={e => setEss(e.target.value)}
+                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none" />
                         </div>
-                      ) : key === 'parent' ? (
-                        <input type="text" value={value} disabled className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-100 text-slate-500" />
-                      ) : (
-                        <input
-                          type="text"
-                          value={value}
-                          onChange={e => setEditForm({ ...editForm, essentials: { ...editForm.essentials, [key]: e.target.value } })}
-                          className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none"
-                        />
-                      )}
-                    </div>
-                  ))}
+                      );
+                    }
+                    if (key === 'carrier_in') {
+                      const arr = Array.isArray(value) ? value : (value ? [value] : []);
+                      return (
+                        <div key={key} className="col-span-2">
+                          <div className="flex items-center gap-2 mb-1">
+                            <label className="text-xs font-medium text-slate-600">carrier_in</label>
+                            <span className="text-xs text-slate-400">(energy consumed — multiple allowed)</span>
+                          </div>
+                          <MultiCarrierEditor values={arr}
+                            onChange={v => setEss(v.length === 1 ? v[0] : v)} />
+                        </div>
+                      );
+                    }
+                    if (key === 'carrier_out') {
+                      const arr = Array.isArray(value) ? value : (value ? [value] : []);
+                      return (
+                        <div key={key} className="col-span-2">
+                          <div className="flex items-center gap-2 mb-1">
+                            <label className="text-xs font-medium text-slate-600">carrier_out</label>
+                            <span className="text-xs text-slate-400">(energy produced — multiple allowed)</span>
+                          </div>
+                          <MultiCarrierEditor values={arr}
+                            onChange={v => setEss(v.length === 1 ? v[0] : v)} />
+                        </div>
+                      );
+                    }
+                    // ── Standard fields ─────────────────────────────────────
+                    return (
+                      <div key={key}>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">{key}</label>
+                        {key === 'color' ? (
+                          <div className="flex items-center gap-2">
+                            <input type="color" value={value}
+                              onChange={e => setEss(e.target.value)}
+                              className="w-10 h-9 border border-slate-300 rounded cursor-pointer" />
+                            <input type="text" value={value}
+                              onChange={e => setEss(e.target.value)}
+                              className="flex-1 px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                          </div>
+                        ) : key === 'parent' ? (
+                          <input type="text" value={value} disabled
+                            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-100 text-slate-500" />
+                        ) : (
+                          <input type="text" value={value}
+                            onChange={e => setEss(e.target.value)}
+                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
+
+                {/* Add carrier fields if not already present */}
+                {(() => {
+                  const ess = editForm.essentials || {};
+                  const parent = ess.parent;
+                  const missingCarrier    = !('carrier'     in ess) && (parent === 'storage' || parent === 'transmission');
+                  const missingCarrierIn  = !('carrier_in'  in ess) && (parent === 'conversion' || parent === 'conversion_plus');
+                  const missingCarrierOut = !('carrier_out' in ess) && (parent === 'supply' || parent === 'supply_plus' || parent === 'demand' || parent === 'conversion' || parent === 'conversion_plus');
+                  const toAdd = [
+                    ...(missingCarrier    ? ['carrier']     : []),
+                    ...(missingCarrierIn  ? ['carrier_in']  : []),
+                    ...(missingCarrierOut ? ['carrier_out'] : []),
+                  ];
+                  if (toAdd.length === 0) return null;
+                  return (
+                    <div className="mt-3 pt-3 border-t border-slate-100">
+                      <p className="text-xs text-slate-400 mb-2">Missing carrier fields for <strong>{parent}</strong>:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {toAdd.map(field => (
+                          <button key={field} type="button"
+                            onClick={() => setEditForm({ ...editForm, essentials: { ...editForm.essentials, [field]: field === 'carrier' ? 'electricity' : [] } })}
+                            className="px-2.5 py-1 text-xs bg-blue-50 text-blue-600 border border-blue-200 rounded-full hover:bg-blue-100">
+                            + {field}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
               </section>
 
               {/* Constraints */}

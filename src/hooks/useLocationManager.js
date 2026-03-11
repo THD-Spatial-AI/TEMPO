@@ -41,7 +41,8 @@ export const useLocationManager = () => {
   }, []);
   
   // Add a link between two locations
-  const addLink = useCallback((fromLocation, toLocation) => {
+  // options: { linkType?: string, carrier?: string }
+  const addLink = useCallback((fromLocation, toLocation, options = {}) => {
     const distance = calculateDistance(
       fromLocation.latitude,
       fromLocation.longitude,
@@ -55,7 +56,9 @@ export const useLocationManager = () => {
       to: toLocation.id,
       fromName: fromLocation.name,
       toName: toLocation.name,
-      distance: distance
+      distance: distance,
+      linkType: options.linkType || null,
+      carrier: options.carrier || null,
     };
     
     setTempLinks(prev => [...prev, newLink]);
@@ -66,15 +69,23 @@ export const useLocationManager = () => {
   const removeLink = useCallback((id) => {
     setTempLinks(prev => prev.filter(link => link.id !== id));
   }, []);
+
+  // Update a link's properties
+  const updateLink = useCallback((id, updates) => {
+    setTempLinks(prev => prev.map(link =>
+      link.id === id ? { ...link, ...updates } : link
+    ));
+  }, []);
   
   // Handle link creation mode
-  const handleLocationClickForLink = useCallback((location) => {
+  // options forwarded to addLink: { linkType?, carrier? }
+  const handleLocationClickForLink = useCallback((location, options = {}) => {
     if (!linkStart) {
       setLinkStart(location);
       return null;
     } else {
       if (linkStart.id !== location.id) {
-        const link = addLink(linkStart, location);
+        const link = addLink(linkStart, location, options);
         setLinkStart(null);
         return link;
       }
@@ -105,6 +116,7 @@ export const useLocationManager = () => {
     // State
     tempLocations,
     tempLinks,
+    updateLink,
     selectedLocation,
     linkStart,
     
@@ -113,6 +125,7 @@ export const useLocationManager = () => {
     removeLocation,
     updateLocation,
     addLink,
+    removeLink,
     removeLink,
     handleLocationClickForLink,
     setSelectedLocation,

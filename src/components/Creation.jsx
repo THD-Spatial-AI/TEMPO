@@ -18,6 +18,8 @@ import { generatePowerMesh, meshToCalliopeLocations, exportMeshToJson, validateM
 import { calculateDistance, calculateMeshStatistics } from '../meshGenerator/MeshUtils.js';
 import { CONSTRAINT_DEFINITIONS, COST_DEFINITIONS, ESSENTIAL_DEFINITIONS, PARENT_CONSTRAINTS } from '../utils/constraintDefinitions';
 import api from '../services/api';
+import { LINK_TYPES, LINK_TYPES_BY_GROUP, getLinkTypeColorRgb, getLinkTypeColor } from '../config/linkTypes';
+import { CARRIERS, getCarrierColorRgb, getCarrierLabel, getCarrierColor } from '../config/carriers';
 
 // Import new custom hooks
 import { useLocationManager } from '../hooks/useLocationManager';
@@ -605,6 +607,7 @@ const Creation = () => {
   
   // Mode state
   const [mode, setMode] = useState(null); // null (no mode), 'single', 'multiple', 'link', 'polyline'
+  const [currentLinkType, setCurrentLinkType] = useState('hvac_overhead'); // link type used when drawing new links
   
   // Initialize custom hooks
   const locationManager = useLocationManager();
@@ -1675,6 +1678,30 @@ const Creation = () => {
                   </div>
                 </div>
 
+                {/* Link type selector — applies to new links drawn on the map */}
+                <div className="px-3 pb-2">
+                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">New link type</label>
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className="w-3 h-3 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: getLinkTypeColor(currentLinkType) }}
+                    />
+                    <select
+                      value={currentLinkType}
+                      onChange={e => setCurrentLinkType(e.target.value)}
+                      className="flex-1 text-xs border border-gray-200 rounded px-1.5 py-1 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                    >
+                      {Object.entries(LINK_TYPES_BY_GROUP).map(([group, types]) => (
+                        <optgroup key={group} label={group}>
+                          {types.map(t => (
+                            <option key={t.id} value={t.id}>{t.label}</option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
                 {linksExpanded && (
                   locationManager.tempLinks.length === 0 ? (
                     <div className="text-center py-8 text-gray-400 text-sm">
@@ -1690,29 +1717,45 @@ const Creation = () => {
                           className="p-3 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors"
                         >
                           <div className="flex justify-between items-start">
-                            <div className="flex-1">
+                            <div className="flex-1 min-w-0">
                               <h4 className="font-medium text-sm text-gray-800 flex items-center gap-1">
+                                <span
+                                  className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                  style={{ backgroundColor: link.linkType ? getLinkTypeColor(link.linkType) : (link.carrier ? getCarrierColor(link.carrier) : '#6366f1') }}
+                                />
                                 <span className="truncate">{link.fromName}</span>
                                 <FiArrowRight size={12} className="text-gray-400 flex-shrink-0" />
                                 <span className="truncate">{link.toName}</span>
                               </h4>
-                              <p className="text-xs text-gray-500 mt-1">
-                                Distance: {link.distance != null && !isNaN(parseFloat(link.distance)) ? `${parseFloat(link.distance).toFixed(2)} km` : 'N/A'}
+                              <p className="text-xs text-gray-500 mt-0.5">
+                                {link.distance != null && !isNaN(parseFloat(link.distance)) ? `${parseFloat(link.distance).toFixed(2)} km` : 'N/A'}
+                                {link.linkType && <span className="ml-1 text-gray-400">· {LINK_TYPES[link.linkType]?.label || link.linkType}</span>}
                               </p>
-                              {link.techs && Object.keys(link.techs).length > 0 && (
-                                <div className="mt-1 flex flex-wrap gap-1">
-                                  {Object.keys(link.techs).map(techName => (
-                                    <span
-                                      key={techName}
-                                      className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded"
-                                    >
-                                      {formatTechName(techName)}
-                                    </span>
+                              {/* Inline link type changer */}
+                              <div className="mt-1.5">
+                                <select
+                                  value={link.linkType || ''}
+                                  onChange={e => {
+                                    const lt = e.target.value;
+                                    locationManager.updateLink(link.id, {
+                                      linkType: lt || null,
+                                      carrier: lt ? (LINK_TYPES[lt]?.carrier || null) : link.carrier,
+                                    });
+                                  }}
+                                  className="w-full text-[10px] border border-gray-200 rounded px-1 py-0.5 bg-white text-gray-600 focus:outline-none"
+                                >
+                                  <option value="">— no type —</option>
+                                  {Object.entries(LINK_TYPES_BY_GROUP).map(([group, types]) => (
+                                    <optgroup key={group} label={group}>
+                                      {types.map(t => (
+                                        <option key={t.id} value={t.id}>{t.label}</option>
+                                      ))}
+                                    </optgroup>
                                   ))}
-                                </div>
-                              )}
+                                </select>
+                              </div>
                             </div>
-                            <div className="flex gap-1">
+                            <div className="flex gap-1 ml-1 flex-shrink-0">
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -1949,8 +1992,13 @@ const Creation = () => {
                   onClick: (info) => {
                     if (info.object) {
                       if (mode === 'link') {
-                        // Handle link creation
-                        handleLocationClick(info.object);
+                        // Handle link creation — pass current link type & carrier
+                        handleLocationClick(info.object, {
+                          linkOptions: {
+                            linkType: currentLinkType,
+                            carrier: LINK_TYPES[currentLinkType]?.carrier || 'electricity',
+                          }
+                        });
                       } else {
                         // Open edit dialog for the location
                         setPendingLocation(info.object);
@@ -1988,16 +2036,23 @@ const Creation = () => {
                     const toLoc = locationManager.tempLocations.find(l => l.id === d.to);
                     return toLoc ? [toLoc.longitude, toLoc.latitude] : [0, 0];
                   },
-                  getColor: [99, 102, 241, 200],
+                  // Colour by carrier / link type
+                  getColor: d => {
+                    if (d.linkType) return getLinkTypeColorRgb(d.linkType, 220);
+                    if (d.carrier)  return getCarrierColorRgb(d.carrier, 220);
+                    return [99, 102, 241, 200];
+                  },
                   getWidth: lineSizes.links || 2,
                   widthUnits: 'pixels',
                   pickable: true,
+                  updateTriggers: { getColor: locationManager.tempLinks },
                   onHover: (info) => {
                     if (info.object) {
                       const link = info.object;
+                      const carrierLabel = link.carrier ? getCarrierLabel(link.carrier) : 'Electricity';
                       setHoveredInfo({
-                        name: `Link: ${link.fromName} → ${link.toName}`,
-                        techs: `Distance: ${link.distance} km`,
+                        name: `Link: ${link.fromName || link.from} → ${link.toName || link.to}`,
+                        techs: `${carrierLabel}${link.distance ? ` | ${link.distance} km` : ''}`,
                         x: info.x,
                         y: info.y
                       });

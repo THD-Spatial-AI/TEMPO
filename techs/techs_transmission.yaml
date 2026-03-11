@@ -274,3 +274,242 @@ techs:
                 energy_cap_per_distance: 0.91 # USD/kW/km 3.9 ($M/mile)/2656 MWe  https://www.sciencedirect.com/science/article/pii/S2589004221014668  
     # 500 KV-end       
  
+##
+# MULTI-CARRIER TRANSMISSION TECHNOLOGIES
+# Covers sector-coupling infrastructure beyond electricity:
+#   heat, hydrogen, gas, CO2, biomass, oil, water
+##
+
+    # ── HVDC (electricity long-distance) ─────────────────────────────────────
+    hvdc_overhead_lines:
+        essentials:
+            name: 'HVDC Overhead Lines'
+            color: '#7B1FA2'
+            parent: transmission
+            carrier: electricity
+        constraints:
+            energy_cap_max: .inf
+            energy_eff: 0.97
+            lifetime: 40
+        costs:
+            monetary:
+                interest_rate: 0.05
+                energy_cap_per_distance: 1.10
+
+    hvdc_subsea_cables:
+        essentials:
+            name: 'HVDC Subsea Cables'
+            color: '#6A1B9A'
+            parent: transmission
+            carrier: electricity
+        constraints:
+            energy_cap_max: .inf
+            energy_eff: 0.96
+            lifetime: 40
+        costs:
+            monetary:
+                interest_rate: 0.05
+                energy_cap_per_distance: 4.50
+
+    # ── District Heat ─────────────────────────────────────────────────────────
+    district_heating_pipeline:
+        essentials:
+            name: 'District Heating Pipeline'
+            color: '#BF360C'
+            parent: transmission
+            carrier: heat
+        constraints:
+            energy_cap_max: .inf
+            energy_eff: 0.90
+            lifetime: 40
+        costs:
+            monetary:
+                interest_rate: 0.05
+                energy_cap_per_distance: 0.60  # USD/kW/km
+
+    district_cooling_pipeline:
+        essentials:
+            name: 'District Cooling Pipeline'
+            color: '#00BCD4'
+            parent: transmission
+            carrier: cooling
+        constraints:
+            energy_cap_max: .inf
+            energy_eff: 0.92
+            lifetime: 40
+        costs:
+            monetary:
+                interest_rate: 0.05
+                energy_cap_per_distance: 0.70
+
+    # ── Hydrogen ──────────────────────────────────────────────────────────────
+    hydrogen_pipeline:
+        essentials:
+            name: 'Hydrogen Pipeline'
+            color: '#FFD700'
+            parent: transmission
+            carrier: hydrogen
+        constraints:
+            energy_cap_max: .inf
+            energy_eff: 0.98
+            lifetime: 40
+        costs:
+            monetary:
+                interest_rate: 0.06
+                energy_cap_per_distance: 1.20  # USD/kW/km (new-build)
+
+    hydrogen_pipeline_repurposed:
+        essentials:
+            name: 'Hydrogen Pipeline (Repurposed Gas)'
+            color: '#F9A825'
+            parent: transmission
+            carrier: hydrogen
+        constraints:
+            energy_cap_max: .inf
+            energy_eff: 0.98
+            lifetime: 30
+        costs:
+            monetary:
+                interest_rate: 0.06
+                energy_cap_per_distance: 0.35  # Lower cost for converted pipelines
+
+    hydrogen_truck:
+        essentials:
+            name: 'Hydrogen Truck Transport'
+            color: '#FF8F00'
+            parent: transmission
+            carrier: hydrogen
+        constraints:
+            energy_cap_max: .inf
+            energy_eff: 0.95
+            lifetime: 15
+        costs:
+            monetary:
+                interest_rate: 0.08
+                energy_cap_per_distance: 0.20
+
+    # ── Natural Gas ───────────────────────────────────────────────────────────
+    natural_gas_pipeline:
+        essentials:
+            name: 'Natural Gas Pipeline'
+            color: '#F97316'
+            parent: transmission
+            carrier: gas
+        constraints:
+            energy_cap_max: .inf
+            energy_eff: 0.99
+            lifetime: 50
+        costs:
+            monetary:
+                interest_rate: 0.05
+                energy_cap_per_distance: 0.50
+
+    # ── Biogas ────────────────────────────────────────────────────────────────
+    biogas_pipeline:
+        essentials:
+            name: 'Biogas Pipeline'
+            color: '#43A047'
+            parent: transmission
+            carrier: biogas
+        constraints:
+            energy_cap_max: .inf
+            energy_eff: 0.98
+            lifetime: 30
+        costs:
+            monetary:
+                interest_rate: 0.06
+                energy_cap_per_distance: 0.40
+
+    # ── CO₂ ───────────────────────────────────────────────────────────────────
+    co2_pipeline:
+        essentials:
+            name: 'CO₂ Pipeline'
+            color: '#607D8B'
+            parent: transmission
+            carrier: co2
+        constraints:
+            energy_cap_max: .inf
+            energy_eff: 0.99
+            lifetime: 40
+        costs:
+            monetary:
+                interest_rate: 0.06
+                energy_cap_per_distance: 0.80
+
+    # ── Biomass ───────────────────────────────────────────────────────────────
+    biomass_truck_transport:
+        essentials:
+            name: 'Biomass Truck Transport'
+            color: '#2E7D32'
+            parent: transmission
+            carrier: biomass
+        constraints:
+            energy_cap_max: .inf
+            energy_eff: 0.97
+            lifetime: 15
+        costs:
+            monetary:
+                interest_rate: 0.08
+                energy_cap_per_distance: 0.10
+
+    biomass_rail_transport:
+        essentials:
+            name: 'Biomass Rail Transport'
+            color: '#1B5E20'
+            parent: transmission
+            carrier: biomass
+        constraints:
+            energy_cap_max: .inf
+            energy_eff: 0.98
+            lifetime: 30
+        costs:
+            monetary:
+                interest_rate: 0.05
+                energy_cap_per_distance: 0.05
+
+    # ── Oil & Liquid Fuels ────────────────────────────────────────────────────
+    oil_pipeline:
+        essentials:
+            name: 'Oil Pipeline'
+            color: '#78716C'
+            parent: transmission
+            carrier: oil
+        constraints:
+            energy_cap_max: .inf
+            energy_eff: 0.995
+            lifetime: 50
+        costs:
+            monetary:
+                interest_rate: 0.05
+                energy_cap_per_distance: 0.45
+
+    fuel_truck:
+        essentials:
+            name: 'Fuel Truck'
+            color: '#92400E'
+            parent: transmission
+            carrier: oil
+        constraints:
+            energy_cap_max: .inf
+            energy_eff: 0.98
+            lifetime: 15
+        costs:
+            monetary:
+                interest_rate: 0.08
+                energy_cap_per_distance: 0.15
+
+    # ── Water ─────────────────────────────────────────────────────────────────
+    water_pipeline:
+        essentials:
+            name: 'Water Pipeline'
+            color: '#1565C0'
+            parent: transmission
+            carrier: water
+        constraints:
+            energy_cap_max: .inf
+            energy_eff: 0.99
+            lifetime: 60
+        costs:
+            monetary:
+                interest_rate: 0.05
+                energy_cap_per_distance: 0.30
