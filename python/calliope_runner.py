@@ -18,6 +18,57 @@ import traceback
 import logging
 from pathlib import Path
 
+
+# ---------------------------------------------------------------------------
+# Bundled solver helper
+# ---------------------------------------------------------------------------
+
+def _setup_bundled_solver():
+    """
+    Prepend the repo's ``solvers/<platform>/`` directory to PATH so that
+    Pyomo can find ``cbc`` (or ``glpk``) without any system-wide install.
+
+    Works both in development (relative to this file) and when packaged inside
+    an Electron asar.unpacked bundle (CALLIOPE_SOLVER_DIR env var override).
+    """
+    import platform as _platform
+
+    # Allow electron/main.cjs to pass an explicit path via env var
+    override = os.environ.get('CALLIOPE_SOLVER_DIR', '').strip()
+    if override:
+        solver_dirs = [Path(override)]
+    else:
+        # Resolve the repo root: this file lives at  <repo>/python/calliope_runner.py
+        repo_root = Path(__file__).resolve().parent.parent
+        system = _platform.system().lower()   # 'windows', 'linux', 'darwin'
+        platform_dir = {
+            'windows': 'windows',
+            'linux':   'linux',
+            'darwin':  'mac',
+        }.get(system, system)
+        solver_dirs = [
+            repo_root / 'solvers' / platform_dir,
+            repo_root / 'solvers' / 'windows',   # fallback for Windows-only bundles
+        ]
+
+    added = []
+    for d in solver_dirs:
+        if d.is_dir():
+            s = str(d)
+            if s not in os.environ.get('PATH', '').split(os.pathsep):
+                os.environ['PATH'] = s + os.pathsep + os.environ.get('PATH', '')
+                added.append(s)
+
+    if added:
+        log(f"  Bundled solver dir added to PATH: {', '.join(added)}")
+
+    # Quick sanity-check: is cbc on PATH now?
+    import shutil as _shutil
+    if _shutil.which('cbc') or _shutil.which('cbc.exe'):
+        log("  CBC solver found on PATH ✓")
+    else:
+        log("  WARNING: cbc not found on PATH — run scripts/download_cbc.ps1 first")
+
 # ---------------------------------------------------------------------------
 # OEO Tech Database integration (optional – graceful fallback if offline)
 # ---------------------------------------------------------------------------
@@ -377,11 +428,16 @@ def build_links_config(links):
 
         link_entry = {'techs': {tech_key: None}}
 
-        # Include distance at the link level (Calliope 0.6 format)
+        # Include distance inside the tech entry (Calliope 0.6 format):
+        # links:
+        #   A,B:
+        #     techs:
+        #       my_transmission_tech:
+        #         distance: 500
         distance = link.get('distance')
         if distance is not None:
             try:
-                link_entry['distance'] = float(distance)
+                link_entry['techs'][tech_key] = {'distance': float(distance)}
             except (ValueError, TypeError):
                 pass
 
@@ -390,12 +446,144 @@ def build_links_config(links):
 
 
 # ---------------------------------------------------------------------------
-# Main run logic
+# Timeseries helper
+# ---------------------------------------------------------------------------
+
+def _write_scalar_demand_timeseries(techs, locs_cfg, loc_tech_assign,
+                                    time_start, time_end, config_dir,
+                                    technologies=None):
+    """
+    Calliope 0.6 requires at least one timeseries in the model.
+
+    For every tech that has a plain numeric ``resource`` constraint (not a
+    ``file=...`` string and not ±inf), this function:
+      1. Generates a flat hourly CSV with a single column named after the tech.
+      2. Removes the scalar ``resource`` from the global tech constraints.
+      3. Injects ``resource: file=<csv>:<col>`` into each location's per-tech
+         override block in *locs_cfg*, following the Calliope 0.6 convention.
+
+    Returns True if at least one timeseries was generated.
+
+    The CSV is written into *config_dir* next to techs.yaml / locations.yaml.
+    """
+    import pandas as pd
+
+    # Build a reverse mapping: any raw tech reference → Calliope tid.
+    # loc_tech_assign may use 'id' or 'name' fields while techs is keyed
+    # by the name-derived calliope id – bridge the gap here.
+    raw_to_tid = {}
+    for tid in techs:
+        raw_to_tid[tid] = tid
+    if technologies:
+        for tech in technologies:
+            cid = _tech_id(tech)
+            raw_to_tid[tech.get('id', cid)] = cid
+            raw_to_tid[tech.get('name', cid)] = cid
+            raw_to_tid[(tech.get('name', '') or '').replace(' ', '_').lower()] = cid
+
+    # Calliope subset_time end is day-inclusive, so cover through 23:00 of
+    # time_end to ensure the CSV spans the full requested period.
+    try:
+        end_inclusive = pd.Timestamp(time_end) + pd.Timedelta(hours=23)
+        ts_index = pd.date_range(start=time_start, end=end_inclusive, freq='H')
+    except Exception:
+        ts_index = pd.date_range(start=time_start, periods=48, freq='H')
+
+    if len(ts_index) == 0:
+        ts_index = pd.date_range(start=time_start, periods=48, freq='H')
+
+    generated = False
+
+    for tid, tdef in techs.items():
+        constraints = tdef.get('constraints') or {}
+        resource_val = constraints.get('resource')
+
+        # Only act on scalar numeric resources
+        if resource_val is None:
+            continue
+        if isinstance(resource_val, str) and resource_val.startswith('file='):
+            continue
+        if isinstance(resource_val, float) and (
+                resource_val == float('inf') or resource_val == float('-inf')):
+            continue
+        if isinstance(resource_val, str) and resource_val.lower() in ('.inf', '-.inf', 'inf'):
+            continue
+
+        try:
+            scalar = float(resource_val)
+        except (TypeError, ValueError):
+            continue  # leave as-is
+
+        # Write a single-column CSV;  column name = tech id (simple, unambiguous)
+        col_name = tid
+        csv_name = f"{tid}_resource.csv"
+        df = pd.DataFrame({col_name: [scalar] * len(ts_index)}, index=ts_index)
+        df.to_csv(config_dir / csv_name)
+
+        resource_ref = f'file={csv_name}:{col_name}'
+
+        # Remove the scalar resource from the global tech definition –
+        # it will be set per-location instead (Calliope 0.6 best practice).
+        del constraints['resource']
+
+        # Inject resource override into every location that uses this tech.
+        # Match by any raw form (id, name, calliope-normalised id).
+        injected_count = 0
+        for loc_id, assigned in loc_tech_assign.items():
+            loc_key = loc_id.replace(' ', '_')
+            if loc_key not in locs_cfg:
+                continue
+            loc_has_tech = any(
+                raw_to_tid.get(ref, ref.replace(' ', '_').lower()) == tid
+                for ref in assigned
+            )
+            if not loc_has_tech:
+                continue
+            loc_techs = locs_cfg[loc_key].setdefault('techs', {})
+            if loc_techs.get(tid) is None:
+                loc_techs[tid] = {}
+            if isinstance(loc_techs[tid], dict):
+                loc_techs[tid].setdefault('constraints', {})['resource'] = resource_ref
+            else:
+                loc_techs[tid] = {'constraints': {'resource': resource_ref}}
+            injected_count += 1
+
+        generated = True
+        log(f"  Generated timeseries CSV for '{tid}': {csv_name} "
+            f"({len(ts_index)} hours, injected into {injected_count} location(s))")
+
+    # If nothing was generated, create a minimal dummy timeseries so Calliope
+    # doesn't complain – attach it to the first demand tech.
+    if not generated:
+        demand_tech = next(
+            (tid for tid, tdef in techs.items()
+             if (tdef.get('essentials') or {}).get('parent') == 'demand'),
+            next(iter(techs), None)
+        )
+        if demand_tech:
+            col_name = demand_tech
+            csv_name = f"{demand_tech}_resource.csv"
+            df = pd.DataFrame({col_name: [-100.0] * len(ts_index)}, index=ts_index)
+            df.to_csv(config_dir / csv_name)
+            resource_ref = f'file={csv_name}:{col_name}'
+            # Set at the global tech level as fallback
+            techs[demand_tech].setdefault('constraints', {})['resource'] = resource_ref
+            generated = True
+            log(f"  Generated fallback timeseries CSV: {csv_name}")
+
+    return generated
+
+
+# ---------------------------------------------------------------------------
+# Main run logic  
 # ---------------------------------------------------------------------------
 
 def run_model(model_data, work_dir):
     """Build, run, and return results from a Calliope model."""
     import calliope  # noqa – must run inside the calliope conda environment  # type: ignore
+
+    # Inject bundled CBC so Pyomo can find it without a system-wide install
+    _setup_bundled_solver()
 
     model_name = model_data.get('name', 'Model')
     locations = model_data.get('locations', [])
@@ -403,7 +591,7 @@ def run_model(model_data, work_dir):
     technologies = model_data.get('technologies', [])
     loc_tech_assign = model_data.get('locationTechAssignments', {})
     parameters = model_data.get('parameters') or []
-    solver = model_data.get('solver', 'highs')   # default: HiGHS (free, open-source, fast)
+    solver = model_data.get('solver', 'cbc')   # default: CBC (free, open-source, bundled)
     overrides = model_data.get('overrides') or {}
     scenarios = model_data.get('scenarios') or {}
 
@@ -473,6 +661,14 @@ def run_model(model_data, work_dir):
     # ------------------------------------------------------------------
     # Write YAML files
     # ------------------------------------------------------------------
+
+    # Calliope 0.6 requires at least one timeseries.  For any tech whose
+    # `resource` is a plain scalar (no "file=" prefix), auto-generate a flat
+    # CSV and inject the reference into each location's tech block.
+    _write_scalar_demand_timeseries(techs, locs, loc_tech_assign,
+                                    time_start, time_end, config_dir,
+                                    technologies=technologies)
+
     with open(config_dir / 'techs.yaml', 'w') as f:
         f.write(dump_yaml({'techs': techs}))
     log("  Wrote techs.yaml")
@@ -514,7 +710,8 @@ def run_model(model_data, work_dir):
         'import': ['model_config/techs.yaml', 'model_config/locations.yaml'],
         'model': {
             'name': model_name,
-            'calliope_version': '0.6.10',
+            'calliope_version': '0.6.8',
+            'timeseries_data_path': 'model_config',
             'subset_time': [time_start, time_end],
         },
         'run': run_cfg,
