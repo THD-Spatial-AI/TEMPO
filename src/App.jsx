@@ -22,6 +22,7 @@ const Export = lazy(() => import("./components/Export"));
 const Run = lazy(() => import("./components/Run"));
 const Results = lazy(() => import("./components/Results"));
 const SetupScreen = lazy(() => import("./components/SetupScreen"));
+const HydrogenPlantDashboard = lazy(() => import("./components/HydrogenPlantDashboard"));
 
 function AppContent() {
   const [selected, setSelected] = useState("Dashboard");
@@ -67,6 +68,7 @@ function AppContent() {
       case "Run":            return <Run />;
       case "Results":        return <Results />;
       case "Export":         return <Export />;
+      case "H2 Plant":       return <HydrogenPlantDashboard />;
       default:               return <Dashboard />;
     }
   };

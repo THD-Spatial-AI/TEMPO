@@ -1,6 +1,9 @@
 # Build / generated sites
 site/
 
+# Local Calliope solver venv (created by scripts/setup_local_solver.*)
+solver-env/
+
 # Logs
 logs
 *.log
@@ -76,6 +79,11 @@ release/
 !.env.example
 *.key
 *.pem
+
+# Bundled solver binaries (downloaded by scripts/download_cbc.ps1 — not committed)
+solvers/windows/cbc.exe
+solvers/linux/cbc
+solvers/mac/cbc
 
 # Temp files
 temp_map_check.txt

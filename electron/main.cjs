@@ -295,9 +295,9 @@ ipcMain.handle('calliope:install', async () => {
         'create', '-y', '-n', 'calliope',
         '-c', 'conda-forge',
         'python=3.9',
-        'calliope',
-        'highspy',       // HiGHS LP/MIP solver (free, open-source, works with Pyomo)
-        'pyomo',
+        'calliope=0.6.8',  // calliope_runner.py targets the 0.6.x API
+        'coin-or-cbc',     // CBC open-source LP/MIP solver (free, no licence)
+        'pyomo>=6.4',      // 6.4+ required for HiGHS support in Pyomo
       ], { shell: false });
 
       child.stdout.on('data', d => {
@@ -320,7 +320,7 @@ ipcMain.handle('calliope:install', async () => {
     await new Promise((resolve, reject) => {
       const child = spawn(conda, [
         'run', '-n', 'calliope', '--no-capture-output',
-        'python', '-c', 'import calliope; import highspy; print("OK calliope", calliope.__version__)',
+        'python', '-c', 'import calliope; import pyomo.environ; print("OK calliope", calliope.__version__)',
       ], { shell: false });
       let out = '';
       child.stdout.on('data', d => { out += d.toString(); });
@@ -359,7 +359,7 @@ ipcMain.handle('calliope:run', async (event, { modelData, solver }) => {
   const outputFile = path.join(tmpDir, `calliope_out_${jobId}.json`);
 
   // Write the model payload to a temp file
-  const payload = { ...modelData, solver: solver || 'highs' };
+  const payload = { ...modelData, solver: solver || 'cbc' };
   fs.writeFileSync(inputFile, JSON.stringify(payload, null, 2), 'utf-8');
 
   const conda = findConda();
@@ -373,10 +373,22 @@ ipcMain.handle('calliope:run', async (event, { modelData, solver }) => {
 
   const runnerPath = getRunnerPath();
 
+  // Prepend the bundled solver directory so calliope_runner finds cbc.exe
+  // even if the user's conda env doesn't have coin-or-cbc installed.
+  const solverDir = app.isPackaged
+    ? path.join(process.resourcesPath, 'app.asar.unpacked', 'solvers', 'windows')
+    : path.join(__dirname, '..', 'solvers', 'windows');
+
+  const childEnv = Object.assign({}, process.env);
+  if (fs.existsSync(solverDir)) {
+    childEnv.PATH = solverDir + path.delimiter + (childEnv.PATH || '');
+    childEnv.CALLIOPE_SOLVER_DIR = solverDir;
+  }
+
   const child = spawn(conda, [
     'run', '-n', 'calliope', '--no-capture-output',
     'python', runnerPath, inputFile, outputFile,
-  ], { shell: false });
+  ], { shell: false, env: childEnv });
 
   activeCalliopeJobs[jobId] = child;
 
