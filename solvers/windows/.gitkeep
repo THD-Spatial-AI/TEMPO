@@ -1,0 +1,2 @@
+# CBC binary is downloaded by scripts/download_cbc.ps1 — not committed to git.
+# Run:  pwsh -File scripts\download_cbc.ps1

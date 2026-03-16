@@ -19,6 +19,7 @@ import {
   FiDownload,
   FiPlay,
   FiPieChart,
+  FiZap,
 } from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -157,6 +158,13 @@ const Sidebar = ({ selected, setSelected }) => {
         <Option
           Icon={FiPieChart}
           title="Results"
+          selected={selected}
+          setSelected={setSelected}
+          open={open}
+        />
+        <Option
+          Icon={FiZap}
+          title="H2 Plant"
           selected={selected}
           setSelected={setSelected}
           open={open}

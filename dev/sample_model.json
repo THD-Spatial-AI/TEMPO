@@ -1,0 +1,123 @@
+{
+  "_comment": "Minimal self-contained 2-location electricity model. No external CSV files needed. Runs in ~10-30 s.",
+  "name": "Dev Test Model",
+  "solver": "cbc",
+
+  "parameters": [
+    { "key": "subset_time_start", "value": "2005-01-01" },
+    { "key": "subset_time_end",   "value": "2005-01-02" }
+  ],
+
+  "locations": [
+    {
+      "id": "north",
+      "name": "North Region",
+      "lat": 52.5,
+      "lng": 13.4
+    },
+    {
+      "id": "south",
+      "name": "South Region",
+      "lat": 48.1,
+      "lng": 11.6
+    }
+  ],
+
+  "technologies": [
+    {
+      "id": "ccgt",
+      "name": "CCGT Gas",
+      "essentials": {
+        "name": "Combined Cycle Gas Turbine",
+        "parent": "supply",
+        "carrier_out": "electricity"
+      },
+      "constraints": {
+        "energy_eff": 0.55,
+        "energy_cap_max": 500,
+        "lifetime": 25,
+        "resource": ".inf"
+      },
+      "costs": {
+        "monetary": {
+          "interest_rate": 0.07,
+          "energy_cap": 900,
+          "om_prod": 0.005,
+          "om_annual": 18
+        }
+      }
+    },
+    {
+      "id": "solar_pv",
+      "name": "Solar PV",
+      "essentials": {
+        "name": "Solar PV",
+        "parent": "supply",
+        "carrier_out": "electricity"
+      },
+      "constraints": {
+        "energy_eff": 1.0,
+        "energy_cap_max": 1000,
+        "lifetime": 25,
+        "resource": ".inf"
+      },
+      "costs": {
+        "monetary": {
+          "interest_rate": 0.07,
+          "energy_cap": 700,
+          "om_annual": 7
+        }
+      }
+    },
+    {
+      "id": "battery",
+      "name": "Battery Storage",
+      "essentials": {
+        "name": "Li-ion Battery",
+        "parent": "storage",
+        "carrier": "electricity"
+      },
+      "constraints": {
+        "energy_cap_max": 200,
+        "storage_cap_max": 800,
+        "energy_eff": 0.95,
+        "storage_loss": 0.001,
+        "lifetime": 15
+      },
+      "costs": {
+        "monetary": {
+          "interest_rate": 0.07,
+          "energy_cap": 300,
+          "storage_cap": 150,
+          "om_annual": 6
+        }
+      }
+    },
+    {
+      "id": "demand_el",
+      "name": "Electricity Demand",
+      "essentials": {
+        "name": "Electricity demand",
+        "parent": "demand",
+        "carrier": "electricity"
+      },
+      "constraints": {
+        "resource": -100,
+        "force_resource": true
+      }
+    }
+  ],
+
+  "locationTechAssignments": {
+    "north": ["ccgt", "solar_pv", "battery", "demand_el"],
+    "south": ["ccgt", "solar_pv", "battery", "demand_el"]
+  },
+
+  "links": [
+    {
+      "from": "north",
+      "to": "south",
+      "linkType": "hvac_overhead"
+    }
+  ]
+}

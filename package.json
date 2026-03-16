@@ -27,11 +27,13 @@
       "dist/**/*",
       "electron/**/*",
       "backend-go/**/*",
-      "python/**/*"
+      "python/**/*",
+      "solvers/**/*"
     ],
     "asarUnpack": [
       "backend-go/**/*",
-      "python/**/*"
+      "python/**/*",
+      "solvers/**/*"
     ],
     "win": {
       "target": [
