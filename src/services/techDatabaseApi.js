@@ -2,7 +2,7 @@
  * techDatabaseApi.js
  * ------------------
  * Frontend client for the opentech-db Technology Catalog API
- * (default: http://localhost:8000).
+ * (default: hosted ngrok instance — no local setup required).
  *
  * Supported endpoints:
  *   GET  /api/v1/technologies                     – paginated catalog list
@@ -18,6 +18,9 @@
  *
  * All functions return Promises. Callers fall back to TECH_TEMPLATES when
  * the API is offline — no exceptions bubble to UI.
+ *
+ * Hosted URL: https://marleigh-unmuttering-effortlessly.ngrok-free.dev
+ * Override with: VITE_TECH_API_URL=http://localhost:8000  (local dev)
  */
 
 // ---------------------------------------------------------------------------
@@ -26,7 +29,10 @@
 
 export const OEO_API_BASE_URL =
   (typeof import.meta !== 'undefined' && import.meta.env?.VITE_TECH_API_URL) ||
-  '/tech'; // Vite dev proxy: /tech/* → :8000; Go backend proxy in production
+  '/tech'; // Vite dev proxy → ngrok VM (avoids browser SSL cert validation)
+
+// ngrok bypass header — injected by Vite proxy above; kept here for direct calls
+const EXTRA_HEADERS = { 'ngrok-skip-browser-warning': 'true' };
 
 const API_V1 = `${OEO_API_BASE_URL}/api/v1`;
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -51,7 +57,7 @@ async function apiFetch(path, timeoutMs = DEFAULT_TIMEOUT_MS) {
   const timerId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const response = await fetch(url, { signal: controller.signal });
+    const response = await fetch(url, { signal: controller.signal, headers: EXTRA_HEADERS });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText} (${url})`);
     }

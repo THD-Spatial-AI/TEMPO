@@ -9,9 +9,16 @@ export default defineConfig({
     proxy: {
       // Forward /tech/* to the opentech-db Python API (not directly reachable from browser)
       '/tech': {
-        target: 'http://localhost:8000',
+        target: 'https://marleigh-unmuttering-effortlessly.ngrok-free.dev',
         changeOrigin: true,
+        secure: false, // skip SSL cert validation for ngrok free tier
         rewrite: (path) => path.replace(/^\/tech/, ''),
+        configure: (proxy) => {
+          // Inject the ngrok bypass header into every upstream request
+          proxy.on('proxyReq', (proxyReq) => {
+            proxyReq.setHeader('ngrok-skip-browser-warning', 'true');
+          });
+        },
       },
     },
   },
