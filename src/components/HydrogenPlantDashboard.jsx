@@ -339,13 +339,13 @@ export default function HydrogenPlantDashboard() {
             border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
         >
           {healthError ? (
-            <><FiWifiOff className="text-red-400" /> VM unreachable</>
+            <><FiWifiOff className="text-red-400" /> VM offline</>
           ) : health === null ? (
             <><FiWifi className="text-slate-300 animate-pulse" /> Connecting…</>
           ) : !health.engine_ready ? (
-            <><FiClock className="text-amber-400 animate-pulse" /> Engine warming up…</>
+            <><FiClock className="text-amber-400 animate-pulse" /> MATLAB warming up…</>
           ) : (
-            <><FiWifi className="text-emerald-500" /> VM connected · {health.active_jobs} job{health.active_jobs !== 1 ? "s" : ""}</>
+            <><FiWifi className="text-emerald-500" /> VM connected · engine ready</>
           )}
           <FiRefreshCw size={13} className="text-slate-400" />
         </button>
@@ -353,14 +353,63 @@ export default function HydrogenPlantDashboard() {
 
       {/* ── VM error banner ───────────────────────────────────────────────── */}
       {healthError && (
-        <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
-          <FiAlertCircle className="mt-0.5 shrink-0" />
-          <div>
-            <strong>Cannot reach simulation VM.</strong> {healthError}
-            <br />
-            <span className="text-red-500 text-xs">
-              Check <code>VITE_H2_SERVICE_URL</code> in your <code>.env</code> file. See <code>hydrogen_vm_prompt.txt</code> for VM setup.
-            </span>
+        <div className="bg-red-50 border border-red-200 rounded-2xl overflow-hidden">
+          <div className="flex items-start gap-3 px-5 py-4 border-b border-red-100">
+            <FiAlertCircle className="mt-0.5 shrink-0 text-red-500" size={18} />
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-red-800">Cannot reach simulation VM at <code className="text-red-700 bg-red-100 px-1 rounded">10.1.66.27:8765</code></p>
+              <p className="text-red-600 text-xs mt-0.5 break-all">{healthError}</p>
+            </div>
+            <button
+              onClick={pingHealth}
+              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-white border border-red-200 text-red-700 hover:bg-red-50 transition-all"
+            >
+              <FiRefreshCw size={11} /> Retry
+            </button>
+          </div>
+
+          <div className="px-5 py-4 space-y-3 text-xs text-red-700">
+            <p className="font-semibold text-red-800 uppercase tracking-wide text-[11px]">Troubleshooting steps (run on the VM via RDP)</p>
+
+            <div className="space-y-2 bg-amber-50 border border-amber-200 rounded-xl p-3">
+              <p className="font-semibold text-amber-800">⚠ Most common cause: uvicorn is bound to <code className="bg-amber-100 px-1 rounded">127.0.0.1</code> only</p>
+              <p className="text-amber-700">The service runs on the VM but only accepts local connections. Restart it with <code className="bg-amber-100 px-1 rounded">--host 0.0.0.0</code>:</p>
+              <pre className="bg-white border border-amber-200 rounded-lg px-3 py-2 font-mono text-[11px] text-slate-700 overflow-x-auto whitespace-pre-wrap">
+{`schtasks /End /TN HydrogenSimBridge
+cd C:\\Users\\admin1\\Desktop\\MATLAB_API\\hydrogen-plant-sim
+uvicorn main:app --host 0.0.0.0 --port 8765`}
+              </pre>
+              <p className="text-amber-700">If it works, update the scheduled task's command to permanently include <code className="bg-amber-100 px-1 rounded">--host 0.0.0.0</code>.</p>
+            </div>
+
+            <div className="space-y-2">
+              <p className="font-medium text-red-800">Add firewall inbound rule on the VM (run once as admin):</p>
+              <pre className="bg-white border border-red-200 rounded-lg px-3 py-2 font-mono text-[11px] text-slate-700 overflow-x-auto whitespace-pre-wrap">
+{`netsh advfirewall firewall add rule name="HydrogenSimBridge" dir=in action=allow protocol=TCP localport=8765`}
+              </pre>
+            </div>
+
+            <div className="space-y-2">
+              <p className="font-medium text-red-800">Verify it's reachable from the network (run on the VM):</p>
+              <pre className="bg-white border border-red-200 rounded-lg px-3 py-2 font-mono text-[11px] text-slate-700 overflow-x-auto whitespace-pre-wrap">
+{`curl http://10.1.66.27:8765/api/hydrogen/health`}
+              </pre>
+              <p>If that returns <code className="bg-red-100 px-1 rounded">engine_ready: true</code> the service is accessible externally.</p>
+            </div>
+
+            <div className="space-y-1 border-t border-red-200 pt-3">
+              <p className="font-medium text-red-800">Log files on the VM:</p>
+              <code className="block bg-white border border-red-200 rounded px-2 py-1 font-mono text-[11px] text-slate-600">C:\Users\admin1\Desktop\MATLAB_API\hydrogen-plant-sim\service.log</code>
+              <code className="block bg-white border border-red-200 rounded px-2 py-1 font-mono text-[11px] text-slate-600">C:\Users\admin1\Desktop\MATLAB_API\hydrogen-plant-sim\service.err</code>
+            </div>
+
+            <div className="border-t border-red-200 pt-3">
+              <p className="font-medium text-red-800">Alternative: SSH tunnel (skip firewall/host issues entirely):</p>
+              <pre className="bg-white border border-red-200 rounded-lg px-3 py-2 font-mono text-[11px] text-slate-700 overflow-x-auto">
+{`ssh -L 8765:localhost:8765 admin1@10.1.66.27`}
+              </pre>
+              <p className="mt-1">Then set <code className="bg-red-100 px-1 rounded">.env</code>: <code className="bg-red-100 px-1 rounded">VITE_H2_SERVICE_URL=http://localhost:8765</code> and restart the dev server.</p>
+            </div>
           </div>
         </div>
       )}
@@ -428,6 +477,7 @@ export default function HydrogenPlantDashboard() {
               <button
                 onClick={handleRun}
                 disabled={!health?.engine_ready}
+                title={!health?.engine_ready ? (healthError ? "VM is offline — see diagnostic panel above" : "Waiting for MATLAB engine to become ready…") : "Run simulation"}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl
                   bg-gradient-to-r from-electric-500 to-electric-600 text-white font-semibold text-sm
                   shadow-md hover:shadow-lg hover:from-electric-600 hover:to-electric-700
@@ -551,13 +601,20 @@ export default function HydrogenPlantDashboard() {
       {simState === SIM_STATES.IDLE && (
         <Card className="p-12 flex flex-col items-center justify-center text-center gap-4">
           <div className="p-5 rounded-full bg-slate-50 border border-slate-100">
-            <FiZap size={32} className="text-slate-300" />
+            <FiZap size={32} className={healthError ? "text-red-300" : "text-slate-300"} />
           </div>
           <div>
-            <p className="font-semibold text-slate-700">Configure parameters and run the simulation</p>
-            <p className="text-sm text-slate-400 mt-1">
-              Results will appear here once the MATLAB/Simulink engine on the VM completes the computation.
-            </p>
+            {healthError ? (
+              <>
+                <p className="font-semibold text-red-600">Simulation VM is offline</p>
+                <p className="text-sm text-slate-400 mt-1">Follow the troubleshooting steps in the panel above to restore connectivity, then click Retry.</p>
+              </>
+            ) : (
+              <>
+                <p className="font-semibold text-slate-700">Configure parameters and run the simulation</p>
+                <p className="text-sm text-slate-400 mt-1">Results will appear here once the MATLAB/Simulink engine on the VM completes the computation.</p>
+              </>
+            )}
           </div>
         </Card>
       )}
