@@ -1,21 +1,21 @@
 /**
  * hydrogenService.js
  * ------------------
- * API client for the Python/FastAPI MATLAB Bridge running on port 8765.
+ * API client for the Python/FastAPI MATLAB Bridge running on the simulation VM.
  *
  * Provides:
- *   startSimulation(params)     → Promise<{ job_id, status }>
- *   pollStatus(jobId)           → Promise<JobStatusResponse>
- *   openResultsSocket(jobId, callbacks) → WebSocket  (call .close() to unsubscribe)
- *   checkHealth()               → Promise<HealthResponse>
+ *   checkHealth()          → Promise<HealthResponse>
+ *   startSimulation(params)→ Promise<{ job_id, status }>
+ *   pollStatus(jobId)      → Promise<JobStatusResponse>
+ *   runSimulation(params, callbacks) → Promise<cancelFn>
+ *     ↳ tries WebSocket first; if WS fails within 3 s falls back to HTTP polling
  *
- * All functions handle network errors gracefully and surface a human-readable
- * `message` field on thrown errors.
+ * URL configured via: VITE_H2_SERVICE_URL in .env
  */
 
-// URL of the Hydrogen Plant MATLAB Bridge running on the simulation VM.
-// Set VITE_H2_SERVICE_URL in your .env file (see .env.example).
-const BASE_URL = import.meta.env.VITE_H2_SERVICE_URL ?? "http://localhost:8765";
+// Always use the direct VM URL — the VM allows CORS from all origins ("*"),
+// so no proxy is needed in either dev or Electron production.
+const BASE_URL = (import.meta.env.VITE_H2_SERVICE_URL ?? "http://localhost:8765").replace(/\/$/, "");
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -94,71 +94,152 @@ export async function pollStatus(jobId) {
   return apiFetch(`/api/hydrogen/status/${jobId}`);
 }
 
+// ── WebSocket path ────────────────────────────────────────────────────────────
+
+function wsUrlForJob(jobId) {
+  // http → ws, https → wss
+  return `${BASE_URL.replace(/^http/, "ws")}/api/hydrogen/ws/${jobId}`;
+}
+
+// ── Polling fallback ──────────────────────────────────────────────────────────
+
 /**
- * Open a WebSocket connection that streams real-time progress and the final
- * result for the given job.
- *
- * @param {string} jobId
- * @param {{
- *   onProgress?: (data: { status: string, progress_pct: number }) => void,
- *   onResult?:   (result: SimulationResult) => void,
- *   onError?:    (msg: string) => void,
- *   onClose?:    () => void,
- * }} callbacks
- * @returns {WebSocket}  Call `.close()` to unsubscribe.
+ * Poll /status/{jobId} every `intervalMs` ms until done or error.
+ * Returns a cancel function.
  */
-export function openResultsSocket(jobId, { onProgress, onResult, onError, onClose } = {}) {
-  const wsBase = BASE_URL.replace(/^http/, "ws");
-  const ws = new WebSocket(`${wsBase}/api/hydrogen/ws/${jobId}`);
+function startPolling(jobId, { onProgress, onResult, onError }, intervalMs = 2000) {
+  let stopped = false;
+
+  (async () => {
+    while (!stopped) {
+      await new Promise((r) => setTimeout(r, intervalMs));
+      if (stopped) break;
+      try {
+        const data = await pollStatus(jobId);
+        if (stopped) break;
+
+        if (data.status === "done" && data.result) {
+          onResult?.(data.result);
+          break;
+        } else if (data.status === "error") {
+          onError?.(data.error ?? "Unknown simulation error");
+          break;
+        } else {
+          onProgress?.(data);
+        }
+      } catch (e) {
+        if (!stopped) onError?.(e.message);
+        break;
+      }
+    }
+  })();
+
+  return () => { stopped = true; };
+}
+
+// ── WebSocket with automatic polling fallback ─────────────────────────────────
+
+/**
+ * Try to open a WebSocket for `jobId`.
+ * If WS fails to open within 3 s, automatically falls back to HTTP polling.
+ * Returns a cancel/close function.
+ */
+function openResultsSocketWithFallback(jobId, callbacks = {}) {
+  const { onProgress, onResult, onError, onClose } = callbacks;
+
+  let cancelled = false;
+  let stopPolling = () => {};
+  let keepAlive = null;
+
+  // Fallback timer: if WS hasn't opened within 4 s, switch to HTTP polling
+  const fallbackTimer = setTimeout(() => {
+    if (import.meta.env.DEV) console.warn("[hydrogenService] WS timeout — switching to HTTP polling");
+    stopPolling = startPolling(jobId, { onProgress, onResult, onError });
+  }, 4000);
+
+  let ws;
+  try {
+    ws = new WebSocket(wsUrlForJob(jobId));
+  } catch (_) {
+    clearTimeout(fallbackTimer);
+    stopPolling = startPolling(jobId, { onProgress, onResult, onError });
+    return () => { cancelled = true; stopPolling(); };
+  }
 
   ws.onopen = () => {
-    import.meta.env.DEV && console.log(`[hydrogenService] WS open for job ${jobId}`);
+    clearTimeout(fallbackTimer); // WS is up — cancel the polling fallback
+    if (import.meta.env.DEV) console.log(`[hydrogenService] WS open for job ${jobId}`);
+    // Keep-alive: API docs require client to send "ping" every 30 s
+    keepAlive = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) ws.send("ping");
+    }, 30_000);
   };
 
   ws.onmessage = (evt) => {
+    // Server sends plain-text "pong" in response to our keep-alive "ping" — ignore it
+    if (evt.data === "pong") return;
+
     let data;
-    try {
-      data = JSON.parse(evt.data);
-    } catch (_) {
-      return;
-    }
+    try { data = JSON.parse(evt.data); } catch (_) { return; }
 
     if (data.status === "done" && data.result) {
+      clearInterval(keepAlive);
       onResult?.(data.result);
+      ws.close();
     } else if (data.status === "error") {
+      clearInterval(keepAlive);
       onError?.(data.error ?? "Unknown simulation error");
+      ws.close();
     } else {
+      // progress update: { status: "running", progress_pct: N }
       onProgress?.(data);
     }
   };
 
   ws.onerror = () => {
-    onError?.("WebSocket connection error. The MATLAB service may have crashed.");
+    clearTimeout(fallbackTimer);
+    clearInterval(keepAlive);
+    if (import.meta.env.DEV) console.warn("[hydrogenService] WS error — switching to HTTP polling");
+    ws.close();
+    if (!cancelled) {
+      stopPolling = startPolling(jobId, { onProgress, onResult, onError });
+    }
   };
 
   ws.onclose = () => {
-    import.meta.env.DEV && console.log(`[hydrogenService] WS closed for job ${jobId}`);
+    clearTimeout(fallbackTimer);
+    clearInterval(keepAlive);
+    if (import.meta.env.DEV) console.log(`[hydrogenService] WS closed for job ${jobId}`);
     onClose?.();
   };
 
-  return ws;
+  return () => {
+    cancelled = true;
+    clearTimeout(fallbackTimer);
+    clearInterval(keepAlive);
+    stopPolling();
+    try { if (ws.readyState < WebSocket.CLOSING) ws.close(); } catch (_) { /* */ }
+  };
 }
 
+// ── Main convenience function ─────────────────────────────────────────────────
+
 /**
- * Convenience: start a simulation and subscribe to websocket updates in one call.
+ * Start a simulation and subscribe to progress/result updates.
+ * Tries WebSocket first; automatically falls back to polling if WS unavailable.
  *
- * @param {object} params  – same as startSimulation()
+ * @param {object} params
  * @param {{
  *   onQueued?:   (jobId: string) => void,
  *   onProgress?: (data) => void,
  *   onResult?:   (result) => void,
- *   onError?:    (msg) => void,
+ *   onError?:    (msg: string) => void,
  * }} callbacks
- * @returns {Promise<() => void>}  Resolves to a cancel/unsubscribe function.
+ * @returns {Promise<() => void>}  cancel/unsubscribe function
  */
 export async function runSimulation(params, callbacks = {}) {
   const { job_id } = await startSimulation(params);
   callbacks.onQueued?.(job_id);
-  const ws = openResultsSocket(job_id, callbacks);
-  return () => ws.close();
+  const cancel = openResultsSocketWithFallback(job_id, callbacks);
+  return cancel;
 }
