@@ -29,10 +29,10 @@
 
 export const OEO_API_BASE_URL =
   (typeof import.meta !== 'undefined' && import.meta.env?.VITE_TECH_API_URL) ||
-  '/tech'; // Vite dev proxy → ngrok VM (avoids browser SSL cert validation)
+  '/tech'; // Vite dev proxy: /tech/* → http://localhost:8000 (Docker)
 
-// ngrok bypass header — injected by Vite proxy above; kept here for direct calls
-const EXTRA_HEADERS = { 'ngrok-skip-browser-warning': 'true' };
+// No extra headers needed for local Docker
+const EXTRA_HEADERS = {};
 
 const API_V1 = `${OEO_API_BASE_URL}/api/v1`;
 const DEFAULT_TIMEOUT_MS = 10_000;

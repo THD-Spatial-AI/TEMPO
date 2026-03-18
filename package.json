@@ -39,7 +39,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     },
@@ -60,6 +62,7 @@
     "@emotion/styled": "^11.14.1",
     "@mui/icons-material": "^7.3.7",
     "@mui/material": "^7.3.7",
+    "@xyflow/react": "^12.10.1",
     "apexcharts": "^5.3.6",
     "clsx": "^2.1.1",
     "deck.gl": "^9.2.5",

@@ -29,6 +29,11 @@ import {
   runSimulation,
   checkHealth,
 } from "../services/hydrogenService";
+import H2PlantFlowDiagram from "./H2PlantFlowDiagram";
+import H2EnergyCharts from "./H2EnergyCharts";
+import H2GeneratorPanel from "./H2GeneratorPanel";
+import H2NodeModal from "./H2NodeModal";
+import { fetchH2Models, getBestModel, applyModelParams, H2_SLOTS } from "../services/h2TechModels";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tiny reusable primitives (matches app-wide Tailwind conventions)
@@ -245,6 +250,10 @@ export default function HydrogenPlantDashboard() {
   const [fc,  setFc]  = useState({ h2_flow_rate_nm3h: 40, oxidant_pressure_bar: 2.5, cooling_capacity_kw: 35 });
   const [sim, setSim] = useState({ t_end_s: 3600, dt_s: 60 });
 
+  // ── Technology model catalogue (opentech-db / fallback) ───────────────────
+  const [models,         setModels]         = useState({});
+  const [selectedModels, setSelectedModels] = useState({});
+
   // ── Simulation state ──────────────────────────────────────────────────────
   const [simState,  setSimState]  = useState(SIM_STATES.IDLE);
   const [progress,  setProgress]  = useState(0);
@@ -269,6 +278,41 @@ export default function HydrogenPlantDashboard() {
     const id = setInterval(pingHealth, 30_000);
     return () => clearInterval(id);
   }, [pingHealth]);
+
+  // ── Load tech-model catalogue from opentech-db (with fallback) ───────────
+  useEffect(() => {
+    let alive = true;
+    Promise.all(
+      Object.keys(H2_SLOTS).map(async (k) => {
+        const list = await fetchH2Models(k);
+        return [k, list];
+      })
+    ).then((entries) => {
+      if (!alive) return;
+      const m    = Object.fromEntries(entries);
+      const best = Object.fromEntries(entries.map(([k, list]) => [k, getBestModel(list)]));
+      setModels(m);
+      setSelectedModels(best);
+    });
+    return () => { alive = false; };
+  }, []);
+
+  const handleSelectModel = useCallback((slotKey, model) => {
+    setSelectedModels((p) => ({ ...p, [slotKey]: model }));
+    const patch = applyModelParams(slotKey, model);
+    if (!patch) return;
+    if (slotKey === "source" || slotKey === "electrolyzer") setElz((p) => ({ ...p, ...patch }));
+    if (slotKey === "compressor" || slotKey === "storage")  setSto((p) => ({ ...p, ...patch }));
+    if (slotKey === "fuel_cell")                            setFc((p)  => ({ ...p, ...patch }));
+  }, []);
+
+  // ── Node detail panel (click any node in the PFD to open its analysis) ────
+  const [activeNodeId, setActiveNodeId] = useState(null);
+  const handleNodeClick = useCallback((_evt, node) => {
+    setActiveNodeId((prev) => (prev === node.id ? null : node.id));
+  }, []);
+
+
 
   // ── Run simulation ────────────────────────────────────────────────────────
   const handleRun = async () => {
@@ -414,32 +458,37 @@ uvicorn main:app --host 0.0.0.0 --port 8765`}
         </div>
       )}
 
-      {/* ── Parameter panels ──────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      {/* ── Process Flow Diagram (Simulink-style interactive PFD) ──────────── */}
+      <H2PlantFlowDiagram
+        elz={elz} setElz={setElz}
+        sto={sto} setSto={setSto}
+        fc={fc}   setFc={setFc}
+        simState={simState}
+        kpi={kpi}
+        models={models}
+        selectedModels={selectedModels}
+        onSelectModel={handleSelectModel}
+        activeNodeId={activeNodeId}
+        onNodeClick={handleNodeClick}
+      />
 
-        {/* Electrolyzer */}
-        <Card className="p-5">
-          <SectionHeader icon={FiZap} label="Electrolyzer" color="electric" />
-          <ParamSlider label="Grid Power"        unit="kW"    value={elz.grid_power_kw}       min={0}   max={2000} step={10}  onChange={(v) => setElz((p) => ({ ...p, grid_power_kw: v }))} />
-          <ParamSlider label="Water Flow Rate"   unit="L/min" value={elz.water_flow_rate_lpm}  min={0}   max={500}  step={5}   onChange={(v) => setElz((p) => ({ ...p, water_flow_rate_lpm: v }))} />
-          <ParamSlider label="Operating Temp."   unit="°C"    value={elz.temperature_c}        min={20}  max={100}  step={1}   onChange={(v) => setElz((p) => ({ ...p, temperature_c: v }))} />
-        </Card>
-
-        {/* Storage */}
-        <Card className="p-5">
-          <SectionHeader icon={FiDatabase} label="H₂ Storage" color="amber" />
-          <ParamSlider label="Compressor Efficiency" unit="[-]"  value={sto.compressor_efficiency}  min={0.3}  max={1.0}  step={0.01} onChange={(v) => setSto((p) => ({ ...p, compressor_efficiency: v }))} />
-          <ParamSlider label="Max Tank Pressure"     unit="bar"  value={sto.max_tank_pressure_bar}  min={50}   max={700}  step={10}   onChange={(v) => setSto((p) => ({ ...p, max_tank_pressure_bar: v }))} />
-        </Card>
-
-        {/* Fuel Cell */}
-        <Card className="p-5">
-          <SectionHeader icon={FiCpu} label="Fuel Cell" color="violet" />
-          <ParamSlider label="H₂ Flow Rate"       unit="Nm³/h" value={fc.h2_flow_rate_nm3h}     min={0}   max={200} step={1}   onChange={(v) => setFc((p) => ({ ...p, h2_flow_rate_nm3h: v }))} />
-          <ParamSlider label="Oxidant Pressure"   unit="bar"   value={fc.oxidant_pressure_bar}   min={1}   max={10}  step={0.1} onChange={(v) => setFc((p) => ({ ...p, oxidant_pressure_bar: v }))} />
-          <ParamSlider label="Cooling Capacity"   unit="kW"    value={fc.cooling_capacity_kw}    min={0}   max={200} step={1}   onChange={(v) => setFc((p) => ({ ...p, cooling_capacity_kw: v }))} />
-        </Card>
-      </div>
+      {/* ── Node detail modal (portal → always on top) ──────────────────────── */}
+      <H2NodeModal
+        open={activeNodeId === "grid"}
+        onClose={() => setActiveNodeId(null)}
+        title={selectedModels?.source?.name ?? "Power Source Analysis"}
+        subtitle="Technology profile · energy conversion chain · simulation overlay"
+        icon={<FiZap size={18} />}
+        accentColor="bg-amber-500"
+      >
+        <H2GeneratorPanel
+          selectedModel={selectedModels?.source}
+          elzModel={selectedModels?.electrolyzer}
+          elzParams={elz}
+          result={result}
+          simState={simState}
+        />
+      </H2NodeModal>
 
       {/* ── Simulation controls ───────────────────────────────────────────── */}
       <Card className="p-5">
@@ -556,6 +605,14 @@ uvicorn main:app --host 0.0.0.0 --port 8765`}
           <KpiCard label="System Efficiency"      value={fmt(kpi.system_efficiency_pct)}    unit="%"      color="emerald"  />
         </div>
       )}
+
+      {/* ── Energy Evolution Charts (H2EnergyCharts) ──────────────────────── */}
+      <H2EnergyCharts
+        result={result}
+        simState={simState}
+        progress={progress}
+        sourceName={selectedModels?.source?.name}
+      />
 
       {/* ── Charts (shown only after a successful run) ─────────────────────── */}
       {simState === SIM_STATES.DONE && result && (
