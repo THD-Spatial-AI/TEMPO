@@ -16,7 +16,7 @@
  *   simState       {string}  – 'idle'|'queued'|'running'|'done'|'error'
  */
 
-import React, { useMemo, useState, useEffect, useCallback } from "react";
+import React, { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import ReactECharts from "echarts-for-react";
 import {
   FiSun, FiWind, FiZap, FiDroplet, FiActivity,
@@ -276,7 +276,7 @@ function buildCsvProfileChart(customProfile, hue) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Profile ECharts option
 // ─────────────────────────────────────────────────────────────────────────────
-function buildProfileChart(profile, setPointKw, hue, techType) {
+function buildProfileChart(profile, hue, techType) {
   const gradFill = techType === "solar"
     ? "rgba(245,158,11,0.18)"
     : techType === "wind"
@@ -295,7 +295,7 @@ function buildProfileChart(profile, setPointKw, hue, techType) {
           + `${p.seriesName}: <b>${Number(p.value ?? 0).toLocaleString()} kW</b>`
         ).join("<br/>"),
     },
-    legend: { data: ["Generated Power (kW)", "Set-point (kW)"], bottom: 0, textStyle: { fontSize: 11 } },
+    legend: { data: ["Generated Power (kW)"], bottom: 0, textStyle: { fontSize: 11 } },
     grid: { top: 16, bottom: 44, left: 60, right: 20 },
     xAxis: { type: "category", data: profile.labels, axisLabel: { fontSize: 10, interval: 7 }, boundaryGap: false },
     yAxis: {
@@ -311,13 +311,6 @@ function buildProfileChart(profile, setPointKw, hue, techType) {
         symbol: "none",
         lineStyle: { color: hue, width: 2.5 },
         areaStyle: { color: gradFill },
-      },
-      {
-        name: "Set-point (kW)",
-        type: "line",
-        data: profile.labels.map(() => setPointKw),
-        symbol: "none",
-        lineStyle: { color: "#64748b", width: 1.5, type: "dashed" },
       },
     ],
   };
@@ -443,7 +436,7 @@ function MetricBadge({ label, value, unit, color = "slate", wide = false }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Main export
 // ─────────────────────────────────────────────────────────────────────────────
-export default function H2GeneratorPanel({ selectedModel, elzModel, elzParams, result, simState, customProfile, variants, onParamsChange }) {
+export default function H2GeneratorPanel({ selectedModel, elzModel, elzParams, result, simState, customProfile, variants, savedParams, onParamsChange }) {
   const techType   = detectTechType(selectedModel);
   const meta       = TECH_META[techType] ?? TECH_META.generic;
   const Icon       = meta.icon;
@@ -501,7 +494,6 @@ export default function H2GeneratorPanel({ selectedModel, elzModel, elzParams, r
   // Ensure capacityKw is always a finite number — guards against stale {value,unit} objects
   const rawCap     = effectiveModel?.capacity_kw;
   const capacityKw = (rawCap != null && isFinite(Number(rawCap))) ? Number(rawCap) : 10000;
-  const setPointKw = elzParams?.grid_power_kw ?? 500;
   const isDone     = simState === "done";
 
   // ── Charts (all react to effectiveModel / effectiveMeta) ─────────────────
@@ -522,8 +514,8 @@ export default function H2GeneratorPanel({ selectedModel, elzModel, elzParams, r
   );
 
   const profileChart = useMemo(
-    () => buildProfileChart(profile, setPointKw, hue, techType),
-    [profile, setPointKw, hue, techType]
+    () => buildProfileChart(profile, hue, techType),
+    [profile, hue, techType]
   );
 
   const actualChart = useMemo(
@@ -1016,7 +1008,6 @@ export default function H2GeneratorPanel({ selectedModel, elzModel, elzParams, r
             style={{ background: `${hue}08`, border: `1px solid ${hue}18` }}
           >
             <span>Capacity: <b className="text-slate-600">{capacityKw >= 1000 ? `${(capacityKw / 1000).toFixed(1)} MW` : `${capacityKw} kW`}</b></span>
-            <span>ELZ set-point: <b className="text-slate-600">{setPointKw.toLocaleString()} kW</b></span>
             <span>CF: <b className="text-slate-600">{cfMin}–{cfMax} %</b></span>
             <span>Daily: <b className="text-slate-600">{genStats.summary.dailyMwh} MWh</b></span>
             <span>Annual: <b className="text-slate-600">{genStats.summary.annualMwh.toLocaleString()} MWh/yr</b></span>

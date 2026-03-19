@@ -31,6 +31,74 @@ import {
 import H2PlantFlowDiagram from "./H2PlantFlowDiagram";
 import H2EnergyCharts from "./H2EnergyCharts";
 import H2GeneratorPanel from "./H2GeneratorPanel";
+import H2ElectrolyzerPanel from "./H2ElectrolyzerPanel";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Detect source tech type from model (mirrors H2GeneratorPanel logic)
+// ─────────────────────────────────────────────────────────────────────────────
+function detectSourceTechType(model) {
+  if (!model) return "generic";
+  const key = `${model.id ?? ""} ${model.name ?? ""}`.toLowerCase();
+  if (/solar|pv|photovoltaic/.test(key))    return "solar";
+  if (/wind/.test(key))                      return "wind";
+  if (/nuclear|pwr|bwr|smr/.test(key))      return "nuclear";
+  if (/hydro|water|river|dam/.test(key))    return "hydro";
+  if (/geotherm/.test(key))                 return "geothermal";
+  if (/biomass|biogas|bio/.test(key))       return "biomass";
+  if (/coal|lignite/.test(key))             return "coal";
+  if (/gas|ccgt|ocgt|lng/.test(key))        return "gas";
+  return "generic";
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Build a [{time_s, value_kw}] source profile from the tech-type shape.
+// Used automatically when no custom CSV is uploaded — gives MATLAB a realistic
+// time-varying power input instead of a flat constant.
+// ─────────────────────────────────────────────────────────────────────────────
+function buildTheoreticalSourceProfile(techType, capacityKw, t_end_s, dt_s) {
+  const cap = Number(capacityKw);
+  if (!isFinite(cap) || cap <= 0) return null;
+  const pts = [];
+  for (let t = 0; t <= t_end_s; t += dt_s) {
+    const h = (t / 3600) % 24;
+    let frac;
+    switch (techType) {
+      case "solar": {
+        const raw = Math.exp(-0.5 * ((h - 12.5) / 2.4) ** 2);
+        frac = (h < 5.5 || h > 19.5) ? 0 : raw;
+        break;
+      }
+      case "wind":
+        frac = Math.min(1, Math.max(0,
+          0.38 + 0.18 * Math.sin(h * 0.65 + 1.2)
+               + 0.12 * Math.sin(h * 1.7  + 0.5)
+               + 0.07 * Math.sin(h * 3.1  + 2.0)));
+        break;
+      case "nuclear":
+      case "geothermal":
+        frac = 0.90 + 0.015 * Math.sin((h / 24) * 2 * Math.PI);
+        break;
+      case "coal":
+      case "biomass":
+        frac = (h >= 7 && h < 22 ? 0.82 : 0.55) + 0.03 * Math.sin(h * 0.9);
+        break;
+      case "gas":
+        frac = Math.min(1, Math.max(0.15,
+          0.45 + 0.25 * Math.sin(((h - 6) / 24) * 2 * Math.PI) + 0.08 * Math.sin(h * 2.1)));
+        break;
+      case "hydro": {
+        const morn = 0.55 * Math.exp(-0.5 * ((h - 8)  / 2.2) ** 2);
+        const eve  = 0.65 * Math.exp(-0.5 * ((h - 19) / 2.5) ** 2);
+        frac = Math.min(1, Math.max(0.15, morn + eve + 0.18));
+        break;
+      }
+      default:
+        frac = 0.75;
+    }
+    pts.push({ time_s: t, value_kw: Math.round(frac * cap) });
+  }
+  return pts;
+}
 import H2NodeModal from "./H2NodeModal";
 import { fetchH2Models, getBestModel, applyModelParams, fetchH2Variants, H2_SLOTS } from "../services/h2TechModels";
 
@@ -374,8 +442,36 @@ export default function HydrogenPlantDashboard() {
       .then((v) => setVariants((p) => ({ ...p, source: v })));
   }, [sourceModelId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Fetch variants for the electrolyzer model
+  const elzModelId = selectedModels?.electrolyzer?.id;
+  useEffect(() => {
+    if (!elzModelId) return;
+    fetchH2Variants(elzModelId, selectedModels?.electrolyzer)
+      .then((v) => setVariants((p) => ({ ...p, electrolyzer: v })));
+  }, [elzModelId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Local param overrides from the generator panel constraints editor
   const [genParamOverrides, setGenParamOverrides] = useState({});
+  // Local param overrides from the electrolyzer panel constraints editor
+  const [elzParamOverrides, setElzParamOverrides] = useState({});
+
+  // ── Sync generator capacity override → ELZ grid_power_kw ─────────────────
+  // The generator feeds the electrolyzer — updating generator capacity should
+  // immediately reflect in the ELZ input power shown in the flow diagram.
+  useEffect(() => {
+    const cap = genParamOverrides?.capacity_kw;
+    if (cap != null && isFinite(Number(cap))) {
+      setElz((p) => ({ ...p, grid_power_kw: Number(cap) }));
+    }
+  }, [genParamOverrides?.capacity_kw]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Sync ELZ efficiency override → elz state (sent to MATLAB) ────────────
+  useEffect(() => {
+    const eff = elzParamOverrides?.efficiency_pct;
+    if (eff != null && isFinite(Number(eff))) {
+      setElz((p) => ({ ...p, efficiency_pct: Number(eff) }));
+    }
+  }, [elzParamOverrides?.efficiency_pct]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Run simulation ────────────────────────────────────────────────────────
   const handleRun = async () => {
@@ -385,9 +481,50 @@ export default function HydrogenPlantDashboard() {
     setErrorMsg(null);
 
     try {
+      // ── Build the full simulation payload ──────────────────────────────────
+      // 1. Resolve source (generator) params with user overrides applied
+      const sourceModel   = selectedModels?.source;
+      const sourceTech    = detectSourceTechType(sourceModel);
+      const safeN = (x) => { const n = Number(x); return isFinite(n) ? n : null; };
+      const sourceCap     = safeN(genParamOverrides?.capacity_kw)
+                         ?? safeN(sourceModel?.capacity_kw)
+                         ?? null;
+      const sourceEff     = safeN(genParamOverrides?.efficiency_pct)
+                         ?? safeN(sourceModel?.efficiency_pct)
+                         ?? null;
+
+      // 2. Build source profile: prefer uploaded CSV, else synthesize from
+      //    the theoretical tech-type profile scaled to simulation horizon.
+      const sourceProfile = customProfile?.data
+        ?? buildTheoreticalSourceProfile(sourceTech, sourceCap, sim.t_end_s, sim.dt_s);
+
+      // 3. ELZ effective params: merge live state + constraint overrides
+      const elzEffective = {
+        ...elz,
+        // Always reflect the generator output as input power
+        grid_power_kw: sourceCap ?? elz.grid_power_kw,
+        // Forward efficiency override so MATLAB uses the right value
+        ...(safeN(elzParamOverrides?.efficiency_pct) != null
+            ? { efficiency_pct: safeN(elzParamOverrides.efficiency_pct) }
+            : {}),
+      };
+
       const cancel = await runSimulation(
-        { electrolyzer: elz, storage: sto, fuel_cell: fc, simulation: sim,
-          ...(customProfile ? { source_profile: customProfile.data } : {}) },
+        {
+          electrolyzer:   elzEffective,
+          storage:        sto,
+          fuel_cell:      fc,
+          simulation:     sim,
+          // Source metadata — MATLAB can use this to parameterise the generator block
+          source: {
+            tech_type:      sourceTech,
+            capacity_kw:    sourceCap,
+            efficiency_pct: sourceEff,
+            name:           sourceModel?.name ?? null,
+          },
+          // Time-series power input: custom CSV takes precedence over theoretical
+          ...(sourceProfile ? { source_profile: sourceProfile } : {}),
+        },
         {
           onQueued:   () => setSimState(SIM_STATES.QUEUED),
           onProgress: (d) => { setSimState(SIM_STATES.RUNNING); setProgress(d.progress_pct ?? 0); },
@@ -502,7 +639,9 @@ export default function HydrogenPlantDashboard() {
         onSetCustomProfile={setCustomProfile}
       />
 
-      {/* ── Node detail modal (portal → always on top) ──────────────────────── */}
+      {/* ── Node detail modals (portal → always on top) ─────────────────────── */}
+
+      {/* Generator / power-source node */}
       <H2NodeModal
         open={activeNodeId === "grid"}
         onClose={() => setActiveNodeId(null)}
@@ -519,7 +658,36 @@ export default function HydrogenPlantDashboard() {
           simState={simState}
           customProfile={customProfile}
           variants={variants?.source}
+          savedParams={genParamOverrides}
           onParamsChange={setGenParamOverrides}
+        />
+      </H2NodeModal>
+
+      {/* Electrolyzer node */}
+      <H2NodeModal
+        open={activeNodeId === "electrolyzer"}
+        onClose={() => setActiveNodeId(null)}
+        title={selectedModels?.electrolyzer?.name ?? "Electrolyzer Analysis"}
+        subtitle="Partial-load efficiency · H₂ production · constraints"
+        icon={<FiZap size={18} />}
+        accentColor="bg-indigo-500"
+      >
+        <H2ElectrolyzerPanel
+          selectedModel={selectedModels?.electrolyzer}
+          savedParams={elzParamOverrides}
+          genTechType={detectSourceTechType(selectedModels?.source)}
+          genCapacityKw={(() => {
+            // Prefer the user-overridden capacity from the generator panel;
+            // fall back to the base model value.
+            const overridden = Number(genParamOverrides?.capacity_kw);
+            if (isFinite(overridden) && overridden > 0) return overridden;
+            const base = Number(selectedModels?.source?.capacity_kw);
+            return isFinite(base) ? base : undefined;
+          })()}
+          result={result}
+          simState={simState}
+          variants={variants?.electrolyzer}
+          onParamsChange={setElzParamOverrides}
         />
       </H2NodeModal>
 
