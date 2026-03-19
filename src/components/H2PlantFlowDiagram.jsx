@@ -15,7 +15,7 @@
  * nodeTypes MUST be defined at module scope to avoid infinite re-renders.
  */
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useRef, useCallback } from "react";
 import {
   ReactFlow,
   Background,
@@ -42,42 +42,232 @@ function lifecycleDot(lifecycle) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Compact model selector dropdown
+// Rich model picker — expandable card list, stop propagation so node modal
+// doesn't trigger when the user interacts with the picker.
 // ─────────────────────────────────────────────────────────────────────────────
-function ModelSelector({ slotKey, models, selected, onSelect, disabled }) {
+function ModelPicker({ slotKey, models, selected, onSelect, disabled }) {
+  const [open, setOpen] = useState(false);
+
   if (!models?.length) return null;
+
+  const stop = (e) => e.stopPropagation();
+
+  const toggle = (e) => {
+    stop(e);
+    if (!disabled) setOpen((o) => !o);
+  };
+
+  const pick = (e, m) => {
+    stop(e);
+    onSelect(slotKey, m);
+    setOpen(false);
+  };
+
+  const sourceLabel = selected?.source === "fallback" ? "built-in" : "api";
+
   return (
-    <div className="mt-2 pt-2 border-t border-slate-100">
-      <div className="flex items-center gap-1 mb-1">
-        <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wide">Model</span>
-        {selected && (
-          <span className={`ml-auto w-2 h-2 rounded-full ${lifecycleDot(selected.lifecycle)}`} title={selected.lifecycle} />
-        )}
-      </div>
-      <select
-        className="nodrag w-full text-[11px] font-semibold text-slate-700
-          bg-slate-50 border border-slate-200 rounded-md px-1.5 py-1
-          focus:outline-none focus:ring-1 focus:ring-blue-400
-          disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-        value={selected?.id ?? ""}
+    <div className="mt-2 pt-2 border-t border-slate-100 relative" onClick={stop}>
+      {/* Trigger button */}
+      <button
         disabled={disabled}
-        onChange={(e) => {
-          const m = models.find((x) => x.id === e.target.value);
-          if (m) onSelect(slotKey, m);
-        }}
+        onClick={toggle}
+        className={`nodrag w-full flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-left
+          border transition-all text-[11px]
+          ${ open
+              ? "border-blue-400 bg-blue-50 text-blue-700"
+              : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-white hover:border-slate-300"
+            }
+          disabled:opacity-40 disabled:cursor-not-allowed`}
       >
-        <option value="" disabled>— Select model —</option>
-        {models.map((m) => (
-          <option key={m.id} value={m.id}>
-            {m.icon ? `${m.icon} ` : ""}{m.name}
-            {m.efficiency_pct != null ? ` (η ${Number(m.efficiency_pct).toFixed(0)}%)` : ""}
-          </option>
-        ))}
-      </select>
-      {selected?.description && (
-        <p className="text-[10px] text-slate-400 mt-0.5 truncate" title={selected.description}>
-          {selected.description}
-        </p>
+        {selected ? (
+          <>
+            <span className={`shrink-0 w-2 h-2 rounded-full ${lifecycleDot(selected.lifecycle)}`} />
+            <span className="flex-1 font-semibold truncate">{selected.name}</span>
+            {selected.efficiency_pct != null && (
+              <span className="shrink-0 text-[10px] text-slate-400">η {Number(selected.efficiency_pct).toFixed(0)}%</span>
+            )}
+            <span className="shrink-0 text-[9px] text-slate-300 font-normal">{sourceLabel}</span>
+          </>
+        ) : (
+          <span className="text-slate-400">— choose model —</span>
+        )}
+        <svg className={`shrink-0 ml-auto w-3 h-3 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`}
+          viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+        </svg>
+      </button>
+
+      {/* Dropdown panel */}
+      {open && (
+        <div
+          className="absolute z-[9999] left-0 top-full mt-1 w-64 bg-white border border-slate-200
+            rounded-xl shadow-xl overflow-hidden"
+          onClick={stop}
+        >
+          <div className="px-3 py-2 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+            <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
+              {models.length} variant{models.length !== 1 ? "s" : ""}
+            </span>
+            <button onClick={toggle} className="text-slate-400 hover:text-slate-600 text-xs leading-none">✕</button>
+          </div>
+          <div className="max-h-52 overflow-y-auto divide-y divide-slate-50">
+            {models.map((m) => {
+              const isActive = selected?.id === m.id;
+              return (
+                <div
+                  key={m.id}
+                  onClick={(e) => pick(e, m)}
+                  className={`px-3 py-2 cursor-pointer transition-colors
+                    ${ isActive
+                        ? "bg-blue-50 border-l-2 border-blue-400"
+                        : "hover:bg-slate-50 border-l-2 border-transparent"
+                      }`}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${lifecycleDot(m.lifecycle)}`} />
+                    <span className="text-[11px] font-semibold text-slate-800 flex-1 truncate">{m.name}</span>
+                    {m.efficiency_pct != null && (
+                      <span className={`text-[10px] font-medium ${ isActive ? "text-blue-600" : "text-slate-400"}`}>
+                        η {Number(m.efficiency_pct).toFixed(0)}%
+                      </span>
+                    )}
+                    {isActive && <span className="text-[9px] text-blue-500">✓</span>}
+                  </div>
+                  {m.capacity_kw != null && (
+                    <p className="text-[10px] text-slate-400 mt-0.5 ml-3.5">
+                      {m.capacity_kw >= 1000
+                        ? `${(m.capacity_kw / 1000).toFixed(1)} MW`
+                        : `${m.capacity_kw} kW`}
+                      {m.lifecycle ? ` · ${m.lifecycle}` : ""}
+                    </p>
+                  )}
+                  {m.description && (
+                    <p className="text-[10px] text-slate-400 mt-0.5 ml-3.5 line-clamp-2">{m.description}</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CSV profile uploader — attach a custom hourly production curve
+// Expected format:  time_h,value_kw   (header required)
+// ─────────────────────────────────────────────────────────────────────────────
+function CsvUploader({ customProfile, onSetCustomProfile, disabled }) {
+  const fileRef = useRef(null);
+  const stop    = (e) => e.stopPropagation();
+
+  const handleChange = useCallback((e) => {
+    stop(e);
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target.result;
+      const lines = text.trim().split(/\r?\n/);
+      // Detect separator
+      const sep = lines[0].includes(";") ? ";" : ",";
+      const header = lines[0].toLowerCase().split(sep).map((h) => h.trim());
+      const tIdx = header.findIndex((h) => h.includes("time") || h === "t" || h.includes("date") || h.includes("timestamp"));
+      const vIdx = header.findIndex((h) => h.includes("value") || h.includes("kw") || h.includes("power") || h.includes("prod") || h.includes("mw"));
+      if (tIdx === -1 || vIdx === -1) {
+        alert(`CSV must have a time/date column and a value/kw/power column.\nDetected headers: ${header.join(", ")}`);
+        return;
+      }
+
+      // ── Parse all rows ───────────────────────────────────────────────────
+      const rawRows = lines.slice(1).map((row) => {
+        const cols = row.split(sep);
+        const rawTime  = cols[tIdx]?.trim() ?? "";
+        const rawValue = parseFloat(cols[vIdx]);
+        return { rawTime, rawValue };
+      }).filter((r) => r.rawTime && !isNaN(r.rawValue));
+
+      if (!rawRows.length) {
+        alert("No valid data rows found.");
+        return;
+      }
+
+      // ── Detect and convert timestamp format ──────────────────────────────
+      // Supports:  YYYY-MM-DD HH:mm:ss  or  YYYY-MM-DD  or  numeric (hours)
+      const firstRaw = rawRows[0].rawTime;
+      const isDatetime = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(firstRaw);
+      const isDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(firstRaw);
+
+      let data;
+      if (isDatetime || isDateOnly) {
+        const t0 = new Date(rawRows[0].rawTime.replace(" ", "T")).getTime();
+        data = rawRows.map((r) => {
+          const ms   = new Date(r.rawTime.replace(" ", "T")).getTime();
+          const t_h  = (ms - t0) / (1000 * 3600);
+          // Scale MW → kW automatically
+          const vKw  = header[vIdx].includes("mw") ? r.rawValue * 1000 : r.rawValue;
+          return { time_h: +t_h.toFixed(4), value_kw: vKw, timestamp: r.rawTime };
+        });
+      } else {
+        // Assume numeric hours
+        data = rawRows.map((r) => ({
+          time_h:    parseFloat(r.rawTime),
+          value_kw:  header[vIdx].includes("mw") ? r.rawValue * 1000 : r.rawValue,
+          timestamp: null,
+        })).filter((r) => !isNaN(r.time_h));
+      }
+
+      onSetCustomProfile({ filename: file.name, rows: data.length, data });
+    };
+    reader.readAsText(file);
+    // Reset so same file can be re-uploaded
+    e.target.value = "";
+  }, [onSetCustomProfile]);
+
+  return (
+    <div className="mt-2 pt-2 border-t border-dashed border-slate-200" onClick={stop}>
+      <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wide block mb-1.5">Production profile</span>
+      <input
+        ref={fileRef} type="file" accept=".csv,.tsv,.txt"
+        className="hidden"
+        onChange={handleChange}
+      />
+      {customProfile ? (
+        <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 rounded-lg px-2 py-1.5">
+          <svg width="10" height="10" viewBox="0 0 20 20" fill="none" stroke="#059669" strokeWidth="2.5">
+            <path d="M3 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span className="flex-1 text-[10px] font-semibold text-emerald-700 truncate">
+            {customProfile.filename}
+          </span>
+          <span className="shrink-0 text-[9px] text-emerald-500">{customProfile.rows} pts</span>
+          <button
+            onClick={(e) => { stop(e); onSetCustomProfile(null); }}
+            className="shrink-0 text-[10px] text-red-400 hover:text-red-600 leading-none ml-1"
+            title="Remove custom profile"
+          >✕</button>
+        </div>
+      ) : (
+        <button
+          onClick={(e) => { stop(e); fileRef.current?.click(); }}
+          disabled={disabled}
+          className={`nodrag w-full flex items-center justify-center gap-1.5 px-2 py-1.5
+            border border-dashed rounded-lg text-[10px] font-medium transition-all
+            ${ disabled
+                ? "border-slate-100 text-slate-300 cursor-not-allowed"
+                : "border-slate-300 text-slate-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50"
+              }`}
+        >
+          <svg width="10" height="10" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path d="M10 3v10M5 8l5-5 5 5" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M3 17h14" strokeLinecap="round" />
+          </svg>
+          Upload CSV profile
+        </button>
+      )}
+      {!customProfile && (
+        <p className="text-[9px] text-slate-300 mt-1">YYYY-MM-DD HH:mm:ss , value_kw — overrides model defaults</p>
       )}
     </div>
   );
@@ -88,7 +278,10 @@ function ModelSelector({ slotKey, models, selected, onSelect, disabled }) {
 // ─────────────────────────────────────────────────────────────────────────────
 function NodeField({ label, unit, value, min, max, step = 1, onChange, disabled }) {
   return (
-    <div className="flex items-center justify-between gap-1 mt-1.5">
+    <div
+      className="flex items-center justify-between gap-1 mt-1.5"
+      onClick={(e) => e.stopPropagation()}
+    >
       <span className="text-[10px] text-slate-400 whitespace-nowrap leading-none">{label}</span>
       <div className="flex items-center gap-1">
         <input
@@ -102,6 +295,7 @@ function NodeField({ label, unit, value, min, max, step = 1, onChange, disabled 
             const v = parseFloat(e.target.value);
             if (!isNaN(v)) onChange(v);
           }}
+          onClick={(e) => e.stopPropagation()}
           className="nodrag w-16 text-right text-[11px] font-semibold text-slate-700 bg-slate-50
             border border-slate-200 rounded-md px-1.5 py-0.5
             focus:outline-none focus:ring-1 focus:ring-blue-400
@@ -131,37 +325,58 @@ function StatusDot({ simState, color = "bg-slate-300" }) {
 // NODE: Grid / Power Source
 // ─────────────────────────────────────────────────────────────────────────────
 function GridNode({ data, selected }) {
-  const { simState, elz, setElz, models, selectedModels, onSelectModel, activeNodeId } = data;
+  const { simState, elz, setElz, models, selectedModels, onSelectModel,
+          activeNodeId, customProfile, onSetCustomProfile } = data;
   const slotKey  = "source";
   const sel      = selectedModels?.[slotKey];
   const disabled = simState === "running" || simState === "queued";
   const isActive = activeNodeId === "grid";
   return (
-    <div className={`bg-white rounded-xl border-2 shadow-md px-3 py-2.5 w-48 cursor-pointer transition-shadow
-      ${ isActive
-          ? "border-sky-500 shadow-sky-200 shadow-lg ring-2 ring-sky-300 ring-offset-1"
-          : selected ? "border-amber-600 shadow-amber-100" : "border-amber-400 hover:border-amber-500 hover:shadow-amber-100 hover:shadow-lg"
-        }
-    `}>
+    <div
+      className={`bg-white rounded-xl border-2 shadow-md px-3 py-2.5 w-52 cursor-pointer transition-shadow
+        ${ isActive
+            ? "border-sky-500 shadow-sky-200 shadow-lg ring-2 ring-sky-300 ring-offset-1"
+            : selected ? "border-amber-600 shadow-amber-100" : "border-amber-400 hover:border-amber-500 hover:shadow-amber-100 hover:shadow-lg"
+          }
+      `}
+    >
       <div className="flex items-center gap-1.5 mb-1">
         <span className="p-1 rounded-lg bg-amber-50 text-amber-500"><FiZap size={12} /></span>
-        <span className="text-xs font-bold text-slate-700 truncate max-w-[90px]">{sel?.name ?? "Power Source"}</span>
+        <span className="text-xs font-bold text-slate-700 truncate max-w-[100px]">{sel?.name ?? "Power Source"}</span>
         <StatusDot simState={simState} color="bg-amber-400" />
       </div>
-      {sel && (
+      {sel && !customProfile && (
         <p className="text-[10px] text-amber-600 font-semibold mb-1">
           {sel.efficiency_pct != null ? `η ${Number(sel.efficiency_pct).toFixed(0)}%` : "Generator"}
           {sel.capacity_kw != null ? ` · ${(sel.capacity_kw / 1000).toFixed(0)} MW` : ""}
         </p>
       )}
-      <NodeField
-        label="Grid Power" unit="kW"
-        value={elz?.grid_power_kw ?? 300}
-        min={0} max={2000} step={10}
+      {customProfile && (
+        <p className="text-[10px] text-emerald-600 font-semibold mb-1">CSV profile active</p>
+      )}
+      {/* Read-only plant capacity from the selected model */}
+      <div className="flex items-center justify-between mt-1 mb-0.5" onClick={(e) => e.stopPropagation()}>
+        <span className="text-[10px] text-slate-400 whitespace-nowrap leading-none">Plant Capacity</span>
+        <span className="text-[11px] font-semibold text-amber-600">
+          {sel?.capacity_kw != null
+            ? sel.capacity_kw >= 1000
+              ? `${(sel.capacity_kw / 1000).toFixed(1)} MW`
+              : `${sel.capacity_kw} kW`
+            : "— select model"}
+        </span>
+      </div>
+      <ModelPicker
+        slotKey={slotKey}
+        models={models?.[slotKey]}
+        selected={sel}
+        onSelect={onSelectModel}
         disabled={disabled}
-        onChange={(v) => setElz?.((p) => ({ ...p, grid_power_kw: v }))}
       />
-      <ModelSelector slotKey={slotKey} models={models?.[slotKey]} selected={sel} onSelect={onSelectModel} disabled={disabled} />
+      <CsvUploader
+        customProfile={customProfile}
+        onSetCustomProfile={onSetCustomProfile}
+        disabled={disabled}
+      />
       {/* Click-to-analyse affordance */}
       <div className={`mt-2 pt-1.5 border-t flex items-center justify-center gap-1 text-[10px] font-medium rounded-b transition-colors
         ${ isActive
@@ -204,7 +419,7 @@ function ElzNode({ data, selected }) {
         <p className="text-[10px] text-indigo-600 font-semibold mb-1">η {Number(sel.efficiency_pct).toFixed(0)}%</p>
       )}
 
-      <NodeField label="Grid Power"  unit="kW"    value={elz?.grid_power_kw ?? 300}     min={0}  max={2000} step={10} disabled={disabled} onChange={(v) => setElz?.((p) => ({ ...p, grid_power_kw: v }))} />
+      <NodeField label="AC to ELZ"   unit="kW"    value={elz?.grid_power_kw ?? 300}     min={0}  max={5000} step={10} disabled={disabled} onChange={(v) => setElz?.((p) => ({ ...p, grid_power_kw: v }))} />
       <NodeField label="Water Flow"  unit="L/min" value={elz?.water_flow_rate_lpm ?? 90} min={0}  max={500}  step={5}  disabled={disabled} onChange={(v) => setElz?.((p) => ({ ...p, water_flow_rate_lpm: v }))} />
       <NodeField label="Temperature" unit="°C"    value={elz?.temperature_c ?? 70}       min={20} max={100}  step={1}  disabled={disabled} onChange={(v) => setElz?.((p) => ({ ...p, temperature_c: v }))} />
 
@@ -215,7 +430,7 @@ function ElzNode({ data, selected }) {
           </p>
         </div>
       )}
-      <ModelSelector slotKey={slotKey} models={models?.[slotKey]} selected={sel} onSelect={onSelectModel} disabled={disabled} />
+      <ModelPicker slotKey={slotKey} models={models?.[slotKey]} selected={sel} onSelect={onSelectModel} disabled={disabled} />
       <Handle type="source" position={Position.Right} id="h2-out"
         className="!bg-emerald-500 !w-3 !h-3 !border-2 !border-white" />
     </div>
@@ -253,7 +468,7 @@ function CompressorNode({ data, selected }) {
 
       <NodeField label="Efficiency" unit="[-]" value={sto?.compressor_efficiency ?? 0.78} min={0.3} max={1.0} step={0.01} disabled={disabled} onChange={(v) => setSto?.((p) => ({ ...p, compressor_efficiency: v }))} />
 
-      <ModelSelector slotKey={slotKey} models={models?.[slotKey]} selected={sel} onSelect={onSelectModel} disabled={disabled} />
+      <ModelPicker slotKey={slotKey} models={models?.[slotKey]} selected={sel} onSelect={onSelectModel} disabled={disabled} />
 
       <Handle type="source" position={Position.Right} id="h2-out"
         className="!bg-emerald-500 !w-3 !h-3 !border-2 !border-white" />
@@ -307,7 +522,7 @@ function TankNode({ data, selected }) {
         </div>
       )}
 
-      <ModelSelector slotKey={slotKey} models={models?.[slotKey]} selected={sel} onSelect={onSelectModel} disabled={disabled} />
+      <ModelPicker slotKey={slotKey} models={models?.[slotKey]} selected={sel} onSelect={onSelectModel} disabled={disabled} />
       <Handle type="source" position={Position.Right} id="h2-out"
         className="!bg-emerald-500 !w-3 !h-3 !border-2 !border-white" />
     </div>
@@ -354,7 +569,7 @@ function FuelCellNode({ data, selected }) {
         </div>
       )}
 
-      <ModelSelector slotKey={slotKey} models={models?.[slotKey]} selected={sel} onSelect={onSelectModel} disabled={disabled} />
+      <ModelPicker slotKey={slotKey} models={models?.[slotKey]} selected={sel} onSelect={onSelectModel} disabled={disabled} />
       <Handle type="source" position={Position.Right} id="elec-out"
         className="!bg-amber-400 !w-3 !h-3 !border-2 !border-white" />
     </div>
@@ -484,6 +699,7 @@ export default function H2PlantFlowDiagram({
   simState, kpi,
   models, selectedModels, onSelectModel,
   activeNodeId, onNodeClick,
+  customProfile, onSetCustomProfile,
 }) {
   const [nodes, , onNodesChange] = useNodesState(
     Object.entries(INITIAL_POSITIONS).map(([id, position]) => ({
@@ -497,12 +713,13 @@ export default function H2PlantFlowDiagram({
 
   const liveNodes = useMemo(
     () =>
-      nodes.map((n) => ({
+    nodes.map((n) => ({
         ...n,
-        data: { elz, setElz, sto, setSto, fc, setFc, simState, kpi, models, selectedModels, onSelectModel, activeNodeId },
+        data: { elz, setElz, sto, setSto, fc, setFc, simState, kpi, models, selectedModels, onSelectModel,
+                activeNodeId, customProfile, onSetCustomProfile },
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [nodes, elz, sto, fc, simState, kpi, selectedModels, models, activeNodeId]
+    [nodes, elz, sto, fc, simState, kpi, selectedModels, models, activeNodeId, customProfile]
   );
 
   const liveEdges = useMemo(

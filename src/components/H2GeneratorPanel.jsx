@@ -16,11 +16,12 @@
  *   simState       {string}  – 'idle'|'queued'|'running'|'done'|'error'
  */
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect, useCallback } from "react";
 import ReactECharts from "echarts-for-react";
 import {
   FiSun, FiWind, FiZap, FiDroplet, FiActivity,
-  FiBarChart2, FiTrendingUp, FiInfo, FiClock,
+  FiBarChart2, FiTrendingUp, FiInfo, FiClock, FiUpload,
+  FiSettings, FiLayers,
 } from "react-icons/fi";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -139,37 +140,26 @@ function theoreticalProfile(techType, capacityKw) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Energy cascade chart — shows how power becomes H₂
-// Input P → source losses → ELZ AC input → ELZ losses → H₂ chemical energy
+// Generation statistics bar chart — pure generation metrics, no H₂ references
+// Shows: rated capacity, typical peak, average output, minimum output
 // ─────────────────────────────────────────────────────────────────────────────
-function buildCascadeChart(model, elzModel, gridPowerKw, hue) {
-  const genEff   = (model?.efficiency_pct ?? 100) / 100;    // generator thermal eff (1 for RE)
-  const elzEff   = (elzModel?.efficiency_pct ?? 70)  / 100;
-  const H2_ENTH  = 3.54; // kWh/Nm³ HHV
+function buildGenerationStatsChart(capacityKw, profile, meta, hue) {
+  const cap    = capacityKw;
+  const cfMin  = meta.cf[0] / 100;
+  const cfMax  = meta.cf[1] / 100;
+  const cfAvg  = profile.avgCF;
 
-  const pIn      = gridPowerKw;
-  const pGenLoss = pIn * (1 - genEff);
-  const pToElz   = pIn - pGenLoss;                     // electrical power sent to ELZ
-  const pElzLoss = pToElz * (1 - elzEff);
-  const pH2      = pToElz * elzEff;                    // chemical power stored in H₂
-  const h2nm3h   = (pH2 / H2_ENTH).toFixed(1);
+  const rated  = cap;
+  const peak   = Math.round(cfMax * cap);
+  const avg    = Math.round(cfAvg * cap);
+  const min    = Math.round(cfMin * cap);
 
-  const techType = detectTechType(model);
-  const isRenewable = ["solar", "wind", "hydro", "geothermal"].includes(techType);
+  const dailyMwh  = +((avg / 1000) * 24).toFixed(1);
+  const annualMwh = +(dailyMwh * 365).toFixed(0);
 
-  // Waterfall steps
-  const steps = [];
-  if (!isRenewable && genEff < 0.99) {
-    steps.push({ stage: "Fuel Input (thermal)", kw: pIn, lost: null, color: "#94a3b8" });
-    steps.push({ stage: "Heat Losses (gen η)", kw: pToElz, lost: pGenLoss, color: "#f87171" });
-  }
-  steps.push({ stage: "Grid Power (AC)", kw: pToElz, lost: null, color: hue });
-  steps.push({ stage: "ELZ Losses", kw: pH2, lost: pElzLoss, color: "#fbbf24" });
-  steps.push({ stage: "H₂ Chemical Energy", kw: pH2, lost: null, color: "#10b981" });
-
-  const labels = steps.map((s) => s.stage);
-  const values = steps.map((s) => +s.kw.toFixed(1));
-  const losses = steps.map((s) => (s.lost != null ? +s.lost.toFixed(1) : null));
+  const categories = ["Rated Capacity", "Typical Peak", "Average Output", "Minimum Output"];
+  const values     = [rated, peak, avg, min];
+  const colors     = [hue, `${hue}cc`, `${hue}99`, `${hue}55`];
 
   return {
     chart: {
@@ -180,39 +170,106 @@ function buildCascadeChart(model, elzModel, gridPowerKw, hue) {
         formatter: (params) =>
           params.map((p) =>
             `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${p.color};margin-right:4px;"></span>`
-            + `${p.seriesName}: <b>${Number(p.value ?? 0).toFixed(1)} kW</b>`
+            + `${p.name}: <b>${Number(p.value).toLocaleString()} kW</b>`
           ).join("<br/>"),
       },
-      legend: { data: ["Power Available (kW)", "Losses (kW)"], bottom: 0, textStyle: { fontSize: 11 } },
-      grid: { top: 16, bottom: 44, left: 60, right: 20 },
-      xAxis: { type: "category", data: labels, axisLabel: { fontSize: 10, interval: 0, rotate: 18 } },
-      yAxis: { type: "value", name: "kW", nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10 } },
+      grid: { top: 20, bottom: 52, left: 64, right: 20 },
+      xAxis: {
+        type: "category",
+        data: categories,
+        axisLabel: { fontSize: 10, interval: 0, rotate: 10 },
+      },
+      yAxis: {
+        type: "value",
+        name: "kW",
+        nameTextStyle: { fontSize: 10 },
+        axisLabel: { fontSize: 10, formatter: (v) => v >= 1000 ? `${(v / 1000).toFixed(0)} MW` : v },
+      },
+      series: [{
+        type: "bar",
+        data: values.map((v, i) => ({ value: v, itemStyle: { color: colors[i], borderRadius: [5, 5, 0, 0] } })),
+        barWidth: "48%",
+        label: {
+          show: true, position: "top", fontSize: 10,
+          formatter: (p) => p.value >= 1000 ? `${(p.value / 1000).toFixed(1)} MW` : `${p.value} kW`,
+        },
+      }],
+    },
+    summary: { rated, peak, avg, min, dailyMwh, annualMwh },
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CSV profile chart — shows the uploaded production time-series
+// ─────────────────────────────────────────────────────────────────────────────
+function buildCsvProfileChart(customProfile, hue) {
+  const rows   = customProfile?.data ?? [];
+  const hasTs  = rows[0]?.timestamp != null;
+
+  // Down-sample to max 300 points for performance
+  const step   = Math.max(1, Math.floor(rows.length / 300));
+  const sample = rows.filter((_, i) => i % step === 0);
+
+  const labels = sample.map((r) => {
+    if (hasTs && r.timestamp) {
+      // Show date + time but truncate to HH:mm to keep axis readable
+      const ts = r.timestamp.replace("T", " ");
+      return ts.length > 16 ? ts.slice(5, 16) : ts; // MM-DD HH:mm
+    }
+    const h = Math.floor(r.time_h);
+    const m = Math.round((r.time_h - h) * 60);
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  });
+
+  const values = sample.map((r) => r.value_kw);
+  const avg    = values.reduce((s, v) => s + v, 0) / values.length;
+  const peak   = Math.max(...values);
+  const min    = Math.min(...values);
+
+  return {
+    chart: {
+      animation: false,
+      tooltip: {
+        trigger: "axis",
+        formatter: (params) =>
+          `<b>${params[0]?.axisValue}</b><br/>` +
+          `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${hue};margin-right:4px;"></span>` +
+          `Power: <b>${Number(params[0]?.value ?? 0).toLocaleString()} kW</b>`,
+      },
+      grid: { top: 16, bottom: 44, left: 64, right: 20 },
+      xAxis: {
+        type: "category",
+        data: labels,
+        axisLabel: { fontSize: 9, interval: Math.max(0, Math.floor(labels.length / 12) - 1), rotate: labels.length > 40 ? 25 : 0 },
+        boundaryGap: false,
+      },
+      yAxis: {
+        type: "value",
+        name: "kW",
+        min: 0,
+        nameTextStyle: { fontSize: 10 },
+        axisLabel: { fontSize: 10, formatter: (v) => v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v },
+      },
       series: [
         {
-          name: "Power Available (kW)",
-          type: "bar",
+          name: "Power Output (kW)",
+          type: "line",
           data: values,
-          barWidth: "40%",
-          itemStyle: {
-            color: (p) => steps[p.dataIndex]?.color ?? hue,
-            borderRadius: [4, 4, 0, 0],
-          },
-          label: { show: true, position: "top", fontSize: 10, formatter: (p) => `${p.value}` },
+          smooth: true,
+          symbol: "none",
+          lineStyle: { color: hue, width: 2 },
+          areaStyle: { color: hue.startsWith("#") ? `${hue}28` : `rgba(99,102,241,0.12)` },
         },
         {
-          name: "Losses (kW)",
-          type: "bar",
-          data: losses,
-          stack: false,
-          barWidth: "40%",
-          itemStyle: { color: "rgba(239,68,68,0.35)", borderRadius: [4, 4, 0, 0] },
-          label: { show: true, position: "top", fontSize: 10, color: "#ef4444",
-            formatter: (p) => (p.value ? `-${p.value}` : ""),
-          },
+          name: "Average (kW)",
+          type: "line",
+          data: labels.map(() => Math.round(avg)),
+          symbol: "none",
+          lineStyle: { color: "#64748b", width: 1.5, type: "dashed" },
         },
       ],
     },
-    summary: { pIn, pToElz, pH2, h2nm3h, genEff, elzEff },
+    summary: { avg: Math.round(avg), peak: Math.round(peak), min: Math.round(min), rows: rows.length },
   };
 }
 
@@ -267,75 +324,97 @@ function buildProfileChart(profile, setPointKw, hue, techType) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Simulation overlay: actual power + H₂ production rate
+// Simulation overlay — generator power delivered to busbar only (no H₂ axes)
 // ─────────────────────────────────────────────────────────────────────────────
 function buildActualOutputChart(result, hue, sourceName) {
-  const t    = (result?.time_s ?? []).map((s) => {
+  const t = (result?.time_s ?? []).map((s) => {
     const h = Math.floor(s / 3600);
     const m = Math.floor((s % 3600) / 60);
     return h > 0 ? `${h}h ${m.toString().padStart(2, "0")}m` : `${m} min`;
   });
-  const elzP = result?.electrolyzer_power_kw ?? [];
-  const h2P  = result?.h2_production_nm3h   ?? [];
-  const eff  = elzP.map((p, i) => {
-    const H2_ENTH = 3.54;
-    if (!p) return null;
-    const h2kw = h2P[i] * H2_ENTH;
-    return +(( h2kw / p) * 100).toFixed(1);
-  });
+  const elzP = result?.electrolyzer_power_kw ?? [];   // ELZ input = generator AC output
+  const avgPower  = elzP.length ? (elzP.reduce((s, v) => s + v, 0) / elzP.length).toFixed(1) : null;
+  const peakPower = elzP.length ? Math.max(...elzP).toFixed(1) : null;
 
   return {
-    animation: true,
-    animationDuration: 600,
-    tooltip: {
-      trigger: "axis",
-      formatter: (params) =>
-        `<b>${params[0]?.axisValue}</b><br/>` +
-        params.map((p) =>
-          `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${p.color};margin-right:4px;"></span>`
-          + `${p.seriesName}: <b>${Number(p.value ?? 0).toFixed(2)}</b>`
-        ).join("<br/>"),
+    chart: {
+      animation: true,
+      animationDuration: 600,
+      tooltip: {
+        trigger: "axis",
+        formatter: (params) =>
+          `<b>${params[0]?.axisValue}</b><br/>` +
+          params.map((p) =>
+            `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${p.color};margin-right:4px;"></span>`
+            + `${p.seriesName}: <b>${Number(p.value ?? 0).toFixed(1)} kW</b>`
+          ).join("<br/>"),
+      },
+      legend: {
+        data: [`${sourceName ?? "Generator"} Output (kW)`, "Average (kW)"],
+        bottom: 0, textStyle: { fontSize: 11 },
+      },
+      grid: { top: 16, bottom: 44, left: 58, right: 20 },
+      xAxis: { type: "category", data: t, axisLabel: { fontSize: 10, rotate: t.length > 30 ? 25 : 0 }, boundaryGap: false },
+      yAxis: [
+        { type: "value", name: "kW", nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10 } },
+      ],
+      series: [
+        {
+          name: `${sourceName ?? "Generator"} Output (kW)`,
+          type: "line",
+          data: elzP,
+          smooth: true, symbol: "none",
+          lineStyle: { color: hue, width: 2.5 },
+          areaStyle: { color: hue.startsWith("#") ? `${hue}22` : "rgba(99,102,241,0.12)" },
+          yAxisIndex: 0,
+        },
+        {
+          name: "Average (kW)",
+          type: "line",
+          data: avgPower ? t.map(() => +avgPower) : [],
+          symbol: "none",
+          lineStyle: { color: "#64748b", width: 1.5, type: "dashed" },
+          yAxisIndex: 0,
+        },
+      ],
     },
-    legend: {
-      data: [`${sourceName ?? "Source"} → ELZ Input (kW)`, "H₂ Production (Nm³/h)", "ELZ→H₂ Efficiency (%)"],
-      bottom: 0, textStyle: { fontSize: 11 },
-    },
-    grid: { top: 16, bottom: 52, left: 58, right: 58 },
-    xAxis: { type: "category", data: t, axisLabel: { fontSize: 10, rotate: t.length > 30 ? 25 : 0 }, boundaryGap: false },
-    yAxis: [
-      { type: "value", name: "kW",    nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10 } },
-      { type: "value", name: "Nm³/h", nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10 }, splitLine: { show: false } },
-      { type: "value", name: "%", min: 0, max: 100, nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10, formatter: "{value}%" }, splitLine: { show: false } },
-    ],
-    series: [
-      {
-        name: `${sourceName ?? "Source"} → ELZ Input (kW)`,
-        type: "line",
-        data: elzP,
-        smooth: true, symbol: "none",
-        lineStyle: { color: hue, width: 2.5 },
-        areaStyle: { color: hue.replace(")", ",0.12)").replace("rgb", "rgba") },
-        yAxisIndex: 0,
-      },
-      {
-        name: "H₂ Production (Nm³/h)",
-        type: "line",
-        data: h2P,
-        smooth: true, symbol: "circle", symbolSize: 4,
-        lineStyle: { color: "#10b981", width: 2 },
-        areaStyle: { color: "rgba(16,185,129,0.10)" },
-        yAxisIndex: 1,
-      },
-      {
-        name: "ELZ→H₂ Efficiency (%)",
-        type: "line",
-        data: eff,
-        smooth: true, symbol: "none",
-        lineStyle: { color: "#6366f1", width: 1.5, type: "dashed" },
-        yAxisIndex: 2,
-      },
-    ],
+    summary: { avgPower, peakPower },
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Compact editable field — label + number input + unit + reset (no slider)
+// ─────────────────────────────────────────────────────────────────────────────
+function ConstraintRow({ label, unit, value, defaultValue, min, max, step = 1, onChange, onReset }) {
+  const isOverridden = value !== null && value !== undefined;
+  const display = isOverridden ? value : (defaultValue ?? "");
+  return (
+    <div className="flex items-center gap-1.5 group">
+      <span className="text-[10px] text-slate-500 shrink-0 leading-tight" title={label}>{label}</span>
+      <div className="flex items-center gap-1 ml-auto">
+        <input
+          type="number" min={min} max={max} step={step}
+          value={display}
+          placeholder={defaultValue != null ? String(defaultValue) : "—"}
+          onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) onChange(v); }}
+          className="w-[72px] text-right text-[11px] font-semibold bg-slate-50 border border-slate-200
+            rounded-md px-1.5 py-[3px] focus:outline-none focus:ring-1 focus:ring-indigo-400
+            hover:border-indigo-300 transition-colors"
+          style={{ fontVariantNumeric: "tabular-nums", color: isOverridden ? "#4f46e5" : "#475569" }}
+        />
+        <span className="text-[10px] text-slate-400 w-[38px] shrink-0 leading-none">{unit}</span>
+        <button
+          onClick={onReset}
+          className={`w-4 text-[10px] leading-none transition-all
+            ${isOverridden
+              ? "text-red-400 hover:text-red-600 opacity-100"
+              : "text-slate-200 cursor-default opacity-0 group-hover:opacity-40"}`}
+          title="Reset to default"
+          disabled={!isOverridden}
+        >✕</button>
+      </div>
+    </div>
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -364,33 +443,92 @@ function MetricBadge({ label, value, unit, color = "slate", wide = false }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Main export
 // ─────────────────────────────────────────────────────────────────────────────
-export default function H2GeneratorPanel({ selectedModel, elzModel, elzParams, result, simState }) {
-  const techType  = detectTechType(selectedModel);
-  const meta      = TECH_META[techType] ?? TECH_META.generic;
-  const Icon      = meta.icon;
-  const hue       = meta.hue;
-  const capacityKw = selectedModel?.capacity_kw ?? (elzParams?.grid_power_kw ?? 500) * 3;
-  const setPointKw = elzParams?.grid_power_kw ?? 500;
-  const isDone    = simState === "done";
+export default function H2GeneratorPanel({ selectedModel, elzModel, elzParams, result, simState, customProfile, variants, onParamsChange }) {
+  const techType   = detectTechType(selectedModel);
+  const meta       = TECH_META[techType] ?? TECH_META.generic;
+  const Icon       = meta.icon;
+  const hue        = meta.hue;
 
+  // ── Local parameter overrides (null → use model default) ─────────────────
+  const [localParams,      setLocalParams]      = useState({});
+  // Constraints panel is a collapsible <details> at bottom (Section G)
+
+  // Reset overrides when the selected model changes
+  const modelId = selectedModel?.id;
+  useEffect(() => { setLocalParams({}); }, [modelId]);
+
+  const handleParam = useCallback((key, value) => {
+    setLocalParams((p) => {
+      const next = { ...p, [key]: value };
+      onParamsChange?.(next);
+      return next;
+    });
+  }, [onParamsChange]);
+
+  const resetParam = useCallback((key) => {
+    setLocalParams((p) => {
+      const next = { ...p };
+      delete next[key];
+      onParamsChange?.(next);
+      return next;
+    });
+  }, [onParamsChange]);
+
+  const resetAllParams = useCallback(() => {
+    setLocalParams({});
+    onParamsChange?.({});
+  }, [onParamsChange]);
+
+  // ── Effective model = base model + local overrides ────────────────────────
+  const effectiveModel = useMemo(() => {
+    if (!selectedModel) return selectedModel;
+    const safeNum = (x) => { const n = Number(x); return isFinite(n) ? n : undefined; };
+    const ov = {};
+    if (localParams.capacity_kw    != null) ov.capacity_kw      = safeNum(localParams.capacity_kw)    ?? localParams.capacity_kw;
+    if (localParams.efficiency_pct != null) ov.efficiency_pct   = safeNum(localParams.efficiency_pct) ?? localParams.efficiency_pct;
+    if (localParams.capex_usd_per_kw != null) ov.capex_usd_per_kw = safeNum(localParams.capex_usd_per_kw) ?? localParams.capex_usd_per_kw;
+    if (localParams.lifetime_yr    != null) ov.lifetime_yr       = safeNum(localParams.lifetime_yr)    ?? localParams.lifetime_yr;
+    return { ...selectedModel, ...ov };
+  }, [selectedModel, localParams]);
+
+  // Capacity-factor range — independently overrideable
+  const effectiveCF   = [
+    localParams.cf_min ?? meta.cf[0],
+    localParams.cf_max ?? meta.cf[1],
+  ];
+  const effectiveMeta = { ...meta, cf: effectiveCF };
+
+  // Ensure capacityKw is always a finite number — guards against stale {value,unit} objects
+  const rawCap     = effectiveModel?.capacity_kw;
+  const capacityKw = (rawCap != null && isFinite(Number(rawCap))) ? Number(rawCap) : 10000;
+  const setPointKw = elzParams?.grid_power_kw ?? 500;
+  const isDone     = simState === "done";
+
+  // ── Charts (all react to effectiveModel / effectiveMeta) ─────────────────
   const profile = useMemo(
     () => theoreticalProfile(techType, capacityKw),
     [techType, capacityKw]
   );
 
-  const cascade = useMemo(
-    () => buildCascadeChart(selectedModel, elzModel, setPointKw, hue),
-    [selectedModel, elzModel, setPointKw, hue]
+  const genStats = useMemo(
+    () => buildGenerationStatsChart(capacityKw, profile, effectiveMeta, hue),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [capacityKw, profile, effectiveCF[0], effectiveCF[1], hue]
   );
 
-  const profileChart  = useMemo(
+  const csvChart = useMemo(
+    () => (customProfile?.data?.length > 0) ? buildCsvProfileChart(customProfile, hue) : null,
+    [customProfile, hue]
+  );
+
+  const profileChart = useMemo(
     () => buildProfileChart(profile, setPointKw, hue, techType),
     [profile, setPointKw, hue, techType]
   );
 
-  const actualChart   = useMemo(
-    () => isDone && result ? buildActualOutputChart(result, hue, selectedModel?.name) : null,
-    [isDone, result, hue, selectedModel]
+  const actualChart = useMemo(
+    () => isDone && result ? buildActualOutputChart(result, hue, effectiveModel?.name) : null,
+    [isDone, result, hue, effectiveModel]
   );
 
   if (!selectedModel) {
@@ -405,169 +543,487 @@ export default function H2GeneratorPanel({ selectedModel, elzModel, elzParams, r
     );
   }
 
-  const cfMin = meta.cf[0];
-  const cfMax = meta.cf[1];
-  const avgCFpct = (profile.avgCF * 100).toFixed(0);
+  // Resolve which variant (if any) is currently active
+  const activeVariant = variants?.find((v) => v.id === localParams._variantId) ?? null;
+  // Pull DB-defined defaults for the constraints editor from the active variant
+  const dbConstraints = activeVariant?._constraints ?? selectedModel?._constraints ?? {};
+  const dbMonetary    = activeVariant?._monetary    ?? selectedModel?._monetary    ?? {};
+
+  const cfMin = effectiveCF[0];
+  const cfMax = effectiveCF[1];
+  const hasOverrides = Object.keys(localParams).filter((k) => k !== "_variantId").length > 0;
+
+  // Helper: default value for a constraint row — db value first, then fallback
+  const cDef = (key, fbModelKey, fbValue) =>
+    dbConstraints[key] != null ? dbConstraints[key]
+    : fbModelKey != null && effectiveModel[fbModelKey] != null ? effectiveModel[fbModelKey]
+    : fbValue ?? null;
+  const mDef = (key, fbModelKey, fbValue) =>
+    dbMonetary[key] != null ? dbMonetary[key]
+    : fbModelKey != null && effectiveModel[fbModelKey] != null ? effectiveModel[fbModelKey]
+    : fbValue ?? null;
 
   return (
-    <div className="space-y-4">
-      {/* ── Header ──────────────────────────────────────────────────────────── */}
-      <div className={`rounded-2xl border ${meta.border} ${meta.bg} p-5`}>
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <span
-              className="p-3 rounded-xl text-white shadow-md"
-              style={{ background: `linear-gradient(135deg, ${hue}, ${hue}cc)` }}
-            >
-              <Icon size={20} />
+    <div className="space-y-5">
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+           SECTION A — Technology Identity
+      ══════════════════════════════════════════════════════════════════════ */}
+      <div className={`rounded-2xl border ${meta.border} ${meta.bg} p-4`}>
+        <div className="flex flex-wrap items-start gap-4">
+          {/* Icon + name */}
+          <div className="flex items-center gap-3 flex-1 min-w-[200px]">
+            <span className="p-2.5 rounded-xl text-white shadow"
+              style={{ background: `linear-gradient(135deg, ${hue}, ${hue}bb)` }}>
+              <Icon size={18} />
             </span>
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-base font-bold text-slate-800">{selectedModel.name}</h3>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <h3 className="text-sm font-bold text-slate-800">{effectiveModel.name}</h3>
                 <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full
-                  ${selectedModel.lifecycle === "commercial"    ? "bg-emerald-100 text-emerald-700"
-                  : selectedModel.lifecycle === "demonstration" ? "bg-amber-100   text-amber-700"
-                                                                : "bg-blue-100    text-blue-700"}`}>
-                  {selectedModel.lifecycle ?? "commercial"}
+                  ${effectiveModel.lifecycle === "commercial"    ? "bg-emerald-100 text-emerald-700"
+                  : effectiveModel.lifecycle === "demonstration" ? "bg-amber-100   text-amber-700"
+                                                                  : "bg-blue-100    text-blue-700"}`}>
+                  {effectiveModel.lifecycle ?? "commercial"}
                 </span>
+                {hasOverrides && (
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-600">✏ edited</span>
+                )}
               </div>
-              <p className="text-xs text-slate-500 mt-0.5">{meta.tagline}</p>
-              {selectedModel.description && (
-                <p className="text-[11px] text-slate-400 mt-0.5 italic">{selectedModel.description}</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">{meta.tagline}</p>
+              {effectiveModel.description && (
+                <p className="text-[10px] text-slate-400 mt-0.5 italic leading-snug max-w-[300px] line-clamp-2">{effectiveModel.description}</p>
               )}
             </div>
           </div>
-
-          {/* Quick KPIs row */}
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 flex-1 min-w-0">
-            {selectedModel.capacity_kw != null && (
-              <MetricBadge label="Rated Capacity" value={selectedModel.capacity_kw >= 1000 ? (selectedModel.capacity_kw / 1000).toFixed(1) : selectedModel.capacity_kw} unit={selectedModel.capacity_kw >= 1000 ? "MW" : "kW"} color="amber" />
-            )}
-            {selectedModel.efficiency_pct != null && (
-              <MetricBadge label="Gen. Efficiency" value={Number(selectedModel.efficiency_pct).toFixed(0)} unit="%" color="green" />
-            )}
-            <MetricBadge label="Capacity Factor" value={`${cfMin}–${cfMax}`} unit="%" color="blue" />
-            {meta.co2 != null && (
-              <MetricBadge label="CO₂ Intensity" value={meta.co2} unit="g/kWh" color={meta.co2 < 50 ? "green" : meta.co2 < 300 ? "amber" : "red"} />
-            )}
-            {selectedModel.capex_usd_per_kw != null && (
-              <MetricBadge label="CAPEX" value={selectedModel.capex_usd_per_kw >= 1000 ? (selectedModel.capex_usd_per_kw / 1000).toFixed(1) : selectedModel.capex_usd_per_kw} unit={selectedModel.capex_usd_per_kw >= 1000 ? "k$/kW" : "$/kW"} color="violet" />
-            )}
-            {selectedModel.lifetime_yr != null && (
-              <MetricBadge label="Lifetime" value={selectedModel.lifetime_yr} unit="yr" color="slate" />
-            )}
+          {/* KPI badges — always render all 6 with "—" fallback */}
+          <div className="grid grid-cols-3 gap-2 flex-1 min-w-[260px]">
+            <MetricBadge
+              label="Plant Capacity"
+              value={capacityKw !== 10000 || effectiveModel.capacity_kw != null
+                ? capacityKw >= 1000
+                  ? `${(capacityKw / 1000).toFixed(1)} MW`
+                  : `${capacityKw} kW`
+                : "—"}
+              unit="" color="amber"
+            />
+            <MetricBadge
+              label="CF range"
+              value={`${cfMin}–${cfMax}`}
+              unit="%" color="blue"
+            />
+            <MetricBadge
+              label={effectiveModel.efficiency_pct != null ? "Gen. Efficiency" : "CO₂ Intensity"}
+              value={effectiveModel.efficiency_pct != null
+                ? Number(effectiveModel.efficiency_pct).toFixed(0)
+                : meta.co2 ?? "N/A"}
+              unit={effectiveModel.efficiency_pct != null ? "%" : "g/kWh"}
+              color={effectiveModel.efficiency_pct != null ? "green"
+                : meta.co2 != null && meta.co2 < 50 ? "green"
+                : meta.co2 != null && meta.co2 < 300 ? "amber" : "red"}
+            />
+            <MetricBadge
+              label="CAPEX"
+              value={effectiveModel.capex_usd_per_kw != null
+                ? effectiveModel.capex_usd_per_kw >= 1000
+                  ? `${(effectiveModel.capex_usd_per_kw / 1000).toFixed(1)}k`
+                  : String(effectiveModel.capex_usd_per_kw)
+                : "—"}
+              unit={effectiveModel.capex_usd_per_kw != null ? "$/kW" : ""}
+              color="violet"
+            />
+            <MetricBadge
+              label="Lifetime"
+              value={effectiveModel.lifetime_yr ?? "—"}
+              unit={effectiveModel.lifetime_yr != null ? "yr" : ""}
+              color="slate"
+            />
+            <MetricBadge
+              label="Annual Yield"
+              value={genStats.summary.annualMwh.toLocaleString()}
+              unit="MWh/yr"
+              color="green"
+            />
           </div>
         </div>
       </div>
 
-      {/* ── Row 1: 24 h profile + energy cascade ──────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Theoretical 24h generation profile */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-          <div className="flex items-center gap-2 mb-1">
-            <FiClock size={13} style={{ color: hue }} />
-            <h4 className="text-sm font-semibold text-slate-700">Theoretical 24 h Generation Profile</h4>
-            <span className="ml-auto text-[11px] text-slate-400 flex items-center gap-1">
-              <FiInfo size={10} /> Typical day · 30-min resolution
-            </span>
-          </div>
-          <p className="text-xs text-slate-400 mb-3">
-            Model CF: <b style={{ color: hue }}>{avgCFpct}%</b>
-            {" · "}Peak: <b style={{ color: hue }}>{(profile.peakKw / 1000).toFixed(2)} MW</b>
-            {" · "}Set-point: <b className="text-slate-600">{setPointKw.toLocaleString()} kW</b>
-          </p>
-          <ReactECharts option={profileChart} style={{ height: 220 }} />
-        </div>
+      {/* ═══════════════════════════════════════════════════════════════════════
+           SECTION B — Technology Variant selector (compact dropdown)
+      ══════════════════════════════════════════════════════════════════════ */}
+      {variants && variants.length > 1 && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-2.5
+          flex flex-wrap items-center gap-3">
+          <FiLayers size={12} style={{ color: hue }} />
+          <span className="text-[11px] font-semibold text-slate-600">Variant</span>
+          <select
+            value={localParams._variantId ?? ""}
+            onChange={(e) => {
+              const vid = e.target.value;
+              if (!vid) { setLocalParams({}); onParamsChange?.({}); return; }
+              const v = variants.find((vv) => vv.id === vid);
+              if (!v) return;
 
-        {/* Energy conversion cascade */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-          <div className="flex items-center gap-2 mb-1">
-            <FiTrendingUp size={13} style={{ color: hue }} />
-            <h4 className="text-sm font-semibold text-slate-700">Energy Conversion Chain</h4>
-            <span className="ml-auto text-[11px] text-slate-400 flex items-center gap-1">
-              <FiInfo size={10} /> Steady-state at set-point
-            </span>
-          </div>
-          {/* Summary row */}
-          <div className="flex gap-4 mb-3">
-            <div className="flex items-center gap-1.5 text-xs">
-              <span className="w-2.5 h-2.5 rounded-full" style={{ background: hue }} />
-              <span className="text-slate-500">AC to ELZ:</span>
-              <b className="text-slate-700">{cascade.summary.pToElz.toFixed(0)} kW</b>
-            </div>
-            <div className="flex items-center gap-1.5 text-xs">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
-              <span className="text-slate-500">H₂ chemical:</span>
-              <b className="text-slate-700">{cascade.summary.pH2.toFixed(0)} kW</b>
-            </div>
-            <div className="flex items-center gap-1.5 text-xs">
-              <span className="w-2.5 h-2.5 rounded-full bg-indigo-400" />
-              <span className="text-slate-500">H₂ rate:</span>
-              <b className="text-slate-700">{cascade.summary.h2nm3h} Nm³/h</b>
-            </div>
-          </div>
-          <ReactECharts option={cascade.chart} style={{ height: 220 }} />
-        </div>
-      </div>
+              // Use full fallback chain — DB constraints/monetary fill gaps in top-level fields
+              // Always coerce to Number to guard against OEO {value,unit} wrapper objects
+              const safeNum = (x) => { const n = Number(x); return isFinite(n) ? n : null; };
 
-      {/* ── Row 2: Actual simulation output (only after done) ─────────────── */}
-      {isDone && actualChart && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-          <div className="flex items-center gap-2 mb-1">
-            <FiActivity size={13} style={{ color: hue }} />
-            <h4 className="text-sm font-semibold text-slate-700">
-              Actual: {selectedModel.name} → Electrolyzer → H₂
-            </h4>
-            <span className="ml-auto text-[11px] text-slate-400 flex items-center gap-1">
-              <FiInfo size={10} /> Simulation result · triple Y-axis
-            </span>
-          </div>
-          <p className="text-xs text-slate-400 mb-3">
-            Amber area = ELZ power draw · Green area = H₂ produced · Dashed indigo = conversion efficiency (%)
-          </p>
-          <ReactECharts option={actualChart} style={{ height: 260 }} />
+              const capKw    = safeNum(v.capacity_kw)
+                            ?? safeNum(v._constraints?.energy_cap_max)
+                            ?? null;
+              const effPct   = safeNum(v.efficiency_pct)
+                            ?? (v._constraints?.energy_eff != null
+                                ? safeNum(+(v._constraints.energy_eff * 100).toFixed(1))
+                                : null);
+              const capex    = safeNum(v.capex_usd_per_kw) ?? safeNum(v._monetary?.energy_cap) ?? null;
+              const lifetime = safeNum(v.lifetime_yr)      ?? safeNum(v._constraints?.lifetime) ?? null;
+              const opexFixed = safeNum(v.opex_fixed)      ?? safeNum(v._monetary?.om_annual)   ?? null;
+              const opexVar   = safeNum(v.opex_var)        ?? safeNum(v._monetary?.om_prod)     ?? null;
+
+              const patch = { _variantId: v.id };
+              if (capKw    != null)  patch.capacity_kw       = capKw;
+              if (effPct   != null)  patch.efficiency_pct    = effPct;
+              if (capex    != null)  patch.capex_usd_per_kw  = capex;
+              if (lifetime != null)  patch.lifetime_yr       = lifetime;
+              if (opexFixed != null) patch.opex_fixed        = opexFixed;
+              if (opexVar   != null) patch.opex_var          = opexVar;
+              if (v.ramp_rate_frac_hr != null) patch.ramp_rate_frac_hr = v.ramp_rate_frac_hr;
+
+              setLocalParams(patch);
+              onParamsChange?.(patch);
+            }}
+            className="flex-1 min-w-[200px] max-w-xs text-[12px] border border-slate-200 rounded-lg
+              px-2.5 py-1.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2
+              focus:ring-indigo-400 focus:border-transparent cursor-pointer"
+          >
+            <option value="">— opentech-db default —</option>
+            {variants.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.name}
+                {v.lifecycle ? ` · ${v.lifecycle}` : ""}
+                {v.capex_usd_per_kw != null
+                  ? ` · ${v.capex_usd_per_kw >= 1000
+                      ? `${(v.capex_usd_per_kw / 1000).toFixed(0)}k$/kW`
+                      : `${v.capex_usd_per_kw}$/kW`}`
+                  : ""}
+              </option>
+            ))}
+          </select>
+          {activeVariant && (
+            <>
+              <span className="text-[10px] text-slate-400 italic truncate max-w-[200px]">
+                {activeVariant.description ?? `${activeVariant.lifecycle ?? "commercial"} instance`}
+              </span>
+              <button
+                onClick={() => { setLocalParams({}); onParamsChange?.({}); }}
+                className="ml-auto text-[10px] text-red-400 hover:text-red-600 font-medium whitespace-nowrap"
+              >✕ Reset</button>
+            </>
+          )}
         </div>
       )}
 
-      {/* ── Efficiency breakdown summary footer ──────────────────────────── */}
+      {/* ═══════════════════════════════════════════════════════════════════════
+           SECTION C — Generation Charts  (main focus)
+      ══════════════════════════════════════════════════════════════════════ */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* 24 h theoretical profile — or uploaded CSV profile */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+          {csvChart ? (
+            <>
+              <div className="flex items-center gap-2 mb-1">
+                <FiUpload size={13} style={{ color: hue }} />
+                <h4 className="text-sm font-semibold text-slate-700">Custom Production Profile</h4>
+                <span className="ml-auto text-[11px] text-slate-400 flex items-center gap-1">
+                  <FiInfo size={10} /> {csvChart.summary.rows?.toLocaleString() ?? "?"} data points
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mb-3">
+                Avg: <b style={{ color: hue }}>{csvChart.summary.avg.toLocaleString()} kW</b>
+                {" · "}Peak: <b style={{ color: hue }}>{csvChart.summary.peak.toLocaleString()} kW</b>
+                {" · "}Min: <b className="text-slate-600">{csvChart.summary.min.toLocaleString()} kW</b>
+              </p>
+              <ReactECharts option={csvChart.chart} style={{ height: 220 }} />
+            </>
+          ) : (
+            <>
+              <div className="flex items-center gap-2 mb-1">
+                <FiClock size={13} style={{ color: hue }} />
+                <h4 className="text-sm font-semibold text-slate-700">
+                  {meta.label} — Typical 24 h Profile
+                </h4>
+                <span className="ml-auto text-[11px] text-slate-400 flex items-center gap-1">
+                  <FiInfo size={10} />
+                  {activeVariant ? activeVariant.name : "base model"} · 30-min res.
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mb-3">
+                Avg CF: <b style={{ color: hue }}>{(profile.avgCF * 100).toFixed(0)}%</b>
+                {" · "}Plant capacity: <b style={{ color: hue }}>
+                  {capacityKw >= 1000 ? `${(capacityKw / 1000).toFixed(1)} MW` : `${capacityKw} kW`}
+                </b>
+                {" · "}Peak:
+                {" "}<b className="text-slate-600">
+                  {profile.peakKw >= 1000 ? `${(profile.peakKw / 1000).toFixed(1)} MW` : `${Math.round(profile.peakKw)} kW`}
+                </b>
+              </p>
+              <ReactECharts option={profileChart} style={{ height: 220 }} />
+            </>
+          )}
+        </div>
+
+        {/* Generation statistics bar chart */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+          <div className="flex items-center gap-2 mb-1">
+            <FiBarChart2 size={13} style={{ color: hue }} />
+            <h4 className="text-sm font-semibold text-slate-700">Generation Statistics</h4>
+            <span className="ml-auto text-[11px] text-slate-400 flex items-center gap-1">
+              <FiInfo size={10} /> Capacity · CF range
+            </span>
+          </div>
+          <p className="text-xs text-slate-400 mb-3">
+            Daily yield: <b style={{ color: hue }}>{genStats.summary.dailyMwh} MWh/day</b>
+            {" · "}Annual: <b style={{ color: hue }}>{genStats.summary.annualMwh.toLocaleString()} MWh/yr</b>
+          </p>
+          <ReactECharts option={genStats.chart} style={{ height: 220 }} />
+        </div>
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+           SECTION E — Simulation Result (only shown when a run is complete)
+      ═══════════════════════════════════════════════════════════════════════ */}
+      {isDone && actualChart && (
+        <div className="bg-white rounded-2xl border border-indigo-200 shadow-sm p-5"
+          style={{ borderLeftWidth: 3, borderLeftColor: hue }}>
+          <div className="flex items-center gap-2 mb-1">
+            <FiActivity size={13} style={{ color: hue }} />
+            <h4 className="text-sm font-semibold text-slate-700">Simulation Result</h4>
+            <span className="ml-auto text-[11px] text-slate-400 flex items-center gap-1">
+              <FiInfo size={10} /> {selectedModel.name} · AC delivered to busbar
+            </span>
+          </div>
+          <p className="text-xs text-slate-400 mb-3">
+            Avg: <b style={{ color: hue }}>{actualChart.summary.avgPower} kW</b>
+            {" · "}Peak: <b style={{ color: hue }}>{actualChart.summary.peakPower} kW</b>
+            {" · "}Dashed line = average
+          </p>
+          <ReactECharts option={actualChart.chart} style={{ height: 240 }} />
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+           SECTION F — KPI Footer
+      ═══════════════════════════════════════════════════════════════════════ */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
           <p className="text-[10px] text-slate-500 uppercase tracking-wide font-medium">Generator η</p>
           <p className="text-lg font-bold text-slate-800 leading-tight">
             {selectedModel.efficiency_pct != null
               ? `${Number(selectedModel.efficiency_pct).toFixed(1)} %`
-              : techType === "solar" || techType === "wind" || techType === "hydro"
+              : ["solar", "wind", "hydro", "geothermal"].includes(techType)
                 ? "N/A (RE)"
                 : "—"}
           </p>
           <p className="text-[10px] text-slate-400">Fuel → electricity</p>
         </div>
-        <div className="bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-3">
-          <p className="text-[10px] text-indigo-500 uppercase tracking-wide font-medium">ELZ η</p>
-          <p className="text-lg font-bold text-indigo-800 leading-tight">
-            {(elzModel?.efficiency_pct ?? 70).toFixed(0)} %
+        <div className="rounded-xl px-4 py-3 border" style={{ background: `${hue}14`, borderColor: `${hue}44` }}>
+          <p className="text-[10px] uppercase tracking-wide font-medium" style={{ color: hue }}>Capacity Factor</p>
+          <p className="text-lg font-bold leading-tight" style={{ color: hue }}>
+            {meta.cf[0]}–{meta.cf[1]} <span className="text-sm font-normal">%</span>
           </p>
-          <p className="text-[10px] text-indigo-400">AC → H₂ chemical</p>
+          <p className="text-[10px] text-slate-400">Typical range for {meta.label}</p>
         </div>
         <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
-          <p className="text-[10px] text-emerald-500 uppercase tracking-wide font-medium">System η (steady)</p>
+          <p className="text-[10px] text-emerald-500 uppercase tracking-wide font-medium">Daily Energy</p>
           <p className="text-lg font-bold text-emerald-800 leading-tight">
-            {(
-              ((selectedModel?.efficiency_pct ?? 100) / 100) *
-              ((elzModel?.efficiency_pct ?? 70) / 100) *
-              100
-            ).toFixed(1)} %
+            {genStats.summary.dailyMwh} <span className="text-sm font-normal">MWh/day</span>
           </p>
-          <p className="text-[10px] text-emerald-400">Fuel → H₂ (chain)</p>
+          <p className="text-[10px] text-emerald-400">
+            {isDone && actualChart?.summary.avgPower
+              ? `Simulated avg: ${actualChart.summary.avgPower} kW`
+              : `Avg CF · plant ${capacityKw >= 1000 ? (capacityKw/1000).toFixed(1)+" MW" : capacityKw+" kW"}`}
+          </p>
         </div>
         <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-          <p className="text-[10px] text-amber-500 uppercase tracking-wide font-medium">H₂ Rate (set-point)</p>
-          <p className="text-lg font-bold text-amber-800 leading-tight">
-            {cascade.summary.h2nm3h} <span className="text-sm font-normal">Nm³/h</span>
+          <p className="text-[10px] text-amber-500 uppercase tracking-wide font-medium">
+            {meta.co2 != null ? "CO₂ Intensity" : "Annual yield"}
           </p>
-          <p className="text-[10px] text-amber-400">At {setPointKw.toLocaleString()} kW input</p>
+          <p className="text-lg font-bold text-amber-800 leading-tight">
+            {meta.co2 != null
+              ? <>{meta.co2} <span className="text-sm font-normal">g CO₂/kWh</span></>
+              : <>{genStats.summary.annualMwh.toLocaleString()} <span className="text-sm font-normal">MWh/yr</span></>}
+          </p>
+          <p className="text-[10px] text-amber-400">
+            {meta.co2 != null ? "Lifecycle emissions" : "Estimated annual generation"}
+          </p>
         </div>
       </div>
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+           SECTION G — DB Constraints & Parameters  (compact, below charts)
+           Values sourced from the active variant / opentech-db instance.
+      ═══════════════════════════════════════════════════════════════════════ */}
+      <details className="group bg-white rounded-2xl border border-slate-200 shadow-sm">
+        <summary className="flex items-center gap-2 px-4 py-2.5 cursor-pointer select-none
+          hover:bg-slate-50 rounded-2xl transition-colors list-none">
+          <FiSettings size={12} className="text-slate-400 shrink-0" />
+          <span className="text-[12px] font-semibold text-slate-600">Constraints &amp; Parameters</span>
+          <span className="text-[10px] text-slate-400 ml-1">
+            {activeVariant ? `– ${activeVariant.name}` : "– opentech-db defaults"}
+          </span>
+          {hasOverrides && (
+            <span className="ml-1 px-1.5 py-0.5 text-[10px] bg-indigo-100 text-indigo-600 rounded-full font-medium">
+              {Object.keys(localParams).filter((k) => k !== "_variantId").length} edited
+            </span>
+          )}
+          <svg className="ml-auto w-3.5 h-3.5 text-slate-400 transition-transform group-open:rotate-180 shrink-0"
+            fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+          {hasOverrides && (
+            <button
+              onClick={(e) => { e.preventDefault(); resetAllParams(); }}
+              className="ml-2 text-[10px] text-red-400 hover:text-red-600 font-medium px-2 py-0.5
+                rounded hover:bg-red-50 transition-colors shrink-0"
+            >Reset all</button>
+          )}
+        </summary>
+
+        <div className="px-4 pb-4 pt-2 border-t border-slate-100">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-0">
+
+            {/* Technical constraints column */}
+            <div>
+              <p className="text-[9px] font-bold text-slate-300 uppercase tracking-widest mb-2">Technical</p>
+              <div className="space-y-1.5">
+                <ConstraintRow
+                  label="Max Capacity"
+                  unit="kW"
+                  value={localParams.capacity_kw ?? null}
+                  defaultValue={cDef("energy_cap_max", "capacity_kw", 10000)}
+                  min={100}
+                  max={Math.max((cDef("energy_cap_max", "capacity_kw", 10000) ?? 10000) * 5, 200000)}
+                  step={100}
+                  onChange={(v) => handleParam("capacity_kw", v)}
+                  onReset={() => resetParam("capacity_kw")}
+                />
+                {!["solar", "wind", "hydro", "geothermal"].includes(techType) && (
+                  <ConstraintRow
+                    label="Efficiency"
+                    unit="%"
+                    value={localParams.efficiency_pct ?? null}
+                    defaultValue={
+                      cDef("energy_eff", null, null) != null
+                        ? +(cDef("energy_eff", null, null) * 100).toFixed(1)
+                        : effectiveModel.efficiency_pct ?? null
+                    }
+                    min={5} max={100} step={0.5}
+                    onChange={(v) => handleParam("efficiency_pct", v)}
+                    onReset={() => resetParam("efficiency_pct")}
+                  />
+                )}
+                <ConstraintRow
+                  label="CF min"
+                  unit="%"
+                  value={localParams.cf_min ?? null}
+                  defaultValue={meta.cf[0]}
+                  min={1} max={Math.max(1, cfMax - 1)} step={1}
+                  onChange={(v) => handleParam("cf_min", v)}
+                  onReset={() => resetParam("cf_min")}
+                />
+                <ConstraintRow
+                  label="CF max"
+                  unit="%"
+                  value={localParams.cf_max ?? null}
+                  defaultValue={meta.cf[1]}
+                  min={Math.min(99, cfMin + 1)} max={100} step={1}
+                  onChange={(v) => handleParam("cf_max", v)}
+                  onReset={() => resetParam("cf_max")}
+                />
+                <ConstraintRow
+                  label="Ramp Rate"
+                  unit="/hr"
+                  value={localParams.ramp_rate_frac_hr ?? null}
+                  defaultValue={cDef("energy_ramping", null, null)}
+                  min={0} max={1} step={0.01}
+                  onChange={(v) => handleParam("ramp_rate_frac_hr", v)}
+                  onReset={() => resetParam("ramp_rate_frac_hr")}
+                />
+                <ConstraintRow
+                  label="Lifetime"
+                  unit="yr"
+                  value={localParams.lifetime_yr ?? null}
+                  defaultValue={cDef("lifetime", "lifetime_yr", 25)}
+                  min={5} max={80} step={1}
+                  onChange={(v) => handleParam("lifetime_yr", v)}
+                  onReset={() => resetParam("lifetime_yr")}
+                />
+              </div>
+            </div>
+
+            {/* Economic parameters column */}
+            <div>
+              <p className="text-[9px] font-bold text-slate-300 uppercase tracking-widest mb-2">Economic</p>
+              <div className="space-y-1.5">
+                <ConstraintRow
+                  label="CAPEX"
+                  unit="$/kW"
+                  value={localParams.capex_usd_per_kw ?? null}
+                  defaultValue={mDef("energy_cap", "capex_usd_per_kw", null)}
+                  min={10} max={20000} step={10}
+                  onChange={(v) => handleParam("capex_usd_per_kw", v)}
+                  onReset={() => resetParam("capex_usd_per_kw")}
+                />
+                <ConstraintRow
+                  label="Fixed O&M"
+                  unit="$/kW/yr"
+                  value={localParams.opex_fixed ?? null}
+                  defaultValue={mDef("om_annual", null, null)}
+                  min={0} max={500} step={1}
+                  onChange={(v) => handleParam("opex_fixed", v)}
+                  onReset={() => resetParam("opex_fixed")}
+                />
+                <ConstraintRow
+                  label="Variable O&M"
+                  unit="$/kWh"
+                  value={localParams.opex_var ?? null}
+                  defaultValue={mDef("om_prod", null, null)}
+                  min={0} max={0.1} step={0.001}
+                  onChange={(v) => handleParam("opex_var", v)}
+                  onReset={() => resetParam("opex_var")}
+                />
+                <ConstraintRow
+                  label="Interest Rate"
+                  unit="%"
+                  value={localParams.interest_rate ?? null}
+                  defaultValue={
+                    mDef("interest_rate", null, null) != null
+                      ? +(mDef("interest_rate", null, 0.10) *
+                          (mDef("interest_rate", null, 0.10) > 1 ? 1 : 100)).toFixed(1)
+                      : 10
+                  }
+                  min={0} max={30} step={0.5}
+                  onChange={(v) => handleParam("interest_rate", v)}
+                  onReset={() => resetParam("interest_rate")}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Mini summary strip */}
+          <div className="mt-3 px-3 py-2 rounded-lg text-[10px] text-slate-400
+            flex flex-wrap gap-x-5 gap-y-0.5"
+            style={{ background: `${hue}08`, border: `1px solid ${hue}18` }}
+          >
+            <span>Capacity: <b className="text-slate-600">{capacityKw >= 1000 ? `${(capacityKw / 1000).toFixed(1)} MW` : `${capacityKw} kW`}</b></span>
+            <span>ELZ set-point: <b className="text-slate-600">{setPointKw.toLocaleString()} kW</b></span>
+            <span>CF: <b className="text-slate-600">{cfMin}–{cfMax} %</b></span>
+            <span>Daily: <b className="text-slate-600">{genStats.summary.dailyMwh} MWh</b></span>
+            <span>Annual: <b className="text-slate-600">{genStats.summary.annualMwh.toLocaleString()} MWh/yr</b></span>
+          </div>
+        </div>
+      </details>
+
     </div>
   );
 }

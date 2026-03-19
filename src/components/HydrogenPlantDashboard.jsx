@@ -1,12 +1,9 @@
 /**
  * HydrogenPlantDashboard.jsx
  * ─────────────────────────────────────────────────────────────────────────────
- * React Digital Twin for the Hydrogen Power Plant simulation.
- * Communicates exclusively with the FastAPI MATLAB Bridge running on the VM.
- *
- * The API service lives in:  src/services/hydrogenService.js
- * VM URL is configured via:  VITE_H2_SERVICE_URL in .env
- * VM setup instructions in:  hydrogen_vm_prompt.txt
+ * Technology Simulation Hub — Digital Twin Platform.
+ * Currently available: H₂ Power Plant (MATLAB/Simulink bridge).
+ * Future: Biomass CHP, Carbon Capture, PV+Battery, etc.
  */
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
@@ -24,6 +21,8 @@ import {
   FiWifiOff,
   FiInfo,
   FiClock,
+  FiWind,
+  FiSettings,
 } from "react-icons/fi";
 import {
   runSimulation,
@@ -33,7 +32,53 @@ import H2PlantFlowDiagram from "./H2PlantFlowDiagram";
 import H2EnergyCharts from "./H2EnergyCharts";
 import H2GeneratorPanel from "./H2GeneratorPanel";
 import H2NodeModal from "./H2NodeModal";
-import { fetchH2Models, getBestModel, applyModelParams, H2_SLOTS } from "../services/h2TechModels";
+import { fetchH2Models, getBestModel, applyModelParams, fetchH2Variants, H2_SLOTS } from "../services/h2TechModels";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Simulation catalogue — add new tech simulations here
+// ─────────────────────────────────────────────────────────────────────────────
+const SIM_CATALOGUE = [
+  {
+    id:       "h2",
+    label:    "H₂ Power Plant",
+    icon:     FiZap,
+    color:    "text-indigo-500",
+    bg:       "bg-indigo-50",
+    active:   "bg-indigo-600 text-white shadow-md",
+    ready:    true,
+    subtitle: "Electrolyzer · Compressor · Storage · Fuel Cell",
+  },
+  {
+    id:       "biomass",
+    label:    "Biomass CHP",
+    icon:     FiSettings,
+    color:    "text-green-500",
+    bg:       "bg-green-50",
+    active:   "bg-green-600 text-white shadow-md",
+    ready:    false,
+    subtitle: "Coming soon",
+  },
+  {
+    id:       "wind_battery",
+    label:    "Wind + Battery",
+    icon:     FiWind,
+    color:    "text-sky-500",
+    bg:       "bg-sky-50",
+    active:   "bg-sky-600 text-white shadow-md",
+    ready:    false,
+    subtitle: "Coming soon",
+  },
+  {
+    id:       "ccs",
+    label:    "Carbon Capture",
+    icon:     FiSettings,
+    color:    "text-slate-500",
+    bg:       "bg-slate-50",
+    active:   "bg-slate-600 text-white shadow-md",
+    ready:    false,
+    subtitle: "Coming soon",
+  },
+];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tiny reusable primitives (matches app-wide Tailwind conventions)
@@ -240,8 +285,11 @@ function buildFcChart(result) {
 const SIM_STATES = { IDLE: "idle", QUEUED: "queued", RUNNING: "running", DONE: "done", ERROR: "error" };
 
 export default function HydrogenPlantDashboard() {
-  // ── Service health ────────────────────────────────────────────────────────
-  const [health, setHealth] = useState(null); // null | { engine_ready, engine_error, active_jobs }
+  // ── Active simulation type (extendable) ────────────────────────────────
+  const [simType, setSimType] = useState("h2");
+
+  // ── Service health ────────────────────────────────────────────────────
+  const [health, setHealth] = useState(null);
   const [healthError, setHealthError] = useState(null);
 
   // ── Parameters ────────────────────────────────────────────────────────────
@@ -312,7 +360,22 @@ export default function HydrogenPlantDashboard() {
     setActiveNodeId((prev) => (prev === node.id ? null : node.id));
   }, []);
 
+  // ── Custom CSV production profile for the Power Source node ──────────────
+  const [customProfile, setCustomProfile] = useState(null);
 
+  // ── Tech variants (lifecycle/year projections from opentech-db) ──────────
+  const [variants, setVariants] = useState({});
+
+  // Fetch variants whenever the source model changes
+  const sourceModelId = selectedModels?.source?.id;
+  useEffect(() => {
+    if (!sourceModelId) return;
+    fetchH2Variants(sourceModelId, selectedModels?.source)
+      .then((v) => setVariants((p) => ({ ...p, source: v })));
+  }, [sourceModelId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Local param overrides from the generator panel constraints editor
+  const [genParamOverrides, setGenParamOverrides] = useState({});
 
   // ── Run simulation ────────────────────────────────────────────────────────
   const handleRun = async () => {
@@ -323,7 +386,8 @@ export default function HydrogenPlantDashboard() {
 
     try {
       const cancel = await runSimulation(
-        { electrolyzer: elz, storage: sto, fuel_cell: fc, simulation: sim },
+        { electrolyzer: elz, storage: sto, fuel_cell: fc, simulation: sim,
+          ...(customProfile ? { source_profile: customProfile.data } : {}) },
         {
           onQueued:   () => setSimState(SIM_STATES.QUEUED),
           onProgress: (d) => { setSimState(SIM_STATES.RUNNING); setProgress(d.progress_pct ?? 0); },
@@ -359,104 +423,68 @@ export default function HydrogenPlantDashboard() {
   // Render
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div className="p-6 space-y-6 max-w-screen-2xl mx-auto">
+    <div className="p-6 space-y-5 max-w-screen-2xl mx-auto">
 
-      {/* ── Page header ───────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-            <FiZap className="text-electric-500" />
-            Hydrogen Power Plant
-            <span className="ml-2 text-sm font-normal text-slate-400">Digital Twin</span>
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            MATLAB/Simulink physics engine running on dedicated simulation VM
-          </p>
+      {/* ── Simulation switcher + service status ──────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-3">
+        {/* Section label */}
+        <div className="flex items-center gap-2 mr-2">
+          <span className="p-1.5 rounded-lg bg-indigo-100 text-indigo-600"><FiZap size={15} /></span>
+          <span className="font-bold text-slate-800 text-sm tracking-wide uppercase">Tech Simulation</span>
         </div>
 
-        {/* ── Service health badge ─────────────────────────────────────── */}
+        {/* Type tabs */}
+        {SIM_CATALOGUE.map((sim) => {
+          const Icon = sim.icon;
+          const isActive = simType === sim.id;
+          return (
+            <button
+              key={sim.id}
+              disabled={!sim.ready}
+              title={sim.ready ? sim.subtitle : `${sim.label} — ${sim.subtitle}`}
+              onClick={() => sim.ready && setSimType(sim.id)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold
+                transition-all border
+                ${ isActive
+                    ? sim.active + " border-transparent"
+                    : sim.ready
+                      ? `${sim.bg} ${sim.color} border-transparent hover:border-slate-200 hover:shadow-sm`
+                      : "bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed"
+                  }`}
+            >
+              <Icon size={12} />
+              {sim.label}
+              {!sim.ready && <span className="text-[9px] font-normal opacity-60 ml-0.5">soon</span>}
+            </button>
+          );
+        })}
+
+        {/* Service status pill */}
         <button
           onClick={pingHealth}
-          title="Refresh VM connection status"
-          className="flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition-all
-            hover:shadow-sm active:scale-95
-            border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+          title="Refresh engine connection"
+          className={`ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-medium border
+            transition-all hover:shadow-sm active:scale-95
+            ${ healthError
+                ? "bg-red-50 border-red-200 text-red-600"
+                : health === null
+                  ? "bg-slate-50 border-slate-200 text-slate-400"
+                  : health.engine_ready
+                    ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                    : "bg-amber-50 border-amber-200 text-amber-700"
+              }`}
         >
-          {healthError ? (
-            <><FiWifiOff className="text-red-400" /> VM offline</>
-          ) : health === null ? (
-            <><FiWifi className="text-slate-300 animate-pulse" /> Connecting…</>
-          ) : !health.engine_ready ? (
-            <><FiClock className="text-amber-400 animate-pulse" /> MATLAB warming up…</>
-          ) : (
-            <><FiWifi className="text-emerald-500" /> VM connected · engine ready</>
-          )}
-          <FiRefreshCw size={13} className="text-slate-400" />
+          { healthError      ? <FiWifiOff size={11} />
+          : health === null  ? <FiWifi    size={11} className="animate-pulse" />
+          : health.engine_ready ? <FiWifi size={11} />
+                                : <FiClock size={11} className="animate-pulse" /> }
+          { healthError         ? "Engine offline"
+          : health === null     ? "Connecting…"
+          : health.engine_ready ? "Engine ready"
+                                : "Warming up…" }
+          <FiRefreshCw size={10} className="opacity-50" />
         </button>
       </div>
-
-      {/* ── VM error banner ───────────────────────────────────────────────── */}
-      {healthError && (
-        <div className="bg-red-50 border border-red-200 rounded-2xl overflow-hidden">
-          <div className="flex items-start gap-3 px-5 py-4 border-b border-red-100">
-            <FiAlertCircle className="mt-0.5 shrink-0 text-red-500" size={18} />
-            <div className="flex-1 min-w-0">
-              <p className="font-semibold text-red-800">Cannot reach simulation VM at <code className="text-red-700 bg-red-100 px-1 rounded">10.1.66.27:8765</code></p>
-              <p className="text-red-600 text-xs mt-0.5 break-all">{healthError}</p>
-            </div>
-            <button
-              onClick={pingHealth}
-              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-white border border-red-200 text-red-700 hover:bg-red-50 transition-all"
-            >
-              <FiRefreshCw size={11} /> Retry
-            </button>
-          </div>
-
-          <div className="px-5 py-4 space-y-3 text-xs text-red-700">
-            <p className="font-semibold text-red-800 uppercase tracking-wide text-[11px]">Troubleshooting steps (run on the VM via RDP)</p>
-
-            <div className="space-y-2 bg-amber-50 border border-amber-200 rounded-xl p-3">
-              <p className="font-semibold text-amber-800">⚠ Most common cause: uvicorn is bound to <code className="bg-amber-100 px-1 rounded">127.0.0.1</code> only</p>
-              <p className="text-amber-700">The service runs on the VM but only accepts local connections. Restart it with <code className="bg-amber-100 px-1 rounded">--host 0.0.0.0</code>:</p>
-              <pre className="bg-white border border-amber-200 rounded-lg px-3 py-2 font-mono text-[11px] text-slate-700 overflow-x-auto whitespace-pre-wrap">
-{`schtasks /End /TN HydrogenSimBridge
-cd C:\\Users\\admin1\\Desktop\\MATLAB_API\\hydrogen-plant-sim
-uvicorn main:app --host 0.0.0.0 --port 8765`}
-              </pre>
-              <p className="text-amber-700">If it works, update the scheduled task's command to permanently include <code className="bg-amber-100 px-1 rounded">--host 0.0.0.0</code>.</p>
-            </div>
-
-            <div className="space-y-2">
-              <p className="font-medium text-red-800">Add firewall inbound rule on the VM (run once as admin):</p>
-              <pre className="bg-white border border-red-200 rounded-lg px-3 py-2 font-mono text-[11px] text-slate-700 overflow-x-auto whitespace-pre-wrap">
-{`netsh advfirewall firewall add rule name="HydrogenSimBridge" dir=in action=allow protocol=TCP localport=8765`}
-              </pre>
-            </div>
-
-            <div className="space-y-2">
-              <p className="font-medium text-red-800">Verify it's reachable from the network (run on the VM):</p>
-              <pre className="bg-white border border-red-200 rounded-lg px-3 py-2 font-mono text-[11px] text-slate-700 overflow-x-auto whitespace-pre-wrap">
-{`curl http://10.1.66.27:8765/api/hydrogen/health`}
-              </pre>
-              <p>If that returns <code className="bg-red-100 px-1 rounded">engine_ready: true</code> the service is accessible externally.</p>
-            </div>
-
-            <div className="space-y-1 border-t border-red-200 pt-3">
-              <p className="font-medium text-red-800">Log files on the VM:</p>
-              <code className="block bg-white border border-red-200 rounded px-2 py-1 font-mono text-[11px] text-slate-600">C:\Users\admin1\Desktop\MATLAB_API\hydrogen-plant-sim\service.log</code>
-              <code className="block bg-white border border-red-200 rounded px-2 py-1 font-mono text-[11px] text-slate-600">C:\Users\admin1\Desktop\MATLAB_API\hydrogen-plant-sim\service.err</code>
-            </div>
-
-            <div className="border-t border-red-200 pt-3">
-              <p className="font-medium text-red-800">Alternative: SSH tunnel (skip firewall/host issues entirely):</p>
-              <pre className="bg-white border border-red-200 rounded-lg px-3 py-2 font-mono text-[11px] text-slate-700 overflow-x-auto">
-{`ssh -L 8765:localhost:8765 admin1@10.1.66.27`}
-              </pre>
-              <p className="mt-1">Then set <code className="bg-red-100 px-1 rounded">.env</code>: <code className="bg-red-100 px-1 rounded">VITE_H2_SERVICE_URL=http://localhost:8765</code> and restart the dev server.</p>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ── Process Flow Diagram (Simulink-style interactive PFD) ──────────── */}
       <H2PlantFlowDiagram
@@ -470,6 +498,8 @@ uvicorn main:app --host 0.0.0.0 --port 8765`}
         onSelectModel={handleSelectModel}
         activeNodeId={activeNodeId}
         onNodeClick={handleNodeClick}
+        customProfile={customProfile}
+        onSetCustomProfile={setCustomProfile}
       />
 
       {/* ── Node detail modal (portal → always on top) ──────────────────────── */}
@@ -487,6 +517,9 @@ uvicorn main:app --host 0.0.0.0 --port 8765`}
           elzParams={elz}
           result={result}
           simState={simState}
+          customProfile={customProfile}
+          variants={variants?.source}
+          onParamsChange={setGenParamOverrides}
         />
       </H2NodeModal>
 
@@ -526,7 +559,7 @@ uvicorn main:app --host 0.0.0.0 --port 8765`}
               <button
                 onClick={handleRun}
                 disabled={!health?.engine_ready}
-                title={!health?.engine_ready ? (healthError ? "VM is offline — see diagnostic panel above" : "Waiting for MATLAB engine to become ready…") : "Run simulation"}
+                title={!health?.engine_ready ? "Waiting for simulation engine…" : "Run simulation"}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl
                   bg-gradient-to-r from-electric-500 to-electric-600 text-white font-semibold text-sm
                   shadow-md hover:shadow-lg hover:from-electric-600 hover:to-electric-700
@@ -566,7 +599,7 @@ uvicorn main:app --host 0.0.0.0 --port 8765`}
             <div className="flex justify-between text-xs text-slate-500 mb-1">
               <span className="flex items-center gap-1">
                 <span className="inline-block w-2 h-2 rounded-full bg-electric-400 animate-pulse" />
-                {simState === SIM_STATES.QUEUED ? "Queued — waiting for MATLAB engine…" : `Running simulation (${progress.toFixed(0)}%)…`}
+                {simState === SIM_STATES.QUEUED ? "Queued — waiting for engine…" : `Running  ${progress.toFixed(0)} %…`}
               </span>
               <span>{progress.toFixed(0)} %</span>
             </div>
@@ -614,64 +647,15 @@ uvicorn main:app --host 0.0.0.0 --port 8765`}
         sourceName={selectedModels?.source?.name}
       />
 
-      {/* ── Charts (shown only after a successful run) ─────────────────────── */}
-      {simState === SIM_STATES.DONE && result && (
-        <div className="space-y-5">
-
-          {/* Row 1: ELZ power vs H2 production */}
-          <Card className="p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <FiZap size={14} className="text-electric-500" />
-              <h4 className="text-sm font-semibold text-slate-700">Electrolyzer Power vs. H₂ Production</h4>
-              <span className="ml-auto flex items-center gap-1 text-xs text-slate-400">
-                <FiInfo size={11} /> Dual Y-axis
-              </span>
-            </div>
-            <ReactECharts option={buildElzChart(result)} style={{ height: 240 }} />
-          </Card>
-
-          {/* Row 2: Tank pressure + FC charts side by side */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            <Card className="p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <FiDatabase size={14} className="text-amber-500" />
-                <h4 className="text-sm font-semibold text-slate-700">Tank Pressure Over Time</h4>
-              </div>
-              <ReactECharts option={buildTankChart(result)} style={{ height: 220 }} />
-            </Card>
-
-            <Card className="p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <FiCpu size={14} className="text-violet-500" />
-                <h4 className="text-sm font-semibold text-slate-700">Fuel Cell Voltage &amp; Current Density</h4>
-                <span className="ml-auto flex items-center gap-1 text-xs text-slate-400">
-                  <FiInfo size={11} /> Dual Y-axis
-                </span>
-              </div>
-              <ReactECharts option={buildFcChart(result)} style={{ height: 220 }} />
-            </Card>
-          </div>
-        </div>
-      )}
-
       {/* ── Idle placeholder ──────────────────────────────────────────────── */}
       {simState === SIM_STATES.IDLE && (
         <Card className="p-12 flex flex-col items-center justify-center text-center gap-4">
           <div className="p-5 rounded-full bg-slate-50 border border-slate-100">
-            <FiZap size={32} className={healthError ? "text-red-300" : "text-slate-300"} />
+            <FiZap size={32} className="text-slate-300" />
           </div>
           <div>
-            {healthError ? (
-              <>
-                <p className="font-semibold text-red-600">Simulation VM is offline</p>
-                <p className="text-sm text-slate-400 mt-1">Follow the troubleshooting steps in the panel above to restore connectivity, then click Retry.</p>
-              </>
-            ) : (
-              <>
-                <p className="font-semibold text-slate-700">Configure parameters and run the simulation</p>
-                <p className="text-sm text-slate-400 mt-1">Results will appear here once the MATLAB/Simulink engine on the VM completes the computation.</p>
-              </>
-            )}
+            <p className="font-semibold text-slate-700">Configure parameters and run the simulation</p>
+            <p className="text-sm text-slate-400 mt-1">Results will appear in the flow diagram and charts above once the computation finishes.</p>
           </div>
         </Card>
       )}

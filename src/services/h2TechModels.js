@@ -9,7 +9,7 @@
  *   const genModels = await fetchH2Models('source');
  */
 
-import { fetchTechsByCategory, fetchRawTechCatalog, isTechApiAvailable } from './techDatabaseApi';
+import { fetchTechsByCategory, fetchTechInstances, fetchRawTechCatalog, isTechApiAvailable, instanceToParams } from './techDatabaseApi';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Component slot definitions
@@ -20,13 +20,9 @@ export const H2_SLOTS = {
     label: 'Power Source',
     category: 'generation',
     keywords: null,   // show all generation techs
-    paramMap: {
-      grid_power_kw: (inst) => {
-        const mw = inst?.typical_capacity_mw ?? inst?.capacity_mw;
-        if (mw != null) return Math.round(Number(mw) * 1000);
-        return inst?.capacity_kw ?? null;
-      },
-    },
+    // NOTE: source slot does NOT override grid_power_kw (ELZ set-point) because
+    // plant rated capacity ≠ electrolyzer AC input — these are configured independently.
+    paramMap: {},
   },
   electrolyzer: {
     label: 'Electrolyzer',
@@ -205,6 +201,146 @@ export async function fetchH2Models(slotKey) {
  */
 export function clearH2ModelCache() {
   Object.keys(_cache).forEach((k) => delete _cache[k]);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Year-based CAPEX/efficiency projections for synthetic fallback variants
+// Based on IRENA/NREL cost-reduction trajectories per technology type
+// ─────────────────────────────────────────────────────────────────────────────
+const CAPEX_TRAJECTORIES = {
+  // [ multiplier_2030, multiplier_2040 ]
+  solar:      [0.65, 0.45],
+  wind:       [0.80, 0.65],
+  wind_off:   [0.78, 0.60],
+  nuclear:    [0.95, 0.90],
+  hydro:      [0.98, 0.95],
+  geothermal: [0.92, 0.85],
+  biomass:    [0.90, 0.82],
+  coal:       [1.00, 1.00],
+  gas:        [0.92, 0.88],
+  electrolyz: [0.55, 0.35],
+  fuel_cell:  [0.60, 0.40],
+  default:    [0.85, 0.72],
+};
+
+function detectTrade(id, name) {
+  const k = `${id} ${name}`.toLowerCase();
+  if (/solar|pv/.test(k))           return 'solar';
+  if (/offshore/.test(k))           return 'wind_off';
+  if (/wind/.test(k))               return 'wind';
+  if (/nuclear|pwr|bwr/.test(k))    return 'nuclear';
+  if (/hydro|river/.test(k))        return 'hydro';
+  if (/geotherm/.test(k))           return 'geothermal';
+  if (/biomass|bio/.test(k))        return 'biomass';
+  if (/coal|lignite/.test(k))       return 'coal';
+  if (/gas|ccgt|methane/.test(k))   return 'gas';
+  if (/electrolyz|pem|alkaline|soec|aec/.test(k)) return 'electrolyz';
+  if (/fuel.cell|pemfc|sofc/.test(k)) return 'fuel_cell';
+  return 'default';
+}
+
+function generateFallbackVariants(model) {
+  const trade  = detectTrade(model.id ?? '', model.name ?? '');
+  const traj   = CAPEX_TRAJECTORIES[trade] ?? CAPEX_TRAJECTORIES.default;
+  const base   = model.capex_usd_per_kw;
+  const baseEff = model.efficiency_pct;
+  const baseLife = model.lifetime_yr;
+
+  const mkVariant = (suffix, year, lifecycle, capexMult, effMult) => ({
+    ...model,
+    id:            `${model.id}_${suffix}`,
+    name:          `${model.name} (${year})`,
+    year,
+    lifecycle,
+    capex_usd_per_kw:  base   != null ? Math.round(base   * capexMult) : null,
+    efficiency_pct:    baseEff != null ? Math.min(99, +(baseEff * effMult).toFixed(1)) : null,
+    lifetime_yr:       baseLife,
+    description:       `${model.description ?? model.name} — ${year} cost projection`,
+  });
+
+  return [
+    { ...model, id: model.id + '_now', name: `${model.name} (Current)`, year: 2025,
+      lifecycle: model.lifecycle ?? 'commercial', year: 2025 },
+    mkVariant('2030', 2030, 'projection', traj[0], 1.0 + (1 - traj[0]) * 0.3),
+    mkVariant('2040', 2040, 'projection', traj[1], 1.0 + (1 - traj[1]) * 0.5),
+  ];
+}
+
+// Per-slot variants cache  { techId → variant[] }
+const _variantCache = {};
+
+/**
+ * Fetch technology variants for a single selected model.
+ * Tries the live opentech-db /instances endpoint first;
+ * falls back to synthetic year-projection variants.
+ *
+ * @param {string} techId  – id of the selected model (e.g. 'solar_pv')
+ * @param {Object} baseModel – the normalised model object (fallback source)
+ * @returns {Promise<Array>}
+ */
+export async function fetchH2Variants(techId, baseModel) {
+  if (!techId) return baseModel ? generateFallbackVariants(baseModel) : [];
+  if (_variantCache[techId]) return _variantCache[techId];
+
+  try {
+    const available = await isTechApiAvailable(2000);
+    if (!available) throw new Error('API offline');
+
+    const raw = await fetchTechInstances(techId, { limit: 20 });
+    if (!raw?.length) throw new Error('no instances');
+
+    const variants = raw.map((inst, i) => {
+      // Use the canonical instanceToParams() parser for consistent field extraction
+      const parsed = instanceToParams(inst) ?? {};
+      // always use pre-parsed numeric values — instanceToParams handles {value} OEO wrappers
+      const capKw  = parsed.constraints?.energy_cap_max           // already sanitised number
+                  ?? (typeof inst.capacity_kw === 'number' ? inst.capacity_kw : null)
+                  ?? null;
+      const effPct = parsed.constraints?.energy_eff != null
+                  ? +(parsed.constraints.energy_eff * 100).toFixed(2)
+                  : (typeof inst.efficiency_percent === 'number' ? inst.efficiency_percent : null);
+
+      // Build a human-readable name: prefer instance_name/label, then
+      // compose from lifecycle + capacity + year if none present
+      let name = parsed.label ?? inst.instance_name ?? inst.name ?? inst.label ?? inst.title ?? null;
+      if (!name || name === parsed.id) {
+        const stage  = parsed.life_cycle_stage ?? inst.life_cycle_stage ?? 'commercial';
+        const yr     = inst.year ?? inst.reference_year ?? null;
+        const mwStr  = capKw != null ? ` ${(capKw / 1000).toFixed(0)} MW` : '';
+        name = `${stage.charAt(0).toUpperCase() + stage.slice(1)}${mwStr}${yr ? ` (${yr})` : ''}`;
+      }
+
+      return {
+        id:               parsed.id ?? inst.instance_id ?? `${techId}_v${i}`,
+        name,
+        year:             inst.year ?? inst.reference_year ?? null,
+        lifecycle:        parsed.life_cycle_stage ?? 'commercial',
+        capacity_kw:      capKw,
+        efficiency_pct:   effPct,
+        capex_usd_per_kw: parsed.monetary?.energy_cap ?? inst.capex_usd_per_kw ?? null,
+        lifetime_yr:      parsed.constraints?.lifetime ?? inst.lifetime_years ?? null,
+        opex_fixed:       parsed.monetary?.om_annual ?? inst.opex_fixed_usd_per_kw_year ?? null,
+        opex_var:         parsed.monetary?.om_prod   ?? inst.opex_variable_usd_per_kwh ?? null,
+        ramp_rate_frac_hr: parsed.constraints?.energy_ramping ?? null,
+        description:      inst.description ?? null,
+        // raw DB constraint + monetary objects for the constraints editor
+        _constraints:     parsed.constraints ?? {},
+        _monetary:        parsed.monetary    ?? {},
+      };
+    });
+
+    _variantCache[techId] = variants;
+    return variants;
+  } catch {
+    const variants = baseModel ? generateFallbackVariants(baseModel) : [];
+    _variantCache[techId] = variants;
+    return variants;
+  }
+}
+
+/** Clear variant cache (e.g. after model change or API URL update) */
+export function clearH2VariantCache() {
+  Object.keys(_variantCache).forEach((k) => delete _variantCache[k]);
 }
 
 /**
