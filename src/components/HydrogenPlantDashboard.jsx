@@ -299,6 +299,22 @@ function buildFcChart(result) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// localStorage helpers — persist user choices across navigation
+// (The component unmounts on every route switch, so React state alone is not
+// enough; we need to survive the unmount/remount cycle.)
+// ─────────────────────────────────────────────────────────────────────────────
+const LS_PREFIX = "h2dash_";
+function loadLS(key, fallback) {
+  try {
+    const raw = localStorage.getItem(LS_PREFIX + key);
+    return raw != null ? JSON.parse(raw) : fallback;
+  } catch { return fallback; }
+}
+function saveLS(key, val) {
+  try { localStorage.setItem(LS_PREFIX + key, JSON.stringify(val)); } catch { /* quota / private mode */ }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Main component
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -312,15 +328,15 @@ export default function HydrogenPlantDashboard() {
   const [health, setHealth] = useState(null);
   const [healthError, setHealthError] = useState(null);
 
-  // ── Parameters ────────────────────────────────────────────────────────────
-  const [elz, setElz] = useState({ grid_power_kw: 300, water_flow_rate_lpm: 90, temperature_c: 70 });
-  const [sto, setSto] = useState({ compressor_efficiency: 0.78, max_tank_pressure_bar: 350 });
-  const [fc,  setFc]  = useState({ h2_flow_rate_nm3h: 40, oxidant_pressure_bar: 2.5, cooling_capacity_kw: 35 });
-  const [sim, setSim] = useState({ t_end_s: 3600, dt_s: 60 });
+  // ── Parameters  (restored from localStorage on every mount) ──────────────
+  const [elz, setElz] = useState(() => loadLS("elz", { grid_power_kw: 300, water_flow_rate_lpm: 90, temperature_c: 70 }));
+  const [sto, setSto] = useState(() => loadLS("sto", { compressor_efficiency: 0.78, max_tank_pressure_bar: 350 }));
+  const [fc,  setFc]  = useState(() => loadLS("fc",  { h2_flow_rate_nm3h: 40, oxidant_pressure_bar: 2.5, cooling_capacity_kw: 35 }));
+  const [sim, setSim] = useState(() => loadLS("sim", { t_end_s: 3600, dt_s: 60 }));
 
   // ── Technology model catalogue (opentech-db / fallback) ───────────────────
   const [models,         setModels]         = useState({});
-  const [selectedModels, setSelectedModels] = useState({});
+  const [selectedModels, setSelectedModels] = useState(() => loadLS("selectedModels", {}));
 
   // ── Simulation state ──────────────────────────────────────────────────────
   const [simState,  setSimState]  = useState(SIM_STATES.IDLE);
@@ -347,7 +363,18 @@ export default function HydrogenPlantDashboard() {
     return () => clearInterval(id);
   }, [pingHealth]);
 
-  // ── Load tech-model catalogue from opentech-db (with fallback) ───────────
+  // ── Persist user selections & parameters to localStorage ──────────────────
+  // Runs whenever any user-controlled value changes so navigation away and back
+  // restores exactly the state the user left.
+  useEffect(() => {
+    saveLS("selectedModels", selectedModels);
+  }, [selectedModels]);
+  useEffect(() => { saveLS("elz", elz); }, [elz]);
+  useEffect(() => { saveLS("sto", sto); }, [sto]);
+  useEffect(() => { saveLS("fc",  fc);  }, [fc]);
+  useEffect(() => { saveLS("sim", sim); }, [sim]);
+
+  // ── Load tech-model catalogue from opentech-db (with fallback) ────────────
   useEffect(() => {
     let alive = true;
     Promise.all(
@@ -360,7 +387,13 @@ export default function HydrogenPlantDashboard() {
       const m    = Object.fromEntries(entries);
       const best = Object.fromEntries(entries.map(([k, list]) => [k, getBestModel(list)]));
       setModels(m);
-      setSelectedModels(best);
+      // Merge: only fill slots the user hasn't already chosen.
+      // Without this, navigating away and back would reset user's selections.
+      setSelectedModels((prev) => {
+        const merged = { ...best };
+        Object.entries(prev).forEach(([k, v]) => { if (v) merged[k] = v; });
+        return merged;
+      });
     });
     return () => { alive = false; };
   }, []);
@@ -403,9 +436,13 @@ export default function HydrogenPlantDashboard() {
   }, [elzModelId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Local param overrides from the generator panel constraints editor
-  const [genParamOverrides, setGenParamOverrides] = useState({});
+  const [genParamOverrides, setGenParamOverrides] = useState(() => loadLS("genParams", {}));
   // Local param overrides from the electrolyzer panel constraints editor
-  const [elzParamOverrides, setElzParamOverrides] = useState({});
+  const [elzParamOverrides, setElzParamOverrides] = useState(() => loadLS("elzParams", {}));
+
+  // Persist overrides too
+  useEffect(() => { saveLS("genParams", genParamOverrides); }, [genParamOverrides]);
+  useEffect(() => { saveLS("elzParams", elzParamOverrides); }, [elzParamOverrides]);
 
   // ── Payload preview (must come after all state it depends on) ────────────
   const [showPayloadPreview, setShowPayloadPreview] = useState(false);

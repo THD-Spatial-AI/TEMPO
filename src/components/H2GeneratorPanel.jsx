@@ -442,13 +442,29 @@ export default function H2GeneratorPanel({ selectedModel, elzModel, elzParams, r
   const Icon       = meta.icon;
   const hue        = meta.hue;
 
-  // ── Local parameter overrides (null → use model default) ─────────────────
-  const [localParams,      setLocalParams]      = useState({});
-  // Constraints panel is a collapsible <details> at bottom (Section G)
+  // ── Local parameter overrides ──────────────────────────────────────────────
+  // Initialise from savedParams so selections survive modal close/reopen.
+  const [localParams, setLocalParams] = useState(() => savedParams ?? {});
 
-  // Reset overrides when the selected model changes
+  // Sync in if parent supplies pre-existing saved params on first mount
+  const savedParamsRef = useRef(savedParams);
+  useEffect(() => {
+    if (savedParamsRef.current !== savedParams && Object.keys(localParams).length === 0) {
+      setLocalParams(savedParams ?? {});
+    }
+    savedParamsRef.current = savedParams;
+  }, [savedParams]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reset overrides (but keep) when the selected model changes
   const modelId = selectedModel?.id;
-  useEffect(() => { setLocalParams({}); }, [modelId]);
+  const prevModelIdRef = useRef(modelId);
+  useEffect(() => {
+    if (prevModelIdRef.current !== modelId) {
+      setLocalParams({});
+      onParamsChange?.({});
+      prevModelIdRef.current = modelId;
+    }
+  }, [modelId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleParam = useCallback((key, value) => {
     setLocalParams((p) => {
@@ -641,79 +657,133 @@ export default function H2GeneratorPanel({ selectedModel, elzModel, elzParams, r
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════════
-           SECTION B — Technology Variant selector (compact dropdown)
+           SECTION B — Technology Variant selector
       ══════════════════════════════════════════════════════════════════════ */}
-      {variants && variants.length > 1 && (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-2.5
-          flex flex-wrap items-center gap-3">
-          <FiLayers size={12} style={{ color: hue }} />
-          <span className="text-[11px] font-semibold text-slate-600">Variant</span>
-          <select
-            value={localParams._variantId ?? ""}
-            onChange={(e) => {
-              const vid = e.target.value;
-              if (!vid) { setLocalParams({}); onParamsChange?.({}); return; }
-              const v = variants.find((vv) => vv.id === vid);
-              if (!v) return;
+      {variants && variants.length > 1 && (() => {
+        // Two-phase selection: choosing in the <select> only stages the value.
+        // The green "Apply variant" button commits it → calls onParamsChange → saved to localStorage.
+        const appliedVariantId = localParams._variantId ?? "";
+        const stagedVariantId  = localParams._stagedVariantId ?? appliedVariantId;
+        const isPending        = stagedVariantId !== appliedVariantId;
 
-              // Use full fallback chain — DB constraints/monetary fill gaps in top-level fields
-              // Always coerce to Number to guard against OEO {value,unit} wrapper objects
-              const safeNum = (x) => { const n = Number(x); return isFinite(n) ? n : null; };
+        const safeNum = (x) => { const n = Number(x); return isFinite(n) ? n : null; };
 
-              const capKw    = safeNum(v.capacity_kw)
-                            ?? safeNum(v._constraints?.energy_cap_max)
-                            ?? null;
-              const effPct   = safeNum(v.efficiency_pct)
-                            ?? (v._constraints?.energy_eff != null
-                                ? safeNum(+(v._constraints.energy_eff * 100).toFixed(1))
-                                : null);
-              const capex    = safeNum(v.capex_usd_per_kw) ?? safeNum(v._monetary?.energy_cap) ?? null;
-              const lifetime = safeNum(v.lifetime_yr)      ?? safeNum(v._constraints?.lifetime) ?? null;
-              const opexFixed = safeNum(v.opex_fixed)      ?? safeNum(v._monetary?.om_annual)   ?? null;
-              const opexVar   = safeNum(v.opex_var)        ?? safeNum(v._monetary?.om_prod)     ?? null;
+        const buildPatch = (v) => {
+          const capKw     = safeNum(v.capacity_kw)    ?? safeNum(v._constraints?.energy_cap_max) ?? null;
+          const effPct    = safeNum(v.efficiency_pct) ?? (v._constraints?.energy_eff != null
+                              ? safeNum(+(v._constraints.energy_eff * 100).toFixed(1)) : null);
+          const capex     = safeNum(v.capex_usd_per_kw) ?? safeNum(v._monetary?.energy_cap) ?? null;
+          const lifetime  = safeNum(v.lifetime_yr)      ?? safeNum(v._constraints?.lifetime) ?? null;
+          const opexFixed = safeNum(v.opex_fixed)        ?? safeNum(v._monetary?.om_annual)  ?? null;
+          const opexVar   = safeNum(v.opex_var)          ?? safeNum(v._monetary?.om_prod)    ?? null;
+          const patch = { _variantId: v.id };
+          if (capKw    != null)  patch.capacity_kw       = capKw;
+          if (effPct   != null)  patch.efficiency_pct    = effPct;
+          if (capex    != null)  patch.capex_usd_per_kw  = capex;
+          if (lifetime != null)  patch.lifetime_yr       = lifetime;
+          if (opexFixed != null) patch.opex_fixed        = opexFixed;
+          if (opexVar   != null) patch.opex_var          = opexVar;
+          if (v.ramp_rate_frac_hr != null) patch.ramp_rate_frac_hr = v.ramp_rate_frac_hr;
+          return patch;
+        };
 
-              const patch = { _variantId: v.id };
-              if (capKw    != null)  patch.capacity_kw       = capKw;
-              if (effPct   != null)  patch.efficiency_pct    = effPct;
-              if (capex    != null)  patch.capex_usd_per_kw  = capex;
-              if (lifetime != null)  patch.lifetime_yr       = lifetime;
-              if (opexFixed != null) patch.opex_fixed        = opexFixed;
-              if (opexVar   != null) patch.opex_var          = opexVar;
-              if (v.ramp_rate_frac_hr != null) patch.ramp_rate_frac_hr = v.ramp_rate_frac_hr;
+        const handleStage = (e) => {
+          const vid = e.target.value;
+          setLocalParams((p) => ({ ...p, _stagedVariantId: vid }));
+        };
 
-              setLocalParams(patch);
-              onParamsChange?.(patch);
-            }}
-            className="flex-1 min-w-[200px] max-w-xs text-[12px] border border-slate-200 rounded-lg
-              px-2.5 py-1.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2
-              focus:ring-indigo-400 focus:border-transparent cursor-pointer"
-          >
-            <option value="">— opentech-db default —</option>
-            {variants.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.name}
-                {v.lifecycle ? ` · ${v.lifecycle}` : ""}
-                {v.capex_usd_per_kw != null
-                  ? ` · ${v.capex_usd_per_kw >= 1000
-                      ? `${(v.capex_usd_per_kw / 1000).toFixed(0)}k$/kW`
-                      : `${v.capex_usd_per_kw}$/kW`}`
-                  : ""}
-              </option>
-            ))}
-          </select>
-          {activeVariant && (
-            <>
-              <span className="text-[10px] text-slate-400 italic truncate max-w-[200px]">
-                {activeVariant.description ?? `${activeVariant.lifecycle ?? "commercial"} instance`}
-              </span>
+        const handleApply = () => {
+          if (!stagedVariantId) {
+            // "default" selected — reset everything
+            setLocalParams({});
+            onParamsChange?.({});
+            return;
+          }
+          const v = variants.find((vv) => vv.id === stagedVariantId);
+          if (!v) return;
+          const patch = buildPatch(v);
+          // Remove staging key — variant is now applied
+          setLocalParams(patch);
+          onParamsChange?.(patch);
+        };
+
+        const displayVariant = variants.find((v) => v.id === stagedVariantId) ?? null;
+        const appliedVariantObj = variants.find((v) => v.id === appliedVariantId) ?? null;
+
+        return (
+          <div className={`bg-white rounded-xl border shadow-sm px-4 py-3 flex flex-wrap items-start gap-3
+            ${isPending ? "border-amber-300" : appliedVariantObj ? "border-emerald-300" : "border-slate-200"}`}>
+            <FiLayers size={12} style={{ color: hue }} className="mt-1" />
+            <div className="flex-1 min-w-[220px] space-y-1.5">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-semibold text-slate-600">Technology Variant</span>
+                {appliedVariantObj && !isPending && (
+                  <span className="text-[10px] bg-emerald-100 text-emerald-700 font-semibold px-2 py-0.5 rounded-full">
+                    ✓ Applied
+                  </span>
+                )}
+                {isPending && (
+                  <span className="text-[10px] bg-amber-100 text-amber-700 font-semibold px-2 py-0.5 rounded-full">
+                    ● Pending — click Apply
+                  </span>
+                )}
+              </div>
+              <select
+                value={stagedVariantId}
+                onChange={handleStage}
+                className="w-full text-[12px] border border-slate-200 rounded-lg px-2.5 py-1.5
+                  bg-slate-50 text-slate-700 focus:outline-none focus:ring-2
+                  focus:ring-indigo-400 focus:border-transparent cursor-pointer"
+              >
+                <option value="">— opentech-db default —</option>
+                {variants.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.name}
+                    {v.lifecycle ? ` · ${v.lifecycle}` : ""}
+                    {v.capex_usd_per_kw != null
+                      ? ` · ${v.capex_usd_per_kw >= 1000
+                          ? `${(v.capex_usd_per_kw / 1000).toFixed(0)}k$/kW`
+                          : `${v.capex_usd_per_kw}$/kW`}`
+                      : ""}
+                  </option>
+                ))}
+              </select>
+              {displayVariant?.description && (
+                <p className="text-[10px] text-slate-400 italic leading-snug">
+                  {displayVariant.description}
+                </p>
+              )}
+            </div>
+
+            {/* Apply / Reset column */}
+            <div className="flex flex-col gap-1.5 shrink-0">
               <button
-                onClick={() => { setLocalParams({}); onParamsChange?.({}); }}
-                className="ml-auto text-[10px] text-red-400 hover:text-red-600 font-medium whitespace-nowrap"
-              >✕ Reset</button>
-            </>
-          )}
-        </div>
-      )}
+                onClick={handleApply}
+                disabled={!isPending && !appliedVariantId}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-bold
+                  transition-all
+                  ${isPending
+                    ? "bg-emerald-500 text-white hover:bg-emerald-600 shadow-sm"
+                    : appliedVariantId
+                      ? "bg-slate-100 text-slate-500 hover:bg-slate-200 cursor-default"
+                      : "bg-slate-100 text-slate-300 cursor-not-allowed"
+                  }`}
+              >
+                {isPending ? "✓ Apply variant" : appliedVariantId ? "✓ Applied" : "Apply"}
+              </button>
+              {(appliedVariantId || isPending) && (
+                <button
+                  onClick={() => { setLocalParams({}); onParamsChange?.({}); }}
+                  className="px-3 py-1 rounded-lg text-[10px] text-red-400 hover:text-red-600
+                    hover:bg-red-50 border border-transparent hover:border-red-200 transition-all"
+                >
+                  ✕ Reset
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ═══════════════════════════════════════════════════════════════════════
            SECTION C — Generation Charts  (main focus)
