@@ -13,9 +13,14 @@
  * URL configured via: VITE_H2_SERVICE_URL in .env
  */
 
-// Always use the direct VM URL — the VM allows CORS from all origins ("*"),
-// so no proxy is needed in either dev or Electron production.
-const BASE_URL = (import.meta.env.VITE_H2_SERVICE_URL ?? "http://localhost:8765").replace(/\/$/, "");
+import { simulateH2Chain } from "./h2Physics";
+
+// Base URL strategy:
+//   DEV  → relative path "/h2-proxy", Vite dev-server proxies it to VITE_H2_SERVICE_URL.
+//          This avoids the browser trying to reach the VM directly (CORS / firewall / Docker).
+//   PROD → full URL from VITE_H2_SERVICE_URL (Electron opens file://, so no proxy available).
+const _RAW_URL = (import.meta.env.VITE_H2_SERVICE_URL ?? "http://localhost:8765").replace(/\/$/, "");
+const BASE_URL  = import.meta.env.DEV ? "/h2-proxy" : _RAW_URL;
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -40,7 +45,7 @@ async function apiFetch(path, options = {}) {
     let detail = `HTTP ${response.status}`;
     try {
       const body = await response.json();
-      detail = body?.detail ?? detail;
+      detail = body?.detail ?? body?.message ?? JSON.stringify(body) ?? detail;
     } catch (_) { /* ignore */ }
     const err = new Error(detail);
     err.status = response.status;
@@ -50,25 +55,128 @@ async function apiFetch(path, options = {}) {
   return response.json();
 }
 
+/** Like apiFetch but returns `null` instead of throwing on HTTP 4xx/5xx/network errors.
+ *  Used for health probes so a cold or misconfigured bridge never crashes the UI. */
+async function apiFetchSafe(path) {
+  try {
+    const response = await fetch(`${BASE_URL}${path}`, {
+      headers: { "Content-Type": "application/json" },
+    });
+    if (!response.ok) return null;
+    return response.json();
+  } catch (_) {
+    return null;
+  }
+}
+
 // ── public API ────────────────────────────────────────────────────────────────
 
 /**
  * Check whether the MATLAB engine is alive and ready.
- * @returns {Promise<{ engine_ready: boolean, engine_error: string|null, active_jobs: number }>}
+ *
+ * Tries /api/health first (standard FastAPI convention), then falls back to
+ * /api/hydrogen/health (older bridge versions).  Never throws — returns a safe
+ * object so the UI can degrade gracefully while the MATLAB engine warms up.
+ *
+ * @returns {Promise<{ engine_ready: boolean, engine_error: string|null, active_jobs: number, _path: string }>}
  */
 export async function checkHealth() {
-  return apiFetch("/api/hydrogen/health");
+  // Candidate paths in preference order
+  const candidates = [
+    "/api/health",
+    "/api/hydrogen/health",
+    "/health",
+  ];
+
+  for (const path of candidates) {
+    const data = await apiFetchSafe(path);
+    if (data !== null) {
+      // Normalise: both { engine_ready } and { status: "ok" } shapes are accepted
+      return {
+        engine_ready: !!(data.engine_ready ?? (data.status === "ok" || data.status === "ready")),
+        engine_error: data.engine_error ?? data.error ?? null,
+        active_jobs:  data.active_jobs  ?? 0,
+        _path: path,   // lets the UI show which path responded (useful for debugging)
+      };
+    }
+  }
+
+  // All paths unreachable
+  throw new Error(
+    `Cannot reach the Hydrogen Plant simulation service at ${BASE_URL}. ` +
+    `Tried: ${candidates.join(", ")}. ` +
+    "Possible causes: (1) not connected to VPN/lab network, " +
+    "(2) Docker container not running on the VM, " +
+    "(3) wrong IP/port in VITE_H2_SERVICE_URL (.env)."
+  );
 }
 
 /**
  * Submit a new hydrogen-plant simulation.
  *
+ * Payload schema v2.0 — built by {@link buildSimPayload} in h2SimPayload.js.
+ * Every key includes its unit in the name so MATLAB has no ambiguity.
+ *
  * @param {{
- *   electrolyzer: { grid_power_kw, water_flow_rate_lpm, temperature_c },
- *   storage:      { compressor_efficiency, max_tank_pressure_bar },
- *   fuel_cell:    { h2_flow_rate_nm3h, oxidant_pressure_bar, cooling_capacity_kw },
- *   simulation:   { t_end_s, dt_s }
+ *   schema_version: "2.0",
+ *   simulation: { t_end_s: number, dt_s: number },
+ *   source: {
+ *     tech_type:      "solar"|"wind"|"nuclear"|"hydro"|"gas"|"coal"|"biomass"|"geothermal"|"generic",
+ *     name:           string|null,
+ *     capacity_kw:    number|null,
+ *     efficiency_pct: number|null,
+ *     profile:        Array<{ time_s: number, power_kw: number }>
+ *   },
+ *   electrolyzer: {
+ *     tech_type:                  "pem"|"alkaline"|"soec"|"aem",
+ *     name:                       string|null,
+ *     capacity_kw:                number,
+ *     nominal_efficiency_pct_hhv: number,
+ *     min_load_pct:               number,
+ *     max_load_pct:               number,
+ *     operating_temperature_c:    number,
+ *     water_flow_rate_lpm:        number,
+ *     h2_hhv_kwh_per_kg:          39.4
+ *   },
+ *   compressor: {
+ *     tech_type:                  "reciprocating"|"ionic"|"linear",
+ *     name:                       string|null,
+ *     isentropic_efficiency_frac: number,
+ *     inlet_pressure_bar:         number,
+ *     target_pressure_bar:        number
+ *   },
+ *   storage: {
+ *     tech_type:                 "compressed_h2"|"liquid_h2"|"metal_hydride"|"cavern",
+ *     name:                      string|null,
+ *     max_pressure_bar:          number,
+ *     min_pressure_bar:          number,
+ *     initial_soc_pct:           number,
+ *     round_trip_efficiency_pct: number
+ *   },
+ *   fuel_cell: {
+ *     tech_type:              "pem"|"sofc"|"mcfc"|"pafc"|"alkaline",
+ *     name:                   string|null,
+ *     rated_power_kw:         number|null,
+ *     nominal_efficiency_pct: number,
+ *     min_load_pct:           number,
+ *     h2_flow_rate_nm3h:      number,
+ *     operating_pressure_bar: number,
+ *     cooling_capacity_kw:    number
+ *   }
  * }} params
+ *
+ * Expected MATLAB response (nested v2 or flat v1 — both handled by normalizeSimResult):
+ * {
+ *   time_s: number[],
+ *   electrolyzer: { power_in_kw, h2_production_nm3h, h2_production_kg_h, efficiency_pct },
+ *   compressor:   { power_consumed_kw, outlet_pressure_bar },
+ *   storage:      { pressure_bar, soc_pct, h2_mass_kg },
+ *   fuel_cell:    { power_output_kw, h2_consumed_nm3h, terminal_voltage_v, current_density_acm2, efficiency_pct },
+ *   kpi: { total_h2_produced_kg, total_h2_consumed_kg, total_energy_consumed_kwh,
+ *          overall_system_efficiency_pct, specific_energy_kwh_kg,
+ *          peak_h2_production_kg_h, avg_electrolyzer_load_pct, capacity_factor_pct }
+ * }
+ *
  * @returns {Promise<{ job_id: string, status: string, message: string }>}
  */
 export async function startSimulation(params) {
@@ -97,8 +205,14 @@ export async function pollStatus(jobId) {
 // ── WebSocket path ────────────────────────────────────────────────────────────
 
 function wsUrlForJob(jobId) {
-  // http → ws, https → wss
-  return `${BASE_URL.replace(/^http/, "ws")}/api/hydrogen/ws/${jobId}`;
+  if (import.meta.env.DEV) {
+    // In dev the Vite proxy handles WS too (ws: true in vite.config.js).
+    // Use the current page's host so the WS upgrade goes through the proxy.
+    const proto = location.protocol === "https:" ? "wss" : "ws";
+    return `${proto}://${location.host}/h2-proxy/api/hydrogen/ws/${jobId}`;
+  }
+  // Production (Electron): connect directly to the VM.
+  return `${_RAW_URL.replace(/^http/, "ws")}/api/hydrogen/ws/${jobId}`;
 }
 
 // ── Polling fallback ──────────────────────────────────────────────────────────
@@ -226,9 +340,16 @@ function openResultsSocketWithFallback(jobId, callbacks = {}) {
 
 /**
  * Start a simulation and subscribe to progress/result updates.
- * Tries WebSocket first; automatically falls back to polling if WS unavailable.
  *
- * @param {object} params
+ * PRIMARY PATH — MATLAB (when service reachable):
+ *   Submits the job, then receives results via WebSocket (falls back to polling).
+ *
+ * FALLBACK PATH — Local JS Physics (when service unreachable / no VPN):
+ *   Runs `simulateH2Chain()` from h2Physics.js entirely in the browser.
+ *   The result carries `_local: true` so the UI can show a badge.
+ *   Progress callbacks are faked over ~600 ms for a smooth UX.
+ *
+ * @param {object} params      – payload from buildSimPayload()
  * @param {{
  *   onQueued?:   (jobId: string) => void,
  *   onProgress?: (data) => void,
@@ -238,8 +359,41 @@ function openResultsSocketWithFallback(jobId, callbacks = {}) {
  * @returns {Promise<() => void>}  cancel/unsubscribe function
  */
 export async function runSimulation(params, callbacks = {}) {
-  const { job_id } = await startSimulation(params);
-  callbacks.onQueued?.(job_id);
-  const cancel = openResultsSocketWithFallback(job_id, callbacks);
-  return cancel;
+  try {
+    const { job_id } = await startSimulation(params);
+    callbacks.onQueued?.(job_id);
+    const cancel = openResultsSocketWithFallback(job_id, callbacks);
+    return cancel;
+  } catch (networkErr) {
+    // ── Local physics fallback ──────────────────────────────────────────────
+    if (import.meta.env.DEV) {
+      console.warn(
+        "[hydrogenService] MATLAB unreachable — running local JS physics simulation.",
+        networkErr.message
+      );
+    }
+
+    let cancelled = false;
+
+    // Fake progressive updates (600 ms total) so the UI shows the spinner.
+    callbacks.onQueued?.("local-sim");
+    const fakeProgress = [15, 40, 65, 85].map((pct, idx) =>
+      setTimeout(() => {
+        if (!cancelled) callbacks.onProgress?.({ status: "running", progress_pct: pct });
+      }, (idx + 1) * 120)
+    );
+
+    setTimeout(() => {
+      if (cancelled) return;
+      fakeProgress.forEach(clearTimeout);
+      try {
+        const result = simulateH2Chain(params);
+        callbacks.onResult?.(result);
+      } catch (physicsErr) {
+        callbacks.onError?.(physicsErr.message);
+      }
+    }, 620);
+
+    return () => { cancelled = true; fakeProgress.forEach(clearTimeout); };
+  }
 }

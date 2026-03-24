@@ -34,54 +34,64 @@ const tooltipFormatter = (params) =>
     .join('<br/>');
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 1. Power Flow chart  ─ Electrolyzer consumption vs Fuel Cell generation
+// 1. Power Flow chart  ─ Source generation → ELZ consumption → FC output
 // ─────────────────────────────────────────────────────────────────────────────
 function buildPowerFlowChart(result, sourceName) {
-  const t = timeAxis(result);
+  const t      = timeAxis(result);
+  const srcPow = result?.source_power_kw      ?? [];
   const elzPow = result?.electrolyzer_power_kw ?? [];
   const fcPow  = result?.fc_power_output_kw    ?? result?.fc_terminal_voltage_v?.map(() => 0) ?? [];
-  const netBal = elzPow.map((e, i) => Number((fcPow[i] ?? 0) - e).toFixed(2));
+  // Curtailed power: generated but not consumed by ELZ (e.g. ELZ at capacity)
+  const curtailed = srcPow.map((s, i) => Math.max(0, Number((s - (elzPow[i] ?? 0)).toFixed(2))));
+  const hasSrc = srcPow.length > 0 && srcPow.some((v) => v > 0);
+
+  const series = [
+    ...(hasSrc ? [{
+      name: `${sourceName ?? 'Source'} Generation`,
+      type: 'line',
+      data: srcPow,
+      smooth: true, symbol: 'none',
+      lineStyle: { color: '#3b82f6', width: 2.5 },
+      areaStyle: { color: 'rgba(59,130,246,0.08)' },
+      z: 1,
+    }] : []),
+    {
+      name: `ELZ Power In`,
+      type: 'line',
+      data: elzPow,
+      smooth: true, symbol: 'none',
+      lineStyle: { color: '#f59e0b', width: 2 },
+      areaStyle: { color: 'rgba(245,158,11,0.13)' },
+      z: 2,
+    },
+    {
+      name: 'FC Power Output',
+      type: 'line',
+      data: fcPow,
+      smooth: true, symbol: 'none',
+      lineStyle: { color: '#10b981', width: 2 },
+      areaStyle: { color: 'rgba(16,185,129,0.10)' },
+      z: 2,
+    },
+    ...(hasSrc ? [{
+      name: 'Curtailed (kW)',
+      type: 'bar',
+      data: curtailed,
+      barMaxWidth: 12,
+      itemStyle: { color: 'rgba(239,68,68,0.55)', borderRadius: [2, 2, 0, 0] },
+      z: 3,
+    }] : []),
+  ];
 
   return {
     animation: true,
     animationDuration: 800,
     tooltip: { trigger: 'axis', formatter: tooltipFormatter },
-    legend: {
-      data: [`${sourceName ?? 'Grid'} consumption (ELZ)`, 'FC Power Output', 'Net Balance'],
-      bottom: 0,
-      textStyle: { fontSize: 11 },
-    },
+    legend: { data: series.map((s) => s.name), bottom: 0, textStyle: { fontSize: 11 } },
     grid: baseGrid,
     xAxis: { type: 'category', data: t, axisLabel: { fontSize: 10, rotate: t.length > 30 ? 30 : 0 } },
     yAxis: { type: 'value', name: 'kW', nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10 } },
-    series: [
-      {
-        name: `${sourceName ?? 'Grid'} consumption (ELZ)`,
-        type: 'line',
-        data: elzPow,
-        smooth: true, symbol: 'none',
-        lineStyle: { color: '#f59e0b', width: 2 },
-        areaStyle: { color: 'rgba(245,158,11,0.12)' },
-      },
-      {
-        name: 'FC Power Output',
-        type: 'line',
-        data: fcPow,
-        smooth: true, symbol: 'none',
-        lineStyle: { color: '#10b981', width: 2 },
-        areaStyle: { color: 'rgba(16,185,129,0.10)' },
-      },
-      {
-        name: 'Net Balance',
-        type: 'bar',
-        data: netBal,
-        barMaxWidth: 14,
-        itemStyle: {
-          color: (p) => (Number(p.value) >= 0 ? '#6ee7b7' : '#fca5a5'),
-          borderRadius: [3, 3, 0, 0],
-        },
-      },
-    ],
+    series,
   };
 }
 
@@ -132,10 +142,8 @@ function buildH2BalanceChart(result) {
 function buildTankStateChart(result) {
   const t     = timeAxis(result);
   const press = result?.tank_pressure_bar ?? [];
-  const h2vol = result?.tank_h2_volume_nm3 ?? press.map(() => null);
-  const hasVol = h2vol.some((v) => v != null);
-
-  const dualAxis = hasVol;
+  const soc   = result?.tank_soc_pct      ?? press.map(() => null);
+  const hasSoc = soc.some((v) => v != null && v > 0);
 
   const series = [
     {
@@ -153,17 +161,18 @@ function buildTankStateChart(result) {
     { type: 'value', name: 'bar', nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10 } },
   ];
 
-  if (dualAxis) {
+  if (hasSoc) {
     series.push({
-      name: 'H₂ Volume (Nm³)',
-      type: 'bar',
-      data: h2vol,
-      barMaxWidth: 12,
-      itemStyle: { color: 'rgba(16,185,129,0.5)', borderRadius: [2, 2, 0, 0] },
+      name: 'Tank SOC (%)',
+      type: 'line',
+      data: soc,
+      smooth: true, symbol: 'none',
+      lineStyle: { color: '#10b981', width: 2, type: 'dashed' },
       yAxisIndex: 1,
     });
     yAxes.push({
-      type: 'value', name: 'Nm³',
+      type: 'value', name: '%',
+      min: 0, max: 100,
       nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10 },
       splitLine: { show: false },
     });
@@ -174,7 +183,7 @@ function buildTankStateChart(result) {
     animationDuration: 800,
     tooltip: { trigger: 'axis', formatter: tooltipFormatter },
     legend: { data: series.map((s) => s.name), bottom: 0, textStyle: { fontSize: 11 } },
-    grid: { ...baseGrid, right: dualAxis ? 54 : 20 },
+    grid: { ...baseGrid, right: hasSoc ? 54 : 20 },
     xAxis: { type: 'category', data: t, axisLabel: { fontSize: 10, rotate: t.length > 30 ? 30 : 0 } },
     yAxis: yAxes,
     series,
@@ -328,14 +337,15 @@ export default function H2EnergyCharts({ result, simState, progress, sourceName 
   const fcDetailOpt    = useMemo(() => buildFcDetailChart(result),                [result]);
   const cumulativeOpt  = useMemo(() => buildCumulativeChart(result),              [result]);
 
-  const isRunning = simState === 'running' || simState === 'queued';
+  const isRunning  = simState === 'running' || simState === 'queued';
+  const isLocal    = !!result?._local;
 
   if (!result && !isRunning) return null;
 
   return (
     <div className="space-y-5">
       {/* Section divider */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         <span className="p-2 rounded-xl bg-indigo-50 text-indigo-500"><FiActivity size={15} /></span>
         <div>
           <h3 className="font-semibold text-slate-800 text-sm uppercase tracking-wide">
@@ -347,6 +357,12 @@ export default function H2EnergyCharts({ result, simState, progress, sourceName 
               : `${t.length} time steps · Δt as per sample interval`}
           </p>
         </div>
+        {isLocal && (
+          <span className="ml-auto flex items-center gap-1.5 text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-3 py-1">
+            <FiInfo size={11} />
+            Local physics model · connect to VPN for MATLAB results
+          </span>
+        )}
       </div>
 
       {/* Loading skeleton while queued/running with no data yet */}
