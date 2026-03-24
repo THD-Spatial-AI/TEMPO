@@ -42,62 +42,100 @@ function lifecycleDot(lifecycle) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Rich model picker — expandable card list, stop propagation so node modal
-// doesn't trigger when the user interacts with the picker.
+// Rich model picker — two-phase: choose → stage → Apply.
+// The "Apply" button is the explicit commit — only then does onSelect fire.
+// A green lock badge on the trigger shows what is currently active for sim.
 // ─────────────────────────────────────────────────────────────────────────────
 function ModelPicker({ slotKey, models, selected, onSelect, disabled }) {
-  const [open, setOpen] = useState(false);
+  const [open,    setOpen]    = useState(false);
+  // `staged` = model the user has highlighted in the list but not yet applied
+  const [staged,  setStaged]  = useState(null);
 
   if (!models?.length) return null;
 
-  const stop = (e) => e.stopPropagation();
+  const stop   = (e) => e.stopPropagation();
+  const toggle = (e) => { stop(e); if (!disabled) setOpen((o) => !o); };
 
-  const toggle = (e) => {
-    stop(e);
-    if (!disabled) setOpen((o) => !o);
-  };
+  // Stage a model (highlight in list) without committing yet
+  const stage = (e, m) => { stop(e); setStaged(m); };
 
-  const pick = (e, m) => {
+  // Commit the staged (or directly-clicked) model
+  const apply = (e, m) => {
     stop(e);
-    onSelect(slotKey, m);
+    const toApply = m ?? staged;
+    if (!toApply) return;
+    onSelect(slotKey, toApply);
+    setStaged(null);
     setOpen(false);
   };
 
-  const sourceLabel = selected?.source === "fallback" ? "built-in" : "api";
+  const hasPending  = staged && staged.id !== selected?.id;
+  const displayModel = hasPending ? staged : selected;   // show staged in trigger while pending
 
   return (
     <div className="mt-2 pt-2 border-t border-slate-100 relative" onClick={stop}>
-      {/* Trigger button */}
-      <button
-        disabled={disabled}
-        onClick={toggle}
-        className={`nodrag w-full flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-left
-          border transition-all text-[11px]
-          ${ open
-              ? "border-blue-400 bg-blue-50 text-blue-700"
-              : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-white hover:border-slate-300"
-            }
-          disabled:opacity-40 disabled:cursor-not-allowed`}
-      >
-        {selected ? (
-          <>
-            <span className={`shrink-0 w-2 h-2 rounded-full ${lifecycleDot(selected.lifecycle)}`} />
-            <span className="flex-1 font-semibold truncate">{selected.name}</span>
-            {selected.efficiency_pct != null && (
-              <span className="shrink-0 text-[10px] text-slate-400">η {Number(selected.efficiency_pct).toFixed(0)}%</span>
-            )}
-            <span className="shrink-0 text-[9px] text-slate-300 font-normal">{sourceLabel}</span>
-          </>
-        ) : (
-          <span className="text-slate-400">— choose model —</span>
-        )}
-        <svg className={`shrink-0 ml-auto w-3 h-3 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`}
-          viewBox="0 0 20 20" fill="currentColor">
-          <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
-        </svg>
-      </button>
+      {/* ── Trigger row: dropdown button + Apply button ─────────────────── */}
+      <div className="flex items-center gap-1">
+        <button
+          disabled={disabled}
+          onClick={toggle}
+          className={`nodrag flex-1 flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-left
+            border transition-all text-[11px]
+            ${ hasPending
+                ? "border-amber-300 bg-amber-50 text-amber-800"
+                : open
+                  ? "border-blue-400 bg-blue-50 text-blue-700"
+                  : selected
+                    ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+                    : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-white hover:border-slate-300"
+              }
+            disabled:opacity-40 disabled:cursor-not-allowed`}
+        >
+          {displayModel ? (
+            <>
+              <span className={`shrink-0 w-2 h-2 rounded-full ${lifecycleDot(displayModel.lifecycle)}`} />
+              <span className="flex-1 font-semibold truncate">{displayModel.name}</span>
+              {displayModel.efficiency_pct != null && (
+                <span className="shrink-0 text-[10px] opacity-70">η {Number(displayModel.efficiency_pct).toFixed(0)}%</span>
+              )}
+              {/* Lock badge — green = applied, amber = pending */}
+              <span className={`shrink-0 text-[9px] font-bold ${hasPending ? "text-amber-500" : "text-emerald-500"}`}>
+                {hasPending ? "●" : "✓"}
+              </span>
+            </>
+          ) : (
+            <span className="text-slate-400">— choose model —</span>
+          )}
+          <svg className={`shrink-0 w-3 h-3 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`}
+            viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+          </svg>
+        </button>
 
-      {/* Dropdown panel */}
+        {/* Apply button — always visible; disabled when nothing pending */}
+        <button
+          disabled={disabled || !hasPending}
+          onClick={(e) => apply(e)}
+          title={hasPending ? `Apply "${staged.name}"` : "No pending change"}
+          className={`nodrag shrink-0 flex items-center justify-center w-7 h-7 rounded-lg border text-[11px] font-bold
+            transition-all
+            ${ hasPending
+                ? "border-emerald-400 bg-emerald-500 text-white hover:bg-emerald-600 shadow-sm"
+                : "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed"
+              }`}
+        >
+          ✓
+        </button>
+      </div>
+
+      {/* Pending label */}
+      {hasPending && (
+        <p className="text-[9px] text-amber-600 font-medium mt-0.5 ml-0.5">
+          Staged — click ✓ to apply
+        </p>
+      )}
+
+      {/* ── Dropdown panel ───────────────────────────────────────────────── */}
       {open && (
         <div
           className="absolute z-[9999] left-0 top-full mt-1 w-64 bg-white border border-slate-200
@@ -112,26 +150,30 @@ function ModelPicker({ slotKey, models, selected, onSelect, disabled }) {
           </div>
           <div className="max-h-52 overflow-y-auto divide-y divide-slate-50">
             {models.map((m) => {
-              const isActive = selected?.id === m.id;
+              const isApplied = selected?.id === m.id;
+              const isStaged  = staged?.id === m.id;
               return (
                 <div
                   key={m.id}
-                  onClick={(e) => pick(e, m)}
+                  onClick={(e) => { stage(e, m); }}
                   className={`px-3 py-2 cursor-pointer transition-colors
-                    ${ isActive
-                        ? "bg-blue-50 border-l-2 border-blue-400"
-                        : "hover:bg-slate-50 border-l-2 border-transparent"
+                    ${ isStaged
+                        ? "bg-amber-50 border-l-2 border-amber-400"
+                        : isApplied
+                          ? "bg-emerald-50 border-l-2 border-emerald-400"
+                          : "hover:bg-slate-50 border-l-2 border-transparent"
                       }`}
                 >
                   <div className="flex items-center gap-1.5">
                     <span className={`w-2 h-2 rounded-full shrink-0 ${lifecycleDot(m.lifecycle)}`} />
                     <span className="text-[11px] font-semibold text-slate-800 flex-1 truncate">{m.name}</span>
                     {m.efficiency_pct != null && (
-                      <span className={`text-[10px] font-medium ${ isActive ? "text-blue-600" : "text-slate-400"}`}>
+                      <span className={`text-[10px] font-medium ${isStaged ? "text-amber-600" : isApplied ? "text-emerald-600" : "text-slate-400"}`}>
                         η {Number(m.efficiency_pct).toFixed(0)}%
                       </span>
                     )}
-                    {isActive && <span className="text-[9px] text-blue-500">✓</span>}
+                    {isApplied && !isStaged && <span className="text-[9px] text-emerald-500 font-bold">✓ active</span>}
+                    {isStaged  && <span className="text-[9px] text-amber-500 font-bold">● staged</span>}
                   </div>
                   {m.capacity_kw != null && (
                     <p className="text-[10px] text-slate-400 mt-0.5 ml-3.5">
@@ -143,6 +185,15 @@ function ModelPicker({ slotKey, models, selected, onSelect, disabled }) {
                   )}
                   {m.description && (
                     <p className="text-[10px] text-slate-400 mt-0.5 ml-3.5 line-clamp-2">{m.description}</p>
+                  )}
+                  {/* Per-row apply button */}
+                  {isStaged && (
+                    <button
+                      onClick={(e) => apply(e, m)}
+                      className="nodrag mt-1.5 ml-3.5 px-2 py-0.5 rounded-md bg-emerald-500 text-white text-[10px] font-bold hover:bg-emerald-600 transition-colors"
+                    >
+                      Apply this model
+                    </button>
                   )}
                 </div>
               );
