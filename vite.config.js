@@ -1,44 +1,60 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 
 // https://vite.dev/config/
-export default defineConfig({
-  plugins: [react()],
-  base: './',   // relative paths so Electron can load dist/index.html from file://
-  server: {
-    proxy: {
-      // Forward /tech/* to the opentech-db Python API (not directly reachable from browser)
-      '/tech': {
-        target: 'http://localhost:8000',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/tech/, ''),
-      },
-    },
-  },
-  build: {
-    // Target modern browsers for smaller, faster output
-    target: 'esnext',
-    // Warn on chunks > 1 MB
-    chunkSizeWarningLimit: 1000,
-    rollupOptions: {
-      output: {
-        // Split heavy vendor libraries into separate cacheable chunks
-        manualChunks: {
-          'vendor-react': ['react', 'react-dom'],
-          'vendor-mui': [
-            '@mui/material',
-            '@mui/icons-material',
-            '@emotion/react',
-            '@emotion/styled',
-          ],
-          'vendor-map': [
-            'maplibre-gl',
-            '@deck.gl/core',
-            '@deck.gl/layers',
-            '@deck.gl/react',
-          ],
+export default defineConfig(({ mode }) => {
+  // Read .env so we can use VITE_H2_SERVICE_URL as the proxy target.
+  // This way the URL is never hard-coded here.
+  const env = loadEnv(mode, process.cwd(), '')
+  const h2Target = (env.VITE_H2_SERVICE_URL || 'http://localhost:8765').replace(/\/$/, '')
+
+  return {
+    plugins: [react()],
+    base: './',   // relative paths so Electron can load dist/index.html from file://
+    server: {
+      proxy: {
+        // ── Hydrogen Plant MATLAB bridge ─────────────────────────────────────
+        // Proxies both HTTP and WebSocket so the browser never connects directly
+        // to the VM (avoids CORS issues and Docker/firewall restrictions).
+        '/h2-proxy': {
+          target: h2Target,
+          changeOrigin: true,
+          ws: true,  // also proxy WebSocket upgrade requests
+          rewrite: (path) => path.replace(/^\/h2-proxy/, ''),
+        },
+        // ── OpenTech-DB technology catalog ───────────────────────────────────
+        '/tech': {
+          target: 'http://localhost:8000',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/tech/, ''),
         },
       },
     },
-  },
+    build: {
+      // Target modern browsers for smaller, faster output
+      target: 'esnext',
+      // Warn on chunks > 1 MB
+      chunkSizeWarningLimit: 1000,
+      rollupOptions: {
+        output: {
+          // Split heavy vendor libraries into separate cacheable chunks
+          manualChunks: {
+            'vendor-react': ['react', 'react-dom'],
+            'vendor-mui': [
+              '@mui/material',
+              '@mui/icons-material',
+              '@emotion/react',
+              '@emotion/styled',
+            ],
+            'vendor-map': [
+              'maplibre-gl',
+              '@deck.gl/core',
+              '@deck.gl/layers',
+              '@deck.gl/react',
+            ],
+          },
+        },
+      },
+    },
+  }
 })

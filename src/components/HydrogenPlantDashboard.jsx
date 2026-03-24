@@ -6,7 +6,7 @@
  * Future: Biomass CHP, Carbon Capture, PV+Battery, etc.
  */
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import ReactECharts from "echarts-for-react";
 import {
   FiZap,
@@ -28,6 +28,7 @@ import {
   runSimulation,
   checkHealth,
 } from "../services/hydrogenService";
+import { buildSimPayload, normalizeSimResult } from "../services/h2SimPayload";
 import H2PlantFlowDiagram from "./H2PlantFlowDiagram";
 import H2EnergyCharts from "./H2EnergyCharts";
 import H2GeneratorPanel from "./H2GeneratorPanel";
@@ -50,55 +51,6 @@ function detectSourceTechType(model) {
   return "generic";
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Build a [{time_s, value_kw}] source profile from the tech-type shape.
-// Used automatically when no custom CSV is uploaded — gives MATLAB a realistic
-// time-varying power input instead of a flat constant.
-// ─────────────────────────────────────────────────────────────────────────────
-function buildTheoreticalSourceProfile(techType, capacityKw, t_end_s, dt_s) {
-  const cap = Number(capacityKw);
-  if (!isFinite(cap) || cap <= 0) return null;
-  const pts = [];
-  for (let t = 0; t <= t_end_s; t += dt_s) {
-    const h = (t / 3600) % 24;
-    let frac;
-    switch (techType) {
-      case "solar": {
-        const raw = Math.exp(-0.5 * ((h - 12.5) / 2.4) ** 2);
-        frac = (h < 5.5 || h > 19.5) ? 0 : raw;
-        break;
-      }
-      case "wind":
-        frac = Math.min(1, Math.max(0,
-          0.38 + 0.18 * Math.sin(h * 0.65 + 1.2)
-               + 0.12 * Math.sin(h * 1.7  + 0.5)
-               + 0.07 * Math.sin(h * 3.1  + 2.0)));
-        break;
-      case "nuclear":
-      case "geothermal":
-        frac = 0.90 + 0.015 * Math.sin((h / 24) * 2 * Math.PI);
-        break;
-      case "coal":
-      case "biomass":
-        frac = (h >= 7 && h < 22 ? 0.82 : 0.55) + 0.03 * Math.sin(h * 0.9);
-        break;
-      case "gas":
-        frac = Math.min(1, Math.max(0.15,
-          0.45 + 0.25 * Math.sin(((h - 6) / 24) * 2 * Math.PI) + 0.08 * Math.sin(h * 2.1)));
-        break;
-      case "hydro": {
-        const morn = 0.55 * Math.exp(-0.5 * ((h - 8)  / 2.2) ** 2);
-        const eve  = 0.65 * Math.exp(-0.5 * ((h - 19) / 2.5) ** 2);
-        frac = Math.min(1, Math.max(0.15, morn + eve + 0.18));
-        break;
-      }
-      default:
-        frac = 0.75;
-    }
-    pts.push({ time_s: t, value_kw: Math.round(frac * cap) });
-  }
-  return pts;
-}
 import H2NodeModal from "./H2NodeModal";
 import { fetchH2Models, getBestModel, applyModelParams, fetchH2Variants, H2_SLOTS } from "../services/h2TechModels";
 
@@ -455,6 +407,19 @@ export default function HydrogenPlantDashboard() {
   // Local param overrides from the electrolyzer panel constraints editor
   const [elzParamOverrides, setElzParamOverrides] = useState({});
 
+  // ── Payload preview (must come after all state it depends on) ────────────
+  const [showPayloadPreview, setShowPayloadPreview] = useState(false);
+  const previewPayload = useMemo(() => buildSimPayload({
+    selectedModels,
+    genParamOverrides,
+    elzParamOverrides,
+    elz,
+    sto,
+    fc,
+    sim,
+    customProfile,
+  }), [selectedModels, genParamOverrides, elzParamOverrides, elz, sto, fc, sim, customProfile]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Sync generator capacity override → ELZ grid_power_kw ─────────────────
   // The generator feeds the electrolyzer — updating generator capacity should
   // immediately reflect in the ELZ input power shown in the flow diagram.
@@ -481,54 +446,34 @@ export default function HydrogenPlantDashboard() {
     setErrorMsg(null);
 
     try {
-      // ── Build the full simulation payload ──────────────────────────────────
-      // 1. Resolve source (generator) params with user overrides applied
-      const sourceModel   = selectedModels?.source;
-      const sourceTech    = detectSourceTechType(sourceModel);
-      const safeN = (x) => { const n = Number(x); return isFinite(n) ? n : null; };
-      const sourceCap     = safeN(genParamOverrides?.capacity_kw)
-                         ?? safeN(sourceModel?.capacity_kw)
-                         ?? null;
-      const sourceEff     = safeN(genParamOverrides?.efficiency_pct)
-                         ?? safeN(sourceModel?.efficiency_pct)
-                         ?? null;
-
-      // 2. Build source profile: prefer uploaded CSV, else synthesize from
-      //    the theoretical tech-type profile scaled to simulation horizon.
-      const sourceProfile = customProfile?.data
-        ?? buildTheoreticalSourceProfile(sourceTech, sourceCap, sim.t_end_s, sim.dt_s);
-
-      // 3. ELZ effective params: merge live state + constraint overrides
-      const elzEffective = {
-        ...elz,
-        // Always reflect the generator output as input power
-        grid_power_kw: sourceCap ?? elz.grid_power_kw,
-        // Forward efficiency override so MATLAB uses the right value
-        ...(safeN(elzParamOverrides?.efficiency_pct) != null
-            ? { efficiency_pct: safeN(elzParamOverrides.efficiency_pct) }
-            : {}),
-      };
+      // ── Build the canonical v2.0 simulation payload ──────────────────────
+      // buildSimPayload resolves all device parameters from selectedModels,
+      // user overrides, and synthesises a source power profile when no CSV
+      // has been uploaded. Every field is units-annotated so MATLAB knows
+      // exactly what to simulate for each device in the value chain.
+      const payload = buildSimPayload({
+        selectedModels,
+        genParamOverrides,
+        elzParamOverrides,
+        elz,
+        sto,
+        fc,
+        sim,
+        customProfile,
+      });
 
       const cancel = await runSimulation(
-        {
-          electrolyzer:   elzEffective,
-          storage:        sto,
-          fuel_cell:      fc,
-          simulation:     sim,
-          // Source metadata — MATLAB can use this to parameterise the generator block
-          source: {
-            tech_type:      sourceTech,
-            capacity_kw:    sourceCap,
-            efficiency_pct: sourceEff,
-            name:           sourceModel?.name ?? null,
-          },
-          // Time-series power input: custom CSV takes precedence over theoretical
-          ...(sourceProfile ? { source_profile: sourceProfile } : {}),
-        },
+        payload,
         {
           onQueued:   () => setSimState(SIM_STATES.QUEUED),
           onProgress: (d) => { setSimState(SIM_STATES.RUNNING); setProgress(d.progress_pct ?? 0); },
-          onResult:   (r) => { setResult(r); setSimState(SIM_STATES.DONE); pingHealth(); },
+          onResult:   (r) => {
+            // normalizeSimResult handles both nested (v2) and flat (v1) MATLAB
+            // responses, producing consistent flat aliases for all chart components.
+            setResult(normalizeSimResult(r));
+            setSimState(SIM_STATES.DONE);
+            pingHealth();
+          },
           onError:    (m) => { setErrorMsg(m); setSimState(SIM_STATES.ERROR); },
         }
       );
@@ -599,7 +544,15 @@ export default function HydrogenPlantDashboard() {
         {/* Service status pill */}
         <button
           onClick={pingHealth}
-          title="Refresh engine connection"
+          title={
+            healthError
+              ? `Error: ${healthError}`
+              : health === null
+                ? `Connecting to ${import.meta.env.VITE_H2_SERVICE_URL ?? "http://localhost:8765"}…`
+                : health.engine_ready
+                  ? `Engine ready · ${health._path ?? "/api/health"} · ${health.active_jobs ?? 0} active jobs`
+                  : `Engine warming up · ${health.engine_error ?? "MATLAB initialising"}`
+          }
           className={`ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-medium border
             transition-all hover:shadow-sm active:scale-95
             ${ healthError
@@ -622,7 +575,29 @@ export default function HydrogenPlantDashboard() {
           <FiRefreshCw size={10} className="opacity-50" />
         </button>
       </div>
-
+      {/* ── Engine offline diagnostic banner ────────────────────────────────── */}
+      {healthError && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm">
+          <div className="flex items-start gap-3">
+            <FiWifiOff className="mt-0.5 shrink-0 text-red-500" size={16} />
+            <div className="flex-1">
+              <p className="font-semibold text-red-700 mb-1">Cannot reach the simulation engine</p>
+              <p className="text-red-600 text-xs mb-3 font-mono break-all">
+                Target: {import.meta.env.VITE_H2_SERVICE_URL ?? "http://localhost:8765"}
+              </p>
+              <ul className="text-red-600 text-xs space-y-1 list-disc list-inside">
+                <li><b>VPN / lab network</b> — the IP <code className="bg-red-100 px-1 rounded">{(import.meta.env.VITE_H2_SERVICE_URL ?? "").replace(/https?:\/\//, "").split(":")[0]}</code> is on a private subnet; connect to the VPN first.</li>
+                <li><b>Docker not running</b> — on the server, run <code className="bg-red-100 px-1 rounded">docker compose up -d</code> and check <code className="bg-red-100 px-1 rounded">docker ps</code>.</li>
+                <li><b>Wrong address</b> — update <code className="bg-red-100 px-1 rounded">VITE_H2_SERVICE_URL</code> in <code className="bg-red-100 px-1 rounded">.env</code>, then restart <code className="bg-red-100 px-1 rounded">npm run dev</code>.</li>
+                <li><b>Run locally</b> — set <code className="bg-red-100 px-1 rounded">VITE_H2_SERVICE_URL=http://localhost:8765</code> and run the Docker container on this machine.</li>
+              </ul>
+            </div>
+            <button onClick={pingHealth} title="Retry connection" className="shrink-0 p-1.5 rounded-lg hover:bg-red-100 text-red-400 transition-colors">
+              <FiRefreshCw size={14} />
+            </button>
+          </div>
+        </div>
+      )}
       {/* ── Process Flow Diagram (Simulink-style interactive PFD) ──────────── */}
       <H2PlantFlowDiagram
         elz={elz} setElz={setElz}
@@ -726,12 +701,11 @@ export default function HydrogenPlantDashboard() {
             {simState === SIM_STATES.IDLE || simState === SIM_STATES.DONE || simState === SIM_STATES.ERROR ? (
               <button
                 onClick={handleRun}
-                disabled={!health?.engine_ready}
-                title={!health?.engine_ready ? "Waiting for simulation engine…" : "Run simulation"}
+                title="Run simulation"
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl
                   bg-gradient-to-r from-electric-500 to-electric-600 text-white font-semibold text-sm
                   shadow-md hover:shadow-lg hover:from-electric-600 hover:to-electric-700
-                  transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                  transition-all active:scale-95"
               >
                 <FiPlay size={14} />
                 {simState === SIM_STATES.DONE ? "Re-run" : "Run Simulation"}
@@ -782,9 +756,15 @@ export default function HydrogenPlantDashboard() {
 
         {/* Done banner */}
         {simState === SIM_STATES.DONE && (
-          <div className="mt-4 flex items-center gap-2 text-emerald-700 text-sm bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5">
+          <div className={`mt-4 flex items-center gap-2 text-sm rounded-xl px-4 py-2.5 border ${
+            result?._local
+              ? 'text-amber-700 bg-amber-50 border-amber-200'
+              : 'text-emerald-700 bg-emerald-50 border-emerald-200'
+          }`}>
             <FiCheckCircle />
-            Simulation complete — {result?.time_s?.length ?? 0} data points returned.
+            {result?._local
+              ? <>Local physics simulation complete — {result?.time_s?.length ?? 0} steps. <span className="font-medium">VPN + MATLAB for high-fidelity results.</span></>
+              : <>MATLAB simulation complete — {result?.time_s?.length ?? 0} data points returned.</>}
           </div>
         )}
 
@@ -797,15 +777,47 @@ export default function HydrogenPlantDashboard() {
         )}
       </Card>
 
-      {/* ── KPI summary ───────────────────────────────────────────────────── */}
-      {simState === SIM_STATES.DONE && kpi && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <KpiCard label="Avg. H₂ Production"    value={fmt(kpi.avg_h2_production_nm3h)}  unit="Nm³/h"  color="electric" />
-          <KpiCard label="Peak Tank Pressure"     value={fmt(kpi.peak_tank_pressure_bar)}   unit="bar"    color="amber"    />
-          <KpiCard label="FC Net Power Output"    value={fmt(kpi.avg_fc_power_kw)}          unit="kW"     color="violet"   />
-          <KpiCard label="System Efficiency"      value={fmt(kpi.system_efficiency_pct)}    unit="%"      color="emerald"  />
-        </div>
-      )}
+      {/* ── Payload preview ─────────────────────────────────────────────── */}
+      <div className="border border-slate-200 rounded-2xl overflow-hidden">
+        <button
+          onClick={() => setShowPayloadPreview((p) => !p)}
+          className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors text-sm font-medium text-slate-600"
+        >
+          <span className="flex items-center gap-2">
+            <FiInfo size={13} className="text-indigo-500" />
+            MATLAB Simulation Payload
+            <span className="text-xs font-normal text-slate-400">schema v2.0 · inspect what will be sent</span>
+          </span>
+          <span className="text-slate-400 font-mono text-xs">{showPayloadPreview ? '▲ hide' : '▼ show'}</span>
+        </button>
+        {showPayloadPreview && (
+          <div className="bg-slate-900 text-slate-100 p-4 max-h-96 overflow-auto">
+            <pre className="text-[11px] leading-relaxed font-mono whitespace-pre-wrap break-all">
+              {JSON.stringify(previewPayload, null, 2)}
+            </pre>
+          </div>
+        )}
+      </div>
+
+      {/* ── KPI summary ──────────────────────────────────────────────────── */}
+      {simState === SIM_STATES.DONE && kpi && (() => {
+        // Derived KPIs from result arrays (works for both MATLAB v2 and local physics)
+        const h2arr  = result?.h2_production_nm3h ?? [];
+        const avgH2  = h2arr.length > 0 ? h2arr.reduce((s, v) => s + v, 0) / h2arr.length : null;
+        const pArr   = result?.tank_pressure_bar ?? [];
+        const peakP  = pArr.length > 0 ? Math.max(...pArr) : null;
+        const fcArr  = result?.fc_power_output_kw ?? [];
+        const avgFc  = fcArr.length > 0 ? fcArr.reduce((s, v) => s + v, 0) / fcArr.length : null;
+        const sysEff = kpi.overall_system_efficiency_pct ?? kpi.system_efficiency_pct ?? null;
+        return (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <KpiCard label="Avg. H₂ Production"    value={fmt(avgH2)}   unit="Nm³/h"  color="electric" />
+            <KpiCard label="Peak Tank Pressure"     value={fmt(peakP)}   unit="bar"    color="amber"    />
+            <KpiCard label="Avg. FC Power Output"   value={fmt(avgFc)}   unit="kW"     color="violet"   />
+            <KpiCard label="System Efficiency"      value={fmt(sysEff)}  unit="%"      color="emerald"  />
+          </div>
+        );
+      })()}
 
       {/* ── Energy Evolution Charts (H2EnergyCharts) ──────────────────────── */}
       <H2EnergyCharts
