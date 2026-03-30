@@ -2,7 +2,17 @@
 
 ## Tool for Energy Model Planning and Optimization
 
-A desktop + web application for building, running, and visualizing energy system models. Combines an interactive map interfacpe with a Go backend, a Python Calliope runner, and OSM infrastructure data pipelines.
+A desktop + web application for building, running, and visualizing energy system models. Combines an interactive map interface with a Go backend, a Python Calliope runner, and OSM infrastructure data pipelines.
+
+## 🚀 Quick Start for New Computer
+
+**Setting up TEMPO on a fresh machine?** Follow the complete step-by-step guide:
+
+👉 **[SETUP_NEW_COMPUTER.md](SETUP_NEW_COMPUTER.md)** 👈
+
+This guide covers everything from installing prerequisites to running your first optimization with GeoServer enabled.
+
+---
 
 ## What does it do?
 
@@ -83,9 +93,88 @@ npm run build:electron # packages everything with electron-builder
 
 The installer ends up in `C:\temp\calliope-release\` by default (configurable in `package.json`).
 
-## OSM Data Processing
+## 🗺️ GeoServer Setup (Optional)
+
+GeoServer provides **fast, cached access** to pre-processed OSM power infrastructure data via PostGIS. When unavailable, the application automatically falls back to the public Overpass API—meaning **GeoServer is completely optional** but recommended for production use.
+
+### Quick Setup (Docker - Recommended)
+
+**Prerequisites:**
+- Docker Desktop installed and running
+- Python ≥ 3.9 (for data loading scripts)
+
+**One-command setup:**
+
+```powershell
+# Setup GeoServer + PostGIS containers (no data)
+.\scripts\setup_geoserver_docker.ps1
+
+# Or setup with a specific region loaded
+.\scripts\setup_geoserver_docker.ps1 -LoadRegion "Europe/Germany/Bayern"
+
+# Reset and recreate containers from scratch
+.\scripts\setup_geoserver_docker.ps1 -Reset
+```
+
+This script will:
+1. ✓ Create and start PostGIS container (port 5432)
+2. ✓ Create and start GeoServer container (port 8080)
+3. ✓ Configure database tables and indexes
+4. ✓ Set up GeoServer workspace and layers
+5. ✓ Optionally load OSM data for your region
+
+**After setup:**
+- 🌐 GeoServer Web UI: http://localhost:8080/geoserver/web/
+- 🔐 Login: `admin` / `geoserver`
+- 🗄️ PostGIS: `localhost:5432/gis` (user: `postgres`, password: `geoserver123`)
+
+### Managing Containers
+
+```powershell
+# Start containers (after restart)
+docker start calliope-postgis calliope-geoserver
+
+# Stop containers
+docker stop calliope-geoserver calliope-postgis
+
+# View logs
+docker logs calliope-geoserver
+
+# Check status
+docker ps
+```
+
+### Configure TEMPO to use GeoServer
+
+1. Open TEMPO application
+2. Go to **Settings**
+3. Set **GeoServer URL**: `http://localhost:8080/geoserver`
+4. Set **Workspace**: `osm`
+5. Save settings
+
+The application will now prioritize GeoServer data over Overpass API.
+
+### 📦 Available Layers
+
+Once configured, GeoServer serves these layers:
+
+- **`osm:osm_substations`** - Electrical substations (points)
+- **`osm:osm_power_plants`** - Generation facilities (points)
+- **`osm:osm_power_lines`** - Transmission lines (linestrings)
+- **`osm:osm_communes`** - Administrative boundaries (polygons)
+- **`osm:osm_districts`** - Regional districts (polygons)
+
+All layers support:
+- ✓ Spatial filtering by bounding box
+- ✓ Multi-region support (load multiple countries)
+- ✓ Fast 5-minute backend cache
+- ✓ GeoJSON output format
+
+## 📊 OSM Data Processing
 
 Scripts in `osm_processing/` download and extract power infrastructure from Geofabrik:
+
+### Initial Setup
 
 ```bash
 cd osm_processing
@@ -93,16 +182,58 @@ pip install -r requirements.txt
 
 python create_folder_structure.py   # set up data directories
 python create_extract_structure.py
-python download_world_osm.py        # interactive downloader (world / continent / country)
+```
 
+### Download OSM Data
+
+```bash
+# Interactive menu
+python download_world_osm.py
+```
+
+This provides options to download:
+- Entire world
+- By continent
+- By country
+- Custom selection
+
+### Extract Power Infrastructure
+
+```bash
 # Extract a region into GeoJSON
 python extract_osm_region.py Europe Germany Bayern
 python extract_osm_region.py Europe Spain Andalucia
+python extract_osm_region.py South_America Chile
 ```
 
 Extracted files (substations, power plants, lines, boundaries) land in `public/data/osm_extracts/`.
 
-To load data into PostGIS and GeoServer, see `upload_to_postgis.py`, `configure_geoserver.py`, and `scripts/import_osm_docker.ps1`.
+### Load into GeoServer (One Command)
+
+If you have GeoServer running via Docker, use the **all-in-one pipeline**:
+
+```bash
+# This downloads, extracts, and uploads to PostGIS in one step
+python osm_processing/add_region_to_geoserver.py Europe Germany Bayern
+
+# Add multiple regions (data is additive, not replaced)
+python osm_processing/add_region_to_geoserver.py Europe Spain
+python osm_processing/add_region_to_geoserver.py South_America Chile
+```
+
+The PostGIS database supports **multiple regions simultaneously**. Each region is tagged with its path, allowing you to query specific regions or all loaded data.
+
+### Manual Steps (Advanced)
+
+If you need fine control:
+
+```bash
+# 1. Upload GeoJSON to PostGIS
+python osm_processing/upload_to_postgis.py
+
+# 2. Configure GeoServer layers
+python osm_processing/configure_geoserver.py
+```
 
 ## Available Scripts
 

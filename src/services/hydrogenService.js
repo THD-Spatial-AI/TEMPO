@@ -215,28 +215,55 @@ function wsUrlForJob(jobId) {
   return `${_RAW_URL.replace(/^http/, "ws")}/api/hydrogen/ws/${jobId}`;
 }
 
+/**
+ * Fetch the full result from /api/hydrogen/result/{jobId}.
+ * The /status endpoint always returns result:null — the result lives here.
+ */
+async function fetchResult(jobId) {
+  return apiFetch(`/api/hydrogen/result/${jobId}`);
+}
+
 // ── Polling fallback ──────────────────────────────────────────────────────────
 
 /**
  * Poll /status/{jobId} every `intervalMs` ms until done or error.
  * Returns a cancel function.
  */
+// Normalise the many status strings different bridge versions may return.
+function isStatusDone(s)  { return s === "done" || s === "completed" || s === "success" || s === "finished"; }
+function isStatusError(s) { return s === "error" || s === "failed"; }
+
+const POLL_TIMEOUT_MS = 10 * 60 * 1000; // 10-minute hard cap
+
 function startPolling(jobId, { onProgress, onResult, onError }, intervalMs = 2000) {
   let stopped = false;
+  const deadline = Date.now() + POLL_TIMEOUT_MS;
 
   (async () => {
     while (!stopped) {
       await new Promise((r) => setTimeout(r, intervalMs));
       if (stopped) break;
+
+      if (Date.now() > deadline) {
+        onError?.("Simulation timed out after 10 minutes with no result. Check that MATLAB finished on the server.");
+        break;
+      }
+
       try {
         const data = await pollStatus(jobId);
         if (stopped) break;
 
-        if (data.status === "done" && data.result) {
-          onResult?.(data.result);
+        if (isStatusDone(data.status)) {
+          // /status always returns result:null — fetch from dedicated endpoint
+          try {
+            const full = await fetchResult(jobId);
+            onResult?.(full.result ?? full);
+          } catch (e) {
+            onError?.(e.message);
+          }
           break;
-        } else if (data.status === "error") {
-          onError?.(data.error ?? "Unknown simulation error");
+        } else if (isStatusError(data.status)) {
+          onError?.(data.error ?? data.message ?? "Unknown simulation error");
           break;
         } else {
           onProgress?.(data);
@@ -261,15 +288,14 @@ function startPolling(jobId, { onProgress, onResult, onError }, intervalMs = 200
 function openResultsSocketWithFallback(jobId, callbacks = {}) {
   const { onProgress, onResult, onError, onClose } = callbacks;
 
-  let cancelled = false;
-  let stopPolling = () => {};
-  let keepAlive = null;
+  let cancelled      = false;
+  let stopPolling     = () => {};
+  let keepAlive       = null;
+  let resolved        = false; // true once we received a final result or error via WS
+  let pollingStarted  = false; // guard: prevent starting two polling loops
 
   // Fallback timer: if WS hasn't opened within 4 s, switch to HTTP polling
-  const fallbackTimer = setTimeout(() => {
-    if (import.meta.env.DEV) console.warn("[hydrogenService] WS timeout — switching to HTTP polling");
-    stopPolling = startPolling(jobId, { onProgress, onResult, onError });
-  }, 4000);
+  const fallbackTimer = setTimeout(() => startFallbackPolling(), 4000);
 
   let ws;
   try {
@@ -296,34 +322,56 @@ function openResultsSocketWithFallback(jobId, callbacks = {}) {
     let data;
     try { data = JSON.parse(evt.data); } catch (_) { return; }
 
-    if (data.status === "done" && data.result) {
+    // The server uses a 'type' discriminator field, not 'status':
+    //   { "type": "result",   "result": {...} }
+    //   { "type": "error",    "error": "..." }
+    //   { "type": "progress", "progress_pct": N }
+    // Normalise to a unified shape so both server versions work.
+    const msgType   = data.type   ?? data.status ?? null;
+    const isDone    = isStatusDone(msgType)  || msgType === "result";
+    const isError   = isStatusError(msgType) || msgType === "error";
+
+    if (isDone && data.result) {
+      resolved = true;
       clearInterval(keepAlive);
       onResult?.(data.result);
       ws.close();
-    } else if (data.status === "error") {
+    } else if (isError) {
+      resolved = true;
       clearInterval(keepAlive);
-      onError?.(data.error ?? "Unknown simulation error");
+      onError?.(data.error ?? data.message ?? "Unknown simulation error");
       ws.close();
     } else {
-      // progress update: { status: "running", progress_pct: N }
-      onProgress?.(data);
+      // progress update: { type: "progress", progress_pct: N }
+      onProgress?.({
+        status:       "running",
+        progress_pct: data.progress_pct ?? 0,
+        ...data,
+      });
     }
+  };
+
+  const startFallbackPolling = () => {
+    if (pollingStarted || cancelled || resolved) return;
+    pollingStarted = true;
+    if (import.meta.env.DEV)
+      console.warn(`[hydrogenService] Falling back to HTTP polling for job ${jobId}`);
+    stopPolling = startPolling(jobId, { onProgress, onResult, onError });
   };
 
   ws.onerror = () => {
     clearTimeout(fallbackTimer);
     clearInterval(keepAlive);
-    if (import.meta.env.DEV) console.warn("[hydrogenService] WS error — switching to HTTP polling");
+    // ws.close() below will fire ws.onclose, which calls startFallbackPolling.
+    // Call ws.close() BEFORE startFallbackPolling so the flag is already set.
     ws.close();
-    if (!cancelled) {
-      stopPolling = startPolling(jobId, { onProgress, onResult, onError });
-    }
   };
 
   ws.onclose = () => {
     clearTimeout(fallbackTimer);
     clearInterval(keepAlive);
-    if (import.meta.env.DEV) console.log(`[hydrogenService] WS closed for job ${jobId}`);
+    // WS dropped before a final result arrived — switch to HTTP polling.
+    startFallbackPolling();
     onClose?.();
   };
 
@@ -360,7 +408,28 @@ function openResultsSocketWithFallback(jobId, callbacks = {}) {
  */
 export async function runSimulation(params, callbacks = {}) {
   try {
-    const { job_id } = await startSimulation(params);
+    const simResponse = await startSimulation(params);
+
+    // Handle synchronous 200 OK response — MATLAB bridge may return the full
+    // result inline instead of the async 202 + { job_id } path.
+    // Detect this by checking for the presence of a time-series key.
+    if (simResponse.time_s != null || simResponse.electrolyzer != null) {
+      callbacks.onQueued?.("sync");
+      callbacks.onProgress?.({ status: "running", progress_pct: 100 });
+      callbacks.onResult?.(simResponse);
+      return () => {};
+    }
+
+    // job_id field — handle snake_case (contract) and camelCase (some bridge versions)
+    const job_id = simResponse.job_id ?? simResponse.jobId ?? simResponse.id;
+    if (!job_id) {
+      throw new Error(
+        `Bridge returned a 202/queued response but no job identifier. ` +
+        `Got: ${JSON.stringify(simResponse)}. ` +
+        `Expected a field named 'job_id', 'jobId', or 'id'.`
+      );
+    }
+
     callbacks.onQueued?.(job_id);
     const cancel = openResultsSocketWithFallback(job_id, callbacks);
     return cancel;

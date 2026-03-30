@@ -2,11 +2,15 @@
 Configure GeoServer to serve OSM layers from PostGIS
 This script uses GeoServer REST API to create workspace, datastore, and layers
 
-Usage: python configure_geoserver.py
+Usage: 
+    python configure_geoserver.py              # Auto-detect environment
+    python configure_geoserver.py --docker     # Force Docker mode (use container hostname)
+    python configure_geoserver.py --local      # Force local mode (use localhost)
 """
 
 import requests
 import json
+import sys
 from requests.auth import HTTPBasicAuth
 
 # GeoServer configuration
@@ -14,9 +18,36 @@ GEOSERVER_URL = "http://localhost:8080/geoserver"
 GEOSERVER_USER = "admin"
 GEOSERVER_PASSWORD = "geoserver"  # Default GeoServer password
 
-# PostGIS connection
+# Detect if running in Docker context
+def is_docker_environment():
+    """Detect if GeoServer is running in Docker"""
+    # Check command line args first
+    if "--docker" in sys.argv:
+        return True
+    if "--local" in sys.argv:
+        return False
+    
+    # Auto-detect: GeoServer in Docker containers always needs container hostname
+    # We check if we can connect to the container name from outside
+    try:
+        import socket
+        # Try to resolve the PostGIS container name
+        socket.gethostbyname('calliope-postgis')
+        # If we can resolve it, we're likely in the same Docker network
+        return True
+    except:
+        # If we can't resolve it, we're outside Docker
+        # But GeoServer in Docker still needs the container name!
+        # So we default to True for Docker deployment
+        return True
+
+# PostGIS connection configuration
+# When GeoServer is in Docker, it must use the container name to connect to PostGIS
+# When running locally, it uses localhost
+USE_DOCKER_HOSTNAME = is_docker_environment()
+
 POSTGIS_CONFIG = {
-    'host': 'localhost',
+    'host': 'calliope-postgis' if USE_DOCKER_HOSTNAME else 'localhost',
     'port': '5432',
     'database': 'gis',
     'schema': 'public',
@@ -75,7 +106,28 @@ def create_workspace():
         print(f"   Response: {response.text}")
         return False
 
-def create_datastore():
+def delete_datastore():
+    """Delete existing PostGIS datastore"""
+    url = f"{GEOSERVER_URL}/rest/workspaces/osm/datastores/osm_postgis"
+    params = {'recurse': 'true'}
+    
+    response = requests.delete(
+        url,
+        auth=HTTPBasicAuth(GEOSERVER_USER, GEOSERVER_PASSWORD),
+        params=params
+    )
+    
+    if response.status_code == 200:
+        print("   ✓ Existing datastore deleted")
+        return True
+    elif response.status_code == 404:
+        print("   ✓ No existing datastore to delete")
+        return True
+    else:
+        print(f"   ❌ Failed to delete datastore: {response.status_code}")
+        return False
+
+def create_datastore(force_recreate=False):
     """Create PostGIS datastore in GeoServer"""
     print("\n2. Checking PostGIS datastore...")
     
@@ -87,8 +139,13 @@ def create_datastore():
     )
     
     if check_response.status_code == 200:
-        print("   ✓ Datastore 'osm_postgis' already exists")
-        return True
+        if force_recreate:
+            print("   ⚠ Datastore exists but recreating with new configuration...")
+            if not delete_datastore():
+                return False
+        else:
+            print("   ✓ Datastore 'osm_postgis' already exists")
+            return True
     
     # Datastore doesn't exist, create it
     print("   Creating PostGIS datastore...")
@@ -240,18 +297,25 @@ def main():
     print("="*70)
     print("GEOSERVER CONFIGURATION FOR OSM LAYERS")
     print("="*70)
-    print(f"\nGeoServer: {GEOSERVER_URL}")
-    print(f"Database:  {POSTGIS_CONFIG['database']}@{POSTGIS_CONFIG['host']}:{POSTGIS_CONFIG['port']}")
-    print(f"Layers:    {', '.join(LAYERS)}")
+    print(f"\nEnvironment:  {'Docker' if USE_DOCKER_HOSTNAME else 'Local'}")
+    print(f"GeoServer:    {GEOSERVER_URL}")
+    print(f"Database:     {POSTGIS_CONFIG['database']}@{POSTGIS_CONFIG['host']}:{POSTGIS_CONFIG['port']}")
+    print(f"Layers:       {', '.join(LAYERS)}")
+    print(f"\nNote: GeoServer connects to PostGIS using hostname '{POSTGIS_CONFIG['host']}'")
+    
+    # Check if we need to recreate datastore due to hostname change
+    force_recreate = '--recreate' in sys.argv or USE_DOCKER_HOSTNAME
     
     # Step 1: Create workspace
     if not create_workspace():
         print("\n❌ Failed to create workspace. Check GeoServer credentials.")
         return
     
-    # Step 2: Create datastore
-    if not create_datastore():
+    # Step 2: Create datastore (recreate if Docker to fix hostname)
+    if not create_datastore(force_recreate=force_recreate):
         print("\n❌ Failed to create datastore. Check PostGIS connection.")
+        print(f"\n   If using Docker: Ensure containers are linked properly")
+        print(f"   Current PostGIS host: {POSTGIS_CONFIG['host']}")
         return
     
     # Step 3: Publish layers
