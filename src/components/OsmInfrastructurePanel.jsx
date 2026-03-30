@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { FiMap, FiChevronDown, FiChevronRight, FiLayers, FiX, FiMapPin, FiGlobe } from 'react-icons/fi';
 import RegionSelectionStepper from './RegionSelectionStepper';
-import regionsDb from '../../public/data/osm_extracts/regions_database.json';
+import regionsDb from '../data/regions_database.json';
 
 const OsmInfrastructurePanel = ({ 
   collapsed, 

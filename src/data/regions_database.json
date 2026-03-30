@@ -1,0 +1,432 @@
+{
+  "metadata": {
+    "description": "Complete verified database of Geofabrik OSM regional resolution",
+    "source": "Verified from https://download.geofabrik.de/ on 2026-02-03",
+    "notes": "All region names verified directly from Geofabrik website"
+  },
+  "countries": {
+    "Germany": {
+      "continent": "Europe",
+      "has_regions": true,
+      "regions": [
+        {"name": "Baden-Württemberg", "has_subregions": true, "url_name": "baden-wuerttemberg"},
+        {"name": "Bayern", "has_subregions": true, "url_name": "bayern"},
+        {"name": "Berlin", "has_subregions": false, "url_name": "berlin"},
+        {"name": "Brandenburg", "has_subregions": false, "url_name": "brandenburg"},
+        {"name": "Bremen", "has_subregions": false, "url_name": "bremen"},
+        {"name": "Hamburg", "has_subregions": false, "url_name": "hamburg"},
+        {"name": "Hessen", "has_subregions": false, "url_name": "hessen"},
+        {"name": "Mecklenburg-Vorpommern", "has_subregions": false, "url_name": "mecklenburg-vorpommern"},
+        {"name": "Niedersachsen", "has_subregions": false, "url_name": "niedersachsen"},
+        {"name": "Nordrhein-Westfalen", "has_subregions": true, "url_name": "nordrhein-westfalen"},
+        {"name": "Rheinland-Pfalz", "has_subregions": false, "url_name": "rheinland-pfalz"},
+        {"name": "Saarland", "has_subregions": false, "url_name": "saarland"},
+        {"name": "Sachsen", "has_subregions": false, "url_name": "sachsen"},
+        {"name": "Sachsen-Anhalt", "has_subregions": false, "url_name": "sachsen-anhalt"},
+        {"name": "Schleswig-Holstein", "has_subregions": false, "url_name": "schleswig-holstein"},
+        {"name": "Thüringen", "has_subregions": false, "url_name": "thueringen"}
+      ]
+    },
+    "France": {
+      "continent": "Europe",
+      "has_regions": true,
+      "note": "Historical regions (pre-2016 reform)",
+      "regions": [
+        {"name": "Alsace", "url_name": "alsace"},
+        {"name": "Aquitaine", "url_name": "aquitaine"},
+        {"name": "Auvergne", "url_name": "auvergne"},
+        {"name": "Basse-Normandie", "url_name": "basse-normandie"},
+        {"name": "Bourgogne", "url_name": "bourgogne"},
+        {"name": "Bretagne", "url_name": "bretagne"},
+        {"name": "Centre", "url_name": "centre"},
+        {"name": "Champagne Ardenne", "url_name": "champagne-ardenne"},
+        {"name": "Corse", "url_name": "corse"},
+        {"name": "Franche Comte", "url_name": "franche-comte"},
+        {"name": "Guadeloupe", "url_name": "guadeloupe"},
+        {"name": "Guyane", "url_name": "guyane"},
+        {"name": "Haute-Normandie", "url_name": "haute-normandie"},
+        {"name": "Ile-de-France", "url_name": "ile-de-france"},
+        {"name": "Languedoc-Roussillon", "url_name": "languedoc-roussillon"},
+        {"name": "Limousin", "url_name": "limousin"},
+        {"name": "Lorraine", "url_name": "lorraine"},
+        {"name": "Martinique", "url_name": "martinique"},
+        {"name": "Mayotte", "url_name": "mayotte"},
+        {"name": "Midi-Pyrenees", "url_name": "midi-pyrenees"},
+        {"name": "Nord-Pas-de-Calais", "url_name": "nord-pas-de-calais"},
+        {"name": "Pays de la Loire", "url_name": "pays-de-la-loire"},
+        {"name": "Picardie", "url_name": "picardie"},
+        {"name": "Poitou-Charentes", "url_name": "poitou-charentes"},
+        {"name": "Provence Alpes-Cote-d'Azur", "url_name": "provence-alpes-cote-d-azur"},
+        {"name": "Reunion", "url_name": "reunion"},
+        {"name": "Rhone-Alpes", "url_name": "rhone-alpes"}
+      ]
+    },
+    "Italy": {
+      "continent": "Europe",
+      "has_regions": true,
+      "note": "Macro-regions (not individual provinces)",
+      "regions": [
+        {"name": "Centro", "url_name": "centro"},
+        {"name": "Isole", "url_name": "isole"},
+        {"name": "Nord-Est", "url_name": "nord-est"},
+        {"name": "Nord-Ovest", "url_name": "nord-ovest"},
+        {"name": "Sud", "url_name": "sud"}
+      ]
+    },
+    "Spain": {
+      "continent": "Europe",
+      "has_regions": true,
+      "note": "Autonomous communities (Canarias listed under Africa)",
+      "regions": [
+        {"name": "Andalucía", "url_name": "andalucia"},
+        {"name": "Aragón", "url_name": "aragon"},
+        {"name": "Asturias", "url_name": "asturias"},
+        {"name": "Cantabria", "url_name": "cantabria"},
+        {"name": "Castilla-La Mancha", "url_name": "castilla-la-mancha"},
+        {"name": "Castilla y León", "url_name": "castilla-y-leon"},
+        {"name": "Cataluña", "url_name": "cataluna"},
+        {"name": "Ceuta", "url_name": "ceuta"},
+        {"name": "Extremadura", "url_name": "extremadura"},
+        {"name": "Galicia", "url_name": "galicia"},
+        {"name": "Islas Baleares", "url_name": "islas-baleares"},
+        {"name": "La Rioja", "url_name": "la-rioja"},
+        {"name": "Madrid", "url_name": "madrid"},
+        {"name": "Melilla", "url_name": "melilla"},
+        {"name": "Murcia", "url_name": "murcia"},
+        {"name": "Navarra", "url_name": "navarra"},
+        {"name": "País Vasco", "url_name": "pais-vasco"},
+        {"name": "Valencia", "url_name": "valencia"}
+      ]
+    },
+    "Poland": {
+      "continent": "Europe",
+      "has_regions": true,
+      "note": "16 voivodeships",
+      "regions": [
+        {"name": "Dolnośląskie", "url_name": "dolnoslaskie", "english": "Lower Silesian Voivodeship"},
+        {"name": "Kujawsko-Pomorskie", "url_name": "kujawsko-pomorskie", "english": "Kuyavian-Pomeranian Voivodeship"},
+        {"name": "Łódzkie", "url_name": "lodzkie", "english": "Łódź Voivodeship"},
+        {"name": "Lubelskie", "url_name": "lubelskie", "english": "Lublin Voivodeship"},
+        {"name": "Lubuskie", "url_name": "lubuskie", "english": "Lubusz Voivodeship"},
+        {"name": "Małopolskie", "url_name": "malopolskie", "english": "Lesser Poland Voivodeship"},
+        {"name": "Mazowieckie", "url_name": "mazowieckie", "english": "Mazovian Voivodeship"},
+        {"name": "Opolskie", "url_name": "opolskie", "english": "Opole Voivodeship"},
+        {"name": "Podkarpackie", "url_name": "podkarpackie", "english": "Subcarpathian Voivodeship"},
+        {"name": "Podlaskie", "url_name": "podlaskie", "english": "Podlaskie Voivodeship"},
+        {"name": "Pomorskie", "url_name": "pomorskie", "english": "Pomeranian Voivodeship"},
+        {"name": "Śląskie", "url_name": "slaskie", "english": "Silesian Voivodeship"},
+        {"name": "Świętokrzyskie", "url_name": "swietokrzyskie", "english": "Świętokrzyskie Voivodeship"},
+        {"name": "Warmińsko-Mazurskie", "url_name": "warminsko-mazurskie", "english": "Warmian-Masurian Voivodeship"},
+        {"name": "Wielkopolskie", "url_name": "wielkopolskie", "english": "Greater Poland Voivodeship"},
+        {"name": "Zachodniopomorskie", "url_name": "zachodniopomorskie", "english": "West Pomeranian Voivodeship"}
+      ]
+    },
+    "Netherlands": {
+      "continent": "Europe",
+      "has_regions": true,
+      "note": "12 provinces",
+      "regions": [
+        {"name": "Drenthe", "url_name": "drenthe"},
+        {"name": "Flevoland", "url_name": "flevoland"},
+        {"name": "Friesland", "url_name": "friesland"},
+        {"name": "Gelderland", "url_name": "gelderland"},
+        {"name": "Groningen", "url_name": "groningen"},
+        {"name": "Limburg", "url_name": "limburg"},
+        {"name": "Noord-Brabant", "url_name": "noord-brabant"},
+        {"name": "Noord-Holland", "url_name": "noord-holland"},
+        {"name": "Overijssel", "url_name": "overijssel"},
+        {"name": "Utrecht", "url_name": "utrecht"},
+        {"name": "Zeeland", "url_name": "zeeland"},
+        {"name": "Zuid-Holland", "url_name": "zuid-holland"}
+      ]
+    },
+    "United Kingdom": {
+      "continent": "Europe",
+      "has_regions": true,
+      "note": "England, Scotland, Wales (Northern Ireland in full UK file); Bermuda and Falklands listed separately",
+      "regions": [
+        {"name": "England", "url_name": "england"},
+        {"name": "Scotland", "url_name": "scotland"},
+        {"name": "Wales", "url_name": "wales"}
+      ]
+    },
+    "China": {
+      "continent": "Asia",
+      "has_regions": true,
+      "note": "33 provinces/municipalities/SARs; some provinces include additional territories (e.g., Guangdong includes HK/Macau, Hebei includes Beijing/Tianjin)",
+      "regions": [
+        {"name": "Anhui", "url_name": "anhui"},
+        {"name": "Beijing", "url_name": "beijing"},
+        {"name": "Chongqing", "url_name": "chongqing"},
+        {"name": "Fujian", "url_name": "fujian"},
+        {"name": "Gansu", "url_name": "gansu"},
+        {"name": "Guangdong", "url_name": "guangdong", "note": "Includes Hong Kong and Macau"},
+        {"name": "Guangxi", "url_name": "guangxi"},
+        {"name": "Guizhou", "url_name": "guizhou"},
+        {"name": "Hainan", "url_name": "hainan"},
+        {"name": "Hebei", "url_name": "hebei", "note": "Includes Beijing and Tianjin"},
+        {"name": "Heilongjiang", "url_name": "heilongjiang"},
+        {"name": "Henan", "url_name": "henan"},
+        {"name": "Hong Kong", "url_name": "hong-kong"},
+        {"name": "Hubei", "url_name": "hubei"},
+        {"name": "Hunan", "url_name": "hunan"},
+        {"name": "Inner Mongolia", "url_name": "inner-mongolia"},
+        {"name": "Jiangsu", "url_name": "jiangsu"},
+        {"name": "Jiangxi", "url_name": "jiangxi"},
+        {"name": "Jilin", "url_name": "jilin"},
+        {"name": "Liaoning", "url_name": "liaoning"},
+        {"name": "Macau", "url_name": "macau"},
+        {"name": "Ningxia", "url_name": "ningxia"},
+        {"name": "Qinghai", "url_name": "qinghai"},
+        {"name": "Shaanxi", "url_name": "shaanxi"},
+        {"name": "Shandong", "url_name": "shandong"},
+        {"name": "Shanghai", "url_name": "shanghai"},
+        {"name": "Shanxi", "url_name": "shanxi"},
+        {"name": "Sichuan", "url_name": "sichuan"},
+        {"name": "Tianjin", "url_name": "tianjin"},
+        {"name": "Tibet", "url_name": "tibet"},
+        {"name": "Xinjiang", "url_name": "xinjiang"},
+        {"name": "Yunnan", "url_name": "yunnan"},
+        {"name": "Zhejiang", "url_name": "zhejiang"}
+      ]
+    },
+    "India": {
+      "continent": "Asia",
+      "has_regions": true,
+      "note": "6 zones (not individual states)",
+      "regions": [
+        {"name": "Central Zone", "url_name": "central-zone"},
+        {"name": "Eastern Zone", "url_name": "eastern-zone"},
+        {"name": "North-Eastern Zone", "url_name": "north-eastern-zone"},
+        {"name": "Northern Zone", "url_name": "northern-zone"},
+        {"name": "Southern Zone", "url_name": "southern-zone"},
+        {"name": "Western Zone", "url_name": "western-zone"}
+      ]
+    },
+    "Indonesia": {
+      "continent": "Asia",
+      "has_regions": true,
+      "note": "7 major islands (includes East Timor in extract)",
+      "regions": [
+        {"name": "Java", "url_name": "java"},
+        {"name": "Kalimantan", "url_name": "kalimantan"},
+        {"name": "Maluku", "url_name": "maluku"},
+        {"name": "Nusa Tenggara", "url_name": "nusa-tenggara"},
+        {"name": "Papua", "url_name": "papua"},
+        {"name": "Sulawesi", "url_name": "sulawesi"},
+        {"name": "Sumatra", "url_name": "sumatra"}
+      ]
+    },
+    "Japan": {
+      "continent": "Asia",
+      "has_regions": true,
+      "note": "8 traditional regions",
+      "regions": [
+        {"name": "Chūbu", "url_name": "chubu"},
+        {"name": "Chūgoku", "url_name": "chugoku"},
+        {"name": "Hokkaidō", "url_name": "hokkaido"},
+        {"name": "Kansai", "url_name": "kansai", "alt_name": "Kinki region"},
+        {"name": "Kantō", "url_name": "kanto"},
+        {"name": "Kyūshū", "url_name": "kyushu"},
+        {"name": "Shikoku", "url_name": "shikoku"},
+        {"name": "Tōhoku", "url_name": "tohoku"}
+      ]
+    },
+    "Russia": {
+      "continent": "Europe/Asia",
+      "has_regions": true,
+      "note": "9 federal districts; Kaliningrad is special sub-region; Crimea included",
+      "regions": [
+        {"name": "Central Federal District", "url_name": "central-fed-district"},
+        {"name": "Crimean Federal District", "url_name": "crimean-fed-district"},
+        {"name": "Far Eastern Federal District", "url_name": "far-eastern-fed-district"},
+        {"name": "North Caucasus Federal District", "url_name": "north-caucasus-fed-district"},
+        {"name": "Northwestern Federal District", "url_name": "northwestern-fed-district"},
+        {"name": "Siberian Federal District", "url_name": "siberian-fed-district"},
+        {"name": "South Federal District", "url_name": "south-fed-district"},
+        {"name": "Ural Federal District", "url_name": "ural-fed-district"},
+        {"name": "Volga Federal District", "url_name": "volga-fed-district"}
+      ]
+    },
+    "United States": {
+      "continent": "North America",
+      "has_regions": true,
+      "note": "50 states + DC + territories (Puerto Rico, US Virgin Islands); California has subregions",
+      "regions": [
+        {"name": "Alabama", "url_name": "alabama"},
+        {"name": "Alaska", "url_name": "alaska"},
+        {"name": "Arizona", "url_name": "arizona"},
+        {"name": "Arkansas", "url_name": "arkansas"},
+        {"name": "California", "url_name": "california", "has_subregions": true},
+        {"name": "Colorado", "url_name": "colorado"},
+        {"name": "Connecticut", "url_name": "connecticut"},
+        {"name": "Delaware", "url_name": "delaware"},
+        {"name": "District of Columbia", "url_name": "district-of-columbia"},
+        {"name": "Florida", "url_name": "florida"},
+        {"name": "Georgia", "url_name": "georgia"},
+        {"name": "Hawaii", "url_name": "hawaii"},
+        {"name": "Idaho", "url_name": "idaho"},
+        {"name": "Illinois", "url_name": "illinois"},
+        {"name": "Indiana", "url_name": "indiana"},
+        {"name": "Iowa", "url_name": "iowa"},
+        {"name": "Kansas", "url_name": "kansas"},
+        {"name": "Kentucky", "url_name": "kentucky"},
+        {"name": "Louisiana", "url_name": "louisiana"},
+        {"name": "Maine", "url_name": "maine"},
+        {"name": "Maryland", "url_name": "maryland"},
+        {"name": "Massachusetts", "url_name": "massachusetts"},
+        {"name": "Michigan", "url_name": "michigan"},
+        {"name": "Minnesota", "url_name": "minnesota"},
+        {"name": "Mississippi", "url_name": "mississippi"},
+        {"name": "Missouri", "url_name": "missouri"},
+        {"name": "Montana", "url_name": "montana"},
+        {"name": "Nebraska", "url_name": "nebraska"},
+        {"name": "Nevada", "url_name": "nevada"},
+        {"name": "New Hampshire", "url_name": "new-hampshire"},
+        {"name": "New Jersey", "url_name": "new-jersey"},
+        {"name": "New Mexico", "url_name": "new-mexico"},
+        {"name": "New York", "url_name": "new-york"},
+        {"name": "North Carolina", "url_name": "north-carolina"},
+        {"name": "North Dakota", "url_name": "north-dakota"},
+        {"name": "Ohio", "url_name": "ohio"},
+        {"name": "Oklahoma", "url_name": "oklahoma"},
+        {"name": "Oregon", "url_name": "oregon"},
+        {"name": "Pennsylvania", "url_name": "pennsylvania"},
+        {"name": "Puerto Rico", "url_name": "puerto-rico"},
+        {"name": "Rhode Island", "url_name": "rhode-island"},
+        {"name": "South Carolina", "url_name": "south-carolina"},
+        {"name": "South Dakota", "url_name": "south-dakota"},
+        {"name": "Tennessee", "url_name": "tennessee"},
+        {"name": "Texas", "url_name": "texas"},
+        {"name": "United States Virgin Islands", "url_name": "us-virgin-islands"},
+        {"name": "Utah", "url_name": "utah"},
+        {"name": "Vermont", "url_name": "vermont"},
+        {"name": "Virginia", "url_name": "virginia"},
+        {"name": "Washington", "url_name": "washington"},
+        {"name": "West Virginia", "url_name": "west-virginia"},
+        {"name": "Wisconsin", "url_name": "wisconsin"},
+        {"name": "Wyoming", "url_name": "wyoming"}
+      ]
+    },
+    "Canada": {
+      "continent": "North America",
+      "has_regions": true,
+      "note": "13 provinces and territories",
+      "regions": [
+        {"name": "Alberta", "url_name": "alberta"},
+        {"name": "British Columbia", "url_name": "british-columbia"},
+        {"name": "Manitoba", "url_name": "manitoba"},
+        {"name": "New Brunswick", "url_name": "new-brunswick"},
+        {"name": "Newfoundland and Labrador", "url_name": "newfoundland-and-labrador"},
+        {"name": "Northwest Territories", "url_name": "northwest-territories"},
+        {"name": "Nova Scotia", "url_name": "nova-scotia"},
+        {"name": "Nunavut", "url_name": "nunavut"},
+        {"name": "Ontario", "url_name": "ontario"},
+        {"name": "Prince Edward Island", "url_name": "prince-edward-island"},
+        {"name": "Quebec", "url_name": "quebec"},
+        {"name": "Saskatchewan", "url_name": "saskatchewan"},
+        {"name": "Yukon", "url_name": "yukon"}
+      ]
+    },
+    "Brazil": {
+      "continent": "South America",
+      "has_regions": true,
+      "note": "5 macro-regions",
+      "regions": [
+        {"name": "Centro-Oeste", "url_name": "centro-oeste"},
+        {"name": "Nordeste", "url_name": "nordeste"},
+        {"name": "Norte", "url_name": "norte"},
+        {"name": "Sudeste", "url_name": "sudeste"},
+        {"name": "Sul", "url_name": "sul"}
+      ]
+    },
+    "Mexico": {
+      "continent": "North America",
+      "has_regions": false,
+      "note": "Country-level only"
+    },
+    "Australia": {
+      "continent": "Australia-Oceania",
+      "has_regions": false,
+      "note": "Country-level only"
+    },
+    "South Africa": {
+      "continent": "Africa",
+      "has_regions": false,
+      "note": "Country-level only"
+    }
+  },
+  "country_only_continents": {
+    "Africa": {
+      "note": "All African countries are country-level only (no regional subdivisions)",
+      "countries": [
+        "Algeria", "Angola", "Benin", "Botswana", "Burkina_Faso", "Burundi", "Cameroon", 
+        "Canary_Islands", "Cape_Verde", "Central_African_Republic", "Chad", "Comoros", 
+        "Congo_Brazzaville", "Congo_Kinshasa", "Djibouti", "Egypt", "Equatorial_Guinea", 
+        "Eritrea", "Ethiopia", "Gabon", "Ghana", "Guinea", "Guinea_Bissau", "Ivory_Coast", 
+        "Kenya", "Lesotho", "Liberia", "Libya", "Madagascar", "Malawi", "Mali", "Mauritania", 
+        "Mauritius", "Morocco", "Mozambique", "Namibia", "Niger", "Nigeria", "Rwanda", 
+        "Saint_Helena_Ascension_Tristan_da_Cunha", "Sao_Tome_and_Principe", "Senegal_and_Gambia", 
+        "Seychelles", "Sierra_Leone", "Somalia", "South_Africa", "South_Sudan", "Sudan", 
+        "Swaziland", "Tanzania", "Togo", "Tunisia", "Uganda", "Zambia", "Zimbabwe"
+      ]
+    },
+    "Asia_Country_Only": {
+      "note": "Asian countries without regional subdivisions",
+      "countries": [
+        "Afghanistan", "Armenia", "Azerbaijan", "Bangladesh", "Bhutan", "Cambodia", 
+        "East_Timor", "Georgia", "Iran", "Iraq", "Israel", "Jordan", "Kazakhstan", 
+        "Kuwait", "Kyrgyzstan", "Laos", "Lebanon", "Malaysia", "Maldives", "Mongolia", 
+        "Myanmar", "Nepal", "North_Korea", "Oman", "Pakistan", "Palestine", "Philippines", 
+        "Qatar", "Saudi_Arabia", "Singapore", "South_Korea", "Sri_Lanka", "Syria", 
+        "Taiwan", "Tajikistan", "Thailand", "Turkey", "Turkmenistan", "United_Arab_Emirates", 
+        "Uzbekistan", "Vietnam", "Yemen"
+      ]
+    },
+    "South_America_Country_Only": {
+      "note": "South American countries without regional subdivisions (except Brazil)",
+      "countries": [
+        "Argentina", "Bolivia", "Chile", "Colombia", "Ecuador", "Falkland_Islands", 
+        "French_Guiana", "Guyana", "Paraguay", "Peru", "Suriname", "Uruguay", "Venezuela"
+      ]
+    },
+    "Central_America_Country_Only": {
+      "note": "All Central American and Caribbean countries are country-level only",
+      "countries": [
+        "Belize", "Costa_Rica", "Cuba", "Dominican_Republic", "El_Salvador", "Guatemala", 
+        "Haiti", "Honduras", "Jamaica", "Nicaragua", "Panama", "Trinidad_and_Tobago"
+      ]
+    },
+    "Europe_Country_Only": {
+      "note": "European countries without regional subdivisions",
+      "countries": [
+        "Albania", "Andorra", "Austria", "Belarus", "Belgium", "Bosnia_Herzegovina", 
+        "Bulgaria", "Croatia", "Cyprus", "Czech_Republic", "Denmark", "Estonia", 
+        "Faroe_Islands", "Finland", "Gibraltar", "Greece", "Guernsey", "Hungary", 
+        "Iceland", "Ireland", "Isle_of_Man", "Jersey", "Kosovo", "Latvia", "Liechtenstein", 
+        "Lithuania", "Luxembourg", "Macedonia", "Malta", "Moldova", "Monaco", "Montenegro", 
+        "Norway", "Portugal", "Romania", "Serbia", "Slovakia", "Slovenia", "Sweden", 
+        "Switzerland", "Ukraine", "Vatican_City"
+      ]
+    },
+    "Australia_Oceania_Country_Only": {
+      "note": "All Oceania countries are country-level only",
+      "countries": [
+        "Australia", "Cook_Islands", "Fiji", "Kiribati", "Marshall_Islands", "Micronesia", 
+        "Nauru", "New_Caledonia", "New_Zealand", "Niue", "Palau", "Papua_New_Guinea", 
+        "Samoa", "Solomon_Islands", "Tonga", "Tuvalu", "Vanuatu"
+      ]
+    }
+  },
+  "subregion_countries": {
+    "note": "Countries with subregions (third level of detail)",
+    "Germany": {
+      "Baden-Württemberg": ["Freiburg", "Karlsruhe", "Stuttgart", "Tübingen"],
+      "Bayern": ["Mittelfranken", "Niederbayern", "Oberbayern", "Oberfranken", "Oberpfalz", "Schwaben", "Unterfranken"],
+      "Nordrhein-Westfalen": ["Arnsberg", "Detmold", "Düsseldorf", "Köln", "Münster"]
+    },
+    "United States": {
+      "California": ["Norcal", "Socal"]
+    }
+  }
+}
