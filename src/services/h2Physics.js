@@ -210,8 +210,10 @@ export function simulateH2Chain(payload) {
   const total_h2_cons_nm3  = h2_cons_nm3h_arr.reduce((s, v) => s + v * dt_h, 0);
   const total_h2_prod_kg   = total_h2_prod_nm3 * RHO_H2_KG_NM3;
   const total_h2_cons_kg   = total_h2_cons_nm3 * RHO_H2_KG_NM3;
+  const total_source_kwh   = source_power_kw_arr.reduce((s, v) => s + v * dt_h, 0);
   const total_elz_kwh      = elz_power_kw_arr.reduce((s, v) => s + v * dt_h, 0);
   const total_fc_kwh       = fc_power_kw_arr.reduce((s,  v) => s + v * dt_h, 0);
+  const total_curtailed_kwh = Math.max(0, total_source_kwh - total_elz_kwh);
   const spec_energy        = total_h2_prod_kg > 0
     ? total_elz_kwh / total_h2_prod_kg
     : 0;
@@ -224,6 +226,8 @@ export function simulateH2Chain(payload) {
   const cap_factor_pct     = src_cap_kw > 0
     ? (source_power_kw_arr.reduce((s, v) => s + v, 0) / N / src_cap_kw) * 100
     : 0;
+  const avg_fc_kw = fc_power_kw_arr.reduce((s, v) => s + v, 0) / Math.max(1, N);
+  const fc_capacity_factor_pct = fc_cap_kw > 0 ? (avg_fc_kw / fc_cap_kw) * 100 : 0;
 
   return {
     // ── time axis ──
@@ -272,12 +276,25 @@ export function simulateH2Chain(payload) {
     kpi: {
       total_h2_produced_kg:          round2(total_h2_prod_kg),
       total_h2_consumed_kg:          round2(total_h2_cons_kg),
+      total_h2_produced_nm3:         round2(total_h2_prod_nm3),
+      total_h2_consumed_nm3:         round2(total_h2_cons_nm3),
+      total_source_energy_kwh:       round1(total_source_kwh),
+      total_curtailed_energy_kwh:    round1(total_curtailed_kwh),
+      total_elz_energy_kwh:          round1(total_elz_kwh),
+      total_fc_energy_kwh:           round1(total_fc_kwh),
       total_energy_consumed_kwh:     round1(total_elz_kwh),
       overall_system_efficiency_pct: round1(sys_eff_pct),
       specific_energy_kwh_kg:        round2(spec_energy),
       peak_h2_production_kg_h:       round3(Math.max(...h2_prod_kg_h_arr)),
+      avg_source_power_kw:           round2(source_power_kw_arr.reduce((s, v) => s + v, 0) / Math.max(1, N)),
+      avg_elz_power_kw:              round2(elz_power_kw_arr.reduce((s, v) => s + v, 0) / Math.max(1, N)),
+      avg_fc_power_kw:               round2(avg_fc_kw),
+      peak_source_power_kw:          round2(Math.max(...source_power_kw_arr)),
+      peak_elz_power_kw:             round2(Math.max(...elz_power_kw_arr)),
+      peak_fc_power_kw:              round2(Math.max(...fc_power_kw_arr)),
       avg_electrolyzer_load_pct:     round1(avg_elz_load_pct),
       capacity_factor_pct:           round1(cap_factor_pct),
+      fuel_cell_capacity_factor_pct: round1(fc_capacity_factor_pct),
     },
 
     // ── metadata ──
