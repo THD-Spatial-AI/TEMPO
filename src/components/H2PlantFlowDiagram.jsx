@@ -41,6 +41,89 @@ function lifecycleDot(lifecycle) {
   return "bg-slate-300";
 }
 
+function parseCapacityToKw(value, unitHint = null) {
+  const toMultiplier = (u) => {
+    const s = String(u ?? "").trim().toLowerCase();
+    if (s === "kw") return 1;
+    if (s === "mw") return 1000;
+    if (s === "gw") return 1000000;
+    return null;
+  };
+
+  if (value == null) return null;
+
+  if (typeof value === "object") {
+    const raw = value.value ?? value.amount ?? value.capacity ?? null;
+    const unit = value.unit ?? value.units ?? unitHint;
+    return parseCapacityToKw(raw, unit);
+  }
+
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || value <= 0) return null;
+    const mult = toMultiplier(unitHint) ?? 1;
+    return value * mult;
+  }
+
+  if (typeof value === "string") {
+    const s = value.trim();
+    const m = s.match(/^([+-]?\d+(?:\.\d+)?)\s*([kmg]w)?$/i);
+    if (!m) return null;
+    const n = Number(m[1]);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    const mult = toMultiplier(m[2] ?? unitHint) ?? 1;
+    return n * mult;
+  }
+
+  return null;
+}
+
+function getModelCapacityKw(model) {
+  const unit = model?.capacity_unit ?? model?.unit ?? model?.units ?? model?.specs?.capacity_unit ?? model?.technical_specifications?.capacity_unit;
+  const candidates = [
+    [model?.capacity_kw, "kw"],
+    [model?.rated_power_kw, "kw"],
+    [model?.nominal_power_kw, "kw"],
+    [model?.power_kw, "kw"],
+    [model?.plant_capacity_kw, "kw"],
+    [model?.nameplate_capacity_kw, "kw"],
+    [model?.specs?.capacity_kw, "kw"],
+    [model?.technical_specifications?.capacity_kw, "kw"],
+    [model?.defaults?.capacity_kw, "kw"],
+    [model?.parameters?.capacity_kw, "kw"],
+    [model?.capacity_mw, "mw"],
+    [model?.rated_power_mw, "mw"],
+    [model?.nominal_power_mw, "mw"],
+    [model?.size_mw, "mw"],
+    [model?.plant_capacity_mw, "mw"],
+    [model?.nameplate_capacity_mw, "mw"],
+    [model?.specs?.capacity_mw, "mw"],
+    [model?.technical_specifications?.capacity_mw, "mw"],
+    [model?.defaults?.capacity_mw, "mw"],
+    [model?.parameters?.capacity_mw, "mw"],
+    [model?.capacity_gw, "gw"],
+    [model?.specs?.capacity_gw, "gw"],
+    [model?.technical_specifications?.capacity_gw, "gw"],
+    [model?.capacity, unit],
+    [model?.rated_power, unit],
+    [model?.nameplate_capacity, unit],
+    [model?.specs?.capacity, model?.specs?.capacity_unit ?? unit],
+    [model?.technical_specifications?.capacity, model?.technical_specifications?.capacity_unit ?? unit],
+  ];
+
+  for (const [raw, u] of candidates) {
+    const kw = parseCapacityToKw(raw, u);
+    if (kw != null) return kw;
+  }
+  return null;
+}
+
+function formatCapacityKw(capKw) {
+  if (capKw == null || !Number.isFinite(capKw) || capKw <= 0) return "— select model";
+  if (capKw >= 1000000) return `${(capKw / 1000000).toFixed(2)} GW`;
+  if (capKw >= 1000) return `${(capKw / 1000).toFixed(1)} MW`;
+  return `${Math.round(capKw)} kW`;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Rich model picker — two-phase: choose → stage → Apply.
 // The "Apply" button is the explicit commit — only then does onSelect fire.
@@ -377,9 +460,14 @@ function StatusDot({ simState, color = "bg-slate-300" }) {
 // ─────────────────────────────────────────────────────────────────────────────
 function GridNode({ data, selected }) {
   const { simState, elz, setElz, models, selectedModels, onSelectModel,
-          activeNodeId, customProfile, onSetCustomProfile } = data;
+          activeNodeId, customProfile, onSetCustomProfile, genParamOverrides } = data;
   const slotKey  = "source";
   const sel      = selectedModels?.[slotKey];
+  // Prefer user-edited capacity (from variant/panel) over raw model value
+  const overriddenCap = (genParamOverrides?.capacity_kw != null && isFinite(Number(genParamOverrides.capacity_kw)))
+    ? Number(genParamOverrides.capacity_kw)
+    : null;
+  const sourceCapKw = overriddenCap ?? getModelCapacityKw(sel);
   const disabled = simState === "running" || simState === "queued";
   const isActive = activeNodeId === "grid";
   return (
@@ -399,7 +487,7 @@ function GridNode({ data, selected }) {
       {sel && !customProfile && (
         <p className="text-[10px] text-amber-600 font-semibold mb-1">
           {sel.efficiency_pct != null ? `η ${Number(sel.efficiency_pct).toFixed(0)}%` : "Generator"}
-          {sel.capacity_kw != null ? ` · ${(sel.capacity_kw / 1000).toFixed(0)} MW` : ""}
+          {sourceCapKw != null ? ` · ${formatCapacityKw(sourceCapKw)}` : ""}
         </p>
       )}
       {customProfile && (
@@ -409,11 +497,7 @@ function GridNode({ data, selected }) {
       <div className="flex items-center justify-between mt-1 mb-0.5" onClick={(e) => e.stopPropagation()}>
         <span className="text-[10px] text-slate-400 whitespace-nowrap leading-none">Plant Capacity</span>
         <span className="text-[11px] font-semibold text-amber-600">
-          {sel?.capacity_kw != null
-            ? sel.capacity_kw >= 1000
-              ? `${(sel.capacity_kw / 1000).toFixed(1)} MW`
-              : `${sel.capacity_kw} kW`
-            : "— select model"}
+          {formatCapacityKw(sourceCapKw)}
         </span>
       </div>
       <ModelPicker
@@ -447,7 +531,7 @@ function GridNode({ data, selected }) {
 // NODE: Electrolyzer
 // ─────────────────────────────────────────────────────────────────────────────
 function ElzNode({ data, selected }) {
-  const { elz, setElz, simState, kpi, models, selectedModels, onSelectModel } = data;
+  const { simState, kpi, models, selectedModels, onSelectModel } = data;
   const slotKey  = "electrolyzer";
   const sel      = selectedModels?.[slotKey];
   const disabled = simState === "running" || simState === "queued";
@@ -470,9 +554,7 @@ function ElzNode({ data, selected }) {
         <p className="text-[10px] text-indigo-600 font-semibold mb-1">η {Number(sel.efficiency_pct).toFixed(0)}%</p>
       )}
 
-      <NodeField label="AC to ELZ"   unit="kW"    value={elz?.grid_power_kw ?? 300}     min={0}  max={5000} step={10} disabled={disabled} onChange={(v) => setElz?.((p) => ({ ...p, grid_power_kw: v }))} />
-      <NodeField label="Water Flow"  unit="L/min" value={elz?.water_flow_rate_lpm ?? 90} min={0}  max={500}  step={5}  disabled={disabled} onChange={(v) => setElz?.((p) => ({ ...p, water_flow_rate_lpm: v }))} />
-      <NodeField label="Temperature" unit="°C"    value={elz?.temperature_c ?? 70}       min={20} max={100}  step={1}  disabled={disabled} onChange={(v) => setElz?.((p) => ({ ...p, temperature_c: v }))} />
+      <p className="text-[10px] text-slate-400 mb-1">Parameters edited in right sidebar</p>
 
       {kpi?.avg_h2_production_nm3h != null && (
         <div className="mt-2 pt-1 border-t border-slate-100 animate-in fade-in duration-500">
@@ -492,7 +574,7 @@ function ElzNode({ data, selected }) {
 // NODE: H₂ Compressor
 // ─────────────────────────────────────────────────────────────────────────────
 function CompressorNode({ data, selected }) {
-  const { sto, setSto, simState, models, selectedModels, onSelectModel } = data;
+  const { simState, models, selectedModels, onSelectModel } = data;
   const slotKey  = "compressor";
   const sel      = selectedModels?.[slotKey];
   const disabled = simState === "running" || simState === "queued";
@@ -517,7 +599,7 @@ function CompressorNode({ data, selected }) {
         <p className="text-[10px] text-amber-600 font-semibold mb-1">η {Number(sel.efficiency_pct).toFixed(0)}%</p>
       )}
 
-      <NodeField label="Efficiency" unit="[-]" value={sto?.compressor_efficiency ?? 0.78} min={0.3} max={1.0} step={0.01} disabled={disabled} onChange={(v) => setSto?.((p) => ({ ...p, compressor_efficiency: v }))} />
+      <p className="text-[10px] text-slate-400 mb-1">Parameters edited in right sidebar</p>
 
       <ModelPicker slotKey={slotKey} models={models?.[slotKey]} selected={sel} onSelect={onSelectModel} disabled={disabled} />
 
@@ -531,7 +613,7 @@ function CompressorNode({ data, selected }) {
 // NODE: H₂ Storage Tank
 // ─────────────────────────────────────────────────────────────────────────────
 function TankNode({ data, selected }) {
-  const { sto, setSto, simState, kpi, models, selectedModels, onSelectModel } = data;
+  const { sto, simState, kpi, models, selectedModels, onSelectModel } = data;
   const slotKey  = "storage";
   const sel      = selectedModels?.[slotKey];
   const disabled = simState === "running" || simState === "queued";
@@ -558,7 +640,7 @@ function TankNode({ data, selected }) {
         <StatusDot simState={simState} color="bg-amber-500" />
       </div>
 
-      <NodeField label="Max Pressure" unit="bar" value={maxP} min={50} max={700} step={10} disabled={disabled} onChange={(v) => setSto?.((p) => ({ ...p, max_tank_pressure_bar: v }))} />
+      <p className="text-[10px] text-slate-400 mb-1">Parameters edited in right sidebar</p>
 
       {peakP && (
         <div className="mt-2 pt-1 border-t border-slate-100 animate-in fade-in duration-500">
@@ -584,7 +666,7 @@ function TankNode({ data, selected }) {
 // NODE: Fuel Cell Stack
 // ─────────────────────────────────────────────────────────────────────────────
 function FuelCellNode({ data, selected }) {
-  const { fc, setFc, simState, kpi, models, selectedModels, onSelectModel } = data;
+  const { simState, kpi, models, selectedModels, onSelectModel } = data;
   const slotKey  = "fuel_cell";
   const sel      = selectedModels?.[slotKey];
   const disabled = simState === "running" || simState === "queued";
@@ -605,9 +687,7 @@ function FuelCellNode({ data, selected }) {
         <p className="text-[10px] text-violet-600 font-semibold mb-1">η {Number(sel.efficiency_pct).toFixed(0)}%</p>
       )}
 
-      <NodeField label="H₂ Flow"      unit="Nm³/h" value={fc?.h2_flow_rate_nm3h ?? 40}    min={0} max={200} step={1}   disabled={disabled} onChange={(v) => setFc?.((p) => ({ ...p, h2_flow_rate_nm3h: v }))} />
-      <NodeField label="Ox. Pressure" unit="bar"   value={fc?.oxidant_pressure_bar ?? 2.5}  min={1} max={10}  step={0.1} disabled={disabled} onChange={(v) => setFc?.((p) => ({ ...p, oxidant_pressure_bar: v }))} />
-      <NodeField label="Cooling"      unit="kW"    value={fc?.cooling_capacity_kw ?? 35}   min={0} max={200} step={1}   disabled={disabled} onChange={(v) => setFc?.((p) => ({ ...p, cooling_capacity_kw: v }))} />
+      <p className="text-[10px] text-slate-400 mb-1">Parameters edited in right sidebar</p>
 
       {kpi && (
         <div className="mt-2 pt-1 border-t border-slate-100 animate-in fade-in duration-500 space-y-0.5">
@@ -696,13 +776,13 @@ const nodeTypes = {
 // Fixed node positions (users can still drag to customise)
 // ─────────────────────────────────────────────────────────────────────────────
 const INITIAL_POSITIONS = {
-  grid:         { x: 20,   y: 195 },
-  electrolyzer: { x: 215,  y: 100 },
-  compressor:   { x: 530,  y: 155 },
-  tank:         { x: 740,  y: 110 },
-  fuelcell:     { x: 960,  y: 100 },
-  load:         { x: 1190, y: 195 },
-  water:        { x: 225,  y: 420 },
+  grid:         { x: 20,   y: 210 },
+  electrolyzer: { x: 320,  y: 100 },
+  compressor:   { x: 660,  y: 165 },
+  tank:         { x: 980,  y: 110 },
+  fuelcell:     { x: 1290, y: 100 },
+  load:         { x: 1620, y: 210 },
+  water:        { x: 330,  y: 430 },
 };
 
 // Edge style helpers
@@ -751,6 +831,7 @@ export default function H2PlantFlowDiagram({
   models, selectedModels, onSelectModel,
   activeNodeId, onNodeClick,
   customProfile, onSetCustomProfile,
+  genParamOverrides,
 }) {
   const [nodes, , onNodesChange] = useNodesState(
     Object.entries(INITIAL_POSITIONS).map(([id, position]) => ({
@@ -767,10 +848,10 @@ export default function H2PlantFlowDiagram({
     nodes.map((n) => ({
         ...n,
         data: { elz, setElz, sto, setSto, fc, setFc, simState, kpi, models, selectedModels, onSelectModel,
-                activeNodeId, customProfile, onSetCustomProfile },
+                activeNodeId, customProfile, onSetCustomProfile, genParamOverrides },
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [nodes, elz, sto, fc, simState, kpi, selectedModels, models, activeNodeId, customProfile]
+    [nodes, elz, sto, fc, simState, kpi, selectedModels, models, activeNodeId, customProfile, genParamOverrides]
   );
 
   const liveEdges = useMemo(

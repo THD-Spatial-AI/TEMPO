@@ -10,6 +10,7 @@
  */
 
 import { fetchTechsByCategory, fetchTechInstances, fetchRawTechCatalog, isTechApiAvailable, instanceToParams } from './techDatabaseApi';
+import { extractDefinedSourceProfile } from './h2SourceProfiles.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Component slot definitions
@@ -134,6 +135,7 @@ function normaliseTech(raw, slotKey) {
   const capMw  = raw.typical_capacity_mw ?? raw.capacity_mw ?? null;
   const capKw  = raw.capacity_kw ?? (capMw != null ? capMw * 1000 : null);
   const stage  = raw.life_cycle_stage || raw.lifecycle_stage || raw.stage || 'commercial';
+  const profile = slotKey === 'source' ? extractDefinedSourceProfile(raw) : null;
 
   return {
     id:            raw.id || raw.tech_id || name.toLowerCase().replace(/\s+/g, '_'),
@@ -147,6 +149,7 @@ function normaliseTech(raw, slotKey) {
     lifetime_yr:   raw.lifetime_years ?? raw.lifetime ?? null,
     description:   raw.description || name,
     lifecycle:     stage,
+    profile,
     _raw:          raw,
   };
 }
@@ -323,6 +326,7 @@ export async function fetchH2Variants(techId, baseModel) {
         opex_var:         parsed.monetary?.om_prod   ?? inst.opex_variable_usd_per_kwh ?? null,
         ramp_rate_frac_hr: parsed.constraints?.energy_ramping ?? null,
         description:      inst.description ?? null,
+        profile:          baseModel?.category === 'generation' ? extractDefinedSourceProfile(inst) : null,
         // raw DB constraint + monetary objects for the constraints editor
         _constraints:     parsed.constraints ?? {},
         _monetary:        parsed.monetary    ?? {},

@@ -23,24 +23,92 @@ import {
   FiBarChart2, FiTrendingUp, FiInfo, FiClock, FiUpload,
   FiSettings, FiLayers,
 } from "react-icons/fi";
+import { buildDisplaySourceProfile, detectSourceTechType } from "../services/h2SourceProfiles.js";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Robust capacity extraction — tries every field name and unit variant
+// (mirrors HydrogenPlantDashboard / h2SimPayload helpers)
+// ─────────────────────────────────────────────────────────────────────────────
+function parseCapacityToKw(value, unitHint = null) {
+  const toMultiplier = (u) => {
+    const s = String(u ?? "").trim().toLowerCase();
+    if (s === "kw") return 1;
+    if (s === "mw") return 1000;
+    if (s === "gw") return 1000000;
+    return null;
+  };
+  if (value == null) return null;
+  if (typeof value === "object") {
+    const raw = value.value ?? value.amount ?? value.capacity ?? null;
+    const unit = value.unit ?? value.units ?? unitHint;
+    return parseCapacityToKw(raw, unit);
+  }
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || value <= 0) return null;
+    return value * (toMultiplier(unitHint) ?? 1);
+  }
+  if (typeof value === "string") {
+    const s = value.trim();
+    const m = s.match(/^([+-]?\d+(?:\.\d+)?)\s*([kmg]w)?$/i);
+    if (!m) return null;
+    const n = Number(m[1]);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    return n * (toMultiplier(m[2] ?? unitHint) ?? 1);
+  }
+  return null;
+}
+
+function getModelCapacityKw(model) {
+  if (!model) return null;
+  const unit = model.capacity_unit ?? model.unit ?? model.units
+    ?? model.specs?.capacity_unit ?? model.technical_specifications?.capacity_unit;
+  const candidates = [
+    [model.capacity_kw, "kw"],
+    [model.rated_power_kw, "kw"],
+    [model.nominal_power_kw, "kw"],
+    [model.power_kw, "kw"],
+    [model.plant_capacity_kw, "kw"],
+    [model.nameplate_capacity_kw, "kw"],
+    [model.specs?.capacity_kw, "kw"],
+    [model.technical_specifications?.capacity_kw, "kw"],
+    [model.defaults?.capacity_kw, "kw"],
+    [model.parameters?.capacity_kw, "kw"],
+    [model.capacity_mw, "mw"],
+    [model.rated_power_mw, "mw"],
+    [model.nominal_power_mw, "mw"],
+    [model.size_mw, "mw"],
+    [model.plant_capacity_mw, "mw"],
+    [model.nameplate_capacity_mw, "mw"],
+    [model.specs?.capacity_mw, "mw"],
+    [model.technical_specifications?.capacity_mw, "mw"],
+    [model.defaults?.capacity_mw, "mw"],
+    [model.parameters?.capacity_mw, "mw"],
+    [model.capacity_gw, "gw"],
+    [model.specs?.capacity_gw, "gw"],
+    [model.technical_specifications?.capacity_gw, "gw"],
+    [model.capacity, unit],
+    [model.rated_power, unit],
+    [model.nameplate_capacity, unit],
+    [model.specs?.capacity, model.specs?.capacity_unit ?? unit],
+    [model.technical_specifications?.capacity, model.technical_specifications?.capacity_unit ?? unit],
+  ];
+  for (const [raw, u] of candidates) {
+    const kw = parseCapacityToKw(raw, u);
+    if (kw != null) return kw;
+  }
+  return null;
+}
+
+function formatCapacityKw(kw) {
+  if (kw == null || !Number.isFinite(kw)) return null;
+  if (kw >= 1e6) return `${(kw / 1e6).toFixed(2)} GW`;
+  if (kw >= 1000) return `${(kw / 1000).toFixed(1)} MW`;
+  return `${Math.round(kw)} kW`;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tech-type detection from model id / name (works for both API & fallback)
 // ─────────────────────────────────────────────────────────────────────────────
-function detectTechType(model) {
-  if (!model) return "generic";
-  const key = `${model.id ?? ""} ${model.name ?? ""}`.toLowerCase();
-  if (/solar|pv|photovoltaic/.test(key))                   return "solar";
-  if (/wind/.test(key))                                    return "wind";
-  if (/nuclear|pwr|bwr|smr/.test(key))                     return "nuclear";
-  if (/hydro|water|river|dam/.test(key))                   return "hydro";
-  if (/geotherm/.test(key))                                return "geothermal";
-  if (/biomass|biogas|bio/.test(key))                      return "biomass";
-  if (/coal|lignite/.test(key))                            return "coal";
-  if (/gas|ccgt|ocgt|lng|methane/.test(key))               return "gas";
-  return "generic";
-}
-
 // Per-tech metadata: colour scheme, icon, CO₂, capacity-factor range, tagline
 const TECH_META = {
   solar:      { label: "Solar PV",       icon: FiSun,      hue: "#f59e0b", bg: "bg-amber-50",   border: "border-amber-200",  cf: [15, 28],  co2: 30,   tagline: "Daylight-driven variable generation" },
@@ -53,91 +121,6 @@ const TECH_META = {
   gas:        { label: "Natural Gas",    icon: FiZap,      hue: "#f97316", bg: "bg-orange-50",  border: "border-orange-200", cf: [40, 70],  co2: 430,  tagline: "Flexible mid-merit dispatchable" },
   generic:    { label: "Power Source",   icon: FiZap,      hue: "#6366f1", bg: "bg-indigo-50",  border: "border-indigo-200", cf: [40, 70],  co2: null, tagline: "Selected generation technology" },
 };
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Theoretical 24-hour generation profile (4 samples/h = 96 points)
-// ─────────────────────────────────────────────────────────────────────────────
-function theoreticalProfile(techType, capacityKw) {
-  const n = 96;
-  const pts = Array.from({ length: n }, (_, i) => i / 4); // 0 … 23.75 h
-
-  function toLabel(h) {
-    const hh = Math.floor(h);
-    const mm = h % 1 === 0 ? "00" : "30";
-    return `${String(hh).padStart(2, "0")}:${mm}`;
-  }
-
-  let fracs;
-  switch (techType) {
-    case "solar": {
-      // Bell curve centred 12:30, σ ≈ 2.4 h — clipped to daytime window 05–19 h
-      fracs = pts.map((h) => {
-        const x = h - 12.5;
-        const raw = Math.exp(-0.5 * (x / 2.4) ** 2);
-        return h < 5.5 || h > 19.5 ? 0 : raw;
-      });
-      break;
-    }
-    case "wind": {
-      // Pseudo-stochastic using three harmonics — capacity factor ~38%
-      fracs = pts.map((h) =>
-        Math.min(1, Math.max(0,
-          0.38
-          + 0.18 * Math.sin(h * 0.65 + 1.2)
-          + 0.12 * Math.sin(h * 1.7  + 0.5)
-          + 0.07 * Math.sin(h * 3.1  + 2.0)
-        ))
-      );
-      break;
-    }
-    case "nuclear":
-    case "geothermal": {
-      // Near-flat ~90% with tiny ripple
-      fracs = pts.map((h) => 0.90 + 0.015 * Math.sin((h / 24) * 2 * Math.PI));
-      break;
-    }
-    case "coal":
-    case "biomass": {
-      // Two-shift pattern — lower overnight
-      fracs = pts.map((h) => {
-        const base = h >= 7 && h < 22 ? 0.82 : 0.55;
-        return base + 0.03 * Math.sin(h * 0.9);
-      });
-      break;
-    }
-    case "gas": {
-      // Mid-merit: ramps up midday peaking, lower at night
-      fracs = pts.map((h) =>
-        Math.min(1, Math.max(0.15,
-          0.45
-          + 0.25 * Math.sin(((h - 6) / 24) * 2 * Math.PI)
-          + 0.08 * Math.sin(h * 2.1)
-        ))
-      );
-      break;
-    }
-    case "hydro": {
-      // Two peaks: morning (08h) and evening (19h)
-      fracs = pts.map((h) => {
-        const morn = 0.55 * Math.exp(-0.5 * ((h - 8) / 2.2) ** 2);
-        const eve  = 0.65 * Math.exp(-0.5 * ((h - 19) / 2.5) ** 2);
-        return Math.min(1, Math.max(0.15, morn + eve + 0.18));
-      });
-      break;
-    }
-    default: {
-      fracs = pts.map(() => 0.75);
-    }
-  }
-
-  return {
-    labels:  pts.filter((_, i) => i % 2 === 0).map(toLabel), // 30-min display labels
-    fracs:   fracs.filter((_, i) => i % 2 === 0),            // downsample to 48pts for display
-    fullKw:  fracs.filter((_, i) => i % 2 === 0).map((f) => Math.round(f * capacityKw)),
-    avgCF:   fracs.reduce((s, f) => s + f, 0) / fracs.length,
-    peakKw:  Math.max(...fracs) * capacityKw,
-  };
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Generation statistics bar chart — pure generation metrics, no H₂ references
@@ -437,7 +420,7 @@ function MetricBadge({ label, value, unit, color = "slate", wide = false }) {
 // Main export
 // ─────────────────────────────────────────────────────────────────────────────
 export default function H2GeneratorPanel({ selectedModel, elzModel, elzParams, result, simState, customProfile, variants, savedParams, onParamsChange }) {
-  const techType   = detectTechType(selectedModel);
+  const techType   = detectSourceTechType(selectedModel);
   const meta       = TECH_META[techType] ?? TECH_META.generic;
   const Icon       = meta.icon;
   const hue        = meta.hue;
@@ -507,15 +490,25 @@ export default function H2GeneratorPanel({ selectedModel, elzModel, elzParams, r
   ];
   const effectiveMeta = { ...meta, cf: effectiveCF };
 
-  // Ensure capacityKw is always a finite number — guards against stale {value,unit} objects
-  const rawCap     = effectiveModel?.capacity_kw;
-  const capacityKw = (rawCap != null && isFinite(Number(rawCap))) ? Number(rawCap) : 10000;
-  const isDone     = simState === "done";
+  // Robust capacity extraction — tries capacity_kw, capacity_mw, capacity_gw, etc.
+  // Falls back to 10 000 kW (10 MW) only as a display sentinel; _modelHasCapacity
+  // tells the render layer whether a real value was found.
+  const _modelCapKw    = getModelCapacityKw(effectiveModel);
+  const _modelHasCap   = _modelCapKw != null;
+  const capacityKw     = _modelCapKw ?? 10000;
+  const isDone         = simState === "done";
+
+  // Resolve which variant (if any) is currently active
+  const activeVariant = variants?.find((v) => v.id === localParams._variantId) ?? null;
 
   // ── Charts (all react to effectiveModel / effectiveMeta) ─────────────────
   const profile = useMemo(
-    () => theoreticalProfile(techType, capacityKw),
-    [techType, capacityKw]
+    () => buildDisplaySourceProfile({
+      sourceModel: effectiveModel,
+      sourceVariant: activeVariant,
+      capacityKw,
+    }),
+    [effectiveModel, activeVariant, capacityKw]
   );
 
   const genStats = useMemo(
@@ -551,8 +544,6 @@ export default function H2GeneratorPanel({ selectedModel, elzModel, elzParams, r
     );
   }
 
-  // Resolve which variant (if any) is currently active
-  const activeVariant = variants?.find((v) => v.id === localParams._variantId) ?? null;
   // Pull DB-defined defaults for the constraints editor from the active variant
   const dbConstraints = activeVariant?._constraints ?? selectedModel?._constraints ?? {};
   const dbMonetary    = activeVariant?._monetary    ?? selectedModel?._monetary    ?? {};
@@ -608,11 +599,7 @@ export default function H2GeneratorPanel({ selectedModel, elzModel, elzParams, r
           <div className="grid grid-cols-3 gap-2 flex-1 min-w-[260px]">
             <MetricBadge
               label="Plant Capacity"
-              value={capacityKw !== 10000 || effectiveModel.capacity_kw != null
-                ? capacityKw >= 1000
-                  ? `${(capacityKw / 1000).toFixed(1)} MW`
-                  : `${capacityKw} kW`
-                : "—"}
+              value={_modelHasCap ? formatCapacityKw(capacityKw) : "—"}
               unit="" color="amber"
             />
             <MetricBadge
@@ -822,7 +809,7 @@ export default function H2GeneratorPanel({ selectedModel, elzModel, elzParams, r
               <p className="text-xs text-slate-400 mb-3">
                 Avg CF: <b style={{ color: hue }}>{(profile.avgCF * 100).toFixed(0)}%</b>
                 {" · "}Plant capacity: <b style={{ color: hue }}>
-                  {capacityKw >= 1000 ? `${(capacityKw / 1000).toFixed(1)} MW` : `${capacityKw} kW`}
+                  {_modelHasCap ? formatCapacityKw(capacityKw) : "—"}
                 </b>
                 {" · "}Peak:
                 {" "}<b className="text-slate-600">
@@ -850,6 +837,118 @@ export default function H2GeneratorPanel({ selectedModel, elzModel, elzParams, r
           <ReactECharts option={genStats.chart} style={{ height: 220 }} />
         </div>
       </div>
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+           SECTION D — Energy Flow Chain Analysis
+           Shows the full generation → ELZ → H₂ → FC chain with numbers
+           derived from the selected tech's capacity and theoretical profile.
+      ══════════════════════════════════════════════════════════════════════ */}
+      {(() => {
+        if (!_modelHasCap) return null;
+
+        const avgPowerKw   = Math.round(capacityKw * profile.avgCF);
+        const peakPowerKw  = Math.round(profile.peakKw);
+
+        // ELZ conversion — derive from elzModel or elzParams
+        const elzEffRaw = elzModel?.efficiency_pct ?? elzModel?.efficiency_percent ?? elzParams?.efficiency_pct ?? null;
+        const elzEff    = elzEffRaw != null
+          ? (Number(elzEffRaw) > 1 ? Number(elzEffRaw) : Number(elzEffRaw) * 100)
+          : 70;
+        const elzEffFrac = elzEff / 100;
+        // HHV of H₂ = 39.4 kWh/kg;  density = 0.0899 kg/Nm³ → 1 Nm³ = 3.54 kWh (HHV)
+        const h2RateKgH_avg  = +(avgPowerKw  * elzEffFrac / 39.4).toFixed(1);
+        const h2RateNm3H_avg = +(avgPowerKw  * elzEffFrac / 3.54).toFixed(0);
+        const h2RateKgH_peak = +(peakPowerKw * elzEffFrac / 39.4).toFixed(1);
+        const h2RateNm3H_peak= +(peakPowerKw * elzEffFrac / 3.54).toFixed(0);
+
+        // ELZ capacityKw for input sizing
+        const elzCapKw  = getModelCapacityKw(elzModel) ?? avgPowerKw;
+
+        // FC output estimate (from avg H₂ production at 58 % PEMFC efficiency)
+        const fcEff          = 0.58;
+        const fcPowerKw_avg  = Math.round(h2RateNm3H_avg * 3.0 * fcEff);
+
+        // H₂ daily / annual totals
+        const h2DailyKg  = +(h2RateKgH_avg * 24).toFixed(0);
+        const h2AnnualT  = +((h2DailyKg * 365) / 1000).toFixed(1);
+
+        const arrow = <span className="text-slate-300 font-light text-base px-1">→</span>;
+        const box = (label, value, unit, color) => (
+          <div className={`flex flex-col items-center justify-center rounded-xl border px-3 py-2 min-w-[90px]
+            ${color === "amber"  ? "bg-amber-50 border-amber-200" : ""}
+            ${color === "indigo" ? "bg-indigo-50 border-indigo-200" : ""}
+            ${color === "cyan"   ? "bg-cyan-50 border-cyan-200" : ""}
+            ${color === "violet" ? "bg-violet-50 border-violet-200" : ""}
+            ${color === "green"  ? "bg-emerald-50 border-emerald-200" : ""}
+          `}>
+            <p className="text-[9px] font-semibold uppercase tracking-wide text-slate-400 mb-1 whitespace-nowrap">{label}</p>
+            <p className={`text-sm font-bold leading-tight
+              ${color === "amber"  ? "text-amber-700" : ""}
+              ${color === "indigo" ? "text-indigo-700" : ""}
+              ${color === "cyan"   ? "text-cyan-700" : ""}
+              ${color === "violet" ? "text-violet-700" : ""}
+              ${color === "green"  ? "text-emerald-700" : ""}
+            `}>{value}</p>
+            <p className="text-[9px] text-slate-400 mt-0.5 whitespace-nowrap">{unit}</p>
+          </div>
+        );
+
+        return (
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <FiTrendingUp size={13} style={{ color: hue }} />
+              <h4 className="text-sm font-semibold text-slate-700">Energy Flow Chain</h4>
+              <span className="ml-auto text-[11px] text-slate-400 flex items-center gap-1">
+                <FiInfo size={10} /> Theoretical — based on selected capacity &amp; average CF
+              </span>
+            </div>
+
+            {/* Flow chain: Generation → ELZ → H₂ → FC → AC */}
+            <div className="flex flex-wrap items-center justify-center gap-1 mb-4">
+              {box("Generation", formatCapacityKw(avgPowerKw), `avg · peak ${formatCapacityKw(peakPowerKw)}`, "amber")}
+              {arrow}
+              {box(`ELZ Input`, formatCapacityKw(Math.min(avgPowerKw, elzCapKw)), `η ${elzEff.toFixed(0)} %`, "indigo")}
+              {arrow}
+              {box("H₂ Rate", `${h2RateKgH_avg} kg/h`, `${h2RateNm3H_avg} Nm³/h`, "cyan")}
+              {arrow}
+              {box("Storage", "→ buffer", "compressed", "violet")}
+              {arrow}
+              {box("FC Output", `~${fcPowerKw_avg} kW`, `η ${Math.round(fcEff * 100)} %`, "green")}
+            </div>
+
+            {/* Daily / annual H₂ summary */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-2">
+                <p className="text-[9px] text-amber-500 uppercase tracking-wide font-semibold">Avg Supply</p>
+                <p className="text-sm font-bold text-amber-800">{formatCapacityKw(avgPowerKw)}</p>
+                <p className="text-[9px] text-amber-400">avg AC power to ELZ</p>
+              </div>
+              <div className="rounded-xl border border-cyan-100 bg-cyan-50 px-3 py-2">
+                <p className="text-[9px] text-cyan-500 uppercase tracking-wide font-semibold">H₂ Production</p>
+                <p className="text-sm font-bold text-cyan-800">{h2RateKgH_avg} kg/h</p>
+                <p className="text-[9px] text-cyan-400">{h2RateNm3H_avg} Nm³/h avg · {h2RateNm3H_peak} Nm³/h peak</p>
+              </div>
+              <div className="rounded-xl border border-violet-100 bg-violet-50 px-3 py-2">
+                <p className="text-[9px] text-violet-500 uppercase tracking-wide font-semibold">Daily H₂</p>
+                <p className="text-sm font-bold text-violet-800">{h2DailyKg.toLocaleString()} kg</p>
+                <p className="text-[9px] text-violet-400">per day at avg CF</p>
+              </div>
+              <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2">
+                <p className="text-[9px] text-emerald-500 uppercase tracking-wide font-semibold">Annual H₂</p>
+                <p className="text-sm font-bold text-emerald-800">{h2AnnualT.toLocaleString()} t/yr</p>
+                <p className="text-[9px] text-emerald-400">metric tonnes per year</p>
+              </div>
+            </div>
+
+            <p className="text-[10px] text-slate-400 mt-2 flex items-center gap-1">
+              <FiInfo size={9} />
+              Theoretical estimate · ELZ η {elzEff.toFixed(0)} % HHV ·
+              H₂ HHV = 39.4 kWh/kg · 3.54 kWh/Nm³ ·
+              Run simulation for time-resolved results.
+            </p>
+          </div>
+        );
+      })()}
 
       {/* ═══════════════════════════════════════════════════════════════════════
            SECTION E — Simulation Result (only shown when a run is complete)
@@ -903,7 +1002,9 @@ export default function H2GeneratorPanel({ selectedModel, elzModel, elzParams, r
           <p className="text-[10px] text-emerald-400">
             {isDone && actualChart?.summary.avgPower
               ? `Simulated avg: ${actualChart.summary.avgPower} kW`
-              : `Avg CF · plant ${capacityKw >= 1000 ? (capacityKw/1000).toFixed(1)+" MW" : capacityKw+" kW"}`}
+              : _modelHasCap
+                ? `Avg CF · plant ${formatCapacityKw(capacityKw)}`
+                : "Avg CF · select model for capacity"}
           </p>
         </div>
         <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
@@ -962,9 +1063,9 @@ export default function H2GeneratorPanel({ selectedModel, elzModel, elzParams, r
                   label="Max Capacity"
                   unit="kW"
                   value={localParams.capacity_kw ?? null}
-                  defaultValue={cDef("energy_cap_max", "capacity_kw", 10000)}
+                  defaultValue={cDef("energy_cap_max", null, null) ?? _modelCapKw ?? null}
                   min={100}
-                  max={Math.max((cDef("energy_cap_max", "capacity_kw", 10000) ?? 10000) * 5, 200000)}
+                  max={Math.max((_modelCapKw ?? 10000) * 5, 200000)}
                   step={100}
                   onChange={(v) => handleParam("capacity_kw", v)}
                   onReset={() => resetParam("capacity_kw")}
@@ -1077,7 +1178,7 @@ export default function H2GeneratorPanel({ selectedModel, elzModel, elzParams, r
             flex flex-wrap gap-x-5 gap-y-0.5"
             style={{ background: `${hue}08`, border: `1px solid ${hue}18` }}
           >
-            <span>Capacity: <b className="text-slate-600">{capacityKw >= 1000 ? `${(capacityKw / 1000).toFixed(1)} MW` : `${capacityKw} kW`}</b></span>
+            <span>Capacity: <b className="text-slate-600">{_modelHasCap ? formatCapacityKw(capacityKw) : "—"}</b></span>
             <span>CF: <b className="text-slate-600">{cfMin}–{cfMax} %</b></span>
             <span>Daily: <b className="text-slate-600">{genStats.summary.dailyMwh} MWh</b></span>
             <span>Annual: <b className="text-slate-600">{genStats.summary.annualMwh.toLocaleString()} MWh/yr</b></span>

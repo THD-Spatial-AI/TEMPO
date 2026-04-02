@@ -20,8 +20,32 @@ import { FiZap, FiTrendingUp, FiActivity, FiBarChart2, FiInfo } from "react-icon
 // ─────────────────────────────────────────────────────────────────────────────
 const baseGrid = { top: 30, bottom: 44, left: 54, right: 54 };
 
-function timeAxis(result) {
-  return (result?.time_s ?? []).map((t) => {
+function formatTimeLabel(t) {
+  const sec = Number(t) || 0;
+  const days = Math.floor(sec / 86400);
+  const h    = Math.floor((sec % 86400) / 3600);
+  const m    = Math.floor((sec % 3600) / 60);
+  if (days > 0) return h > 0 ? `D${days}+${h}h` : `D${days}`;
+  if (h   > 0) return m > 0 ? `${h}h${m}` : `${h}h`;
+  return `${m}m`;
+}
+
+function xAxisLabel(t) {
+  return {
+    fontSize: 9,
+    rotate: t.length > 24 ? 35 : 0,
+    interval: Math.max(0, Math.ceil(t.length / 10) - 1),
+    color: '#94a3b8',
+  };
+}
+
+function timeAxis(result, requestedProfile = []) {
+  const fromResult = result?.time_s ?? [];
+  const fromRequested = Array.isArray(requestedProfile)
+    ? requestedProfile.map((p) => Number(p?.time_s)).filter((v) => Number.isFinite(v))
+    : [];
+  const base = fromResult.length ? fromResult : fromRequested;
+  return base.map((t) => {
     const h = Math.floor(t / 3600);
     const m = Math.floor((t % 3600) / 60);
     return h > 0 ? `${h}h ${m.toString().padStart(2, '0')}m` : `${m} min`;
@@ -36,9 +60,21 @@ const tooltipFormatter = (params) =>
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. Power Flow chart  ─ Source generation → ELZ consumption → FC output
 // ─────────────────────────────────────────────────────────────────────────────
-function buildPowerFlowChart(result, sourceName) {
-  const t      = timeAxis(result);
-  const srcPow = result?.source_power_kw      ?? [];
+function buildPowerFlowChart(result, sourceName, requestedSourceProfile = []) {
+  const simTime = result?.time_s ?? [];
+  const reqTime = Array.isArray(requestedSourceProfile)
+    ? requestedSourceProfile.map((p) => Number(p?.time_s)).filter((v) => Number.isFinite(v))
+    : [];
+  const timeValues = simTime.length ? simTime : reqTime;
+  const t = timeValues.map((v) => formatTimeLabel(v));
+
+  const srcPowSim = result?.source_power_kw ?? [];
+  const srcPowRequested = Array.isArray(requestedSourceProfile)
+    ? requestedSourceProfile.map((p) => Number(p?.power_kw ?? 0))
+    : [];
+  const hasSimSource = srcPowSim.length > 0 && srcPowSim.some((v) => v > 0);
+  const canOverlayRequested = srcPowRequested.length === t.length && srcPowRequested.some((v) => v > 0);
+  const srcPow = hasSimSource ? srcPowSim : (canOverlayRequested ? srcPowRequested : []);
   const elzPow = result?.electrolyzer_power_kw ?? [];
   const fcPow  = result?.fc_power_output_kw    ?? result?.fc_terminal_voltage_v?.map(() => 0) ?? [];
   // Curtailed power: generated but not consumed by ELZ (e.g. ELZ at capacity)
@@ -54,6 +90,15 @@ function buildPowerFlowChart(result, sourceName) {
       lineStyle: { color: '#3b82f6', width: 2.5 },
       areaStyle: { color: 'rgba(59,130,246,0.08)' },
       z: 1,
+    }] : []),
+    ...(hasSimSource && canOverlayRequested ? [{
+      name: 'Requested Generation Profile',
+      type: 'line',
+      data: srcPowRequested,
+      smooth: true,
+      symbol: 'none',
+      lineStyle: { color: '#1d4ed8', width: 1.5, type: 'dashed' },
+      z: 0,
     }] : []),
     {
       name: `ELZ Power In`,
@@ -89,7 +134,7 @@ function buildPowerFlowChart(result, sourceName) {
     tooltip: { trigger: 'axis', formatter: tooltipFormatter },
     legend: { data: series.map((s) => s.name), bottom: 0, textStyle: { fontSize: 11 } },
     grid: baseGrid,
-    xAxis: { type: 'category', data: t, axisLabel: { fontSize: 10, rotate: t.length > 30 ? 30 : 0 } },
+    xAxis: { type: 'category', data: t, axisLabel: xAxisLabel(t) },
     yAxis: { type: 'value', name: 'kW', nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10 } },
     series,
   };
@@ -130,7 +175,7 @@ function buildH2BalanceChart(result) {
     tooltip: { trigger: 'axis', formatter: tooltipFormatter },
     legend: { data: series.map((s) => s.name), bottom: 0, textStyle: { fontSize: 11 } },
     grid: baseGrid,
-    xAxis: { type: 'category', data: t, axisLabel: { fontSize: 10, rotate: t.length > 30 ? 30 : 0 } },
+    xAxis: { type: 'category', data: t, axisLabel: xAxisLabel(t) },
     yAxis: { type: 'value', name: 'Nm³/h', nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10 } },
     series,
   };
@@ -184,7 +229,7 @@ function buildTankStateChart(result) {
     tooltip: { trigger: 'axis', formatter: tooltipFormatter },
     legend: { data: series.map((s) => s.name), bottom: 0, textStyle: { fontSize: 11 } },
     grid: { ...baseGrid, right: hasSoc ? 54 : 20 },
-    xAxis: { type: 'category', data: t, axisLabel: { fontSize: 10, rotate: t.length > 30 ? 30 : 0 } },
+    xAxis: { type: 'category', data: t, axisLabel: xAxisLabel(t) },
     yAxis: yAxes,
     series,
   };
@@ -215,7 +260,7 @@ function buildFcDetailChart(result) {
     tooltip: { trigger: 'axis', formatter: tooltipFormatter },
     legend: { data: ['Terminal Voltage (V)', 'Current Density (A/cm²)', ...(hasEff ? ['FC Efficiency (%)'] : [])], bottom: 0, textStyle: { fontSize: 11 } },
     grid: { ...baseGrid, right: hasEff ? 60 : 54 },
-    xAxis: { type: 'category', data: t, axisLabel: { fontSize: 10, rotate: t.length > 30 ? 30 : 0 } },
+    xAxis: { type: 'category', data: t, axisLabel: xAxisLabel(t) },
     yAxis: [
       { type: 'value', name: 'V',     nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10 } },
       { type: 'value', name: 'A/cm²', nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10 }, splitLine: { show: false } },
@@ -268,7 +313,7 @@ function buildCumulativeChart(result) {
     tooltip: { trigger: 'axis', formatter: tooltipFormatter },
     legend: { data: ['ELZ Energy In (kWh)', 'H₂ Energy Stored (kWh equiv.)', 'FC Energy Out (kWh)'], bottom: 0, textStyle: { fontSize: 11 } },
     grid: baseGrid,
-    xAxis: { type: 'category', data: t, axisLabel: { fontSize: 10, rotate: t.length > 30 ? 30 : 0 } },
+    xAxis: { type: 'category', data: t, axisLabel: xAxisLabel(t) },
     yAxis: { type: 'value', name: 'kWh', nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10 } },
     series: [
       {
@@ -328,10 +373,10 @@ function ChartCard({ icon: Icon, title, subtitle, children, accent = "slate" }) 
 // ─────────────────────────────────────────────────────────────────────────────
 // Main export
 // ─────────────────────────────────────────────────────────────────────────────
-export default function H2EnergyCharts({ result, simState, progress, sourceName }) {
-  const t = timeAxis(result);
+export default function H2EnergyCharts({ result, simState, progress, sourceName, requestedSourceProfile = [] }) {
+  const t = timeAxis(result, requestedSourceProfile);
 
-  const powerFlowOpt   = useMemo(() => buildPowerFlowChart(result, sourceName),   [result, sourceName]);
+  const powerFlowOpt   = useMemo(() => buildPowerFlowChart(result, sourceName, requestedSourceProfile), [result, sourceName, requestedSourceProfile]);
   const h2BalanceOpt   = useMemo(() => buildH2BalanceChart(result),               [result]);
   const tankStateOpt   = useMemo(() => buildTankStateChart(result),               [result]);
   const fcDetailOpt    = useMemo(() => buildFcDetailChart(result),                [result]);
@@ -412,3 +457,4 @@ export default function H2EnergyCharts({ result, simState, progress, sourceName 
     </div>
   );
 }
+

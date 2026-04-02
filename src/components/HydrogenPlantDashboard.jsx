@@ -25,6 +25,7 @@ import {
   FiSettings,
   FiDroplet,
   FiBox,
+  FiChevronRight,
 } from "react-icons/fi";
 import {
   runSimulation,
@@ -62,6 +63,76 @@ function detectSourceTechType(model) {
   if (/coal|lignite/.test(key))             return "coal";
   if (/gas|ccgt|ocgt|lng/.test(key))        return "gas";
   return "generic";
+}
+
+function parseCapacityToKw(value, unitHint = null) {
+  const toMultiplier = (u) => {
+    const s = String(u ?? "").trim().toLowerCase();
+    if (s === "kw") return 1;
+    if (s === "mw") return 1000;
+    if (s === "gw") return 1000000;
+    return null;
+  };
+
+  if (value == null) return null;
+  if (typeof value === "object") {
+    const raw = value.value ?? value.amount ?? value.capacity ?? null;
+    const unit = value.unit ?? value.units ?? unitHint;
+    return parseCapacityToKw(raw, unit);
+  }
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || value <= 0) return null;
+    return value * (toMultiplier(unitHint) ?? 1);
+  }
+  if (typeof value === "string") {
+    const s = value.trim();
+    const m = s.match(/^([+-]?\d+(?:\.\d+)?)\s*([kmg]w)?$/i);
+    if (!m) return null;
+    const n = Number(m[1]);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    return n * (toMultiplier(m[2] ?? unitHint) ?? 1);
+  }
+  return null;
+}
+
+function getModelCapacityKw(model) {
+  const unit = model?.capacity_unit ?? model?.unit ?? model?.units ?? model?.specs?.capacity_unit ?? model?.technical_specifications?.capacity_unit;
+  const candidates = [
+    [model?.capacity_kw, "kw"],
+    [model?.rated_power_kw, "kw"],
+    [model?.nominal_power_kw, "kw"],
+    [model?.power_kw, "kw"],
+    [model?.plant_capacity_kw, "kw"],
+    [model?.nameplate_capacity_kw, "kw"],
+    [model?.specs?.capacity_kw, "kw"],
+    [model?.technical_specifications?.capacity_kw, "kw"],
+    [model?.defaults?.capacity_kw, "kw"],
+    [model?.parameters?.capacity_kw, "kw"],
+    [model?.capacity_mw, "mw"],
+    [model?.rated_power_mw, "mw"],
+    [model?.nominal_power_mw, "mw"],
+    [model?.size_mw, "mw"],
+    [model?.plant_capacity_mw, "mw"],
+    [model?.nameplate_capacity_mw, "mw"],
+    [model?.specs?.capacity_mw, "mw"],
+    [model?.technical_specifications?.capacity_mw, "mw"],
+    [model?.defaults?.capacity_mw, "mw"],
+    [model?.parameters?.capacity_mw, "mw"],
+    [model?.capacity_gw, "gw"],
+    [model?.specs?.capacity_gw, "gw"],
+    [model?.technical_specifications?.capacity_gw, "gw"],
+    [model?.capacity, unit],
+    [model?.rated_power, unit],
+    [model?.nameplate_capacity, unit],
+    [model?.specs?.capacity, model?.specs?.capacity_unit ?? unit],
+    [model?.technical_specifications?.capacity, model?.technical_specifications?.capacity_unit ?? unit],
+  ];
+
+  for (const [raw, u] of candidates) {
+    const kw = parseCapacityToKw(raw, u);
+    if (kw != null) return kw;
+  }
+  return null;
 }
 
 import H2NodeModal from "./H2NodeModal";
@@ -113,6 +184,55 @@ const SIM_CATALOGUE = [
     subtitle: "Source · Absorber · Stripper · Compressor · Storage",
   },
 ];
+
+const HORIZON_PRESETS = [
+  { id: "day", label: "1 day", t_end_s: 86400 },
+  { id: "week", label: "1 week", t_end_s: 7 * 86400 },
+  { id: "month", label: "1 month", t_end_s: 30 * 86400 },
+  { id: "year", label: "1 year", t_end_s: 365 * 86400 },
+];
+
+const DT_PRESETS = [
+  { label: "5 min", value: 300 },
+  { label: "15 min", value: 900 },
+  { label: "1 h", value: 3600 },
+  { label: "6 h", value: 21600 },
+  { label: "24 h", value: 86400 },
+];
+
+const DEFAULT_TIME_ADVANCED = {
+  target_samples: 672,
+  resampling_strategy: "adaptive", // fixed | adaptive | rolling_window
+  rolling_window_days: 7,
+  auto_apply: true,
+  performance_soft_limit: 5000,
+  performance_hard_limit: 12000,
+};
+
+function suggestDtSeconds(tEndSeconds, sourceTechType) {
+  const horizon = Math.max(300, Number(tEndSeconds) || 86400);
+  const variableSource = ["solar", "wind", "hydro", "gas"].includes(sourceTechType);
+  const targetPoints = Math.min(2200, Math.max(120, Math.round((horizon / 3600) * (variableSource ? 4 : 2))));
+  const dtRaw = horizon / targetPoints;
+  const candidates = DT_PRESETS.map((d) => d.value);
+  return candidates.find((dt) => dt >= dtRaw) ?? candidates[candidates.length - 1];
+}
+
+function formatDuration(seconds) {
+  const s = Math.max(0, Number(seconds) || 0);
+  const days = s / 86400;
+  if (days >= 365) return `${(days / 365).toFixed(2)} years`;
+  if (days >= 30) return `${(days / 30).toFixed(2)} months`;
+  if (days >= 7) return `${(days / 7).toFixed(2)} weeks`;
+  if (days >= 1) return `${days.toFixed(2)} days`;
+  return `${(s / 3600).toFixed(2)} hours`;
+}
+
+function quantizeDtSeconds(value) {
+  if (!Number.isFinite(value) || value <= 0) return 60;
+  const minute = 60;
+  return Math.max(minute, Math.round(value / minute) * minute);
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tiny reusable primitives (matches app-wide Tailwind conventions)
@@ -344,10 +464,24 @@ export default function HydrogenPlantDashboard() {
 
   // ── Parameters  (restored from localStorage on every mount) ──────────────
   // H₂ Power Plant parameters
-  const [elz, setElz] = useState(() => loadLS("elz", { grid_power_kw: 300, water_flow_rate_lpm: 90, temperature_c: 70 }));
+  const [elz, setElz] = useState(() => {
+    const saved = loadLS("elz", { grid_power_kw: 10000, water_flow_rate_lpm: 90, temperature_c: 70 });
+    if (saved.grid_power_kw != null && saved.grid_power_kw <= 300) {
+      return { ...saved, grid_power_kw: 10000 };
+    }
+    return saved;
+  });
   const [sto, setSto] = useState(() => loadLS("sto", { compressor_efficiency: 0.78, max_tank_pressure_bar: 350 }));
   const [fc,  setFc]  = useState(() => loadLS("fc",  { h2_flow_rate_nm3h: 40, oxidant_pressure_bar: 2.5, cooling_capacity_kw: 35 }));
-  const [sim, setSim] = useState(() => loadLS("sim", { t_end_s: 3600, dt_s: 60 }));
+  const [sim, setSim] = useState(() => {
+    const saved = loadLS("sim", null);
+    if (!saved || saved.t_end_s <= 7200) return { t_end_s: 86400, dt_s: 900 };
+    return saved;
+  });
+  const [timeAdvanced, setTimeAdvanced] = useState(() => {
+    const saved = loadLS("simAdvancedTime", null);
+    return { ...DEFAULT_TIME_ADVANCED, ...(saved ?? {}) };
+  });
   
   // CCS parameters (separate state for Carbon Capture System)
   const [ccsSource, setCcsSource] = useState(() => loadLS("ccsSource", {
@@ -428,6 +562,7 @@ export default function HydrogenPlantDashboard() {
   useEffect(() => { saveLS("sto", sto); }, [sto]);
   useEffect(() => { saveLS("fc",  fc);  }, [fc]);
   useEffect(() => { saveLS("sim", sim); }, [sim]);
+  useEffect(() => { saveLS("simAdvancedTime", timeAdvanced); }, [timeAdvanced]);
   
   // Save CCS params
   useEffect(() => { saveLS("ccsSource", ccsSource); }, [ccsSource]);
@@ -535,7 +670,17 @@ export default function HydrogenPlantDashboard() {
   // Local param overrides from the generator panel constraints editor
   const [genParamOverrides, setGenParamOverrides] = useState(() => loadLS("genParams", {}));
   // Local param overrides from the electrolyzer panel constraints editor
-  const [elzParamOverrides, setElzParamOverrides] = useState(() => loadLS("elzParams", {}));
+  const [elzParamOverrides, setElzParamOverrides] = useState(() => {
+    const saved = loadLS("elzParams", {});
+    const cap = Number(saved?.capacity_kw);
+    // Legacy localStorage often carried a tiny 300 kW ELZ override.
+    // Remove it so source-driven sizing can propagate through the chain.
+    if (Number.isFinite(cap) && cap > 0 && cap <= 300) {
+      const { capacity_kw, ...rest } = saved;
+      return rest;
+    }
+    return saved;
+  });
   
   // CCS parameter overrides (from CCS panels)
   const [ccsSourceParamOverrides, setCcsSourceParamOverrides] = useState(() => loadLS("ccsSourceParams", {}));
@@ -555,10 +700,13 @@ export default function HydrogenPlantDashboard() {
 
   // ── Payload preview (must come after all state it depends on) ────────────
   const [showPayloadPreview, setShowPayloadPreview] = useState(false);
+  const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState(() => loadLS("h2RightSidebarCollapsed", false));
+  const activeSourceVariant = variants?.source?.find((variant) => variant.id === genParamOverrides?._variantId) ?? null;
   const previewPayload = useMemo(() => {
     if (simType === "h2") {
       return buildSimPayload({
         selectedModels,
+        sourceVariant: activeSourceVariant,
         genParamOverrides,
         elzParamOverrides,
         elz,
@@ -579,7 +727,11 @@ export default function HydrogenPlantDashboard() {
       });
     }
     return null;
-  }, [simType, selectedModels, genParamOverrides, elzParamOverrides, elz, sto, fc, sim, customProfile]);
+  }, [simType, selectedModels, activeSourceVariant, genParamOverrides, elzParamOverrides, elz, sto, fc, sim, customProfile]);
+
+  useEffect(() => {
+    saveLS("h2RightSidebarCollapsed", !!rightSidebarCollapsed);
+  }, [rightSidebarCollapsed]);
 
   // ── Sync generator capacity override → ELZ grid_power_kw ─────────────────
   // The generator feeds the electrolyzer — updating generator capacity should
@@ -590,6 +742,71 @@ export default function HydrogenPlantDashboard() {
       setElz((p) => ({ ...p, grid_power_kw: Number(cap) }));
     }
   }, [genParamOverrides?.capacity_kw]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // If a large source model is selected, ignore legacy/tiny generator capacity
+  // overrides that would clamp the whole chain to a few hundred kW.
+  useEffect(() => {
+    const modelCap = getModelCapacityKw(selectedModels?.source);
+    const overrideCap = Number(genParamOverrides?.capacity_kw);
+    if (!isFinite(modelCap) || modelCap <= 5000) return;
+    if (!isFinite(overrideCap) || overrideCap > 1000) return;
+
+    setGenParamOverrides((p) => {
+      if (!p || p.capacity_kw == null) return p;
+      const { capacity_kw, ...rest } = p;
+      return rest;
+    });
+  }, [selectedModels?.source?.id, selectedModels?.source?.capacity_kw, genParamOverrides?.capacity_kw]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // If the selected source is large but a legacy ELZ panel override still clamps
+  // capacity to <=300 kW, drop that override so payload sizing uses source capacity.
+  useEffect(() => {
+    const srcCap = Number(genParamOverrides?.capacity_kw) || getModelCapacityKw(selectedModels?.source);
+    const elzOverrideCap = Number(elzParamOverrides?.capacity_kw);
+    if (!isFinite(srcCap) || srcCap <= 5000) return;
+    if (!isFinite(elzOverrideCap) || elzOverrideCap > 300) return;
+
+    setElzParamOverrides((p) => {
+      if (!p || p.capacity_kw == null) return p;
+      const { capacity_kw, ...rest } = p;
+      return rest;
+    });
+  }, [genParamOverrides?.capacity_kw, selectedModels?.source?.id, selectedModels?.source?.capacity_kw, elzParamOverrides?.capacity_kw]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // If the user picks a generation template but hasn't overridden capacity,
+  // default ELZ input power to the source capacity so template power is reflected.
+  useEffect(() => {
+    const hasManualGenCap = genParamOverrides?.capacity_kw != null && isFinite(Number(genParamOverrides.capacity_kw));
+    if (hasManualGenCap) return;
+
+    const srcCap = getModelCapacityKw(selectedModels?.source);
+    if (!isFinite(srcCap) || srcCap <= 0) return;
+
+    setElz((p) => ({ ...p, grid_power_kw: srcCap }));
+  }, [selectedModels?.source?.id, selectedModels?.source?.capacity_kw, genParamOverrides?.capacity_kw]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Keep FC default H2 flow physically consistent with selected FC/template power.
+  useEffect(() => {
+    const srcCap = getModelCapacityKw(selectedModels?.source);
+    const elzCap = Number(elz?.grid_power_kw);
+    const fcCap = getModelCapacityKw(selectedModels?.fuel_cell);
+    const fcRated = Math.max(
+      isFinite(fcCap) && fcCap > 0 ? fcCap : 0,
+      isFinite(srcCap) && srcCap > 0 ? srcCap * 0.25 : 0,
+      isFinite(elzCap) && elzCap > 0 ? elzCap * 0.4 : 0
+    );
+    if (!isFinite(fcRated) || fcRated <= 0) return;
+
+    setFc((p) => {
+      const current = Number(p?.h2_flow_rate_nm3h);
+      const isDefaultLike = !isFinite(current) || current <= 0;
+      if (!isDefaultLike) return p;
+
+      const eta = 0.58;
+      const required = fcRated / (3.542 * eta);
+      return { ...p, h2_flow_rate_nm3h: Math.round(required) };
+    });
+  }, [selectedModels?.fuel_cell?.id, selectedModels?.fuel_cell?.capacity_kw, selectedModels?.source?.id, selectedModels?.source?.capacity_kw, elz?.grid_power_kw]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Sync ELZ efficiency override → elz state (sent to simulation service) ────────────
   useEffect(() => {
@@ -614,6 +831,7 @@ export default function HydrogenPlantDashboard() {
       if (simType === "h2") {
         payload = buildSimPayload({
           selectedModels,
+          sourceVariant: activeSourceVariant,
           genParamOverrides,
           elzParamOverrides,
           elz,
@@ -714,12 +932,63 @@ export default function HydrogenPlantDashboard() {
   const kpi = result?.kpi ?? null;
 
   const fmt = (v, d = 1) => (v != null ? Number(v).toFixed(d) : null);
+  const srcTechType = detectSourceTechType(selectedModels?.source);
+  const recommendedDt = useMemo(() => suggestDtSeconds(sim.t_end_s, srcTechType), [sim.t_end_s, srcTechType]);
+  const strategyDt = useMemo(() => {
+    const tEnd = Math.max(3600, Number(sim.t_end_s) || 86400);
+    const targetSamples = Math.max(24, Number(timeAdvanced.target_samples) || DEFAULT_TIME_ADVANCED.target_samples);
+
+    if (timeAdvanced.resampling_strategy === "fixed") {
+      return quantizeDtSeconds(sim.dt_s);
+    }
+
+    if (timeAdvanced.resampling_strategy === "rolling_window") {
+      const rollingWindowSeconds = Math.max(86400, Number(timeAdvanced.rolling_window_days || 7) * 86400);
+      const windowForResolution = Math.min(tEnd, rollingWindowSeconds);
+      return quantizeDtSeconds(windowForResolution / targetSamples);
+    }
+
+    // adaptive
+    return quantizeDtSeconds(tEnd / targetSamples);
+  }, [sim.t_end_s, sim.dt_s, timeAdvanced.target_samples, timeAdvanced.rolling_window_days, timeAdvanced.resampling_strategy]);
+  const sampleCount = useMemo(() => {
+    const dt = Math.max(1, Number(sim.dt_s) || 1);
+    const tEnd = Math.max(0, Number(sim.t_end_s) || 0);
+    return Math.floor(tEnd / dt) + 1;
+  }, [sim.dt_s, sim.t_end_s]);
+  const performanceState = useMemo(() => {
+    const soft = Math.max(500, Number(timeAdvanced.performance_soft_limit) || DEFAULT_TIME_ADVANCED.performance_soft_limit);
+    const hard = Math.max(soft + 1, Number(timeAdvanced.performance_hard_limit) || DEFAULT_TIME_ADVANCED.performance_hard_limit);
+    if (sampleCount >= hard) return "high";
+    if (sampleCount >= soft) return "medium";
+    return "ok";
+  }, [sampleCount, timeAdvanced.performance_soft_limit, timeAdvanced.performance_hard_limit]);
+
+  useEffect(() => {
+    const tEnd = Math.max(3600, Number(sim.t_end_s) || 86400);
+    const dt = Math.max(60, Number(sim.dt_s) || 900);
+    const clampedDt = Math.min(dt, tEnd);
+    if (clampedDt !== sim.dt_s) {
+      setSim((p) => ({ ...p, dt_s: clampedDt }));
+    }
+  }, [sim.t_end_s, sim.dt_s]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!timeAdvanced.auto_apply) return;
+    if (timeAdvanced.resampling_strategy === "fixed") return;
+    if (!Number.isFinite(strategyDt) || strategyDt <= 0) return;
+    if (strategyDt !== sim.dt_s) {
+      setSim((p) => ({ ...p, dt_s: strategyDt }));
+    }
+  }, [timeAdvanced.auto_apply, timeAdvanced.resampling_strategy, strategyDt, sim.dt_s]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─────────────────────────────────────────────────────────────────────────
   // Render
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div className="p-6 space-y-5 max-w-screen-2xl mx-auto">
+    <div className="flex h-screen overflow-hidden">
+      {/* ── Scrollable main content ───────────────────────────────────────── */}
+      <div className="flex-1 overflow-y-auto p-6 space-y-5 min-w-0">
 
       {/* ── Simulation switcher + service status ──────────────────────────── */}
       <div className="flex flex-wrap items-center gap-3">
@@ -827,6 +1096,7 @@ export default function HydrogenPlantDashboard() {
           onNodeClick={handleNodeClick}
           customProfile={customProfile}
           onSetCustomProfile={setCustomProfile}
+          genParamOverrides={genParamOverrides}
         />
       )}
 
@@ -881,11 +1151,10 @@ export default function HydrogenPlantDashboard() {
           genTechType={detectSourceTechType(selectedModels?.source)}
           genCapacityKw={(() => {
             // Prefer the user-overridden capacity from the generator panel;
-            // fall back to the base model value.
+            // fall back to the robust parsed value from the base model.
             const overridden = Number(genParamOverrides?.capacity_kw);
             if (isFinite(overridden) && overridden > 0) return overridden;
-            const base = Number(selectedModels?.source?.capacity_kw);
-            return isFinite(base) ? base : undefined;
+            return getModelCapacityKw(selectedModels?.source) ?? undefined;
           })()}
           result={result}
           simState={simState}
@@ -991,167 +1260,345 @@ export default function HydrogenPlantDashboard() {
         </>
       )}
 
-      {/* ── Simulation controls ───────────────────────────────────────────── */}
-      <Card className="p-5">
-        <div className="flex flex-col sm:flex-row sm:items-end gap-4">
-          <div className="flex gap-5 flex-1">
-            <div className="flex-1">
-              <label className="block text-xs text-slate-500 mb-1">Horizon</label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number" min={60} max={86400} step={300}
-                  value={sim.t_end_s}
-                  onChange={(e) => setSim((p) => ({ ...p, t_end_s: +e.target.value }))}
-                  className="w-28 border border-slate-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-electric-400"
-                />
-                <span className="text-xs text-slate-400">s</span>
-                <span className="text-xs text-slate-400">({(sim.t_end_s / 3600).toFixed(1)} h)</span>
-              </div>
-            </div>
-            <div className="flex-1">
-              <label className="block text-xs text-slate-500 mb-1">Sample interval</label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number" min={1} max={600} step={10}
-                  value={sim.dt_s}
-                  onChange={(e) => setSim((p) => ({ ...p, dt_s: +e.target.value }))}
-                  className="w-24 border border-slate-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-electric-400"
-                />
-                <span className="text-xs text-slate-400">s</span>
-              </div>
-            </div>
-          </div>
+        {/* ── Energy Evolution Charts ──────────────────────────────────────── */}
+        {simType === "h2" && (
+          <H2EnergyCharts
+            result={result}
+            simState={simState}
+            progress={progress}
+            sourceName={selectedModels?.source?.name}
+            requestedSourceProfile={previewPayload?.source?.profile ?? []}
+          />
+        )}
 
-          <div className="flex gap-2">
-            {simState === SIM_STATES.IDLE || simState === SIM_STATES.DONE || simState === SIM_STATES.ERROR ? (
-              <button
-                onClick={handleRun}
-                title="Run simulation"
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl
-                  bg-gradient-to-r from-electric-500 to-electric-600 text-white font-semibold text-sm
-                  shadow-md hover:shadow-lg hover:from-electric-600 hover:to-electric-700
-                  transition-all active:scale-95"
-              >
-                <FiPlay size={14} />
-                {simState === SIM_STATES.DONE ? "Re-run" : "Run Simulation"}
-              </button>
-            ) : (
-              <button
-                onClick={handleStop}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl
-                  bg-gradient-to-r from-red-500 to-red-600 text-white font-semibold text-sm
-                  shadow-md hover:shadow-lg hover:from-red-600 hover:to-red-700
-                  transition-all active:scale-95"
-              >
-                <FiStopCircle size={14} />
-                Stop
-              </button>
-            )}
-            {(simState === SIM_STATES.DONE || simState === SIM_STATES.ERROR) && (
-              <button
-                onClick={handleReset}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200
-                  text-slate-600 text-sm font-medium hover:bg-slate-50 transition-all active:scale-95"
-              >
-                <FiRefreshCw size={13} />
-                Clear
-              </button>
-            )}
-          </div>
+        {simType === "ccs" && (
+          <CCSEnergyCharts
+            result={result}
+          />
+        )}
+
+        {/* ── Idle placeholder ──────────────────────────────────────────────── */}
+        {simState === SIM_STATES.IDLE && (
+          <Card className="p-12 flex flex-col items-center justify-center text-center gap-4">
+            <div className="p-5 rounded-full bg-slate-50 border border-slate-100">
+              <FiZap size={32} className="text-slate-300" />
+            </div>
+            <div>
+              <p className="font-semibold text-slate-700">Configure parameters and run the simulation</p>
+              <p className="text-sm text-slate-400 mt-1">Results will appear in the flow diagram and charts above once the computation finishes.</p>
+            </div>
+          </Card>
+        )}
+
+      </div>
+      {/* ── END scrollable main content ──────────────────────────────────── */}
+
+      {/* ── Right sidebar — full-height collapsible ──────────────────────── */}
+      <div className={`flex-shrink-0 transition-all duration-300 bg-white border-l border-slate-200 flex flex-col overflow-hidden ${rightSidebarCollapsed ? "w-14" : "w-96"}`}>
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-slate-200 flex-shrink-0">
+          {!rightSidebarCollapsed && (
+            <div className="flex items-center gap-2">
+              <FiClock className="text-slate-700" size={18} />
+              <h2 className="text-sm font-semibold text-slate-800">Simulation Settings</h2>
+            </div>
+          )}
+          <button
+            onClick={() => setRightSidebarCollapsed((p) => !p)}
+            className={`p-2 hover:bg-slate-100 rounded-lg transition-colors ${rightSidebarCollapsed ? "mx-auto" : "ml-auto"}`}
+            title={rightSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {rightSidebarCollapsed ? <FiChevronRight size={18} /> : <FiChevronRight size={18} className="rotate-180" />}
+          </button>
         </div>
 
-        {/* Progress bar */}
-        {(simState === SIM_STATES.QUEUED || simState === SIM_STATES.RUNNING) && (
-          <div className="mt-4">
-            <div className="flex justify-between text-xs text-slate-500 mb-1">
-              <span className="flex items-center gap-1">
-                <span className="inline-block w-2 h-2 rounded-full bg-electric-400 animate-pulse" />
-                {simState === SIM_STATES.QUEUED ? "Queued — waiting for engine…" : `Running  ${progress.toFixed(0)} %…`}
-              </span>
-              <span>{progress.toFixed(0)} %</span>
-            </div>
-            <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-              <div
-                className="h-2 bg-gradient-to-r from-electric-400 to-electric-600 rounded-full transition-all duration-500"
-                style={{ width: `${simState === SIM_STATES.QUEUED ? 3 : progress}%` }}
-              />
-            </div>
-          </div>
-        )}
+        {/* Body */}
+        {!rightSidebarCollapsed ? (
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {/* ── Run Controls ──────────────────────────────────────────── */}
+            <Card className="p-4">
+              <div className="space-y-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-700">Simulation Controls</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">{sampleCount.toLocaleString()} samples · {formatDuration(sim.t_end_s)} · Δt {Math.round(sim.dt_s / 60)} min</p>
+                </div>
 
-        {/* Done banner */}
-        {simState === SIM_STATES.DONE && (
-          <div className={`mt-4 flex items-center gap-2 text-sm rounded-xl px-4 py-2.5 border ${
-            result?._local
-              ? 'text-amber-700 bg-amber-50 border-amber-200'
-              : 'text-emerald-700 bg-emerald-50 border-emerald-200'
-          }`}>
-            <FiCheckCircle />
-            {result?._local
-              ? <>Local physics simulation complete — {result?.time_s?.length ?? 0} steps. <span className="font-medium">Connect to service for high-fidelity OpenModelica results.</span></>
-              : <>OpenModelica simulation complete — {result?.time_s?.length ?? 0} data points returned.</>}
-          </div>
-        )}
+                {/* Horizon presets */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">Horizon</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {HORIZON_PRESETS.map((preset) => {
+                      const active = sim.t_end_s === preset.t_end_s;
+                      return (
+                        <button
+                          key={preset.id}
+                          onClick={() => setSim((p) => ({ ...p, t_end_s: preset.t_end_s, dt_s: suggestDtSeconds(preset.t_end_s, srcTechType) }))}
+                          className={`px-2.5 py-1 rounded-lg text-xs border transition-colors ${
+                            active ? "bg-indigo-600 border-indigo-600 text-white" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                          }`}
+                        >
+                          {preset.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
 
-        {/* Error banner */}
-        {simState === SIM_STATES.ERROR && (
-          <div className="mt-4 flex items-start gap-2 text-red-700 text-sm bg-red-50 border border-red-200 rounded-xl px-4 py-2.5">
-            <FiAlertCircle className="mt-0.5 shrink-0" />
-            <span><strong>Simulation error:</strong> {errorMsg}</span>
-          </div>
-        )}
-      </Card>
+                {/* Horizon + interval inputs */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-2">
+                    <label className="block text-[11px] font-medium text-slate-600 mb-1">Horizon (s)</label>
+                    <input
+                      type="number" min={3600} max={31536000} step={3600}
+                      value={sim.t_end_s}
+                      onChange={(e) => setSim((p) => ({ ...p, t_end_s: +e.target.value }))}
+                      className="w-full border border-slate-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-electric-400 bg-white"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">{formatDuration(sim.t_end_s)}</p>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-2">
+                    <label className="block text-[11px] font-medium text-slate-600 mb-1">Interval (s)</label>
+                    <input
+                      type="number" min={60} max={86400} step={60}
+                      value={sim.dt_s}
+                      onChange={(e) => setSim((p) => ({ ...p, dt_s: +e.target.value }))}
+                      className="w-full border border-slate-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-electric-400 bg-white"
+                    />
+                    <button
+                      onClick={() => setSim((p) => ({ ...p, dt_s: recommendedDt }))}
+                      className="mt-1 w-full text-center px-1.5 py-0.5 rounded text-[10px] border border-indigo-200 text-indigo-600 bg-indigo-50 hover:bg-indigo-100"
+                    >
+                      Auto ({Math.round(recommendedDt / 60)} min)
+                    </button>
+                  </div>
+                </div>
 
-      {/* ── Payload preview ─────────────────────────────────────────────── */}
-      <div className="border border-slate-200 rounded-2xl overflow-hidden">
-        <button
-          onClick={() => setShowPayloadPreview((p) => !p)}
-          className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors text-sm font-medium text-slate-600"
-        >
-          <span className="flex items-center gap-2">
-            <FiInfo size={13} className="text-indigo-500" />
-            Simulation Payload (v2.0)
-            <span className="text-xs font-normal text-slate-400">schema v2.0 · inspect what will be sent</span>
-          </span>
-          <span className="text-slate-400 font-mono text-xs">{showPayloadPreview ? '▲ hide' : '▼ show'}</span>
-        </button>
-        {showPayloadPreview && (
-          <div className="bg-slate-900 text-slate-100 p-4 max-h-96 overflow-auto">
-            <pre className="text-[11px] leading-relaxed font-mono whitespace-pre-wrap break-all">
-              {JSON.stringify(previewPayload, null, 2)}
-            </pre>
+                {/* DT presets */}
+                <div className="flex flex-wrap gap-1">
+                  {DT_PRESETS.map((p) => (
+                    <button
+                      key={p.value}
+                      onClick={() => setSim((prev) => ({ ...prev, dt_s: p.value }))}
+                      className="px-2 py-0.5 rounded text-[10px] border border-slate-200 text-slate-600 bg-white hover:bg-slate-50"
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Run / Stop / Clear */}
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {simState === SIM_STATES.IDLE || simState === SIM_STATES.DONE || simState === SIM_STATES.ERROR ? (
+                    <button
+                      onClick={handleRun}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl
+                        bg-gradient-to-r from-electric-500 to-electric-600 text-white font-semibold text-sm
+                        shadow-md hover:shadow-lg hover:from-electric-600 hover:to-electric-700 transition-all active:scale-95"
+                    >
+                      <FiPlay size={14} />
+                      {simState === SIM_STATES.DONE ? "Re-run" : "Run Simulation"}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleStop}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl
+                        bg-gradient-to-r from-red-500 to-red-600 text-white font-semibold text-sm
+                        shadow-md hover:shadow-lg hover:from-red-600 hover:to-red-700 transition-all active:scale-95"
+                    >
+                      <FiStopCircle size={14} />
+                      Stop
+                    </button>
+                  )}
+                  {(simState === SIM_STATES.DONE || simState === SIM_STATES.ERROR) && (
+                    <button
+                      onClick={handleReset}
+                      className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border border-slate-200
+                        text-slate-600 text-sm font-medium hover:bg-slate-100 transition-all active:scale-95 bg-white"
+                    >
+                      <FiRefreshCw size={13} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Progress bar */}
+                {(simState === SIM_STATES.QUEUED || simState === SIM_STATES.RUNNING) && (
+                  <div>
+                    <div className="flex justify-between text-xs text-slate-500 mb-1">
+                      <span className="flex items-center gap-1">
+                        <span className="inline-block w-2 h-2 rounded-full bg-electric-400 animate-pulse" />
+                        {simState === SIM_STATES.QUEUED ? "Queued…" : `Running ${progress.toFixed(0)}%`}
+                      </span>
+                      <span>{progress.toFixed(0)}%</span>
+                    </div>
+                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-2 bg-gradient-to-r from-electric-400 to-electric-600 rounded-full transition-all duration-500"
+                        style={{ width: `${simState === SIM_STATES.QUEUED ? 3 : progress}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Done banner */}
+                {simState === SIM_STATES.DONE && (
+                  <div className={`flex items-start gap-2 text-xs rounded-xl px-3 py-2 border ${
+                    result?._local ? 'text-amber-700 bg-amber-50 border-amber-200' : 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                  }`}>
+                    <FiCheckCircle className="mt-0.5 shrink-0" size={13} />
+                    <span>{result?._local ? `Local sim complete — ${result?.time_s?.length ?? 0} steps.` : `Done — ${result?.time_s?.length ?? 0} pts.`}</span>
+                  </div>
+                )}
+
+                {/* Error banner */}
+                {simState === SIM_STATES.ERROR && (
+                  <div className="flex items-start gap-2 text-red-700 text-xs bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+                    <FiAlertCircle className="mt-0.5 shrink-0" size={13} />
+                    <span><strong>Error:</strong> {errorMsg}</span>
+                  </div>
+                )}
+
+                {/* Payload inspect */}
+                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                  <button
+                    onClick={() => setShowPayloadPreview((p) => !p)}
+                    className="w-full flex items-center justify-between px-3 py-2 bg-slate-50 hover:bg-slate-100 transition-colors text-xs font-medium text-slate-600"
+                  >
+                    <span className="flex items-center gap-1.5"><FiInfo size={11} className="text-indigo-500" />Payload (v2.0)</span>
+                    <span className="text-slate-400 font-mono">{showPayloadPreview ? '▲' : '▼'}</span>
+                  </button>
+                  {showPayloadPreview && (
+                    <div className="bg-slate-900 text-slate-100 p-3 max-h-48 overflow-auto">
+                      <pre className="text-[10px] leading-relaxed font-mono whitespace-pre-wrap break-all">
+                        {JSON.stringify(previewPayload, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </Card>
+
+            {/* ── Advanced Time Settings ─────────────────────────────────── */}
+            <Card className="p-4">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-700">Advanced Time Settings</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Control sampling density, strategy, and performance behavior for long-horizon simulations.</p>
+                  </div>
+                  <label className="inline-flex items-center gap-2 text-xs text-slate-600 shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={!!timeAdvanced.auto_apply}
+                      onChange={(e) => setTimeAdvanced((p) => ({ ...p, auto_apply: e.target.checked }))}
+                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    Auto-apply
+                  </label>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">Target number of samples</label>
+                    <input
+                      type="number"
+                      min={24}
+                      max={50000}
+                      step={24}
+                      value={timeAdvanced.target_samples}
+                      onChange={(e) => setTimeAdvanced((p) => ({ ...p, target_samples: Math.max(24, Number(e.target.value) || 24) }))}
+                      className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">Auto-resample strategy</label>
+                    <select
+                      value={timeAdvanced.resampling_strategy}
+                      onChange={(e) => setTimeAdvanced((p) => ({ ...p, resampling_strategy: e.target.value }))}
+                      className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    >
+                      <option value="fixed">Fixed interval</option>
+                      <option value="adaptive">Adaptive (target-based)</option>
+                      <option value="rolling_window">Rolling window (recent detail)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">Rolling window horizon (days)</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={365}
+                      step={1}
+                      value={timeAdvanced.rolling_window_days}
+                      disabled={timeAdvanced.resampling_strategy !== "rolling_window"}
+                      onChange={(e) => setTimeAdvanced((p) => ({ ...p, rolling_window_days: Math.max(1, Number(e.target.value) || 1) }))}
+                      className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-slate-100 disabled:text-slate-400"
+                    />
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-slate-500">Suggested interval from strategy: <span className="font-medium text-slate-700">{Math.round(strategyDt / 60)} min</span>.</p>
+
+                <div className={`rounded-lg border px-3 py-2 text-xs ${
+                  performanceState === "high"
+                    ? "bg-red-50 border-red-200 text-red-700"
+                    : performanceState === "medium"
+                      ? "bg-amber-50 border-amber-200 text-amber-700"
+                      : "bg-emerald-50 border-emerald-200 text-emerald-700"
+                }`}>
+                  {performanceState === "high" && (
+                    <span>High computation load: {sampleCount.toLocaleString()} samples exceed the hard limit ({Number(timeAdvanced.performance_hard_limit).toLocaleString()}). Increase interval or reduce horizon.</span>
+                  )}
+                  {performanceState === "medium" && (
+                    <span>Moderate computation load: {sampleCount.toLocaleString()} samples are above the soft limit ({Number(timeAdvanced.performance_soft_limit).toLocaleString()}).</span>
+                  )}
+                  {performanceState === "ok" && (
+                    <span>Performance status good: sample count is within recommended bounds.</span>
+                  )}
+                </div>
+              </div>
+            </Card>
+
+            {/* ── Simulation Statistics ─────────────────────────────────── */}
+            {simType === "h2" && result?.kpi && (
+              <Card className="p-4">
+                <div className="mb-3">
+                  <p className="text-sm font-semibold text-slate-700">Simulation Statistics</p>
+                  <p className="text-xs text-slate-500">Operational KPIs from the executed horizon.</p>
+                </div>
+                <div className="grid grid-cols-1 gap-3">
+                  <KpiCard label="Source Capacity Factor" value={fmt(kpi?.capacity_factor_pct, 1)} unit="%" color="electric" />
+                  <KpiCard label="Fuel Cell Capacity Factor" value={fmt(kpi?.fuel_cell_capacity_factor_pct, 1)} unit="%" color="violet" />
+                  <KpiCard label="Total Source Energy" value={fmt(kpi?.total_source_energy_kwh, 1)} unit="kWh" color="slate" />
+                  <KpiCard label="Total Curtailed Energy" value={fmt(kpi?.total_curtailed_energy_kwh, 1)} unit="kWh" color="amber" />
+                  <KpiCard label="ELZ Energy In" value={fmt(kpi?.total_elz_energy_kwh ?? kpi?.total_energy_consumed_kwh, 1)} unit="kWh" color="amber" />
+                  <KpiCard label="Fuel Cell Energy Out" value={fmt(kpi?.total_fc_energy_kwh, 1)} unit="kWh" color="emerald" />
+                  <KpiCard label="Avg Source Power" value={fmt(kpi?.avg_source_power_kw, 2)} unit="kW" color="electric" />
+                  <KpiCard label="Avg Fuel Cell Power" value={fmt(kpi?.avg_fc_power_kw, 2)} unit="kW" color="emerald" />
+                  <KpiCard label="Peak Source Power" value={fmt(kpi?.peak_source_power_kw, 2)} unit="kW" color="electric" />
+                  <KpiCard label="Peak Fuel Cell Power" value={fmt(kpi?.peak_fc_power_kw, 2)} unit="kW" color="emerald" />
+                  <KpiCard label="System Efficiency" value={fmt(kpi?.overall_system_efficiency_pct ?? kpi?.system_efficiency_pct, 1)} unit="%" color="violet" />
+                </div>
+              </Card>
+            )}
+          </div>
+        ) : (
+          /* Collapsed rail */
+          <div className="flex-1 flex flex-col items-center justify-start pt-4 gap-3 text-slate-400">
+            <span className="p-2 rounded-lg bg-slate-50 border border-slate-200" title="Run Simulation">
+              <FiPlay size={16} />
+            </span>
+            <span className="p-2 rounded-lg bg-slate-50 border border-slate-200" title="Advanced Time Settings">
+              <FiClock size={16} />
+            </span>
+            <span className="p-2 rounded-lg bg-slate-50 border border-slate-200" title="Simulation Statistics">
+              <FiDatabase size={16} />
+            </span>
           </div>
         )}
       </div>
-
-      {/* ── Energy Evolution Charts ──────────────────────────────────────── */}
-      {simType === "h2" && (
-        <H2EnergyCharts
-          result={result}
-          simState={simState}
-          progress={progress}
-          sourceName={selectedModels?.source?.name}
-        />
-      )}
-
-      {simType === "ccs" && (
-        <CCSEnergyCharts
-          result={result}
-        />
-      )}
-
-      {/* ── Idle placeholder ──────────────────────────────────────────────── */}
-      {simState === SIM_STATES.IDLE && (
-        <Card className="p-12 flex flex-col items-center justify-center text-center gap-4">
-          <div className="p-5 rounded-full bg-slate-50 border border-slate-100">
-            <FiZap size={32} className="text-slate-300" />
-          </div>
-          <div>
-            <p className="font-semibold text-slate-700">Configure parameters and run the simulation</p>
-            <p className="text-sm text-slate-400 mt-1">Results will appear in the flow diagram and charts above once the computation finishes.</p>
-          </div>
-        </Card>
-      )}
+      {/* ── END right sidebar ─────────────────────────────────────────────── */}
 
     </div>
   );
