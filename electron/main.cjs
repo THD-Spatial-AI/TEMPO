@@ -8,7 +8,9 @@ const http = require('http');
 
 let mainWindow;
 let backendProcess;
+let matlabBridgeProcess = null;
 const BACKEND_PORT = 8082;
+const BRIDGE_PORT    = 8765;
 
 // Active Calliope jobs: jobId → ChildProcess
 const activeCalliopeJobs = {};
@@ -195,6 +197,85 @@ async function ensureMiniconda(sendProgress) {
   });
 
   sendProgress({ type: 'log', line: 'Miniconda installed successfully.' });
+}
+
+// ─── MATLAB bridge auto-start ────────────────────────────────────────────────
+
+/**
+ * Resolve the hydrogenmatsim directory (sibling of calliope_editiontool).
+ * Returns null in packaged builds where MATLAB is not bundled.
+ */
+function getBridgeDir() {
+  if (app.isPackaged) return null;
+  return path.join(__dirname, '..', '..', 'hydrogenmatsim');
+}
+
+/**
+ * Start the MATLAB bridge (conda env matlab-bridge, uvicorn on port 8765).
+ * Fire-and-forget: does not block app startup.
+ * Skips silently if already running, conda not found, or dir missing.
+ */
+async function startMatlabBridge() {
+  if (await isPortOpen(BRIDGE_PORT)) {
+    console.log('[bridge] MATLAB bridge already running on port', BRIDGE_PORT);
+    return;
+  }
+
+  const bridgeDir = getBridgeDir();
+  if (!bridgeDir || !fs.existsSync(bridgeDir)) {
+    console.log('[bridge] hydrogenmatsim directory not found, skipping');
+    return;
+  }
+
+  const conda = findConda();
+  if (!conda) {
+    console.log('[bridge] conda not found, cannot auto-start MATLAB bridge');
+    return;
+  }
+
+  // Load .env vars from hydrogenmatsim/.env
+  const childEnv = Object.assign({}, process.env);
+  const envFile = path.join(bridgeDir, '.env');
+  if (fs.existsSync(envFile)) {
+    for (const line of fs.readFileSync(envFile, 'utf-8').split('\n')) {
+      const t = line.trim();
+      if (t && !t.startsWith('#') && t.includes('=')) {
+        const idx = t.indexOf('=');
+        childEnv[t.slice(0, idx).trim()] = t.slice(idx + 1).trim();
+      }
+    }
+  }
+
+  console.log('[bridge] Starting MATLAB bridge (matlab-bridge conda env)…');
+  matlabBridgeProcess = spawn(conda, [
+    'run', '-n', 'matlab-bridge', '--no-capture-output',
+    'uvicorn', 'main:app',
+    '--host', '0.0.0.0',
+    '--port', String(BRIDGE_PORT),
+    '--workers', '1',
+    '--log-level', 'info',
+  ], { cwd: bridgeDir, shell: false, env: childEnv });
+
+  matlabBridgeProcess.stdout.on('data', d => {
+    for (const l of d.toString().split('\n').filter(x => x.trim()))
+      console.log(`[bridge] ${l}`);
+  });
+  matlabBridgeProcess.stderr.on('data', d => {
+    for (const l of d.toString().split('\n').filter(x => x.trim()))
+      console.log(`[bridge] ${l}`);
+  });
+  matlabBridgeProcess.on('close', code => {
+    console.log(`[bridge] Process exited with code ${code}`);
+    matlabBridgeProcess = null;
+  });
+}
+
+function stopMatlabBridge() {
+  if (matlabBridgeProcess) {
+    console.log('[bridge] Stopping MATLAB bridge…');
+    matlabBridgeProcess.kill();
+    matlabBridgeProcess = null;
+  }
 }
 
 // ─── Calliope IPC handlers ─────────────────────────────────────────────────
@@ -510,6 +591,7 @@ async function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  startMatlabBridge(); // fire-and-forget — app opens while bridge starts in background
   await startBackend();
   await createWindow();
   app.on('activate', () => {
@@ -519,11 +601,13 @@ app.whenReady().then(async () => {
 
 app.on('window-all-closed', () => {
   stopBackend();
+  stopMatlabBridge();
   Object.values(activeCalliopeJobs).forEach(c => { try { c.kill(); } catch (_) {} });
   if (process.platform !== 'darwin') app.quit();
 });
 
 app.on('before-quit', () => {
   stopBackend();
+  stopMatlabBridge();
   Object.values(activeCalliopeJobs).forEach(c => { try { c.kill(); } catch (_) {} });
 });

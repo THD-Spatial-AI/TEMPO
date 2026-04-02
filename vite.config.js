@@ -3,17 +3,18 @@ import react from '@vitejs/plugin-react'
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
-  // Read .env so we can use VITE_H2_SERVICE_URL as the proxy target.
-  // This way the URL is never hard-coded here.
+  // Read .env so we can use service URLs as proxy targets.
+  // This way the URLs are never hard-coded here.
   const env = loadEnv(mode, process.cwd(), '')
   const h2Target = (env.VITE_H2_SERVICE_URL || 'http://localhost:8765').replace(/\/$/, '')
+  const ccsTarget = (env.VITE_CCS_SERVICE_URL || 'http://localhost:8766').replace(/\/$/, '')
 
   return {
     plugins: [react()],
     base: './',   // relative paths so Electron can load dist/index.html from file://
     server: {
       proxy: {
-        // ── Hydrogen Plant MATLAB bridge ─────────────────────────────────────
+        // ── Hydrogen Plant Simulation Service ─────────────────────────────────────
         // Proxies both HTTP and WebSocket so the browser never connects directly
         // to the VM (avoids CORS issues and Docker/firewall restrictions).
         '/h2-proxy': {
@@ -21,6 +22,14 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           ws: true,  // also proxy WebSocket upgrade requests
           rewrite: (path) => path.replace(/^\/h2-proxy/, ''),
+        },
+        // ── CCS Simulation Service ───────────────────────────────────────────────
+        // Carbon Capture and Storage simulation service
+        '/ccs-proxy': {
+          target: ccsTarget,
+          changeOrigin: true,
+          ws: true,
+          rewrite: (path) => path.replace(/^\/ccs-proxy/, ''),
         },
         // ── OpenTech-DB technology catalog ───────────────────────────────────
         '/tech': {

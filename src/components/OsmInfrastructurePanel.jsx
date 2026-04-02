@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { FiMap, FiChevronDown, FiChevronRight, FiLayers, FiX, FiMapPin, FiGlobe } from 'react-icons/fi';
 import RegionSelectionStepper from './RegionSelectionStepper';
-import regionsDb from '../data/regions_database.json';
+import { api } from '../services/api';
 
 const OsmInfrastructurePanel = ({ 
   collapsed, 
@@ -42,7 +42,7 @@ const OsmInfrastructurePanel = ({
   const [availableSubregions, setAvailableSubregions] = useState([]);
   const [availableCommunes, setAvailableCommunes] = useState([]);
 
-  // Load regions database
+  // Load regions database from backend (dynamically loads from GeoServer)
   useEffect(() => {
     loadRegionsDatabase();
   }, []);
@@ -50,12 +50,52 @@ const OsmInfrastructurePanel = ({
   const loadRegionsDatabase = async () => {
     setLoading(true);
     try {
-      const data = regionsDb;
+      // Fetch loaded regions from backend/GeoServer
+      const response = await api.getLoadedRegions();
+      const regionPaths = response.regions || [];
+      
+      console.log('Loaded region paths from GeoServer:', regionPaths);
+      
+      // Build hierarchical structure from region paths
+      // Example paths: "Europe/Germany/Bayern/Niederbayern"
+      const hierarchy = {};
+      
+      regionPaths.forEach(path => {
+        const parts = path.split('/');
+        if (parts.length <2) return; // Skip invalid paths
+        
+        const [continent, country, region, subregion] = parts;
+        
+        // Initialize continent
+        if (!hierarchy[continent]) {
+          hierarchy[continent] = { countries: {} };
+        }
+        
+        // Initialize country
+        if (!hierarchy[continent].countries[country]) {
+          hierarchy[continent].countries[country] = { regions: {} };
+        }
+        
+        // Initialize region if we have one
+        if (region) {
+          if (!hierarchy[continent].countries[country].regions[region]) {
+            hierarchy[continent].countries[country].regions[region] = { subregions: {} };
+          }
+          
+          // Add subregion if we have one
+          if (subregion) {
+            hierarchy[continent].countries[country].regions[region].subregions[subregion] = true;
+          }
+        }
+      });
+      
+      const data = { continents: hierarchy };
       setRegionsDatabase(data);
       
       // Set available continents
       setAvailableContinents(Object.keys(data.continents).sort());
       
+      console.log('Built region hierarchy:', data);
       setLoading(false);
     } catch (error) {
       console.error('Error loading regions database:', error);
@@ -78,9 +118,8 @@ const OsmInfrastructurePanel = ({
       setAvailableSubregions([]);
       setAvailableCommunes([]);
       
-      // Zoom to continent and clear any existing region data
+      // Zoom to continent
       if (onRegionSelect) {
-        const continentData = regionsDatabase.continents[continent];
         // Define continent center coordinates
         const continentCenters = {
           'Europe': { center: [54.5260, 15.2551], zoom: 4 },
@@ -96,10 +135,9 @@ const OsmInfrastructurePanel = ({
           country: null,
           region: null,
           subregion: null,
+          regionPath: continent,
           center: continentInfo.center,
-          zoom: continentInfo.zoom,
-          files: {},
-          subregions: null
+          zoom: continentInfo.zoom
         });
       }
     } else {
@@ -124,19 +162,17 @@ const OsmInfrastructurePanel = ({
       setAvailableSubregions([]);
       setAvailableCommunes([]);
       
-      // Always send country selection to load country-level data
-      // This will show ALL infrastructure for the country
+      // Send country selection to load country-level data
       if (onRegionSelect) {
+        const regionPath = `${selectedContinent}/${country}`;
         onRegionSelect({
           continent: selectedContinent,
           country: country,
           region: null,
           subregion: null,
-          center: countryData.center,
-          zoom: countryData.zoom || 6,
-          files: countryData.files || {},
-          regions: regions,
-          subregions: null
+          regionPath: regionPath,
+          center: null, // Will be auto-calculated from data bounds
+          zoom: 6
         });
       }
     } else {
@@ -160,18 +196,17 @@ const OsmInfrastructurePanel = ({
       setAvailableSubregions(Object.keys(subregions).sort());
       setAvailableCommunes([]);
       
-      // Send region-level data to parent - always pass regionData for reference
+      // Send region-level data to parent
       if (onRegionSelect) {
+        const regionPath = `${selectedContinent}/${selectedCountry}/${region}`;
         const regionInfo = {
           continent: selectedContinent,
           country: selectedCountry,
           region: region,
           subregion: null,
-          subregions: subregions,
-          files: regionData.files || {},
-          regionFiles: regionData.files || {}, // Keep reference to region-level files
-          center: regionData.center,
-          zoom: regionData.zoom || 7
+          regionPath: regionPath,
+          center: null, // Will be auto-calculated from data bounds
+          zoom: 7
         };
         onRegionSelect(regionInfo);
       }
@@ -188,26 +223,19 @@ const OsmInfrastructurePanel = ({
     
     if (regionsDatabase && selectedContinent && selectedCountry && selectedRegion && subregion) {
       const regionData = regionsDatabase.continents[selectedContinent]
-        .countries[selectedCountry]
-        .regions[selectedRegion];
-      const subregionData = regionData.subregions[subregion];
-      
-      const communes = subregionData?.communes || [];
-      setAvailableCommunes(communes);
+      setAvailableCommunes([]);
       
       // Send subregion-level data to parent (will load only this subregion and zoom to it)
       if (onRegionSelect) {
+        const regionPath = `${selectedContinent}/${selectedCountry}/${selectedRegion}/${subregion}`;
         const regionInfo = {
           continent: selectedContinent,
           country: selectedCountry,
           region: selectedRegion,
           subregion: subregion,
-          filename: subregion.toLowerCase().replace(/\s+/g, '_').replace(/ä/g, 'a').replace(/ö/g, 'o').replace(/ü/g, 'u').replace(/ß/g, 'ss'),
-          files: subregionData?.files || {},
-          regionFiles: regionData.files || {}, // Pass region-level files as fallback
-          subregions: null,
-          center: subregionData?.center,
-          zoom: subregionData?.zoom || 9
+          regionPath: regionPath,
+          center: null, // Will be auto-calculated from data bounds
+          zoom: 9
         };
         onRegionSelect(regionInfo);
       }

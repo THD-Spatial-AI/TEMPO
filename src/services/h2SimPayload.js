@@ -3,11 +3,11 @@
  * ─────────────────────────────────────────────────────────────────────────────
  * Builds the canonical JSON payload for POST /api/hydrogen/simulate.
  *
- * Schema v2.0 — every field carries its unit in the key name so MATLAB
+ * Schema v2.0 — every field carries its unit in the key name for clarity
  * never has to guess.  The full structure is documented in the JSDoc below.
  *
  * ──────────────────────────────────────────────────────────────────────────
- * REQUEST SCHEMA  (what we POST to the MATLAB bridge)
+ * REQUEST SCHEMA  (what we POST to the simulation service)
  * ──────────────────────────────────────────────────────────────────────────
  * {
  *   schema_version: "2.0",
@@ -36,7 +36,7 @@
  *     max_load_pct:               number,  // 100 in most cases [%]
  *     operating_temperature_c:    number,  // stack temperature [°C]
  *     water_flow_rate_lpm:        number,  // DI water feed [L/min]
- *     h2_hhv_kwh_per_kg:          39.4,    // reference constant [kWh/kg] — tells MATLAB which basis
+ *     h2_hhv_kwh_per_kg:          39.4,    // reference constant [kWh/kg] — specifies HHV basis
  *   },
  *
  *   compressor: {
@@ -69,7 +69,7 @@
  * }
  *
  * ──────────────────────────────────────────────────────────────────────────
- * EXPECTED RESPONSE SCHEMA  (what MATLAB should return)
+ * EXPECTED RESPONSE SCHEMA  (what the simulation service returns)
  * ──────────────────────────────────────────────────────────────────────────
  * {
  *   time_s: number[],                  // simulation time axis
@@ -111,7 +111,7 @@
  *     capacity_factor_pct:           number,
  *   },
  *
- *   // Backward-compat flat aliases (MATLAB may return either form)
+ *   // Backward-compat flat aliases (service may return either form)
  *   electrolyzer_power_kw:    number[],  // = electrolyzer.power_in_kw
  *   h2_production_nm3h:       number[],  // = electrolyzer.h2_production_nm3h
  *   tank_pressure_bar:        number[],  // = storage.pressure_bar
@@ -125,7 +125,7 @@
 // Internal helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-const safeN = (x) => { const n = Number(x); return isFinite(n) ? n : null; };
+const safeN = (x) => { if (x == null) return null; const n = Number(x); return isFinite(n) ? n : null; };
 
 /** Detect generator tech type from model id/name */
 function detectSrcTechType(model) {
@@ -184,7 +184,7 @@ function detectStorageTechType(model) {
 
 /**
  * Build a [{time_s, power_kw}] power profile from the tech-type shape.
- * Used when no custom CSV is uploaded — provides MATLAB a realistic
+ * Used when no custom CSV is uploaded — provides simulation a realistic
  * time-varying power signal instead of a flat constant.
  */
 function buildTheoreticalProfile(techType, capacityKw, t_end_s, dt_s) {
@@ -310,7 +310,7 @@ export function buildSimPayload({
       tech_type:      srcTech,
       name:           srcModel?.name ?? null,
       capacity_kw:    srcCap,
-      efficiency_pct: srcEff,       // null for renewables — MATLAB ignores
+      efficiency_pct: srcEff,       // null for renewables — simulation ignores
       profile,                       // [{time_s, power_kw}] — full input waveform
     },
 
@@ -361,8 +361,8 @@ export function buildSimPayload({
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Normalise the MATLAB API response into a flat object understood by all
- * existing chart components.  MATLAB may return either the nested v2 schema
+ * Normalise the simulation API response into a flat object understood by all
+ * existing chart components.  The service may return either the nested v2 schema
  * OR the legacy flat schema — this function handles both.
  *
  * Flat aliases produced:

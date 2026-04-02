@@ -2,7 +2,7 @@
  * HydrogenPlantDashboard.jsx
  * ─────────────────────────────────────────────────────────────────────────────
  * Technology Simulation Hub — Digital Twin Platform.
- * Currently available: H₂ Power Plant (MATLAB/Simulink bridge).
+ * Currently available: H₂ Power Plant (OpenModelica-based simulation).
  * Future: Biomass CHP, Carbon Capture, PV+Battery, etc.
  */
 
@@ -23,6 +23,8 @@ import {
   FiClock,
   FiWind,
   FiSettings,
+  FiDroplet,
+  FiBox,
 } from "react-icons/fi";
 import {
   runSimulation,
@@ -33,6 +35,17 @@ import H2PlantFlowDiagram from "./H2PlantFlowDiagram";
 import H2EnergyCharts from "./H2EnergyCharts";
 import H2GeneratorPanel from "./H2GeneratorPanel";
 import H2ElectrolyzerPanel from "./H2ElectrolyzerPanel";
+
+// CCS imports
+import { runCCSSimulation, checkHealth as checkCCSHealth } from "../services/ccsService";
+import { buildSimPayload as buildCCSPayload, normalizeSimResult as normalizeCCSResult } from "../services/ccsSimPayload";
+import CCSFlowDiagram from "./CCSFlowDiagram";
+import CCSEnergyCharts from "./CCSEnergyCharts";
+import CCSSourcePanel from "./CCSSourcePanel";
+import CCSAbsorberPanel from "./CCSAbsorberPanel";
+import CCSStripperPanel from "./CCSStripperPanel";
+import CCSCompressorPanel from "./CCSCompressorPanel";
+import CCSStoragePanel from "./CCSStoragePanel";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Detect source tech type from model (mirrors H2GeneratorPanel logic)
@@ -53,6 +66,7 @@ function detectSourceTechType(model) {
 
 import H2NodeModal from "./H2NodeModal";
 import { fetchH2Models, getBestModel, applyModelParams, fetchH2Variants, H2_SLOTS } from "../services/h2TechModels";
+import { fetchCCSModels, getBestModel as getBestCCSModel, applyModelParams as applyCCSParams, CCS_SLOTS } from "../services/ccsTechModels";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Simulation catalogue — add new tech simulations here
@@ -60,7 +74,7 @@ import { fetchH2Models, getBestModel, applyModelParams, fetchH2Variants, H2_SLOT
 const SIM_CATALOGUE = [
   {
     id:       "h2",
-    label:    "H₂ Power Plant",
+    label:    "H₂ Simulation",
     icon:     FiZap,
     color:    "text-indigo-500",
     bg:       "bg-indigo-50",
@@ -90,13 +104,13 @@ const SIM_CATALOGUE = [
   },
   {
     id:       "ccs",
-    label:    "Carbon Capture",
-    icon:     FiSettings,
+    label:    "CCS Simulation",
+    icon:     FiDatabase,
     color:    "text-slate-500",
     bg:       "bg-slate-50",
     active:   "bg-slate-600 text-white shadow-md",
-    ready:    false,
-    subtitle: "Coming soon",
+    ready:    true,
+    subtitle: "Source · Absorber · Stripper · Compressor · Storage",
   },
 ];
 
@@ -329,14 +343,55 @@ export default function HydrogenPlantDashboard() {
   const [healthError, setHealthError] = useState(null);
 
   // ── Parameters  (restored from localStorage on every mount) ──────────────
+  // H₂ Power Plant parameters
   const [elz, setElz] = useState(() => loadLS("elz", { grid_power_kw: 300, water_flow_rate_lpm: 90, temperature_c: 70 }));
   const [sto, setSto] = useState(() => loadLS("sto", { compressor_efficiency: 0.78, max_tank_pressure_bar: 350 }));
   const [fc,  setFc]  = useState(() => loadLS("fc",  { h2_flow_rate_nm3h: 40, oxidant_pressure_bar: 2.5, cooling_capacity_kw: 35 }));
   const [sim, setSim] = useState(() => loadLS("sim", { t_end_s: 3600, dt_s: 60 }));
+  
+  // CCS parameters (separate state for Carbon Capture System)
+  const [ccsSource, setCcsSource] = useState(() => loadLS("ccsSource", {
+    capacity_kw: 400000,
+    efficiency_pct: 58,
+    co2_emission_kg_kwh: 0.38,
+    flue_gas_temp_c: 120,
+    co2_concentration_pct: 12,
+  }));
+  const [ccsAbsorber, setCcsAbsorber] = useState(() => loadLS("ccsAbsorber", {
+    capture_rate_pct: 90,
+    energy_requirement_gj_tco2: 3.7,
+    solvent_flow_rate_m3_h: 150,
+    absorption_temp_c: 40,
+    l_g_ratio: 3.5,
+  }));
+  const [ccsStripper, setCcsStripper] = useState(() => loadLS("ccsStripper", {
+    reboiler_temp_c: 120,
+    steam_pressure_bar: 3.5,
+    thermal_efficiency_pct: 82,
+    energy_input_gj_tco2: 3.2,
+  }));
+  const [ccsCompressor, setCcsCompressor] = useState(() => loadLS("ccsCompressor", {
+    target_pressure_bar: 110,
+    number_stages: 4,
+    isentropic_efficiency_pct: 82,
+    intercooling_temp_c: 35,
+  }));
+  const [ccsStorage, setCcsStorage] = useState(() => loadLS("ccsStorage", {
+    injection_rate_mtco2_yr: 5,
+    reservoir_depth_m: 1500,
+    reservoir_pressure_bar: 150,
+    permeability_md: 200,
+    porosity_pct: 18,
+    injection_efficiency_pct: 99,
+  }));
 
   // ── Technology model catalogue (opentech-db / fallback) ───────────────────
   const [models,         setModels]         = useState({});
   const [selectedModels, setSelectedModels] = useState(() => loadLS("selectedModels", {}));
+  
+  // CCS-specific models (separate from H₂)
+  const [ccsModels, setCcsModels] = useState({});
+  const [selectedCcsModels, setSelectedCcsModels] = useState(() => loadLS("selectedCcsModels", {}));
 
   // ── Simulation state ──────────────────────────────────────────────────────
   const [simState,  setSimState]  = useState(SIM_STATES.IDLE);
@@ -373,8 +428,17 @@ export default function HydrogenPlantDashboard() {
   useEffect(() => { saveLS("sto", sto); }, [sto]);
   useEffect(() => { saveLS("fc",  fc);  }, [fc]);
   useEffect(() => { saveLS("sim", sim); }, [sim]);
+  
+  // Save CCS params
+  useEffect(() => { saveLS("ccsSource", ccsSource); }, [ccsSource]);
+  useEffect(() => { saveLS("ccsAbsorber", ccsAbsorber); }, [ccsAbsorber]);
+  useEffect(() => { saveLS("ccsStripper", ccsStripper); }, [ccsStripper]);
+  useEffect(() => { saveLS("ccsCompressor", ccsCompressor); }, [ccsCompressor]);
+  useEffect(() => { saveLS("ccsStorage", ccsStorage); }, [ccsStorage]);
+  useEffect(() => { saveLS("selectedCcsModels", selectedCcsModels); }, [selectedCcsModels]);
 
   // ── Load tech-model catalogue from opentech-db (with fallback) ────────────
+  // H₂ models
   useEffect(() => {
     let alive = true;
     Promise.all(
@@ -397,6 +461,28 @@ export default function HydrogenPlantDashboard() {
     });
     return () => { alive = false; };
   }, []);
+  
+  // CCS models
+  useEffect(() => {
+    let alive = true;
+    Promise.all(
+      Object.keys(CCS_SLOTS).map(async (k) => {
+        const list = await fetchCCSModels(k);
+        return [k, list];
+      })
+    ).then((entries) => {
+      if (!alive) return;
+      const m    = Object.fromEntries(entries);
+      const best = Object.fromEntries(entries.map(([k, list]) => [k, getBestCCSModel(list)]));
+      setCcsModels(m);
+      setSelectedCcsModels((prev) => {
+        const merged = { ...best };
+        Object.entries(prev).forEach(([k, v]) => { if (v) merged[k] = v; });
+        return merged;
+      });
+    });
+    return () => { alive = false; };
+  }, []);
 
   const handleSelectModel = useCallback((slotKey, model) => {
     setSelectedModels((p) => ({ ...p, [slotKey]: model }));
@@ -405,6 +491,17 @@ export default function HydrogenPlantDashboard() {
     if (slotKey === "source" || slotKey === "electrolyzer") setElz((p) => ({ ...p, ...patch }));
     if (slotKey === "compressor" || slotKey === "storage")  setSto((p) => ({ ...p, ...patch }));
     if (slotKey === "fuel_cell")                            setFc((p)  => ({ ...p, ...patch }));
+  }, []);
+  
+  const handleSelectCcsModel = useCallback((slotKey, model) => {
+    setSelectedCcsModels((p) => ({ ...p, [slotKey]: model }));
+    const patch = applyCCSParams(slotKey, model);
+    if (!patch) return;
+    if (slotKey === "source")      setCcsSource((p) => ({ ...p, ...patch }));
+    if (slotKey === "absorber")    setCcsAbsorber((p) => ({ ...p, ...patch }));
+    if (slotKey === "stripper")    setCcsStripper((p) => ({ ...p, ...patch }));
+    if (slotKey === "compressor")  setCcsCompressor((p) => ({ ...p, ...patch }));
+    if (slotKey === "storage")     setCcsStorage((p) => ({ ...p, ...patch }));
   }, []);
 
   // ── Node detail panel (click any node in the PFD to open its analysis) ────
@@ -439,23 +536,50 @@ export default function HydrogenPlantDashboard() {
   const [genParamOverrides, setGenParamOverrides] = useState(() => loadLS("genParams", {}));
   // Local param overrides from the electrolyzer panel constraints editor
   const [elzParamOverrides, setElzParamOverrides] = useState(() => loadLS("elzParams", {}));
+  
+  // CCS parameter overrides (from CCS panels)
+  const [ccsSourceParamOverrides, setCcsSourceParamOverrides] = useState(() => loadLS("ccsSourceParams", {}));
+  const [ccsAbsorberParamOverrides, setCcsAbsorberParamOverrides] = useState(() => loadLS("ccsAbsorberParams", {}));
+  const [ccsStripperParamOverrides, setCcsStripperParamOverrides] = useState(() => loadLS("ccsStripperParams", {}));
+  const [ccsCompressorParamOverrides, setCcsCompressorParamOverrides] = useState(() => loadLS("ccsCompressorParams", {}));
+  const [ccsStorageParamOverrides, setCcsStorageParamOverrides] = useState(() => loadLS("ccsStorageParams", {}));
 
   // Persist overrides too
   useEffect(() => { saveLS("genParams", genParamOverrides); }, [genParamOverrides]);
   useEffect(() => { saveLS("elzParams", elzParamOverrides); }, [elzParamOverrides]);
+  useEffect(() => { saveLS("ccsSourceParams", ccsSourceParamOverrides); }, [ccsSourceParamOverrides]);
+  useEffect(() => { saveLS("ccsAbsorberParams", ccsAbsorberParamOverrides); }, [ccsAbsorberParamOverrides]);
+  useEffect(() => { saveLS("ccsStripperParams", ccsStripperParamOverrides); }, [ccsStripperParamOverrides]);
+  useEffect(() => { saveLS("ccsCompressorParams", ccsCompressorParamOverrides); }, [ccsCompressorParamOverrides]);
+  useEffect(() => { saveLS("ccsStorageParams", ccsStorageParamOverrides); }, [ccsStorageParamOverrides]);
 
   // ── Payload preview (must come after all state it depends on) ────────────
   const [showPayloadPreview, setShowPayloadPreview] = useState(false);
-  const previewPayload = useMemo(() => buildSimPayload({
-    selectedModels,
-    genParamOverrides,
-    elzParamOverrides,
-    elz,
-    sto,
-    fc,
-    sim,
-    customProfile,
-  }), [selectedModels, genParamOverrides, elzParamOverrides, elz, sto, fc, sim, customProfile]); // eslint-disable-line react-hooks/exhaustive-deps
+  const previewPayload = useMemo(() => {
+    if (simType === "h2") {
+      return buildSimPayload({
+        selectedModels,
+        genParamOverrides,
+        elzParamOverrides,
+        elz,
+        sto,
+        fc,
+        sim,
+        customProfile,
+      });
+    } else if (simType === "ccs") {
+      return buildCCSPayload({
+        selectedModels,
+        sim,
+        source: { tech_type: "gas_ccgt", capacity_kw: 400000, efficiency_pct: 58, co2_emission_kg_kwh: 0.35 },
+        absorber: { capture_rate_pct: 90, energy_requirement_gj_tco2: 3.7, solvent_flow_rate_m3h: 500, absorption_temp_c: 40 },
+        stripper: { thermal_efficiency_pct: 82, reboiler_temp_c: 120, steam_pressure_bar: 3.5 },
+        compressor: { isentropic_efficiency_frac: 0.82, inlet_pressure_bar: 1.5, target_pressure_bar: 110 },
+        storage: { injection_rate_mtco2_yr: 5, storage_depth_m: 1500, reservoir_pressure_bar: 150, storage_efficiency_pct: 99 },
+      });
+    }
+    return null;
+  }, [simType, selectedModels, genParamOverrides, elzParamOverrides, elz, sto, fc, sim, customProfile]);
 
   // ── Sync generator capacity override → ELZ grid_power_kw ─────────────────
   // The generator feeds the electrolyzer — updating generator capacity should
@@ -467,7 +591,7 @@ export default function HydrogenPlantDashboard() {
     }
   }, [genParamOverrides?.capacity_kw]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Sync ELZ efficiency override → elz state (sent to MATLAB) ────────────
+  // ── Sync ELZ efficiency override → elz state (sent to simulation service) ────────────
   useEffect(() => {
     const eff = elzParamOverrides?.efficiency_pct;
     if (eff != null && isFinite(Number(eff))) {
@@ -484,30 +608,83 @@ export default function HydrogenPlantDashboard() {
 
     try {
       // ── Build the canonical v2.0 simulation payload ──────────────────────
-      // buildSimPayload resolves all device parameters from selectedModels,
-      // user overrides, and synthesises a source power profile when no CSV
-      // has been uploaded. Every field is units-annotated so MATLAB knows
-      // exactly what to simulate for each device in the value chain.
-      const payload = buildSimPayload({
-        selectedModels,
-        genParamOverrides,
-        elzParamOverrides,
-        elz,
-        sto,
-        fc,
-        sim,
-        customProfile,
-      });
+      // Choose the correct payload builder and service based on simType
+      let payload, runFn, normalizeFn;
 
-      const cancel = await runSimulation(
+      if (simType === "h2") {
+        payload = buildSimPayload({
+          selectedModels,
+          genParamOverrides,
+          elzParamOverrides,
+          elz,
+          sto,
+          fc,
+          sim,
+          customProfile,
+        });
+        runFn = runSimulation;
+        normalizeFn = normalizeSimResult;
+      } else if (simType === "ccs") {
+        // Merge selected models with parameter overrides
+        const sourceMerged = { ...selectedCcsModels?.source, ...ccsSourceParamOverrides };
+        const absorberMerged = { ...selectedCcsModels?.absorber, ...ccsAbsorberParamOverrides };
+        const stripperMerged = { ...selectedCcsModels?.stripper, ...ccsStripperParamOverrides };
+        const compressorMerged = { ...selectedCcsModels?.compressor, ...ccsCompressorParamOverrides };
+        const storageMerged = { ...selectedCcsModels?.storage, ...ccsStorageParamOverrides };
+
+        payload = buildCCSPayload({
+          selectedModels: selectedCcsModels,
+          sim,
+          source: {
+            tech_type: sourceMerged.id ?? "gas_ccgt",
+            capacity_kw: sourceMerged.capacity_kw ?? ccsSource.capacity_kw,
+            efficiency_pct: sourceMerged.efficiency_pct ?? ccsSource.efficiency_pct,
+            co2_emission_kg_kwh: sourceMerged.co2_emission_kg_kwh ?? ccsSource.co2_emission_kg_kwh,
+            flue_gas_temp_c: sourceMerged.flue_gas_temp_c ?? ccsSource.flue_gas_temp_c,
+            co2_concentration_pct: sourceMerged.co2_concentration_pct ?? ccsSource.co2_concentration_pct,
+          },
+          absorber: {
+            capture_rate_pct: absorberMerged.capture_rate_pct ?? ccsAbsorber.capture_rate_pct,
+            energy_requirement_gj_tco2: absorberMerged.energy_requirement_gj_tco2 ?? ccsAbsorber.energy_requirement_gj_tco2,
+            solvent_flow_rate_m3h: absorberMerged.solvent_flow_rate_m3_h ?? ccsAbsorber.solvent_flow_rate_m3_h,
+            absorption_temp_c: absorberMerged.absorption_temp_c ?? ccsAbsorber.absorption_temp_c,
+            l_g_ratio: absorberMerged.l_g_ratio ?? ccsAbsorber.l_g_ratio,
+          },
+          stripper: {
+            thermal_efficiency_pct: stripperMerged.thermal_efficiency_pct ?? ccsStripper.thermal_efficiency_pct,
+            reboiler_temp_c: stripperMerged.reboiler_temp_c ?? ccsStripper.reboiler_temp_c,
+            steam_pressure_bar: stripperMerged.steam_pressure_bar ?? ccsStripper.steam_pressure_bar,
+            energy_input_gj_tco2: stripperMerged.energy_input_gj_tco2 ?? ccsStripper.energy_input_gj_tco2,
+          },
+          compressor: {
+            isentropic_efficiency_frac: (compressorMerged.isentropic_efficiency_pct ?? ccsCompressor.isentropic_efficiency_pct) / 100,
+            inlet_pressure_bar: 1.5,  // Atmospheric + slight pressurization from stripper
+            target_pressure_bar: compressorMerged.target_pressure_bar ?? ccsCompressor.target_pressure_bar,
+            number_stages: compressorMerged.number_stages ?? ccsCompressor.number_stages,
+            intercooling_temp_c: compressorMerged.intercooling_temp_c ?? ccsCompressor.intercooling_temp_c,
+          },
+          storage: {
+            injection_rate_mtco2_yr: storageMerged.injection_rate_mtco2_yr ?? ccsStorage.injection_rate_mtco2_yr,
+            storage_depth_m: storageMerged.reservoir_depth_m ?? ccsStorage.reservoir_depth_m,
+            reservoir_pressure_bar: storageMerged.reservoir_pressure_bar ?? ccsStorage.reservoir_pressure_bar,
+            storage_efficiency_pct: storageMerged.injection_efficiency_pct ?? ccsStorage.injection_efficiency_pct,
+            permeability_md: storageMerged.permeability_md ?? ccsStorage.permeability_md,
+            porosity_pct: storageMerged.porosity_pct ?? ccsStorage.porosity_pct,
+          },
+        });
+        runFn = runCCSSimulation;
+        normalizeFn = normalizeCCSResult;
+      } else {
+        throw new Error(`Unknown simulation type: ${simType}`);
+      }
+
+      const cancel = await runFn(
         payload,
         {
           onQueued:   () => setSimState(SIM_STATES.QUEUED),
           onProgress: (d) => { setSimState(SIM_STATES.RUNNING); setProgress(d.progress_pct ?? 0); },
           onResult:   (r) => {
-            // normalizeSimResult handles both nested (v2) and flat (v1) MATLAB
-            // responses, producing consistent flat aliases for all chart components.
-            setResult(normalizeSimResult(r));
+            setResult(normalizeFn(r));
             setSimState(SIM_STATES.DONE);
             pingHealth();
           },
@@ -588,7 +765,7 @@ export default function HydrogenPlantDashboard() {
                 ? `Connecting to ${import.meta.env.VITE_H2_SERVICE_URL ?? "http://localhost:8765"}…`
                 : health.engine_ready
                   ? `Engine ready · ${health._path ?? "/api/health"} · ${health.active_jobs ?? 0} active jobs`
-                  : `Engine warming up · ${health.engine_error ?? "MATLAB initialising"}`
+                  : `Engine warming up · ${health.engine_error ?? "Simulation initializing"}`
           }
           className={`ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-medium border
             transition-all hover:shadow-sm active:scale-95
@@ -636,20 +813,34 @@ export default function HydrogenPlantDashboard() {
         </div>
       )}
       {/* ── Process Flow Diagram (Simulink-style interactive PFD) ──────────── */}
-      <H2PlantFlowDiagram
-        elz={elz} setElz={setElz}
-        sto={sto} setSto={setSto}
-        fc={fc}   setFc={setFc}
-        simState={simState}
-        kpi={kpi}
-        models={models}
-        selectedModels={selectedModels}
-        onSelectModel={handleSelectModel}
-        activeNodeId={activeNodeId}
-        onNodeClick={handleNodeClick}
-        customProfile={customProfile}
-        onSetCustomProfile={setCustomProfile}
-      />
+      {simType === "h2" && (
+        <H2PlantFlowDiagram
+          elz={elz} setElz={setElz}
+          sto={sto} setSto={setSto}
+          fc={fc}   setFc={setFc}
+          simState={simState}
+          kpi={kpi}
+          models={models}
+          selectedModels={selectedModels}
+          onSelectModel={handleSelectModel}
+          activeNodeId={activeNodeId}
+          onNodeClick={handleNodeClick}
+          customProfile={customProfile}
+          onSetCustomProfile={setCustomProfile}
+        />
+      )}
+
+      {simType === "ccs" && (
+        <CCSFlowDiagram
+          result={result}
+          isRunning={simState === SIM_STATES.RUNNING}
+          onNodeClick={(nodeId) => setActiveNodeId(nodeId)}
+          ccsModels={ccsModels}
+          selectedCcsModels={selectedCcsModels}
+          onSelectCcsModel={handleSelectCcsModel}
+          simState={simState}
+        />
+      )}
 
       {/* ── Node detail modals (portal → always on top) ─────────────────────── */}
 
@@ -702,6 +893,103 @@ export default function HydrogenPlantDashboard() {
           onParamsChange={setElzParamOverrides}
         />
       </H2NodeModal>
+
+      {/* ── CCS Modals (only when CCS simulation active) ─────────────────────── */}
+      {simType === "ccs" && (
+        <>
+          {/* Source / Flue Gas */}
+          <H2NodeModal
+            open={activeNodeId === "ccs-source"}
+            onClose={() => setActiveNodeId(null)}
+            title={selectedCcsModels?.source?.name ?? "Flue Gas Source"}
+            subtitle="Power plant · CO₂ emissions · flue gas properties"
+            icon={<FiZap size={18} />}
+            accentColor="bg-orange-500"
+          >
+            <CCSSourcePanel
+              selectedModel={selectedCcsModels?.source}
+              savedParams={ccsSourceParamOverrides}
+              result={result}
+              simState={simState}
+              onParamsChange={setCcsSourceParamOverrides}
+            />
+          </H2NodeModal>
+
+          {/* Absorber */}
+          <H2NodeModal
+            open={activeNodeId === "ccs-absorber"}
+            onClose={() => setActiveNodeId(null)}
+            title={selectedCcsModels?.absorber?.name ?? "CO₂ Absorber"}
+            subtitle="Amine absorption · capture rate · energy requirement"
+            icon={<FiDroplet size={18} />}
+            accentColor="bg-blue-500"
+          >
+            <CCSAbsorberPanel
+              selectedModel={selectedCcsModels?.absorber}
+              savedParams={ccsAbsorberParamOverrides}
+              sourceParams={ccsSourceParamOverrides}
+              result={result}
+              simState={simState}
+              onParamsChange={setCcsAbsorberParamOverrides}
+            />
+          </H2NodeModal>
+
+          {/* Stripper */}
+          <H2NodeModal
+            open={activeNodeId === "ccs-stripper"}
+            onClose={() => setActiveNodeId(null)}
+            title={selectedCcsModels?.stripper?.name ?? "Solvent Stripper"}
+            subtitle="Thermal regeneration · steam requirements · efficiency"
+            icon={<FiWind size={18} />}
+            accentColor="bg-red-500"
+          >
+            <CCSStripperPanel
+              selectedModel={selectedCcsModels?.stripper}
+              savedParams={ccsStripperParamOverrides}
+              result={result}
+              simState={simState}
+              onParamsChange={setCcsStripperParamOverrides}
+            />
+          </H2NodeModal>
+
+          {/* Compressor */}
+          <H2NodeModal
+            open={activeNodeId === "ccs-compressor"}
+            onClose={() => setActiveNodeId(null)}
+            title={selectedCcsModels?.compressor?.name ?? "CO₂ Compressor"}
+            subtitle="Multi-stage compression · pressure targets · power requirement"
+            icon={<FiBox size={18} />}
+            accentColor="bg-amber-500"
+          >
+            <CCSCompressorPanel
+              selectedModel={selectedCcsModels?.compressor}
+              savedParams={ccsCompressorParamOverrides}
+              result={result}
+              simState={simState}
+              onParamsChange={setCcsCompressorParamOverrides}
+            />
+          </H2NodeModal>
+
+          {/* Storage */}
+          <H2NodeModal
+            open={activeNodeId === "ccs-storage"}
+            onClose={() => setActiveNodeId(null)}
+            title={selectedCcsModels?.storage?.name ?? "CO₂ Storage"}
+            subtitle="Geological sequestration · injection rate · reservoir properties"
+            icon={<FiDatabase size={18} />}
+            accentColor="bg-emerald-500"
+          >
+            <CCSStoragePanel
+              selectedModel={selectedCcsModels?.storage}
+              savedParams={ccsStorageParamOverrides}
+              sourceParams={ccsSourceParamOverrides}
+              result={result}
+              simState={simState}
+              onParamsChange={setCcsStorageParamOverrides}
+            />
+          </H2NodeModal>
+        </>
+      )}
 
       {/* ── Simulation controls ───────────────────────────────────────────── */}
       <Card className="p-5">
@@ -800,8 +1088,8 @@ export default function HydrogenPlantDashboard() {
           }`}>
             <FiCheckCircle />
             {result?._local
-              ? <>Local physics simulation complete — {result?.time_s?.length ?? 0} steps. <span className="font-medium">VPN + MATLAB for high-fidelity results.</span></>
-              : <>MATLAB simulation complete — {result?.time_s?.length ?? 0} data points returned.</>}
+              ? <>Local physics simulation complete — {result?.time_s?.length ?? 0} steps. <span className="font-medium">Connect to service for high-fidelity OpenModelica results.</span></>
+              : <>OpenModelica simulation complete — {result?.time_s?.length ?? 0} data points returned.</>}
           </div>
         )}
 
@@ -822,7 +1110,7 @@ export default function HydrogenPlantDashboard() {
         >
           <span className="flex items-center gap-2">
             <FiInfo size={13} className="text-indigo-500" />
-            MATLAB Simulation Payload
+            Simulation Payload (v2.0)
             <span className="text-xs font-normal text-slate-400">schema v2.0 · inspect what will be sent</span>
           </span>
           <span className="text-slate-400 font-mono text-xs">{showPayloadPreview ? '▲ hide' : '▼ show'}</span>
@@ -836,33 +1124,21 @@ export default function HydrogenPlantDashboard() {
         )}
       </div>
 
-      {/* ── KPI summary ──────────────────────────────────────────────────── */}
-      {simState === SIM_STATES.DONE && kpi && (() => {
-        // Derived KPIs from result arrays (works for both MATLAB v2 and local physics)
-        const h2arr  = result?.h2_production_nm3h ?? [];
-        const avgH2  = h2arr.length > 0 ? h2arr.reduce((s, v) => s + v, 0) / h2arr.length : null;
-        const pArr   = result?.tank_pressure_bar ?? [];
-        const peakP  = pArr.length > 0 ? Math.max(...pArr) : null;
-        const fcArr  = result?.fc_power_output_kw ?? [];
-        const avgFc  = fcArr.length > 0 ? fcArr.reduce((s, v) => s + v, 0) / fcArr.length : null;
-        const sysEff = kpi.overall_system_efficiency_pct ?? kpi.system_efficiency_pct ?? null;
-        return (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <KpiCard label="Avg. H₂ Production"    value={fmt(avgH2)}   unit="Nm³/h"  color="electric" />
-            <KpiCard label="Peak Tank Pressure"     value={fmt(peakP)}   unit="bar"    color="amber"    />
-            <KpiCard label="Avg. FC Power Output"   value={fmt(avgFc)}   unit="kW"     color="violet"   />
-            <KpiCard label="System Efficiency"      value={fmt(sysEff)}  unit="%"      color="emerald"  />
-          </div>
-        );
-      })()}
+      {/* ── Energy Evolution Charts ──────────────────────────────────────── */}
+      {simType === "h2" && (
+        <H2EnergyCharts
+          result={result}
+          simState={simState}
+          progress={progress}
+          sourceName={selectedModels?.source?.name}
+        />
+      )}
 
-      {/* ── Energy Evolution Charts (H2EnergyCharts) ──────────────────────── */}
-      <H2EnergyCharts
-        result={result}
-        simState={simState}
-        progress={progress}
-        sourceName={selectedModels?.source?.name}
-      />
+      {simType === "ccs" && (
+        <CCSEnergyCharts
+          result={result}
+        />
+      )}
 
       {/* ── Idle placeholder ──────────────────────────────────────────────── */}
       {simState === SIM_STATES.IDLE && (

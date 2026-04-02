@@ -1,7 +1,7 @@
 /**
  * hydrogenService.js
  * ------------------
- * API client for the Python/FastAPI MATLAB Bridge running on the simulation VM.
+ * API client for the Python/FastAPI OpenModelica Bridge running on the simulation service.
  *
  * Provides:
  *   checkHealth()          → Promise<HealthResponse>
@@ -72,11 +72,11 @@ async function apiFetchSafe(path) {
 // ── public API ────────────────────────────────────────────────────────────────
 
 /**
- * Check whether the MATLAB engine is alive and ready.
+ * Check whether the OpenModelica simulation engine is alive and ready.
  *
  * Tries /api/health first (standard FastAPI convention), then falls back to
  * /api/hydrogen/health (older bridge versions).  Never throws — returns a safe
- * object so the UI can degrade gracefully while the MATLAB engine warms up.
+ * object so the UI can degrade gracefully while the simulation engine initializes.
  *
  * @returns {Promise<{ engine_ready: boolean, engine_error: string|null, active_jobs: number, _path: string }>}
  */
@@ -115,7 +115,7 @@ export async function checkHealth() {
  * Submit a new hydrogen-plant simulation.
  *
  * Payload schema v2.0 — built by {@link buildSimPayload} in h2SimPayload.js.
- * Every key includes its unit in the name so MATLAB has no ambiguity.
+ * Every key includes its unit in the name for clarity and precision.
  *
  * @param {{
  *   schema_version: "2.0",
@@ -165,7 +165,7 @@ export async function checkHealth() {
  *   }
  * }} params
  *
- * Expected MATLAB response (nested v2 or flat v1 — both handled by normalizeSimResult):
+ * Expected OpenModelica response (nested v2 or flat v1 — both handled by normalizeSimResult):
  * {
  *   time_s: number[],
  *   electrolyzer: { power_in_kw, h2_production_nm3h, h2_production_kg_h, efficiency_pct },
@@ -245,7 +245,7 @@ function startPolling(jobId, { onProgress, onResult, onError }, intervalMs = 200
       if (stopped) break;
 
       if (Date.now() > deadline) {
-        onError?.("Simulation timed out after 10 minutes with no result. Check that MATLAB finished on the server.");
+        onError?.("Simulation timed out after 10 minutes with no result. Check that the simulation completed on the server.");
         break;
       }
 
@@ -437,7 +437,7 @@ export async function runSimulation(params, callbacks = {}) {
     // ── Local physics fallback ──────────────────────────────────────────────
     if (import.meta.env.DEV) {
       console.warn(
-        "[hydrogenService] MATLAB unreachable — running local JS physics simulation.",
+        "[hydrogenService] Simulation service unreachable — running local JS physics fallback.",
         networkErr.message
       );
     }
