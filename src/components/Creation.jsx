@@ -623,13 +623,17 @@ const Creation = () => {
   const [currentBbox, setCurrentBbox] = useState(null);
   // Region path sent to GeoServer's CQL_FILTER (e.g. "Europe/Germany/Bayern/Niederbayern")
   const [osmRegionPath, setOsmRegionPath] = useState(null);
+  // Selected region boundary for territory overlay
+  const [selectedRegionBoundary, setSelectedRegionBoundary] = useState(null);
+  const [selectedRegionInfo, setSelectedRegionInfo] = useState(null);
   
   // OSM Filters
   const [powerLineFilters, setPowerLineFilters] = useState({
     minVoltage: 0,
     maxVoltage: 1000,
-    cables: null,
-    type: null
+    minCables: 0,
+    showUnderground: true,
+    showOverhead: true
   });
   const [powerPlantFilters, setPowerPlantFilters] = useState({
     selectedSources: ['solar', 'wind', 'hydro', 'nuclear', 'gas', 'coal', 'biomass', 'geothermal', 'oil', 'other'],
@@ -1067,7 +1071,9 @@ const Creation = () => {
   }, []);
   
   // Handle region selection from OsmInfrastructurePanel
-  const handleRegionSelect = useCallback((regionInfo) => {
+  const handleRegionSelect = useCallback(async (regionInfo) => {
+    setSelectedRegionInfo(regionInfo);
+    
     // Build the GeoServer region_path from the selection hierarchy.
     // Parts are only added when defined (country selection = "Europe/Germany",
     // subregion selection = "Europe/Germany/Bayern/Niederbayern").
@@ -1078,20 +1084,102 @@ const Creation = () => {
         regionInfo.region,
         regionInfo.subregion,
       ].filter(Boolean);
-      setOsmRegionPath(parts.length >= 2 ? parts.join('/') : null);
+      const regionPath = parts.length >= 2 ? parts.join('/') : null;
+      setOsmRegionPath(regionPath);
+      
+      // Load the boundary geometry for the selected region to show territory overlay
+      if (regionPath && parts.length >= 2) {
+        try {
+          // Determine which boundary layer to query (communes for detailed, districts for broader)
+          const layerName = parts.length >= 3 ? 'osm_communes' : 'osm_districts';
+          const boundaryData = await api.getOSMLayer(layerName, null, regionPath);
+          
+          if (boundaryData && boundaryData.features && boundaryData.features.length > 0) {
+            setSelectedRegionBoundary(boundaryData);
+            
+            // Calculate bbox from boundary geometry for automatic zoom
+            const bbox = calculateBboxFromGeoJSON(boundaryData);
+            if (bbox) {
+              // Calculate center point
+              const centerLon = (bbox.minLon + bbox.maxLon) / 2;
+              const centerLat = (bbox.minLat + bbox.maxLat) / 2;
+              
+              // Calculate appropriate zoom level based on bbox size
+              const lonDelta = bbox.maxLon - bbox.minLon;
+              const latDelta = bbox.maxLat - bbox.minLat;
+              const maxDelta = Math.max(lonDelta, latDelta);
+              
+              // Zoom formula: larger areas need lower zoom
+              let zoomLevel;
+              if (maxDelta > 20) zoomLevel = 4;        // Very large area (country/continent)
+              else if (maxDelta > 10) zoomLevel = 5;   // Large area
+              else if (maxDelta > 5) zoomLevel = 6;    // Medium-large area
+              else if (maxDelta > 2) zoomLevel = 7;    // Medium area (state/region)
+              else if (maxDelta > 1) zoomLevel = 8;    // Smaller region
+              else if (maxDelta > 0.5) zoomLevel = 9;  // District
+              else if (maxDelta > 0.2) zoomLevel = 10; // Small district
+              else zoomLevel = 11;                      // Very small area
+              
+              // Apply the new view state with smooth transition
+              setViewState({
+                longitude: centerLon,
+                latitude: centerLat,
+                zoom: zoomLevel,
+                pitch: 0,
+                bearing: 0,
+                transitionDuration: 1000,
+                transitionInterpolator: new FlyToInterpolator()
+              });
+              
+              // Also update bbox for data loading
+              handleBboxChange(bbox);
+            }
+          } else {
+            setSelectedRegionBoundary(null);
+            // Fallback to manual center/zoom if provided
+            if (regionInfo.center && regionInfo.zoom) {
+              applyManualZoom(regionInfo);
+            }
+          }
+        } catch (error) {
+          console.error('Error loading region boundary:', error);
+          setSelectedRegionBoundary(null);
+          // Fallback to manual center/zoom if provided
+          if (regionInfo.center && regionInfo.zoom) {
+            applyManualZoom(regionInfo);
+          }
+        }
+      } else {
+        setSelectedRegionBoundary(null);
+        // For continent-only selection, use predefined center/zoom
+        if (regionInfo.center && regionInfo.zoom) {
+          applyManualZoom(regionInfo);
+        }
+      }
     } else {
       setOsmRegionPath(null);
+      setSelectedRegionBoundary(null);
     }
     
-    // Calculate bounding box from center and zoom
-    if (regionInfo && regionInfo.center && regionInfo.zoom) {
-      const [latitude, longitude] = regionInfo.center;
-      const zoom = regionInfo.zoom;
+    // Helper function to apply manual zoom (for continents or fallback)
+    function applyManualZoom(info) {
+      const [latitude, longitude] = info.center;
+      const zoom = info.zoom;
       
-      // Approximate bbox calculation based on zoom
+      setViewState({
+        longitude,
+        latitude,
+        zoom,
+        pitch: 0,
+        bearing: 0,
+        transitionDuration: 1000,
+        transitionInterpolator: new FlyToInterpolator()
+      });
+      
+      // Calculate bbox from center and zoom
       const factor = 1 / Math.pow(2, zoom - 10);
       const delta = 0.5 * factor;
-
+      
       const bbox = {
         minLon: longitude - delta,
         minLat: latitude - delta,
@@ -1100,6 +1188,42 @@ const Creation = () => {
       };
       
       handleBboxChange(bbox);
+    }
+    
+    // Helper function to calculate bbox from GeoJSON FeatureCollection
+    function calculateBboxFromGeoJSON(geojson) {
+      if (!geojson || !geojson.features || geojson.features.length === 0) {
+        return null;
+      }
+      
+      let minLon = Infinity, minLat = Infinity;
+      let maxLon = -Infinity, maxLat = -Infinity;
+      
+      geojson.features.forEach(feature => {
+        if (!feature.geometry || !feature.geometry.coordinates) return;
+        
+        const processCoordinates = (coords) => {
+          if (typeof coords[0] === 'number') {
+            // Single coordinate pair [lon, lat]
+            const [lon, lat] = coords;
+            if (lon < minLon) minLon = lon;
+            if (lon > maxLon) maxLon = lon;
+            if (lat < minLat) minLat = lat;
+            if (lat > maxLat) maxLat = lat;
+          } else {
+            // Array of coordinates, recurse
+            coords.forEach(processCoordinates);
+          }
+        };
+        
+        processCoordinates(feature.geometry.coordinates);
+      });
+      
+      if (minLon === Infinity || minLat === Infinity) {
+        return null;
+      }
+      
+      return { minLon, minLat, maxLon, maxLat };
     }
   }, [handleBboxChange]);
   
@@ -1814,6 +1938,18 @@ const Creation = () => {
 
       {/* Main Map View */}
       <div className="flex-1 relative">
+        {/* Loading Overlay */}
+        {geoServerLoading && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+            <div className="bg-white rounded-lg p-6 shadow-xl">
+              <div className="flex items-center space-x-3">
+                <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full"></div>
+                <span className="text-lg font-semibold text-gray-800">Loading infrastructure data...</span>
+              </div>
+            </div>
+          </div>
+        )}
+
         {mapReady && (
           <DeckGL
             ref={deckRef}
@@ -1822,6 +1958,42 @@ const Creation = () => {
             controller={true}
             onClick={handleMapClickWithModal}
             layers={[
+              // Selected Region Territory Overlay (shown first so it appears under infrastructure)
+              ...(selectedRegionBoundary && selectedRegionBoundary.features?.length > 0 ? [
+                new GeoJsonLayer({
+                  id: 'selected-region-overlay',
+                  data: selectedRegionBoundary,
+                  filled: true,
+                  stroked: true,
+                  getFillColor: [100, 149, 237, 40], // Cornflower blue with low opacity (transparent center)
+                  getLineColor: [30, 60, 114, 200], // Dark blue border
+                  getLineWidth: 3,
+                  lineWidthUnits: 'pixels',
+                  lineWidthMinPixels: 2,
+                  lineWidthMaxPixels: 5,
+                  pickable: true,
+                  autoHighlight: false,
+                  onHover: (info) => {
+                    if (info.object) {
+                      const props = info.object.properties;
+                      setHoveredInfo({
+                        name: props.name || 'Selected Region',
+                        layerType: 'Region Boundary',
+                        details: [
+                          props.admin_level && { label: 'Admin Level', value: props.admin_level },
+                          props.population && { label: 'Population', value: props.population.toLocaleString() },
+                          props.region_path && { label: 'Region Path', value: props.region_path },
+                        ].filter(Boolean),
+                        x: info.x,
+                        y: info.y
+                      });
+                    } else {
+                      setHoveredInfo(null);
+                    }
+                  }
+                })
+              ] : []),
+              
               // OSM Power Lines Layer  
               ...(osmPowerLines && layerVisibility.powerLines && filteredPowerLines?.features?.length > 0 ? (() => {
                 // Flatten MultiLineString → multiple LineString entries so PathLayer renders correctly

@@ -16,8 +16,8 @@
  *   Fuel Cell
  *      ↓  P_fc [kW] electrical output
  *
- * Used when the MATLAB back-end is not reachable (offline / no VPN).
- * When MATLAB IS reachable its result takes precedence.
+ * Used when the simulation back-end is not reachable (offline / no connection).
+ * When simulation service IS reachable its result takes precedence.
  *
  * Physical constants
  * ──────────────────
@@ -281,7 +281,7 @@ export function simulateH2Chain(payload) {
     },
 
     // ── metadata ──
-    _local:       true,    // signals "this is a local JS simulation, not MATLAB"
+    _local:       true,    // signals "this is a local JS simulation"
     _tank_cap_nm3: round1(tank_cap_nm3),
     _elz_h2_rated: round2(elz_h2_rated_nm3h),
   };
