@@ -70,17 +70,27 @@ func (c *Client) GetOSMLayer(layerName string, bbox *BBox, regionPath string) ([
 	params.Add("outputFormat", "application/json")
 	params.Add("srsName", "EPSG:4326")
 
-	// Add bounding box spatial filter when provided.
-	// The PostGIS tables do not have a region_path column, so bbox is the
-	// only spatial filter we need. GeoServer's data only covers the user's
-	// loaded regions (Niederbayern, Chile, …), so any viewport bbox will
-	// naturally return only the relevant features.
-	if bbox != nil {
+	// Add region_path filter using CQL with prefix matching
+	// This supports hierarchical filtering:
+	// - "Europe/Germany" matches data tagged exactly with or under that path
+	// - "Europe/Germany/Bayern" matches "Europe/Germany/Bayern/Niederbayern" etc.
+	// 
+	// For spatial filtering based on district boundaries when data is tagged
+	// at country level, see GetOSMLayerByBoundary()
+	if regionPath != "" {
+		// Use LIKE with wildcard for prefix matching
+		// Note: url.Values.Encode() will properly escape the % character
+		cqlFilter := fmt.Sprintf("region_path LIKE '%s%%'", regionPath)
+		params.Add("cql_filter", cqlFilter)
+		fmt.Printf("[DEBUG] CQL Filter: %s\n", cqlFilter)
+	} else if bbox != nil {
+		// Only add bbox if no region filter (GeoServer returns 500 when both are combined)
 		params.Add("bbox", fmt.Sprintf("%f,%f,%f,%f,EPSG:4326",
 			bbox.MinLon, bbox.MinLat, bbox.MaxLon, bbox.MaxLat))
 	}
 
 	reqURL := fmt.Sprintf("%s/wfs?%s", c.baseURL, params.Encode())
+	fmt.Printf("[DEBUG] Request URL: %s\n", reqURL)
 
 	resp, err := c.httpClient.Get(reqURL)
 	if err != nil {
@@ -113,15 +123,17 @@ func (c *Client) GetOSMLayer(layerName string, bbox *BBox, regionPath string) ([
 }
 
 // GetLoadedRegions returns the distinct region_paths that have data in PostGIS.
-// It queries the osm_substations table as a representative sample.
+// It uses GetFeature to fetch a sample of features and extract unique region_path values.
 func (c *Client) GetLoadedRegions() ([]string, error) {
+	// Use GetFeature with maxFeatures to get a sample of all data
 	params := url.Values{}
 	params.Add("service", "WFS")
 	params.Add("version", "2.0.0")
-	params.Add("request", "GetPropertyValue")
+	params.Add("request", "GetFeature")
 	params.Add("typeNames", "osm:osm_substations")
-	params.Add("valueReference", "region_path")
 	params.Add("outputFormat", "application/json")
+	params.Add("propertyName", "region_path")
+	params.Add("maxFeatures", "10000") // Get a large sample to find all regions
 
 	reqURL := fmt.Sprintf("%s/wfs?%s", c.baseURL, params.Encode())
 
@@ -132,23 +144,30 @@ func (c *Client) GetLoadedRegions() ([]string, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("geoserver returned status %d", resp.StatusCode)
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("geoserver returned status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	var result struct {
-		Values []string `json:"values"`
+		Features []struct {
+			Properties struct {
+				RegionPath string `json:"region_path"`
+			} `json:"properties"`
+		} `json:"features"`
 	}
+	
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("failed to decode regions response: %w", err)
 	}
 
-	// Deduplicate
+	// Extract unique region_path values
 	seen := make(map[string]bool)
 	unique := []string{}
-	for _, v := range result.Values {
-		if v != "" && !seen[v] {
-			seen[v] = true
-			unique = append(unique, v)
+	for _, feature := range result.Features {
+		regionPath := feature.Properties.RegionPath
+		if regionPath != "" && !seen[regionPath] {
+			seen[regionPath] = true
+			unique = append(unique, regionPath)
 		}
 	}
 

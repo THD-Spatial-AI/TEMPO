@@ -275,6 +275,10 @@ def load_substations(conn, geojson_path, region_path, country, continent):
 
         lon, lat = coords[0], coords[1]
 
+        # Use region_path from feature properties if available (spatial tagging),
+        # otherwise use the passed region_path parameter (country-level default)
+        feature_region_path = props.get('region_path') or region_path
+
         values.append((
             props.get('id'),
             props.get('name'),
@@ -284,7 +288,7 @@ def load_substations(conn, geojson_path, region_path, country, continent):
             props.get('operator'),
             props.get('frequency'),
             props.get('ref'),
-            region_path,
+            feature_region_path,
             country,
             continent,
             f'SRID=4326;POINT({lon} {lat})'
@@ -351,6 +355,9 @@ def load_power_plants(conn, geojson_path, region_path, country, continent):
                        or props.get('generator_source')
                        or props.get('generator:source'))
 
+        # Use region_path from feature properties if available (spatial tagging)
+        feature_region_path = props.get('region_path') or region_path
+
         values.append((
             props.get('id'),
             props.get('name'),
@@ -364,7 +371,7 @@ def load_power_plants(conn, geojson_path, region_path, country, continent):
             props.get('plant_type'),
             props.get('ref'),
             props.get('start_date'),
-            region_path,
+            feature_region_path,
             country,
             continent,
             f'SRID=4326;POINT({lon} {lat})'
@@ -434,6 +441,9 @@ def load_power_lines(conn, geojson_path, region_path, country, continent):
             except Exception:
                 wires = None
 
+        # Use region_path from feature properties if available (spatial tagging)
+        feature_region_path = props.get('region_path') or region_path
+
         values.append((
             props.get('id'),
             props.get('name'),
@@ -446,7 +456,7 @@ def load_power_lines(conn, geojson_path, region_path, country, continent):
             props.get('cable'),
             props.get('location'),
             props.get('ref'),
-            region_path,
+            feature_region_path,
             country,
             continent,
             wkt
@@ -502,12 +512,15 @@ def load_boundaries(conn, geojson_path, table_name, region_path, country, contin
         coords_str = ', '.join([f'{lon} {lat}' for lon, lat in outer_ring])
         wkt = f'SRID=4326;POLYGON(({coords_str}))'
 
+        # Use region_path from feature properties if available (boundaries have their own paths)
+        feature_region_path = props.get('region_path') or region_path
+
         values.append((
             props.get('id'),
             props.get('name'),
             props.get('admin_level'),
             props.get('type'),
-            region_path,
+            feature_region_path,
             country,
             continent,
             wkt

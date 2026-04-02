@@ -360,7 +360,7 @@ export default function H2EnergyCharts({ result, simState, progress, sourceName 
         {isLocal && (
           <span className="ml-auto flex items-center gap-1.5 text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-3 py-1">
             <FiInfo size={11} />
-            Local physics model · connect to VPN for MATLAB results
+            Local physics model · connect to service for OpenModelica results
           </span>
         )}
       </div>
