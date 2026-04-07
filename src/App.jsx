@@ -68,7 +68,7 @@ function AppContent() {
       case "Run":            return <Run />;
       case "Results":        return <Results />;
       case "Export":         return <Export />;
-      case "H2 Plant":       return <HydrogenPlantDashboard />;
+      case "Tech Simulator": return <HydrogenPlantDashboard />;
       default:               return <Dashboard />;
     }
   };

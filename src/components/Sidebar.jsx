@@ -164,7 +164,7 @@ const Sidebar = ({ selected, setSelected }) => {
         />
         <Option
           Icon={FiZap}
-          title="H2 Plant"
+          title="Tech Simulator"
           selected={selected}
           setSelected={setSelected}
           open={open}
