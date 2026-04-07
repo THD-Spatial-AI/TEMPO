@@ -1,0 +1,6 @@
+# Calliope web service dependencies
+# Install alongside python/requirements.txt:
+#   pip install -r python/requirements.txt -r python/requirements.service.txt
+
+fastapi>=0.100.0
+uvicorn[standard]>=0.23.0

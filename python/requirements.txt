@@ -4,30 +4,15 @@
 #   .venv-calliope\Scripts\activate   (Windows)
 #   pip install -r python/requirements.txt
 #
-# CBC solver is bundled via highspy (HiGHS) - no separate solver install needed.
-# If you prefer GLPK, install it system-wide and calliope will find it automatically.
+# Pinned packages intentionally minimal: calliope 0.6.8 declares its own
+# strict constraints on numpy, pandas, xarray, plotly, scikit-learn, etc.
+# Adding our own pins on top causes ResolutionImpossible errors.
 
 calliope==0.6.8
 
-# Core scientific stack (pinned to what the calliope conda env uses)
-numpy>=1.20,<2.0
-pandas>=1.3,<2.0
-xarray>=0.20,<2.0
-netCDF4>=1.5
-pyomo>=6.0,<7.0
-
-# YAML / config
-ruamel.yaml>=0.15
-
-# Misc calliope deps
-natsort>=7.0
-jinja2>=3.0
-click>=7.0
-plotly>=5.0
-scikit-learn>=0.24
-
-# HiGHS solver (open-source LP/MIP solver, works out-of-the-box, no install needed)
-highspy>=1.5
+# Extras not declared by calliope but needed by calliope_runner.py / service
+pyomo>=6.0,<7.0    # LP/MIP modelling layer (calliope uses it but doesn't always pin)
+highspy>=1.5       # HiGHS solver — open-source, no separate install needed
 
 # Optional – nicer tracebacks in dev
 ipython
