@@ -16,7 +16,11 @@ import tempfile
 import shutil
 import traceback
 import logging
+import threading
 from pathlib import Path
+
+# Thread-local storage so each job thread can have its own log callback
+_thread_local = threading.local()
 
 
 # ---------------------------------------------------------------------------
@@ -98,8 +102,12 @@ logging.basicConfig(level=logging.WARNING)
 
 
 def log(msg):
-    """Print a tagged log line – captured line-by-line by Electron."""
-    print(f"[CALLIOPE] {msg}", flush=True)
+    """Print a tagged log line, or call the per-thread log callback if set."""
+    fn = getattr(_thread_local, 'log_fn', None)
+    if fn is not None:
+        fn(f"[CALLIOPE] {msg}")
+    else:
+        print(f"[CALLIOPE] {msg}", flush=True)
 
 
 # ---------------------------------------------------------------------------
@@ -578,8 +586,27 @@ def _write_scalar_demand_timeseries(techs, locs_cfg, loc_tech_assign,
 # Main run logic  
 # ---------------------------------------------------------------------------
 
-def run_model(model_data, work_dir):
-    """Build, run, and return results from a Calliope model."""
+def run_model(model_data, work_dir, log_fn=None):
+    """
+    Build, run, and return results from a Calliope model.
+
+    Parameters
+    ----------
+    model_data : dict  – model payload from the frontend
+    work_dir   : str   – writable temporary directory for YAML/CSV files
+    log_fn     : callable | None – optional callback(str) for log lines.
+                 When set (e.g. from the web service), log lines are passed
+                 to the callback instead of printed to stdout.
+    """
+    _thread_local.log_fn = log_fn
+    try:
+        return _run_model_impl(model_data, work_dir)
+    finally:
+        _thread_local.log_fn = None
+
+
+def _run_model_impl(model_data, work_dir):
+    """Internal implementation – call run_model() instead."""
     import calliope  # noqa – must run inside the calliope conda environment  # type: ignore
 
     # Inject bundled CBC so Pyomo can find it without a system-wide install

@@ -1,0 +1,23 @@
+services:
+  calliope-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: calliope-runner:latest
+    container_name: calliope-runner
+    ports:
+      - "5000:5000"
+    restart: unless-stopped
+    # Optional: mount a local solvers dir if you prefer bundled binaries over coinor-cbc
+    # volumes:
+    #   - ./solvers/linux:/app/solvers/linux:ro
+    environment:
+      - CALLIOPE_SOLVER_DIR=
+      # Uncomment to point at a live OEO Tech Database API:
+      # - OEO_API_URL=http://host.docker.internal:8005
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s

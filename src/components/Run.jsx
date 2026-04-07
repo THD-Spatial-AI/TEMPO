@@ -1,9 +1,10 @@
 ﻿import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
+import { checkCalliopeService, runCalliopeModel } from '../services/calliopeClient';
 import {
   FiPlay, FiStopCircle, FiCheckCircle, FiAlertCircle,
   FiClock, FiCpu, FiZap, FiActivity, FiSettings,
-  FiTerminal, FiTrash2, FiAlertTriangle,
+  FiTerminal, FiTrash2, FiAlertTriangle, FiBox,
 } from 'react-icons/fi';
 
 const MODELING_FRAMEWORKS = [
@@ -37,8 +38,6 @@ const SOLVER_OPTIONS = {
   calliope: ['highs', 'glpk', 'cbc', 'gurobi', 'cplex'],
 };
 
-// â”€â”€â”€ Helper: is this running in Electron? â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-const isElectron = () => typeof window !== 'undefined' && !!window.electronAPI;
 
 const Run = () => {
   const { models, getCurrentModel, showNotification, addCompletedJob, removeCompletedJob, completedJobs } = useData();
@@ -53,8 +52,11 @@ const Run = () => {
     mipGap: 0.001,
   });
 
-  // Calliope environment status
-  const [calliopeStatus, setCalliopeStatus] = useState(null); // null = unchecked
+  // Docker service status: null = checking, true = reachable, false = unavailable
+  const [serviceStatus, setServiceStatus] = useState(null);
+
+  // Cancel handles keyed by jobId
+  const cancelFnsRef = useRef({});
 
   // Active (running) jobs: { id, modelName, solver, startTime, logs: [] }
   const [runningJobs, setRunningJobs] = useState([]);
@@ -70,14 +72,14 @@ const Run = () => {
     if (current) setSelectedModel(current);
   }, [getCurrentModel]);
 
+  // Check Docker service health on mount and every 30 s
   useEffect(() => {
-    if (!isElectron()) {
-      setCalliopeStatus({ condaFound: false, envExists: false });
-      return;
-    }
-    window.electronAPI.checkCalliope().then(setCalliopeStatus).catch(() => {
-      setCalliopeStatus({ condaFound: false, envExists: false });
-    });
+    let cancelled = false;
+    const check = () =>
+      checkCalliopeService().then(ok => { if (!cancelled) setServiceStatus(ok); });
+    check();
+    const id = setInterval(check, 30_000);
+    return () => { cancelled = true; clearInterval(id); };
   }, []);
 
   useEffect(() => {
@@ -92,84 +94,64 @@ const Run = () => {
 
   // â”€â”€ Subscribe to Calliope events from Electron â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-  useEffect(() => {
-    if (!isElectron()) return;
+  // ─── Internal helpers for job completion ─────────────────────────────────────
 
-    const removeListener = window.electronAPI.onCalliopeEvent((event) => {
-      const { type, jobId, line, result, error } = event;
-
-      if (type === 'log') {
-        setRunningJobs(prev =>
-          prev.map(j => j.id === jobId
-            ? { ...j, logs: [...j.logs, line] }
-            : j
-          )
+  const _handleJobDone = (jobId, result) => {
+    setRunningJobs(prev => {
+      const job = prev.find(j => j.id === jobId);
+      if (job) {
+        const durationMs = Date.now() - new Date(job.startTime).getTime();
+        const duration = durationMs < 60000
+          ? `${(durationMs / 1000).toFixed(1)}s`
+          : `${Math.round(durationMs / 60000)}m ${Math.round((durationMs % 60000) / 1000)}s`;
+        addCompletedJob({
+          id: jobId,
+          modelName: job.modelName,
+          framework: job.framework,
+          solver: job.solver,
+          status: result?.success === false ? 'failed' : 'completed',
+          completedAt: new Date().toISOString(),
+          duration,
+          objective: result?.objective || null,
+          terminationCondition: result?.termination_condition || 'optimal',
+          result: result || {},
+          logs: job.logs,
+        });
+        showNotification(
+          result?.success === false
+            ? `Model run failed: ${result.error}`
+            : `Model run completed in ${duration}`,
+          result?.success === false ? 'error' : 'success'
         );
       }
-
-      if (type === 'done') {
-        setRunningJobs(prev => {
-          const job = prev.find(j => j.id === jobId);
-          if (job) {
-            const endTime = new Date().toISOString();
-            const durationMs = Date.now() - new Date(job.startTime).getTime();
-            const duration = durationMs < 60000
-              ? `${(durationMs / 1000).toFixed(1)}s`
-              : `${Math.round(durationMs / 60000)}m ${Math.round((durationMs % 60000) / 1000)}s`;
-
-            const completedJob = {
-              id: jobId,
-              modelName: job.modelName,
-              framework: job.framework,
-              solver: job.solver,
-              status: result?.success === false ? 'failed' : 'completed',
-              completedAt: endTime,
-              duration,
-              objective: result?.objective || null,
-              terminationCondition: result?.termination_condition || 'optimal',
-              result: result || {},
-              logs: job.logs,
-            };
-
-            addCompletedJob(completedJob);
-            showNotification(
-              result?.success === false
-                ? `Model run failed: ${result.error}`
-                : `Model run completed in ${duration}`,
-              result?.success === false ? 'error' : 'success'
-            );
-          }
-          return prev.filter(j => j.id !== jobId);
-        });
-      }
-
-      if (type === 'error') {
-        setRunningJobs(prev => {
-          const job = prev.find(j => j.id === jobId);
-          if (job) {
-            const completedJob = {
-              id: jobId,
-              modelName: job.modelName,
-              framework: job.framework,
-              solver: job.solver,
-              status: 'failed',
-              completedAt: new Date().toISOString(),
-              duration: 'N/A',
-              objective: null,
-              terminationCondition: 'error',
-              result: { success: false, error },
-              logs: [...job.logs, `[ERROR] ${error}`],
-            };
-            addCompletedJob(completedJob);
-            showNotification(`Run failed: ${error}`, 'error');
-          }
-          return prev.filter(j => j.id !== jobId);
-        });
-      }
+      return prev.filter(j => j.id !== jobId);
     });
+    delete cancelFnsRef.current[jobId];
+  };
 
-    return removeListener;
-  }, [addCompletedJob, showNotification]);
+  const _handleJobError = (jobId, error) => {
+    setRunningJobs(prev => {
+      const job = prev.find(j => j.id === jobId);
+      if (job) {
+        addCompletedJob({
+          id: jobId,
+          modelName: job.modelName,
+          framework: job.framework,
+          solver: job.solver,
+          status: 'failed',
+          completedAt: new Date().toISOString(),
+          duration: 'N/A',
+          objective: null,
+          terminationCondition: 'error',
+          result: { success: false, error },
+          logs: [...job.logs, `[ERROR] ${error}`],
+        });
+        showNotification(`Run failed: ${error}`, 'error');
+      }
+      return prev.filter(j => j.id !== jobId);
+    });
+    delete cancelFnsRef.current[jobId];
+  };
 
   // â”€â”€ Run model â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -185,42 +167,50 @@ const Run = () => {
       return;
     }
 
-    if (!isElectron()) {
-      showNotification('Calliope runs locally in the desktop app only.', 'warning');
+    if (!serviceStatus) {
+      showNotification(
+        'Calliope Docker service is not available. Run: docker compose up',
+        'error'
+      );
       return;
     }
 
-    if (!calliopeStatus?.envExists) {
-      showNotification('Calliope environment is not ready. Please restart the app.', 'error');
-      return;
-    }
+    const jobId = `job_${Date.now()}`;
+    const newJob = {
+      id: jobId,
+      modelName: selectedModel.name,
+      framework: selectedFramework,
+      solver: selectedSolver,
+      startTime: new Date().toISOString(),
+      logs: [],
+    };
+
+    setRunningJobs(prev => [...prev, newJob]);
+    setExpandedLog(jobId);
+    showNotification(`Started Calliope run for "${selectedModel.name}"`, 'success');
 
     try {
-      const { jobId } = await window.electronAPI.runCalliope({
-        modelData: selectedModel,
-        solver: selectedSolver,
+      const { cancel } = await runCalliopeModel({
+        modelData: { ...selectedModel, solver: selectedSolver },
+        onLog: (line) =>
+          setRunningJobs(prev =>
+            prev.map(j => j.id === jobId ? { ...j, logs: [...j.logs, line] } : j)
+          ),
+        onDone: (result) => _handleJobDone(jobId, result),
+        onError: (error) => _handleJobError(jobId, error),
       });
-
-      const newJob = {
-        id: jobId,
-        modelName: selectedModel.name,
-        framework: selectedFramework,
-        solver: selectedSolver,
-        startTime: new Date().toISOString(),
-        logs: [],
-      };
-
-      setRunningJobs(prev => [...prev, newJob]);
-      setExpandedLog(jobId);
-      showNotification(`Started Calliope run for "${selectedModel.name}"`, 'success');
+      cancelFnsRef.current[jobId] = cancel;
     } catch (err) {
+      setRunningJobs(prev => prev.filter(j => j.id !== jobId));
       showNotification(`Failed to start run: ${err.message}`, 'error');
     }
   };
 
-  const handleStopJob = async (jobId) => {
-    if (isElectron()) {
-      await window.electronAPI.stopCalliope(jobId);
+  const handleStopJob = (jobId) => {
+    const cancel = cancelFnsRef.current[jobId];
+    if (cancel) {
+      cancel();
+      delete cancelFnsRef.current[jobId];
     }
     setRunningJobs(prev => prev.filter(j => j.id !== jobId));
     showNotification('Model run stopped', 'info');
@@ -228,8 +218,8 @@ const Run = () => {
 
   // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-  const calliopeReady = calliopeStatus?.envExists;
-  const calliopeChecking = calliopeStatus === null;
+  const serviceReady    = serviceStatus === true;
+  const serviceChecking = serviceStatus === null;
 
   return (
     <div className="h-full bg-gradient-to-br from-slate-50 to-slate-100 overflow-y-auto">
@@ -243,35 +233,36 @@ const Run = () => {
           <p className="text-slate-600">Execute your energy model locally using Calliope</p>
         </div>
 
-        {/* Calliope Environment Banner — Electron only */}
-        {isElectron() && (calliopeChecking ? (
+        {/* Calliope Docker Service Banner */}
+        {serviceChecking ? (
           <div className="mb-6 flex items-center gap-3 p-4 bg-slate-100 border border-slate-200 rounded-xl text-slate-600 text-sm">
             <FiCpu className="animate-spin text-slate-400 flex-shrink-0" size={20} />
-            Checking Calliope environment…
+            Connecting to Calliope Docker service…
           </div>
-        ) : calliopeReady ? (
+        ) : serviceReady ? (
           <div className="mb-6 flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-xl text-green-800 text-sm">
             <FiCheckCircle className="flex-shrink-0 text-green-600" size={20} />
             <span>
-              Calliope <strong>{calliopeStatus.version}</strong> is ready.
-              Runs execute locally using the <strong>calliope</strong> conda environment.
+              Calliope service is <strong>running</strong>.
+              Optimisation jobs are sent to the Docker container and results streamed back.
             </span>
           </div>
         ) : (
           <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-sm">
             <div className="flex items-start gap-3">
-              <FiAlertTriangle className="flex-shrink-0 text-amber-500 mt-0.5" size={20} />
+              <FiBox className="flex-shrink-0 text-amber-500 mt-0.5" size={20} />
               <div>
-                <p className="font-semibold mb-1">Calliope environment not available</p>
+                <p className="font-semibold mb-1">Calliope Docker service not available</p>
                 <p className="text-amber-800">
-                  {!calliopeStatus?.condaFound
-                    ? 'conda was not found. Please restart the app — it will install everything automatically.'
-                    : 'The calliope environment is not ready. Please restart the app to trigger the setup wizard.'}
+                  Start the container with:{' '}
+                  <code className="bg-amber-100 px-1 rounded font-mono text-xs">
+                    docker compose up calliope-runner
+                  </code>
                 </p>
               </div>
             </div>
           </div>
-        ))}
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
@@ -389,7 +380,7 @@ const Run = () => {
             {/* Run Button */}
             <button
               onClick={handleRunModel}
-              disabled={!selectedModel || !calliopeReady || runningJobs.length > 0}
+              disabled={!selectedModel || !serviceReady || runningJobs.length > 0}
               className="w-full py-4 bg-gradient-to-r from-electric-500 to-electric-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl hover:from-electric-600 hover:to-electric-700 disabled:from-slate-300 disabled:to-slate-400 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2 text-lg"
             >
               <FiPlay size={20} />
