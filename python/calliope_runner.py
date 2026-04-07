@@ -350,9 +350,14 @@ def build_locations_config(locations, location_tech_assignments, technologies):
         if lat is not None and lng is not None:
             cfg['coordinates'] = {'lat': lat, 'lon': lng}
 
-        # Assignments may be keyed by original id or normalised id
+        # Assignments may be keyed by original id or normalised id.
+        # Fall back to the location's own techs dict (set when loading templates)
+        # so that template models work without needing explicit locationTechAssignments.
         assigned = (location_tech_assignments.get(raw_id) or
                     location_tech_assignments.get(loc_id) or [])
+        if not assigned:
+            loc_techs_direct = loc.get('techs') or {}
+            assigned = list(loc_techs_direct.keys())
 
         if assigned:
             cfg['techs'] = {
@@ -451,6 +456,92 @@ def build_links_config(links):
 
         calliope_links[f"{from_loc},{to_loc}"] = link_entry
     return calliope_links
+
+
+# ---------------------------------------------------------------------------
+# Demand profile writer (uses per-location demandProfile timeseries data)
+# ---------------------------------------------------------------------------
+
+def _write_demand_profiles(locations, locs_cfg, techs, time_start, time_end, config_dir):
+    """
+    When location objects carry a ``demandProfile.timeseries`` array (as set by
+    the frontend when loading a template), write an hourly demand CSV and inject
+    per-location resource references into ``locs_cfg`` for every demand tech.
+
+    Returns the set of demand tech IDs that were handled so that
+    _write_scalar_demand_timeseries can skip them.
+    """
+    import itertools
+    import pandas as pd
+
+    demand_tech_ids = [
+        tid for tid, tdef in techs.items()
+        if (tdef.get('essentials') or {}).get('parent') == 'demand'
+    ]
+    if not demand_tech_ids:
+        return set()
+
+    # Collect locations that have actual timeseries data
+    profiled = []
+    for loc in locations:
+        dp = loc.get('demandProfile') or {}
+        ts = dp.get('timeseries')
+        if ts and len(ts) > 0:
+            profiled.append((loc.get('name', ''), ts))
+
+    if not profiled:
+        return set()
+
+    try:
+        end_inclusive = pd.Timestamp(time_end) + pd.Timedelta(hours=23)
+        ts_index = pd.date_range(start=time_start, end=end_inclusive, freq='H')
+    except Exception:
+        ts_index = pd.date_range(start=time_start, periods=48, freq='H')
+
+    if len(ts_index) == 0:
+        ts_index = pd.date_range(start=time_start, periods=48, freq='H')
+
+    # Build demand CSV columns (one per location with profile data)
+    csv_data = {}
+    for loc_name, ts_vals in profiled:
+        col = loc_name.replace(' ', '_')
+        # Tile the pattern to cover the full model period, negate for Calliope convention
+        vals = list(itertools.islice(itertools.cycle(ts_vals), len(ts_index)))
+        csv_data[col] = [-v for v in vals]
+
+    if not csv_data:
+        return set()
+
+    import pandas as pd
+    df = pd.DataFrame(csv_data, index=ts_index)
+    csv_name = 'demand_profiles.csv'
+    df.to_csv(config_dir / csv_name)
+
+    handled = set()
+    for demand_tid in demand_tech_ids:
+        # Remove any global scalar resource — it will be set per-location
+        techs[demand_tid].setdefault('constraints', {}).pop('resource', None)
+        techs[demand_tid]['constraints']['force_resource'] = True
+        handled.add(demand_tid)
+
+        for loc_name, _ in profiled:
+            col = loc_name.replace(' ', '_')
+            loc_key = loc_name.replace(' ', '_')
+            if loc_key not in locs_cfg:
+                continue
+            loc_techs = locs_cfg[loc_key].setdefault('techs', {})
+            if demand_tid not in loc_techs:
+                loc_techs[demand_tid] = {}
+            if isinstance(loc_techs[demand_tid], dict):
+                loc_techs[demand_tid].setdefault('constraints', {})['resource'] = (
+                    f'file={csv_name}:{col}'
+                )
+            else:
+                loc_techs[demand_tid] = {'constraints': {'resource': f'file={csv_name}:{col}'}}
+
+    log(f"  Written demand profiles CSV: {csv_name} "
+        f"({len(ts_index)} hours, {len(csv_data)} location(s))")
+    return handled
 
 
 # ---------------------------------------------------------------------------
@@ -556,6 +647,18 @@ def _write_scalar_demand_timeseries(techs, locs_cfg, loc_tech_assign,
                 loc_techs[tid] = {'constraints': {'resource': resource_ref}}
             injected_count += 1
 
+        # Fallback: when locationTechAssignments is empty (template models), scan
+        # locs_cfg directly for locations that already list this tech.
+        if injected_count == 0:
+            for loc_block in locs_cfg.values():
+                if tid in (loc_block.get('techs') or {}):
+                    t_slot = loc_block['techs'][tid]
+                    if t_slot is None:
+                        loc_block['techs'][tid] = {'constraints': {'resource': resource_ref}}
+                    elif isinstance(t_slot, dict):
+                        t_slot.setdefault('constraints', {})['resource'] = resource_ref
+                    injected_count += 1
+
         generated = True
         log(f"  Generated timeseries CSV for '{tid}': {csv_name} "
             f"({len(ts_index)} hours, injected into {injected_count} location(s))")
@@ -622,6 +725,32 @@ def _run_model_impl(model_data, work_dir):
     overrides = model_data.get('overrides') or {}
     scenarios = model_data.get('scenarios') or {}
 
+    # ------------------------------------------------------------------
+    # Solver availability check — fall back gracefully when the requested
+    # binary is not on PATH (e.g. 'highs' in the Docker container which
+    # only has coinor-cbc installed).
+    # ------------------------------------------------------------------
+    import shutil as _shutil
+    _SOLVER_BINARIES = {
+        'highs':       ['highs'],
+        'cbc':         ['cbc', 'cbc.exe'],
+        'glpk':        ['glpsol'],
+        'gurobi':      ['gurobi_cl'],
+        'cplex':       ['cplex'],
+        'highs_direct': ['highs'],
+    }
+    def _solver_available(name):
+        for binary in _SOLVER_BINARIES.get(name, [name]):
+            if _shutil.which(binary):
+                return True
+        return False
+
+    if not _solver_available(solver):
+        fallbacks = ['cbc', 'glpk']
+        original = solver
+        solver = next((s for s in fallbacks if _solver_available(s)), 'cbc')
+        log(f"  WARNING: solver '{original}' not found on PATH — falling back to '{solver}'")
+
     log(f"Building model '{model_name}'")
     log(f"  Locations: {len(locations)}  Technologies: {len(technologies)}  Links: {len(links)}")
 
@@ -683,15 +812,49 @@ def _run_model_impl(model_data, work_dir):
             for loc in locs.values():
                 loc.setdefault('techs', {})['demand_electricity'] = None
 
+        # Ensure template demand techs (power_demand etc.) are assigned to every
+        # location that has supply techs.  Templates set demandTypes in a separate
+        # CSV column that doesn't reach locationTechAssignments, so we add them
+        # here instead of requiring manual wiring.
+        demand_tech_ids = [
+            tid for tid, tdef in techs.items()
+            if (tdef.get('essentials') or {}).get('parent') == 'demand'
+        ]
+        # Transmission-only hub nodes (e.g. Node_North) must never receive demand.
+        transmission_tids = {
+            tid for tid, tdef in techs.items()
+            if (tdef.get('essentials') or {}).get('parent') == 'transmission'
+        }
+        demand_already_located = any(
+            dtid in (loc_block.get('techs') or {})
+            for loc_block in locs.values()
+            for dtid in demand_tech_ids
+        )
+        if demand_tech_ids and not demand_already_located:
+            for loc_block in locs.values():
+                loc_tech_keys = set(loc_block.get('techs') or {})
+                # Skip pure transmission hubs – every tech they have is a transmission tech
+                if loc_tech_keys and loc_tech_keys.issubset(transmission_tids):
+                    continue
+                if loc_tech_keys:
+                    for dtid in demand_tech_ids:
+                        loc_block['techs'].setdefault(dtid, None)
+            log(f"  Assigned demand tech(s) {demand_tech_ids} to supply locations "
+                f"(skipping transmission-only hubs)")
+
     links_cfg = build_links_config(links)
 
     # ------------------------------------------------------------------
     # Write YAML files
     # ------------------------------------------------------------------
 
-    # Calliope 0.6 requires at least one timeseries.  For any tech whose
-    # `resource` is a plain scalar (no "file=" prefix), auto-generate a flat
-    # CSV and inject the reference into each location's tech block.
+    # Step 1: Use actual per-location demand timeseries from demandProfile
+    # (set by the frontend when loading a template with a demand CSV).
+    # Returns the set of demand tech IDs already handled so the next step skips them.
+    _write_demand_profiles(locations, locs, techs, time_start, time_end, config_dir)
+
+    # Step 2: For every remaining tech with a plain scalar `resource`, auto-generate
+    # a flat CSV and inject the reference into each location's tech block.
     _write_scalar_demand_timeseries(techs, locs, loc_tech_assign,
                                     time_start, time_end, config_dir,
                                     technologies=technologies)
@@ -810,15 +973,106 @@ def _run_model_impl(model_data, work_dir):
         except Exception as e:
             log(f"  Could not extract generation: {e}")
 
+    # Dispatch timeseries: hourly carrier_prod per tech (summed over locations)
+    if 'carrier_prod' in ds:
+        try:
+            import numpy as np
+            prod = ds['carrier_prod']
+            lt_dim = next((d for d in prod.dims if 'loc_tech' in d), None)
+            if lt_dim:
+                timestamps = [str(t) for t in prod['timesteps'].values]
+                dispatch_by_tech = {}
+
+                for coord_val in prod[lt_dim].values:
+                    parts = str(coord_val).split('::')
+                    tech = parts[1] if len(parts) >= 3 else (parts[0] if len(parts) == 1 else parts[1])
+                    tech_base = tech.split(':')[0]
+
+                    vals = prod.sel({lt_dim: coord_val}).values.astype(float)
+                    vals = np.where(np.isnan(vals), 0.0, vals)
+
+                    if 'demand' in tech_base.lower():
+                        continue
+                    if 'transmission' in tech_base.lower():
+                        continue
+
+                    if tech_base not in dispatch_by_tech:
+                        dispatch_by_tech[tech_base] = np.zeros(len(timestamps))
+                    dispatch_by_tech[tech_base] += vals
+
+                results['dispatch'] = {k: [round(float(v), 3) for v in arr.tolist()]
+                                        for k, arr in dispatch_by_tech.items()
+                                        if arr.sum() > 0}
+                results['timestamps'] = timestamps
+
+        except Exception as e:
+            log(f"  Could not extract dispatch timeseries: {e}")
+
+    # Demand timeseries from carrier_con (demand techs consume electricity)
+    if 'carrier_con' in ds:
+        try:
+            import numpy as np
+            con = ds['carrier_con']
+            lt_dim_con = next((d for d in con.dims if 'loc_tech' in d), None)
+            if lt_dim_con:
+                timestamps = results.get('timestamps') or [str(t) for t in con['timesteps'].values]
+                demand_vals = np.zeros(len(timestamps))
+                has_demand = False
+                for coord_val in con[lt_dim_con].values:
+                    parts = str(coord_val).split('::')
+                    tech = parts[1] if len(parts) >= 3 else (parts[0] if len(parts) == 1 else parts[1])
+                    tech_base = tech.split(':')[0]
+                    if 'demand' in tech_base.lower():
+                        vals = con.sel({lt_dim_con: coord_val}).values.astype(float)
+                        demand_vals += np.abs(np.where(np.isnan(vals), 0.0, vals))
+                        has_demand = True
+                if has_demand:
+                    results['demand_timeseries'] = [round(float(v), 3) for v in demand_vals.tolist()]
+                    if 'timestamps' not in results:
+                        results['timestamps'] = timestamps
+        except Exception as e:
+            log(f"  Could not extract demand timeseries: {e}")
+
     # Cost breakdown by technology
+    # Calliope 0.6 uses a MultiIndex dimension 'loc_techs_cost' shaped as
+    # (costs, loc_techs_cost).  We sum over locations so what remains is
+    # cost-class × technology.
     if 'cost' in ds:
         try:
-            cost_by_tech = ds['cost'].sum(dim='locs').to_pandas()
-            costs_dict = {}
-            if hasattr(cost_by_tech, 'items'):
-                for k, v in cost_by_tech.items():
-                    costs_dict[str(k)] = float(v) if v == v else 0
-            results['costs_by_tech'] = costs_dict
+            cost_da = ds['cost']
+            dims = cost_da.dims  # e.g. ('costs', 'loc_techs_cost')
+            # Prefer summing over the location-carrying dimension
+            loc_dim = next(
+                (d for d in dims if 'loc' in d and d != 'costs'),
+                None
+            )
+            if loc_dim:
+                # loc_techs_cost values look like "Berlin::solar_pv"
+                # Sum all cost classes, then group by technology name
+                cost_flat = cost_da.sum(dim='costs')  # drop cost-class dim
+                costs_dict = {}
+                for coord_val, val in zip(cost_flat[loc_dim].values, cost_flat.values):
+                    tech = str(coord_val).split('::')[-1]  # "Berlin::solar_pv" → "solar_pv"
+                    v = float(val) if val == val else 0.0
+                    costs_dict[tech] = costs_dict.get(tech, 0.0) + v
+                results['costs_by_tech'] = {k: v for k, v in costs_dict.items() if v > 0}
+
+                # Also expose a per-location breakdown for the Results UI
+                loc_breakdown = {}
+                for coord_val, val in zip(cost_flat[loc_dim].values, cost_flat.values):
+                    parts = str(coord_val).split('::')
+                    if len(parts) >= 2:
+                        loc, tech = parts[0], parts[-1]
+                        loc_breakdown.setdefault(loc, {})[tech] = float(val) if val == val else 0.0
+                results['costs_by_location'] = loc_breakdown
+            else:
+                # Fallback: legacy 'locs' dim
+                cost_by_tech = cost_da.sum(dim=dims[0] if len(dims) > 1 else dims[0]).to_pandas()
+                costs_dict = {}
+                if hasattr(cost_by_tech, 'items'):
+                    for k, v in cost_by_tech.items():
+                        costs_dict[str(k)] = float(v) if v == v else 0
+                results['costs_by_tech'] = costs_dict
         except Exception as e:
             log(f"  Could not extract cost breakdown: {e}")
 
