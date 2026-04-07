@@ -234,35 +234,45 @@ const Run = () => {
         </div>
 
         {/* Calliope Docker Service Banner */}
-        {serviceChecking ? (
-          <div className="mb-6 flex items-center gap-3 p-4 bg-slate-100 border border-slate-200 rounded-xl text-slate-600 text-sm">
-            <FiCpu className="animate-spin text-slate-400 flex-shrink-0" size={20} />
-            Connecting to Calliope Docker service…
+        <div className={`mb-6 flex items-center gap-3 p-4 rounded-xl border text-sm ${
+          serviceChecking
+            ? 'bg-slate-100 border-slate-200 text-slate-600'
+            : serviceReady
+            ? 'bg-green-50 border-green-200 text-green-800'
+            : 'bg-amber-50 border-amber-200 text-amber-900'
+        }`}>
+          {/* Status dot */}
+          <div className="relative flex-shrink-0">
+            <span className={`inline-block w-3 h-3 rounded-full ${
+              serviceChecking ? 'bg-slate-400 animate-pulse'
+              : serviceReady  ? 'bg-green-500'
+              : 'bg-amber-500'
+            }`} />
+            {serviceReady && (
+              <span className="absolute inset-0 rounded-full bg-green-400 animate-ping opacity-60" />
+            )}
           </div>
-        ) : serviceReady ? (
-          <div className="mb-6 flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-xl text-green-800 text-sm">
-            <FiCheckCircle className="flex-shrink-0 text-green-600" size={20} />
+
+          <FiBox size={18} className="flex-shrink-0" />
+
+          {serviceChecking ? (
+            <span>Connecting to Calliope Docker service…</span>
+          ) : serviceReady ? (
             <span>
-              Calliope service is <strong>running</strong>.
-              Optimisation jobs are sent to the Docker container and results streamed back.
+              Docker service <strong>online</strong> — optimisation runs inside the container and streams logs back in real time.
+              {' '}<span className="font-mono text-xs bg-green-100 px-1.5 py-0.5 rounded">localhost:5000</span>
             </span>
-          </div>
-        ) : (
-          <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-sm">
-            <div className="flex items-start gap-3">
-              <FiBox className="flex-shrink-0 text-amber-500 mt-0.5" size={20} />
-              <div>
-                <p className="font-semibold mb-1">Calliope Docker service not available</p>
-                <p className="text-amber-800">
-                  Start the container with:{' '}
-                  <code className="bg-amber-100 px-1 rounded font-mono text-xs">
-                    docker compose up calliope-runner
-                  </code>
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
+          ) : (
+            <span>
+              <strong>Docker service offline.</strong>{' '}
+              Start it with:{' '}
+              <code className="bg-amber-100 px-1.5 py-0.5 rounded font-mono text-xs">
+                docker compose up calliope-runner
+              </code>
+              {' '}— you cannot run models until the container is up.
+            </span>
+          )}
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
@@ -315,6 +325,21 @@ const Run = () => {
                       <Icon size={22} className={selected ? 'text-white mb-2' : 'text-slate-400 mb-2'} />
                       <div className="font-semibold text-sm">{fw.name}</div>
                       <div className={`text-xs mt-1 ${selected ? 'text-white/80' : 'text-slate-500'}`}>{fw.description}</div>
+
+                      {/* Docker status badge on the Calliope card */}
+                      {fw.id === 'calliope' && (
+                        <div className={`mt-2 flex items-center gap-1.5 text-xs font-medium ${
+                          selected ? 'text-white/90' : serviceReady ? 'text-green-600' : serviceChecking ? 'text-slate-400' : 'text-amber-600'
+                        }`}>
+                          <span className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${
+                            serviceChecking ? 'bg-slate-400 animate-pulse'
+                            : serviceReady  ? (selected ? 'bg-white' : 'bg-green-500')
+                            : (selected ? 'bg-white/60' : 'bg-amber-500')
+                          }`} />
+                          {serviceChecking ? 'Checking…' : serviceReady ? 'Docker online' : 'Docker offline'}
+                        </div>
+                      )}
+
                       {!fw.supported && (
                         <span className="absolute top-2 right-2 text-xs bg-slate-200 text-slate-600 px-2 py-0.5 rounded">
                           Soon
@@ -344,6 +369,15 @@ const Run = () => {
                   <p className="text-xs text-slate-500 mt-1">
                     GLPK and CBC are free and open-source. Gurobi/CPLEX require a commercial licence.
                   </p>
+                  {selectedFramework === 'calliope' && (
+                    <div className="mt-2 flex items-start gap-2 p-3 bg-blue-50 border border-blue-100 rounded-lg text-xs text-blue-800">
+                      <FiBox size={13} className="flex-shrink-0 mt-0.5 text-blue-500" />
+                      <span>
+                        Runs via the <strong>Calliope Docker container</strong>.
+                        If the selected solver is not installed in the container, it automatically falls back to <strong>CBC</strong>.
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <button
