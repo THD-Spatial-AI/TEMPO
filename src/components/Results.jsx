@@ -132,13 +132,23 @@ const ResultsMap = ({ locations, capacitiesByLoc, dominantTechByLoc }) => {
 
 // ── Main component ───────────────────────────────────────────────────────────
 const Results = () => {
-  const { completedJobs, removeCompletedJob, showNotification, models } = useData();
+  const { completedJobs, removeCompletedJob, showNotification, models, activeResultJobId, setActiveResultJobId } = useData();
   const [selectedJobId, setSelectedJobId] = useState(null);
   const [tab, setTab] = useState('overview');
 
+  // When the Run section pushes a specific job to view, open it
+  useEffect(() => {
+    if (activeResultJobId) {
+      setSelectedJobId(activeResultJobId);
+      setTab('overview');
+      setActiveResultJobId(null); // consume it
+    }
+  }, [activeResultJobId, setActiveResultJobId]);
+
+  // Default: auto-select the newest (index 0) job if nothing selected
   useEffect(() => {
     if (completedJobs.length > 0 && !selectedJobId) {
-      setSelectedJobId(completedJobs[completedJobs.length - 1].id);
+      setSelectedJobId(completedJobs[0].id);
     }
   }, [completedJobs]);
 

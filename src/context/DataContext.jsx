@@ -69,6 +69,9 @@ export const DataProvider = ({ children }) => {
   const [navigationWarning, setNavigationWarning] = useState(null);
   const [backendAvailable, setBackendAvailable] = useState(false);
 
+  // Which completed job the Results view should open (set from Run section)
+  const [activeResultJobId, setActiveResultJobId] = useState(null);
+
   // Completed Calliope jobs – shared between Run and Results views
   const [completedJobs, setCompletedJobs] = useState(() => {
     try {
@@ -76,6 +79,8 @@ export const DataProvider = ({ children }) => {
       return saved ? JSON.parse(saved) : [];
     } catch { return []; }
   });
+  // Track whether we have loaded from DB (avoid double-load in StrictMode)
+  const completedJobsLoadedRef = useRef(false);
 
   // Tracks model IDs whose initial POST to the backend is still in-flight.
   // updateCurrentModel must not PUT until the real DB id is confirmed.
@@ -145,6 +150,18 @@ export const DataProvider = ({ children }) => {
           normalised.forEach(m => confirmedBackendIds.current.add(m.id));
           setModels(normalised);
           if (normalised.length > 0) applyModelToState(normalised[0]);
+          // Load completed runs from backend (once)
+          if (!completedJobsLoadedRef.current) {
+            completedJobsLoadedRef.current = true;
+            try {
+              const remoteRuns = await api.getCompletedRuns();
+              if (mounted && Array.isArray(remoteRuns) && remoteRuns.length > 0) {
+                setCompletedJobs(remoteRuns);
+              }
+            } catch (e) {
+              console.warn('Could not load completed runs from backend:', e);
+            }
+          }
         } catch (e) {
           console.error('Failed to load models from backend:', e);
           showNotification('Could not load models from database.', 'error');
@@ -396,12 +413,20 @@ export const DataProvider = ({ children }) => {
     setCompletedJobs(prev => {
       // Deduplicate by id — prevents double entries from StrictMode or duplicate events
       if (prev.some(j => j.id === job.id)) return prev;
-      return [job, ...prev].slice(0, 50);
+      const next = [job, ...prev].slice(0, 100);
+      // Persist to backend (fire-and-forget)
+      if (stateRef.current.backendAvailable) {
+        api.saveCompletedRun(job).catch(e => console.warn('Failed to persist completed run:', e));
+      }
+      return next;
     });
   };
 
   const removeCompletedJob = (jobId) => {
     setCompletedJobs(prev => prev.filter(j => j.id !== jobId));
+    if (stateRef.current.backendAvailable) {
+      api.deleteCompletedRun(jobId).catch(e => console.warn('Failed to delete completed run:', e));
+    }
   };
 
   const value = {
@@ -429,6 +454,8 @@ export const DataProvider = ({ children }) => {
     completedJobs,
     addCompletedJob,
     removeCompletedJob,
+    activeResultJobId,
+    setActiveResultJobId,
   };
 
   return (

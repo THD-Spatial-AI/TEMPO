@@ -136,7 +136,14 @@ const Sidebar = ({ selected, setSelected }) => {
 
         <Option
           Icon={FiCpu}
-          title="Technologies"
+          title="Tech Database"
+          selected={selected}
+          setSelected={setSelected}
+          open={open}
+        />
+        <Option
+          Icon={FiZap}
+          title="Tech Simulator"
           selected={selected}
           setSelected={setSelected}
           open={open}
@@ -158,13 +165,6 @@ const Sidebar = ({ selected, setSelected }) => {
         <Option
           Icon={FiPieChart}
           title="Results"
-          selected={selected}
-          setSelected={setSelected}
-          open={open}
-        />
-        <Option
-          Icon={FiZap}
-          title="Tech Simulator"
           selected={selected}
           setSelected={setSelected}
           open={open}
