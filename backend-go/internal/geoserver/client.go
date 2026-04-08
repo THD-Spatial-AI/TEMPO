@@ -123,52 +123,69 @@ func (c *Client) GetOSMLayer(layerName string, bbox *BBox, regionPath string) ([
 }
 
 // GetLoadedRegions returns the distinct region_paths that have data in PostGIS.
-// It uses GetFeature to fetch a sample of features and extract unique region_path values.
+// It queries both infrastructure and boundary layers to get complete region hierarchy.
 func (c *Client) GetLoadedRegions() ([]string, error) {
-	// Use GetFeature with maxFeatures to get a sample of all data
-	params := url.Values{}
-	params.Add("service", "WFS")
-	params.Add("version", "2.0.0")
-	params.Add("request", "GetFeature")
-	params.Add("typeNames", "osm:osm_substations")
-	params.Add("outputFormat", "application/json")
-	params.Add("propertyName", "region_path")
-	params.Add("maxFeatures", "10000") // Get a large sample to find all regions
-
-	reqURL := fmt.Sprintf("%s/wfs?%s", c.baseURL, params.Encode())
-
-	resp, err := c.httpClient.Get(reqURL)
-	if err != nil {
-		return nil, fmt.Errorf("geoserver regions request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("geoserver returned status %d: %s", resp.StatusCode, string(bodyBytes))
-	}
-
-	var result struct {
-		Features []struct {
-			Properties struct {
-				RegionPath string `json:"region_path"`
-			} `json:"properties"`
-		} `json:"features"`
-	}
-	
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("failed to decode regions response: %w", err)
-	}
-
-	// Extract unique region_path values
 	seen := make(map[string]bool)
 	unique := []string{}
-	for _, feature := range result.Features {
-		regionPath := feature.Properties.RegionPath
-		if regionPath != "" && !seen[regionPath] {
-			seen[regionPath] = true
-			unique = append(unique, regionPath)
+	
+	// Query multiple layers to get all region_paths
+	// Boundaries (districts/communes) have the complete hierarchy
+	// Infrastructure (substations/etc) might only have country-level paths
+	layers := []string{
+		"osm:osm_districts",  // Priority: provinces/states
+		"osm:osm_communes",   // Priority: municipalities
+		"osm:osm_substations", // Fallback: infrastructure
+	}
+	
+	for _, layerName := range layers {
+		params := url.Values{}
+		params.Add("service", "WFS")
+		params.Add("version", "2.0.0")
+		params.Add("request", "GetFeature")
+		params.Add("typeNames", layerName)
+		params.Add("outputFormat", "application/json")
+		params.Add("propertyName", "region_path")
+		params.Add("maxFeatures", "10000")
+		
+		reqURL := fmt.Sprintf("%s/wfs?%s", c.baseURL, params.Encode())
+		
+		resp, err := c.httpClient.Get(reqURL)
+		if err != nil {
+			// If one layer fails, continue with others
+			continue
 		}
+		
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			continue
+		}
+		
+		var result struct {
+			Features []struct {
+				Properties struct {
+					RegionPath string `json:"region_path"`
+				} `json:"properties"`
+			} `json:"features"`
+		}
+		
+		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+			resp.Body.Close()
+			continue
+		}
+		resp.Body.Close()
+		
+		// Collect unique region_path values
+		for _, feature := range result.Features {
+			regionPath := feature.Properties.RegionPath
+			if regionPath != "" && !seen[regionPath] {
+				seen[regionPath] = true
+				unique = append(unique, regionPath)
+			}
+		}
+	}
+	
+	if len(unique) == 0 {
+		return nil, fmt.Errorf("no regions found in any layer")
 	}
 
 	return unique, nil
