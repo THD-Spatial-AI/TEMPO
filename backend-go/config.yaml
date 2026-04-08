@@ -1,5 +1,5 @@
 geoserver:
-  url: "http://localhost:8080/geoserver"
+  url: "http://localhost:8081/geoserver"
   workspace: "osm"
   username: "admin"
   password: "geoserver"
