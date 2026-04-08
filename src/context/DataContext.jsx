@@ -393,7 +393,11 @@ export const DataProvider = ({ children }) => {
   }, [completedJobs]);
 
   const addCompletedJob = (job) => {
-    setCompletedJobs(prev => [job, ...prev].slice(0, 50)); // keep latest 50
+    setCompletedJobs(prev => {
+      // Deduplicate by id — prevents double entries from StrictMode or duplicate events
+      if (prev.some(j => j.id === job.id)) return prev;
+      return [job, ...prev].slice(0, 50);
+    });
   };
 
   const removeCompletedJob = (jobId) => {

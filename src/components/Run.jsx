@@ -35,7 +35,7 @@ const MODELING_FRAMEWORKS = [
 ];
 
 const SOLVER_OPTIONS = {
-  calliope: ['highs', 'glpk', 'cbc', 'gurobi', 'cplex'],
+  calliope: ['cbc', 'highs', 'glpk', 'gurobi', 'cplex'],
 };
 
 
@@ -44,7 +44,7 @@ const Run = () => {
 
   const [selectedModel, setSelectedModel]       = useState(null);
   const [selectedFramework, setSelectedFramework] = useState('calliope');
-  const [selectedSolver, setSelectedSolver]     = useState('highs');
+  const [selectedSolver, setSelectedSolver]     = useState('cbc');
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [advancedSettings, setAdvancedSettings] = useState({
     threads: 4,
@@ -57,6 +57,8 @@ const Run = () => {
 
   // Cancel handles keyed by jobId
   const cancelFnsRef = useRef({});
+  // Guard: track job IDs that have already been completed to prevent StrictMode double-fire
+  const completedIdsRef = useRef(new Set());
 
   // Active (running) jobs: { id, modelName, solver, startTime, logs: [] }
   const [runningJobs, setRunningJobs] = useState([]);
@@ -97,6 +99,10 @@ const Run = () => {
   // ─── Internal helpers for job completion ─────────────────────────────────────
 
   const _handleJobDone = (jobId, result) => {
+    // Prevent double-fire from React StrictMode or duplicate SSE events
+    if (completedIdsRef.current.has(jobId)) return;
+    completedIdsRef.current.add(jobId);
+
     setRunningJobs(prev => {
       const job = prev.find(j => j.id === jobId);
       if (job) {
@@ -104,25 +110,28 @@ const Run = () => {
         const duration = durationMs < 60000
           ? `${(durationMs / 1000).toFixed(1)}s`
           : `${Math.round(durationMs / 60000)}m ${Math.round((durationMs % 60000) / 1000)}s`;
-        addCompletedJob({
-          id: jobId,
-          modelName: job.modelName,
-          framework: job.framework,
-          solver: job.solver,
-          status: result?.success === false ? 'failed' : 'completed',
-          completedAt: new Date().toISOString(),
-          duration,
-          objective: result?.objective || null,
-          terminationCondition: result?.termination_condition || 'optimal',
-          result: result || {},
-          logs: job.logs,
-        });
-        showNotification(
-          result?.success === false
-            ? `Model run failed: ${result.error}`
-            : `Model run completed in ${duration}`,
-          result?.success === false ? 'error' : 'success'
-        );
+        // Schedule addCompletedJob outside the updater to avoid side-effects inside it
+        setTimeout(() => {
+          addCompletedJob({
+            id: jobId,
+            modelName: job.modelName,
+            framework: job.framework,
+            solver: job.solver,
+            status: result?.success === false ? 'failed' : 'completed',
+            completedAt: new Date().toISOString(),
+            duration,
+            objective: result?.objective || null,
+            terminationCondition: result?.termination_condition || 'optimal',
+            result: result || {},
+            logs: job.logs,
+          });
+          showNotification(
+            result?.success === false
+              ? `Model run failed: ${result.error}`
+              : `Model run completed in ${duration}`,
+            result?.success === false ? 'error' : 'success'
+          );
+        }, 0);
       }
       return prev.filter(j => j.id !== jobId);
     });
@@ -130,23 +139,29 @@ const Run = () => {
   };
 
   const _handleJobError = (jobId, error) => {
+    // Prevent double-fire from React StrictMode or duplicate SSE events
+    if (completedIdsRef.current.has(jobId)) return;
+    completedIdsRef.current.add(jobId);
+
     setRunningJobs(prev => {
       const job = prev.find(j => j.id === jobId);
       if (job) {
-        addCompletedJob({
-          id: jobId,
-          modelName: job.modelName,
-          framework: job.framework,
-          solver: job.solver,
-          status: 'failed',
-          completedAt: new Date().toISOString(),
-          duration: 'N/A',
-          objective: null,
-          terminationCondition: 'error',
-          result: { success: false, error },
-          logs: [...job.logs, `[ERROR] ${error}`],
-        });
-        showNotification(`Run failed: ${error}`, 'error');
+        setTimeout(() => {
+          addCompletedJob({
+            id: jobId,
+            modelName: job.modelName,
+            framework: job.framework,
+            solver: job.solver,
+            status: 'failed',
+            completedAt: new Date().toISOString(),
+            duration: 'N/A',
+            objective: null,
+            terminationCondition: 'error',
+            result: { success: false, error },
+            logs: [...job.logs, `[ERROR] ${error}`],
+          });
+          showNotification(`Run failed: ${error}`, 'error');
+        }, 0);
       }
       return prev.filter(j => j.id !== jobId);
     });
@@ -488,10 +503,15 @@ const Run = () => {
 
             {/* Completed jobs */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-              <h2 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
-                <FiCheckCircle className="text-green-500" />
-                Completed ({completedJobs.length})
-              </h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+                  <FiCheckCircle className="text-green-500" />
+                  Completed ({completedJobs.length})
+                </h2>
+                {completedJobs.length > 0 && (
+                  <span className="text-xs text-slate-400">latest first</span>
+                )}
+              </div>
 
               {completedJobs.length === 0 ? (
                 <div className="text-center py-8 text-slate-400">
@@ -499,42 +519,128 @@ const Run = () => {
                   <p className="text-sm">No completed jobs yet</p>
                 </div>
               ) : (
-                <div className="space-y-3 max-h-96 overflow-y-auto">
-                  {completedJobs.map(job => (
-                    <div
-                      key={job.id}
-                      className={`p-4 rounded-lg border ${
-                        job.status === 'failed'
-                          ? 'bg-red-50 border-red-100'
-                          : 'bg-green-50 border-green-100'
-                      }`}
-                    >
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-sm text-slate-800 truncate">{job.modelName}</div>
-                          <div className="text-xs text-slate-500 mt-0.5">
-                            {job.solver?.toUpperCase()} Â· {job.duration}
+                <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1">
+                  {completedJobs.map(job => {
+                    const failed = job.status === 'failed';
+                    const shortId = job.id?.replace('job_', '#');
+                    return (
+                      <div
+                        key={job.id}
+                        className={`rounded-xl border overflow-hidden ${
+                          failed ? 'border-red-200' : 'border-green-200'
+                        }`}
+                      >
+                        {/* Card header stripe */}
+                        <div className={`px-3 py-2 flex items-center justify-between ${
+                          failed
+                            ? 'bg-gradient-to-r from-red-50 to-red-100'
+                            : 'bg-gradient-to-r from-green-50 to-emerald-100'
+                        }`}>
+                          <div className="flex items-center gap-2 min-w-0">
+                            {failed
+                              ? <FiAlertTriangle size={13} className="text-red-500 flex-shrink-0" />
+                              : <FiCheckCircle size={13} className="text-green-600 flex-shrink-0" />
+                            }
+                            <span className="text-xs font-bold text-slate-800 truncate">
+                              {job.modelName}
+                            </span>
                           </div>
-                          {job.status === 'failed' ? (
-                            <div className="text-xs text-red-600 mt-1">
-                              {job.result?.error?.slice(0, 60) || 'Failed'}
+                          <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+                            <span
+                              className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                                failed
+                                  ? 'bg-red-200 text-red-700'
+                                  : 'bg-green-200 text-green-700'
+                              }`}
+                            >
+                              {failed ? 'FAILED' : 'DONE'}
+                            </span>
+                            <button
+                              onClick={() => removeCompletedJob(job.id)}
+                              className="p-1 text-slate-300 hover:text-red-500 transition-colors"
+                              title="Remove"
+                            >
+                              <FiTrash2 size={12} />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Card body */}
+                        <div className="px-3 py-2.5 bg-white space-y-2">
+
+                          {/* Job ID + timestamp row */}
+                          <div className="flex items-center justify-between text-[10px]">
+                            <span
+                              className="font-mono bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded cursor-pointer hover:bg-slate-200 transition-colors select-all"
+                              title="Click to select job ID"
+                            >
+                              {shortId}
+                            </span>
+                            <span className="text-slate-400">
+                              {new Date(job.completedAt).toLocaleString(undefined, {
+                                month: 'short', day: 'numeric',
+                                hour: '2-digit', minute: '2-digit',
+                              })}
+                            </span>
+                          </div>
+
+                          {/* Stats row */}
+                          <div className="grid grid-cols-3 gap-1.5">
+                            {[
+                              {
+                                label: 'Solver',
+                                value: (job.solver || '—').toUpperCase(),
+                                icon: FiCpu,
+                              },
+                              {
+                                label: 'Duration',
+                                value: job.duration || '—',
+                                icon: FiClock,
+                              },
+                              {
+                                label: 'Status',
+                                value: job.terminationCondition || '—',
+                                icon: FiActivity,
+                              },
+                            ].map(({ label, value, icon: Icon }) => (
+                              <div key={label} className="bg-slate-50 rounded-lg px-2 py-1.5 text-center">
+                                <Icon size={10} className="mx-auto mb-0.5 text-slate-400" />
+                                <div className="text-[9px] text-slate-400 leading-none mb-0.5">{label}</div>
+                                <div className="text-[10px] font-bold text-slate-700 truncate" title={value}>{value}</div>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Objective or error */}
+                          {failed ? (
+                            <div className="text-[10px] text-red-600 bg-red-50 rounded-lg px-2 py-1.5 border border-red-100">
+                              {job.result?.error?.slice(0, 80) || 'Run failed'}
                             </div>
                           ) : job.objective != null ? (
-                            <div className="text-xs font-semibold text-electric-600 mt-1">
-                              Objective: {job.objective.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                            <div className="flex items-center justify-between bg-electric-50 border border-electric-100 rounded-lg px-2.5 py-1.5">
+                              <span className="text-[10px] text-electric-600 font-medium">Objective</span>
+                              <span className="text-sm font-black text-electric-700 font-mono">
+                                {job.objective.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                              </span>
                             </div>
                           ) : null}
+
+                          {/* Log preview */}
+                          {job.logs?.length > 0 && (
+                            <details className="group">
+                              <summary className="text-[10px] text-slate-400 hover:text-slate-600 cursor-pointer select-none flex items-center gap-1">
+                                <FiTerminal size={10} />
+                                {job.logs.length} log lines
+                              </summary>
+                              <div className="mt-1.5 bg-slate-900 text-green-400 rounded-lg p-2 text-[10px] font-mono max-h-28 overflow-y-auto">
+                                {job.logs.map((l, i) => <div key={i}>{l}</div>)}
+                              </div>
+                            </details>
+                          )}
                         </div>
-                        <button
-                          onClick={() => removeCompletedJob(job.id)}
-                          className="p-1 text-slate-300 hover:text-red-500 ml-2 flex-shrink-0"
-                          title="Remove"
-                        >
-                          <FiTrash2 size={14} />
-                        </button>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

@@ -18,7 +18,7 @@ import (
 	"github.com/google/uuid"
 )
 
-const geoServerURL = "http://localhost:8080/geoserver"
+const geoServerURL = "http://localhost:8081/geoserver"
 const techAPIURL = "http://localhost:8000"
 
 type Server struct {
@@ -62,12 +62,15 @@ func NewServer(db *storage.DB, port string) *Server {
 	// Probe GeoServer at startup so the log is informative.
 	go func() {
 		client := &http.Client{Timeout: 3 * time.Second}
-		resp, err := client.Get(geoServerURL + "/web/")
+		// Use WFS GetCapabilities instead of /web/ to avoid redirect loops
+		probeURL := geoServerURL + "/wfs?service=WFS&version=2.0.0&request=GetCapabilities"
+		log.Printf("[OSM] Probing GeoServer at %s", geoServerURL)
+		resp, err := client.Get(probeURL)
 		if err == nil {
 			resp.Body.Close()
 			log.Println("[OSM] GeoServer reachable at", geoServerURL, "– using local PostGIS data as primary source")
 		} else {
-			log.Println("[OSM] GeoServer not reachable – OSM data will come from Overpass API (live public data)")
+			log.Printf("[OSM] GeoServer not reachable (err: %v) – OSM data will come from Overpass API (live public data)", err)
 		}
 	}()
 
