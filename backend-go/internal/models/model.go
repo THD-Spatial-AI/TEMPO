@@ -78,6 +78,21 @@ type Job struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+// CompletedRun is a persisted record of a finished optimisation run.
+type CompletedRun struct {
+	ID                   string                 `json:"id"`
+	ModelName            string                 `json:"modelName"`
+	Framework            string                 `json:"framework"`
+	Solver               string                 `json:"solver"`
+	Status               string                 `json:"status"` // completed | failed
+	Objective            *float64               `json:"objective,omitempty"`
+	TerminationCondition string                 `json:"terminationCondition"`
+	Duration             string                 `json:"duration"`
+	CompletedAt          string                 `json:"completedAt"`
+	Result               map[string]interface{} `json:"result,omitempty"`
+	Logs                 []string               `json:"logs,omitempty"`
+}
+
 // GeoServerLayer represents OSM data from GeoServer
 type GeoServerLayer struct {
 	Type     string `json:"type"`

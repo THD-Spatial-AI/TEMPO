@@ -63,9 +63,10 @@ function AppContent() {
       case "Scenarios":      return <Scenarios />;
       case "Parameters":     return <Parameters />;
       case "Technologies":   return <Technologies />;
+      case "Tech Database":  return <Technologies />;
       case "TimeSeries":     return <TimeSeries />;
       case "Settings":       return <Settings />;
-      case "Run":            return <Run />;
+      case "Run":            return <Run onNavigate={handleNavigation} />;
       case "Results":        return <Results />;
       case "Export":         return <Export />;
       case "Tech Simulator": return <HydrogenPlantDashboard />;

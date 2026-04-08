@@ -1,10 +1,11 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { checkCalliopeService, runCalliopeModel } from '../services/calliopeClient';
 import {
   FiPlay, FiStopCircle, FiCheckCircle, FiAlertCircle,
   FiClock, FiCpu, FiZap, FiActivity, FiSettings,
   FiTerminal, FiTrash2, FiAlertTriangle, FiBox,
+  FiBarChart2, FiDownload, FiEye, FiList,
 } from 'react-icons/fi';
 
 const MODELING_FRAMEWORKS = [
@@ -39,8 +40,8 @@ const SOLVER_OPTIONS = {
 };
 
 
-const Run = () => {
-  const { models, getCurrentModel, showNotification, addCompletedJob, removeCompletedJob, completedJobs } = useData();
+const Run = ({ onNavigate }) => {
+  const { models, getCurrentModel, showNotification, addCompletedJob, removeCompletedJob, completedJobs, setActiveResultJobId } = useData();
 
   const [selectedModel, setSelectedModel]       = useState(null);
   const [selectedFramework, setSelectedFramework] = useState('calliope');
@@ -112,9 +113,15 @@ const Run = () => {
           : `${Math.round(durationMs / 60000)}m ${Math.round((durationMs % 60000) / 1000)}s`;
         // Schedule addCompletedJob outside the updater to avoid side-effects inside it
         setTimeout(() => {
+          // Count how many times this model has been run before → append version
+          const prevRuns = completedJobs.filter(j => {
+            const base = j.modelName.replace(/ \(version \d+\)$/, '');
+            return base === job.modelName;
+          }).length;
+          const labeledName = prevRuns > 0 ? `${job.modelName} (version ${prevRuns + 1})` : job.modelName;
           addCompletedJob({
             id: jobId,
-            modelName: job.modelName,
+            modelName: labeledName,
             framework: job.framework,
             solver: job.solver,
             status: result?.success === false ? 'failed' : 'completed',
@@ -147,9 +154,14 @@ const Run = () => {
       const job = prev.find(j => j.id === jobId);
       if (job) {
         setTimeout(() => {
+          const prevRuns = completedJobs.filter(j => {
+            const base = j.modelName.replace(/ \(version \d+\)$/, '');
+            return base === job.modelName;
+          }).length;
+          const labeledName = prevRuns > 0 ? `${job.modelName} (version ${prevRuns + 1})` : job.modelName;
           addCompletedJob({
             id: jobId,
-            modelName: job.modelName,
+            modelName: labeledName,
             framework: job.framework,
             solver: job.solver,
             status: 'failed',
@@ -231,134 +243,141 @@ const Run = () => {
     showNotification('Model run stopped', 'info');
   };
 
-  // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+  // ── Completed job log expansion state ─────────────────────────────────────
+  const [expandedCompletedLog, setExpandedCompletedLog] = useState(null);
+
+  // ── Download a completed job as JSON ─────────────────────────────────────
+  const downloadJob = (job) => {
+    const blob = new Blob([JSON.stringify(job, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `run_${job.modelName}_${job.id}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   const serviceReady    = serviceStatus === true;
   const serviceChecking = serviceStatus === null;
 
   return (
     <div className="h-full bg-gradient-to-br from-slate-50 to-slate-100 overflow-y-auto">
-      <div className="max-w-7xl mx-auto p-8">
+      <div className="p-6 space-y-6">
 
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-electric-600 to-violet-600 bg-clip-text text-transparent mb-2">
-            Run Model
-          </h1>
-          <p className="text-slate-600">Execute your energy model locally using Calliope</p>
-        </div>
-
-        {/* Calliope Docker Service Banner */}
-        <div className={`mb-6 flex items-center gap-3 p-4 rounded-xl border text-sm ${
-          serviceChecking
-            ? 'bg-slate-100 border-slate-200 text-slate-600'
-            : serviceReady
-            ? 'bg-green-50 border-green-200 text-green-800'
-            : 'bg-amber-50 border-amber-200 text-amber-900'
-        }`}>
-          {/* Status dot */}
-          <div className="relative flex-shrink-0">
-            <span className={`inline-block w-3 h-3 rounded-full ${
-              serviceChecking ? 'bg-slate-400 animate-pulse'
-              : serviceReady  ? 'bg-green-500'
-              : 'bg-amber-500'
-            }`} />
-            {serviceReady && (
-              <span className="absolute inset-0 rounded-full bg-green-400 animate-ping opacity-60" />
-            )}
+        {/* PAGE HEADER */}
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-electric-600 to-violet-600 bg-clip-text text-transparent">
+              Run Model
+            </h1>
+            <p className="text-sm text-slate-500 mt-0.5">Execute your energy model locally using Calliope</p>
           </div>
-
-          <FiBox size={18} className="flex-shrink-0" />
-
-          {serviceChecking ? (
-            <span>Connecting to Calliope Docker service…</span>
-          ) : serviceReady ? (
-            <span>
-              Docker service <strong>online</strong> — optimisation runs inside the container and streams logs back in real time.
-              {' '}<span className="font-mono text-xs bg-green-100 px-1.5 py-0.5 rounded">localhost:5000</span>
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border ${
+            serviceChecking ? 'bg-slate-100 border-slate-200 text-slate-500'
+            : serviceReady  ? 'bg-green-50 border-green-200 text-green-700'
+            : 'bg-amber-50 border-amber-200 text-amber-700'
+          }`}>
+            <span className="relative flex h-2 w-2 flex-shrink-0">
+              {serviceReady && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />}
+              <span className={`relative inline-flex rounded-full h-2 w-2 ${
+                serviceChecking ? 'bg-slate-400' : serviceReady ? 'bg-green-500' : 'bg-amber-500'
+              }`} />
             </span>
-          ) : (
-            <span>
-              <strong>Docker service offline.</strong>{' '}
-              Start it with:{' '}
-              <code className="bg-amber-100 px-1.5 py-0.5 rounded font-mono text-xs">
-                docker compose up calliope-runner
-              </code>
-              {' '}— you cannot run models until the container is up.
-            </span>
-          )}
+            <FiBox size={12} />
+            {serviceChecking ? 'Connecting…' : serviceReady ? 'Docker online · localhost:5000' : 'Docker offline'}
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* OFFLINE BANNER */}
+        {!serviceChecking && !serviceReady && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
+            <strong>Docker service offline.</strong>{' '}
+            Start it with:{' '}
+            <code className="bg-amber-100 px-1.5 py-0.5 rounded font-mono text-xs">
+              docker compose up calliope-runner
+            </code>
+          </div>
+        )}
 
-          {/* â”€â”€ Left: Configuration â”€â”€ */}
-          <div className="lg:col-span-2 space-y-6">
+        {/* TOP ROW: config + active jobs */}
+        <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
 
-            {/* Model Selection */}
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-              <h2 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
-                <FiSettings className="text-electric-500" />
-                Model Selection
+          {/* LEFT: configuration */}
+          <div className="xl:col-span-3 space-y-4">
+
+            {/* Model + solver */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+              <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-4 flex items-center gap-2">
+                <FiSettings size={13} className="text-electric-500" /> Configuration
               </h2>
-              <select
-                value={selectedModel?.id || ''}
-                onChange={e => setSelectedModel(models.find(m => m.id === e.target.value))}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-electric-500 focus:border-transparent bg-white"
-              >
-                <option value="">-- Select a model --</option>
-                {models.map(m => (
-                  <option key={m.id} value={m.id}>
-                    {m.name} ({m.locations?.length || 0} locations, {m.links?.length || 0} links)
-                  </option>
-                ))}
-              </select>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Model</label>
+                  <select
+                    value={selectedModel?.id || ''}
+                    onChange={e => setSelectedModel(models.find(m => m.id === e.target.value))}
+                    className="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-electric-500 focus:border-transparent bg-white"
+                  >
+                    <option value="">— Select a model —</option>
+                    {models.map(m => (
+                      <option key={m.id} value={m.id}>
+                        {m.name} ({m.locations?.length || 0} loc, {m.links?.length || 0} links)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Solver</label>
+                  <select
+                    value={selectedSolver}
+                    onChange={e => setSelectedSolver(e.target.value)}
+                    className="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-electric-500 focus:border-transparent bg-white"
+                  >
+                    {(SOLVER_OPTIONS[selectedFramework] || []).map(s => (
+                      <option key={s} value={s}>{s.toUpperCase()}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
             </div>
 
             {/* Framework */}
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-              <h2 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
-                <FiCpu className="text-electric-500" />
-                Modeling Framework
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+              <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-2">
+                <FiCpu size={13} className="text-electric-500" /> Framework
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-3 gap-3">
                 {MODELING_FRAMEWORKS.map(fw => {
                   const Icon = fw.icon;
-                  const selected = selectedFramework === fw.id;
+                  const sel = selectedFramework === fw.id;
                   return (
                     <button
                       key={fw.id}
                       onClick={() => setSelectedFramework(fw.id)}
                       disabled={!fw.supported}
-                      className={`relative p-4 rounded-xl border-2 transition-all duration-200 text-left ${
-                        selected
-                          ? `border-transparent bg-gradient-to-r ${fw.color} text-white shadow-lg`
+                      className={`relative p-3 rounded-xl border-2 transition-all duration-200 text-left ${
+                        sel
+                          ? `border-transparent bg-gradient-to-br ${fw.color} text-white shadow-md`
                           : fw.supported
-                          ? 'border-slate-200 hover:border-slate-300 bg-white hover:shadow-md'
+                          ? 'border-slate-200 hover:border-slate-300 bg-white'
                           : 'border-slate-200 bg-slate-50 opacity-50 cursor-not-allowed'
                       }`}
                     >
-                      <Icon size={22} className={selected ? 'text-white mb-2' : 'text-slate-400 mb-2'} />
-                      <div className="font-semibold text-sm">{fw.name}</div>
-                      <div className={`text-xs mt-1 ${selected ? 'text-white/80' : 'text-slate-500'}`}>{fw.description}</div>
-
-                      {/* Docker status badge on the Calliope card */}
+                      <Icon size={18} className={sel ? 'text-white mb-1' : 'text-slate-400 mb-1'} />
+                      <div className={`text-xs font-semibold ${sel ? 'text-white' : 'text-slate-700'}`}>{fw.name}</div>
                       {fw.id === 'calliope' && (
-                        <div className={`mt-2 flex items-center gap-1.5 text-xs font-medium ${
-                          selected ? 'text-white/90' : serviceReady ? 'text-green-600' : serviceChecking ? 'text-slate-400' : 'text-amber-600'
-                        }`}>
-                          <span className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${
-                            serviceChecking ? 'bg-slate-400 animate-pulse'
-                            : serviceReady  ? (selected ? 'bg-white' : 'bg-green-500')
-                            : (selected ? 'bg-white/60' : 'bg-amber-500')
+                        <div className={`mt-1 flex items-center gap-1 text-[10px] ${sel ? 'text-white/80' : serviceReady ? 'text-green-600' : 'text-slate-400'}`}>
+                          <span className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                            serviceReady ? (sel ? 'bg-white' : 'bg-green-500') : 'bg-slate-300'
                           }`} />
-                          {serviceChecking ? 'Checking…' : serviceReady ? 'Docker online' : 'Docker offline'}
+                          {serviceReady ? 'Docker online' : 'Docker offline'}
                         </div>
                       )}
-
                       {!fw.supported && (
-                        <span className="absolute top-2 right-2 text-xs bg-slate-200 text-slate-600 px-2 py-0.5 rounded">
-                          Soon
-                        </span>
+                        <span className="absolute top-1.5 right-1.5 text-[9px] bg-slate-200 text-slate-500 px-1 py-0.5 rounded">Soon</span>
                       )}
                     </button>
                   );
@@ -366,131 +385,90 @@ const Run = () => {
               </div>
             </div>
 
-            {/* Solver */}
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-              <h2 className="text-lg font-semibold text-slate-800 mb-4">Solver Configuration</h2>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Solver</label>
-                  <select
-                    value={selectedSolver}
-                    onChange={e => setSelectedSolver(e.target.value)}
-                    className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-electric-500 focus:border-transparent bg-white"
-                  >
-                    {(SOLVER_OPTIONS[selectedFramework] || []).map(s => (
-                      <option key={s} value={s}>{s.toUpperCase()}</option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-slate-500 mt-1">
-                    GLPK and CBC are free and open-source. Gurobi/CPLEX require a commercial licence.
-                  </p>
-                  {selectedFramework === 'calliope' && (
-                    <div className="mt-2 flex items-start gap-2 p-3 bg-blue-50 border border-blue-100 rounded-lg text-xs text-blue-800">
-                      <FiBox size={13} className="flex-shrink-0 mt-0.5 text-blue-500" />
-                      <span>
-                        Runs via the <strong>Calliope Docker container</strong>.
-                        If the selected solver is not installed in the container, it automatically falls back to <strong>CBC</strong>.
-                      </span>
+            {/* Advanced settings */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+              <button
+                onClick={() => setShowAdvancedSettings(v => !v)}
+                className="w-full flex items-center justify-between text-sm text-slate-600 hover:text-slate-800"
+              >
+                <span className="flex items-center gap-2 font-medium text-xs text-slate-500 uppercase tracking-wide">
+                  <FiSettings size={13} className="text-slate-400" /> Advanced settings
+                </span>
+                <span className="text-xs text-slate-400">{showAdvancedSettings ? '▲ hide' : '▼ show'}</span>
+              </button>
+              {showAdvancedSettings && (
+                <div className="mt-4 grid grid-cols-3 gap-4">
+                  {[
+                    { label: 'Threads', key: 'threads', step: 1 },
+                    { label: 'Time limit (s)', key: 'timeLimit', step: 1 },
+                    { label: 'MIP gap', key: 'mipGap', step: 0.0001 },
+                  ].map(({ label, key, step }) => (
+                    <div key={key}>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">{label}</label>
+                      <input
+                        type="number" step={step}
+                        value={advancedSettings[key]}
+                        onChange={e => setAdvancedSettings(p => ({ ...p, [key]: parseFloat(e.target.value) }))}
+                        className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-electric-500"
+                      />
                     </div>
-                  )}
+                  ))}
                 </div>
-
-                <button
-                  onClick={() => setShowAdvancedSettings(v => !v)}
-                  className="flex items-center gap-2 text-sm text-electric-600 hover:text-electric-700 font-medium"
-                >
-                  <FiSettings size={14} />
-                  {showAdvancedSettings ? 'Hide' : 'Show'} advanced settings
-                </button>
-
-                {showAdvancedSettings && (
-                  <div className="grid grid-cols-2 gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
-                    {[
-                      { label: 'Threads', key: 'threads', type: 'number', step: 1 },
-                      { label: 'Time Limit (s)', key: 'timeLimit', type: 'number', step: 1 },
-                      { label: 'MIP Gap', key: 'mipGap', type: 'number', step: 0.0001 },
-                    ].map(({ label, key, type, step }) => (
-                      <div key={key}>
-                        <label className="block text-xs font-medium text-slate-700 mb-1">{label}</label>
-                        <input
-                          type={type}
-                          step={step}
-                          value={advancedSettings[key]}
-                          onChange={e => setAdvancedSettings(p => ({ ...p, [key]: parseFloat(e.target.value) }))}
-                          className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-electric-500 focus:border-transparent"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              )}
             </div>
 
-            {/* Run Button */}
+            {/* Run button */}
             <button
               onClick={handleRunModel}
               disabled={!selectedModel || !serviceReady || runningJobs.length > 0}
-              className="w-full py-4 bg-gradient-to-r from-electric-500 to-electric-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl hover:from-electric-600 hover:to-electric-700 disabled:from-slate-300 disabled:to-slate-400 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2 text-lg"
+              className="w-full py-3.5 bg-gradient-to-r from-electric-500 to-electric-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl hover:from-electric-600 hover:to-electric-700 disabled:from-slate-300 disabled:to-slate-400 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2"
             >
-              <FiPlay size={20} />
-              {runningJobs.length > 0 ? 'Run in Progressâ€¦' : 'Run Model'}
+              <FiPlay size={18} />
+              {runningJobs.length > 0 ? 'Run in Progress…' : 'Run Model'}
             </button>
           </div>
 
-          {/* â”€â”€ Right: Job Status â”€â”€ */}
-          <div className="space-y-6">
-
-            {/* Active jobs */}
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-              <h2 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
-                <FiActivity className="text-orange-500" />
-                Running ({runningJobs.length})
+          {/* RIGHT: active jobs */}
+          <div className="xl:col-span-2">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 h-full">
+              <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-4 flex items-center gap-2">
+                <FiActivity size={13} className="text-orange-500" />
+                Active runs ({runningJobs.length})
               </h2>
 
               {runningJobs.length === 0 ? (
-                <div className="text-center py-8 text-slate-400">
-                  <FiClock size={32} className="mx-auto mb-2 opacity-40" />
-                  <p className="text-sm">No running jobs</p>
+                <div className="flex flex-col items-center justify-center py-14 text-slate-300">
+                  <FiClock size={36} className="mb-2 opacity-40" />
+                  <p className="text-sm">No active runs</p>
                 </div>
               ) : (
                 <div className="space-y-4">
                   {runningJobs.map(job => (
-                    <div key={job.id} className="p-4 bg-orange-50 border border-orange-100 rounded-lg">
-                      <div className="flex justify-between items-start mb-3">
+                    <div key={job.id} className="p-4 bg-orange-50 border border-orange-100 rounded-xl">
+                      <div className="flex justify-between items-center mb-2">
                         <div>
-                          <div className="font-medium text-sm text-slate-800">{job.modelName}</div>
-                          <div className="text-xs text-slate-500 mt-0.5">
-                            Calliope Â· {job.solver.toUpperCase()}
-                          </div>
+                          <div className="font-semibold text-sm text-slate-800">{job.modelName}</div>
+                          <div className="text-xs text-slate-500">Calliope · {job.solver.toUpperCase()}</div>
                         </div>
-                        <button
-                          onClick={() => handleStopJob(job.id)}
-                          className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"
-                          title="Stop run"
-                        >
+                        <button onClick={() => handleStopJob(job.id)} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg" title="Stop">
                           <FiStopCircle size={16} />
                         </button>
                       </div>
-
-                      {/* Animated progress indicator */}
-                      <div className="w-full bg-orange-100 rounded-full h-1.5 mb-3 overflow-hidden">
-                        <div className="h-1.5 bg-orange-400 rounded-full animate-pulse" style={{ width: '60%' }} />
+                      <div className="w-full bg-orange-100 rounded-full h-1 mb-3 overflow-hidden">
+                        <div className="h-1 bg-orange-400 rounded-full animate-pulse" style={{ width: '60%' }} />
                       </div>
-
-                      {/* Log toggle */}
                       <button
                         onClick={() => setExpandedLog(expandedLog === job.id ? null : job.id)}
-                        className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700"
+                        className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600"
                       >
-                        <FiTerminal size={12} />
+                        <FiTerminal size={11} />
                         {expandedLog === job.id ? 'Hide' : 'Show'} logs ({job.logs.length} lines)
                       </button>
-
                       {expandedLog === job.id && (
-                        <div className="mt-2 bg-slate-900 text-green-400 rounded-lg p-3 text-xs font-mono h-40 overflow-y-auto">
+                        <div className="mt-2 bg-slate-900 text-green-400 rounded-lg p-3 text-xs font-mono h-32 overflow-y-auto">
                           {job.logs.length === 0
-                            ? <span className="text-slate-500">Waiting for outputâ€¦</span>
-                            : job.logs.map((line, i) => <div key={i}>{line}</div>)
+                            ? <span className="text-slate-500">Waiting for output…</span>
+                            : job.logs.map((l, i) => <div key={i}>{l}</div>)
                           }
                           <div ref={logEndRef} />
                         </div>
@@ -500,152 +478,158 @@ const Run = () => {
                 </div>
               )}
             </div>
-
-            {/* Completed jobs */}
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
-                  <FiCheckCircle className="text-green-500" />
-                  Completed ({completedJobs.length})
-                </h2>
-                {completedJobs.length > 0 && (
-                  <span className="text-xs text-slate-400">latest first</span>
-                )}
-              </div>
-
-              {completedJobs.length === 0 ? (
-                <div className="text-center py-8 text-slate-400">
-                  <FiCheckCircle size={32} className="mx-auto mb-2 opacity-40" />
-                  <p className="text-sm">No completed jobs yet</p>
-                </div>
-              ) : (
-                <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1">
-                  {completedJobs.map(job => {
-                    const failed = job.status === 'failed';
-                    const shortId = job.id?.replace('job_', '#');
-                    return (
-                      <div
-                        key={job.id}
-                        className={`rounded-xl border overflow-hidden ${
-                          failed ? 'border-red-200' : 'border-green-200'
-                        }`}
-                      >
-                        {/* Card header stripe */}
-                        <div className={`px-3 py-2 flex items-center justify-between ${
-                          failed
-                            ? 'bg-gradient-to-r from-red-50 to-red-100'
-                            : 'bg-gradient-to-r from-green-50 to-emerald-100'
-                        }`}>
-                          <div className="flex items-center gap-2 min-w-0">
-                            {failed
-                              ? <FiAlertTriangle size={13} className="text-red-500 flex-shrink-0" />
-                              : <FiCheckCircle size={13} className="text-green-600 flex-shrink-0" />
-                            }
-                            <span className="text-xs font-bold text-slate-800 truncate">
-                              {job.modelName}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
-                            <span
-                              className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                                failed
-                                  ? 'bg-red-200 text-red-700'
-                                  : 'bg-green-200 text-green-700'
-                              }`}
-                            >
-                              {failed ? 'FAILED' : 'DONE'}
-                            </span>
-                            <button
-                              onClick={() => removeCompletedJob(job.id)}
-                              className="p-1 text-slate-300 hover:text-red-500 transition-colors"
-                              title="Remove"
-                            >
-                              <FiTrash2 size={12} />
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Card body */}
-                        <div className="px-3 py-2.5 bg-white space-y-2">
-
-                          {/* Job ID + timestamp row */}
-                          <div className="flex items-center justify-between text-[10px]">
-                            <span
-                              className="font-mono bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded cursor-pointer hover:bg-slate-200 transition-colors select-all"
-                              title="Click to select job ID"
-                            >
-                              {shortId}
-                            </span>
-                            <span className="text-slate-400">
-                              {new Date(job.completedAt).toLocaleString(undefined, {
-                                month: 'short', day: 'numeric',
-                                hour: '2-digit', minute: '2-digit',
-                              })}
-                            </span>
-                          </div>
-
-                          {/* Stats row */}
-                          <div className="grid grid-cols-3 gap-1.5">
-                            {[
-                              {
-                                label: 'Solver',
-                                value: (job.solver || '—').toUpperCase(),
-                                icon: FiCpu,
-                              },
-                              {
-                                label: 'Duration',
-                                value: job.duration || '—',
-                                icon: FiClock,
-                              },
-                              {
-                                label: 'Status',
-                                value: job.terminationCondition || '—',
-                                icon: FiActivity,
-                              },
-                            ].map(({ label, value, icon: Icon }) => (
-                              <div key={label} className="bg-slate-50 rounded-lg px-2 py-1.5 text-center">
-                                <Icon size={10} className="mx-auto mb-0.5 text-slate-400" />
-                                <div className="text-[9px] text-slate-400 leading-none mb-0.5">{label}</div>
-                                <div className="text-[10px] font-bold text-slate-700 truncate" title={value}>{value}</div>
-                              </div>
-                            ))}
-                          </div>
-
-                          {/* Objective or error */}
-                          {failed ? (
-                            <div className="text-[10px] text-red-600 bg-red-50 rounded-lg px-2 py-1.5 border border-red-100">
-                              {job.result?.error?.slice(0, 80) || 'Run failed'}
-                            </div>
-                          ) : job.objective != null ? (
-                            <div className="flex items-center justify-between bg-electric-50 border border-electric-100 rounded-lg px-2.5 py-1.5">
-                              <span className="text-[10px] text-electric-600 font-medium">Objective</span>
-                              <span className="text-sm font-black text-electric-700 font-mono">
-                                {job.objective.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                              </span>
-                            </div>
-                          ) : null}
-
-                          {/* Log preview */}
-                          {job.logs?.length > 0 && (
-                            <details className="group">
-                              <summary className="text-[10px] text-slate-400 hover:text-slate-600 cursor-pointer select-none flex items-center gap-1">
-                                <FiTerminal size={10} />
-                                {job.logs.length} log lines
-                              </summary>
-                              <div className="mt-1.5 bg-slate-900 text-green-400 rounded-lg p-2 text-[10px] font-mono max-h-28 overflow-y-auto">
-                                {job.logs.map((l, i) => <div key={i}>{l}</div>)}
-                              </div>
-                            </details>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
           </div>
         </div>
+
+        {/* FULL-WIDTH COMPLETED RUNS */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+            <h2 className="text-base font-semibold text-slate-800 flex items-center gap-2">
+              <FiList size={16} className="text-electric-500" />
+              Completed Runs
+              <span className="ml-1 px-2 py-0.5 bg-electric-100 text-electric-700 rounded-full text-xs font-bold">
+                {completedJobs.length}
+              </span>
+            </h2>
+            {completedJobs.length > 0 && (
+              <span className="text-xs text-slate-400">Stored in database · latest first</span>
+            )}
+          </div>
+
+          {completedJobs.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-slate-300">
+              <FiCheckCircle size={48} className="mb-3 opacity-30" />
+              <p className="text-base font-medium">No completed runs yet</p>
+              <p className="text-sm mt-1 opacity-70">Run a model above to see results here</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-50">
+              {completedJobs.map(job => {
+                const failed = job.status === 'failed';
+                const isLogOpen = expandedCompletedLog === job.id;
+
+                return (
+                  <div key={job.id} className="px-6 py-4 hover:bg-slate-50/60 transition-colors">
+                    <div className="flex items-center gap-4 flex-wrap">
+
+                      {/* Status icon */}
+                      <div className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center ${
+                        failed ? 'bg-red-100' : 'bg-green-100'
+                      }`}>
+                        {failed
+                          ? <FiAlertTriangle size={16} className="text-red-500" />
+                          : <FiCheckCircle size={16} className="text-green-600" />
+                        }
+                      </div>
+
+                      {/* Model name + ID */}
+                      <div className="flex-1 min-w-[160px]">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-slate-800 text-sm">{job.modelName}</span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            failed ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'
+                          }`}>
+                            {failed ? 'FAILED' : 'DONE'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-400 flex-wrap">
+                          <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 select-all">
+                            {job.id?.replace('job_', '#')}
+                          </span>
+                          <span>{new Date(job.completedAt).toLocaleString(undefined, {
+                            year: 'numeric', month: 'short', day: 'numeric',
+                            hour: '2-digit', minute: '2-digit',
+                          })}</span>
+                        </div>
+                      </div>
+
+                      {/* Stats chips */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="flex items-center gap-1.5 bg-slate-100 px-2.5 py-1.5 rounded-lg text-xs">
+                          <FiCpu size={11} className="text-slate-400" />
+                          <span className="font-medium text-slate-600">{(job.solver || '—').toUpperCase()}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 bg-slate-100 px-2.5 py-1.5 rounded-lg text-xs">
+                          <FiClock size={11} className="text-slate-400" />
+                          <span className="font-medium text-slate-600">{job.duration || '—'}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 bg-slate-100 px-2.5 py-1.5 rounded-lg text-xs">
+                          <FiActivity size={11} className="text-slate-400" />
+                          <span className="font-medium text-slate-600 capitalize">{job.terminationCondition || '—'}</span>
+                        </div>
+                        {!failed && job.objective != null && (
+                          <div className="flex items-center gap-1.5 bg-electric-50 border border-electric-100 px-2.5 py-1.5 rounded-lg text-xs">
+                            <FiZap size={11} className="text-electric-500" />
+                            <span className="font-bold text-electric-700 font-mono">
+                              {job.objective.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                            </span>
+                          </div>
+                        )}
+                        {failed && job.result?.error && (
+                          <div className="text-xs text-red-500 bg-red-50 border border-red-100 px-2.5 py-1.5 rounded-lg max-w-xs truncate" title={job.result.error}>
+                            {job.result.error.slice(0, 60)}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Action buttons */}
+                      <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
+                        {!failed && (
+                          <button
+                            onClick={() => { setActiveResultJobId(job.id); onNavigate && onNavigate('Results'); }}
+                            title="View Results dashboard"
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-electric-50 text-electric-600 border border-electric-200 rounded-lg hover:bg-electric-100 transition-colors"
+                          >
+                            <FiBarChart2 size={13} />
+                            Results
+                          </button>
+                        )}
+                        <button
+                          onClick={() => setExpandedCompletedLog(isLogOpen ? null : job.id)}
+                          title="Toggle logs"
+                          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                            isLogOpen
+                              ? 'bg-slate-800 text-white border-slate-800'
+                              : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          <FiTerminal size={13} />
+                          Logs {job.logs?.length ? `(${job.logs.length})` : ''}
+                        </button>
+                        <button
+                          onClick={() => downloadJob(job)}
+                          title="Download as JSON"
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-slate-50 text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors"
+                        >
+                          <FiDownload size={13} />
+                          JSON
+                        </button>
+                        <button
+                          onClick={() => removeCompletedJob(job.id)}
+                          title="Delete run"
+                          className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                        >
+                          <FiTrash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Expandable logs */}
+                    {isLogOpen && (
+                      <div className="mt-3 bg-slate-900 text-green-400 rounded-xl p-4 text-xs font-mono max-h-64 overflow-y-auto">
+                        {(job.logs || []).length === 0
+                          ? <span className="text-slate-500">No logs available</span>
+                          : (job.logs || []).map((l, i) => <div key={i} className="leading-relaxed">{l}</div>)
+                        }
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
       </div>
     </div>
   );

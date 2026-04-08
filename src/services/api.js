@@ -69,6 +69,31 @@ export const api = {
     return response.json();
   },
 
+  // Completed Runs (persisted history)
+  async saveCompletedRun(run) {
+    const response = await fetch(`${BACKEND_URL}/api/completed-runs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(run),
+    });
+    if (!response.ok) throw new Error(`Failed to save completed run: ${response.statusText}`);
+    return response.json();
+  },
+
+  async getCompletedRuns() {
+    const response = await fetch(`${BACKEND_URL}/api/completed-runs`);
+    if (!response.ok) throw new Error('Failed to fetch completed runs');
+    return response.json();
+  },
+
+  async deleteCompletedRun(id) {
+    const response = await fetch(`${BACKEND_URL}/api/completed-runs/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) throw new Error(`Failed to delete completed run: ${response.statusText}`);
+    return response.json();
+  },
+
   // OSM Data from GeoServer
   // layerName  : osm_substations | osm_power_plants | osm_power_lines | osm_communes | osm_districts
   // bbox       : {minLon, minLat, maxLon, maxLat}  – optional spatial filter

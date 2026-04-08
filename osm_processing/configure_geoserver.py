@@ -14,7 +14,7 @@ import sys
 from requests.auth import HTTPBasicAuth
 
 # GeoServer configuration
-GEOSERVER_URL = "http://localhost:8080/geoserver"
+GEOSERVER_URL = "http://localhost:8081/geoserver"
 GEOSERVER_USER = "admin"
 GEOSERVER_PASSWORD = "geoserver"  # Default GeoServer password
 
