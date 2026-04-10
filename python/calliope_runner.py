@@ -345,8 +345,8 @@ def build_locations_config(locations, location_tech_assignments, technologies):
         loc_id = raw_id.replace(' ', '_')
 
         cfg = {}
-        lat = loc.get('lat')
-        lng = loc.get('lng') or loc.get('lon')
+        lat = loc.get('lat') or loc.get('latitude')
+        lng = loc.get('lng') or loc.get('lon') or loc.get('longitude')
         if lat is not None and lng is not None:
             cfg['coordinates'] = {'lat': lat, 'lon': lng}
 
@@ -993,7 +993,8 @@ def _run_model_impl(model_data, work_dir):
 
                     if 'demand' in tech_base.lower():
                         continue
-                    if 'transmission' in tech_base.lower():
+                    # Skip transmission techs — they have a ':dest_loc' suffix in tech name
+                    if ':' in tech:
                         continue
 
                     if tech_base not in dispatch_by_tech:
@@ -1007,6 +1008,83 @@ def _run_model_impl(model_data, work_dir):
 
         except Exception as e:
             log(f"  Could not extract dispatch timeseries: {e}")
+
+    # Transmission flow timeseries.
+    # Replicates exactly what model.plot.flows() does internally (flows.py _production_data):
+    #
+    #   for location in fa.locs.values:           ← location = DESTINATION (to_loc)
+    #     for carrier in fa.carriers.values:
+    #       df = fa.sel(carriers=c, locs=location).to_pandas()  ← rows=techs, cols=timesteps
+    #       for tech, ts in df.iterrows():
+    #         if len(tech.split(':')) > 1:         ← "tx_type:from_location"
+    #           transmission_type, from_location = tech.split(':')
+    #
+    # carrier_prod at (to_loc, "tx_type:from_loc") = power ARRIVING at to_loc FROM from_loc.
+    try:
+        import numpy as np
+        fa = model.get_formatted_array('carrier_prod')
+        tx_timestamps = results.get('timestamps') or [str(t) for t in fa.timesteps.values]
+
+        # raw_tx["to_loc::from_loc"] = summed production arriving at to_loc from from_loc (1D)
+        raw_tx = {}
+        for location in fa.locs.values:
+            to_loc = str(location)
+            for carrier in fa.carriers.values:
+                # df: rows = tech strings, columns = timesteps
+                sub = fa.sel(carriers=carrier, locs=location)
+                if sub.dims[0] != 'techs':
+                    sub = sub.transpose('techs', 'timesteps')
+                df = sub.to_pandas()
+                for tech_name, ts in df.iterrows():
+                    tech = str(tech_name)
+                    if len(tech.split(':')) < 2:
+                        continue  # not transmission (flows.py: len(tech.split(":")) > 1)
+                    from_loc = tech.split(':', 1)[1]
+                    if from_loc == to_loc:
+                        continue
+                    vals = np.where(np.isnan(ts.values), 0.0, ts.values.astype(float))
+                    key = f"{to_loc}::{from_loc}"
+                    if key not in raw_tx:
+                        raw_tx[key] = np.zeros(len(vals))
+                    raw_tx[key] += vals
+
+        # Build undirected net flow per pair keyed as "a::b" (a < b lexically).
+        # raw_tx["B::A"] = A→B flow (power arriving at B from A).
+        # Net A→B = raw_tx["B::A"] - raw_tx["A::B"]
+        processed_pairs = set()
+        tx_flow = {}
+        for key in list(raw_tx.keys()):
+            to_loc, from_loc = key.split('::', 1)
+            a, b = sorted([to_loc, from_loc])
+            pair_key = f"{a}::{b}"
+            if pair_key in processed_pairs:
+                continue
+            processed_pairs.add(pair_key)
+            n = len(raw_tx[key])
+            # A→B = power arriving at B from A
+            a_to_b = raw_tx.get(f"{b}::{a}", np.zeros(n))
+            # B→A = power arriving at A from B
+            b_to_a = raw_tx.get(f"{a}::{b}", np.zeros(n))
+            net = a_to_b - b_to_a  # positive = net flow in A→B direction
+            tx_flow[pair_key] = {
+                'from': a,
+                'to':   b,
+                'timeseries': [round(float(v), 3) for v in net.tolist()],
+            }
+
+        if tx_flow:
+            results['transmission_flow'] = tx_flow
+            log(f"  Extracted transmission flow for {len(tx_flow)} pair(s)")
+        else:
+            log("  No active transmission flows found in carrier_prod")
+
+        if 'timestamps' not in results:
+            results['timestamps'] = tx_timestamps
+
+    except Exception as e:
+        import traceback as _tb
+        log(f"  Could not extract transmission flow timeseries: {e}")
+        log(_tb.format_exc())
 
     # Demand timeseries from carrier_con (demand techs consume electricity)
     if 'carrier_con' in ds:

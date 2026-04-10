@@ -88,7 +88,7 @@ function AppContent() {
         {/* Animated background accent — will-change hints allow GPU compositing (paint perf fix) */}
         <div className="fixed inset-0 pointer-events-none" aria-hidden="true">
           <div className="absolute top-0 right-0 w-96 h-96 bg-electric-500/5 rounded-full blur-3xl animate-pulse-slow" style={{ willChange: 'opacity' }}></div>
-          <div className="absolute bottom-0 left-0 w-96 h-96 bg-violet-500/5 rounded-full blur-3xl animate-pulse-slow" style={{ willChange: 'opacity', animationDelay: '1s' }}></div>
+          <div className="absolute bottom-0 left-0 w-96 h-96 bg-gray-500/5 rounded-full blur-3xl animate-pulse-slow" style={{ willChange: 'opacity', animationDelay: '1s' }}></div>
         </div>
         
         <Sidebar selected={selected} setSelected={handleNavigation} />
@@ -97,7 +97,7 @@ function AppContent() {
           {/* Suspense boundary for lazy-loaded view chunks */}
           <Suspense fallback={
             <div className="flex-1 flex items-center justify-center h-full">
-              <div className="w-8 h-8 border-4 border-sky-500 border-t-transparent rounded-full animate-spin" />
+              <div className="w-8 h-8 border-4 border-gray-600 border-t-transparent rounded-full animate-spin" />
             </div>
           }>
             <div className="animate-fadeIn">

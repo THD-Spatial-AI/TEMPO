@@ -118,6 +118,7 @@ const PARENT_CONSTRAINTS = {
   conversion:      ['energy_cap_max','energy_cap_min','energy_eff','energy_ramping','lifetime'],
   conversion_plus: ['energy_cap_max','energy_cap_min','energy_eff','energy_ramping','lifetime'],
   transmission:    ['energy_cap_max','energy_cap_min','energy_eff','lifetime'],
+  distribution:     ['energy_cap_max','energy_cap_min','energy_eff','lifetime'],
   demand:          ['resource'],
 };
 
@@ -127,11 +128,12 @@ const CATEGORY_META = {
   supply:          { color: '#3b82f6', label: 'Dispatchable Generation',        icon: 'zap'       },
   storage:         { color: '#8b5cf6', label: 'Storage',                        icon: 'database'  },
   conversion_plus: { color: '#10b981', label: 'Conversion & Sector Coupling',   icon: 'refresh'   },
-  transmission:    { color: '#64748b', label: 'Transmission & Distribution',    icon: 'share'     },
+  transmission:    { color: '#64748b', label: 'Transmission (Lines & Pipelines)', icon: 'share'   },
+  distribution:    { color: '#0ea5e9', label: 'Distribution (Transformers & Substations)', icon: 'star' },
   demand:          { color: '#ef4444', label: 'Demand',                         icon: 'bar-chart' },
 };
 
-const CATEGORY_ORDER = ['supply_plus', 'supply', 'storage', 'conversion_plus', 'transmission', 'demand'];
+const CATEGORY_ORDER = ['supply_plus', 'supply', 'storage', 'conversion_plus', 'transmission', 'distribution', 'demand'];
 
 // Custom scrollbar CSS
 const customScrollbarStyles = `
@@ -393,17 +395,38 @@ function Technologies() {
     setCostSearch({});
   };
 
-  // Filtering helpers
-  const matchesTerm     = (name) => !searchTerm || name.toLowerCase().includes(searchTerm.toLowerCase());
-  const matchesCategory = (parent) => selectedCategory === 'all' || parent === selectedCategory;
+  // Filtering helper
+  const matchesTerm = (name) => !searchTerm || name.toLowerCase().includes(searchTerm.toLowerCase());
 
   const groupedTechs = useMemo(() => {
     const grouped = {};
     Object.entries(allTechnologies).forEach(([techName, tech]) => {
-      if (!matchesTerm(techName) || !matchesCategory(tech.parent) || showOnlyCustom) return;
-      const p = tech.parent;
-      if (!grouped[p]) grouped[p] = [];
-      grouped[p].push({ techName, tech, isCustom: false, onDuplicate: handleDuplicate, onEdit: handleEdit, onDelete: handleDeleteFromCard });
+      if (!matchesTerm(techName) || showOnlyCustom) return;
+      
+      let displayCategory = tech.parent;
+      
+      // Separate transmission techs into 'transmission' (lines/cables/pipelines) and 'distribution' (transformers/substations)
+      if (tech.parent === 'transmission') {
+        const lowerName = (techName || '').toLowerCase();
+        const lowerLabel = (tech.name || '').toLowerCase();
+        const excludedKeywords = [
+          'line', 'cable', 'pipeline', 'network', 'overhead', 'subsea',
+          'underground', 'heating', 'cooling', 'hvac', 'hvdc', 'district'
+        ];
+        const isLinear = excludedKeywords.some(keyword => 
+          lowerName.includes(keyword) || lowerLabel.includes(keyword)
+        );
+        const hasPerDistanceCost = tech.costs?.monetary?.energy_cap_per_distance !== undefined;
+        
+        // Linear infrastructure → transmission, Point infrastructure → distribution
+        displayCategory = (isLinear || hasPerDistanceCost) ? 'transmission' : 'distribution';
+      }
+      
+      // Apply category filter
+      if (selectedCategory !== 'all' && displayCategory !== selectedCategory) return;
+      
+      if (!grouped[displayCategory]) grouped[displayCategory] = [];
+      grouped[displayCategory].push({ techName, tech, isCustom: false, onDuplicate: handleDuplicate, onEdit: handleEdit, onDelete: handleDeleteFromCard });
     });
     return grouped;
   }, [allTechnologies, searchTerm, selectedCategory, showOnlyCustom]);
@@ -412,10 +435,27 @@ function Technologies() {
     const grouped = {};
     technologies.forEach(tech => {
       if (!matchesTerm(tech.name)) return;
-      const parent = tech.parent || tech.essentials?.parent || 'supply';
-      if (!matchesCategory(parent)) return;
-      if (!grouped[parent]) grouped[parent] = [];
-      grouped[parent].push({ techName: tech.name, tech, isCustom: true, onDuplicate: handleDuplicate, onEdit: handleEdit, onDelete: handleDeleteFromCard });
+      
+      let parent = tech.parent || tech.essentials?.parent || 'supply';
+      let displayCategory = parent;
+      
+      // Separate transmission techs into 'transmission' and 'distribution'
+      if (parent === 'transmission') {
+        const lowerName = (tech.name || '').toLowerCase();
+        const excludedKeywords = [
+          'line', 'cable', 'pipeline', 'network', 'overhead', 'subsea',
+          'underground', 'heating', 'cooling', 'hvac', 'hvdc', 'district'
+        ];
+        const isLinear = excludedKeywords.some(keyword => lowerName.includes(keyword));
+        const hasPerDistanceCost = tech.costs?.monetary?.energy_cap_per_distance !== undefined;
+        displayCategory = (isLinear || hasPerDistanceCost) ? 'transmission' : 'distribution';
+      }
+      
+      // Apply category filter
+      if (selectedCategory !== 'all' && displayCategory !== selectedCategory) return;
+      
+      if (!grouped[displayCategory]) grouped[displayCategory] = [];
+      grouped[displayCategory].push({ techName: tech.name, tech, isCustom: true, onDuplicate: handleDuplicate, onEdit: handleEdit, onDelete: handleDeleteFromCard });
     });
     return grouped;
   }, [technologies, searchTerm, selectedCategory]);
@@ -424,7 +464,26 @@ function Technologies() {
 
   const templateCountByCategory = useMemo(() => {
     const counts = {};
-    Object.values(allTechnologies).forEach(t => { counts[t.parent] = (counts[t.parent] || 0) + 1; });
+    Object.entries(allTechnologies).forEach(([techName, tech]) => {
+      let displayCategory = tech.parent;
+      
+      // Separate transmission techs into 'transmission' and 'distribution'
+      if (tech.parent === 'transmission') {
+        const lowerName = (techName || '').toLowerCase();
+        const lowerLabel = (tech.name || '').toLowerCase();
+        const excludedKeywords = [
+          'line', 'cable', 'pipeline', 'network', 'overhead', 'subsea',
+          'underground', 'heating', 'cooling', 'hvac', 'hvdc', 'district'
+        ];
+        const isLinear = excludedKeywords.some(keyword => 
+          lowerName.includes(keyword) || lowerLabel.includes(keyword)
+        );
+        const hasPerDistanceCost = tech.costs?.monetary?.energy_cap_per_distance !== undefined;
+        displayCategory = (isLinear || hasPerDistanceCost) ? 'transmission' : 'distribution';
+      }
+      
+      counts[displayCategory] = (counts[displayCategory] || 0) + 1;
+    });
     return counts;
   }, [allTechnologies]);
 
@@ -443,7 +502,7 @@ function Technologies() {
               </span>
             ) : isApiLive ? (
               <span className="inline-flex items-center gap-1.5 text-xs text-emerald-700 px-2 py-0.5 bg-emerald-50 rounded-full border border-emerald-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Live OEO data
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> OPENTECH | DB
               </span>
             ) : (
               <span className="inline-flex items-center gap-1.5 text-xs text-amber-700 px-2 py-0.5 bg-amber-50 rounded-full border border-amber-200">

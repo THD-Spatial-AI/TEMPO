@@ -510,7 +510,7 @@ calliope run model.yaml --scenario=Main
     <div className="flex-1 p-8 overflow-y-auto">
       <div className="max-w-4xl mx-auto space-y-6 animate-fadeIn">
         {/* Header */}
-        <div className="bg-gradient-to-r from-electric-500 to-violet-600 rounded-2xl p-8 text-white shadow-lg">
+        <div className="bg-gradient-to-r from-electric-600 to-electric-900 rounded-2xl p-8 text-white shadow-lg">
           <div className="flex items-center gap-3 mb-3">
             <FiPackage className="text-3xl" />
             <h1 className="text-3xl font-bold">Export Model</h1>

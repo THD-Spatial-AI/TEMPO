@@ -306,7 +306,7 @@ const TitleSection = ({ open }) => {
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.1, type: "spring", stiffness: 200 }}
             >
-              <span className="block text-sm font-bold bg-gradient-to-r from-electric-600 to-violet-600 bg-clip-text text-transparent">TEMPO</span>
+              <span className="block text-sm font-bold bg-gradient-to-r from-electric-500 to-electric-900 bg-clip-text text-transparent">TEMPO</span>
               <span className="block text-[11px] text-slate-500 font-medium tracking-wide">Tool for Energy Model Planning and Optimization</span>
             </motion.div>
           )}

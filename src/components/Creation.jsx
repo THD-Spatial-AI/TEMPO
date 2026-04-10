@@ -658,8 +658,9 @@ const Creation = () => {
   // Use map interactions hook
   // Custom handleMapClick with modal
   const handleMapClickWithModal = useCallback((info, event) => {
-    // If clicking on an existing object, let the layer handle it
-    if (info.object) {
+    // If clicking on an existing object (except the region boundary), let the layer handle it
+    // Allow clicks through the region boundary so users can place locations inside it
+    if (info.object && info.layer?.id !== 'selected-region-overlay') {
       return;
     }
     
@@ -1957,6 +1958,12 @@ const Creation = () => {
             onViewStateChange={({ viewState }) => setViewState(viewState)}
             controller={true}
             onClick={handleMapClickWithModal}
+            onHover={(info) => {
+              // Clear hover info when mouse is not over any pickable object
+              if (!info.object) {
+                setHoveredInfo(null);
+              }
+            }}
             layers={[
               // Selected Region Territory Overlay (shown first so it appears under infrastructure)
               ...(selectedRegionBoundary && selectedRegionBoundary.features?.length > 0 ? [
