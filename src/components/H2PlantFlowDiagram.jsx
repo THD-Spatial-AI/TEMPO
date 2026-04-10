@@ -15,7 +15,7 @@
  * nodeTypes MUST be defined at module scope to avoid infinite re-renders.
  */
 
-import React, { useMemo, useState, useRef, useCallback } from "react";
+import React, { createContext, memo, useContext, useMemo, useState, useRef, useCallback } from "react";
 import {
   ReactFlow,
   Background,
@@ -24,12 +24,18 @@ import {
   Handle,
   Position,
   MarkerType,
-  useNodesState,
   useEdgesState,
   BackgroundVariant,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { FiZap, FiCpu } from "react-icons/fi";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Shared diagram context — nodes read state here instead of via `data` prop.
+// This prevents liveNodes from being rebuilt on every state change, so
+// React Flow never re-layouts the canvas unless nodes are physically dragged.
+// ─────────────────────────────────────────────────────────────────────────────
+const DiagramCtx = createContext(null);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Lifecycle badge colour helper
@@ -129,7 +135,7 @@ function formatCapacityKw(capKw) {
 // The "Apply" button is the explicit commit — only then does onSelect fire.
 // A green lock badge on the trigger shows what is currently active for sim.
 // ─────────────────────────────────────────────────────────────────────────────
-function ModelPicker({ slotKey, models, selected, onSelect, disabled }) {
+const ModelPicker = memo(function ModelPicker({ slotKey, models, selected, onSelect, disabled }) {
   const [open,    setOpen]    = useState(false);
   // `staged` = model the user has highlighted in the list but not yet applied
   const [staged,  setStaged]  = useState(null);
@@ -286,13 +292,13 @@ function ModelPicker({ slotKey, models, selected, onSelect, disabled }) {
       )}
     </div>
   );
-}
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CSV profile uploader — attach a custom hourly production curve
 // Expected format:  time_h,value_kw   (header required)
 // ─────────────────────────────────────────────────────────────────────────────
-function CsvUploader({ customProfile, onSetCustomProfile, disabled }) {
+const CsvUploader = memo(function CsvUploader({ customProfile, onSetCustomProfile, disabled }) {
   const fileRef = useRef(null);
   const stop    = (e) => e.stopPropagation();
 
@@ -405,12 +411,12 @@ function CsvUploader({ customProfile, onSetCustomProfile, disabled }) {
       )}
     </div>
   );
-}
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Reusable compact field inside a node
 // ─────────────────────────────────────────────────────────────────────────────
-function NodeField({ label, unit, value, min, max, step = 1, onChange, disabled }) {
+const NodeField = memo(function NodeField({ label, unit, value, min, max, step = 1, onChange, disabled }) {
   return (
     <div
       className="flex items-center justify-between gap-1 mt-1.5"
@@ -440,12 +446,12 @@ function NodeField({ label, unit, value, min, max, step = 1, onChange, disabled 
       </div>
     </div>
   );
-}
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Animated status dot
 // ─────────────────────────────────────────────────────────────────────────────
-function StatusDot({ simState, color = "bg-slate-300" }) {
+const StatusDot = memo(function StatusDot({ simState, color = "bg-slate-300" }) {
   if (simState === "running" || simState === "queued") {
     return <span className={`ml-auto w-2 h-2 rounded-full ${color} animate-pulse`} />;
   }
@@ -453,14 +459,14 @@ function StatusDot({ simState, color = "bg-slate-300" }) {
     return <span className={`ml-auto w-2 h-2 rounded-full bg-emerald-400`} />;
   }
   return <span className={`ml-auto w-2 h-2 rounded-full bg-slate-200`} />;
-}
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // NODE: Grid / Power Source
 // ─────────────────────────────────────────────────────────────────────────────
-function GridNode({ data, selected }) {
+const GridNode = memo(function GridNode({ selected }) {
   const { simState, elz, setElz, models, selectedModels, onSelectModel,
-          activeNodeId, customProfile, onSetCustomProfile, genParamOverrides } = data;
+          activeNodeId, customProfile, onSetCustomProfile, genParamOverrides } = useContext(DiagramCtx);
   const slotKey  = "source";
   const sel      = selectedModels?.[slotKey];
   // Prefer user-edited capacity (from variant/panel) over raw model value
@@ -472,10 +478,12 @@ function GridNode({ data, selected }) {
   const isActive = activeNodeId === "grid";
   return (
     <div
-      className={`bg-white rounded-xl border-2 shadow-md px-3 py-2.5 w-52 cursor-pointer transition-shadow
+      className={`bg-white rounded-xl border-2 shadow-md px-3 py-2.5 w-52 cursor-pointer transition-colors duration-150
         ${ isActive
             ? "border-gray-700 shadow-gray-200 shadow-lg ring-2 ring-gray-400 ring-offset-1"
-            : selected ? "border-amber-600 shadow-amber-100" : "border-amber-400 hover:border-amber-500 hover:shadow-amber-100 hover:shadow-lg"
+            : selected
+              ? "border-amber-600 shadow-amber-100 shadow-lg ring-2 ring-amber-300 ring-offset-1"
+              : "border-amber-400 hover:border-amber-500 hover:shadow-amber-100 hover:shadow-xl"
           }
       `}
     >
@@ -525,20 +533,20 @@ function GridNode({ data, selected }) {
         className="!bg-amber-400 !w-3 !h-3 !border-2 !border-white" />
     </div>
   );
-}
+}, (p, n) => p.selected === n.selected);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // NODE: Electrolyzer
 // ─────────────────────────────────────────────────────────────────────────────
-function ElzNode({ data, selected }) {
-  const { simState, kpi, models, selectedModels, onSelectModel } = data;
+const ElzNode = memo(function ElzNode({ selected }) {
+  const { simState, kpi, models, selectedModels, onSelectModel } = useContext(DiagramCtx);
   const slotKey  = "electrolyzer";
   const sel      = selectedModels?.[slotKey];
   const disabled = simState === "running" || simState === "queued";
   return (
-    <div className={`bg-white rounded-xl border-2 shadow-md px-3 py-2.5 w-56
-      ${selected ? "border-indigo-600 shadow-indigo-100" : "border-indigo-400"}
-      ${simState === "running" ? "shadow-lg shadow-indigo-100" : ""}
+    <div className={`bg-white rounded-xl border-2 shadow-md px-3 py-2.5 w-56 transition-colors duration-150
+      ${selected ? "border-indigo-600 shadow-indigo-100 shadow-lg ring-2 ring-indigo-300 ring-offset-1" : "border-indigo-400 hover:border-indigo-500 hover:shadow-indigo-100 hover:shadow-xl"}
+      ${simState === "running" && !selected ? "shadow-lg shadow-indigo-100" : ""}
     `}>
       <Handle type="target" position={Position.Left}   id="elec-in"
         className="!bg-amber-400 !w-3 !h-3 !border-2 !border-white" />
@@ -568,19 +576,19 @@ function ElzNode({ data, selected }) {
         className="!bg-emerald-500 !w-3 !h-3 !border-2 !border-white" />
     </div>
   );
-}
+}, (p, n) => p.selected === n.selected);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // NODE: H₂ Compressor
 // ─────────────────────────────────────────────────────────────────────────────
-function CompressorNode({ data, selected }) {
-  const { simState, models, selectedModels, onSelectModel } = data;
+const CompressorNode = memo(function CompressorNode({ selected }) {
+  const { simState, models, selectedModels, onSelectModel } = useContext(DiagramCtx);
   const slotKey  = "compressor";
   const sel      = selectedModels?.[slotKey];
   const disabled = simState === "running" || simState === "queued";
   return (
-    <div className={`bg-white rounded-xl border-2 shadow-md px-3 py-2.5 w-48
-      ${selected ? "border-amber-600 shadow-amber-100" : "border-amber-500"}
+    <div className={`bg-white rounded-xl border-2 shadow-md px-3 py-2.5 w-48 transition-colors duration-150
+      ${selected ? "border-amber-600 shadow-amber-100 shadow-lg ring-2 ring-amber-300 ring-offset-1" : "border-amber-500 hover:border-amber-600 hover:shadow-amber-100 hover:shadow-xl"}
     `}>
       <Handle type="target" position={Position.Left}  id="h2-in"
         className="!bg-emerald-500 !w-3 !h-3 !border-2 !border-white" />
@@ -607,13 +615,13 @@ function CompressorNode({ data, selected }) {
         className="!bg-emerald-500 !w-3 !h-3 !border-2 !border-white" />
     </div>
   );
-}
+}, (p, n) => p.selected === n.selected);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // NODE: H₂ Storage Tank
 // ─────────────────────────────────────────────────────────────────────────────
-function TankNode({ data, selected }) {
-  const { sto, simState, kpi, models, selectedModels, onSelectModel } = data;
+const TankNode = memo(function TankNode({ selected }) {
+  const { sto, simState, kpi, models, selectedModels, onSelectModel } = useContext(DiagramCtx);
   const slotKey  = "storage";
   const sel      = selectedModels?.[slotKey];
   const disabled = simState === "running" || simState === "queued";
@@ -622,9 +630,9 @@ function TankNode({ data, selected }) {
   const fillPct  = peakP ? Math.min(100, (peakP / maxP) * 100) : 0;
 
   return (
-    <div className={`bg-white rounded-xl border-2 shadow-md px-3 py-2.5 w-52
-      ${selected ? "border-amber-700 shadow-amber-100" : "border-amber-600"}
-      ${simState === "running" ? "shadow-lg shadow-amber-100" : ""}
+    <div className={`bg-white rounded-xl border-2 shadow-md px-3 py-2.5 w-52 transition-colors duration-150
+      ${selected ? "border-amber-700 shadow-amber-100 shadow-lg ring-2 ring-amber-400 ring-offset-1" : "border-amber-600 hover:border-amber-700 hover:shadow-amber-100 hover:shadow-xl"}
+      ${simState === "running" && !selected ? "shadow-lg shadow-amber-100" : ""}
     `}>
       <Handle type="target" position={Position.Left}  id="h2-in"
         className="!bg-emerald-500 !w-3 !h-3 !border-2 !border-white" />
@@ -660,20 +668,20 @@ function TankNode({ data, selected }) {
         className="!bg-emerald-500 !w-3 !h-3 !border-2 !border-white" />
     </div>
   );
-}
+}, (p, n) => p.selected === n.selected);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // NODE: Fuel Cell Stack
 // ─────────────────────────────────────────────────────────────────────────────
-function FuelCellNode({ data, selected }) {
-  const { simState, kpi, models, selectedModels, onSelectModel } = data;
+const FuelCellNode = memo(function FuelCellNode({ selected }) {
+  const { simState, kpi, models, selectedModels, onSelectModel } = useContext(DiagramCtx);
   const slotKey  = "fuel_cell";
   const sel      = selectedModels?.[slotKey];
   const disabled = simState === "running" || simState === "queued";
   return (
-    <div className={`bg-white rounded-xl border-2 shadow-md px-3 py-2.5 w-56
-      ${selected ? "border-violet-600 shadow-violet-100" : "border-violet-500"}
-      ${simState === "running" ? "shadow-lg shadow-violet-100" : ""}
+    <div className={`bg-white rounded-xl border-2 shadow-md px-3 py-2.5 w-56 transition-colors duration-150
+      ${selected ? "border-violet-600 shadow-violet-100 shadow-lg ring-2 ring-violet-300 ring-offset-1" : "border-violet-500 hover:border-violet-600 hover:shadow-violet-100 hover:shadow-xl"}
+      ${simState === "running" && !selected ? "shadow-lg shadow-violet-100" : ""}
     `}>
       <Handle type="target" position={Position.Left}  id="h2-in"
         className="!bg-emerald-500 !w-3 !h-3 !border-2 !border-white" />
@@ -705,16 +713,16 @@ function FuelCellNode({ data, selected }) {
         className="!bg-amber-400 !w-3 !h-3 !border-2 !border-white" />
     </div>
   );
-}
+}, (p, n) => p.selected === n.selected);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // NODE: AC Load / Grid Output
 // ─────────────────────────────────────────────────────────────────────────────
-function LoadNode({ data, selected }) {
-  const { simState, kpi } = data;
+const LoadNode = memo(function LoadNode({ selected }) {
+  const { simState, kpi } = useContext(DiagramCtx);
   return (
-    <div className={`bg-white rounded-xl border-2 shadow-md px-3 py-2.5 w-36
-      ${selected ? "border-emerald-600 shadow-emerald-100" : "border-emerald-500"}
+    <div className={`bg-white rounded-xl border-2 shadow-md px-3 py-2.5 w-36 transition-colors duration-150
+      ${selected ? "border-emerald-600 shadow-emerald-100 shadow-lg ring-2 ring-emerald-300 ring-offset-1" : "border-emerald-500 hover:border-emerald-600 hover:shadow-emerald-100 hover:shadow-xl"}
     `}>
       <Handle type="target" position={Position.Left} id="elec-in" className="!bg-amber-400 !w-3 !h-3 !border-2 !border-white" />
 
@@ -734,15 +742,15 @@ function LoadNode({ data, selected }) {
       )}
     </div>
   );
-}
+}, (p, n) => p.selected === n.selected);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // NODE: Water Supply
 // ─────────────────────────────────────────────────────────────────────────────
-function WaterNode({ data, selected }) {
+const WaterNode = memo(function WaterNode({ selected }) {
   return (
-    <div className={`bg-white rounded-xl border-2 shadow-sm px-3 py-2 w-32
-      ${selected ? "border-blue-500" : "border-blue-300"}
+    <div className={`bg-white rounded-xl border-2 shadow-sm px-3 py-2 w-32 transition-colors duration-150
+      ${selected ? "border-blue-500 ring-2 ring-blue-200 ring-offset-1 shadow-md" : "border-blue-300 hover:border-blue-400 hover:shadow-md"}
     `}>
       <div className="flex items-center gap-1.5">
         <span className="text-blue-400">
@@ -757,7 +765,7 @@ function WaterNode({ data, selected }) {
       <Handle type="source" position={Position.Top} id="water-out" className="!bg-blue-400 !w-3 !h-3 !border-2 !border-white" />
     </div>
   );
-}
+}, (p, n) => p.selected === n.selected);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // nodeTypes MUST be at module scope — not inside the component
@@ -798,7 +806,7 @@ const elecEdge  = (id, src, tgt, srcH, tgtH, lbl) => ({
 const h2Edge = (id, src, tgt, srcH, tgtH, lbl) => ({
   id, source: src, target: tgt, sourceHandle: srcH, targetHandle: tgtH,
   type: "smoothstep", animated: true,
-  style: { stroke: "#10b981", strokeWidth: 2.5, strokeDasharray: "6 3" },
+  style: { stroke: "#10b981", strokeWidth: 2.5 },
   label: lbl, labelStyle: { fontSize: 10, fill: "#065f46", fontWeight: 600 },
   labelBgStyle: { fill: "#d1fae5", fillOpacity: 0.9 }, labelBgPadding: [4, 3], labelBgBorderRadius: 4,
   markerEnd: { type: MarkerType.ArrowClosed, color: "#10b981", width: 16, height: 16 },
@@ -807,7 +815,7 @@ const h2Edge = (id, src, tgt, srcH, tgtH, lbl) => ({
 const waterEdge = (id, src, tgt, srcH, tgtH, lbl) => ({
   id, source: src, target: tgt, sourceHandle: srcH, targetHandle: tgtH,
   type: "smoothstep", animated: true,
-  style: { stroke: "#60a5fa", strokeWidth: 2, strokeDasharray: "4 3" },
+  style: { stroke: "#60a5fa", strokeWidth: 2 },
   label: lbl, labelStyle: { fontSize: 10, fill: "#1d4ed8", fontWeight: 600 },
   labelBgStyle: { fill: "#dbeafe", fillOpacity: 0.9 }, labelBgPadding: [4, 3], labelBgBorderRadius: 4,
   markerEnd: { type: MarkerType.ArrowClosed, color: "#60a5fa", width: 14, height: 14 },
@@ -833,44 +841,35 @@ export default function H2PlantFlowDiagram({
   customProfile, onSetCustomProfile,
   genParamOverrides,
 }) {
-  const [nodes, , onNodesChange] = useNodesState(
-    Object.entries(INITIAL_POSITIONS).map(([id, position]) => ({
-      id,
-      type: id,
-      position,
-      data: {},
-    }))
-  );
   const [edges, , onEdgesChange] = useEdgesState(INITIAL_EDGES);
 
-  const liveNodes = useMemo(
-    () =>
-    nodes.map((n) => ({
-        ...n,
-        data: { elz, setElz, sto, setSto, fc, setFc, simState, kpi, models, selectedModels, onSelectModel,
-                activeNodeId, customProfile, onSetCustomProfile, genParamOverrides },
-      })),
+  // Context value — nodes read from here; the nodes array never rebuilds on
+  // state changes, so React Flow skips canvas re-layout on every update.
+  const ctxValue = useMemo(
+    () => ({ elz, setElz, sto, setSto, fc, setFc, simState, kpi,
+             models, selectedModels, onSelectModel,
+             activeNodeId, customProfile, onSetCustomProfile, genParamOverrides }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [nodes, elz, sto, fc, simState, kpi, selectedModels, models, activeNodeId, customProfile, genParamOverrides]
+    [elz, sto, fc, simState, kpi, selectedModels, models, activeNodeId, customProfile, genParamOverrides]
   );
 
+  // Edges always flow — opacity shifts with sim state for visual feedback.
   const liveEdges = useMemo(
     () =>
       edges.map((e) => ({
         ...e,
-        animated: simState !== "idle",
+        animated: true,
         style: {
           ...e.style,
-          opacity: simState === "idle" ? 0.55 : 1,
-          animationDuration:
-            simState === "running" ? "0.4s" :
-            simState === "queued"  ? "1.0s" : "2s",
+          opacity: simState === "idle" ? 0.45 : 1,
+          transition: "opacity 0.4s ease",
         },
       })),
     [edges, simState]
   );
 
   return (
+    <DiagramCtx.Provider value={ctxValue}>
     <div className="w-full rounded-2xl overflow-hidden border border-slate-700 shadow-xl" style={{ height: 560 }}>
       {/* Legend */}
       <div className="flex flex-wrap items-center gap-4 px-4 py-2 bg-slate-900 border-b border-slate-700 text-[11px]">
@@ -896,9 +895,10 @@ export default function H2PlantFlowDiagram({
       </div>
 
       <ReactFlow
-        nodes={liveNodes}
+        defaultNodes={Object.entries(INITIAL_POSITIONS).map(([id, position]) => ({
+          id, type: id, position, data: {},
+        }))}
         edges={liveEdges}
-        onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         nodeTypes={nodeTypes}
         fitView
@@ -907,6 +907,7 @@ export default function H2PlantFlowDiagram({
         minZoom={0.25}
         maxZoom={2}
         proOptions={{ hideAttribution: true }}
+        autoPanOnNodeDrag={false}
         nodesDraggable
         nodesConnectable={false}
         elementsSelectable
@@ -942,5 +943,6 @@ export default function H2PlantFlowDiagram({
         />
       </ReactFlow>
     </div>
+    </DiagramCtx.Provider>
   );
 }
