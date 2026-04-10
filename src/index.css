@@ -4,6 +4,17 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   React Flow node wrapper — GPU compositing override.
+   `will-change: transform` promotes each .react-flow__node to its own
+   compositor layer so that drag transforms are processed entirely on the GPU
+   thread, bypassing React's render cycle for 60fps instant drag.
+   ───────────────────────────────────────────────────────────────────────────── */
+.react-flow__node {
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
 /* ==========================================
    TEMPO - DESIGN SYSTEM
    Technical-Industrial Refined Aesthetic
@@ -276,4 +287,22 @@ code, pre {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   React Flow — flowing edge animation.
+   Must come AFTER the prefers-reduced-motion block so our !important rules
+   win the cascade: `.react-flow__edge.animated path` has higher specificity
+   than `*`, AND appears later in the sheet.
+   ───────────────────────────────────────────────────────────────────────────── */
+@keyframes rf-flow {
+  from { stroke-dashoffset: 24; }
+  to   { stroke-dashoffset: 0;  }
+}
+
+.react-flow__edge.animated path:not(.react-flow__edge-interaction) {
+  stroke-dasharray: 8 4 !important;
+  animation: rf-flow 1s linear infinite !important;
+  animation-duration: 1s !important;
+  animation-iteration-count: infinite !important;
 }
