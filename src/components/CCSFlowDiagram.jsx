@@ -14,7 +14,7 @@
  *   simState          {string}    – simulation state
  */
 
-import React, { useMemo, useState } from "react";
+import React, { createContext, memo, useContext, useMemo, useState } from "react";
 import {
   ReactFlow,
   Background,
@@ -23,12 +23,14 @@ import {
   Handle,
   Position,
   MarkerType,
-  useNodesState,
   useEdgesState,
   BackgroundVariant,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { FiZap, FiDroplet, FiWind, FiBox, FiDatabase } from "react-icons/fi";
+
+// Shared context — nodes read state here, not via data prop
+const DiagramCtx = createContext(null);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper: Lifecycle badge color
@@ -196,8 +198,8 @@ function ModelPicker({ slotKey, models, selected, onSelect, disabled }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // NODE: Flue Gas Source
 // ─────────────────────────────────────────────────────────────────────────────
-function SourceNode({ data, selected }) {
-  const { simState, models, selectedModels, onSelectModel, result } = data;
+const SourceNode = memo(function SourceNode({ selected }) {
+  const { simState, models, selectedModels, onSelectModel, result } = useContext(DiagramCtx);
   const slotKey = "source";
   const sel = selectedModels?.[slotKey];
   const disabled = simState === "running" || simState === "queued";
@@ -208,9 +210,9 @@ function SourceNode({ data, selected }) {
   } : null;
 
   return (
-    <div className={`bg-white rounded-xl border-2 shadow-md px-3 py-2.5 w-64 cursor-pointer
-      ${selected ? "border-orange-600 shadow-orange-100" : "border-orange-400"}
-      ${simState === "running" ? "shadow-lg shadow-orange-100" : ""}`}
+    <div className={`bg-white rounded-xl border-2 shadow-md px-3 py-2.5 w-64 cursor-pointer transition-colors duration-150
+      ${selected ? "border-orange-600 shadow-orange-100 ring-2 ring-orange-300 ring-offset-1" : "border-orange-400 hover:border-orange-500 hover:shadow-orange-100 hover:shadow-xl"}
+      ${simState === "running" && !selected ? "shadow-lg shadow-orange-100" : ""}`}
     >
       <div className="flex items-center gap-1.5 mb-1">
         <span className="p-1 rounded-lg bg-orange-50 text-orange-500"><FiZap size={12} /></span>
@@ -233,13 +235,13 @@ function SourceNode({ data, selected }) {
       <Handle type="source" position={Position.Right} id="flue-out" className="!bg-orange-400 !w-3 !h-3 !border-2 !border-white" />
     </div>
   );
-}
+}, (p, n) => p.selected === n.selected);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // NODE: CO₂ Absorber
 // ─────────────────────────────────────────────────────────────────────────────
-function AbsorberNode({ data, selected }) {
-  const { simState, models, selectedModels, onSelectModel, result } = data;
+const AbsorberNode = memo(function AbsorberNode({ selected }) {
+  const { simState, models, selectedModels, onSelectModel, result } = useContext(DiagramCtx);
   const slotKey = "absorber";
   const sel = selectedModels?.[slotKey];
   const disabled = simState === "running" || simState === "queued";
@@ -249,9 +251,9 @@ function AbsorberNode({ data, selected }) {
   } : null;
 
   return (
-    <div className={`bg-white rounded-xl border-2 shadow-md px-3 py-2.5 w-64 cursor-pointer
-      ${selected ? "border-blue-600 shadow-blue-100" : "border-blue-400"}
-      ${simState === "running" ? "shadow-lg shadow-blue-100" : ""}`}
+    <div className={`bg-white rounded-xl border-2 shadow-md px-3 py-2.5 w-64 cursor-pointer transition-colors duration-150
+      ${selected ? "border-blue-600 shadow-blue-100 ring-2 ring-blue-300 ring-offset-1" : "border-blue-400 hover:border-blue-500 hover:shadow-blue-100 hover:shadow-xl"}
+      ${simState === "running" && !selected ? "shadow-lg shadow-blue-100" : ""}`}
     >
       <Handle type="target" position={Position.Left} id="flue-in" className="!bg-orange-400 !w-3 !h-3 !border-2 !border-white" />
       <div className="flex items-center gap-1.5 mb-1">
@@ -271,13 +273,13 @@ function AbsorberNode({ data, selected }) {
       <Handle type="source" position={Position.Right} id="rich-out" className="!bg-blue-600 !w-3 !h-3 !border-2 !border-white" />
     </div>
   );
-}
+}, (p, n) => p.selected === n.selected);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // NODE: Stripper/Regenerator
 // ─────────────────────────────────────────────────────────────────────────────
-function StripperNode({ data, selected }) {
-  const { simState, models, selectedModels, onSelectModel, result } = data;
+const StripperNode = memo(function StripperNode({ selected }) {
+  const { simState, models, selectedModels, onSelectModel, result } = useContext(DiagramCtx);
   const slotKey = "stripper";
   const sel = selectedModels?.[slotKey];
   const disabled = simState === "running" || simState === "queued";
@@ -287,9 +289,9 @@ function StripperNode({ data, selected }) {
   } : null;
 
   return (
-    <div className={`bg-white rounded-xl border-2 shadow-md px-3 py-2.5 w-64 cursor-pointer
-      ${selected ? "border-red-600 shadow-red-100" : "border-red-400"}
-      ${simState === "running" ? "shadow-lg shadow-red-100" : ""}`}
+    <div className={`bg-white rounded-xl border-2 shadow-md px-3 py-2.5 w-64 cursor-pointer transition-colors duration-150
+      ${selected ? "border-red-600 shadow-red-100 ring-2 ring-red-300 ring-offset-1" : "border-red-400 hover:border-red-500 hover:shadow-red-100 hover:shadow-xl"}
+      ${simState === "running" && !selected ? "shadow-lg shadow-red-100" : ""}`}
     >
       <Handle type="target" position={Position.Left} id="rich-in" className="!bg-blue-600 !w-3 !h-3 !border-2 !border-white" />
       <div className="flex items-center gap-1.5 mb-1">
@@ -309,13 +311,13 @@ function StripperNode({ data, selected }) {
       <Handle type="source" position={Position.Right} id="co2-out" className="!bg-emerald-500 !w-3 !h-3 !border-2 !border-white" />
     </div>
   );
-}
+}, (p, n) => p.selected === n.selected);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // NODE: CO₂ Compressor
 // ─────────────────────────────────────────────────────────────────────────────
-function CompressorNode({ data, selected }) {
-  const { simState, models, selectedModels, onSelectModel, result } = data;
+const CompressorNode = memo(function CompressorNode({ selected }) {
+  const { simState, models, selectedModels, onSelectModel, result } = useContext(DiagramCtx);
   const slotKey = "compressor";
   const sel = selectedModels?.[slotKey];
   const disabled = simState === "running" || simState === "queued";
@@ -326,9 +328,9 @@ function CompressorNode({ data, selected }) {
   } : null;
 
   return (
-    <div className={`bg-white rounded-xl border-2 shadow-md px-3 py-2.5 w-64 cursor-pointer
-      ${selected ? "border-amber-600 shadow-amber-100" : "border-amber-500"}
-      ${simState === "running" ? "shadow-lg shadow-amber-100" : ""}`}
+    <div className={`bg-white rounded-xl border-2 shadow-md px-3 py-2.5 w-64 cursor-pointer transition-colors duration-150
+      ${selected ? "border-amber-600 shadow-amber-100 ring-2 ring-amber-300 ring-offset-1" : "border-amber-500 hover:border-amber-600 hover:shadow-amber-100 hover:shadow-xl"}
+      ${simState === "running" && !selected ? "shadow-lg shadow-amber-100" : ""}`}
     >
       <Handle type="target" position={Position.Left} id="co2-in" className="!bg-emerald-500 !w-3 !h-3 !border-2 !border-white" />
       <div className="flex items-center gap-1.5 mb-1">
@@ -349,13 +351,13 @@ function CompressorNode({ data, selected }) {
       <Handle type="source" position={Position.Right} id="hp-out" className="!bg-amber-600 !w-3 !h-3 !border-2 !border-white" />
     </div>
   );
-}
+}, (p, n) => p.selected === n.selected);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // NODE: CO₂ Storage
 // ─────────────────────────────────────────────────────────────────────────────
-function StorageNode({ data, selected }) {
-  const { simState, models, selectedModels, onSelectModel, result } = data;
+const StorageNode = memo(function StorageNode({ selected }) {
+  const { simState, models, selectedModels, onSelectModel, result } = useContext(DiagramCtx);
   const slotKey = "storage";
   const sel = selectedModels?.[slotKey];
   const disabled = simState === "running" || simState === "queued";
@@ -366,9 +368,9 @@ function StorageNode({ data, selected }) {
   } : null;
 
   return (
-    <div className={`bg-white rounded-xl border-2 shadow-md px-3 py-2.5 w-64 cursor-pointer
-      ${selected ? "border-emerald-600 shadow-emerald-100" : "border-emerald-500"}
-      ${simState === "running" ? "shadow-lg shadow-emerald-100" : ""}`}
+    <div className={`bg-white rounded-xl border-2 shadow-md px-3 py-2.5 w-64 cursor-pointer transition-colors duration-150
+      ${selected ? "border-emerald-600 shadow-emerald-100 ring-2 ring-emerald-300 ring-offset-1" : "border-emerald-500 hover:border-emerald-600 hover:shadow-emerald-100 hover:shadow-xl"}
+      ${simState === "running" && !selected ? "shadow-lg shadow-emerald-100" : ""}`}
     >
       <Handle type="target" position={Position.Left} id="hp-in" className="!bg-amber-600 !w-3 !h-3 !border-2 !border-white" />
       <div className="flex items-center gap-1.5 mb-1">
@@ -390,7 +392,7 @@ function StorageNode({ data, selected }) {
       <ModelPicker slotKey={slotKey} models={models?.[slotKey]} selected={sel} onSelect={onSelectModel} disabled={disabled} />
     </div>
   );
-}
+}, (p, n) => p.selected === n.selected);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // nodeTypes MUST be at module scope
@@ -407,11 +409,11 @@ const nodeTypes = {
 // Fixed node positions (users can drag to customize)
 // ─────────────────────────────────────────────────────────────────────────────
 const INITIAL_POSITIONS = {
-  source:     { x: 20,   y: 150 },
-  absorber:   { x: 280,  y: 150 },
-  stripper:   { x: 540,  y: 150 },
-  compressor: { x: 800,  y: 150 },
-  storage:    { x: 1060, y: 150 },
+  source:     { x: 30,   y: 50  },
+  absorber:   { x: 330,  y: 250 },
+  stripper:   { x: 630,  y: 50  },
+  compressor: { x: 930,  y: 250 },
+  storage:    { x: 1230, y: 50  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -420,7 +422,7 @@ const INITIAL_POSITIONS = {
 const flueGasEdge = (id, src, tgt, srcH, tgtH, lbl) => ({
   id, source: src, target: tgt, sourceHandle: srcH, targetHandle: tgtH,
   type: "smoothstep", animated: true,
-  style: { stroke: "#f97316", strokeWidth: 2.5, strokeDasharray: "4 3" },
+  style: { stroke: "#f97316", strokeWidth: 2.5 },
   label: lbl, labelStyle: { fontSize: 10, fill: "#9a3412", fontWeight: 600 },
   labelBgStyle: { fill: "#fed7aa", fillOpacity: 0.9 }, labelBgPadding: [4, 3], labelBgBorderRadius: 4,
   markerEnd: { type: MarkerType.ArrowClosed, color: "#f97316", width: 16, height: 16 },
@@ -429,7 +431,7 @@ const flueGasEdge = (id, src, tgt, srcH, tgtH, lbl) => ({
 const richSolventEdge = (id, src, tgt, srcH, tgtH, lbl) => ({
   id, source: src, target: tgt, sourceHandle: srcH, targetHandle: tgtH,
   type: "smoothstep", animated: true,
-  style: { stroke: "#3b82f6", strokeWidth: 2.5, strokeDasharray: "6 3" },
+  style: { stroke: "#3b82f6", strokeWidth: 2.5 },
   label: lbl, labelStyle: { fontSize: 10, fill: "#1e3a8a", fontWeight: 600 },
   labelBgStyle: { fill: "#bfdbfe", fillOpacity: 0.9 }, labelBgPadding: [4, 3], labelBgBorderRadius: 4,
   markerEnd: { type: MarkerType.ArrowClosed, color: "#3b82f6", width: 16, height: 16 },
@@ -438,7 +440,7 @@ const richSolventEdge = (id, src, tgt, srcH, tgtH, lbl) => ({
 const pureCO2Edge = (id, src, tgt, srcH, tgtH, lbl) => ({
   id, source: src, target: tgt, sourceHandle: srcH, targetHandle: tgtH,
   type: "smoothstep", animated: true,
-  style: { stroke: "#10b981", strokeWidth: 2.5, strokeDasharray: "5 3" },
+  style: { stroke: "#10b981", strokeWidth: 2.5 },
   label: lbl, labelStyle: { fontSize: 10, fill: "#065f46", fontWeight: 600 },
   labelBgStyle: { fill: "#d1fae5", fillOpacity: 0.9 }, labelBgPadding: [4, 3], labelBgBorderRadius: 4,
   markerEnd: { type: MarkerType.ArrowClosed, color: "#10b981", width: 16, height: 16 },
@@ -447,7 +449,7 @@ const pureCO2Edge = (id, src, tgt, srcH, tgtH, lbl) => ({
 const compressedCO2Edge = (id, src, tgt, srcH, tgtH, lbl) => ({
   id, source: src, target: tgt, sourceHandle: srcH, targetHandle: tgtH,
   type: "smoothstep", animated: true,
-  style: { stroke: "#f59e0b", strokeWidth: 3, strokeDasharray: "8 4" },
+  style: { stroke: "#f59e0b", strokeWidth: 3 },
   label: lbl, labelStyle: { fontSize: 10, fill: "#78350f", fontWeight: 600 },
   labelBgStyle: { fill: "#fde68a", fillOpacity: 0.9 }, labelBgPadding: [4, 3], labelBgBorderRadius: 4,
   markerEnd: { type: MarkerType.ArrowClosed, color: "#f59e0b", width: 18, height: 18 },
@@ -472,43 +474,30 @@ export default function CCSFlowDiagram({
   onSelectCcsModel,
   simState 
 }) {
-  const [nodes, , onNodesChange] = useNodesState(
-    Object.entries(INITIAL_POSITIONS).map(([id, position]) => ({
-      id,
-      type: id,
-      position,
-      data: {},
-    }))
-  );
   const [edges, , onEdgesChange] = useEdgesState(INITIAL_EDGES);
 
-  // Stable data object to prevent re-renders during drag
-  const nodeData = useMemo(
+  // Context value — nodes read state here; nodes array never rebuilds during drag.
+  const ctxValue = useMemo(
     () => ({ simState, result, models: ccsModels, selectedModels: selectedCcsModels, onSelectModel: onSelectCcsModel }),
     [simState, result, ccsModels, selectedCcsModels, onSelectCcsModel]
   );
 
-  const liveNodes = useMemo(
-    () => nodes.map((n) => ({ ...n, data: nodeData })),
-    [nodes, nodeData]
-  );
-
+  // Edges always flow — opacity only shifts with sim state.
   const liveEdges = useMemo(
-    () => edges.map((e) => {
-        const isActive = simState === "running" || simState === "queued";
-        return {
-          ...e,
-          animated: isActive,
-          style: {
-            ...e.style,
-            opacity: simState === "idle" ? 0.6 : 1,
-          },
-        };
-      }),
+    () => edges.map((e) => ({
+      ...e,
+      animated: true,
+      style: {
+        ...e.style,
+        opacity: simState === "idle" ? 0.45 : 1,
+        transition: "opacity 0.4s ease",
+      },
+    })),
     [edges, simState]
   );
 
   return (
+    <DiagramCtx.Provider value={ctxValue}>
     <div className="w-full rounded-2xl overflow-hidden border border-slate-700 shadow-xl" style={{ height: 560 }}>
       {/* Legend */}
       <div className="flex flex-wrap items-center gap-4 px-4 py-2 bg-slate-900 border-b border-slate-700 text-[11px]">
@@ -538,9 +527,10 @@ export default function CCSFlowDiagram({
       </div>
 
       <ReactFlow
-        nodes={liveNodes}
+        defaultNodes={Object.entries(INITIAL_POSITIONS).map(([id, position]) => ({
+          id, type: id, position, data: {},
+        }))}
         edges={liveEdges}
-        onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         nodeTypes={nodeTypes}
         fitView
@@ -549,6 +539,7 @@ export default function CCSFlowDiagram({
         minZoom={0.25}
         maxZoom={2}
         proOptions={{ hideAttribution: true }}
+        autoPanOnNodeDrag={false}
         nodesDraggable
         nodesConnectable={false}
         elementsSelectable
@@ -587,5 +578,6 @@ export default function CCSFlowDiagram({
         />
       </ReactFlow>
     </div>
+    </DiagramCtx.Provider>
   );
 }
