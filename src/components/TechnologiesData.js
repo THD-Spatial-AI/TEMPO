@@ -738,7 +738,7 @@ export async function fetchLiveTechTemplates() {
     grouped.demand = TECH_TEMPLATES.demand || [];
 
     // Fill missing categories from static templates as fallback
-    ['supply_plus', 'supply', 'storage', 'conversion_plus', 'transmission'].forEach(cat => {
+    ['supply_plus', 'supply', 'storage', 'conversion_plus', 'conversion', 'transmission', 'distribution'].forEach(cat => {
       if (!grouped[cat] || grouped[cat].length === 0) {
         grouped[cat] = TECH_TEMPLATES[cat] || [];
         console.info(`[OEO] Category '${cat}' not in API - using static templates.`);

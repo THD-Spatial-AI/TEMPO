@@ -711,6 +711,8 @@ const LocationEditDialog = ({
                     </div>
                   ) : (
                     <div className="space-y-2">
+                      {/* Note: transmission lines/pipelines are for links only. 
+                          Transformers/substations are point infrastructure and can be added to locations. */}
                       {[
                         { key: 'supply_plus', label: 'Variable Renewables' },
                         { key: 'supply',      label: 'Dispatchable Generation' },
@@ -718,8 +720,30 @@ const LocationEditDialog = ({
                         { key: 'storage',     label: 'Storage' },
                         { key: 'conversion_plus', label: 'Sector Coupling' },
                         { key: 'conversion',  label: 'Conversion' },
+                        { key: 'transmission', label: 'Substations & Transformers' },
                       ].map(({ key: parentType, label: categoryLabel }) => {
-                        const techsInCategory = Object.entries(techMap).filter(([, tech]) => tech.parent === parentType);
+                        // For transmission, only show point infrastructure (transformers/substations)
+                        // Exclude line/pipeline techs (cables, pipelines, networks)
+                        const techsInCategory = Object.entries(techMap).filter(([techName, tech]) => {
+                          if (tech.parent !== parentType) return false;
+                          if (parentType === 'transmission') {
+                            // Only include point infrastructure: transformers and substations
+                            // Exclude: lines, cables, pipelines, networks, overhead, subsea, underground, heating, cooling
+                            const lowerName = (techName || '').toLowerCase();
+                            const lowerLabel = (tech.name || '').toLowerCase();
+                            const excludedKeywords = [
+                              'line', 'cable', 'pipeline', 'network', 'overhead', 'subsea', 
+                              'underground', 'heating', 'cooling', 'hvac', 'hvdc', 'district'
+                            ];
+                            const isLinear = excludedKeywords.some(keyword => 
+                              lowerName.includes(keyword) || lowerLabel.includes(keyword)
+                            );
+                            // Also exclude if has per_distance cost (definitive sign it's a line/pipeline)
+                            const hasPerDistanceCost = tech.costs?.monetary?.energy_cap_per_distance !== undefined;
+                            return !isLinear && !hasPerDistanceCost;
+                          }
+                          return true;
+                        });
                         if (techsInCategory.length === 0) return null;
                         const catExpanded = expandedCategories[`dialog_${parentType}`];
                         return (

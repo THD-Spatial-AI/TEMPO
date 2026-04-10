@@ -474,7 +474,7 @@ function GridNode({ data, selected }) {
     <div
       className={`bg-white rounded-xl border-2 shadow-md px-3 py-2.5 w-52 cursor-pointer transition-shadow
         ${ isActive
-            ? "border-sky-500 shadow-sky-200 shadow-lg ring-2 ring-sky-300 ring-offset-1"
+            ? "border-gray-700 shadow-gray-200 shadow-lg ring-2 ring-gray-400 ring-offset-1"
             : selected ? "border-amber-600 shadow-amber-100" : "border-amber-400 hover:border-amber-500 hover:shadow-amber-100 hover:shadow-lg"
           }
       `}
@@ -515,7 +515,7 @@ function GridNode({ data, selected }) {
       {/* Click-to-analyse affordance */}
       <div className={`mt-2 pt-1.5 border-t flex items-center justify-center gap-1 text-[10px] font-medium rounded-b transition-colors
         ${ isActive
-            ? "border-sky-200 text-sky-600"
+            ? "border-gray-400 text-gray-600"
             : "border-slate-100 text-slate-400 hover:text-amber-500"
           }
       `}>

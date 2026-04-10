@@ -620,7 +620,7 @@ function MetricBadge({ label, value, unit, color = "slate", wide = false }) {
     blue:    "bg-blue-50   border-blue-200   text-blue-700",
     slate:   "bg-slate-50  border-slate-200  text-slate-700",
     red:     "bg-red-50    border-red-200    text-red-700",
-    indigo:  "bg-indigo-50 border-indigo-200 text-indigo-700",
+    indigo:  "bg-gray-50 border-gray-200 text-gray-700",
   };
   return (
     <div className={`rounded-xl border px-3 py-2 ${palettes[color] ?? palettes.slate} ${wide ? "col-span-2" : ""}`}>
@@ -756,7 +756,7 @@ export default function H2ElectrolyzerPanel({
   if (!selectedModel) {
     return (
       <div className="bg-white rounded-2xl border border-dashed border-slate-200 p-8 flex flex-col items-center justify-center text-center gap-3">
-        <span className="p-4 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-400">
+        <span className="p-4 rounded-full bg-gray-50 border border-gray-200 text-gray-400">
           <FiCpu size={24} />
         </span>
         <p className="font-medium text-slate-600">Select an electrolyzer technology in the flow diagram above</p>
@@ -790,7 +790,7 @@ export default function H2ElectrolyzerPanel({
                   {effectiveModel.lifecycle ?? "commercial"}
                 </span>
                 {hasOverrides && (
-                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-600">✏ edited</span>
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">✏ edited</span>
                 )}
               </div>
               <p className="text-[11px] text-slate-500 mt-0.5">{meta.tagline}</p>
@@ -1064,7 +1064,7 @@ export default function H2ElectrolyzerPanel({
             {activeVariant ? `– ${activeVariant.name}` : "– opentech-db defaults"}
           </span>
           {hasOverrides && (
-            <span className="ml-1 px-1.5 py-0.5 text-[10px] bg-indigo-100 text-indigo-600 rounded-full font-medium">
+            <span className="ml-1 px-1.5 py-0.5 text-[10px] bg-gray-100 text-gray-600 rounded-full font-medium">
               {Object.keys(localParams).filter((k) => k !== "_variantId").length} edited
             </span>
           )}

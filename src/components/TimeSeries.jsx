@@ -64,10 +64,18 @@ const TimeSeries = () => {
     alert(message);
   };
 
+  // Fallback CSV files per templateId when model.timeSeries is empty (e.g. after reload)
+  const TEMPLATE_CSV_FILES = {
+    'german':   ['german_demand_2024.csv'],
+    'european': ['european_demand_2024.csv'],
+    'chilean':  ['total_demand_2024.csv', 'resource_pv_2024.csv', 'resource_wind_2024.csv'],
+    'usa':      [],
+  };
+
   // Load CSV files from template when model loads
   useEffect(() => {
     const loadTemplateTimeSeriesFiles = async () => {
-      if (!currentModel || !currentModel.timeSeries || currentModel.timeSeries.length === 0) {
+      if (!currentModel) {
         return;
       }
 
@@ -88,8 +96,22 @@ const TimeSeries = () => {
       setLoading(true);
       
       try {
-        // Get unique CSV files from the model's timeseries
-        const uniqueFiles = [...new Set(currentModel.timeSeries.map(ts => ts.file).filter(Boolean))];
+        // Get templateId first so we can use it for the fallback file list
+        let templateId = currentModel.metadata?.templateId;
+        // Infer from model name if not stored
+        if (!templateId) {
+          const nameLower = (currentModel.name || '').toLowerCase();
+          if (nameLower.includes('german')) templateId = 'german';
+          else if (nameLower.includes('chilean') || nameLower.includes('chile')) templateId = 'chilean';
+          else if (nameLower.includes('european') || nameLower.includes('europe')) templateId = 'european';
+          else if (nameLower.includes('usa') || nameLower.includes('american')) templateId = 'usa';
+        }
+
+        // Get unique CSV files from the model's timeseries; fall back to known template file list
+        let uniqueFiles = [...new Set((currentModel.timeSeries || []).map(ts => ts.file).filter(Boolean))];
+        if (uniqueFiles.length === 0 && templateId && TEMPLATE_CSV_FILES[templateId]) {
+          uniqueFiles = TEMPLATE_CSV_FILES[templateId];
+        }
         
         console.log('Unique CSV files to load:', uniqueFiles);
         
@@ -103,9 +125,6 @@ const TimeSeries = () => {
         
         for (const fileName of uniqueFiles) {
           try {
-            // Get templateId and map to folder name
-            let templateId = currentModel.metadata?.templateId;
-            
             // Map template IDs to actual folder names
             const templateFolderMap = {
               'european': 'european_network',
