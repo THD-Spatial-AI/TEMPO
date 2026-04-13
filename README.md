@@ -269,24 +269,18 @@ backend-go/
     └── overpass/      # Overpass API queries
 
 python/
-└── calliope_runner.py # Converts model JSON → YAML, runs Calliope
+├── calliope_runner.py      # Converts model YAML, runs Calliope
+├── calliope_service.py     # FastAPI HTTP service wrapping the runner (port 5000)
+└── adapters/               # Framework adapters (Calliope, PyPSA, OSeMOSYS)
 
 osm_processing/        # Download + extract OSM power data
-techs/                 # Calliope technology YAML templates
 electron/              # Electron main + preload scripts
 scripts/               # Setup and import helper scripts
 ```
 
-## Technology Templates
+## Technology Library
 
-Pre-built templates in `techs/`:
-
-- `techs_conventional.yaml` – gas, coal, nuclear, etc.
-- `techs_renewable.yaml` – solar PV, wind onshore/offshore
-- `techs_storage.yaml` – batteries, pumped hydro
-- `techs_h2.yaml` – hydrogen technologies
-- `techs_demand.yaml` – demand nodes
-- `techs_transmission.yaml` – AC/DC transmission links
+Technology definitions (renewable, conventional, storage, hydrogen, CCS, demand, transmission) are bundled in `src/components/TechnologiesData.js`. They can be enriched at runtime by a local OEO Technology Database API (port 8005). No separate YAML template files are required.
 
 ## Notes
 

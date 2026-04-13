@@ -26,4 +26,4 @@ The following scenarios make the quality goals from the introduction concrete an
 
 ### Extensibility
 
-- Adding a new technology category requires only adding a new YAML file to the `techs/` directory and registering one entry in the technology loader; no other source files need to be changed.
+- Adding a new technology category requires only adding an entry to `src/components/TechnologiesData.js`; no other source files need to be changed.
