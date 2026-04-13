@@ -30,7 +30,7 @@ const LS_KEY = 'calliopeModels';
 
 function saveToLocalStorage(models) {
   try {
-    const toSave = models.map(m => ({ ...m, timeSeries: [] }));
+    const toSave = models.map(prepareModelForBackend);
     localStorage.setItem(LS_KEY, JSON.stringify(toSave));
   } catch (e) {
     if (e.name === 'QuotaExceededError') {
@@ -52,6 +52,23 @@ function loadFromLocalStorage() {
     localStorage.removeItem(LS_KEY);
   }
   return [];
+}
+
+// Strip runtime-only large fields from location objects before persisting.
+// demandProfile / resourcePV / resourceWind contain full timeseries arrays
+// (up to 8760 values × thousands of locations) that balloon payloads to ~88 MB.
+// The Python runner and the TimeSeries editor re-read these from template CSV files.
+function stripHeavyLocationFields(loc) {
+  const { demandProfile, resourcePV, resourceWind, hasDemand, totalDemandMWh, ...rest } = loc;
+  return rest;
+}
+
+function prepareModelForBackend(model) {
+  return {
+    ...model,
+    timeSeries: [],
+    locations: (model.locations || []).map(stripHeavyLocationFields),
+  };
 }
 
 // ─── Provider ──────────────────────────────────────────────────────────────
@@ -250,8 +267,10 @@ export const DataProvider = ({ children }) => {
     if (stateRef.current.backendAvailable) {
       // Pre-validate that the payload can be serialized before sending.
       let payload;
+      const modelForBackend = prepareModelForBackend(newModel);
+
       try {
-        payload = JSON.stringify({ ...newModel, timeSeries: [] });
+        payload = JSON.stringify(modelForBackend);
       } catch (serError) {
         console.error('Model contains non-serializable data, skipping backend save:', serError);
         showNotification('Model saved locally (serialization error).', 'warning');
@@ -260,7 +279,7 @@ export const DataProvider = ({ children }) => {
       import.meta.env.DEV && console.log(`Saving model to backend, payload size: ${(payload.length / 1024).toFixed(1)} KB`);
 
       pendingSaveIds.current.add(tempId);
-      api.saveModel({ ...newModel, timeSeries: [] })
+      api.saveModel(modelForBackend)
         .then(result => {
           const finalId = result?.id ?? tempId;
           pendingSaveIds.current.delete(tempId);
@@ -321,7 +340,7 @@ export const DataProvider = ({ children }) => {
         const updatedModel = updated.find(m => m.id === currentModelId);
         if (updatedModel) {
           activePutIds.current.add(currentModelId);
-          api.updateModel(currentModelId, { ...updatedModel, timeSeries: [] })
+          api.updateModel(currentModelId, prepareModelForBackend(updatedModel))
             .catch(e => console.error('Failed to sync model to backend:', e))
             .finally(() => activePutIds.current.delete(currentModelId));
         }
@@ -367,7 +386,7 @@ export const DataProvider = ({ children }) => {
     if (stateRef.current.backendAvailable) {
       const model = stateRef.current.models.find(m => m.id === modelId);
       if (model && confirmedBackendIds.current.has(modelId)) {
-        api.updateModel(modelId, { ...model, name: newName, timeSeries: [] })
+        api.updateModel(modelId, prepareModelForBackend({ ...model, name: newName }))
           .catch(e => console.error('Failed to rename model in backend:', e));
       }
     }

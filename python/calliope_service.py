@@ -30,6 +30,12 @@ import time
 import uuid
 from typing import Any, Dict
 
+try:
+    import psutil as _psutil
+    _HAS_PSUTIL = True
+except ImportError:
+    _HAS_PSUTIL = False
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import StreamingResponse
@@ -95,6 +101,57 @@ def _cleanup_old_jobs() -> None:
 # Worker thread
 # ---------------------------------------------------------------------------
 
+_STATS_INTERVAL_SECONDS = 10  # how often to emit a [STATS] log line
+
+
+def _stats_monitor_thread(job_id: str, push_fn, stop_event: threading.Event) -> None:
+    """
+    Runs in its own daemon thread alongside the Calliope worker.
+    Every _STATS_INTERVAL_SECONDS it pushes a 'stats' SSE event with RAM/CPU info
+    so the frontend can render a live resource panel.
+    """
+    start = time.time()
+    if _HAS_PSUTIL:
+        proc = _psutil.Process(os.getpid())
+    else:
+        proc = None
+
+    while not stop_event.wait(timeout=_STATS_INTERVAL_SECONDS):
+        with _jobs_lock:
+            status = _jobs.get(job_id, {}).get("status", "done")
+        if status != "running":
+            break
+
+        elapsed = int(time.time() - start)
+        minutes, secs = divmod(elapsed, 60)
+        elapsed_str = f"{minutes}m {secs:02d}s" if minutes else f"{secs}s"
+
+        if proc and _HAS_PSUTIL:
+            try:
+                mem_mb = proc.memory_info().rss / (1024 * 1024)
+                cpu_pct = _psutil.cpu_percent(interval=None)
+                vm = _psutil.virtual_memory()
+                ram_total_gb = vm.total / (1024 ** 3)
+                ram_used_gb  = vm.used  / (1024 ** 3)
+                ram_pct      = vm.percent
+                push_fn({
+                    "type": "stats",
+                    "elapsed": elapsed_str,
+                    "cpu_pct": round(cpu_pct, 1),
+                    "proc_ram_mb": round(mem_mb, 1),
+                    "sys_ram_used_gb": round(ram_used_gb, 2),
+                    "sys_ram_total_gb": round(ram_total_gb, 2),
+                    "sys_ram_pct": round(ram_pct, 1),
+                })
+            except Exception:
+                push_fn({"type": "stats", "elapsed": elapsed_str,
+                         "cpu_pct": None, "proc_ram_mb": None,
+                         "sys_ram_pct": None})
+        else:
+            push_fn({"type": "stats", "elapsed": elapsed_str,
+                     "cpu_pct": None, "proc_ram_mb": None, "sys_ram_pct": None})
+
+
 def _run_job_thread(job_id: str, model_data: dict) -> None:
     """Runs in a background thread; pushes SSE events to the async queue."""
     job = _jobs[job_id]
@@ -112,11 +169,28 @@ def _run_job_thread(job_id: str, model_data: dict) -> None:
                 return
         _push({"type": "log", "line": msg})
 
+    # Keys whose values can be large timeseries arrays — kept server-side, fetched
+    # via GET /run/{job_id}/result so the SSE message stays small.
+    _HEAVY_KEYS = ("dispatch", "transmission_flow", "timestamps", "demand_timeseries")
+
+    # Start resource monitor
+    _stop_stats = threading.Event()
+    _stats_thread = threading.Thread(
+        target=_stats_monitor_thread,
+        args=(job_id, _push, _stop_stats),
+        daemon=True,
+        name=f"stats-{job_id[:8]}",
+    )
+    _stats_thread.start()
+
     try:
         result = calliope_runner.run_model(model_data, work_dir, log_fn=_log_fn)
-        _push({"type": "done", "result": result})
         with _jobs_lock:
             job.update(status="done", result=result, finished_at=time.time())
+        # Only send lightweight summary in the SSE event to avoid crashing
+        # the browser EventSource with a 50-100 MB JSON blob.
+        summary = {k: v for k, v in result.items() if k not in _HEAVY_KEYS}
+        _push({"type": "done", "result": summary})
     except Exception as exc:
         import traceback as _tb
         tb = _tb.format_exc()
@@ -125,6 +199,7 @@ def _run_job_thread(job_id: str, model_data: dict) -> None:
         with _jobs_lock:
             job.update(status="error", finished_at=time.time())
     finally:
+        _stop_stats.set()
         shutil.rmtree(work_dir, ignore_errors=True)
         _cleanup_old_jobs()
 
@@ -205,6 +280,24 @@ async def stream_run(job_id: str) -> StreamingResponse:
             "X-Accel-Buffering": "no",  # disable Nginx buffering
         },
     )
+
+
+@app.get("/run/{job_id}/result")
+async def get_result(job_id: str) -> dict:
+    """
+    Return the full result dict for a completed job (including heavy timeseries).
+    The SSE /stream endpoint sends only a lightweight summary in the 'done' event;
+    the frontend fetches this endpoint afterwards to get dispatch, transmission_flow, etc.
+    """
+    with _jobs_lock:
+        job = _jobs.get(job_id)
+
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.get("status") != "done" or job.get("result") is None:
+        raise HTTPException(status_code=404, detail="Result not yet available")
+
+    return job["result"]
 
 
 @app.delete("/run/{job_id}")
