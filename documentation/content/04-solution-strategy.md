@@ -24,10 +24,17 @@ All model data is stored in a single SQLite file located in the Electron user-da
 
 The user interface is built with React 19 and bundled by Vite. Tailwind CSS is used for styling to avoid shipping a large CSS framework and to keep component styles co-located with their JSX. Deck.gl and MapLibre GL handle the map rendering layer, chosen because they support both raster tiles and custom GeoJSON layers with acceptable performance for the expected model sizes.
 
-## Python Runner as a Thin Adapter
+## Python Runner as an HTTP Adapter
 
-Rather than embedding Calliope's Python API calls inside the Go backend through a bridging mechanism, a dedicated Python script (`calliope_runner.py`) acts as an adapter. The script accepts a JSON model definition on disk, converts it to the YAML structure expected by Calliope, runs the optimization, and writes a JSON result file. This keeps the interface between Go and Python minimal and easy to test in isolation.
+Rather than embedding Calliope's Python API calls inside the Go backend, a dedicated Python service (`calliope_service.py`) acts as an HTTP adapter. The service is a FastAPI application that:
 
-## Technology Templates as Static YAML
+1. Accepts a multipart POST request containing the model YAML and run configuration.
+2. Delegates to `calliope_runner.py` in a worker thread, which converts parameters and calls the Calliope Python API.
+3. Streams tagged log lines (`[CALLIOPE] ...`) as Server-Sent Events while the solver runs.
+4. Returns the full result JSON when the job completes.
 
-Predefined technology configurations (renewable, conventional, storage, transmission, hydrogen, demand) are stored as static YAML template files in the `techs/` directory. The frontend reads these at startup and presents them as a selectable library. This makes it easy to add or update technology definitions without touching application code.
+This keeps the Go-to-Python interface a simple REST contract and allows the solver service to be deployed as a Docker container (`docker-compose.yml`) independently from the Electron host. The service can also be run locally via `uvicorn` during development.
+
+## Technology Library in the Frontend
+
+Predefined technology configurations (renewable, conventional, storage, transmission, hydrogen, demand, CCS) are defined as JavaScript data structures in `src/components/TechnologiesData.js`. The frontend reads these at startup and presents them as a selectable library. They can optionally be enriched at runtime by a local OEO Technology Database API service on port 8005, which supplies up-to-date techno-economic parameters aligned with the Open Energy Ontology. This separation makes it easy to add or update technology definitions without touching the backend or deployment configuration.

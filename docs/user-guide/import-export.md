@@ -74,8 +74,10 @@ Several example models are distributed with the application as pre-filled CSV fi
 
 | File set | Description |
 |---|---|
-| `european_locations.csv` / `european_links.csv` | Major European nodes and HVDC/AC interconnections |
-| `usa_locations.csv` / `usa_links.csv` | US regional transmission zones |
+| `locations_template.csv` / `links_template.csv` / `parameters_template.csv` | Blank starter templates with correct column headers |
+| `european_locations.csv` / `european_links.csv` / `european_parameters.csv` | Major European nodes and HVDC/AC interconnections |
+| `european_network/` | Complete European network model folder |
+| `usa_locations.csv` / `usa_links.csv` / `usa_parameters.csv` | US regional transmission zones |
 | `german_energy_system/` | Multi-sector German system model |
 | `chilean_energy_grid/` | Chilean national grid |
 

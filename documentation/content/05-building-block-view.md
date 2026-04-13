@@ -15,7 +15,7 @@ The frontend is organized around the following component groups:
 - **Model Management** (`Models.jsx`, `ModelSelector.jsx`, `CalliopeModels.jsx`): creation, listing, selection, and deletion of models persisted in the backend.
 - **Map View** (`Map.jsx`, `MapDeckGL.jsx`, `MapView.jsx`, `MapToolbar.jsx`): interactive map built on MapLibre GL and Deck.gl showing model locations, transmission links, and OSM infrastructure layers.
 - **Data Entry** (`Locations.jsx`, `Links.jsx`, `Technologies.jsx`, `Parameters.jsx`, `TimeSeries.jsx`, `Scenarios.jsx`, `Overrides.jsx`, `Configuration.jsx`): form-based screens for editing every section of a Calliope model.
-- **Import / Export** (`BulkImport.jsx`, `Export.jsx`, `ExportCalliope.jsx`, `CSVUploader.jsx`): CSV bulk import for locations and links, and export to YAML or ZIP.
+- **Import / Export** (`BulkImport.jsx`, `Export.jsx`, `CSVUploader.jsx`): CSV bulk import for locations and links, and export to YAML or ZIP.
 - **Solver Integration** (`Run.jsx`, `Results.jsx`): job submission, live log streaming, and results visualisation.
 - **OSM Tools** (`OsmInfrastructurePanel.jsx`, `GeoServerRegionSelector.jsx`, `RegionSelectionStepper.jsx`): region selection and display of real power infrastructure data on the map.
 - **Shared UI** (`Dashboard.jsx`, `Sidebar.jsx`, `Notification.jsx`, `ErrorBoundary.jsx`, `Tutorial.jsx`, `ModelStructureTutorial.jsx`, `SetupScreen.jsx`): navigation chrome, notifications, and onboarding screens.
@@ -35,11 +35,12 @@ The backend is structured into the following internal packages:
 
 ## Level 2 -- Python Runner
 
-`python/calliope_runner.py` receives a model JSON file path and an output JSON file path as command-line arguments. Internally it:
+`python/calliope_service.py` is a FastAPI HTTP service (port 5000) that exposes the optimization engine over REST. On receiving a POST request with a model YAML and run configuration, it delegates to `calliope_runner.py`, which:
 
-1. Parses the model JSON written by the Go backend.
-2. Converts locations, links, technologies, time series references, and parameters into the YAML structure expected by Calliope.
-3. Writes a temporary YAML model file to a working directory.
-4. Calls the Calliope Python API to run the optimization.
-5. Serializes the optimization results to the output JSON file.
-6. Prints tagged log lines (`[CALLIOPE] ...`) to stdout, which the Electron main process captures and forwards to the renderer via IPC.
+1. Parses the model YAML and validates parameters.
+2. Writes a temporary Calliope YAML structure to a working directory.
+3. Calls the Calliope Python API to run the optimization.
+4. Serializes the optimization results to a JSON response.
+5. Emits tagged log lines (`[CALLIOPE] ...`) as Server-Sent Events, which the Go backend forwards to the Electron renderer.
+
+The `python/adapters/calliope_adapter.py` module contains the conversion logic from the application's model JSON to Calliope YAML. Alternative adapters for PyPSA and OSeMOSYS exist in the same package (experimental).

@@ -15,21 +15,21 @@
 
 **Consequences**: Adds a process-management responsibility to the Electron main process (start, health-check, stop). In exchange, the backend can be developed, tested, and updated independently of the Electron packaging, and it could be deployed as a remote server without changes.
 
-## ADR-03: Python Subprocess for Calliope Execution
+## ADR-03: Python HTTP Service for Calliope Execution
 
-**Context**: Calliope is a Python library. The options were to call it from a persistent Python service, run it as a one-shot subprocess per job, or embed a Python interpreter.
+**Context**: Calliope is a Python library. The options were to call it from a persistent HTTP service, run it as a one-shot subprocess per job, or embed a Python interpreter.
 
-**Decision**: Spawn a new Python subprocess for each job using the user's existing conda/venv environment.
+**Decision**: Implement a FastAPI HTTP service (`calliope_service.py`) that wraps `calliope_runner.py`. The Go backend calls this service via a REST endpoint rather than spawning a subprocess directly.
 
-**Consequences**: Startup overhead per job is higher than a persistent service, but there are no inter-job memory leaks, no need to manage a long-running Python daemon, and the user can update the Calliope installation independently.
+**Consequences**: The service must be running before solver jobs can be submitted (one additional process to manage). In exchange, the solver is independently deployable as a Docker container, supports streaming log output via Server-Sent Events, and can be scaled or replaced without changing the Go backend. The service lifetime is decoupled from individual solver jobs, eliminating per-job interpreter startup overhead.
 
-## ADR-04: JSON as the Go-to-Python Interface
+## ADR-04: Multipart HTTP as the Go-to-Python Interface
 
 **Context**: The Go backend must transfer a complete model definition to the Python runner and receive results back.
 
-**Decision**: Write the model as a JSON file before spawning the process; the runner writes results to a second JSON file. The two file paths are passed as command-line arguments.
+**Decision**: The Go backend serialises the model to YAML in memory and sends it as a multipart HTTP POST to `calliope_service.py`. Results are returned as JSON in the HTTP response.
 
-**Consequences**: The interface is simple and debuggable (both files can be inspected with any text editor). It avoids the complexity of a socket-based inter-process protocol.
+**Consequences**: The interface is well-defined by the FastAPI route contract and does not require temporary files on disk. Log output streams back via Server-Sent Events, removing the need for IPC-level log forwarding from the Electron main process.
 
 ## ADR-05: No Authentication
 

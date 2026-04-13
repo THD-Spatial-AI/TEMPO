@@ -88,6 +88,38 @@ The development frontend picks up the conda environment you configure in the Set
 
 ---
 
+## Calliope runner service
+
+The Go backend calls the Calliope optimization engine through an HTTP service (`python/calliope_service.py`) rather than spawning a subprocess directly. The service must be running before you can submit solver jobs.
+
+### Option A — run locally
+
+```bash
+cd python
+pip install -r requirements.service.txt
+uvicorn calliope_service:app --host 0.0.0.0 --port 5000 --reload
+```
+
+The service starts at `http://localhost:5000`. Verify it is up:
+
+```bash
+curl http://localhost:5000/health
+# { "status": "ok" }
+```
+
+### Option B — run with Docker
+
+```bash
+docker compose up calliope-runner
+```
+
+The `docker-compose.yml` at the project root builds the container and maps it to host port 5000. The Go backend's `config.yaml` points to `http://localhost:5000`.
+
+!!! tip "Hot reload"
+    The Docker volume mounts `python/` as read-only into the container. Restart the container after editing the runner scripts.
+
+---
+
 ## Linting
 
 ```bash

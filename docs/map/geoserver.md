@@ -18,18 +18,18 @@ The project includes a PowerShell setup script that pulls the required Docker co
 
 ```powershell
 cd scripts
-.\import_osm_docker.ps1 -Region Europe/Germany
+.\setup_geoserver_docker.ps1 -LoadRegion "Europe/Germany"
 ```
 
 This script:
 
-1. Pulls and starts a `postgis/postgis` container.
-2. Pulls and starts a `kartoza/geoserver` container.
-3. Creates the `osm` database and schema in PostGIS.
+1. Pulls and starts a `postgis/postgis` container (port 5432).
+2. Pulls and starts a `kartoza/geoserver` container (port 8080).
+3. Creates the `osm` database schema in PostGIS.
 4. Calls `osm_processing/upload_to_postgis.py` to import the OSM power infrastructure GeoJSON files.
-5. Calls `osm_processing/configure_geoserver.py` to publish the PostGIS tables as WFS/WMS layers.
+5. Calls `osm_processing/configure_geoserver.py` to publish the PostGIS tables as WFS layers.
 
-The script accepts a `-Region` parameter specifying which continent/country data to import. Run it once per region.
+The script accepts a `-LoadRegion` parameter specifying which continent/country data to import. Run it once per region. Use `-Reset` to tear down and recreate containers from scratch.
 
 ---
 
@@ -60,6 +60,10 @@ Add these to your startup sequence or create a scheduled task if you want the se
 
 ## Verifying the setup
 
-Open a browser and go to `http://localhost:8080/geoserver/web`. Log in with the default credentials (`admin` / `geoserver`). In the **Layer Preview** section you should see layers named `osm:substations`, `osm:power_plants`, `osm:power_lines`, and `osm:boundaries`.
+Open a browser and go to `http://localhost:8080/geoserver/web`. Log in with the default credentials (`admin` / `geoserver`). In the **Layer Preview** section you should see layers named `osm:osm_substations`, `osm:osm_power_plants`, `osm:osm_power_lines`, `osm:osm_communes`, and `osm:osm_districts`.
 
-If any layers are missing, re-run `configure_geoserver.py` with the `--force` flag.
+If any layers are missing, re-run `configure_geoserver.py` from the `osm_processing/` directory.
+
+!!! tip "Backend GeoServer URL"
+    The Go backend connects to GeoServer on `http://localhost:8081/geoserver` (configurable in `backend-go/config.yaml`). The browser-accessible web UI uses port 8080. If port 8080 is already in use, the Docker port mapping can be changed in the setup script.
+
