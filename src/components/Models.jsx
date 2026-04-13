@@ -538,7 +538,10 @@ const Models = () => {
           coordinates: {
             lat: lat,
             lon: lon
-          }
+          },
+          // Preserve CSV metadata columns (small strings, survive persistence)
+          demand_types: (loc.demand_types || loc.demand_type || '').toString().trim(),
+          resource_files: (loc.resource_files || loc.resource_file || '').toString().trim(),
         };
 
         // Add demand timeseries data if this location has demand profile
@@ -970,6 +973,8 @@ const Models = () => {
         lat: lat,       // Keep for backward compatibility
         lon: lon,       // Keep for backward compatibility
         type: loc.type || loc.Type || 'site',
+        demand_types: (loc.demand_types || loc.demand_type || '').toString().trim(),
+        resource_files: (loc.resource_files || loc.resource_file || '').toString().trim(),
         techs: {}
       };
 

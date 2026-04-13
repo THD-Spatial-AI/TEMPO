@@ -29,6 +29,13 @@ const TimeSeries = () => {
   const [editPopup, setEditPopup] = useState(null); // {x, y, value, seriesName, dataIndex, dateLabel}
   const [isDragging, setIsDragging] = useState(false);
   const dragStateRef = useRef(null); // {seriesName, dataIndex, startY, startValue}
+  const [viewMode, setViewMode] = useState('weeks2');
+  const [viewMonth, setViewMonth] = useState(0);
+  const [viewSeason, setViewSeason] = useState('DJF');
+  const [viewCustomStart, setViewCustomStart] = useState('');
+  const [viewCustomEnd, setViewCustomEnd] = useState('');
+  const [viewResolution, setViewResolution] = useState('hourly');
+  const [colSearch, setColSearch] = useState('');
 
   // Handle global mouse up to stop dragging
   useEffect(() => {
@@ -69,6 +76,7 @@ const TimeSeries = () => {
     'german':   ['german_demand_2024.csv'],
     'european': ['european_demand_2024.csv'],
     'chilean':  ['total_demand_2024.csv', 'resource_pv_2024.csv', 'resource_wind_2024.csv'],
+    'chile':    ['total_demand_2024.csv', 'resource_pv_2024.csv', 'resource_wind_2024.csv'],
     'usa':      [],
   };
 
@@ -129,6 +137,7 @@ const TimeSeries = () => {
             const templateFolderMap = {
               'european': 'european_network',
               'chilean': 'chilean_energy_grid',
+              'chile':   'chilean_energy_grid',
               'german': 'german_energy_system',
               'usa': 'usa_energy_system'
             };
@@ -247,6 +256,58 @@ const TimeSeries = () => {
     loadTemplateTimeSeriesFiles();
   }, [currentModel?.id]);
 
+  // Filtered + downsampled rows for chart rendering
+  const { filteredData, filteredIndices } = useMemo(() => {
+    if (!selectedTimeSeries?.data) return { filteredData: [], filteredIndices: [] };
+    const data = selectedTimeSeries.data;
+    const dateCol = selectedTimeSeries.dateColumn || selectedTimeSeries.columns?.[0];
+    const SEASON_MONTHS = { DJF: [11, 0, 1], MAM: [2, 3, 4], JJA: [5, 6, 7], SON: [8, 9, 10] };
+
+    // Step 1: row filtering by date range
+    let indices = data.map((_, i) => i);
+    if (viewMode === 'weeks2') {
+      indices = indices.slice(0, Math.min(14 * 24, data.length));
+    } else if (viewMode === 'month' && dateCol) {
+      indices = indices.filter(i => { const d = new Date(data[i][dateCol]); return !isNaN(d) && d.getMonth() === viewMonth; });
+    } else if (viewMode === 'seasonal' && dateCol) {
+      const months = SEASON_MONTHS[viewSeason] || [];
+      indices = indices.filter(i => { const d = new Date(data[i][dateCol]); return !isNaN(d) && months.includes(d.getMonth()); });
+    } else if (viewMode === 'custom' && viewCustomStart && viewCustomEnd && dateCol) {
+      const start = new Date(viewCustomStart), end = new Date(viewCustomEnd);
+      indices = indices.filter(i => { const d = new Date(data[i][dateCol]); return !isNaN(d) && d >= start && d <= end; });
+    }
+
+    let rows = indices.map(i => data[i]);
+    const dataCols = selectedTimeSeries.dataColumns || selectedTimeSeries.columns?.slice(1) || [];
+
+    // Step 2: resolution downsampling (daily / weekly average)
+    if ((viewResolution === 'daily' || viewResolution === 'weekly') && rows.length > 0 && dateCol) {
+      const groups = new Map();
+      rows.forEach((row, fi) => {
+        const d = new Date(row[dateCol]);
+        if (isNaN(d)) return;
+        let key;
+        if (viewResolution === 'daily') {
+          key = d.toISOString().slice(0, 10);
+        } else {
+          const ws = new Date(d); ws.setDate(d.getDate() - d.getDay());
+          key = ws.toISOString().slice(0, 10);
+        }
+        if (!groups.has(key)) groups.set(key, { sum: {}, count: 0, fi });
+        const g = groups.get(key); g.count++;
+        dataCols.forEach(col => { g.sum[col] = (g.sum[col] || 0) + (parseFloat(row[col]) || 0); });
+      });
+      rows = Array.from(groups.entries()).map(([key, g]) => {
+        const out = { [dateCol]: key };
+        dataCols.forEach(col => { out[col] = g.sum[col] / g.count; });
+        return out;
+      });
+      indices = Array.from(groups.values()).map(g => indices[g.fi]);
+    }
+
+    return { filteredData: rows, filteredIndices: indices };
+  }, [selectedTimeSeries, viewMode, viewMonth, viewSeason, viewCustomStart, viewCustomEnd, viewResolution]);
+
   // Get all timeseries for current model
   const modelTimeSeries = useMemo(() => {
     if (!currentModel) {
@@ -355,8 +416,9 @@ const TimeSeries = () => {
 
   // Update point value by dragging or manual input
   const updatePointValue = (seriesName, dataIndex, newValue) => {
+    const originalIndex = filteredIndices[dataIndex] ?? dataIndex;
     const newData = [...selectedTimeSeries.data];
-    newData[dataIndex][seriesName] = parseFloat(newValue) || 0;
+    newData[originalIndex][seriesName] = parseFloat(newValue) || 0;
     
     // Recalculate statistics
     const columns = selectedTimeSeries.columns;
@@ -420,35 +482,36 @@ const TimeSeries = () => {
   // Get ECharts option
   const getChartOption = () => {
     if (!selectedTimeSeries || selectedColumns.length === 0) return {};
-    if (!selectedTimeSeries.data || selectedTimeSeries.data.length === 0) return {};
+    const chartData = filteredData.length > 0 ? filteredData : (selectedTimeSeries?.data || []);
+    if (!chartData.length) return {};
 
     const dateCol = getDateColumn(selectedTimeSeries);
-    
-    // Validate date column exists
-    if (!dateCol || !selectedTimeSeries.data[0][dateCol]) {
-      console.error('Invalid date column:', dateCol, selectedTimeSeries.data[0]);
-      return {};
-    }
-    
-    const xAxisData = selectedTimeSeries.data.map(row => row[dateCol]);
+    if (!dateCol || !chartData[0]?.[dateCol]) return {};
+
+    const xAxisData = chartData.map(row => row[dateCol]);
 
     const series = selectedColumns.map(col => {
-      const seriesData = selectedTimeSeries.data.map((row, idx) => {
-        const val = row[col];
-        return [idx, val !== undefined && val !== null ? val : 0];
+      // Calliope stores demand as negative; flip to positive for display
+      const colVals = chartData.map(row => row[col]).filter(v => v !== undefined && v !== null && v !== '');
+      const allNeg = colVals.length > 0 && colVals.every(v => parseFloat(v) <= 0);
+      const seriesData = chartData.map((row) => {
+        const ts = new Date(row[dateCol]).getTime();
+        let val = row[col];
+        if (val !== undefined && val !== null) val = parseFloat(val) || 0;
+        else val = 0;
+        if (allNeg) val = -val;
+        return [isNaN(ts) ? 0 : ts, val];
       });
       
       return {
-        name: col,
+        name: col + (allNeg ? ' (↑abs)' : ''),
         type: chartType,
         data: seriesData,
         smooth: chartType === 'line',
         showSymbol: true,
-        symbolSize: 10,
-        itemStyle: {
-          cursor: 'move'
-        },
-        lineStyle: chartType === 'line' ? { width: 2 } : undefined,
+        symbolSize: chartData.length > 500 ? 4 : chartData.length > 100 ? 6 : 8,
+        itemStyle: { cursor: 'move' },
+        lineStyle: chartType === 'line' ? { width: 1.5 } : undefined,
       };
     });
 
@@ -462,12 +525,15 @@ const TimeSeries = () => {
         }
       },
       tooltip: {
-        trigger: 'item',
-        axisPointer: {
-          type: 'cross'
-        },
-        formatter: (params) => {
-          return `${params.seriesName}<br/>${xAxisData[params.dataIndex]}: ${params.value[1]}<br/><i>Drag to move, Double-click to edit</i>`;
+        trigger: 'axis',
+        axisPointer: { type: 'cross' },
+        formatter: (paramsArr) => {
+          const p = Array.isArray(paramsArr) ? paramsArr[0] : paramsArr;
+          const rowDate = xAxisData[p.dataIndex] ?? '';
+          const lines = (Array.isArray(paramsArr) ? paramsArr : [paramsArr])
+            .map(q => `${q.marker}${q.seriesName}: <b>${typeof q.value[1] === 'number' ? q.value[1].toFixed(2) : q.value[1]}</b>`)
+            .join('<br/>');
+          return `<span style="font-size:10px;color:#64748b">${rowDate}</span><br/>${lines}`;
         }
       },
       legend: {
@@ -492,31 +558,30 @@ const TimeSeries = () => {
         }
       },
       xAxis: {
-        type: 'category',
-        boundaryGap: chartType === 'bar',
-        data: xAxisData,
-        name: dateCol,
-        nameLocation: 'middle',
-        nameGap: 30,
+        type: 'time',
+        boundaryGap: chartType === 'bar' ? ['5%', '5%'] : false,
         axisLabel: {
-          rotate: 45,
-          formatter: (value) => {
-            // Show fewer labels for large datasets
-            if (xAxisData.length > 100) {
-              return value;
-            }
-            return value;
+          fontSize: 10,
+          color: '#64748b',
+          hideOverlap: true,
+          formatter: {
+            year: '{yyyy}',
+            month: '{MMM} {yyyy}',
+            day: '{d} {MMM}',
+            hour: '{HH}:00\n{d}/{M}',
+            minute: '{HH}:{mm}',
+            second: '{HH}:{mm}:{ss}',
           }
-        }
+        },
+        splitLine: { lineStyle: { color: '#f1f5f9' } },
       },
       yAxis: {
         type: 'value',
         name: 'Value',
         nameLocation: 'middle',
         nameGap: 50,
-        axisLabel: {
-          formatter: '{value}'
-        }
+        axisLabel: { formatter: '{value}', fontSize: 10, color: '#64748b' },
+        splitLine: { lineStyle: { color: '#f1f5f9' } },
       },
       dataZoom: [
         {
@@ -671,28 +736,7 @@ const TimeSeries = () => {
                     </button>
                   </div>
                 </div>
-                <div className="border-t border-slate-100 mt-1.5 pt-1.5">
-                  <div className="flex flex-wrap gap-1">
-                    {getDataColumns(selectedTimeSeries).map(col => (
-                      <label
-                        key={col}
-                        className="flex items-center gap-1 px-1.5 py-0.5 rounded cursor-pointer transition-all text-[11px]"
-                        style={{
-                          backgroundColor: selectedColumns.includes(col) ? '#111827' : '#e2e8f0',
-                          color: selectedColumns.includes(col) ? 'white' : '#475569'
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedColumns.includes(col)}
-                          onChange={() => toggleColumn(col)}
-                          className="w-2.5 h-2.5 rounded"
-                        />
-                        <span className="font-medium">{col}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
+
               </div>
 
               {/* Chart and Stats Side by Side */}
@@ -749,7 +793,8 @@ const TimeSeries = () => {
                       <div className="flex-1 min-h-0 relative">
                         {selectedTimeSeries?.data?.length > 0 && (() => {
                           const dateCol = getDateColumn(selectedTimeSeries);
-                          const xAxisData = selectedTimeSeries.data.map(row => row[dateCol]);
+                          const chartData = filteredData.length > 0 ? filteredData : selectedTimeSeries.data;
+                          const xAxisData = chartData.map(row => row[dateCol]);
                           
                           return (
                             <ReactECharts
@@ -929,80 +974,139 @@ const TimeSeries = () => {
                   </div>
                 </div>
 
-                {/* Statistics Section - Right Side */}
-                <div className="w-48 border-l border-slate-200 overflow-y-auto p-2 bg-slate-50">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-xs font-bold text-slate-700 flex items-center gap-1">
-                      <FiTrendingUp size={11} />
-                      Stats
-                    </h3>
-                    <button
-                      onClick={() => setShowStats(!showStats)}
-                      className="text-slate-400 hover:text-slate-600"
-                    >
-                      {showStats ? <FiChevronUp size={12} /> : <FiChevronDown size={12} />}
-                    </button>
-                  </div>
+                {/* Filter + Columns + Stats Sidebar */}
+                <div className="w-56 shrink-0 border-l border-slate-200 overflow-y-auto bg-white flex flex-col">
+                  <div className="p-3 space-y-4">
 
-                  {showStats && selectedTimeSeries.statistics && (
-                    <div className="space-y-2">
-                      {Object.entries(selectedTimeSeries.statistics).map(([col, stats]) => {
-                        const colData = selectedTimeSeries.data.map(row => {
-                          const val = parseFloat(row[col]);
-                          return isNaN(val) ? 0 : val;
-                        }).filter(v => v !== null && v !== undefined);
-                        
-                        if (colData.length === 0) return null;
-                        
-                        const max = Math.max(...colData);
-                        const min = Math.min(...colData);
-                        const range = max - min || 1;
-                        
-                        const sparklinePoints = colData.map((val, idx) => {
-                          const x = (idx / Math.max(colData.length - 1, 1)) * 100;
-                          const y = 100 - (((val - min) / range) * 80);
-                          return `${x.toFixed(2)},${y.toFixed(2)}`;
-                        }).join(' ');
-                        
-                        return (
-                          <div
-                            key={col}
-                            className="bg-white rounded-lg p-3 border border-slate-200 shadow-sm"
-                          >
-                            <div className="text-xs font-semibold text-slate-700 mb-2 truncate" title={col}>
-                              {col}
-                            </div>
-                            
-                            {/* Mini sparkline chart */}
-                            <svg className="w-full h-8 mb-2" viewBox="0 0 100 100" preserveAspectRatio="none">
-                              <polyline
-                                points={sparklinePoints}
-                                fill="none"
-                                stroke="#1f2937"
-                                strokeWidth="2"
-                                vectorEffect="non-scaling-stroke"
-                              />
-                            </svg>
-                            
-                            <div className="space-y-1 text-xs">
-                              <div className="flex justify-between">
-                                <span className="text-slate-500">Min:</span>
-                                <span className="font-semibold text-slate-800">{stats.min.toFixed(1)}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-slate-500">Max:</span>
-                                <span className="font-semibold text-slate-800">{stats.max.toFixed(1)}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-slate-500">Avg:</span>
-                                <span className="font-semibold text-slate-800">{stats.mean.toFixed(1)}</span>
-                              </div>
-                            </div>
+                    {/* Range */}
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Range</p>
+                      <div className="flex flex-col gap-1">
+                        {[['weeks2','First 2 wks'],['month','Month'],['seasonal','Season'],['custom','Custom']].map(([id, lbl]) => (
+                          <button key={id} onClick={() => setViewMode(id)}
+                            className="px-2 py-1 rounded text-[11px] font-medium border transition-all text-left w-full"
+                            style={viewMode === id ? { background: '#6366f1', color: 'white', borderColor: '#6366f1' } : { background: 'white', color: '#475569', borderColor: '#e2e8f0' }}>
+                            {lbl}
+                          </button>
+                        ))}
+                      </div>
+                      {viewMode === 'month' && (
+                        <div className="mt-2 grid grid-cols-3 gap-1">
+                          {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
+                            <button key={i} onClick={() => setViewMonth(i)}
+                              className="px-1 py-0.5 rounded text-[10px] font-medium border transition-all text-center"
+                              style={viewMonth === i ? { background: '#6366f1', color: 'white', borderColor: '#6366f1' } : { background: 'white', color: '#475569', borderColor: '#e2e8f0' }}>
+                              {m}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {viewMode === 'seasonal' && (
+                        <div className="mt-2 flex flex-col gap-1">
+                          {[['DJF','Winter'],['MAM','Spring'],['JJA','Summer'],['SON','Autumn']].map(([id, lbl]) => (
+                            <button key={id} onClick={() => setViewSeason(id)}
+                              className="px-2 py-1 rounded text-[11px] font-medium border transition-all"
+                              style={viewSeason === id ? { background: '#6366f1', color: 'white', borderColor: '#6366f1' } : { background: 'white', color: '#475569', borderColor: '#e2e8f0' }}>
+                              {lbl} <span className="opacity-60 text-[9px]">({id})</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {viewMode === 'custom' && (
+                        <div className="mt-2 flex flex-col gap-1.5">
+                          <div>
+                            <label className="text-[10px] text-slate-400 block mb-0.5">From</label>
+                            <input type="date" value={viewCustomStart} onChange={e => setViewCustomStart(e.target.value)}
+                              className="w-full px-2 py-1 border border-slate-200 rounded text-[11px] bg-white" />
                           </div>
-                        );
-                      })}
+                          <div>
+                            <label className="text-[10px] text-slate-400 block mb-0.5">To</label>
+                            <input type="date" value={viewCustomEnd} onChange={e => setViewCustomEnd(e.target.value)}
+                              className="w-full px-2 py-1 border border-slate-200 rounded text-[11px] bg-white" />
+                          </div>
+                          {viewCustomStart && viewCustomEnd && (
+                            <span className="text-[10px] text-slate-400 text-center">
+                              {Math.max(0, Math.round((new Date(viewCustomEnd) - new Date(viewCustomStart)) / 86400000))} days
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
-                  )}
+
+                    {/* Resolution */}
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Resolution</p>
+                      <div className="flex flex-col gap-1">
+                        {[['hourly','Hourly'],['daily','Daily avg'],['weekly','Weekly avg']].map(([id, lbl]) => (
+                          <button key={id} onClick={() => setViewResolution(id)}
+                            className="px-2 py-1 rounded text-[11px] font-medium border transition-all text-left w-full"
+                            style={viewResolution === id ? { background: '#6366f1', color: 'white', borderColor: '#6366f1' } : { background: 'white', color: '#475569', borderColor: '#e2e8f0' }}>
+                            {lbl}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Columns */}
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">
+                        Columns <span className="font-normal text-slate-300">({selectedColumns.length}/{getDataColumns(selectedTimeSeries).length})</span>
+                      </p>
+                      <div className="flex gap-2 mb-1.5">
+                        <button onClick={() => setSelectedColumns(getDataColumns(selectedTimeSeries))} className="text-[10px] text-indigo-500 hover:underline">All</button>
+                        <button onClick={() => setSelectedColumns([])} className="text-[10px] text-slate-400 hover:underline">None</button>
+                      </div>
+                      <input type="text" placeholder="Search columns…" value={colSearch} onChange={e => setColSearch(e.target.value)}
+                        className="w-full px-2 py-1 border border-slate-200 rounded text-[11px] bg-white mb-1" />
+                      <div className="flex flex-col gap-1 max-h-60 overflow-y-auto pr-0.5">
+                        {getDataColumns(selectedTimeSeries)
+                          .filter(c => !colSearch || c.toLowerCase().includes(colSearch.toLowerCase()))
+                          .map(col => (
+                            <button key={col} title={col} onClick={() => toggleColumn(col)}
+                              className="px-2 py-1.5 rounded text-[11px] border transition-all text-left leading-snug whitespace-normal break-all"
+                              style={selectedColumns.includes(col)
+                                ? { background: '#ede9fe', borderColor: '#8b5cf6', color: '#5b21b6' }
+                                : { background: '#f8fafc', borderColor: '#e2e8f0', color: '#475569' }}>
+                              {col}
+                            </button>
+                          ))}
+                      </div>
+                    </div>
+
+                    {/* Stats (collapsible) */}
+                    <div>
+                      <button className="flex items-center justify-between w-full mb-1" onClick={() => setShowStats(!showStats)}>
+                        <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Statistics</p>
+                        {showStats ? <FiChevronUp size={10} className="text-slate-400" /> : <FiChevronDown size={10} className="text-slate-400" />}
+                      </button>
+                      {showStats && selectedTimeSeries.statistics && (
+                        <div className="space-y-2">
+                          {Object.entries(selectedTimeSeries.statistics)
+                            .filter(([col]) => selectedColumns.includes(col))
+                            .map(([col, stats]) => {
+                              const colData = selectedTimeSeries.data.map(row => parseFloat(row[col])).filter(v => !isNaN(v));
+                              if (!colData.length) return null;
+                              const max = Math.max(...colData), min = Math.min(...colData), range = max - min || 1;
+                              const pts = colData.map((v, i) => `${((i / Math.max(colData.length - 1, 1)) * 100).toFixed(1)},${(100 - ((v - min) / range) * 80).toFixed(1)}`).join(' ');
+                              return (
+                                <div key={col} className="bg-slate-50 rounded-lg p-2 border border-slate-200">
+                                  <div className="text-[10px] font-semibold text-slate-700 mb-1 truncate" title={col}>{col}</div>
+                                  <svg className="w-full h-6 mb-1" viewBox="0 0 100 100" preserveAspectRatio="none">
+                                    <polyline points={pts} fill="none" stroke="#6366f1" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+                                  </svg>
+                                  <div className="grid grid-cols-2 gap-x-1 text-[10px]">
+                                    <span className="text-slate-400">Min</span><span className="font-semibold text-slate-700 text-right">{stats.min.toFixed(1)}</span>
+                                    <span className="text-slate-400">Max</span><span className="font-semibold text-slate-700 text-right">{stats.max.toFixed(1)}</span>
+                                    <span className="text-slate-400">Avg</span><span className="font-semibold text-slate-700 text-right">{stats.mean.toFixed(1)}</span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                        </div>
+                      )}
+                    </div>
+
+                  </div>
                 </div>
               </div>
             </div>

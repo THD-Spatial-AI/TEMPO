@@ -291,15 +291,17 @@ const BulkImport = ({ onClose, onComplete }) => {
 
     // Build links
     parsedData.transmissionLines.forEach(line => {
+      const techId = line.tech || line.type || '';
+      const distKm = line.distance_km || line.length_km;
       const link = {
         from: line.from,
         to: line.to,
-        type: line.type,
-        distance: line.length_km ? parseFloat(line.length_km) : undefined,
+        type: techId,
+        distance: distKm ? parseFloat(distKm) : undefined,
         techs: {
-          [line.type]: {
+          [techId]: {
             constraints: {
-              energy_cap_max: parseFloat(line.capacity_mw)
+              energy_cap_max: parseFloat(line.capacity_MW || line.capacity_mw)
             }
           }
         },

@@ -339,6 +339,20 @@ def build_locations_config(locations, location_tech_assignments, technologies):
         tech_id_map[tech.get('id', tid)] = tid
         tech_id_map[tech.get('name', tid)] = tid
 
+    # Tech labels that represent transmission hub / substation nodes in input
+    # datasets (e.g. Chilean grid templates).  These are NOT valid Calliope
+    # supply/demand techs — they appear in location data purely as topology
+    # markers.  In Calliope 0.6 transmission techs belong under `links:`, NOT
+    # under `locations.X.techs`, so we must silently skip them here rather
+    # than trying to add them to the locations block.
+    _HUB_LABELS = {
+        'substation', 'transformer', 'bus', 'hub', 'switching_station',
+        'transmission_hub', 'node',
+    }
+    # Accumulate skip counts per label for a single summary log line.
+    _skipped_hub: dict[str, int] = {}
+    _skipped_unknown: list[tuple[str, str]] = []  # (ref, loc_id) pairs
+
     locs = {}
     for loc in locations:
         raw_id = loc.get('id') or loc.get('name') or 'loc'
@@ -360,12 +374,35 @@ def build_locations_config(locations, location_tech_assignments, technologies):
             assigned = list(loc_techs_direct.keys())
 
         if assigned:
-            cfg['techs'] = {
-                tech_id_map.get(ref, ref.replace(' ', '_').lower()): None
-                for ref in assigned
-            }
+            resolved = {}
+            for ref in assigned:
+                normalized = ref.replace(' ', '_').lower()
+                tech_key = tech_id_map.get(ref) or tech_id_map.get(normalized)
+                if tech_key:
+                    resolved[tech_key] = None
+                elif normalized in _HUB_LABELS:
+                    # Hub/substation marker — skip silently, count for summary
+                    _skipped_hub[normalized] = _skipped_hub.get(normalized, 0) + 1
+                else:
+                    _skipped_unknown.append((ref, raw_id))
+            if resolved:
+                cfg['techs'] = resolved
 
         locs[loc_id] = cfg
+
+    # Emit concise summary lines instead of per-location noise
+    if _skipped_hub:
+        summary = ', '.join(f"'{k}' x{v}" for k, v in sorted(_skipped_hub.items()))
+        log(f"  Hub/substation labels skipped (topology-only, not Calliope techs): {summary}")
+    if _skipped_unknown:
+        # Group by ref name to avoid flooding logs
+        from collections import Counter
+        counts = Counter(ref for ref, _ in _skipped_unknown)
+        summary = ', '.join(f"'{k}' x{v}" for k, v in counts.most_common(10))
+        if len(counts) > 10:
+            summary += f' ... ({len(counts)} distinct refs total)'
+        log(f"  Skipped {len(_skipped_unknown)} undefined tech refs: {summary}")
+
     return locs
 
 
@@ -940,6 +977,56 @@ def _run_model_impl(model_data, work_dir):
         log("WARNING: model.results is None – no results to extract")
         return results
 
+    # Tech metadata map: {tech_name: {parent, carrier_out, display_name}}
+    # Priority (highest wins):
+    #   Tier 1 — model.inputs.inheritance  (Calliope runtime, authoritative parent chain)
+    #   Tier 2 — raw technologies list     (frontend model definition, has carrier_out + display name)
+    # The richer dict lets the frontend distinguish substations (conv+electricity)
+    # from hydrogen/heat conversion techs without relying on name heuristics.
+    try:
+        tech_meta = {}
+
+        # Tier 2: technology definitions passed in (carrier_out + display name)
+        for tdef in (technologies or []):
+            tn = tdef.get('id') or tdef.get('name', '')
+            if not tn:
+                continue
+            ess = tdef.get('essentials') or {}
+            parent = ess.get('parent') or tdef.get('parent', '')
+            carrier_out = ess.get('carrier_out') or ess.get('carrier', '')
+            if isinstance(carrier_out, list):
+                carrier_out = carrier_out[0] if carrier_out else ''
+            display_name = ess.get('name') or tdef.get('name', tn)
+            color = ess.get('color') or tdef.get('color', '')
+            tech_meta[tn] = {
+                'parent':       str(parent).strip(),
+                'carrier_out':  str(carrier_out).strip().lower(),
+                'display_name': str(display_name),
+                'color':        str(color),
+            }
+
+        # Tier 1: override parent from Calliope's inheritance map (most authoritative)
+        inputs = getattr(model, 'inputs', None)
+        if inputs is not None and 'inheritance' in inputs:
+            parents_da = inputs['inheritance']
+            for coord_val in parents_da['techs'].values:
+                tn = str(coord_val)
+                # inheritance string: "supply_plus,supply,tech_groups,tech" — first = direct parent
+                inh_val = str(parents_da.sel(techs=coord_val).values)
+                parent = inh_val.split(',')[0].strip() if inh_val else 'supply'
+                if tn not in tech_meta:
+                    tech_meta[tn] = {'parent': parent, 'carrier_out': '', 'display_name': tn}
+                else:
+                    tech_meta[tn]['parent'] = parent  # Calliope overrides frontend parent
+
+        if tech_meta:
+            results['tech_metadata'] = tech_meta
+            # Keep backward-compatible flat map for older frontend sessions
+            results['tech_parents'] = {k: v['parent'] for k, v in tech_meta.items()}
+
+    except Exception as e:
+        log(f"  Could not extract tech_metadata: {e}")
+
     # Termination condition
     tc = (getattr(ds, 'attrs', {}) or {}).get('termination_condition', 'optimal')
     results['termination_condition'] = str(tc)
@@ -1043,6 +1130,10 @@ def _run_model_impl(model_data, work_dir):
                     if from_loc == to_loc:
                         continue
                     vals = np.where(np.isnan(ts.values), 0.0, ts.values.astype(float))
+                    # Skip link-timesteps that are entirely zero to avoid building millions
+                    # of raw_tx entries for inactive links in large sparse models.
+                    if np.abs(vals).max() < 1e-6:
+                        continue
                     key = f"{to_loc}::{from_loc}"
                     if key not in raw_tx:
                         raw_tx[key] = np.zeros(len(vals))
@@ -1051,8 +1142,14 @@ def _run_model_impl(model_data, work_dir):
         # Build undirected net flow per pair keyed as "a::b" (a < b lexically).
         # raw_tx["B::A"] = A→B flow (power arriving at B from A).
         # Net A→B = raw_tx["B::A"] - raw_tx["A::B"]
+        #
+        # CAP: with large models (e.g. 2000+ locations) there can be millions of
+        # pairs whose serialisation would produce gigabytes of JSON, hanging the
+        # service.  We keep only the MAX_TX_PAIRS pairs with the highest peak flow.
+        MAX_TX_PAIRS = 500
+
         processed_pairs = set()
-        tx_flow = {}
+        pair_stats = {}   # pair_key → (net_array, abs_peak)
         for key in list(raw_tx.keys()):
             to_loc, from_loc = key.split('::', 1)
             a, b = sorted([to_loc, from_loc])
@@ -1061,11 +1158,23 @@ def _run_model_impl(model_data, work_dir):
                 continue
             processed_pairs.add(pair_key)
             n = len(raw_tx[key])
-            # A→B = power arriving at B from A
             a_to_b = raw_tx.get(f"{b}::{a}", np.zeros(n))
-            # B→A = power arriving at A from B
             b_to_a = raw_tx.get(f"{a}::{b}", np.zeros(n))
-            net = a_to_b - b_to_a  # positive = net flow in A→B direction
+            net = a_to_b - b_to_a
+            abs_peak = float(np.abs(net).max()) if n else 0.0
+            # Skip pairs with no actual flow
+            if abs_peak < 1e-6:
+                continue
+            pair_stats[pair_key] = (a, b, net, abs_peak)
+
+        total_pairs = len(pair_stats)
+        if total_pairs > MAX_TX_PAIRS:
+            log(f"  WARNING: {total_pairs} active transmission pairs — keeping top {MAX_TX_PAIRS} by peak flow to avoid oversized response")
+            top_keys = sorted(pair_stats, key=lambda k: pair_stats[k][3], reverse=True)[:MAX_TX_PAIRS]
+            pair_stats = {k: pair_stats[k] for k in top_keys}
+
+        tx_flow = {}
+        for pair_key, (a, b, net, _) in pair_stats.items():
             tx_flow[pair_key] = {
                 'from': a,
                 'to':   b,
@@ -1074,7 +1183,8 @@ def _run_model_impl(model_data, work_dir):
 
         if tx_flow:
             results['transmission_flow'] = tx_flow
-            log(f"  Extracted transmission flow for {len(tx_flow)} pair(s)")
+            log(f"  Extracted transmission flow for {len(tx_flow)} pair(s)"
+                + (f" (capped from {total_pairs})" if total_pairs > MAX_TX_PAIRS else ""))
         else:
             log("  No active transmission flows found in carrier_prod")
 
