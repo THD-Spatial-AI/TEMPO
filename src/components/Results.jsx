@@ -6,6 +6,7 @@ import {
   FiRefreshCw, FiAlertCircle, FiCheckCircle, FiTrash2,
   FiTerminal, FiAlertTriangle, FiMapPin, FiDollarSign,
   FiZap, FiActivity, FiClock, FiCpu, FiMap, FiLayers, FiShare2, FiGrid,
+  FiChevronDown, FiFilter,
 } from 'react-icons/fi';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
@@ -51,6 +52,88 @@ const fmtFull = (v) => {
   return Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 });
 };
 
+// Auto-scale a raw value → { div, unit } so axis ticks show clean numbers.
+const autoScale = (maxVal, baseUnit = 'MW') => {
+  const abs = Math.abs(maxVal || 0);
+  if (baseUnit === 'MW') {
+    if (abs >= 1e6) return { div: 1e6, unit: 'TW' };
+    if (abs >= 1e3) return { div: 1e3, unit: 'GW' };
+    if (abs > 0 && abs < 1) return { div: 1e-3, unit: 'kW' };
+    return { div: 1, unit: 'MW' };
+  }
+  if (baseUnit === '€') {
+    if (abs >= 1e9) return { div: 1e9, unit: 'G€' };
+    if (abs >= 1e6) return { div: 1e6, unit: 'M€' };
+    if (abs >= 1e3) return { div: 1e3, unit: 'k€' };
+    return { div: 1, unit: '€' };
+  }
+  return { div: 1, unit: baseUnit };
+};
+// Shared ECharts axis-name style (unit placed once at the end of the axis).
+const axisNameStyle = (unit) => ({
+  name: unit, nameLocation: 'end', nameGap: 8,
+  nameTextStyle: { fontSize: 10, color: '#94a3b8', fontStyle: 'italic' },
+});
+const scaledFmt = (div, decimals = 1) => (v) => (v / div).toFixed(decimals);
+
+// Tech classification groups for the filter bar
+// ─────────────────────────────────────────────────────────────────────────────
+// PRIMARY classification uses the model's tech definitions (essentials.parent)
+// and the backend result's tech_parents map — both are authoritative.
+// This module-level classifyTech() is a FALLBACK for custom/imported models
+// whose names don't match any definition.
+//
+// Calliope parent types → group IDs:
+//   supply / supply_plus  → 'gen'
+//   storage               → 'stor'
+//   conversion(_plus)     → 'conv'
+//   transmission          → 'tx'
+//   demand                → 'demand'
+//
+// Additional heuristics for short abbreviations common in Spanish/Chilean models:
+//   pFV / FV → solar     eol → wind     hid → hydro
+//   ter / TER → thermal  bat → battery  emb → reservoir storage
+const TECH_GROUPS = [
+  {
+    id: 'tx', label: 'Links', color: '#0ea5e9',
+    // Structural: colon inside name = "techType:destLocation" in Calliope
+    match: (t) => t.includes(':'),
+  },
+  {
+    id: 'demand', label: 'Demand', color: '#ef4444',
+    match: (base) => /\bdemand\b|\bload\b|\bconsumo\b|\bdemanda\b/i.test(base),
+  },
+  {
+    id: 'stor', label: 'Storage', color: '#8b5cf6',
+    match: (base) => /\bbat(ter)?\b|_bat\b|bat_|\bBATT?|storage(?!.*tx|.*pipe)|pumped|embalse|\bemb\b|capacitor|thermal.?stor|heat.?stor/i.test(base),
+  },
+  {
+    id: 'h2', label: 'Hydrogen', color: '#7c3aed',
+    match: (base) => /\bh2\b|hydrogen|electrolys|fuel.?cell|h2_|_h2|hidrogeno|pila/i.test(base),
+  },
+  {
+    id: 'conv', label: 'Conversion', color: '#10b981',
+    match: (base) => /heat.?pump|boiler|chp|methan|fischer|haber|dac|desalination|convert/i.test(base),
+  },
+  {
+    id: 'gen', label: 'Generation', color: '#f59e0b',
+    match: (base) => /solar|\bpv\b|pfv\b|fv\b|wind|\beol|hidro|hydro(?!gen)|biomass|coal|gas\b|nuclear|geotherm|csp|ccgt|ocgt|diesel|oil|lignite|turbine|ter\b|termica|hid\b|hidraulic|ernc|renovable/i.test(base),
+  },
+  {
+    id: 'infra', label: 'Substations', color: '#94a3b8',
+    match: (base) => /substation|busbar|\bbus\b|\bhub\b|transformer|\bnode\b|barra|subestacion|\bSE_/i.test(base),
+  },
+];
+// Pure fallback classifier (no model context). Used by classifyTechSmart when
+// no parent info is available.
+const classifyTech = (t) => {
+  if (t.includes(':')) return 'tx';
+  const base = t.split(':')[0];
+  return TECH_GROUPS.find(g => g.match(base))?.id ?? 'other';
+};
+// For a link tech like "pFV:CHERCAN", return the base type label "pFV"
+const linkTechBase = (t) => t.split(':')[0];
+
 // Parse "Berlin::solar_pv::electricity" → {loc, tech, carrier}
 const parseLTC = (s) => {
   const p = String(s).split('::');
@@ -67,7 +150,7 @@ const OSM_STYLE = {
 };
 
 // ── Capacity / Generation map ───────────────────────────────────────────────
-const ResultsMap = ({ locations, capacitiesByLoc, dominantTechByLoc, generationByLoc, viewMode }) => {
+const ResultsMap = ({ locations, capacitiesByLoc, dominantTechByLoc, generationByLoc, viewMode, colorFn = techColor }) => {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markersRef = useRef([]);
@@ -78,7 +161,7 @@ const ResultsMap = ({ locations, capacitiesByLoc, dominantTechByLoc, generationB
     locs.forEach(loc => {
       const cap = capacitiesByLoc[loc.name] || 0;
       const radius = 8 + Math.sqrt(cap / maxCap) * 30;
-      const color = techColor(dominantTechByLoc[loc.name] || 'generic');
+      const color = colorFn(dominantTechByLoc[loc.name] || 'generic');
       const el = document.createElement('div');
       el.style.cssText = `width:${radius*2}px;height:${radius*2}px;border-radius:50%;background:${color}CC;border:2px solid ${color};box-shadow:0 2px 8px rgba(0,0,0,0.35);cursor:pointer;`;
       const popup = new mgl.Popup({ offset: radius + 2, closeButton: false, maxWidth: '220px' })
@@ -372,9 +455,17 @@ const Results = () => {
   const [selectedJobId, setSelectedJobId] = useState(null);
   const [tab, setTab] = useState('overview');
   const [mapView, setMapView] = useState('capacity');
+  // Tech inclusion filter: empty Set = show all; non-empty = show only listed techs.
+  const [techFilter, setTechFilter] = useState(new Set());
+  // Collapsed section IDs.
+  const [collapsedSections, setCollapsedSections] = useState(new Set());
 
-  // Reset map view when job changes
-  useEffect(() => { setMapView('capacity'); }, [selectedJobId]);
+  // Reset per-job UI state when switching runs
+  useEffect(() => {
+    setMapView('capacity');
+    setTechFilter(new Set());
+    setCollapsedSections(new Set());
+  }, [selectedJobId]);
 
   // When the Run section pushes a specific job to view, open it
   useEffect(() => {
@@ -403,6 +494,81 @@ const Results = () => {
     const m = models.find(m => m.name === baseName || m.name === selectedJob.modelName);
     return (m?.locations || []).filter(l => l.latitude && l.longitude);
   }, [selectedJob, models]);
+
+  // ── Tech metadata map: tech_name → {parent, carrier_out, display_name} ─────
+  // Priority order (highest wins):
+  //   Tier 1 — result.tech_metadata  (backend: Calliope runtime + carrier info)
+  //   Tier 2 — model.technologies    (frontend model definition)
+  //   Tier 3 — classifyTech()        (regex/structural fallback)
+  const techMetaMap = useMemo(() => {
+    const map = {};
+    // Tier 2: model technology definitions (carrier_out + display name)
+    const baseName = selectedJob?.modelName.replace(/ \(version \d+\)$/, '');
+    const m = models.find(m => m.name === baseName || m.name === selectedJob?.modelName);
+    (m?.technologies || []).forEach(t => {
+      const id = t.id || t.name || '';
+      const ess = t.essentials || {};
+      const parent = ess.parent || t.parent || '';
+      let carrier_out = ess.carrier_out || ess.carrier || '';
+      if (Array.isArray(carrier_out)) carrier_out = carrier_out[0] || '';
+      const display_name = ess.name || t.name || id;
+      const color = ess.color || t.color || '';
+      if (id) map[id] = { parent, carrier_out: String(carrier_out).toLowerCase(), display_name, color };
+    });
+    // Tier 1: backend result.tech_metadata (most authoritative)
+    Object.entries(result?.tech_metadata || {}).forEach(([k, v]) => {
+      map[k] = { ...(map[k] || {}), ...v, carrier_out: (v.carrier_out || '').toLowerCase() };
+    });
+    // Backward-compat: if tech_metadata absent, fall back to flat tech_parents
+    if (!result?.tech_metadata) {
+      Object.entries(result?.tech_parents || {}).forEach(([k, v]) => {
+        if (!map[k]) map[k] = { parent: v, carrier_out: '', display_name: k };
+        else map[k].parent = v;
+      });
+    }
+    return map;
+  }, [selectedJob, models, result]);
+
+  // Classify a tech using metadata first, then structural/regex fallback.
+  // Key logic for conversion_plus techs:
+  //   + carrier_out=electricity  → 'infra' (substation / voltage transformer)
+  //   + carrier_out=h2/hydrogen  → 'h2'
+  //   + carrier_out=heat/other   → 'conv' (heat pump, boiler, DAC…)
+  const classifyTechSmart = (t) => {
+    // Structural fast path: colon = link/transmission always
+    if (t.includes(':')) return 'tx';
+    const meta = techMetaMap[t] || techMetaMap[t.split(':')[0]] || {};
+    const parent = meta.parent || '';
+    const carrier = meta.carrier_out || '';
+    if (parent) {
+      if (/^transmission$/i.test(parent))         return 'tx';
+      if (/^demand$/i.test(parent))               return 'demand';
+      if (/^storage$/i.test(parent))              return 'stor';
+      if (/^conversion(_plus)?$/i.test(parent)) {
+        // H2 conversion: name or carrier hints at hydrogen
+        if (/h2|hydrogen|fuel.?cell|electrolys/i.test(t) || /h2|hydrogen/.test(carrier))
+          return 'h2';
+        // Electrical passthrough (substation / voltage transformer)
+        if (carrier === 'electricity' || carrier === '')
+          return 'infra';
+        // Heat pump, boiler, DAC, desalination, etc.
+        return 'conv';
+      }
+      if (/^supply(_plus)?$/i.test(parent))       return 'gen';
+    }
+    // Fallback to module-level regex classification
+    return classifyTech(t);
+  };
+
+  // Returns the model-defined hex color for a tech, or falls back to the static palette.
+  const techColorFn = useCallback(
+    (t) => {
+      if (!t) return '#94A3B8';
+      const base = t.includes(':') ? t.split(':')[0] : t;
+      return techMetaMap[t]?.color || techMetaMap[base]?.color || techColor(t);
+    },
+    [techMetaMap],
+  );
 
   // ── Derived data ───────────────────────────────────────────────────────────
   const derivedData = useMemo(() => {
@@ -507,6 +673,79 @@ const Results = () => {
     return [];
   }, [result, transmissionLinks]);
 
+  // ── Large-model detection ──────────────────────────────────────────────────
+  // Charts that enumerate all locations (bar per location, table rows, heatmap
+  // rows) become unusable at scale.  Anything above LOC_CHART_LIMIT locations
+  // switches to an aggregated / top-N view.
+  const isLargeModel = modelLocations.length > 50;
+  const LOC_CHART_LIMIT = 20;
+
+  // ── Filter + section helpers ───────────────────────────────────────────────
+  const toggleTech = (t) => setTechFilter(prev => {
+    const next = new Set(prev);
+    if (next.has(t)) next.delete(t); else next.add(t);
+    return next;
+  });
+  const isTechVisible = (t) => techFilter.size === 0 || techFilter.has(t);
+  const clearTechFilter = () => setTechFilter(new Set());
+
+  const toggleSection = (id) => setCollapsedSections(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const sectionOpen = (id) => !collapsedSections.has(id);
+
+  // All known tech names from current result (for filter chips)
+  const allTechs = useMemo(() => {
+    if (!derivedData?.capByTech) return [];
+    return Object.keys(derivedData.capByTech).sort();
+  }, [derivedData]);
+
+  // Group techs by category for the filter bar — uses smart classifier
+  const techsByGroup = useMemo(() => {
+    const map = {};
+    allTechs.forEach(t => {
+      const gid = classifyTechSmart(t);
+      (map[gid] = map[gid] || []).push(t);
+    });
+    return map;
+  }, [allTechs, techMetaMap]);
+
+  // Ordered list of groups that have at least one tech in the result
+  const activeGroups = useMemo(() => {
+    const ordered = [
+      ...TECH_GROUPS,
+      { id: 'other', label: 'Other', color: '#64748b' },
+    ];
+    return ordered.filter(g => (techsByGroup[g.id] || []).length > 0);
+  }, [techsByGroup]);
+
+  const toggleGroup = (gid) => {
+    const groupTechs = techsByGroup[gid] || [];
+    if (!groupTechs.length) return;
+    setTechFilter(prev => {
+      // Expand empty filter to "all selected" so toggle logic works
+      const expanded = prev.size === 0 ? new Set(allTechs) : new Set(prev);
+      const allIn = groupTechs.every(t => expanded.has(t));
+      if (allIn) groupTechs.forEach(t => expanded.delete(t));
+      else groupTechs.forEach(t => expanded.add(t));
+      // If effectively everything is selected, revert to empty (= all visible)
+      return expanded.size >= allTechs.length ? new Set() : expanded;
+    });
+  };
+
+  // 'full' | 'partial' | 'none'
+  const groupFilterState = (gid) => {
+    const groupTechs = techsByGroup[gid] || [];
+    if (!groupTechs.length) return 'none';
+    if (techFilter.size === 0) return 'full';
+    const inFilter = groupTechs.filter(t => techFilter.has(t)).length;
+    if (inFilter === groupTechs.length) return 'full';
+    if (inFilter > 0) return 'partial';
+    return 'none';
+  };
+
   // ── Export ─────────────────────────────────────────────────────────────────
   const handleExport = () => {
     if (!result) return;
@@ -523,28 +762,34 @@ const Results = () => {
   // Horizontal bar: capacities by tech
   const capBarOption = useMemo(() => {
     if (!derivedData?.capByTech) return null;
-    const sorted = Object.entries(derivedData.capByTech).sort(([, a], [, b]) => b - a);
+    const sorted = Object.entries(derivedData.capByTech)
+      .filter(([t]) => isTechVisible(t))
+      .sort(([, a], [, b]) => b - a);
+    if (!sorted.length) return null;
+    const { div, unit } = autoScale(sorted[0][1], 'MW');
+    const fmt = scaledFmt(div);
     return {
       backgroundColor: 'transparent',
-      grid: { left: 140, right: 24, top: 16, bottom: 32 },
-      xAxis: { type: 'value', axisLabel: { fontSize: 11, color: '#64748b', formatter: v => fmtNum(v) + ' MW' }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
+      grid: { left: 140, right: 60, top: 16, bottom: 16 },
+      xAxis: { type: 'value', ...axisNameStyle(unit), axisLabel: { fontSize: 11, color: '#64748b', formatter: v => fmt(v) }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
       yAxis: { type: 'category', data: sorted.map(([t]) => t.replace(/_/g, ' ')), axisLabel: { fontSize: 11, color: '#475569' } },
       series: [{
         type: 'bar', barMaxWidth: 28,
-        data: sorted.map(([tech, v]) => ({ value: v, itemStyle: { color: techColor(tech), borderRadius: [0, 4, 4, 0] } })),
-        label: { show: true, position: 'right', formatter: p => fmtNum(p.value) + ' MW', fontSize: 10, color: '#64748b' },
+        data: sorted.map(([tech, v]) => ({ value: v, itemStyle: { color: techColorFn(tech), borderRadius: [0, 4, 4, 0] } })),
+        label: { show: true, position: 'right', formatter: p => fmt(p.value) + ' ' + unit, fontSize: 10, color: '#64748b' },
       }],
-      tooltip: { trigger: 'axis', formatter: p => `${p[0].name}<br/><b>${fmtFull(p[0].value)} MW</b>` },
+      tooltip: { trigger: 'axis', formatter: p => `${p[0].name}<br/><b>${fmt(p[0].value)} ${unit}</b>` },
     };
-  }, [derivedData]);
+  }, [derivedData, techFilter, techColorFn]);
 
   // Donut: generation mix
   const genDonutOption = useMemo(() => {
     if (!derivedData?.genByTech) return null;
     const data = Object.entries(derivedData.genByTech)
-      .filter(([, v]) => v > 0)
+      .filter(([t, v]) => v > 0 && isTechVisible(t))
       .sort(([, a], [, b]) => b - a)
-      .map(([tech, v]) => ({ name: tech.replace(/_/g, ' '), value: Math.round(v), itemStyle: { color: techColor(tech) } }));
+      .map(([tech, v]) => ({ name: tech.replace(/_/g, ' '), value: Math.round(v), itemStyle: { color: techColorFn(tech) } }));
+    if (!data.length) return null;
     return {
       backgroundColor: 'transparent',
       legend: { bottom: 4, type: 'scroll', textStyle: { fontSize: 10, color: '#475569' } },
@@ -556,54 +801,80 @@ const Results = () => {
       }],
       tooltip: { trigger: 'item', formatter: p => `${p.name}<br/><b>${fmtFull(p.value)} MWh</b> (${p.percent}%)` },
     };
-  }, [derivedData]);
+  }, [derivedData, techFilter, techColorFn]);
 
   // Bar: costs by tech
   const costsTechOption = useMemo(() => {
     if (!result?.costs_by_tech) return null;
-    const sorted = Object.entries(result.costs_by_tech).filter(([, v]) => v > 0).sort(([, a], [, b]) => b - a);
+    const sorted = Object.entries(result.costs_by_tech)
+      .filter(([t, v]) => v > 0 && isTechVisible(t))
+      .sort(([, a], [, b]) => b - a);
+    if (!sorted.length) return null;
+    const { div, unit } = autoScale(sorted[0][1], '€');
+    const fmt = scaledFmt(div);
     return {
       backgroundColor: 'transparent',
-      grid: { left: 140, right: 24, top: 16, bottom: 32 },
-      xAxis: { type: 'value', axisLabel: { fontSize: 11, color: '#64748b', formatter: v => fmtNum(v) }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
+      grid: { left: 140, right: 60, top: 16, bottom: 16 },
+      xAxis: { type: 'value', ...axisNameStyle(unit), axisLabel: { fontSize: 11, color: '#64748b', formatter: v => fmt(v) }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
       yAxis: { type: 'category', data: sorted.map(([t]) => t.replace(/_/g, ' ')), axisLabel: { fontSize: 11, color: '#475569' } },
       series: [{
         type: 'bar', barMaxWidth: 28,
-        data: sorted.map(([tech, v]) => ({ value: v, itemStyle: { color: techColor(tech), borderRadius: [0, 4, 4, 0] } })),
-        label: { show: true, position: 'right', formatter: p => fmtNum(p.value), fontSize: 10, color: '#64748b' },
+        data: sorted.map(([tech, v]) => ({ value: v, itemStyle: { color: techColorFn(tech), borderRadius: [0, 4, 4, 0] } })),
+        label: { show: true, position: 'right', formatter: p => fmt(p.value) + ' ' + unit, fontSize: 10, color: '#64748b' },
       }],
-      tooltip: { trigger: 'axis', formatter: p => `${p[0].name}<br/><b>${fmtFull(p[0].value)}</b>` },
+      tooltip: { trigger: 'axis', formatter: p => `${p[0].name}<br/><b>${fmt(p[0].value)} ${unit}</b>` },
     };
-  }, [result]);
+  }, [result, techFilter, techColorFn]);
 
-  // Stacked bar: costs by location × tech
+  // Stacked bar: costs by location × tech (top-N for large models)
   const costsLocOption = useMemo(() => {
     if (!result?.costs_by_location) return null;
-    const locs = Object.keys(result.costs_by_location).sort();
-    const techSet = [...new Set(locs.flatMap(l => Object.keys(result.costs_by_location[l])))].filter(t => !t.includes('transmission'));
+    const allLocs = Object.keys(result.costs_by_location);
+    const totalCostByLoc = Object.fromEntries(
+      allLocs.map(l => [l, Object.values(result.costs_by_location[l]).reduce((s, v) => s + (Number(v) || 0), 0)])
+    );
+    const locs = allLocs
+      .sort((a, b) => totalCostByLoc[b] - totalCostByLoc[a])
+      .slice(0, isLargeModel ? LOC_CHART_LIMIT : allLocs.length);
+    const truncated = isLargeModel && allLocs.length > LOC_CHART_LIMIT;
+    const techSet = [...new Set(locs.flatMap(l => Object.keys(result.costs_by_location[l])))]
+      .filter(t => !t.includes('transmission') && isTechVisible(t));
+    const maxCost = Math.max(1, ...locs.map(l => totalCostByLoc[l] || 0));
+    const { div, unit } = autoScale(maxCost, '€');
+    const fmt = scaledFmt(div);
     const series = techSet.map(tech => ({
       name: tech.replace(/_/g, ' '),
       type: 'bar',
       stack: 'total',
       data: locs.map(l => Math.max(0, result.costs_by_location[l]?.[tech] || 0)),
-      itemStyle: { color: techColor(tech) },
+      itemStyle: { color: techColorFn(tech) },
       emphasis: { focus: 'series' },
     }));
     return {
       backgroundColor: 'transparent',
+      title: truncated ? {
+        text: `Top ${LOC_CHART_LIMIT} locations by cost  (${allLocs.length} total)`,
+        textStyle: { fontSize: 11, color: '#94a3b8', fontWeight: 'normal' }, top: 4, left: 4,
+      } : undefined,
       legend: { bottom: 0, type: 'scroll', textStyle: { fontSize: 10, color: '#475569' } },
-      grid: { left: 60, right: 20, top: 16, bottom: 56 },
+      grid: { left: 60, right: 20, top: truncated ? 34 : 16, bottom: 56 },
       xAxis: { type: 'category', data: locs, axisLabel: { fontSize: 11, color: '#475569', rotate: locs.length > 4 ? 30 : 0 } },
-      yAxis: { type: 'value', axisLabel: { fontSize: 11, color: '#64748b', formatter: v => fmtNum(v) }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
+      yAxis: { type: 'value', ...axisNameStyle(unit), axisLabel: { fontSize: 11, color: '#64748b', formatter: v => fmt(v) }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
       series,
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     };
-  }, [result]);
+  }, [result, isLargeModel, techFilter, techColorFn]);
 
   // Stacked area: dispatch timeseries
   const dispatchOption = useMemo(() => {
     if (!result?.dispatch || !derivedData?.timestamps?.length) return null;
-    const techs = Object.keys(result.dispatch);
+    const techs = Object.keys(result.dispatch).filter(t => isTechVisible(t));
+    if (!techs.length) return null;
+    // Auto-scale y-axis based on peak dispatch
+    const allVals = techs.flatMap(t => result.dispatch[t]);
+    const maxVal = Math.max(1, ...allVals);
+    const { div, unit } = autoScale(maxVal, 'MW');
+    const fmt = scaledFmt(div);
     const series = techs.map(tech => ({
       name: tech.replace(/_/g, ' '),
       type: 'line',
@@ -612,11 +883,10 @@ const Results = () => {
       smooth: false,
       symbol: 'none',
       lineStyle: { width: 0 },
-      itemStyle: { color: techColor(tech) },
+      itemStyle: { color: techColorFn(tech) },
       data: result.dispatch[tech],
       emphasis: { focus: 'series' },
     }));
-    // Add demand line if available
     if (result.demand_timeseries) {
       series.push({
         name: 'Demand',
@@ -629,14 +899,12 @@ const Results = () => {
         z: 10,
       });
     }
-    // Downsample labels if too many
     const labels = derivedData.timestamps;
     const step = Math.max(1, Math.ceil(labels.length / 24));
-    const axisLabels = labels.map((l, i) => (i % step === 0 ? l : ''));
     return {
       backgroundColor: 'transparent',
       legend: { bottom: 0, type: 'scroll', textStyle: { fontSize: 10, color: '#475569' } },
-      grid: { left: 60, right: 20, top: 20, bottom: 72 },
+      grid: { left: 64, right: 20, top: 20, bottom: 72 },
       xAxis: {
         type: 'category', data: labels, boundaryGap: false,
         axisLabel: { fontSize: 10, color: '#64748b', rotate: 35,
@@ -644,52 +912,67 @@ const Results = () => {
         splitLine: { show: false },
       },
       yAxis: {
-        type: 'value', name: 'MW',
-        axisLabel: { fontSize: 11, color: '#64748b', formatter: v => fmtNum(v) },
+        type: 'value', ...axisNameStyle(unit),
+        axisLabel: { fontSize: 11, color: '#64748b', formatter: v => fmt(v) },
         splitLine: { lineStyle: { color: '#f1f5f9' } },
       },
       dataZoom: [{ type: 'inside', start: 0, end: 100 }, { type: 'slider', bottom: 32, height: 18 }],
       series,
       tooltip: { trigger: 'axis', axisPointer: { type: 'cross' },
         formatter: params => {
-          const rows = params.map(p => `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color};margin-right:5px"></span>${p.seriesName}: <b>${fmtNum(+p.value)} MW</b>`).join('<br/>');
+          const rows = params.map(p => `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color};margin-right:5px"></span>${p.seriesName}: <b>${fmt(+p.value)} ${unit}</b>`).join('<br/>');
           return `<div style="font-size:11px">${params[0]?.name}<br/>${rows}</div>`;
         }
       },
     };
-  }, [result, derivedData]);
+  }, [result, derivedData, techFilter, techColorFn]);
 
-  // Grouped bar: capacity per location per tech
+  // Grouped bar: capacity per location per tech (top-N for large models)
   const capLocOption = useMemo(() => {
     if (!derivedData?.capByTech) return null;
     const capEntries = Object.entries(result?.capacities || {})
       .map(([k, v]) => ({ ...parseLTC(k), value: Number(v) || 0 }))
-      .filter(e => e.value > 0 && !e.tech.includes('transmission'));
+      .filter(e => e.value > 0 && !e.tech.includes('transmission') && isTechVisible(e.tech));
 
-    const locs = [...new Set(capEntries.map(e => e.loc))].sort();
+    const allLocs = [...new Set(capEntries.map(e => e.loc))];
+    const totalCapByLoc = Object.fromEntries(
+      allLocs.map(l => [l, capEntries.filter(e => e.loc === l).reduce((s, e) => s + e.value, 0)])
+    );
+    const locs = allLocs
+      .sort((a, b) => totalCapByLoc[b] - totalCapByLoc[a])
+      .slice(0, isLargeModel ? LOC_CHART_LIMIT : allLocs.length);
+    const truncated = isLargeModel && allLocs.length > LOC_CHART_LIMIT;
+
     const techs = [...new Set(capEntries.map(e => e.tech))];
-
     const byLocTech = {};
     capEntries.forEach(({ loc, tech, value }) => { byLocTech[`${loc}::${tech}`] = value; });
+
+    const maxCap = Math.max(1, ...locs.map(l => totalCapByLoc[l] || 0));
+    const { div, unit } = autoScale(maxCap, 'MW');
+    const fmt = scaledFmt(div);
 
     const series = techs.map(tech => ({
       name: tech.replace(/_/g, ' '),
       type: 'bar',
       barMaxWidth: 22,
       data: locs.map(l => byLocTech[`${l}::${tech}`] || 0),
-      itemStyle: { color: techColor(tech) },
+      itemStyle: { color: techColorFn(tech) },
     }));
 
     return {
       backgroundColor: 'transparent',
+      title: truncated ? {
+        text: `Top ${LOC_CHART_LIMIT} locations by capacity  (${allLocs.length} total)`,
+        textStyle: { fontSize: 11, color: '#94a3b8', fontWeight: 'normal' }, top: 4, left: 4,
+      } : undefined,
       legend: { bottom: 0, type: 'scroll', textStyle: { fontSize: 10, color: '#475569' } },
-      grid: { left: 60, right: 20, top: 16, bottom: 56 },
+      grid: { left: 60, right: 20, top: truncated ? 34 : 16, bottom: 56 },
       xAxis: { type: 'category', data: locs, axisLabel: { fontSize: 11, color: '#475569', rotate: locs.length > 4 ? 30 : 0 } },
-      yAxis: { type: 'value', name: 'MW', axisLabel: { fontSize: 11, color: '#64748b', formatter: v => fmtNum(v) }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
+      yAxis: { type: 'value', ...axisNameStyle(unit), axisLabel: { fontSize: 11, color: '#64748b', formatter: v => fmt(v) }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
       series,
     };
-  }, [result, derivedData]);
+  }, [result, derivedData, isLargeModel, techFilter, techColorFn]);
 
   // Sankey: energy flow Location → Tech → Carrier
   const sankeyOption = useMemo(() => {
@@ -754,19 +1037,43 @@ const Results = () => {
   }, [result]);
 
   // Capacity factor heatmap: locations × technologies
+  // For large models: switch to tech-only average CF (no location axis)
   const cfHeatmapOption = useMemo(() => {
     if (!derivedData?.capByTech || !result?.generation) return null;
     const capEntries = Object.entries(result?.capacities || {})
       .map(([k, v]) => ({ ...parseLTC(k), value: Number(v) || 0 }))
-      .filter(e => e.value > 0 && !e.tech.includes('transmission'));
+      .filter(e => e.value > 0 && !e.tech.includes('transmission') && isTechVisible(e.tech));
     const genEntries = Object.entries(result.generation || {})
       .map(([k, v]) => ({ ...parseLTC(k), value: Number(v) || 0 }))
-      .filter(e => e.value > 0);
-
-    const locs = [...new Set(capEntries.map(e => e.loc))].sort();
-    const techs = [...new Set(capEntries.map(e => e.tech))].sort();
+      .filter(e => e.value > 0 && isTechVisible(e.tech));
     const hrs = (result?.timestamps?.length) || 8760;
 
+    if (isLargeModel) {
+      const techCap = {};
+      const techGen = {};
+      capEntries.forEach(({ tech, value }) => { techCap[tech] = (techCap[tech] || 0) + value; });
+      genEntries.filter(e => !e.tech.includes('transmission')).forEach(({ tech, value }) => { techGen[tech] = (techGen[tech] || 0) + value; });
+      const data = Object.keys(techCap).map(tech => ({
+        tech, cf: techCap[tech] > 0 ? Math.min(100, (techGen[tech] || 0) / (techCap[tech] * hrs) * 100) : 0,
+      })).filter(d => d.cf > 0).sort((a, b) => b.cf - a.cf);
+      if (!data.length) return null;
+      return {
+        backgroundColor: 'transparent',
+        grid: { left: 140, right: 80, top: 16, bottom: 16 },
+        xAxis: { type: 'value', max: 100, ...axisNameStyle('%'), axisLabel: { fontSize: 11, color: '#64748b', formatter: v => v }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
+        yAxis: { type: 'category', data: data.map(d => d.tech.replace(/_/g, ' ')), axisLabel: { fontSize: 11, color: '#475569' } },
+        series: [{
+          type: 'bar', barMaxWidth: 28,
+          data: data.map(d => ({ value: +d.cf.toFixed(1), itemStyle: { color: techColorFn(d.tech), borderRadius: [0, 4, 4, 0] } })),
+          label: { show: true, position: 'right', formatter: p => p.value.toFixed(1) + '%', fontSize: 10, color: '#64748b' },
+        }],
+        tooltip: { trigger: 'axis', formatter: p => `${p[0].name}<br/><b>Avg CF: ${p[0].value}%</b>` },
+      };
+    }
+
+    // Small model: full heatmap (location × tech)
+    const locs = [...new Set(capEntries.map(e => e.loc))].sort();
+    const techs = [...new Set(capEntries.map(e => e.tech))].sort();
     const data = [];
     techs.forEach((tech, ti) => {
       locs.forEach((loc, li) => {
@@ -799,13 +1106,13 @@ const Results = () => {
         formatter: p => `${locs[p.data[0]]} × ${techs[p.data[1]].replace(/_/g,' ')}<br/><b>CF: ${p.data[2]}%</b>`,
       },
     };
-  }, [result, derivedData]);
+  }, [result, derivedData, isLargeModel, techFilter]);
 
   // Cost per MWh by technology
   const costPerMwhOption = useMemo(() => {
     if (!result?.costs_by_tech || !derivedData?.genByTech) return null;
     const data = Object.entries(result.costs_by_tech)
-      .filter(([, cost]) => cost > 0)
+      .filter(([t, cost]) => cost > 0 && isTechVisible(t))
       .map(([tech, cost]) => {
         const gen = derivedData.genByTech[tech] || 0;
         return { tech, costPerMwh: gen > 0 ? cost / gen : 0, cost, gen };
@@ -815,17 +1122,17 @@ const Results = () => {
     if (!data.length) return null;
     return {
       backgroundColor: 'transparent',
-      grid: { left: 140, right: 60, top: 16, bottom: 32 },
-      xAxis: { type: 'value', axisLabel: { fontSize: 11, color: '#64748b', formatter: v => fmtNum(v) + ' €/MWh' }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
+      grid: { left: 140, right: 60, top: 16, bottom: 16 },
+      xAxis: { type: 'value', ...axisNameStyle('€/MWh'), axisLabel: { fontSize: 11, color: '#64748b', formatter: v => fmtNum(v) }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
       yAxis: { type: 'category', data: data.map(d => d.tech.replace(/_/g,' ')), axisLabel: { fontSize: 11, color: '#475569' } },
       series: [{
         type: 'bar', barMaxWidth: 28,
-        data: data.map(d => ({ value: +d.costPerMwh.toFixed(2), itemStyle: { color: techColor(d.tech), borderRadius: [0,4,4,0] } })),
+        data: data.map(d => ({ value: +d.costPerMwh.toFixed(2), itemStyle: { color: techColorFn(d.tech), borderRadius: [0,4,4,0] } })),
         label: { show: true, position: 'right', formatter: p => p.value.toFixed(1) + ' €/MWh', fontSize: 10, color: '#64748b' },
       }],
       tooltip: { trigger: 'axis', formatter: p => `${p[0].name}<br/><b>${p[0].value.toFixed(2)} €/MWh</b>` },
     };
-  }, [result, derivedData]);
+  }, [result, derivedData, techFilter, techColorFn]);
 
   // ── TABS ───────────────────────────────────────────────────────────────────
   const TABS = [
@@ -942,6 +1249,18 @@ const Results = () => {
               <span>Status: <strong className="text-green-600">{selectedJob.terminationCondition}</strong></span>
               <span className="text-slate-300">|</span>
               <span>Objective: <strong>{fmtFull(result?.objective)} €</strong></span>
+              {isLargeModel && (
+                <>
+                  <span className="text-slate-300">|</span>
+                  <span className="flex items-center gap-1.5 text-amber-600 font-medium text-xs">
+                    <FiLayers size={12} />
+                    Large model · {modelLocations.length.toLocaleString()} locations
+                    · {Object.keys(derivedData?.capByTech || {}).length} techs
+                    · {(result?.timestamps?.length || 0).toLocaleString()} timesteps
+                    · per-location charts capped at top {LOC_CHART_LIMIT}
+                  </span>
+                </>
+              )}
               <span className="text-slate-300">|</span>
               <span className="text-slate-400 text-xs">{new Date(selectedJob.completedAt).toLocaleString()}</span>
             </div>
@@ -958,6 +1277,143 @@ const Results = () => {
                 </button>
               ))}
             </div>
+
+            {/* ── Tech filter — grouped chips ── */}
+            {allTechs.length > 0 && (
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-3 py-2 space-y-2">
+                {/* Row 1: label + All + group toggles */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center gap-1.5 text-slate-400 text-[10px] font-bold uppercase tracking-widest flex-shrink-0 border-r border-slate-200 pr-2.5 mr-0.5">
+                    <FiFilter size={10} /> Filters
+                  </div>
+                  <button
+                    onClick={clearTechFilter}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all flex-shrink-0 ${
+                      techFilter.size === 0
+                        ? 'bg-gray-900 text-white'
+                        : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                    }`}>
+                    All
+                  </button>
+                  {activeGroups.map(grp => {
+                    const state = groupFilterState(grp.id);
+                    const full = state === 'full';
+                    const partial = state === 'partial';
+                    return (
+                      <button key={grp.id} onClick={() => toggleGroup(grp.id)}
+                        title={`Toggle all ${grp.label} techs`}
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all flex-shrink-0 border ${
+                          full
+                            ? 'text-white border-transparent'
+                            : partial
+                              ? 'border-dashed'
+                              : 'bg-white border-slate-200 text-slate-400 line-through opacity-60'
+                        }`}
+                        style={full || partial ? {
+                          background: full ? grp.color : grp.color + '22',
+                          borderColor: grp.color + (partial ? 'aa' : ''),
+                          color: full ? '#fff' : grp.color,
+                        } : {}}>
+                        <span className="w-2 h-2 rounded-full flex-shrink-0"
+                          style={{ background: full ? '#fff' : partial ? grp.color : '#cbd5e1' }} />
+                        {grp.label}
+                        <span className={`text-[10px] font-normal ml-0.5 ${full ? 'text-white/70' : 'opacity-60'}`}>
+                          {(techsByGroup[grp.id] || []).length}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Row 2: individual tech chips, separated by group */}
+                <div className="flex items-center gap-1.5 flex-wrap border-t border-slate-100 pt-2">
+                  {activeGroups.map((grp, gi) => {
+                    const techs = techsByGroup[grp.id] || [];
+                    if (!techs.length) return null;
+
+                    // For the Links group, collapse many "baseType:destLoc" entries into
+                    // unique base-type chips (e.g. "pFV" covers pFV:CHERCAN, pFV:MADRID…)
+                    // Toggling a base chip selects/deselects all link techs with that base.
+                    if (grp.id === 'tx') {
+                      const bases = [...new Set(techs.map(linkTechBase))].sort();
+                      return (
+                        <span key={grp.id} className="contents">
+                          {gi > 0 && <span className="w-px h-4 bg-slate-200 flex-shrink-0 mx-0.5" />}
+                          {bases.map(base => {
+                            const baseTechs = techs.filter(t => linkTechBase(t) === base);
+                            const anyActive = techFilter.size === 0 || baseTechs.some(t => techFilter.has(t));
+                            const allActive = techFilter.size === 0 || baseTechs.every(t => techFilter.has(t));
+                            const handleBaseToggle = () => {
+                              // Toggle all techs with this base as a group
+                              setTechFilter(prev => {
+                                const expanded = prev.size === 0 ? new Set(allTechs) : new Set(prev);
+                                if (allActive) baseTechs.forEach(t => expanded.delete(t));
+                                else baseTechs.forEach(t => expanded.add(t));
+                                return expanded.size >= allTechs.length ? new Set() : expanded;
+                              });
+                            };
+                            const color = grp.color;
+                            // Use friendly display name from model definition if available
+                            const baseDisplayName = techMetaMap[base]?.display_name || base.replace(/_/g, ' ');
+                            return (
+                              <button key={base} onClick={handleBaseToggle}
+                                title={`${baseDisplayName} — ${baseTechs.length} link(s): ${baseTechs.map(t => t.split(':')[1]).join(', ')}`}
+                                className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium transition-all flex-shrink-0 border ${
+                                  allActive
+                                    ? 'border-transparent'
+                                    : anyActive
+                                      ? 'border-dashed'
+                                      : 'bg-white border-slate-200 text-slate-300 line-through opacity-40'
+                                }`}
+                                style={anyActive ? {
+                                  background: color + (allActive ? '22' : '11'),
+                                  borderColor: color + (allActive ? '55' : 'aa'),
+                                  color: '#334155',
+                                } : {}}>
+                                <span className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                                  style={{ background: anyActive ? color : '#cbd5e1' }} />
+                                {baseDisplayName}
+                                <span className="text-[9px] opacity-50 ml-0.5">×{baseTechs.length}</span>
+                              </button>
+                            );
+                          })}
+                        </span>
+                      );
+                    }
+
+                    // All other groups: one chip per tech
+                    return (
+                      <span key={grp.id} className="contents">
+                        {gi > 0 && <span className="w-px h-4 bg-slate-200 flex-shrink-0 mx-0.5" />}
+                        {techs.map(tech => {
+                          const active = techFilter.size === 0 || techFilter.has(tech);
+                          const displayName = techMetaMap[tech]?.display_name || tech.replace(/_/g, ' ');
+                          const parentLabel = techMetaMap[tech]?.parent || '';
+                          return (
+                            <button key={tech} onClick={() => toggleTech(tech)}
+                              title={`${displayName}${parentLabel ? ` (${parentLabel})` : ''}`}
+                              className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium transition-all flex-shrink-0 border ${
+                                active
+                                  ? 'border-transparent'
+                                  : 'bg-white border-slate-200 text-slate-300 line-through opacity-40'
+                              }`}
+                              style={active ? {
+                                background: techColorFn(tech) + '22',
+                                borderColor: techColorFn(tech) + '55',
+                                color: '#334155',
+                              } : {}}>
+                              <span className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                                style={{ background: active ? techColorFn(tech) : '#cbd5e1' }} />
+                              {tech.replace(/_/g, ' ')}
+                            </button>
+                          );
+                        })}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* ════════════════ OVERVIEW TAB ════════════════ */}
             {tab === 'overview' && (
@@ -999,6 +1455,7 @@ const Results = () => {
                             dominantTechByLoc={derivedData?.domTech || {}}
                             generationByLoc={derivedData?.genByLoc || {}}
                             viewMode={mapView}
+                            colorFn={techColorFn}
                           />
                         )
                       ) : (
@@ -1011,45 +1468,56 @@ const Results = () => {
                 {/* Capacity + Generation row */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   {/* Capacity by tech */}
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-                    <div className="flex items-center gap-2 mb-3">
-                      <FiBarChart2 size={15} className="text-gray-600" />
-                      <span className="font-semibold text-slate-800 text-sm">Installed Capacity by Technology</span>
-                    </div>
-                    {capBarOption ? (
-                      <ReactECharts option={capBarOption} style={{ height: 280 }} notMerge />
-                    ) : <div className="text-slate-400 text-sm text-center py-16">No capacity data</div>}
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <button onClick={() => toggleSection('cap-by-tech')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
+                      <FiBarChart2 size={14} className="text-gray-600 flex-shrink-0" />
+                      <span className="font-semibold text-slate-800 text-sm flex-1">Installed Capacity by Technology</span>
+                      <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('cap-by-tech') ? '' : '-rotate-90'}`} />
+                    </button>
+                    {sectionOpen('cap-by-tech') && <div className="px-5 pb-5">
+                      {capBarOption ? (
+                        <ReactECharts option={capBarOption} style={{ height: 280 }} notMerge />
+                      ) : <div className="text-slate-400 text-sm text-center py-16">No capacity data</div>}
+                    </div>}
                   </div>
                   {/* Generation donut */}
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-                    <div className="flex items-center gap-2 mb-3">
-                      <FiPieChart size={15} className="text-amber-500" />
-                      <span className="font-semibold text-slate-800 text-sm">Generation Mix</span>
-                      <span className="text-xs text-slate-400 ml-1">· MWh total</span>
-                    </div>
-                    {genDonutOption ? (
-                      <ReactECharts option={genDonutOption} style={{ height: 280 }} notMerge />
-                    ) : <div className="text-slate-400 text-sm text-center py-16">No generation data</div>}
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <button onClick={() => toggleSection('gen-mix')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
+                      <FiPieChart size={14} className="text-amber-500 flex-shrink-0" />
+                      <span className="font-semibold text-slate-800 text-sm flex-1">Generation Mix</span>
+                      <span className="text-xs text-slate-400 mr-1">· MWh total</span>
+                      <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('gen-mix') ? '' : '-rotate-90'}`} />
+                    </button>
+                    {sectionOpen('gen-mix') && <div className="px-5 pb-5">
+                      {genDonutOption ? (
+                        <ReactECharts option={genDonutOption} style={{ height: 280 }} notMerge />
+                      ) : <div className="text-slate-400 text-sm text-center py-16">No generation data</div>}
+                    </div>}
                   </div>
                   {/* Capacity by location */}
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-                    <div className="flex items-center gap-2 mb-3">
-                      <FiMapPin size={15} className="text-gray-600" />
-                      <span className="font-semibold text-slate-800 text-sm">Capacity by Location & Technology</span>
-                    </div>
-                    {capLocOption ? (
-                      <ReactECharts option={capLocOption} style={{ height: 280 }} notMerge />
-                    ) : <div className="text-slate-400 text-sm text-center py-16">No location data</div>}
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <button onClick={() => toggleSection('cap-by-loc')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
+                      <FiMapPin size={14} className="text-gray-600 flex-shrink-0" />
+                      <span className="font-semibold text-slate-800 text-sm flex-1">Capacity by Location & Technology</span>
+                      <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('cap-by-loc') ? '' : '-rotate-90'}`} />
+                    </button>
+                    {sectionOpen('cap-by-loc') && <div className="px-5 pb-5">
+                      {capLocOption ? (
+                        <ReactECharts option={capLocOption} style={{ height: 280 }} notMerge />
+                      ) : <div className="text-slate-400 text-sm text-center py-16">No location data</div>}
+                    </div>}
                   </div>
                 </div>
 
                 {/* Technology summary table */}
                 {derivedData?.capByTech && (
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-                    <h3 className="font-semibold text-slate-800 text-sm mb-4 flex items-center gap-2">
-                      <FiTrendingUp size={15} className="text-slate-500" /> Technology Summary
-                    </h3>
-                    <div className="overflow-x-auto">
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <button onClick={() => toggleSection('tech-summary')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
+                      <FiTrendingUp size={14} className="text-slate-500 flex-shrink-0" />
+                      <span className="font-semibold text-slate-800 text-sm flex-1">Technology Summary</span>
+                      <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('tech-summary') ? '' : '-rotate-90'}`} />
+                    </button>
+                    {sectionOpen('tech-summary') && <div className="px-5 pb-5 overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="border-b border-slate-100">
@@ -1073,7 +1541,7 @@ const Results = () => {
                               <tr key={tech} className={i % 2 === 0 ? 'border-b border-slate-50' : 'border-b border-slate-50 bg-slate-50/50'}>
                                 <td className="py-2.5 pr-6">
                                   <div className="flex items-center gap-2">
-                                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: techColor(tech) }} />
+                                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: techColorFn(tech) }} />
                                     <span className="font-medium text-slate-700 capitalize">{tech.replace(/_/g, ' ')}</span>
                                   </div>
                                 </td>
@@ -1093,7 +1561,7 @@ const Results = () => {
                           })}
                         </tbody>
                       </table>
-                    </div>
+                    </div>}
                   </div>
                 )}
               </div>
@@ -1102,12 +1570,15 @@ const Results = () => {
             {/* ════════════════ ENERGY FLOW TAB (SANKEY) ════════════════ */}
             {tab === 'flow' && (
               <div className="space-y-4">
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-                  <div className="flex items-center gap-2 mb-1">
-                    <FiShare2 size={15} className="text-gray-600" />
-                    <span className="font-semibold text-slate-800 text-sm">Energy Flow — Sankey Diagram</span>
-                  </div>
-                  <p className="text-xs text-slate-400 mb-4">Flow width = total generation (MWh) · Technology → Carrier → Total Demand</p>
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                  <button onClick={() => toggleSection('sankey')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
+                    <FiShare2 size={14} className="text-gray-600 flex-shrink-0" />
+                    <span className="font-semibold text-slate-800 text-sm flex-1">Energy Flow — Sankey Diagram</span>
+                    <span className="text-xs text-slate-400 mr-1">· tech → carrier → demand</span>
+                    <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('sankey') ? '' : '-rotate-90'}`} />
+                  </button>
+                  {sectionOpen('sankey') && <div className="px-5 pb-5">
+                    <p className="text-xs text-slate-400 mb-4">Flow width = total generation (MWh) · Technology → Carrier → Total Demand</p>
                   {sankeyOption ? (
                     <ReactECharts option={sankeyOption} style={{ height: 480 }} notMerge />
                   ) : (
@@ -1116,6 +1587,7 @@ const Results = () => {
                       Insufficient generation data to build energy flow diagram
                     </div>
                   )}
+                  </div>}
                 </div>
 
                 {/* Generation ratio per carrier */}
@@ -1129,7 +1601,7 @@ const Results = () => {
                         return (
                           <div key={tech} className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
                             <div className="flex items-center gap-2 mb-2">
-                              <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: techColor(tech) }} />
+                              <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: techColorFn(tech) }} />
                               <span className="font-semibold text-slate-700 text-sm capitalize">{tech.replace(/_/g, ' ')}</span>
                             </div>
                             <div className="flex justify-between text-xs text-slate-500 mb-1">
@@ -1137,7 +1609,7 @@ const Results = () => {
                               <span className="font-bold text-slate-700">{share.toFixed(1)}%</span>
                             </div>
                             <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                              <div className="h-full rounded-full transition-all" style={{ width: `${share}%`, background: techColor(tech) }} />
+                              <div className="h-full rounded-full transition-all" style={{ width: `${share}%`, background: techColorFn(tech) }} />
                             </div>
                             <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-500">
                               <span>Cap: <strong className="text-slate-700">{fmtNum(cap)} MW</strong></span>
@@ -1162,14 +1634,17 @@ const Results = () => {
                   </div>
                 ) : (
                   <>
-                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-                      <div className="flex items-center gap-2 mb-1">
-                        <FiActivity size={15} className="text-green-600" />
-                        <span className="font-semibold text-slate-800 text-sm">Generation Dispatch Stack</span>
-                        <span className="text-xs text-slate-400 ml-1">· MW/hour · scroll to zoom</span>
-                      </div>
-                      <p className="text-xs text-slate-400 mb-3">Stacked area = supply mix · dashed red = demand</p>
-                      <ReactECharts option={dispatchOption} style={{ height: 400 }} notMerge />
+                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                      <button onClick={() => toggleSection('dispatch-stack')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
+                        <FiActivity size={14} className="text-green-600 flex-shrink-0" />
+                        <span className="font-semibold text-slate-800 text-sm flex-1">Generation Dispatch Stack</span>
+                        <span className="text-xs text-slate-400 mr-1">· scroll to zoom</span>
+                        <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('dispatch-stack') ? '' : '-rotate-90'}`} />
+                      </button>
+                      {sectionOpen('dispatch-stack') && <div className="px-5 pb-5">
+                        <p className="text-xs text-slate-400 mb-3">Stacked area = supply mix · dashed red = demand</p>
+                        <ReactECharts option={dispatchOption} style={{ height: 400 }} notMerge />
+                      </div>}
                     </div>
 
                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
@@ -1182,7 +1657,7 @@ const Results = () => {
                           return (
                             <div key={tech} className="rounded-xl border border-slate-100 p-3 bg-slate-50">
                               <div className="flex items-center gap-1.5 mb-2">
-                                <span className="w-2.5 h-2.5 rounded-full" style={{ background: techColor(tech) }} />
+                                <span className="w-2.5 h-2.5 rounded-full" style={{ background: techColorFn(tech) }} />
                                 <span className="text-xs font-semibold text-slate-700 capitalize truncate">{tech.replace(/_/g, ' ')}</span>
                               </div>
                               <div className="text-lg font-bold text-slate-800">{fmtNum(total)}</div>
@@ -1205,74 +1680,95 @@ const Results = () => {
             {tab === 'costs' && (
               <div className="space-y-4">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-                    <div className="flex items-center gap-2 mb-3">
-                      <FiDollarSign size={15} className="text-emerald-600" />
-                      <span className="font-semibold text-slate-800 text-sm">Total Cost by Technology</span>
-                    </div>
-                    {costsTechOption ? (
-                      <ReactECharts option={costsTechOption} style={{ height: 280 }} notMerge />
-                    ) : <div className="text-slate-400 text-sm text-center py-12">No cost data</div>}
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <button onClick={() => toggleSection('cost-by-tech')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
+                      <FiDollarSign size={14} className="text-emerald-600 flex-shrink-0" />
+                      <span className="font-semibold text-slate-800 text-sm flex-1">Total Cost by Technology</span>
+                      <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('cost-by-tech') ? '' : '-rotate-90'}`} />
+                    </button>
+                    {sectionOpen('cost-by-tech') && <div className="px-5 pb-5">
+                      {costsTechOption ? (
+                        <ReactECharts option={costsTechOption} style={{ height: 280 }} notMerge />
+                      ) : <div className="text-slate-400 text-sm text-center py-12">No cost data</div>}
+                    </div>}
                   </div>
 
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-                    <div className="flex items-center gap-2 mb-3">
-                      <FiTrendingUp size={15} className="text-gray-600" />
-                      <span className="font-semibold text-slate-800 text-sm">Cost per MWh by Technology</span>
-                      <span className="text-xs text-slate-400 ml-1">· LCOE proxy</span>
-                    </div>
-                    {costPerMwhOption ? (
-                      <ReactECharts option={costPerMwhOption} style={{ height: 280 }} notMerge />
-                    ) : <div className="text-slate-400 text-sm text-center py-12">No data</div>}
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <button onClick={() => toggleSection('cost-per-mwh')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
+                      <FiTrendingUp size={14} className="text-gray-600 flex-shrink-0" />
+                      <span className="font-semibold text-slate-800 text-sm flex-1">Cost per MWh by Technology</span>
+                      <span className="text-xs text-slate-400 mr-1">· LCOE proxy</span>
+                      <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('cost-per-mwh') ? '' : '-rotate-90'}`} />
+                    </button>
+                    {sectionOpen('cost-per-mwh') && <div className="px-5 pb-5">
+                      {costPerMwhOption ? (
+                        <ReactECharts option={costPerMwhOption} style={{ height: 280 }} notMerge />
+                      ) : <div className="text-slate-400 text-sm text-center py-12">No data</div>}
+                    </div>}
                   </div>
                 </div>
 
                 {costsLocOption && (
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-                    <div className="flex items-center gap-2 mb-3">
-                      <FiMapPin size={15} className="text-gray-600" />
-                      <span className="font-semibold text-slate-800 text-sm">Cost Breakdown by Location &amp; Technology</span>
-                    </div>
-                    <ReactECharts option={costsLocOption} style={{ height: 300 }} notMerge />
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <button onClick={() => toggleSection('cost-by-loc')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
+                      <FiMapPin size={14} className="text-gray-600 flex-shrink-0" />
+                      <span className="font-semibold text-slate-800 text-sm flex-1">Cost Breakdown by Location &amp; Technology</span>
+                      <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('cost-by-loc') ? '' : '-rotate-90'}`} />
+                    </button>
+                    {sectionOpen('cost-by-loc') && <div className="px-5 pb-5">
+                      <ReactECharts option={costsLocOption} style={{ height: 300 }} notMerge />
+                    </div>}
                   </div>
                 )}
 
                 {result?.costs_by_location && (
                   <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 overflow-x-auto">
-                    <h3 className="font-semibold text-slate-800 text-sm mb-4">Cost Detail Table (€)</h3>
                     {(() => {
-                      const locs = Object.keys(result.costs_by_location).sort();
+                      const allLocs = Object.keys(result.costs_by_location);
+                      const totalByLoc = Object.fromEntries(
+                        allLocs.map(l => [l, Object.values(result.costs_by_location[l]).reduce((s, v) => s + (Number(v) || 0), 0)])
+                      );
+                      const locs = allLocs
+                        .sort((a, b) => totalByLoc[b] - totalByLoc[a])
+                        .slice(0, isLargeModel ? LOC_CHART_LIMIT : allLocs.length);
+                      const truncated = isLargeModel && allLocs.length > LOC_CHART_LIMIT;
                       const techs = [...new Set(locs.flatMap(l => Object.keys(result.costs_by_location[l])))].sort();
                       return (
-                        <table className="w-full text-xs">
-                          <thead>
-                            <tr className="border-b border-slate-200">
-                              <th className="text-left py-2 pr-4 font-semibold text-slate-500 uppercase tracking-wide">Location</th>
-                              {techs.map(t => (
-                                <th key={t} className="text-right py-2 px-3 font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap capitalize">
-                                  {t.replace(/_/g, ' ')}
-                                </th>
-                              ))}
-                              <th className="text-right py-2 pl-4 font-semibold text-slate-800 uppercase tracking-wide">Total</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {locs.map((loc, li) => {
-                              const rowTotal = Object.values(result.costs_by_location[loc]).reduce((s, v) => s + (Number(v) || 0), 0);
-                              return (
-                                <tr key={loc} className={li % 2 === 0 ? 'border-b border-slate-50' : 'border-b border-slate-50 bg-slate-50/60'}>
-                                  <td className="py-2 pr-4 font-medium text-slate-700">{loc}</td>
-                                  {techs.map(t => (
-                                    <td key={t} className="py-2 px-3 text-right text-slate-500 font-mono">
-                                      {fmtFull(result.costs_by_location[loc]?.[t] || 0)}
-                                    </td>
-                                  ))}
-                                  <td className="py-2 pl-4 text-right font-bold text-slate-800 font-mono">{fmtFull(rowTotal)}</td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
+                        <>
+                          <h3 className="font-semibold text-slate-800 text-sm mb-1">Cost Detail Table (€)</h3>
+                          {truncated && (
+                            <p className="text-xs text-amber-600 mb-3">Showing top {LOC_CHART_LIMIT} locations by total cost (of {allLocs.length}). Export JSON for full data.</p>
+                          )}
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="border-b border-slate-200">
+                                <th className="text-left py-2 pr-4 font-semibold text-slate-500 uppercase tracking-wide">Location</th>
+                                {techs.map(t => (
+                                  <th key={t} className="text-right py-2 px-3 font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap capitalize">
+                                    {t.replace(/_/g, ' ')}
+                                  </th>
+                                ))}
+                                <th className="text-right py-2 pl-4 font-semibold text-slate-800 uppercase tracking-wide">Total</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {locs.map((loc, li) => {
+                                const rowTotal = Object.values(result.costs_by_location[loc]).reduce((s, v) => s + (Number(v) || 0), 0);
+                                return (
+                                  <tr key={loc} className={li % 2 === 0 ? 'border-b border-slate-50' : 'border-b border-slate-50 bg-slate-50/60'}>
+                                    <td className="py-2 pr-4 font-medium text-slate-700">{loc}</td>
+                                    {techs.map(t => (
+                                      <td key={t} className="py-2 px-3 text-right text-slate-500 font-mono">
+                                        {fmtFull(result.costs_by_location[loc]?.[t] || 0)}
+                                      </td>
+                                    ))}
+                                    <td className="py-2 pl-4 text-right font-bold text-slate-800 font-mono">{fmtFull(rowTotal)}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </>
                       );
                     })()}
                   </div>
@@ -1283,21 +1779,28 @@ const Results = () => {
             {/* ════════════════ ANALYSIS TAB ════════════════ */}
             {tab === 'analysis' && (
               <div className="space-y-4">
-                {/* Capacity factor heatmap */}
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-                  <div className="flex items-center gap-2 mb-1">
-                    <FiGrid size={15} className="text-gray-600" />
-                    <span className="font-semibold text-slate-800 text-sm">Capacity Factor Heatmap</span>
-                    <span className="text-xs text-slate-400 ml-1">· Location × Technology · darker = higher utilisation</span>
-                  </div>
-                  <p className="text-xs text-slate-400 mb-4">CF = total generation ÷ (installed capacity × hours). High CF means the asset is heavily used.</p>
-                  {cfHeatmapOption ? (
-                    <ReactECharts option={cfHeatmapOption} style={{ height: 320 }} notMerge />
-                  ) : (
-                    <div className="text-slate-400 text-sm text-center py-16">
-                      Insufficient data — needs both capacity and generation outputs
-                    </div>
-                  )}
+                {/* Capacity factor chart */}
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                  <button onClick={() => toggleSection('cf-chart')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
+                    <FiGrid size={14} className="text-gray-600 flex-shrink-0" />
+                    <span className="font-semibold text-slate-800 text-sm flex-1">
+                      {isLargeModel ? 'Average Capacity Factor by Technology' : 'Capacity Factor Heatmap'}
+                    </span>
+                    <span className="text-xs text-slate-400 mr-1">
+                      {isLargeModel ? '· aggregated' : '· Loc × Tech'}
+                    </span>
+                    <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('cf-chart') ? '' : '-rotate-90'}`} />
+                  </button>
+                  {sectionOpen('cf-chart') && <div className="px-5 pb-5">
+                    <p className="text-xs text-slate-400 mb-4">CF = total generation ÷ (installed capacity × hours). High CF means the asset is heavily used.</p>
+                    {cfHeatmapOption ? (
+                      <ReactECharts option={cfHeatmapOption} style={{ height: isLargeModel ? 220 : 320 }} notMerge />
+                    ) : (
+                      <div className="text-slate-400 text-sm text-center py-16">
+                        Insufficient data — needs both capacity and generation outputs
+                      </div>
+                    )}
+                  </div>}
                 </div>
 
                 {/* Renewable share & system metrics */}
@@ -1353,7 +1856,7 @@ const Results = () => {
                             <div className="flex justify-between"><span className="text-slate-500">Timesteps</span> <strong className="text-slate-800">{(result?.timestamps?.length || 0).toLocaleString()}</strong></div>
                             <div className="flex justify-between"><span className="text-slate-500">Dominant tech</span>
                               <span className="flex items-center gap-1.5">
-                                <span className="w-2 h-2 rounded-full" style={{ background: techColor(topTech?.[0] || '') }} />
+                                <span className="w-2 h-2 rounded-full" style={{ background: techColorFn(topTech?.[0] || '') }} />
                                 <strong className="text-slate-800 capitalize">{topTech?.[0]?.replace(/_/g,' ') || '—'}</strong>
                               </span>
                             </div>
@@ -1367,28 +1870,43 @@ const Results = () => {
                 {/* Per-location generation bars */}
                 {derivedData?.capByLoc && Object.keys(derivedData.capByLoc).length > 0 && (
                   <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-                    <h3 className="font-semibold text-slate-800 text-sm mb-4">Per-Location Capacity Breakdown</h3>
-                    <div className="space-y-3">
-                      {Object.entries(derivedData.capByLoc).sort(([,a],[,b]) => b-a).map(([loc, cap]) => {
-                        const maxCap = Math.max(...Object.values(derivedData.capByLoc));
-                        const pct = maxCap > 0 ? (cap / maxCap * 100) : 0;
-                        const dom = derivedData.domTech[loc];
-                        return (
-                          <div key={loc}>
-                            <div className="flex items-center justify-between mb-1 text-xs">
-                              <span className="font-medium text-slate-700 flex items-center gap-1.5">
-                                <span className="w-2 h-2 rounded-full" style={{ background: techColor(dom) }} />
-                                {loc}
-                              </span>
-                              <span className="font-mono text-slate-500">{fmtNum(cap)} MW · {dom?.replace(/_/g,' ')}</span>
-                            </div>
-                            <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                              <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: techColor(dom) }} />
-                            </div>
+                    {(() => {
+                      const allEntries = Object.entries(derivedData.capByLoc).sort(([,a],[,b]) => b-a);
+                      const entries = isLargeModel ? allEntries.slice(0, LOC_CHART_LIMIT) : allEntries;
+                      const truncated = isLargeModel && allEntries.length > LOC_CHART_LIMIT;
+                      const maxCap = allEntries[0]?.[1] || 1;
+                      return (
+                        <>
+                          <div className="flex items-center justify-between mb-3">
+                            <h3 className="font-semibold text-slate-800 text-sm">Per-Location Capacity Breakdown</h3>
+                            {truncated && <span className="text-xs text-amber-600">Top {LOC_CHART_LIMIT} of {allEntries.length} locations</span>}
                           </div>
-                        );
-                      })}
-                    </div>
+                          <div className="space-y-3">
+                            {entries.map(([loc, cap]) => {
+                              const pct = maxCap > 0 ? (cap / maxCap * 100) : 0;
+                              const dom = derivedData.domTech[loc];
+                              return (
+                                <div key={loc}>
+                                  <div className="flex items-center justify-between mb-1 text-xs">
+                                    <span className="font-medium text-slate-700 flex items-center gap-1.5">
+                                      <span className="w-2 h-2 rounded-full" style={{ background: techColorFn(dom) }} />
+                                      {loc}
+                                    </span>
+                                    <span className="font-mono text-slate-500">{fmtNum(cap)} MW · {dom?.replace(/_/g,' ')}</span>
+                                  </div>
+                                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                                    <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: techColorFn(dom) }} />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {truncated && (
+                            <p className="mt-3 text-xs text-slate-400 text-center">… {allEntries.length - LOC_CHART_LIMIT} more locations. Export JSON for full data.</p>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
                 )}
               </div>

@@ -8,6 +8,8 @@ services:
     ports:
       - "5000:5000"
     restart: unless-stopped
+    volumes:
+      - ./python:/app/python:ro
     # Optional: mount a local solvers dir if you prefer bundled binaries over coinor-cbc
     # volumes:
     #   - ./solvers/linux:/app/solvers/linux:ro
