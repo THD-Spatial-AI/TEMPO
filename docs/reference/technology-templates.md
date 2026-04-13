@@ -1,135 +1,129 @@
 # Technology Templates
 
-TEMPO ships with pre-configured technology YAML templates in the `techs/` directory. These templates define default parameter values that accelerate model creation without requiring users to research typical values from scratch.
+TEMPO ships with a built-in technology library that covers the most common generation, storage, conversion, and demand technologies. The library is defined in `src/components/TechnologiesData.js` and can optionally be enriched at runtime by a local [OEO Technology Database API](#oeo-technology-database-api).
 
 ---
 
-## Renewable technologies (`techs_renewable.yaml`)
+## Library structure
 
-### `solar_pv`
-Utility-scale solar photovoltaic. Uses an area-based resource model.
+Technologies are grouped into the following categories:
 
-| Parameter | Default | Unit |
-|---|---|---|
-| `energy_eff` | 0.85 | — |
-| `resource_area_max` | unlimited | km² |
-| `cost_energy_cap` | 600 | €/kW |
-| `cost_om_annual` | 12 | €/kW/year |
-| `lifetime` | 25 | years |
+### Renewable generation
 
-### `wind_onshore`
-Onshore wind turbines. Resource driven by a capacity factor time series.
+| ID | Description |
+|---|---|
+| `solar_pv_utility_scale` | Utility-scale solar PV |
+| `solar_pv_distributed` | Distributed rooftop PV |
+| `concentrated_solar_power_csp` | Concentrating solar power with thermal storage |
+| `onshore_wind` | Onshore wind turbines |
+| `offshore_wind_fixed_bottom` | Fixed-bottom offshore wind |
+| `offshore_wind_floating` | Floating offshore wind |
+| `hydroelectric_run_of_river` | Run-of-river hydropower |
+| `hydroelectric_reservoir` | Reservoir hydropower with dispatchable output |
 
-| Parameter | Default | Unit |
-|---|---|---|
-| `cost_energy_cap` | 1100 | €/kW |
-| `cost_om_annual` | 33 | €/kW/year |
-| `lifetime` | 25 | years |
+### Conventional generation
 
-### `wind_offshore`
-Offshore wind. Higher capital cost, typically better capacity factors.
+| ID | Description |
+|---|---|
+| `combined_cycle_gas_turbine_ccgt` | Combined-cycle gas turbine |
+| `open_cycle_gas_turbine_ocgt` | Open-cycle (peaking) gas turbine |
+| `internal_combustion_engine` | Diesel / gas internal combustion engine |
+| `coal_power_plant` | Pulverised coal boiler |
+| `nuclear_power_conventional` | Large nuclear reactor |
+| `small_modular_reactors_smr` | Small modular reactor |
+| `geothermal_power` | Geothermal binary / flash plant |
+| `biomass_power_plant` | Solid biomass combustion |
+| `biogas_power_plant` | Anaerobic digestion + gas engine |
+| `waste_to_energy` | Municipal solid waste incinerator |
+| `marine_energy` | Tidal / wave energy converter |
 
-| Parameter | Default | Unit |
-|---|---|---|
-| `cost_energy_cap` | 2800 | €/kW |
-| `lifetime` | 25 | years |
+### Electrochemical storage
 
-### `run_of_river`
-Run-of-river hydropower. Treated as a must-run resource with a capacity factor series.
+| ID | Description |
+|---|---|
+| `lithium_ion_bess` | Li-ion utility-scale battery |
+| `redox_flow_batteries` | Vanadium redox flow battery |
+| `sodium_sulfur_batteries` | Na-S high-temperature battery |
+| `lead_acid_batteries` | Lead-acid battery bank |
 
----
+### Mechanical and thermal storage
 
-## Conventional technologies (`techs_conventional.yaml`)
+| ID | Description |
+|---|---|
+| `pumped_hydro_storage` | Pumped-hydro energy storage |
+| `compressed_air_energy_storage_caes` | CAES above-ground or cavern |
+| `liquid_air_energy_storage_laes` | Liquid-air energy storage |
+| `flywheels` | Flywheel kinetic storage |
+| `sensible_thermal_storage` | Hot-water / molten-salt tank |
+| `latent_thermal_storage` | Phase-change material storage |
 
-### `gas_ccgt`
-Combined-cycle gas turbine. Dispatchable supply.
+### Hydrogen supply chain
 
-| Parameter | Default | Unit |
-|---|---|---|
-| `energy_eff` | 0.55 | — |
-| `cost_energy_cap` | 800 | €/kW |
-| `cost_om_prod` | 0.003 | €/kWh |
+| ID | Description |
+|---|---|
+| `pem_electrolyzer` | Proton-exchange membrane electrolyser |
+| `alkaline_electrolyzer` | Alkaline water electrolysis |
+| `solid_oxide_electrolyzer_soec` | High-temperature SOEC |
+| `pem_fuel_cell` | PEM H₂ fuel cell (electricity output) |
+| `solid_oxide_fuel_cell_sofc` | SOFC (electricity + heat) |
+| `hydrogen_pipeline` | H₂ pipeline transmission |
+| `compressed_hydrogen_storage` | Above-ground pressure vessel |
+| `liquid_hydrogen_storage` | Cryogenic hydrogen tank |
+| `underground_hydrogen_storage` | Salt cavern / aquifer storage |
+| `hydrogen_to_methane` | Power-to-methane (methanation) |
+| `hydrogen_to_liquid_fuels` | Fischer-Tropsch / methanol synthesis |
+| `hydrogen_steam_reforming_smr` | Natural gas SMR with CCS option |
 
-### `coal`
-Coal power plant. High emission factor, low variable cost.
+### Carbon capture and storage (CCS)
 
-### `nuclear`
-Nuclear base load. Very high capital cost, low variable cost, must-run option.
+| ID | Description |
+|---|---|
+| `post_combustion_ccs` | Amine scrubbing on a power plant flue |
+| `direct_air_capture_dac` | Ambient-air CO₂ capture |
+| `co2_pipeline` | CO₂ transport pipeline |
+| `co2_geological_storage` | Geological injection and storage |
 
-### `diesel_generator`
-Small diesel generator for off-grid or island systems.
+### Demand
 
----
-
-## Storage technologies (`techs_storage.yaml`)
-
-### `battery`
-Lithium-ion utility-scale battery.
-
-| Parameter | Default | Unit |
-|---|---|---|
-| `storage_cap_max` | unlimited | kWh |
-| `charge_rate` | 0.25 | — |
-| `energy_eff` | 0.92 | round-trip |
-| `cost_storage_cap` | 150 | €/kWh |
-
-### `pumped_hydro`
-Pumped-hydro energy storage. Very low cost per kWh for large installations.
-
-### `hydrogen_storage`
-Pressurized hydrogen storage vessel.
-
----
-
-## Hydrogen technologies (`techs_h2.yaml`)
-
-### `electrolyser`
-PEM electrolyser converting electricity to hydrogen.
-
-| Parameter | Default | Unit |
-|---|---|---|
-| `energy_eff` | 0.70 | — |
-| `cost_energy_cap` | 1200 | €/kW |
-
-### `fuel_cell`
-PEM fuel cell converting hydrogen back to electricity.
-
-### `hydrogen_pipeline`
-Transmission link for hydrogen gas.
+| ID | Description |
+|---|---|
+| `electricity_demand` | Electricity demand sink (time series driven) |
+| `heat_demand` | Heat demand sink |
+| `hydrogen_demand` | H₂ demand sink |
+| `cooling_demand` | Cooling demand sink |
 
 ---
 
-## Demand technologies (`techs_demand.yaml`)
+## Default parameter values
 
-### `demand_electricity`
-Electricity demand sink. Typically driven by a time series.
+Each technology entry in `TechnologiesData.js` carries a set of default Calliope parameter values (capital cost, efficiency, lifetime, etc.). These values are pre-filled when you add a technology from the library in the Technologies screen.
 
-### `demand_heat`
-Heat demand sink.
-
-### `demand_hydrogen`
-Hydrogen demand sink.
+If the [OEO Technology Database API](#oeo-technology-database-api) is available at startup, the application merges the API's parameter values on top of the built-in defaults, giving you up-to-date techno-economic data from the Open Energy Ontology ecosystem.
 
 ---
 
-## Transmission technologies (`techs_transmission.yaml`)
+## OEO Technology Database API
 
-### `ac_line`
-AC high-voltage overhead transmission line.
+An optional local REST service (default port **8005**) can supply technology parameters from a curated database aligned with the Open Energy Ontology (OEO). The Go backend proxies requests to this service via the `/tech/api/v1/*` endpoints.
 
-| Parameter | Default | Unit |
-|---|---|---|
-| `energy_eff` | 0.98 | per unit distance |
-| `cost_energy_cap` | 800 | €/kW |
+| Endpoint | Description |
+|---|---|
+| `GET /api/technologies` | List all technologies (id, name, oeo_class, type) |
+| `GET /api/technologies/{id}` | Full parameter set for a technology |
+| `POST /api/technologies/batch` | Fetch multiple technologies by ID |
+| `GET /api/technologies/types/{type}` | Filter by type (`supply`, `storage`, etc.) |
 
-### `dc_link`
-HVDC submarine or overhead cable. Lower losses over long distances.
+The Python client for this API lives in `python/services/tech_database.py`. If the service is offline, TEMPO falls back silently to the built-in defaults.
 
-### `heat_pipe`
-District heating pipeline.
+!!! info "Running the tech database"
+    The OEO Technology Database is a separate project. Refer to its own documentation for installation and startup instructions. Set the `OEO_API_URL` environment variable (default: `http://127.0.0.1:8005`) to point TEMPO to a non-local instance.
 
 ---
 
-## Customising templates
+## Adding or overriding technologies
 
-The template YAML files can be edited directly. Changes take effect the next time the application loads the template library (requires restart). Adding a new file to `techs/` with the same structure as an existing one automatically makes the new templates available in the technology picker.
+To add a custom technology or override a default value:
+
+1. Use **Add Technology → Custom** in the Technologies screen — this creates a one-off entry for the current model.
+2. For a persistent addition, edit `src/components/TechnologiesData.js` and add an entry following the existing structure. The change is picked up after a frontend rebuild (`npm run build` or restarting `npm run dev`).
+

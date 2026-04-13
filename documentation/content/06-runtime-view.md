@@ -19,11 +19,11 @@ When the user launches the packaged desktop application:
 
 1. The user clicks the Run button on the Run screen.
 2. The frontend sends `POST /api/models/:id/run` to the Go backend.
-3. The backend writes the model configuration to a temporary JSON file and spawns `calliope_runner.py` as a Python subprocess, passing the paths of the input and output files.
-4. The runner converts the JSON to Calliope YAML, invokes the solver, and streams tagged log lines to stdout.
-5. The Electron main process captures stdout from the Python subprocess and forwards each line to the renderer via `ipcRenderer` as a `calliope-log` event.
+3. The backend serialises the model configuration to YAML using the internal `calliope` package and sends a multipart HTTP POST request to the Calliope runner service at `http://localhost:5000/api/run`.
+4. The Calliope runner service (`python/calliope_service.py`, a FastAPI application) receives the YAML, invokes `calliope_runner.py` in a worker thread, and streams tagged log lines (`[CALLIOPE] ...`) as Server-Sent Events.
+5. The backend polls the runner service for job status via `GET http://localhost:5000/api/jobs/:job_id` and forwards log lines to the renderer via `ipcRenderer` as `calliope-log` events.
 6. The Run screen in the frontend subscribes to these IPC events and appends each line to the live log display.
-7. When the runner exits, the backend reads the output JSON file, stores the results, and marks the job as completed.
+7. When the runner exits, the backend reads the result JSON, stores it, and marks the job as completed.
 8. The frontend polls `GET /api/jobs/:id` until the job status changes to finished, then navigates to the Results screen.
 
 ## Scenario 4 -- Loading OSM Infrastructure Layers
@@ -37,5 +37,5 @@ When the user launches the packaged desktop application:
 
 1. The user opens the Export screen and selects the export format (YAML or ZIP).
 2. The frontend fetches the full model from `GET /api/models/:id`.
-3. The `ExportCalliope.jsx` component calls a utility function that assembles the Calliope YAML structure in memory using the same conversion logic mirrored from the Python runner.
+3. The `Export.jsx` component calls a utility function that assembles the Calliope YAML structure in memory using the same conversion logic mirrored from `python/adapters/calliope_adapter.py`.
 4. For a ZIP export, all YAML files and referenced time series CSVs are collected into a JSZip archive and downloaded via `file-saver`.

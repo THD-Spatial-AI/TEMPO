@@ -180,3 +180,65 @@ Resolve a place name to coordinates using Nominatim.
   "bbox": [12.8, 48.7, 13.1, 48.95]
 }
 ```
+
+---
+
+## Completed runs (persistent history)
+
+These endpoints persist the results of completed solver runs so they can be browsed after the job record is cleaned up.
+
+### `POST /api/completed-runs`
+
+Save a completed run record (called internally by the backend when a job finishes).
+
+**Request body**: completed run JSON object.
+
+**Response**
+```json
+{ "id": "r1s2t3..." }
+```
+
+---
+
+### `GET /api/completed-runs`
+
+List all saved completed runs.
+
+**Response**
+```json
+[
+  {
+    "id": "r1s2t3...",
+    "model_id": "3f7b...",
+    "model_name": "My First Model",
+    "created_at": "2026-03-01T14:00:00Z",
+    "status": "completed"
+  }
+]
+```
+
+---
+
+### `DELETE /api/completed-runs/:id`
+
+Delete a completed run record.
+
+**Response**
+```json
+{ "status": "deleted" }
+```
+
+---
+
+## Technology database proxy
+
+The backend proxies requests to the local OEO Technology Database API service (default: `http://localhost:8005`). This avoids CORS issues when the frontend calls the tech database directly.
+
+### `GET /tech/health`
+
+Health probe for the tech database service.
+
+### `ANY /tech/api/v1/*`
+
+Pass-through proxy for all OEO Technology Database API endpoints. See [Technology Templates](technology-templates.md#oeo-technology-database-api) for the available routes.
+

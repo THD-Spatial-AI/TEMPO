@@ -303,7 +303,7 @@ taskkill /PID <PID> /F
 - **OSM Processing Guide**: [osm_processing/README.md](osm_processing/README.md)
 - **GeoServer Setup**: [docs/map/geoserver.md](docs/map/geoserver.md)
 - **API Reference**: [docs/reference/api-endpoints.md](docs/reference/api-endpoints.md)
-- **Technology Templates**: [techs/](techs/)
+- **Technology Library**: [docs/reference/technology-templates.md](docs/reference/technology-templates.md)
 
 ---
 

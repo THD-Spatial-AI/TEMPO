@@ -9,15 +9,15 @@
 
 **Mitigation**: Pin the Calliope version in the conda environment setup scripts. Maintain an automated smoke test that runs a minimal model end-to-end.
 
-## Risk 2: Conda Environment Detection
+## Risk 2: Calliope Runner Service Availability
 
-**Description**: The Electron main process searches a fixed list of candidate paths to locate the conda executable. On non-standard installations the search may fail, leaving the user unable to run models.
+**Description**: The Go backend requires the Calliope runner service (`calliope_service.py`) to be running on `localhost:5000` to execute solver jobs. If the service is not started (or Docker is not running), job submissions fail.
 
-**Likelihood**: Medium.
+**Likelihood**: Medium — the service must be started manually or via Docker Compose before submitting a run.
 
-**Impact**: Medium -- the rest of the application remains functional; only the solver is unavailable.
+**Impact**: Medium — the rest of the application (model editing, map, OSM data) remains fully functional; only the solver is unavailable.
 
-**Mitigation**: The SetupScreen component allows the user to manually specify the Python executable path. This path is persisted in electron-store.
+**Mitigation**: Surface a clear status indicator in the Run screen showing whether the service is reachable. The `docker-compose.yml` includes a healthcheck. In the desktop distribution, document that the service must be started as a prerequisite.
 
 ## Risk 3: Large OSM Data Sets
 
@@ -31,7 +31,7 @@
 
 ## Technical Debt 1: Duplicated YAML Conversion Logic
 
-The logic for converting the frontend model JSON to Calliope YAML exists in two places: `calliope_runner.py` (authoritative, used for running) and the frontend export components (`ExportCalliope.jsx`). These can drift out of sync. The preferred resolution is to move the conversion entirely into the Python runner and have the frontend export endpoint call the backend, which in turn invokes the runner in a dry-run mode.
+The logic for converting the frontend model JSON to Calliope YAML exists in two places: `python/adapters/calliope_adapter.py` (authoritative, used for running) and the frontend export component (`src/components/Export.jsx`). These can drift out of sync. The preferred resolution is to remove the frontend conversion entirely and have the export endpoint call the backend, which in turn invokes the runner service in a dry-run mode.
 
 ## Technical Debt 2: No Automated Tests
 
