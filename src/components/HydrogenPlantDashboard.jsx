@@ -137,7 +137,7 @@ function getModelCapacityKw(model) {
 
 import H2NodeModal from "./H2NodeModal";
 import { fetchH2Models, getBestModel, applyModelParams, fetchH2Variants, H2_SLOTS } from "../services/h2TechModels";
-import { fetchCCSModels, getBestModel as getBestCCSModel, applyModelParams as applyCCSParams, CCS_SLOTS } from "../services/ccsTechModels";
+import { fetchCCSModels, getBestModel as getBestCCSModel, applyModelParams as applyCCSParams, CCS_SLOTS, FALLBACK_CATALOG as CCS_FALLBACK_CATALOG } from "../services/ccsTechModels";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Simulation catalogue — add new tech simulations here
@@ -523,9 +523,16 @@ export default function HydrogenPlantDashboard() {
   const [models,         setModels]         = useState({});
   const [selectedModels, setSelectedModels] = useState(() => loadLS("selectedModels", {}));
   
-  // CCS-specific models (separate from H₂)
-  const [ccsModels, setCcsModels] = useState({});
-  const [selectedCcsModels, setSelectedCcsModels] = useState(() => loadLS("selectedCcsModels", {}));
+  // CCS-specific models (separate from H₂) — pre-seeded with fallback catalog so pickers are immediately visible
+  const [ccsModels, setCcsModels] = useState(CCS_FALLBACK_CATALOG);
+  const [selectedCcsModels, setSelectedCcsModels] = useState(() => {
+    const saved = loadLS("selectedCcsModels", {});
+    // Pre-select best from fallback catalog for any slot not already saved
+    const bestFromFallback = Object.fromEntries(
+      Object.entries(CCS_FALLBACK_CATALOG).map(([k, list]) => [k, getBestCCSModel(list)])
+    );
+    return { ...bestFromFallback, ...saved };
+  });
 
   // ── Simulation state ──────────────────────────────────────────────────────
   const [simState,  setSimState]  = useState(SIM_STATES.IDLE);
@@ -906,7 +913,7 @@ export default function HydrogenPlantDashboard() {
             setSimState(SIM_STATES.DONE);
             pingHealth();
           },
-          onError:    (m) => { setErrorMsg(m); setSimState(SIM_STATES.ERROR); },
+          onError:    (m) => { setErrorMsg(typeof m === 'string' ? m : (m?.message ?? String(m ?? 'Unknown error'))); setSimState(SIM_STATES.ERROR); }
         }
       );
       cancelRef.current = cancel;
@@ -1109,6 +1116,16 @@ export default function HydrogenPlantDashboard() {
           selectedCcsModels={selectedCcsModels}
           onSelectCcsModel={handleSelectCcsModel}
           simState={simState}
+          ccsSource={ccsSource}
+          ccsAbsorber={ccsAbsorber}
+          ccsStripper={ccsStripper}
+          ccsCompressor={ccsCompressor}
+          ccsStorage={ccsStorage}
+          onSourceChange={setCcsSource}
+          onAbsorberChange={setCcsAbsorber}
+          onStripperChange={setCcsStripper}
+          onCompressorChange={setCcsCompressor}
+          onStorageChange={setCcsStorage}
         />
       )}
 
@@ -1162,103 +1179,6 @@ export default function HydrogenPlantDashboard() {
           onParamsChange={setElzParamOverrides}
         />
       </H2NodeModal>
-
-      {/* ── CCS Modals (only when CCS simulation active) ─────────────────────── */}
-      {simType === "ccs" && (
-        <>
-          {/* Source / Flue Gas */}
-          <H2NodeModal
-            open={activeNodeId === "ccs-source"}
-            onClose={() => setActiveNodeId(null)}
-            title={selectedCcsModels?.source?.name ?? "Flue Gas Source"}
-            subtitle="Power plant · CO₂ emissions · flue gas properties"
-            icon={<FiZap size={18} />}
-            accentColor="bg-orange-500"
-          >
-            <CCSSourcePanel
-              selectedModel={selectedCcsModels?.source}
-              savedParams={ccsSourceParamOverrides}
-              result={result}
-              simState={simState}
-              onParamsChange={setCcsSourceParamOverrides}
-            />
-          </H2NodeModal>
-
-          {/* Absorber */}
-          <H2NodeModal
-            open={activeNodeId === "ccs-absorber"}
-            onClose={() => setActiveNodeId(null)}
-            title={selectedCcsModels?.absorber?.name ?? "CO₂ Absorber"}
-            subtitle="Amine absorption · capture rate · energy requirement"
-            icon={<FiDroplet size={18} />}
-            accentColor="bg-blue-500"
-          >
-            <CCSAbsorberPanel
-              selectedModel={selectedCcsModels?.absorber}
-              savedParams={ccsAbsorberParamOverrides}
-              sourceParams={ccsSourceParamOverrides}
-              result={result}
-              simState={simState}
-              onParamsChange={setCcsAbsorberParamOverrides}
-            />
-          </H2NodeModal>
-
-          {/* Stripper */}
-          <H2NodeModal
-            open={activeNodeId === "ccs-stripper"}
-            onClose={() => setActiveNodeId(null)}
-            title={selectedCcsModels?.stripper?.name ?? "Solvent Stripper"}
-            subtitle="Thermal regeneration · steam requirements · efficiency"
-            icon={<FiWind size={18} />}
-            accentColor="bg-red-500"
-          >
-            <CCSStripperPanel
-              selectedModel={selectedCcsModels?.stripper}
-              savedParams={ccsStripperParamOverrides}
-              result={result}
-              simState={simState}
-              onParamsChange={setCcsStripperParamOverrides}
-            />
-          </H2NodeModal>
-
-          {/* Compressor */}
-          <H2NodeModal
-            open={activeNodeId === "ccs-compressor"}
-            onClose={() => setActiveNodeId(null)}
-            title={selectedCcsModels?.compressor?.name ?? "CO₂ Compressor"}
-            subtitle="Multi-stage compression · pressure targets · power requirement"
-            icon={<FiBox size={18} />}
-            accentColor="bg-amber-500"
-          >
-            <CCSCompressorPanel
-              selectedModel={selectedCcsModels?.compressor}
-              savedParams={ccsCompressorParamOverrides}
-              result={result}
-              simState={simState}
-              onParamsChange={setCcsCompressorParamOverrides}
-            />
-          </H2NodeModal>
-
-          {/* Storage */}
-          <H2NodeModal
-            open={activeNodeId === "ccs-storage"}
-            onClose={() => setActiveNodeId(null)}
-            title={selectedCcsModels?.storage?.name ?? "CO₂ Storage"}
-            subtitle="Geological sequestration · injection rate · reservoir properties"
-            icon={<FiDatabase size={18} />}
-            accentColor="bg-emerald-500"
-          >
-            <CCSStoragePanel
-              selectedModel={selectedCcsModels?.storage}
-              savedParams={ccsStorageParamOverrides}
-              sourceParams={ccsSourceParamOverrides}
-              result={result}
-              simState={simState}
-              onParamsChange={setCcsStorageParamOverrides}
-            />
-          </H2NodeModal>
-        </>
-      )}
 
         {/* ── Energy Evolution Charts ──────────────────────────────────────── */}
         {simType === "h2" && (
@@ -1561,6 +1481,23 @@ export default function HydrogenPlantDashboard() {
             </Card>
 
             {/* ── Simulation Statistics ─────────────────────────────────── */}
+            {simType === "ccs" && result?.kpi && (
+              <Card className="p-4">
+                <div className="mb-3">
+                  <p className="text-sm font-semibold text-slate-700">CCS Simulation KPIs</p>
+                  <p className="text-xs text-slate-500">Results from the executed horizon.</p>
+                </div>
+                <div className="grid grid-cols-1 gap-3">
+                  <KpiCard label="CO₂ Captured" value={fmt(result.kpi?.total_co2_captured_tonnes, 1)} unit="t" color="electric" />
+                  <KpiCard label="CO₂ Stored" value={fmt(result.kpi?.total_co2_stored_tonnes, 1)} unit="t" color="emerald" />
+                  <KpiCard label="Avg Capture Rate" value={fmt(result.kpi?.average_capture_rate_pct, 1)} unit="%" color="violet" />
+                  <KpiCard label="Specific Energy" value={fmt(result.kpi?.specific_energy_kwh_tco2, 1)} unit="kWh/tCO₂" color="amber" />
+                  <KpiCard label="Total Energy" value={fmt(result.kpi?.total_energy_kwh, 0)} unit="kWh" color="slate" />
+                  <KpiCard label="Absorber Energy" value={fmt(result.kpi?.total_absorber_energy_kwh, 0)} unit="kWh" color="slate" />
+                  <KpiCard label="Compressor Energy" value={fmt(result.kpi?.total_compressor_energy_kwh, 0)} unit="kWh" color="amber" />
+                </div>
+              </Card>
+            )}
             {simType === "h2" && result?.kpi && (
               <Card className="p-4">
                 <div className="mb-3">

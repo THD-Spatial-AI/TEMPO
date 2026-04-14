@@ -57,7 +57,7 @@ function buildCaptureChart(result) {
     animation: false,
     tooltip: { trigger: "axis" },
     legend: {
-      data: ["CO₂ Captured (kg/h)", "CO₂ Injected (kg/h)"],
+      data: ["CO₂ Captured (t/h)", "CO₂ Injected (t/h)"],
       bottom: 0,
       textStyle: { fontSize: 10 },
     },
@@ -65,24 +65,24 @@ function buildCaptureChart(result) {
     xAxis: { type: "category", data: time, axisLabel: { fontSize: 10 } },
     yAxis: {
       type: "value",
-      name: "kg/h",
+      name: "t/h",
       nameTextStyle: { fontSize: 10 },
       axisLabel: { fontSize: 10 },
     },
     series: [
       {
-        name: "CO₂ Captured (kg/h)",
+        name: "CO₂ Captured (t/h)",
         type: "line",
-        data: result.absorber?.co2_captured_kg_h ?? [],
+        data: result.absorber?.co2_captured_tph ?? [],
         smooth: true,
         symbol: "none",
         lineStyle: { color: "#3b82f6", width: 2 },
         areaStyle: { color: "rgba(59,130,246,0.1)" },
       },
       {
-        name: "CO₂ Injected (kg/h)",
+        name: "CO₂ Injected (t/h)",
         type: "line",
-        data: result.storage?.injection_rate_kg_h ?? [],
+        data: result.storage?.injection_rate_tph ?? [],
         smooth: true,
         symbol: "none",
         lineStyle: { color: "#10b981", width: 2 },
@@ -115,7 +115,7 @@ function buildEnergyChart(result) {
       {
         name: "Stripper Thermal (kW)",
         type: "line",
-        data: result.stripper?.thermal_input_kw ?? [],
+        data: result.stripper?.heat_demand_kw ?? [],
         smooth: true,
         symbol: "none",
         lineStyle: { color: "#ef4444", width: 2 },
@@ -124,7 +124,7 @@ function buildEnergyChart(result) {
       {
         name: "Compressor Power (kW)",
         type: "line",
-        data: result.compressor?.power_consumed_kw ?? [],
+        data: result.compressor?.power_kw ?? [],
         smooth: true,
         symbol: "none",
         lineStyle: { color: "#f59e0b", width: 2 },
@@ -175,7 +175,7 @@ function buildCompressorChart(result) {
       {
         name: "Outlet Temp (°C)",
         type: "line",
-        data: result.compressor?.outlet_temp_c ?? [],
+        data: result.compressor?.temperature_c ?? [],
         smooth: true,
         symbol: "none",
         lineStyle: { color: "#ec4899", width: 2, type: "dashed" },
@@ -208,7 +208,7 @@ function buildStorageChart(result) {
       {
         name: "Cumulative Stored (tCO₂)",
         type: "line",
-        data: result.storage?.cumulative_stored_tco2 ?? [],
+        data: result.storage?.co2_mass_tonnes ?? [],
         smooth: true,
         symbol: "none",
         lineStyle: { color: "#14b8a6", width: 2.5 },

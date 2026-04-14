@@ -113,79 +113,155 @@
 // Payload builder
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────────────────
+// tech_type enum mappers — UI ids → service enum values
+// ─────────────────────────────────────────────────────────────────────────────
+function mapSourceTechType(id = "") {
+  const s = String(id).toLowerCase();
+  if (s.includes("coal"))    return "coal_plant";
+  if (s.includes("gas"))     return "gas_plant";
+  if (s.includes("cement"))  return "cement";
+  if (s.includes("steel"))   return "steel";
+  if (s.includes("refinery") || s.includes("oil")) return "refinery";
+  return "generic";
+}
+function mapAbsorberTechType(id = "") {
+  const s = String(id).toLowerCase();
+  if (s.includes("ammonia")) return "ammonia";
+  if (s.includes("ionic"))   return "ionic_liquid";
+  if (s.includes("amine"))   return "amine";
+  return "mea"; // default — most common
+}
+function mapStripperTechType(id = "") {
+  const s = String(id).toLowerCase();
+  if (s.includes("vacuum"))         return "vacuum";
+  if (s.includes("pressure_swing")) return "pressure_swing";
+  return "thermal";
+}
+function mapCompressorTechType(id = "") {
+  const s = String(id).toLowerCase();
+  if (s.includes("isothermal"))       return "isothermal";
+  if (s.includes("integrally"))       return "integrally_geared";
+  return "multistage";
+}
+function mapStorageTechType(id = "") {
+  const s = String(id).toLowerCase();
+  if (s.includes("depleted") || s.includes("gas_field") || s.includes("oil_field")) return "depleted_field";
+  if (s.includes("ocean"))   return "ocean";
+  if (s.includes("mineral")) return "mineral";
+  return "saline_aquifer";
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Payload builder
+// ─────────────────────────────────────────────────────────────────────────────
+
 /**
  * Build the complete simulation payload from UI state.
+ * Maps UI-friendly field names to the exact schema required by the CCS service.
  *
  * @param {{
  *   sim: { t_end_s: number, dt_s: number },
- *   source: { tech_type, name, capacity_kw, efficiency_pct, co2_emission_kg_kwh, profile },
- *   absorber: { tech_type, name, capture_rate_pct, energy_requirement_gj_tco2, solvent_flow_rate_m3h, absorption_temp_c },
- *   stripper: { tech_type, name, thermal_efficiency_pct, reboiler_temp_c, steam_pressure_bar },
- *   compressor: { tech_type, name, isentropic_efficiency_frac, inlet_pressure_bar, target_pressure_bar },
- *   storage: { tech_type, name, injection_rate_mtco2_yr, storage_depth_m, reservoir_pressure_bar, storage_efficiency_pct },
- *   selectedModels: { source, absorber, stripper, compressor, storage }
+ *   source, absorber, stripper, compressor, storage, selectedModels
  * }} params
  *
- * @returns {object} Schema v2.0 payload ready for POST /api/ccs/simulate
+ * @returns {object} Schema v2.0 payload ready for POST /api/ccs/submit
  */
 export function buildSimPayload(params) {
   const { sim, source, absorber, stripper, compressor, storage, selectedModels } = params;
 
-  // ── Flue gas profile generation ────────────────────────────────────────────
-  // Generate a default CO₂ concentration profile if not provided
-  const flueGasProfile = source.profile?.length > 0
-    ? source.profile
-    : generateDefaultFlueGasProfile(sim.t_end_s, sim.dt_s, source.tech_type);
+  const t_end_s = sim.t_end_s ?? 86400;
+  const dt_s    = sim.dt_s ?? 900;
+
+  // ── Derive flue gas flow from plant capacity ───────────────────────────────
+  // Natural gas combustion: ~0.9 Nm³ flue gas per kWh of thermal input.
+  // Thermal input = capacity_kw / (efficiency_pct/100).
+  const capacity_kw   = source.capacity_kw ?? selectedModels?.source?.capacity_kw ?? 400000;
+  const efficiency_pct = source.efficiency_pct ?? selectedModels?.source?.efficiency_pct ?? 58;
+  const co2_emission_kg_kwh = source.co2_emission_kg_kwh ?? selectedModels?.source?.co2_emission_kg_kwh ?? 0.38;
+  const thermal_kw    = capacity_kw / (efficiency_pct / 100);
+  // Flue gas ≈ 0.9 Nm³/kWh thermal × 3600 s/h ÷ 1000 = 3.24 Nm³/h per kW thermal
+  const flue_gas_flow_nm3h = Math.round(thermal_kw * 3.24);
+
+  // ── CO2 emission rate in t/h ───────────────────────────────────────────────
+  // co2_tph = capacity_kw [kW] × co2_emission_kg_kwh [kg/kWh] ÷ 1000 [kg/t]
+  const base_co2_tph = capacity_kw * co2_emission_kg_kwh / 1000;
+
+  // ── Profile: [{time_s, co2_tph}] with slight variation ────────────────────
+  const profile = generateFlueGasProfile(t_end_s, dt_s, base_co2_tph);
+
+  // ── Absorber geometry defaults from flow rate / L:G ratio ─────────────────
+  const solvent_flow_rate_m3h = absorber.solvent_flow_rate_m3h ?? 500;
+  // Column diameter: approximate from volumetric gas flow (superficial velocity ~1.5 m/s)
+  const col_diameter = Math.max(2, Math.round(Math.sqrt(flue_gas_flow_nm3h / 3600 / 1.5 / Math.PI) * 2 * 2) / 2);
+
+  // ── Storage capacity from injection rate and horizon ──────────────────────
+  const injection_rate_mtco2_yr = storage.injection_rate_mtco2_yr ?? 5;
+  const injection_rate_tph      = Math.round((injection_rate_mtco2_yr * 1e6) / 8760 * 10) / 10;
+  const sim_years               = t_end_s / 31536000;
+  const capacity_tonnes         = Math.max(injection_rate_mtco2_yr * 1e6 * Math.max(1, sim_years * 10), 1e6);
+
+  const reservoir_pressure_bar  = storage.reservoir_pressure_bar ?? 150;
 
   return {
     schema_version: "2.0",
 
     simulation: {
-      t_end_s: sim.t_end_s ?? 3600,
-      dt_s:    sim.dt_s ?? 60,
+      t_end_s,
+      dt_s,
     },
 
     source: {
-      tech_type:           source.tech_type ?? selectedModels?.source?.id ?? "gas_ccgt",
-      name:                selectedModels?.source?.name ?? source.name ?? "Default Flue Gas Source",
-      capacity_kw:         source.capacity_kw ?? selectedModels?.source?.capacity_kw ?? 400000,
-      efficiency_pct:      source.efficiency_pct ?? selectedModels?.source?.efficiency_pct ?? 58,
-      co2_emission_kg_kwh: source.co2_emission_kg_kwh ?? selectedModels?.source?.co2_emission_kg_kwh ?? 0.35,
-      profile:             flueGasProfile,
+      tech_type:            mapSourceTechType(source.tech_type ?? selectedModels?.source?.id),
+      name:                 selectedModels?.source?.name ?? "Flue Gas Source",
+      co2_concentration_pct: source.co2_concentration_pct ?? selectedModels?.source?.co2_concentration_pct ?? 12,
+      flue_gas_flow_nm3h,
+      temperature_c:        source.flue_gas_temp_c ?? 120,
+      pressure_bar:         1.08,   // slightly above atmospheric (typical stack outlet)
+      profile,
     },
 
     absorber: {
-      tech_type:               absorber.tech_type ?? selectedModels?.absorber?.id ?? "mea_absorb",
-      name:                    selectedModels?.absorber?.name ?? absorber.name ?? "MEA Absorber",
-      capture_rate_pct:        absorber.capture_rate_pct ?? selectedModels?.absorber?.efficiency_pct ?? 90,
-      energy_requirement_gj_tco2: absorber.energy_requirement_gj_tco2 ?? selectedModels?.absorber?.energy_gj_tco2 ?? 3.7,
-      solvent_flow_rate_m3h:   absorber.solvent_flow_rate_m3h ?? 500,
-      absorption_temp_c:       absorber.absorption_temp_c ?? 40,
+      tech_type:              mapAbsorberTechType(absorber.tech_type ?? selectedModels?.absorber?.id),
+      name:                   selectedModels?.absorber?.name ?? "CO₂ Absorber",
+      capture_efficiency_pct: absorber.capture_rate_pct ?? selectedModels?.absorber?.efficiency_pct ?? 90,
+      solvent_flow_rate_m3h,
+      packing_height_m:       20,
+      column_diameter_m:      col_diameter,
+      operating_temperature_c: absorber.absorption_temp_c ?? 40,
+      operating_pressure_bar:  1.1,
     },
 
     stripper: {
-      tech_type:               stripper.tech_type ?? selectedModels?.stripper?.id ?? "conv_stripper",
-      name:                    selectedModels?.stripper?.name ?? stripper.name ?? "Conventional Stripper",
-      thermal_efficiency_pct:  stripper.thermal_efficiency_pct ?? selectedModels?.stripper?.efficiency_pct ?? 82,
-      reboiler_temp_c:         stripper.reboiler_temp_c ?? 120,
-      steam_pressure_bar:      stripper.steam_pressure_bar ?? 3.5,
+      tech_type:                   mapStripperTechType(stripper.tech_type ?? selectedModels?.stripper?.id),
+      name:                        selectedModels?.stripper?.name ?? "CO₂ Stripper",
+      // 1 GJ/tCO₂ = 277.78 kWh/tCO₂
+      regeneration_energy_kwh_tco2: (stripper.energy_input_gj_tco2 ?? 3.2) * 277.78,
+      steam_pressure_bar:           stripper.steam_pressure_bar ?? 3.5,
+      operating_temperature_c:      stripper.reboiler_temp_c ?? 120,
+      co2_purity_pct:               98,
     },
 
     compressor: {
-      tech_type:                  compressor.tech_type ?? selectedModels?.compressor?.id ?? "multistage_110",
-      name:                       selectedModels?.compressor?.name ?? compressor.name ?? "Multi-Stage Compressor",
-      isentropic_efficiency_frac: compressor.isentropic_efficiency_frac ?? (selectedModels?.compressor?.efficiency_pct ? selectedModels.compressor.efficiency_pct / 100 : 0.82),
+      tech_type:                  mapCompressorTechType(compressor.tech_type ?? selectedModels?.compressor?.id),
+      name:                       selectedModels?.compressor?.name ?? "CO₂ Compressor",
+      num_stages:                 compressor.number_stages ?? compressor.num_stages ?? 4,
+      isentropic_efficiency_frac: compressor.isentropic_efficiency_frac ?? 0.82,
       inlet_pressure_bar:         compressor.inlet_pressure_bar ?? 1.5,
-      target_pressure_bar:        compressor.target_pressure_bar ?? selectedModels?.compressor?.target_pressure_bar ?? 110,
+      target_pressure_bar:        compressor.target_pressure_bar ?? 110,
+      intercooler_efficiency_pct: 80,
     },
 
     storage: {
-      tech_type:               storage.tech_type ?? selectedModels?.storage?.id ?? "saline_aquifer",
-      name:                    selectedModels?.storage?.name ?? storage.name ?? "Saline Aquifer Storage",
-      injection_rate_mtco2_yr: storage.injection_rate_mtco2_yr ?? selectedModels?.storage?.injection_rate_mtco2_yr ?? 5,
-      storage_depth_m:         storage.storage_depth_m ?? 1500,
-      reservoir_pressure_bar:  storage.reservoir_pressure_bar ?? 150,
-      storage_efficiency_pct:  storage.storage_efficiency_pct ?? selectedModels?.storage?.efficiency_pct ?? 99,
+      tech_type:        mapStorageTechType(storage.tech_type ?? selectedModels?.storage?.id),
+      name:             selectedModels?.storage?.name ?? "CO₂ Storage",
+      max_pressure_bar: reservoir_pressure_bar * 1.05,
+      min_pressure_bar: reservoir_pressure_bar * 0.5,
+      initial_fill_pct: 10,
+      capacity_tonnes,
+      injection_rate_tph,
+      permeability_md:  storage.permeability_md ?? 200,
+      porosity_pct:     storage.porosity_pct ?? 18,
     },
   };
 }
@@ -197,29 +273,21 @@ export function buildSimPayload(params) {
 /**
  * Generate a default flue gas CO₂ concentration profile based on source type.
  */
-function generateDefaultFlueGasProfile(t_end_s, dt_s, techType) {
-  const steps = Math.ceil(t_end_s / dt_s);
+/**
+ * Generate a flue gas CO₂ emission rate profile [{time_s, co2_tph}].
+ * @param {number} t_end_s - simulation horizon in seconds
+ * @param {number} dt_s    - time step in seconds
+ * @param {number} base_co2_tph - base CO₂ emission rate [t/h]
+ */
+function generateFlueGasProfile(t_end_s, dt_s, base_co2_tph) {
+  const steps = Math.min(Math.ceil(t_end_s / dt_s), 2000); // cap at 2000 points
   const profile = [];
-
-  // Base CO₂ concentration by source type (vol %)
-  const baseConcentration = {
-    coal: 14.0,      // coal power plants: ~12-16% CO₂
-    gas: 4.0,        // natural gas CCGT: ~3-6% CO₂
-    cement: 20.0,    // cement kilns: ~15-25% CO₂
-    steel: 25.0,     // blast furnace: ~20-30% CO₂
-    refinery: 8.0,   // refinery: ~5-10% CO₂
-    biomass: 15.0,   // biomass: ~12-18% CO₂
-  }[techType] ?? 10.0;
-
   for (let i = 0; i <= steps; i++) {
     const time_s = i * dt_s;
-    // Add slight variation (±5%) to simulate realistic fluctuations
+    // ±5% random variation to simulate realistic load fluctuations
     const variation = 1 + (Math.random() - 0.5) * 0.1;
-    const co2_pct = baseConcentration * variation;
-
-    profile.push({ time_s, co2_pct: parseFloat(co2_pct.toFixed(2)) });
+    profile.push({ time_s, co2_tph: parseFloat((base_co2_tph * variation).toFixed(2)) });
   }
-
   return profile;
 }
 
@@ -234,53 +302,86 @@ function generateDefaultFlueGasProfile(t_end_s, dt_s, techType) {
 export function normalizeSimResult(raw) {
   if (!raw) return null;
 
-  // If already nested, return as-is
+  // v2 flat format — service returns prefix_field_name style arrays
+  // Check for v2 by presence of a v2-specific field
+  const isV2 = raw.source_co2_tph !== undefined || raw.schema_version === "2.0";
+
+  if (isV2) {
+    return {
+      schema_version: "2.0",
+      time_s: raw.time_s ?? [],
+
+      source: {
+        co2_tph:               raw.source_co2_tph ?? [],
+      },
+
+      absorber: {
+        co2_captured_tph:      raw.absorber_co2_captured_tph ?? [],
+        solvent_flow_m3h:      raw.absorber_solvent_flow_m3h ?? [],
+        power_kw:              raw.absorber_power_kw ?? [],
+        temperature_c:         raw.absorber_temperature_c ?? [],
+      },
+
+      stripper: {
+        co2_released_tph:      raw.stripper_co2_released_tph ?? [],
+        heat_demand_kw:        raw.stripper_heat_demand_kw ?? [],
+        temperature_c:         raw.stripper_temperature_c ?? [],
+      },
+
+      compressor: {
+        power_kw:              raw.compressor_power_kw ?? [],
+        outlet_pressure_bar:   raw.compressor_outlet_pressure_bar ?? [],
+        temperature_c:         raw.compressor_temperature_c ?? [],
+      },
+
+      storage: {
+        pressure_bar:          raw.storage_pressure_bar ?? [],
+        fill_pct:              raw.storage_fill_pct ?? [],
+        co2_mass_tonnes:       raw.storage_co2_mass_tonnes ?? [],
+        injection_rate_tph:    raw.storage_injection_rate_tph ?? [],
+      },
+
+      kpi: raw.kpi ?? {},
+    };
+  }
+
+  // Legacy v1 nested format — return as-is
   if (raw.source || raw.absorber || raw.stripper) {
     return raw;
   }
 
-  // Otherwise, assume flat v1 format and restructure
+  // Legacy v1 flat format
   return {
     time_s: raw.time_s ?? [],
 
     source: {
       power_output_kw:       raw.source_power_kw ?? [],
-      flue_gas_flow_kg_s:    raw.flue_gas_flow_kg_s ?? [],
       co2_concentration_pct: raw.source_co2_pct ?? [],
     },
 
     absorber: {
-      co2_captured_kg_h:     raw.co2_captured_kg_h ?? [],
-      solvent_temperature_c: raw.absorber_temp_c ?? [],
+      co2_captured_tph:      raw.co2_captured_kg_h ? raw.co2_captured_kg_h.map(v => v / 1000) : [],
+      temperature_c:         raw.absorber_temp_c ?? [],
       capture_efficiency_pct: raw.capture_efficiency_pct ?? [],
     },
 
     stripper: {
-      thermal_input_kw:      raw.thermal_input_kw ?? [],
-      co2_released_kg_h:     raw.co2_released_kg_h ?? [],
-      solvent_regeneration_pct: raw.solvent_regen_pct ?? [],
+      heat_demand_kw:        raw.thermal_input_kw ?? [],
+      co2_released_tph:      raw.co2_released_kg_h ? raw.co2_released_kg_h.map(v => v / 1000) : [],
     },
 
     compressor: {
-      power_consumed_kw:     raw.compressor_power_kw ?? [],
+      power_kw:              raw.compressor_power_kw ?? [],
       outlet_pressure_bar:   raw.compressor_outlet_bar ?? [],
-      outlet_temp_c:         raw.compressor_outlet_c ?? [],
+      temperature_c:         raw.compressor_outlet_c ?? [],
     },
 
     storage: {
-      injection_rate_kg_h:   raw.injection_rate_kg_h ?? [],
-      reservoir_pressure_bar: raw.reservoir_pressure_bar ?? [],
-      cumulative_stored_tco2: raw.cumulative_stored_tco2 ?? [],
+      pressure_bar:          raw.reservoir_pressure_bar ?? [],
+      co2_mass_tonnes:       raw.cumulative_stored_tco2 ?? [],
+      injection_rate_tph:    raw.injection_rate_kg_h ? raw.injection_rate_kg_h.map(v => v / 1000) : [],
     },
 
-    kpi: raw.kpi ?? {
-      total_co2_captured_tco2: raw.total_co2_captured_tco2 ?? null,
-      total_co2_stored_tco2:   raw.total_co2_stored_tco2 ?? null,
-      avg_capture_rate_pct:    raw.avg_capture_rate_pct ?? null,
-      specific_energy_gj_tco2: raw.specific_energy_gj_tco2 ?? null,
-      total_energy_consumed_gwh: raw.total_energy_gwh ?? null,
-      avoided_emissions_tco2:  raw.avoided_emissions_tco2 ?? null,
-      capture_cost_usd_tco2:   raw.capture_cost_usd_tco2 ?? null,
-    },
+    kpi: raw.kpi ?? {},
   };
 }
