@@ -45,7 +45,19 @@ async function apiFetch(path, options = {}) {
     let detail = `HTTP ${response.status}`;
     try {
       const body = await response.json();
-      detail = body?.detail ?? body?.message ?? JSON.stringify(body) ?? detail;
+      const raw = body?.detail ?? body?.message ?? body;
+      // FastAPI 422 returns detail as an array of validation error objects.
+      // Convert to a readable string instead of letting Array.toString() produce "[object Object],...".
+      if (Array.isArray(raw)) {
+        detail = raw.map((e) => {
+          const loc = Array.isArray(e.loc) ? e.loc.join(" → ") : String(e.loc ?? "");
+          return loc ? `${loc}: ${e.msg ?? e}` : (e.msg ?? JSON.stringify(e));
+        }).join("; ");
+      } else if (typeof raw === "object" && raw !== null) {
+        detail = JSON.stringify(raw);
+      } else if (raw != null) {
+        detail = String(raw);
+      }
     } catch (_) { /* ignore */ }
     const err = new Error(detail);
     err.status = response.status;
@@ -109,7 +121,7 @@ export async function checkHealth() {
  * @returns {Promise<{ job_id: string, status: string, message: string }>}
  */
 export async function startCCSSimulation(params) {
-  return apiFetch("/api/ccs/simulate", {
+  return apiFetch("/api/ccs/submit", {
     method: "POST",
     body: JSON.stringify(params),
   });
@@ -128,7 +140,7 @@ export async function startCCSSimulation(params) {
  * }>}
  */
 export async function pollCCSStatus(jobId) {
-  return apiFetch(`/api/jobs/${jobId}/status`);
+  return apiFetch(`/api/ccs/status/${jobId}`);
 }
 
 /**
@@ -149,91 +161,47 @@ export async function pollCCSStatus(jobId) {
  * @returns {Promise<Function>} cancel function (call to abort simulation)
  */
 export async function runCCSSimulation(params, callbacks = {}) {
-  const { onProgress = () => {}, onDone = () => {}, onError = () => {} } = callbacks;
+  const {
+    onProgress = () => {},
+    onResult   = () => {},
+    onDone     = onResult,   // alias so direct callers of onDone still work
+    onQueued   = () => {},
+    onError    = () => {},
+  } = callbacks;
+  // Normalise: always emit an object so callers can do d.progress_pct
+  const emitProgress = (val) => onProgress({ progress_pct: typeof val === 'number' ? val : (val?.progress_pct ?? 0) });
+  // Normalise: always emit a string so callers can render it safely
+  const emitError = (err) => onError(err instanceof Error ? err.message : String(err ?? 'Unknown error'));
 
   // ── Step 1: Submit simulation ──────────────────────────────────────────────
+  onQueued();
   let jobData;
   try {
     jobData = await startCCSSimulation(params);
   } catch (err) {
-    onError(err);
+    emitError(err);
     return () => {}; // no-op cancel
   }
 
   const { job_id } = jobData;
   if (!job_id) {
-    onError(new Error("No job_id returned from API"));
+    emitError(new Error("No job_id returned from API"));
     return () => {};
   }
 
   let cancelled = false;
-  let ws = null;
   let pollInterval = null;
 
   // Cancel function
   const cancel = () => {
     cancelled = true;
-    if (ws) ws.close();
     if (pollInterval) clearInterval(pollInterval);
-    // Optionally send DELETE /api/jobs/{job_id} to abort on server
   };
 
-  // ── Step 2: Try WebSocket first ────────────────────────────────────────────
-  const wsUrl = BASE_URL.replace(/^http/, 'ws') + `/ws/job/${job_id}`;
-  let wsConnected = false;
+  startHttpPolling();
 
-  try {
-    ws = new WebSocket(wsUrl);
-
-    ws.onopen = () => {
-      wsConnected = true;
-      console.log('[ccsService] WebSocket connected for job', job_id);
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        if (msg.progress_pct != null) onProgress(msg.progress_pct);
-        if (msg.status === 'done' && msg.result) {
-          onDone(msg.result);
-          ws.close();
-        }
-        if (msg.status === 'error') {
-          onError(new Error(msg.error ?? 'Simulation failed'));
-          ws.close();
-        }
-      } catch (parseErr) {
-        console.warn('[ccsService] Failed to parse WebSocket message:', parseErr);
-      }
-    };
-
-    ws.onerror = (err) => {
-      console.warn('[ccsService] WebSocket error:', err);
-      if (!wsConnected) {
-        // WS never connected → fall back to polling
-        startHttpPolling();
-      }
-    };
-
-    ws.onclose = () => {
-      console.log('[ccsService] WebSocket closed');
-    };
-
-    // Timeout: if WS doesn't connect within 3s, fall back to polling
-    setTimeout(() => {
-      if (!wsConnected && !cancelled) {
-        console.log('[ccsService] WebSocket timeout, falling back to HTTP polling');
-        if (ws) ws.close();
-        startHttpPolling();
-      }
-    }, 3000);
-
-  } catch (wsErr) {
-    console.warn('[ccsService] WebSocket creation failed:', wsErr);
-    startHttpPolling();
-  }
-
-  // ── Step 3: HTTP polling fallback ─────────────────────────────────────────
+  // ── Step 2: HTTP polling ───────────────────────────────────────────────────
+  // The CCS service exposes no WebSocket endpoint — poll /api/ccs/status/{id}.
   function startHttpPolling() {
     if (cancelled) return;
 
@@ -245,18 +213,18 @@ export async function runCCSSimulation(params, callbacks = {}) {
 
       try {
         const status = await pollCCSStatus(job_id);
-        if (status.progress_pct != null) onProgress(status.progress_pct);
+        if (status.progress_pct != null) emitProgress(status.progress_pct);
 
         if (status.status === 'done' && status.result) {
-          onDone(status.result);
+          onResult(status.result);
           clearInterval(pollInterval);
         }
         if (status.status === 'error') {
-          onError(new Error(status.error ?? 'Simulation failed'));
+          emitError(status.error ?? 'Simulation failed');
           clearInterval(pollInterval);
         }
       } catch (pollErr) {
-        onError(pollErr);
+        emitError(pollErr);
         clearInterval(pollInterval);
       }
     }, 3000); // poll every 3 seconds
