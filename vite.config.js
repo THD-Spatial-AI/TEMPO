@@ -31,6 +31,11 @@ export default defineConfig(({ mode }) => {
           ws: true,
           rewrite: (path) => path.replace(/^\/ccs-proxy/, ''),
         },
+        // ── Go backend (dev only — avoids CORS from localhost:5174) ──────────
+        '/api': {
+          target: 'http://localhost:8082',
+          changeOrigin: true,
+        },
         // ── OpenTech-DB technology catalog ───────────────────────────────────
         '/tech': {
           target: 'http://localhost:8000',

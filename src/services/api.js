@@ -1,7 +1,10 @@
 // Frontend API client for Go backend
-let BACKEND_URL = 'http://localhost:8082';
+// In Vite dev mode the /api prefix is proxied to localhost:8082 by vite.config.js,
+// so the browser never makes a cross-origin request (avoids CORS issues).
+// In Electron (file://) or an unknown context we fall back to the absolute URL.
+let BACKEND_URL = import.meta.env.DEV ? '' : 'http://localhost:8082';
 
-// Initialize backend URL from Electron
+// Override from Electron host bridge if available
 if (window.electronAPI) {
   window.electronAPI.getBackendURL().then(url => {
     BACKEND_URL = url;
