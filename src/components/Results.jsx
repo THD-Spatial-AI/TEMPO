@@ -72,7 +72,7 @@ const autoScale = (maxVal, baseUnit = 'MW') => {
 // Shared ECharts axis-name style (unit placed once at the end of the axis).
 const axisNameStyle = (unit) => ({
   name: unit, nameLocation: 'end', nameGap: 8,
-  nameTextStyle: { fontSize: 10, color: '#94a3b8', fontStyle: 'italic' },
+  nameTextStyle: { fontSize: 9, color: '#94a3b8', fontStyle: 'italic' },
 });
 const scaledFmt = (div, decimals = 1) => (v) => (v / div).toFixed(decimals);
 
@@ -771,12 +771,12 @@ const Results = () => {
     return {
       backgroundColor: 'transparent',
       grid: { left: 140, right: 60, top: 16, bottom: 16 },
-      xAxis: { type: 'value', ...axisNameStyle(unit), axisLabel: { fontSize: 11, color: '#64748b', formatter: v => fmt(v) }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
-      yAxis: { type: 'category', data: sorted.map(([t]) => t.replace(/_/g, ' ')), axisLabel: { fontSize: 11, color: '#475569' } },
+      xAxis: { type: 'value', ...axisNameStyle(unit), axisLabel: { fontSize: 9, color: '#64748b', formatter: v => fmt(v) }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
+      yAxis: { type: 'category', data: sorted.map(([t]) => t.replace(/_/g, ' ')), axisLabel: { fontSize: 9, color: '#475569' } },
       series: [{
         type: 'bar', barMaxWidth: 28,
         data: sorted.map(([tech, v]) => ({ value: v, itemStyle: { color: techColorFn(tech), borderRadius: [0, 4, 4, 0] } })),
-        label: { show: true, position: 'right', formatter: p => fmt(p.value) + ' ' + unit, fontSize: 10, color: '#64748b' },
+        label: { show: true, position: 'right', formatter: p => fmt(p.value) + ' ' + unit, fontSize: 9, color: '#64748b' },
       }],
       tooltip: { trigger: 'axis', formatter: p => `${p[0].name}<br/><b>${fmt(p[0].value)} ${unit}</b>` },
     };
@@ -792,7 +792,7 @@ const Results = () => {
     if (!data.length) return null;
     return {
       backgroundColor: 'transparent',
-      legend: { bottom: 4, type: 'scroll', textStyle: { fontSize: 10, color: '#475569' } },
+      legend: { bottom: 4, type: 'scroll', textStyle: { fontSize: 9, color: '#475569' }, icon: 'roundRect' },
       series: [{
         type: 'pie', radius: ['44%', '72%'], center: ['50%', '42%'],
         label: { show: false },
@@ -815,12 +815,12 @@ const Results = () => {
     return {
       backgroundColor: 'transparent',
       grid: { left: 140, right: 60, top: 16, bottom: 16 },
-      xAxis: { type: 'value', ...axisNameStyle(unit), axisLabel: { fontSize: 11, color: '#64748b', formatter: v => fmt(v) }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
-      yAxis: { type: 'category', data: sorted.map(([t]) => t.replace(/_/g, ' ')), axisLabel: { fontSize: 11, color: '#475569' } },
+      xAxis: { type: 'value', ...axisNameStyle(unit), axisLabel: { fontSize: 9, color: '#64748b', formatter: v => fmt(v) }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
+      yAxis: { type: 'category', data: sorted.map(([t]) => t.replace(/_/g, ' ')), axisLabel: { fontSize: 9, color: '#475569' } },
       series: [{
         type: 'bar', barMaxWidth: 28,
         data: sorted.map(([tech, v]) => ({ value: v, itemStyle: { color: techColorFn(tech), borderRadius: [0, 4, 4, 0] } })),
-        label: { show: true, position: 'right', formatter: p => fmt(p.value) + ' ' + unit, fontSize: 10, color: '#64748b' },
+        label: { show: true, position: 'right', formatter: p => fmt(p.value) + ' ' + unit, fontSize: 9, color: '#64748b' },
       }],
       tooltip: { trigger: 'axis', formatter: p => `${p[0].name}<br/><b>${fmt(p[0].value)} ${unit}</b>` },
     };
@@ -854,12 +854,12 @@ const Results = () => {
       backgroundColor: 'transparent',
       title: truncated ? {
         text: `Top ${LOC_CHART_LIMIT} locations by cost  (${allLocs.length} total)`,
-        textStyle: { fontSize: 11, color: '#94a3b8', fontWeight: 'normal' }, top: 4, left: 4,
+        textStyle: { fontSize: 9, color: '#94a3b8', fontWeight: 'normal' }, top: 4, left: 4,
       } : undefined,
-      legend: { bottom: 0, type: 'scroll', textStyle: { fontSize: 10, color: '#475569' } },
+      legend: { bottom: 0, type: 'scroll', textStyle: { fontSize: 9, color: '#475569' }, icon: 'roundRect' },
       grid: { left: 60, right: 20, top: truncated ? 34 : 16, bottom: 56 },
-      xAxis: { type: 'category', data: locs, axisLabel: { fontSize: 11, color: '#475569', rotate: locs.length > 4 ? 30 : 0 } },
-      yAxis: { type: 'value', ...axisNameStyle(unit), axisLabel: { fontSize: 11, color: '#64748b', formatter: v => fmt(v) }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
+      xAxis: { type: 'category', data: locs, axisLabel: { fontSize: 9, color: '#475569', rotate: locs.length > 4 ? 30 : 0 }, axisTick: { show: false } },
+      yAxis: { type: 'value', ...axisNameStyle(unit), axisLabel: { fontSize: 9, color: '#64748b', formatter: v => fmt(v) }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
       series,
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     };
@@ -903,17 +903,18 @@ const Results = () => {
     const step = Math.max(1, Math.ceil(labels.length / 24));
     return {
       backgroundColor: 'transparent',
-      legend: { bottom: 0, type: 'scroll', textStyle: { fontSize: 10, color: '#475569' } },
+      legend: { bottom: 0, type: 'scroll', textStyle: { fontSize: 9, color: '#475569' }, icon: 'roundRect' },
       grid: { left: 64, right: 20, top: 20, bottom: 72 },
       xAxis: {
         type: 'category', data: labels, boundaryGap: false,
-        axisLabel: { fontSize: 10, color: '#64748b', rotate: 35,
+        axisLabel: { fontSize: 9, color: '#64748b', rotate: 35,
           formatter: (_, i) => (i % step === 0 ? labels[i] : '') },
         splitLine: { show: false },
+        axisTick: { show: false },
       },
       yAxis: {
         type: 'value', ...axisNameStyle(unit),
-        axisLabel: { fontSize: 11, color: '#64748b', formatter: v => fmt(v) },
+        axisLabel: { fontSize: 9, color: '#64748b', formatter: v => fmt(v) },
         splitLine: { lineStyle: { color: '#f1f5f9' } },
       },
       dataZoom: [{ type: 'inside', start: 0, end: 100 }, { type: 'slider', bottom: 32, height: 18 }],
@@ -963,12 +964,12 @@ const Results = () => {
       backgroundColor: 'transparent',
       title: truncated ? {
         text: `Top ${LOC_CHART_LIMIT} locations by capacity  (${allLocs.length} total)`,
-        textStyle: { fontSize: 11, color: '#94a3b8', fontWeight: 'normal' }, top: 4, left: 4,
+        textStyle: { fontSize: 9, color: '#94a3b8', fontWeight: 'normal' }, top: 4, left: 4,
       } : undefined,
-      legend: { bottom: 0, type: 'scroll', textStyle: { fontSize: 10, color: '#475569' } },
+      legend: { bottom: 0, type: 'scroll', textStyle: { fontSize: 9, color: '#475569' }, icon: 'roundRect' },
       grid: { left: 60, right: 20, top: truncated ? 34 : 16, bottom: 56 },
-      xAxis: { type: 'category', data: locs, axisLabel: { fontSize: 11, color: '#475569', rotate: locs.length > 4 ? 30 : 0 } },
-      yAxis: { type: 'value', ...axisNameStyle(unit), axisLabel: { fontSize: 11, color: '#64748b', formatter: v => fmt(v) }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
+      xAxis: { type: 'category', data: locs, axisLabel: { fontSize: 9, color: '#475569', rotate: locs.length > 4 ? 30 : 0 }, axisTick: { show: false } },
+      yAxis: { type: 'value', ...axisNameStyle(unit), axisLabel: { fontSize: 9, color: '#64748b', formatter: v => fmt(v) }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
       series,
     };
@@ -1028,7 +1029,7 @@ const Results = () => {
         nodeAlign: 'left',
         layoutIterations: 32,
         emphasis: { focus: 'adjacency' },
-        label: { fontSize: 11, color: '#374151' },
+        label: { fontSize: 9, color: '#374151' },
         lineStyle: { color: 'gradient', opacity: 0.5 },
         data: nodes,
         links,
@@ -1060,12 +1061,12 @@ const Results = () => {
       return {
         backgroundColor: 'transparent',
         grid: { left: 140, right: 80, top: 16, bottom: 16 },
-        xAxis: { type: 'value', max: 100, ...axisNameStyle('%'), axisLabel: { fontSize: 11, color: '#64748b', formatter: v => v }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
-        yAxis: { type: 'category', data: data.map(d => d.tech.replace(/_/g, ' ')), axisLabel: { fontSize: 11, color: '#475569' } },
+        xAxis: { type: 'value', max: 100, ...axisNameStyle('%'), axisLabel: { fontSize: 9, color: '#64748b', formatter: v => v }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
+        yAxis: { type: 'category', data: data.map(d => d.tech.replace(/_/g, ' ')), axisLabel: { fontSize: 9, color: '#475569' } },
         series: [{
           type: 'bar', barMaxWidth: 28,
           data: data.map(d => ({ value: +d.cf.toFixed(1), itemStyle: { color: techColorFn(d.tech), borderRadius: [0, 4, 4, 0] } })),
-          label: { show: true, position: 'right', formatter: p => p.value.toFixed(1) + '%', fontSize: 10, color: '#64748b' },
+          label: { show: true, position: 'right', formatter: p => p.value.toFixed(1) + '%', fontSize: 9, color: '#64748b' },
         }],
         tooltip: { trigger: 'axis', formatter: p => `${p[0].name}<br/><b>Avg CF: ${p[0].value}%</b>` },
       };
@@ -1088,18 +1089,18 @@ const Results = () => {
     return {
       backgroundColor: 'transparent',
       grid: { left: 100, right: 60, top: 20, bottom: 60 },
-      xAxis: { type: 'category', data: locs, axisLabel: { fontSize: 11, color: '#475569', rotate: locs.length > 4 ? 30 : 0 } },
-      yAxis: { type: 'category', data: techs.map(t => t.replace(/_/g,' ')), axisLabel: { fontSize: 11, color: '#475569' } },
+      xAxis: { type: 'category', data: locs, axisLabel: { fontSize: 9, color: '#475569', rotate: locs.length > 4 ? 30 : 0 }, axisTick: { show: false } },
+      yAxis: { type: 'category', data: techs.map(t => t.replace(/_/g,' ')), axisLabel: { fontSize: 9, color: '#475569' } },
       visualMap: {
         min: 0, max: 100, calculable: true, orient: 'horizontal',
         right: 0, bottom: 0, text: ['100%', '0%'],
-        textStyle: { fontSize: 10, color: '#64748b' },
+        textStyle: { fontSize: 9, color: '#64748b' },
         inRange: { color: ['#f9fafb','#d1d5db','#6b7280','#1f2937','#030712'] },
       },
       series: [{
         type: 'heatmap',
         data,
-        label: { show: true, fontSize: 10, color: '#fff', formatter: p => p.value[2] > 0 ? p.value[2] + '%' : '' },
+        label: { show: true, fontSize: 9, color: '#fff', formatter: p => p.value[2] > 0 ? p.value[2] + '%' : '' },
       }],
       tooltip: {
         trigger: 'item',
@@ -1123,12 +1124,12 @@ const Results = () => {
     return {
       backgroundColor: 'transparent',
       grid: { left: 140, right: 60, top: 16, bottom: 16 },
-      xAxis: { type: 'value', ...axisNameStyle('€/MWh'), axisLabel: { fontSize: 11, color: '#64748b', formatter: v => fmtNum(v) }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
-      yAxis: { type: 'category', data: data.map(d => d.tech.replace(/_/g,' ')), axisLabel: { fontSize: 11, color: '#475569' } },
+      xAxis: { type: 'value', ...axisNameStyle('€/MWh'), axisLabel: { fontSize: 9, color: '#64748b', formatter: v => fmtNum(v) }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
+      yAxis: { type: 'category', data: data.map(d => d.tech.replace(/_/g,' ')), axisLabel: { fontSize: 9, color: '#475569' } },
       series: [{
         type: 'bar', barMaxWidth: 28,
         data: data.map(d => ({ value: +d.costPerMwh.toFixed(2), itemStyle: { color: techColorFn(d.tech), borderRadius: [0,4,4,0] } })),
-        label: { show: true, position: 'right', formatter: p => p.value.toFixed(1) + ' €/MWh', fontSize: 10, color: '#64748b' },
+        label: { show: true, position: 'right', formatter: p => p.value.toFixed(1) + ' €/MWh', fontSize: 9, color: '#64748b' },
       }],
       tooltip: { trigger: 'axis', formatter: p => `${p[0].name}<br/><b>${p[0].value.toFixed(2)} €/MWh</b>` },
     };

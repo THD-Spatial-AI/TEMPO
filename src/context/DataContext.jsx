@@ -86,6 +86,28 @@ export const DataProvider = ({ children }) => {
   const [navigationWarning, setNavigationWarning] = useState(null);
   const [backendAvailable, setBackendAvailable] = useState(false);
 
+  // OSM Infrastructure data and region selection (persisted across navigation)
+  const [osmSubstations, setOsmSubstations] = useState(null);
+  const [osmPowerPlants, setOsmPowerPlants] = useState(null);
+  const [osmPowerLines, setOsmPowerLines] = useState(null);
+  const [osmCommunes, setOsmCommunes] = useState(null);
+  const [osmDistricts, setOsmDistricts] = useState(null);
+  const [osmRegionPath, setOsmRegionPath] = useState(null);
+  const [selectedRegionBoundary, setSelectedRegionBoundary] = useState(null);
+  const [selectedRegionInfo, setSelectedRegionInfo] = useState(null);
+  const [currentBbox, setCurrentBbox] = useState(null);
+  
+  // Region selection state (persisted across navigation)
+  const [selectedContinent, setSelectedContinent] = useState(null);
+  const [selectedCountry, setSelectedCountry] = useState(null);
+  const [selectedRegion, setSelectedRegion] = useState(null);
+  const [selectedSubregion, setSelectedSubregion] = useState(null);
+  const [selectedCommune, setSelectedCommune] = useState(null);
+  
+  // Generated mesh data (persisted across navigation)
+  const [generatedMesh, setGeneratedMesh] = useState(null);
+  const [meshVisible, setMeshVisible] = useState(false);
+
   // Which completed job the Results view should open (set from Run section)
   const [activeResultJobId, setActiveResultJobId] = useState(null);
 
@@ -404,6 +426,25 @@ export const DataProvider = ({ children }) => {
     setTimeSeries([]);
     setOverrides({});
     setScenarios({});
+    // Clear OSM data and region selection
+    setOsmSubstations(null);
+    setOsmPowerPlants(null);
+    setOsmPowerLines(null);
+    setOsmCommunes(null);
+    setOsmDistricts(null);
+    setOsmRegionPath(null);
+    setSelectedRegionBoundary(null);
+    setSelectedRegionInfo(null);
+    setCurrentBbox(null);
+    // Clear region selection
+    setSelectedContinent(null);
+    setSelectedCountry(null);
+    setSelectedRegion(null);
+    setSelectedSubregion(null);
+    setSelectedCommune(null);
+    // Clear mesh generation
+    setGeneratedMesh(null);
+    setMeshVisible(false);
   };
 
   // ── Debounced auto-save ───────────────────────────────────────────────────
@@ -475,6 +516,25 @@ export const DataProvider = ({ children }) => {
     removeCompletedJob,
     activeResultJobId,
     setActiveResultJobId,
+    // OSM data and region selection
+    osmSubstations, setOsmSubstations,
+    osmPowerPlants, setOsmPowerPlants,
+    osmPowerLines, setOsmPowerLines,
+    osmCommunes, setOsmCommunes,
+    osmDistricts, setOsmDistricts,
+    osmRegionPath, setOsmRegionPath,
+    selectedRegionBoundary, setSelectedRegionBoundary,
+    selectedRegionInfo, setSelectedRegionInfo,
+    currentBbox, setCurrentBbox,
+    // Region selection (continent, country, region, subregion)
+    selectedContinent, setSelectedContinent,
+    selectedCountry, setSelectedCountry,
+    selectedRegion, setSelectedRegion,
+    selectedSubregion, setSelectedSubregion,
+    selectedCommune, setSelectedCommune,
+    // Mesh generation
+    generatedMesh, setGeneratedMesh,
+    meshVisible, setMeshVisible,
   };
 
   return (

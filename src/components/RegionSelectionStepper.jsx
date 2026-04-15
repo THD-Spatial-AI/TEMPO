@@ -14,7 +14,8 @@ const RegionSelectionStepper = ({
   onContinentSelect,
   onCountrySelect,
   onRegionSelect,
-  onSubregionSelect
+  onSubregionSelect,
+  onGoBackToStep
 }) => {
   const steps = [
     { 
@@ -62,6 +63,14 @@ const RegionSelectionStepper = ({
     }
   ];
 
+  // A step is "clickable back" when it's completed AND there are deeper selections below it
+  const canGoBack = (stepId) => {
+    if (stepId === 1) return selectedCountry != null;
+    if (stepId === 2) return selectedRegion != null;
+    if (stepId === 3) return selectedSubregion != null;
+    return false;
+  };
+
   return (
     <div className="bg-white rounded-lg p-4 border border-slate-200">
       <div className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-4">
@@ -71,13 +80,19 @@ const RegionSelectionStepper = ({
       {steps.map((step, index) => (
         <div key={step.id} className="relative mb-4 last:mb-0">
           <div className="flex items-start">
-            {/* Circle */}
-            <div className={`
-              w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 z-10
-              ${step.status === 'completed' ? 'bg-gray-900 text-white' : ''}
-              ${step.status === 'active' ? 'border-2 border-gray-900 text-gray-900 bg-white' : ''}
-              ${step.status === 'pending' ? 'border-2 border-slate-300 text-slate-400 bg-white' : ''}
-            `}>
+            {/* Circle — clickable when deeper selections exist */}
+            <button
+              type="button"
+              onClick={() => canGoBack(step.id) && onGoBackToStep && onGoBackToStep(step.id)}
+              title={canGoBack(step.id) ? `Go back to ${step.title}` : undefined}
+              className={`
+                w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 z-10
+                ${step.status === 'completed' ? 'bg-gray-900 text-white' : ''}
+                ${step.status === 'active' ? 'border-2 border-gray-900 text-gray-900 bg-white' : ''}
+                ${step.status === 'pending' ? 'border-2 border-slate-300 text-slate-400 bg-white' : ''}
+                ${canGoBack(step.id) ? 'cursor-pointer hover:bg-gray-700 hover:scale-110 transition-transform' : 'cursor-default'}
+              `}
+            >
               {step.status === 'completed' ? (
                 <svg viewBox="0 0 16 16" className="w-4 h-4" fill="currentColor">
                   <path d="M12.736 3.97a.733.733 0 0 1 1.047 0c.286.289.29.756.01 1.05L7.88 12.01a.733.733 0 0 1-1.065.02L3.217 8.384a.757.757 0 0 1 0-1.06.733.733 0 0 1 1.047 0l3.052 3.093 5.4-6.425z" />
@@ -85,15 +100,22 @@ const RegionSelectionStepper = ({
               ) : (
                 <step.icon className="w-4 h-4" />
               )}
-            </div>
+            </button>
 
             {/* Content */}
             <div className="ml-3 flex-1">
-              <div className={`
-                font-semibold text-sm mb-2
-                ${step.status === 'completed' || step.status === 'active' ? 'text-gray-900' : 'text-slate-400'}
-              `}>
+              <div
+                onClick={() => canGoBack(step.id) && onGoBackToStep && onGoBackToStep(step.id)}
+                className={`
+                  font-semibold text-sm mb-2 flex items-center gap-1
+                  ${step.status === 'completed' || step.status === 'active' ? 'text-gray-900' : 'text-slate-400'}
+                  ${canGoBack(step.id) ? 'cursor-pointer hover:text-blue-600 hover:underline' : ''}
+                `}
+              >
                 {step.title}
+                {canGoBack(step.id) && (
+                  <span className="text-xs text-slate-400 font-normal ml-1">(click to go back)</span>
+                )}
               </div>
               
               {/* Dropdown - Always visible for active or completed steps */}

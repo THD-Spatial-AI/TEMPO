@@ -27,7 +27,8 @@ const HydrogenPlantDashboard = lazy(() => import("./components/HydrogenPlantDash
 function AppContent() {
   const [selected, setSelected] = useState("Dashboard");
   const [pendingNavigation, setPendingNavigation] = useState(null);
-  const { navigationWarning } = useData();
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const { navigationWarning, locations, links, createModel, showNotification } = useData();
 
   const handleNavigation = (newView) => {
     if (navigationWarning) {
@@ -46,6 +47,10 @@ function AppContent() {
 
   const cancelNavigation = () => {
     setPendingNavigation(null);
+  };
+  
+  const handleSaveAndNavigate = () => {
+    setShowSaveDialog(true);
   };
 
   const renderContent = () => {
@@ -112,11 +117,18 @@ function AppContent() {
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[10000] animate-fadeIn">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 animate-scaleIn border border-slate-200">
             <div className="p-6 border-b border-slate-100">
-              <h3 className="text-xl font-semibold text-slate-900">Unsaved Changes</h3>
+              <h3 className="text-xl font-semibold text-slate-900">Unsaved Work</h3>
             </div>
             <div className="p-6">
-              <p className="text-slate-600 leading-relaxed">
-                You have unsaved changes in Locations. Do you want to discard them and leave?
+              <p className="text-slate-600 leading-relaxed mb-3">
+                You have unsaved work in your model:
+              </p>
+              <ul className="text-sm text-slate-500 space-y-1 ml-4">
+                {locations.length > 0 && <li>• {locations.length} location{locations.length !== 1 ? 's' : ''}</li>}
+                {links.length > 0 && <li>• {links.length} link{links.length !== 1 ? 's' : ''}</li>}
+              </ul>
+              <p className="text-slate-600 mt-4">
+                Do you want to save your work before leaving, or discard it?
               </p>
             </div>
             <div className="p-6 border-t border-slate-100 flex gap-3 justify-end">
@@ -124,13 +136,75 @@ function AppContent() {
                 onClick={cancelNavigation}
                 className="px-5 py-2.5 border-2 border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 hover:border-slate-300 transition-all duration-200 font-medium"
               >
-                Stay
+                Cancel
               </button>
               <button
                 onClick={confirmNavigation}
-                className="px-5 py-2.5 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg hover:from-red-600 hover:to-red-700 shadow-md hover:shadow-lg transition-all duration-200 font-medium"
+                className="px-5 py-2.5 border-2 border-red-200 text-red-600 rounded-lg hover:bg-red-50 hover:border-red-300 transition-all duration-200 font-medium"
               >
-                Discard Changes
+                Discard
+              </button>
+              <button
+                onClick={handleSaveAndNavigate}
+                className="px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-lg hover:from-emerald-600 hover:to-emerald-700 shadow-md hover:shadow-lg transition-all duration-200 font-medium"
+              >
+                Save & Leave
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Save Dialog (triggered from navigation warning) */}
+      {showSaveDialog && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[10001] animate-fadeIn">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 animate-scaleIn border border-slate-200">
+            <div className="p-6 border-b border-slate-100">
+              <h3 className="text-xl font-semibold text-slate-900">Save Model</h3>
+            </div>
+            <div className="p-6">
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Model Name
+              </label>
+              <input
+                type="text"
+                placeholder="Enter model name..."
+                className="w-full px-4 py-2.5 border-2 border-slate-200 rounded-lg focus:outline-none focus:border-emerald-500 transition-colors"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const name = e.target.value.trim();
+                    if (name) {
+                      createModel(name);
+                      showNotification('Model saved successfully!', 'success');
+                      setShowSaveDialog(false);
+                      confirmNavigation();
+                    }
+                  }
+                }}
+                autoFocus
+              />
+            </div>
+            <div className="p-6 border-t border-slate-100 flex gap-3 justify-end">
+              <button
+                onClick={() => setShowSaveDialog(false)}
+                className="px-5 py-2.5 border-2 border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 hover:border-slate-300 transition-all duration-200 font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={(e) => {
+                  const input = e.target.closest('.bg-white').querySelector('input');
+                  const name = input.value.trim();
+                  if (name) {
+                    createModel(name);
+                    showNotification('Model saved successfully!', 'success');
+                    setShowSaveDialog(false);
+                    confirmNavigation();
+                  }
+                }}
+                className="px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-lg hover:from-emerald-600 hover:to-emerald-700 shadow-md hover:shadow-lg transition-all duration-200 font-medium"
+              >
+                Save
               </button>
             </div>
           </div>

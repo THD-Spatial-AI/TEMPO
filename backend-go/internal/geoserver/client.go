@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 )
 
@@ -13,6 +14,7 @@ type Client struct {
 	baseURL    string
 	httpClient *http.Client
 	cache      map[string]cacheEntry
+	cacheMu    sync.RWMutex
 }
 
 type BBox struct {
@@ -55,10 +57,13 @@ func (c *Client) GetOSMLayer(layerName string, bbox *BBox, regionPath string) ([
 		bboxKey = fmt.Sprintf("%.4f,%.4f,%.4f,%.4f", bbox.MinLon, bbox.MinLat, bbox.MaxLon, bbox.MaxLat)
 	}
 	cacheKey := fmt.Sprintf("%s:%s:%s", layerName, bboxKey, regionPath)
-	if entry, ok := c.cache[cacheKey]; ok {
-		if time.Since(entry.timestamp) < 5*time.Minute {
-			return entry.data, nil
-		}
+	
+	c.cacheMu.RLock()
+	entry, ok := c.cache[cacheKey]
+	c.cacheMu.RUnlock()
+	
+	if ok && time.Since(entry.timestamp) < 5*time.Minute {
+		return entry.data, nil
 	}
 
 	// Build WFS request
@@ -114,10 +119,12 @@ func (c *Client) GetOSMLayer(layerName string, bbox *BBox, regionPath string) ([
 	}
 
 	// Cache the result
+	c.cacheMu.Lock()
 	c.cache[cacheKey] = cacheEntry{
 		data:      data,
 		timestamp: time.Now(),
 	}
+	c.cacheMu.Unlock()
 
 	return data, nil
 }
@@ -218,5 +225,7 @@ func (c *Client) GetAvailableLayers() ([]string, error) {
 
 // ClearCache removes all cached entries
 func (c *Client) ClearCache() {
+	c.cacheMu.Lock()
 	c.cache = make(map[string]cacheEntry)
+	c.cacheMu.Unlock()
 }

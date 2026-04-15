@@ -603,7 +603,29 @@ const getSubstationIcon = (type) => {
 };
 
 const Creation = () => {
-  const { locations, setLocations, links, setLinks, technologies, showNotification, createModel, timeSeries, setTimeSeries } = useData();
+  const { 
+    locations, setLocations, 
+    links, setLinks, 
+    technologies, 
+    showNotification, 
+    createModel, 
+    timeSeries, setTimeSeries, 
+    setNavigationWarning, 
+    currentModelId,
+    // OSM data and region selection (from context - persisted)
+    osmSubstations, setOsmSubstations,
+    osmPowerPlants, setOsmPowerPlants,
+    osmPowerLines, setOsmPowerLines,
+    osmCommunes, setOsmCommunes,
+    osmDistricts, setOsmDistricts,
+    osmRegionPath, setOsmRegionPath,
+    selectedRegionBoundary, setSelectedRegionBoundary,
+    selectedRegionInfo, setSelectedRegionInfo,
+    currentBbox, setCurrentBbox,
+    // Mesh generation (from context - persisted)
+    generatedMesh, setGeneratedMesh,
+    meshVisible, setMeshVisible,
+  } = useData();
   
   // Mode state
   const [mode, setMode] = useState(null); // null (no mode), 'single', 'multiple', 'link', 'polyline'
@@ -614,20 +636,7 @@ const Creation = () => {
   const techManager = useTechnologyManager();
   const polylineMode = usePolylineMode(locationManager, showNotification);
   
-  // OSM Infrastructure layers (from GeoServer)
-  const [osmSubstations, setOsmSubstations] = useState(null);
-  const [osmPowerPlants, setOsmPowerPlants] = useState(null);
-  const [osmPowerLines, setOsmPowerLines] = useState(null);
-  const [osmCommunes, setOsmCommunes] = useState(null);
-  const [osmDistricts, setOsmDistricts] = useState(null);
-  const [currentBbox, setCurrentBbox] = useState(null);
-  // Region path sent to GeoServer's CQL_FILTER (e.g. "Europe/Germany/Bayern/Niederbayern")
-  const [osmRegionPath, setOsmRegionPath] = useState(null);
-  // Selected region boundary for territory overlay
-  const [selectedRegionBoundary, setSelectedRegionBoundary] = useState(null);
-  const [selectedRegionInfo, setSelectedRegionInfo] = useState(null);
-  
-  // OSM Filters
+  // OSM Filters (local state - not persisted)
   const [powerLineFilters, setPowerLineFilters] = useState({
     minVoltage: 0,
     maxVoltage: 1000,
@@ -716,7 +725,8 @@ const Creation = () => {
   const [showOsmLayers, setShowOsmLayers] = useState({
     substations: true,
     powerPlants: true,
-    powerLines: true
+    powerLines: true,
+    boundaries: true
   });
   
   // Sync layerVisibility with showOsmLayers
@@ -757,9 +767,7 @@ const Creation = () => {
   const [newConstraintValue, setNewConstraintValue] = useState('');
   const [openPopupLocationId, setOpenPopupLocationId] = useState(null);
   
-  // Power Mesh Generation
-  const [generatedMesh, setGeneratedMesh] = useState(null);
-  const [meshVisible, setMeshVisible] = useState(false);
+  // Power Mesh Generation (local state)
   const [selectedMeshNode, setSelectedMeshNode] = useState(null);
   
   // Map Toolbar States
@@ -1039,6 +1047,28 @@ const Creation = () => {
     
     loadOsmData();
   }, [currentBbox, osmRegionPath, showOsmLayers, loadRegionData]);
+  
+  // Detect unsaved work and warn before navigation
+  useEffect(() => {
+    const hasUnsavedWork = (
+      locations.length > 0 || 
+      links.length > 0 || 
+      generatedMesh !== null ||
+      osmSubstations !== null ||
+      osmPowerPlants !== null ||
+      osmPowerLines !== null
+    );
+    
+    // Only warn if there's work and no saved model
+    if (hasUnsavedWork && !currentModelId) {
+      setNavigationWarning('creation');
+    } else {
+      setNavigationWarning(null);
+    }
+    
+    // Cleanup: remove warning when component unmounts
+    return () => setNavigationWarning(null);
+  }, [locations, links, generatedMesh, osmSubstations, osmPowerPlants, osmPowerLines, currentModelId, setNavigationWarning]);
   
   // Handle bbox changes from OsmInfrastructurePanel
   const handleBboxChange = useCallback((bbox) => {
@@ -1966,7 +1996,7 @@ const Creation = () => {
             }}
             layers={[
               // Selected Region Territory Overlay (shown first so it appears under infrastructure)
-              ...(selectedRegionBoundary && selectedRegionBoundary.features?.length > 0 ? [
+              ...(selectedRegionBoundary && selectedRegionBoundary.features?.length > 0 && showOsmLayers.boundaries ? [
                 new GeoJsonLayer({
                   id: 'selected-region-overlay',
                   data: selectedRegionBoundary,
