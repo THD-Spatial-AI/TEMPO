@@ -69,15 +69,16 @@ function buildCaptureChart(result) {
     legend: {
       data: ["CO₂ Captured (t/h)", "CO₂ Injected (t/h)"],
       bottom: 0,
-      textStyle: { fontSize: 10 },
+      textStyle: { fontSize: 9 },
+      icon: 'roundRect',
     },
     grid: { top: 24, bottom: 48, left: 56, right: 16 },
-    xAxis: { type: "category", data: time, axisLabel: { fontSize: 10 } },
+    xAxis: { type: "category", data: time, axisLabel: { fontSize: 9 }, axisTick: { show: false } },
     yAxis: {
       type: "value",
       name: "t/h",
-      nameTextStyle: { fontSize: 10 },
-      axisLabel: { fontSize: 10 },
+      nameTextStyle: { fontSize: 9 },
+      axisLabel: { fontSize: 9 },
     },
     series: [
       {
@@ -86,6 +87,7 @@ function buildCaptureChart(result) {
         data: result.absorber?.co2_captured_tph ?? [],
         smooth: true,
         symbol: "none",
+        color: "#3b82f6",
         lineStyle: { color: "#3b82f6", width: 2 },
         areaStyle: { color: "rgba(59,130,246,0.1)" },
       },
@@ -95,6 +97,7 @@ function buildCaptureChart(result) {
         data: result.storage?.injection_rate_tph ?? [],
         smooth: true,
         symbol: "none",
+        color: "#10b981",
         lineStyle: { color: "#10b981", width: 2 },
         areaStyle: { color: "rgba(16,185,129,0.08)" },
       },
@@ -111,15 +114,16 @@ function buildEnergyChart(result) {
     legend: {
       data: ["Stripper Thermal (kW)", "Compressor Power (kW)"],
       bottom: 0,
-      textStyle: { fontSize: 10 },
+      textStyle: { fontSize: 9 },
+      icon: 'roundRect',
     },
     grid: { top: 24, bottom: 48, left: 56, right: 16 },
-    xAxis: { type: "category", data: time, axisLabel: { fontSize: 10 } },
+    xAxis: { type: "category", data: time, axisLabel: { fontSize: 9 }, axisTick: { show: false } },
     yAxis: {
       type: "value",
       name: "kW",
-      nameTextStyle: { fontSize: 10 },
-      axisLabel: { fontSize: 10 },
+      nameTextStyle: { fontSize: 9 },
+      axisLabel: { fontSize: 9 },
     },
     series: [
       {
@@ -128,6 +132,7 @@ function buildEnergyChart(result) {
         data: result.stripper?.heat_demand_kw ?? [],
         smooth: true,
         symbol: "none",
+        color: "#ef4444",
         lineStyle: { color: "#ef4444", width: 2 },
         areaStyle: { color: "rgba(239,68,68,0.1)" },
       },
@@ -137,6 +142,7 @@ function buildEnergyChart(result) {
         data: result.compressor?.power_kw ?? [],
         smooth: true,
         symbol: "none",
+        color: "#f59e0b",
         lineStyle: { color: "#f59e0b", width: 2 },
         areaStyle: { color: "rgba(245,158,11,0.08)" },
       },
@@ -153,22 +159,23 @@ function buildCompressorChart(result) {
     legend: {
       data: ["Outlet Pressure (bar)", "Outlet Temp (°C)"],
       bottom: 0,
-      textStyle: { fontSize: 10 },
+      textStyle: { fontSize: 9 },
+      icon: 'roundRect',
     },
     grid: { top: 24, bottom: 48, left: 56, right: 60 },
-    xAxis: { type: "category", data: time, axisLabel: { fontSize: 10 } },
+    xAxis: { type: "category", data: time, axisLabel: { fontSize: 9 }, axisTick: { show: false } },
     yAxis: [
       {
         type: "value",
         name: "bar",
-        nameTextStyle: { fontSize: 10 },
-        axisLabel: { fontSize: 10 },
+        nameTextStyle: { fontSize: 9 },
+        axisLabel: { fontSize: 9 },
       },
       {
         type: "value",
         name: "°C",
-        nameTextStyle: { fontSize: 10 },
-        axisLabel: { fontSize: 10 },
+        nameTextStyle: { fontSize: 9 },
+        axisLabel: { fontSize: 9 },
         splitLine: { show: false },
       },
     ],
@@ -179,6 +186,7 @@ function buildCompressorChart(result) {
         data: result.compressor?.outlet_pressure_bar ?? [],
         smooth: true,
         symbol: "none",
+        color: "#8b5cf6",
         lineStyle: { color: "#8b5cf6", width: 2 },
         yAxisIndex: 0,
       },
@@ -188,6 +196,7 @@ function buildCompressorChart(result) {
         data: result.compressor?.temperature_c ?? [],
         smooth: true,
         symbol: "none",
+        color: "#ec4899",
         lineStyle: { color: "#ec4899", width: 2, type: "dashed" },
         yAxisIndex: 1,
       },
@@ -204,15 +213,16 @@ function buildStorageChart(result) {
     legend: {
       data: ["Cumulative Stored (tCO₂)"],
       bottom: 0,
-      textStyle: { fontSize: 10 },
+      textStyle: { fontSize: 9 },
+      icon: 'roundRect',
     },
     grid: { top: 24, bottom: 48, left: 56, right: 16 },
-    xAxis: { type: "category", data: time, axisLabel: { fontSize: 10 } },
+    xAxis: { type: "category", data: time, axisLabel: { fontSize: 9 }, axisTick: { show: false } },
     yAxis: {
       type: "value",
       name: "tCO₂",
-      nameTextStyle: { fontSize: 10 },
-      axisLabel: { fontSize: 10 },
+      nameTextStyle: { fontSize: 9 },
+      axisLabel: { fontSize: 9 },
     },
     series: [
       {
@@ -221,6 +231,7 @@ function buildStorageChart(result) {
         data: result.storage?.co2_mass_tonnes ?? [],
         smooth: true,
         symbol: "none",
+        color: "#14b8a6",
         lineStyle: { color: "#14b8a6", width: 2.5 },
         areaStyle: {
           color: {

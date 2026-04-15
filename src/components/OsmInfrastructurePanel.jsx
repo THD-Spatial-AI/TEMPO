@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { FiMap, FiChevronDown, FiChevronRight, FiLayers, FiX, FiMapPin, FiGlobe } from 'react-icons/fi';
 import RegionSelectionStepper from './RegionSelectionStepper';
 import { api } from '../services/api';
+import { useData } from '../context/DataContext';
 
 const OsmInfrastructurePanel = ({ 
   collapsed, 
@@ -18,6 +19,14 @@ const OsmInfrastructurePanel = ({
   substationFilters,
   onSubstationFiltersChange
 }) => {
+  const {
+    selectedContinent, setSelectedContinent,
+    selectedCountry, setSelectedCountry,
+    selectedRegion, setSelectedRegion,
+    selectedSubregion, setSelectedSubregion,
+    selectedCommune, setSelectedCommune,
+  } = useData();
+  
   const [regionsDatabase, setRegionsDatabase] = useState(null);
   const [loading, setLoading] = useState(false);
   
@@ -28,14 +37,7 @@ const OsmInfrastructurePanel = ({
     substations: false
   });
   
-  // Selection state - step by step
-  const [selectedContinent, setSelectedContinent] = useState(null);
-  const [selectedCountry, setSelectedCountry] = useState(null);
-  const [selectedRegion, setSelectedRegion] = useState(null);
-  const [selectedSubregion, setSelectedSubregion] = useState(null);
-  const [selectedCommune, setSelectedCommune] = useState(null);
-  
-  // Available options for each level
+  // Available options for each level (derived from regionsDatabase)
   const [availableContinents, setAvailableContinents] = useState([]);
   const [availableCountries, setAvailableCountries] = useState([]);
   const [availableRegions, setAvailableRegions] = useState([]);
@@ -46,6 +48,26 @@ const OsmInfrastructurePanel = ({
   useEffect(() => {
     loadRegionsDatabase();
   }, []);
+
+  // Re-hydrate cascading dropdowns when database loads and context already has selections
+  useEffect(() => {
+    if (!regionsDatabase) return;
+
+    if (selectedContinent && regionsDatabase.continents[selectedContinent]) {
+      const countries = Object.keys(regionsDatabase.continents[selectedContinent].countries).sort();
+      setAvailableCountries(countries);
+
+      if (selectedCountry && regionsDatabase.continents[selectedContinent].countries[selectedCountry]) {
+        const countryData = regionsDatabase.continents[selectedContinent].countries[selectedCountry];
+        setAvailableRegions(Object.keys(countryData.regions || {}).sort());
+
+        if (selectedRegion && countryData.regions && countryData.regions[selectedRegion]) {
+          const regionData = countryData.regions[selectedRegion];
+          setAvailableSubregions(Object.keys(regionData.subregions || {}).sort());
+        }
+      }
+    }
+  }, [regionsDatabase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadRegionsDatabase = async () => {
     setLoading(true);
@@ -222,8 +244,12 @@ const OsmInfrastructurePanel = ({
     setSelectedCommune(null);
     
     if (regionsDatabase && selectedContinent && selectedCountry && selectedRegion && subregion) {
+      // Retrieve subregion data (communes not yet used, kept for future use)
       const regionData = regionsDatabase.continents[selectedContinent]
-      setAvailableCommunes([]);
+        ?.countries[selectedCountry]
+        ?.regions[selectedRegion];
+      const communes = regionData?.subregions?.[subregion]?.communes || [];
+      setAvailableCommunes(Array.isArray(communes) ? communes.sort() : []);
       
       // Send subregion-level data to parent (will load only this subregion and zoom to it)
       if (onRegionSelect) {
@@ -250,6 +276,50 @@ const OsmInfrastructurePanel = ({
     
     // Future: Load commune-specific data
     console.log('Commune selected:', commune);
+  };
+
+  // Handle going back to a previous step (clears all deeper selections)
+  const handleGoBackToStep = (stepId) => {
+    if (stepId === 1) {
+      // Go back to continent: keep continent, clear everything else
+      setSelectedCountry(null);
+      setSelectedRegion(null);
+      setSelectedSubregion(null);
+      setSelectedCommune(null);
+      setAvailableRegions([]);
+      setAvailableSubregions([]);
+      setAvailableCommunes([]);
+      if (onRegionSelect && selectedContinent) {
+        const continentCenters = {
+          'Europe': { center: [54.5260, 15.2551], zoom: 4 },
+          'Asia': { center: [34.0479, 100.6197], zoom: 3 },
+          'Africa': { center: [-8.7832, 34.5085], zoom: 3 },
+          'North_America': { center: [54.5260, -105.2551], zoom: 3 },
+          'South_America': { center: [-12.523223, -63.196278], zoom: 3 },
+          'Oceania': { center: [-22.7359, 140.0188], zoom: 3 }
+        };
+        const continentInfo = continentCenters[selectedContinent] || { center: [0, 0], zoom: 2 };
+        onRegionSelect({ continent: selectedContinent, country: null, region: null, subregion: null, regionPath: selectedContinent, center: continentInfo.center, zoom: continentInfo.zoom });
+      }
+    } else if (stepId === 2) {
+      // Go back to country: keep continent + country, clear region/subregion
+      setSelectedRegion(null);
+      setSelectedSubregion(null);
+      setSelectedCommune(null);
+      setAvailableSubregions([]);
+      setAvailableCommunes([]);
+      if (onRegionSelect && selectedContinent && selectedCountry) {
+        onRegionSelect({ continent: selectedContinent, country: selectedCountry, region: null, subregion: null, regionPath: `${selectedContinent}/${selectedCountry}`, center: null, zoom: 6 });
+      }
+    } else if (stepId === 3) {
+      // Go back to region: keep continent + country + region, clear subregion
+      setSelectedSubregion(null);
+      setSelectedCommune(null);
+      setAvailableCommunes([]);
+      if (onRegionSelect && selectedContinent && selectedCountry && selectedRegion) {
+        onRegionSelect({ continent: selectedContinent, country: selectedCountry, region: selectedRegion, subregion: null, regionPath: `${selectedContinent}/${selectedCountry}/${selectedRegion}`, center: null, zoom: 7 });
+      }
+    }
   };
 
   // Clear selection
@@ -328,6 +398,7 @@ const OsmInfrastructurePanel = ({
                   onCountrySelect={handleCountrySelect}
                   onRegionSelect={handleRegionSelect}
                   onSubregionSelect={handleSubregionSelect}
+                  onGoBackToStep={handleGoBackToStep}
                 />
 
                 {/* Commune (if available) - Keep this separate as it's optional */}
@@ -555,6 +626,24 @@ const OsmInfrastructurePanel = ({
                       </div>
                     </div>
                   </div>
+                )}
+              </div>
+
+              {/* Region Boundaries */}
+              <div className="border-t border-slate-200 pt-4">
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center cursor-pointer flex-1">
+                    <input
+                      type="checkbox"
+                      checked={showOsmLayers?.boundaries !== false}
+                      onChange={(e) => onOsmLayersChange?.({ ...showOsmLayers, boundaries: e.target.checked })}
+                      className="w-4 h-4 rounded text-gray-600 focus:ring-2 focus:ring-gray-500"
+                    />
+                    <span className="ml-2 text-sm text-slate-700 font-medium">Region Boundaries</span>
+                  </label>
+                </div>
+                {showOsmLayers?.boundaries !== false && (
+                  <p className="ml-6 mt-2 text-xs text-slate-500">Show selected region & subregion shapes on map</p>
                 )}
               </div>
 
