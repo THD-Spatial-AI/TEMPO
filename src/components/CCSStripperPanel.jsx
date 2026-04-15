@@ -102,6 +102,8 @@ export default function CCSStripperPanel({
     onParamsChange?.(updated);
   };
 
+  const [selectedChart, setSelectedChart] = useState("energy");
+
   // Build thermal energy vs. steam temperature curve
   const energyCurve = useMemo(() => {
     const temps = Array.from({ length: 41 }, (_, i) => 100 + i);
@@ -180,6 +182,51 @@ export default function CCSStripperPanel({
     };
   }, [meta]);
 
+  // Steam demand vs absorber load
+  const steamDemandChart = useMemo(() => {
+    const loads   = Array.from({ length: 11 }, (_, i) => i * 10);
+    const steamFlow  = loads.map(l => +(l * localParams.energy_input_gj_tco2 * 0.36).toFixed(1));
+    const reboilerMW = loads.map(l => +(l * localParams.energy_input_gj_tco2 * 0.278).toFixed(1));
+    return {
+      animation: false,
+      tooltip: { trigger: "axis" },
+      legend: { data: ["Steam Flow", "Reboiler Duty"], bottom: 0, textStyle: { fontSize: 11 } },
+      grid: { top: 24, bottom: 48, left: 48, right: 52 },
+      xAxis: { type: "category", data: loads.map(l => `${l}%`), name: "Absorber Load", nameLocation: "middle", nameGap: 26, axisLabel: { fontSize: 10 } },
+      yAxis: [
+        { type: "value", name: "Steam (t/h)", nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10 } },
+        { type: "value", name: "MW",          nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10 }, splitLine: { show: false } },
+      ],
+      series: [
+        { name: "Steam Flow",   type: "bar",  data: steamFlow,   itemStyle: { color: meta.hue, opacity: 0.75 }, yAxisIndex: 0 },
+        { name: "Reboiler Duty", type: "line", data: reboilerMW, symbol: "circle", symbolSize: 5, lineStyle: { color: "#ef4444", width: 2 }, yAxisIndex: 1 },
+      ],
+    };
+  }, [localParams.energy_input_gj_tco2, meta.hue]);
+
+  // Stacked reboiler energy breakdown by temperature
+  const energyBreakdownChart = useMemo(() => {
+    const labels = ["100°C", "110°C", "120°C", "130°C", "140°C"];
+    const desorp = [1.40, 1.41, 1.42, 1.43, 1.44];
+    const sensib = [0.50, 0.65, 0.80, 0.95, 1.10];
+    const vapour = [0.30, 0.38, 0.46, 0.54, 0.62];
+    const losses = [0.10, 0.15, 0.20, 0.25, 0.30];
+    return {
+      animation: false,
+      tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
+      legend: { data: ["Desorption", "Sensible Heat", "Vaporisation", "Losses"], bottom: 0, textStyle: { fontSize: 11 } },
+      grid: { top: 24, bottom: 48, left: 52, right: 16 },
+      xAxis: { type: "category", data: labels, name: "Reboiler Temperature", nameLocation: "middle", nameGap: 26, axisLabel: { fontSize: 10 } },
+      yAxis: { type: "value", name: "GJ/tCO₂", nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10 }, max: 4.5 },
+      series: [
+        { name: "Desorption",   type: "bar", stack: "total", data: desorp, itemStyle: { color: "#3b82f6" } },
+        { name: "Sensible Heat", type: "bar", stack: "total", data: sensib, itemStyle: { color: "#f59e0b" } },
+        { name: "Vaporisation", type: "bar", stack: "total", data: vapour, itemStyle: { color: "#6366f1" } },
+        { name: "Losses",       type: "bar", stack: "total", data: losses, itemStyle: { color: "#ef4444" } },
+      ],
+    };
+  }, []);
+
   return (
     <div className="space-y-5">
       {/* ── Header ────────────────────────────────────────────────────────── */}
@@ -247,13 +294,28 @@ export default function CCSStripperPanel({
         </div>
       </div>
 
-      {/* ── Performance Curve ───────────────────────────────────────────────── */}
+      {/* ── Performance Analysis ─────────────────────────────────────────────── */}
       <div className="bg-white rounded-xl border border-slate-200 p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <FiActivity size={14} className="text-violet-500" />
-          <h5 className="font-semibold text-slate-700 text-sm">Thermal Energy vs. Temperature</h5>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <FiActivity size={14} className="text-violet-500" />
+            <h5 className="font-semibold text-slate-700 text-sm">Performance Analysis</h5>
+          </div>
+          <select
+            value={selectedChart}
+            onChange={(e) => setSelectedChart(e.target.value)}
+            className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-slate-50 text-slate-600 focus:outline-none cursor-pointer"
+          >
+            <option value="energy">Thermal Energy vs Temperature</option>
+            <option value="steam">Steam Demand vs Load</option>
+            <option value="breakdown">Reboiler Energy Breakdown</option>
+          </select>
         </div>
-        <ReactECharts option={energyCurve} style={{ height: 220 }} />
+        <ReactECharts
+          key={selectedChart}
+          option={selectedChart === "energy" ? energyCurve : selectedChart === "steam" ? steamDemandChart : energyBreakdownChart}
+          style={{ height: 320 }}
+        />
       </div>
 
       {/* ── KPIs ───────────────────────────────────────────────────────────── */}

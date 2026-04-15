@@ -126,6 +126,8 @@ export default function CCSStoragePanel({
     onParamsChange?.(updated);
   };
 
+  const [selectedChart, setSelectedChart] = useState("pressure");
+
   // Build injection pressure vs. depth chart
   const pressureDepthChart = useMemo(() => {
     const depths = Array.from({ length: 31 }, (_, i) => 500 + i * 100); // 500-3500m
@@ -190,6 +192,59 @@ export default function CCSStoragePanel({
       ],
     };
   }, [localParams, meta.hue]);
+
+  // CO₂ plume radius & cumulative storage over time
+  const plumeGrowthChart = useMemo(() => {
+    const years = Array.from({ length: 31 }, (_, i) => i);
+    const rho   = 700; // kg/m³ supercritical CO₂
+    const pore  = localParams.porosity_pct / 100;
+    const h     = 50;  // m reservoir thickness
+    const radius = years.map(yr => {
+      if (yr === 0) return 0;
+      const massKg = localParams.injection_rate_mtco2_yr * 1e9 * yr;
+      const volume = massKg / (rho * pore);
+      return +(Math.sqrt(volume / (Math.PI * h)) / 1000).toFixed(2);
+    });
+    const cumulative = years.map(yr => +(localParams.injection_rate_mtco2_yr * yr).toFixed(2));
+    return {
+      animation: false,
+      tooltip: { trigger: "axis" },
+      legend: { data: ["Plume Radius (km)", "Cumulative (MtCO₂)"], bottom: 0, textStyle: { fontSize: 11 } },
+      grid: { top: 24, bottom: 48, left: 52, right: 56 },
+      xAxis: { type: "category", data: years.map(y => `Y${y}`), name: "Year", nameLocation: "middle", nameGap: 26, axisLabel: { fontSize: 10, interval: 4 } },
+      yAxis: [
+        { type: "value", name: "km",     nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10 } },
+        { type: "value", name: "MtCO₂", nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10 }, splitLine: { show: false } },
+      ],
+      series: [
+        { name: "Plume Radius (km)",   type: "line", data: radius,     smooth: true, symbol: "none", lineStyle: { color: meta.hue, width: 2 }, areaStyle: { color: `${meta.hue}22` }, yAxisIndex: 0 },
+        { name: "Cumulative (MtCO₂)", type: "line", data: cumulative, smooth: true, symbol: "none", lineStyle: { color: "#3b82f6", width: 2 }, yAxisIndex: 1 },
+      ],
+    };
+  }, [localParams.injection_rate_mtco2_yr, localParams.porosity_pct, meta.hue]);
+
+  // Injectivity and wells needed vs reservoir permeability
+  const injectionPermeabilityChart = useMemo(() => {
+    const perms = [10, 20, 50, 100, 200, 500, 1000, 2000, 5000];
+    const base  = localParams.injection_rate_mtco2_yr;
+    const rates = perms.map(k => +Math.min(20, base * Math.sqrt(k / Math.max(1, localParams.permeability_md))).toFixed(2));
+    const wells = perms.map(k => Math.ceil(base / Math.max(0.05, 0.1 * Math.sqrt(k / 50))));
+    return {
+      animation: false,
+      tooltip: { trigger: "axis" },
+      legend: { data: ["Injectivity (Mt/yr)", "Wells Needed"], bottom: 0, textStyle: { fontSize: 11 } },
+      grid: { top: 24, bottom: 48, left: 52, right: 52 },
+      xAxis: { type: "category", data: perms.map(k => `${k}`), name: "Permeability (mD)", nameLocation: "middle", nameGap: 26, axisLabel: { fontSize: 10 } },
+      yAxis: [
+        { type: "value", name: "Mt/yr", nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10 } },
+        { type: "value", name: "Wells", nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10 }, splitLine: { show: false } },
+      ],
+      series: [
+        { name: "Injectivity (Mt/yr)", type: "bar",  data: rates, itemStyle: { color: meta.hue, opacity: 0.8 }, yAxisIndex: 0 },
+        { name: "Wells Needed",        type: "line", data: wells, symbol: "circle", symbolSize: 6, lineStyle: { color: "#ef4444", width: 2 }, yAxisIndex: 1 },
+      ],
+    };
+  }, [localParams.injection_rate_mtco2_yr, localParams.permeability_md, meta.hue]);
 
   return (
     <div className="space-y-5">
@@ -276,13 +331,28 @@ export default function CCSStoragePanel({
         </div>
       </div>
 
-      {/* ── Pressure-Depth Chart ────────────────────────────────────────────── */}
+      {/* ── Performance Analysis ─────────────────────────────────────────────── */}
       <div className="bg-white rounded-xl border border-slate-200 p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <FiActivity size={14} className="text-violet-500" />
-          <h5 className="font-semibold text-slate-700 text-sm">Pressure-Depth Profile</h5>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <FiActivity size={14} className="text-violet-500" />
+            <h5 className="font-semibold text-slate-700 text-sm">Performance Analysis</h5>
+          </div>
+          <select
+            value={selectedChart}
+            onChange={(e) => setSelectedChart(e.target.value)}
+            className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-slate-50 text-slate-600 focus:outline-none cursor-pointer"
+          >
+            <option value="pressure">Pressure–Depth Profile</option>
+            <option value="plume">CO₂ Plume Growth</option>
+            <option value="injectivity">Injectivity vs Permeability</option>
+          </select>
         </div>
-        <ReactECharts option={pressureDepthChart} style={{ height: 220 }} />
+        <ReactECharts
+          key={selectedChart}
+          option={selectedChart === "pressure" ? pressureDepthChart : selectedChart === "plume" ? plumeGrowthChart : injectionPermeabilityChart}
+          style={{ height: 320 }}
+        />
       </div>
 
       {/* ── KPIs ───────────────────────────────────────────────────────────── */}

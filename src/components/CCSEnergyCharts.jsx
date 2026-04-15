@@ -5,10 +5,19 @@
  * Uses ECharts for interactive, high-performance plotting.
  */
 
-import React from "react";
+import React, { useState } from "react";
 import ReactECharts from "echarts-for-react";
 
+const CHART_OPTIONS = [
+  { id: "capture",    label: "CO₂ Capture & Injection" },
+  { id: "energy",     label: "Energy Consumption" },
+  { id: "compressor", label: "Compressor Performance" },
+  { id: "storage",    label: "Cumulative CO₂ Stored" },
+];
+
 export default function CCSEnergyCharts({ result }) {
+  const [selectedChart, setSelectedChart] = useState("capture");
+
   if (!result || !result.time_s || result.time_s.length === 0) {
     return (
       <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-400">
@@ -17,31 +26,32 @@ export default function CCSEnergyCharts({ result }) {
     );
   }
 
+  const optionMap = {
+    capture:    buildCaptureChart(result),
+    energy:     buildEnergyChart(result),
+    compressor: buildCompressorChart(result),
+    storage:    buildStorageChart(result),
+  };
+
   return (
-    <div className="grid grid-cols-2 gap-4">
-      {/* CO₂ Capture & Injection */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
-        <h4 className="text-xs font-semibold text-slate-600 mb-3">CO₂ Capture & Injection</h4>
-        <ReactECharts option={buildCaptureChart(result)} style={{ height: 280 }} />
+    <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+      <div className="flex items-center justify-between mb-4">
+        <h4 className="text-sm font-semibold text-slate-700">Simulation Results</h4>
+        <select
+          value={selectedChart}
+          onChange={(e) => setSelectedChart(e.target.value)}
+          className="text-xs border border-slate-200 rounded-lg px-3 py-1.5 bg-slate-50 text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-400 cursor-pointer"
+        >
+          {CHART_OPTIONS.map((opt) => (
+            <option key={opt.id} value={opt.id}>{opt.label}</option>
+          ))}
+        </select>
       </div>
-
-      {/* Energy Consumption */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
-        <h4 className="text-xs font-semibold text-slate-600 mb-3">Energy Consumption</h4>
-        <ReactECharts option={buildEnergyChart(result)} style={{ height: 280 }} />
-      </div>
-
-      {/* Compressor Performance */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
-        <h4 className="text-xs font-semibold text-slate-600 mb-3">Compressor Performance</h4>
-        <ReactECharts option={buildCompressorChart(result)} style={{ height: 280 }} />
-      </div>
-
-      {/* Storage Cumulative */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
-        <h4 className="text-xs font-semibold text-slate-600 mb-3">Cumulative CO₂ Stored</h4>
-        <ReactECharts option={buildStorageChart(result)} style={{ height: 280 }} />
-      </div>
+      <ReactECharts
+        key={selectedChart}
+        option={optionMap[selectedChart]}
+        style={{ height: 340 }}
+      />
     </div>
   );
 }

@@ -735,6 +735,8 @@ export default function H2ElectrolyzerPanel({
     [isDone, result, hue, effectiveModel]
   );
 
+  const [selectedElzChart, setSelectedElzChart] = useState("efficiency");
+
   // ── Variant resolution ───────────────────────────────────────────────────
   const activeVariant  = variants?.find((v) => v.id === localParams._variantId) ?? null;
   const dbConstraints  = activeVariant?._constraints ?? selectedModel?._constraints ?? {};
@@ -922,92 +924,81 @@ export default function H2ElectrolyzerPanel({
       )}
 
       {/* ═══════════════════════════════════════════════════════════════════════
-           SECTION C — ELZ-specific Charts
+           SECTION C — ELZ-specific Charts (single chart with dropdown)
       ══════════════════════════════════════════════════════════════════════ */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {(() => {
+        const elzChartOptions = [
+          { id: "efficiency", label: "Partial-Load Efficiency Curve" },
+          { id: "h2Hourly",   label: "H₂ Production — Hourly Profile" },
+          { id: "stats",      label: "H₂ Production Statistics" },
+          ...(isDone && actualChart ? [{ id: "simulation", label: "Simulation Result" }] : []),
+        ];
+        const activeElz = elzChartOptions.find((o) => o.id === selectedElzChart) ? selectedElzChart : "efficiency";
 
-        {/* Chart 1 — Partial-load efficiency curve */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-          <div className="flex items-center gap-2 mb-1">
-            <FiTrendingUp size={13} style={{ color: hue }} />
-            <h4 className="text-sm font-semibold text-slate-700">
-              Partial-Load Efficiency Curve
-            </h4>
-            <span className="ml-auto text-[11px] text-slate-400 flex items-center gap-1">
-              <FiInfo size={10} /> {meta.label}
-            </span>
+        return (
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <div className="flex items-center gap-2 mb-3">
+              {activeElz === "efficiency"  && <FiTrendingUp size={13} style={{ color: hue }} />}
+              {activeElz === "h2Hourly"   && <FiClock      size={13} style={{ color: hue }} />}
+              {activeElz === "stats"      && <FiBarChart2  size={13} style={{ color: hue }} />}
+              {activeElz === "simulation" && <FiActivity   size={13} style={{ color: hue }} />}
+              <h4 className="text-sm font-semibold text-slate-700">
+                {activeElz === "efficiency"  && "Partial-Load Efficiency Curve"}
+                {activeElz === "h2Hourly"   && "H₂ Production — Hourly Profile"}
+                {activeElz === "stats"      && "H₂ Production Statistics"}
+                {activeElz === "simulation" && "Simulation Result — H₂ Production"}
+              </h4>
+              <select
+                value={activeElz}
+                onChange={(e) => setSelectedElzChart(e.target.value)}
+                className="ml-auto text-xs bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              >
+                {elzChartOptions.map((o) => (
+                  <option key={o.id} value={o.id}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {activeElz === "efficiency" && (
+              <p className="text-xs text-slate-400 mb-3">
+                Peak η: <b style={{ color: hue }}>{effCurveChart.summary.peakEff.toFixed(1)} %</b>
+                {" · "}at <b style={{ color: hue }}>{effCurveChart.summary.peakLoad} % load</b>
+                {" · "}Min load: <b className="text-slate-600">{effCurveChart.summary.minLoadPct} %</b>
+                {" · "}Dashed = specific energy (kWh/kg)
+              </p>
+            )}
+            {activeElz === "h2Hourly" && (
+              <p className="text-xs text-slate-400 mb-3">
+                Daily yield: <b style={{ color: hue }}>{h2ProdChart.summary.totalKgH2} kg H₂</b>
+                {" · "}Avg: <b style={{ color: hue }}>{h2ProdChart.summary.avgH2Rate} kg/h</b>
+                {" · "}Peak: <b className="text-slate-600">{h2ProdChart.summary.peakH2Rate} kg/h</b>
+              </p>
+            )}
+            {activeElz === "stats" && (
+              <p className="text-xs text-slate-400 mb-3">
+                Annual output: <b style={{ color: hue }}>
+                  {h2StatsChart.summary.annual_kg >= 1000
+                    ? `${(h2StatsChart.summary.annual_kg / 1000).toFixed(1)} t H₂/yr`
+                    : `${h2StatsChart.summary.annual_kg} kg H₂/yr`}
+                </b>
+                {" · "}at average generator CF · nonlinear ELZ efficiency
+              </p>
+            )}
+            {activeElz === "simulation" && actualChart && (
+              <p className="text-xs text-slate-400 mb-3">
+                Avg rate: <b style={{ color: hue }}>{actualChart.summary.avgKg} kg/h</b>
+                {" · "}Peak: <b style={{ color: hue }}>{actualChart.summary.peakKg} kg/h</b>
+                {" · "}ELZ power: <b className="text-slate-600">{actualChart.summary.avgPwr} kW avg</b>
+              </p>
+            )}
+
+            {activeElz === "efficiency"  && <ReactECharts key="efficiency"  option={effCurveChart.chart} style={{ height: 320 }} />}
+            {activeElz === "h2Hourly"   && <ReactECharts key="h2Hourly"   option={h2ProdChart.chart}   style={{ height: 320 }} />}
+            {activeElz === "stats"      && <ReactECharts key="stats"      option={h2StatsChart.chart}  style={{ height: 320 }} />}
+            {activeElz === "simulation" && actualChart && <ReactECharts key="simulation" option={actualChart.chart} style={{ height: 320 }} />}
           </div>
-          <p className="text-xs text-slate-400 mb-3">
-            Peak η: <b style={{ color: hue }}>{effCurveChart.summary.peakEff.toFixed(1)} %</b>
-            {" · "}at <b style={{ color: hue }}>{effCurveChart.summary.peakLoad} % load</b>
-            {" · "}Min load:
-            {" "}<b className="text-slate-600">{effCurveChart.summary.minLoadPct} %</b>
-            {" · "}Dashed = specific energy (kWh/kg)
-          </p>
-          <ReactECharts option={effCurveChart.chart} style={{ height: 220 }} />
-        </div>
-
-        {/* Chart 2 — 24 h H₂ production rate (step-by-step) */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-          <div className="flex items-center gap-2 mb-1">
-            <FiClock size={13} style={{ color: hue }} />
-            <h4 className="text-sm font-semibold text-slate-700">
-              H₂ Production — Hourly Profile
-            </h4>
-            <span className="ml-auto text-[11px] text-slate-400 flex items-center gap-1">
-              <FiInfo size={10} /> {genTechType ?? "generic"} source · nonlinear η
-            </span>
-          </div>
-          <p className="text-xs text-slate-400 mb-3">
-            Daily yield: <b style={{ color: hue }}>{h2ProdChart.summary.totalKgH2} kg H₂</b>
-            {" · "}Avg: <b style={{ color: hue }}>{h2ProdChart.summary.avgH2Rate} kg/h</b>
-            {" · "}Peak: <b className="text-slate-600">{h2ProdChart.summary.peakH2Rate} kg/h</b>
-          </p>
-          <ReactECharts option={h2ProdChart.chart} style={{ height: 220 }} />
-        </div>
-      </div>
-
-      {/* Chart 3 — H₂ production statistics — full width on smaller screens, side-by-side on lg */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-        <div className="flex items-center gap-2 mb-1">
-          <FiBarChart2 size={13} style={{ color: hue }} />
-          <h4 className="text-sm font-semibold text-slate-700">H₂ Production Statistics</h4>
-          <span className="ml-auto text-[11px] text-slate-400 flex items-center gap-1">
-            <FiInfo size={10} /> Rated · peak · avg · min (kg/h)
-          </span>
-        </div>
-        <p className="text-xs text-slate-400 mb-3">
-          Annual output: <b style={{ color: hue }}>
-            {h2StatsChart.summary.annual_kg >= 1000
-              ? `${(h2StatsChart.summary.annual_kg / 1000).toFixed(1)} t H₂/yr`
-              : `${h2StatsChart.summary.annual_kg} kg H₂/yr`}
-          </b>
-          {" · "}at average generator CF · nonlinear ELZ efficiency
-        </p>
-        <ReactECharts option={h2StatsChart.chart} style={{ height: 200 }} />
-      </div>
-
-      {/* ═══════════════════════════════════════════════════════════════════════
-           SECTION E — Simulation Result (only shown when run is complete)
-      ══════════════════════════════════════════════════════════════════════ */}
-      {isDone && actualChart && (
-        <div className="bg-white rounded-2xl border border-indigo-200 shadow-sm p-5"
-          style={{ borderLeftWidth: 3, borderLeftColor: hue }}>
-          <div className="flex items-center gap-2 mb-1">
-            <FiActivity size={13} style={{ color: hue }} />
-            <h4 className="text-sm font-semibold text-slate-700">Simulation Result — H₂ Production</h4>
-            <span className="ml-auto text-[11px] text-slate-400 flex items-center gap-1">
-              <FiInfo size={10} /> {effectiveModel?.name} · from simulation run
-            </span>
-          </div>
-          <p className="text-xs text-slate-400 mb-3">
-            Avg rate: <b style={{ color: hue }}>{actualChart.summary.avgKg} kg/h</b>
-            {" · "}Peak: <b style={{ color: hue }}>{actualChart.summary.peakKg} kg/h</b>
-            {" · "}ELZ power: <b className="text-slate-600">{actualChart.summary.avgPwr} kW avg</b>
-          </p>
-          <ReactECharts option={actualChart.chart} style={{ height: 240 }} />
-        </div>
-      )}
+        );
+      })()}
 
       {/* ═══════════════════════════════════════════════════════════════════════
            SECTION F — KPI Footer

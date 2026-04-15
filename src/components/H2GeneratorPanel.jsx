@@ -532,6 +532,8 @@ export default function H2GeneratorPanel({ selectedModel, elzModel, elzParams, r
     [isDone, result, hue, effectiveModel]
   );
 
+  const [selectedGenChart, setSelectedGenChart] = useState("profile");
+
   if (!selectedModel) {
     return (
       <div className="bg-white rounded-2xl border border-dashed border-slate-200 p-8 flex flex-col items-center justify-center text-center gap-3">
@@ -773,70 +775,79 @@ export default function H2GeneratorPanel({ selectedModel, elzModel, elzParams, r
       })()}
 
       {/* ═══════════════════════════════════════════════════════════════════════
-           SECTION C — Generation Charts  (main focus)
+           SECTION C — Generation Charts  (single chart with dropdown)
       ══════════════════════════════════════════════════════════════════════ */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* 24 h theoretical profile — or uploaded CSV profile */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-          {csvChart ? (
-            <>
-              <div className="flex items-center gap-2 mb-1">
-                <FiUpload size={13} style={{ color: hue }} />
-                <h4 className="text-sm font-semibold text-slate-700">Custom Production Profile</h4>
-                <span className="ml-auto text-[11px] text-slate-400 flex items-center gap-1">
-                  <FiInfo size={10} /> {csvChart.summary.rows?.toLocaleString() ?? "?"} data points
-                </span>
-              </div>
+      {(() => {
+        const genChartOptions = [
+          { id: "profile", label: csvChart ? "Custom CSV Profile" : "24 h Generation Profile" },
+          { id: "stats",   label: "Generation Statistics" },
+          ...(isDone && actualChart ? [{ id: "simulation", label: "Simulation Result" }] : []),
+        ];
+        const activeChart = genChartOptions.find((o) => o.id === selectedGenChart) ? selectedGenChart : "profile";
+
+        return (
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <div className="flex items-center gap-2 mb-3">
+              {activeChart === "profile" && <FiClock size={13} style={{ color: hue }} />}
+              {activeChart === "stats"   && <FiBarChart2 size={13} style={{ color: hue }} />}
+              {activeChart === "simulation" && <FiActivity size={13} style={{ color: hue }} />}
+              <h4 className="text-sm font-semibold text-slate-700">
+                {activeChart === "profile" && (csvChart ? "Custom Production Profile" : `${meta.label} — Typical 24 h Profile`)}
+                {activeChart === "stats"   && "Generation Statistics"}
+                {activeChart === "simulation" && "Simulation Result"}
+              </h4>
+              <select
+                value={activeChart}
+                onChange={(e) => setSelectedGenChart(e.target.value)}
+                className="ml-auto text-xs bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              >
+                {genChartOptions.map((o) => (
+                  <option key={o.id} value={o.id}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {activeChart === "profile" && csvChart && (
               <p className="text-xs text-slate-400 mb-3">
                 Avg: <b style={{ color: hue }}>{csvChart.summary.avg.toLocaleString()} kW</b>
                 {" · "}Peak: <b style={{ color: hue }}>{csvChart.summary.peak.toLocaleString()} kW</b>
                 {" · "}Min: <b className="text-slate-600">{csvChart.summary.min.toLocaleString()} kW</b>
+                {" · "}<span className="flex items-center gap-1 inline-flex"><FiInfo size={10} /> {csvChart.summary.rows?.toLocaleString() ?? "?"} data points</span>
               </p>
-              <ReactECharts option={csvChart.chart} style={{ height: 220 }} />
-            </>
-          ) : (
-            <>
-              <div className="flex items-center gap-2 mb-1">
-                <FiClock size={13} style={{ color: hue }} />
-                <h4 className="text-sm font-semibold text-slate-700">
-                  {meta.label} — Typical 24 h Profile
-                </h4>
-                <span className="ml-auto text-[11px] text-slate-400 flex items-center gap-1">
-                  <FiInfo size={10} />
-                  {activeVariant ? activeVariant.name : "base model"} · 30-min res.
-                </span>
-              </div>
+            )}
+            {activeChart === "profile" && !csvChart && (
               <p className="text-xs text-slate-400 mb-3">
                 Avg CF: <b style={{ color: hue }}>{(profile.avgCF * 100).toFixed(0)}%</b>
-                {" · "}Plant capacity: <b style={{ color: hue }}>
-                  {_modelHasCap ? formatCapacityKw(capacityKw) : "—"}
-                </b>
-                {" · "}Peak:
-                {" "}<b className="text-slate-600">
-                  {profile.peakKw >= 1000 ? `${(profile.peakKw / 1000).toFixed(1)} MW` : `${Math.round(profile.peakKw)} kW`}
-                </b>
+                {" · "}Capacity: <b style={{ color: hue }}>{_modelHasCap ? formatCapacityKw(capacityKw) : "—"}</b>
+                {" · "}Peak: <b className="text-slate-600">{profile.peakKw >= 1000 ? `${(profile.peakKw / 1000).toFixed(1)} MW` : `${Math.round(profile.peakKw)} kW`}</b>
               </p>
-              <ReactECharts option={profileChart} style={{ height: 220 }} />
-            </>
-          )}
-        </div>
+            )}
+            {activeChart === "stats" && (
+              <p className="text-xs text-slate-400 mb-3">
+                Daily yield: <b style={{ color: hue }}>{genStats.summary.dailyMwh} MWh/day</b>
+                {" · "}Annual: <b style={{ color: hue }}>{genStats.summary.annualMwh.toLocaleString()} MWh/yr</b>
+              </p>
+            )}
+            {activeChart === "simulation" && actualChart && (
+              <p className="text-xs text-slate-400 mb-3">
+                Avg: <b style={{ color: hue }}>{actualChart.summary.avgPower} kW</b>
+                {" · "}Peak: <b style={{ color: hue }}>{actualChart.summary.peakPower} kW</b>
+                {" · "}Dashed line = average
+              </p>
+            )}
 
-        {/* Generation statistics bar chart */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-          <div className="flex items-center gap-2 mb-1">
-            <FiBarChart2 size={13} style={{ color: hue }} />
-            <h4 className="text-sm font-semibold text-slate-700">Generation Statistics</h4>
-            <span className="ml-auto text-[11px] text-slate-400 flex items-center gap-1">
-              <FiInfo size={10} /> Capacity · CF range
-            </span>
+            {activeChart === "profile" && (
+              <ReactECharts key="profile" option={csvChart ? csvChart.chart : profileChart} style={{ height: 320 }} />
+            )}
+            {activeChart === "stats" && (
+              <ReactECharts key="stats" option={genStats.chart} style={{ height: 320 }} />
+            )}
+            {activeChart === "simulation" && actualChart && (
+              <ReactECharts key="simulation" option={actualChart.chart} style={{ height: 320 }} />
+            )}
           </div>
-          <p className="text-xs text-slate-400 mb-3">
-            Daily yield: <b style={{ color: hue }}>{genStats.summary.dailyMwh} MWh/day</b>
-            {" · "}Annual: <b style={{ color: hue }}>{genStats.summary.annualMwh.toLocaleString()} MWh/yr</b>
-          </p>
-          <ReactECharts option={genStats.chart} style={{ height: 220 }} />
-        </div>
-      </div>
+        );
+      })()}
 
       {/* ═══════════════════════════════════════════════════════════════════════
            SECTION D — Energy Flow Chain Analysis
@@ -949,28 +960,6 @@ export default function H2GeneratorPanel({ selectedModel, elzModel, elzParams, r
           </div>
         );
       })()}
-
-      {/* ═══════════════════════════════════════════════════════════════════════
-           SECTION E — Simulation Result (only shown when a run is complete)
-      ═══════════════════════════════════════════════════════════════════════ */}
-      {isDone && actualChart && (
-        <div className="bg-white rounded-2xl border border-indigo-200 shadow-sm p-5"
-          style={{ borderLeftWidth: 3, borderLeftColor: hue }}>
-          <div className="flex items-center gap-2 mb-1">
-            <FiActivity size={13} style={{ color: hue }} />
-            <h4 className="text-sm font-semibold text-slate-700">Simulation Result</h4>
-            <span className="ml-auto text-[11px] text-slate-400 flex items-center gap-1">
-              <FiInfo size={10} /> {selectedModel.name} · AC delivered to busbar
-            </span>
-          </div>
-          <p className="text-xs text-slate-400 mb-3">
-            Avg: <b style={{ color: hue }}>{actualChart.summary.avgPower} kW</b>
-            {" · "}Peak: <b style={{ color: hue }}>{actualChart.summary.peakPower} kW</b>
-            {" · "}Dashed line = average
-          </p>
-          <ReactECharts option={actualChart.chart} style={{ height: 240 }} />
-        </div>
-      )}
 
       {/* ═══════════════════════════════════════════════════════════════════════
            SECTION F — KPI Footer

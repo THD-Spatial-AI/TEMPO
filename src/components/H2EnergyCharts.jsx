@@ -11,7 +11,7 @@
  *   sourceName {string}   – human-readable name of the selected power source
  */
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import ReactECharts from "echarts-for-react";
 import { FiZap, FiTrendingUp, FiActivity, FiBarChart2, FiInfo } from "react-icons/fi";
 
@@ -382,6 +382,24 @@ export default function H2EnergyCharts({ result, simState, progress, sourceName,
   const fcDetailOpt    = useMemo(() => buildFcDetailChart(result),                [result]);
   const cumulativeOpt  = useMemo(() => buildCumulativeChart(result),              [result]);
 
+  const [selectedChart, setSelectedChart] = useState("powerFlow");
+
+  const CHART_OPTIONS = [
+    { id: "powerFlow",   label: "Power Flow" },
+    { id: "h2Balance",   label: "H₂ Mass Balance" },
+    { id: "tankState",   label: "Tank State Evolution" },
+    { id: "fcDetail",    label: "Fuel Cell Polarisation" },
+    { id: "cumulative",  label: "Cumulative Energy" },
+  ];
+
+  const CHART_MAP = {
+    powerFlow:  { icon: FiZap,        title: "Power Flow",                subtitle: "ELZ consumption vs FC output",                    opt: powerFlowOpt,  accentCls: "text-amber-500" },
+    h2Balance:  { icon: FiActivity,   title: "H₂ Mass Balance",           subtitle: "Production rate per step",                        opt: h2BalanceOpt,  accentCls: "text-emerald-500" },
+    tankState:  { icon: FiBarChart2,  title: "Tank State Evolution",       subtitle: "Pressure over time",                              opt: tankStateOpt,  accentCls: "text-amber-500" },
+    fcDetail:   { icon: FiActivity,   title: "Fuel Cell Polarisation",     subtitle: "Voltage · current density · efficiency",          opt: fcDetailOpt,   accentCls: "text-violet-500" },
+    cumulative: { icon: FiTrendingUp, title: "Cumulative Energy per Step", subtitle: "kWh in/out each Δt · H₂ HHV = 3.54 kWh/Nm³",    opt: cumulativeOpt, accentCls: "text-indigo-500" },
+  };
+
   const isRunning  = simState === 'running' || simState === 'queued';
   const isLocal    = !!result?._local;
 
@@ -424,36 +442,31 @@ export default function H2EnergyCharts({ result, simState, progress, sourceName,
         </div>
       )}
 
-      {result && (
-        <>
-          {/* Row 1: Power flow + H2 balance */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            <ChartCard icon={FiZap} title="Power Flow" subtitle="ELZ consumption vs FC output" accent="amber">
-              <ReactECharts option={powerFlowOpt} style={{ height: 230 }} />
-            </ChartCard>
-
-            <ChartCard icon={FiActivity} title="H₂ Mass Balance" subtitle="Production rate per step" accent="emerald">
-              <ReactECharts option={h2BalanceOpt} style={{ height: 230 }} />
-            </ChartCard>
+      {result && (() => {
+        const cm = CHART_MAP[selectedChart];
+        const Icon = cm.icon;
+        return (
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Icon size={15} className={cm.accentCls} />
+              <h4 className="text-sm font-semibold text-slate-700">{cm.title}</h4>
+              <select
+                value={selectedChart}
+                onChange={(e) => setSelectedChart(e.target.value)}
+                className="ml-auto text-xs bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              >
+                {CHART_OPTIONS.map((o) => (
+                  <option key={o.id} value={o.id}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+            <p className="text-xs text-slate-400 mb-3 flex items-center gap-1">
+              <FiInfo size={10} /> {cm.subtitle}
+            </p>
+            <ReactECharts key={selectedChart} option={cm.opt} style={{ height: 340 }} />
           </div>
-
-          {/* Row 2: Tank state + FC polarisation */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            <ChartCard icon={FiBarChart2} title="Tank State Evolution" subtitle="Pressure over time" accent="amber">
-              <ReactECharts option={tankStateOpt} style={{ height: 230 }} />
-            </ChartCard>
-
-            <ChartCard icon={FiActivity} title="Fuel Cell Polarisation" subtitle="Voltage · current density · efficiency" accent="violet">
-              <ReactECharts option={fcDetailOpt} style={{ height: 230 }} />
-            </ChartCard>
-          </div>
-
-          {/* Row 3: Cumulative energy (full width) */}
-          <ChartCard icon={FiTrendingUp} title="Cumulative Energy per Step" subtitle="kWh in/out each Δt · H₂ HHV = 3.54 kWh/Nm³" accent="indigo">
-            <ReactECharts option={cumulativeOpt} style={{ height: 250 }} />
-          </ChartCard>
-        </>
-      )}
+        );
+      })()}
     </div>
   );
 }
