@@ -18,7 +18,7 @@ import { FiZap, FiTrendingUp, FiActivity, FiBarChart2, FiInfo } from "react-icon
 // ─────────────────────────────────────────────────────────────────────────────
 // Chart layout helpers
 // ─────────────────────────────────────────────────────────────────────────────
-const baseGrid = { top: 30, bottom: 44, left: 54, right: 54 };
+const baseGrid = { top: 30, bottom: 52, left: 52, right: 52 };
 
 function formatTimeLabel(t) {
   const sec = Number(t) || 0;
@@ -87,6 +87,7 @@ function buildPowerFlowChart(result, sourceName, requestedSourceProfile = []) {
       type: 'line',
       data: srcPow,
       smooth: true, symbol: 'none',
+      color: '#3b82f6',
       lineStyle: { color: '#3b82f6', width: 2.5 },
       areaStyle: { color: 'rgba(59,130,246,0.08)' },
       z: 1,
@@ -97,6 +98,7 @@ function buildPowerFlowChart(result, sourceName, requestedSourceProfile = []) {
       data: srcPowRequested,
       smooth: true,
       symbol: 'none',
+      color: '#1d4ed8',
       lineStyle: { color: '#1d4ed8', width: 1.5, type: 'dashed' },
       z: 0,
     }] : []),
@@ -105,6 +107,7 @@ function buildPowerFlowChart(result, sourceName, requestedSourceProfile = []) {
       type: 'line',
       data: elzPow,
       smooth: true, symbol: 'none',
+      color: '#f59e0b',
       lineStyle: { color: '#f59e0b', width: 2 },
       areaStyle: { color: 'rgba(245,158,11,0.13)' },
       z: 2,
@@ -114,6 +117,7 @@ function buildPowerFlowChart(result, sourceName, requestedSourceProfile = []) {
       type: 'line',
       data: fcPow,
       smooth: true, symbol: 'none',
+      color: '#10b981',
       lineStyle: { color: '#10b981', width: 2 },
       areaStyle: { color: 'rgba(16,185,129,0.10)' },
       z: 2,
@@ -132,10 +136,10 @@ function buildPowerFlowChart(result, sourceName, requestedSourceProfile = []) {
     animation: true,
     animationDuration: 800,
     tooltip: { trigger: 'axis', formatter: tooltipFormatter },
-    legend: { data: series.map((s) => s.name), bottom: 0, textStyle: { fontSize: 11 } },
+    legend: { data: series.map((s) => s.name), bottom: 0, textStyle: { fontSize: 9 }, icon: 'roundRect', type: 'scroll' },
     grid: baseGrid,
-    xAxis: { type: 'category', data: t, axisLabel: xAxisLabel(t) },
-    yAxis: { type: 'value', name: 'kW', nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10 } },
+    xAxis: { type: 'category', data: t, axisLabel: xAxisLabel(t), axisTick: { show: false } },
+    yAxis: { type: 'value', name: 'kW', nameTextStyle: { fontSize: 9 }, axisLabel: { fontSize: 9 } },
     series,
   };
 }
@@ -154,7 +158,8 @@ function buildH2BalanceChart(result) {
       name: 'H₂ Produced (Nm³/h)',
       type: 'line',
       data: h2prod,
-      smooth: true, symbol: 'circle', symbolSize: 5,
+      smooth: true, symbol: 'none',
+      color: '#10b981',
       lineStyle: { color: '#10b981', width: 2 },
       areaStyle: { color: 'rgba(16,185,129,0.15)' },
     },
@@ -164,7 +169,8 @@ function buildH2BalanceChart(result) {
       name: 'H₂ Consumed (Nm³/h)',
       type: 'line',
       data: h2cons,
-      smooth: true, symbol: 'emptyCircle', symbolSize: 5,
+      smooth: true, symbol: 'none',
+      color: '#8b5cf6',
       lineStyle: { color: '#8b5cf6', width: 2, type: 'dashed' },
     });
   }
@@ -173,10 +179,10 @@ function buildH2BalanceChart(result) {
     animation: true,
     animationDuration: 800,
     tooltip: { trigger: 'axis', formatter: tooltipFormatter },
-    legend: { data: series.map((s) => s.name), bottom: 0, textStyle: { fontSize: 11 } },
+    legend: { data: series.map((s) => s.name), bottom: 0, textStyle: { fontSize: 9 }, icon: 'roundRect', type: 'scroll' },
     grid: baseGrid,
-    xAxis: { type: 'category', data: t, axisLabel: xAxisLabel(t) },
-    yAxis: { type: 'value', name: 'Nm³/h', nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10 } },
+    xAxis: { type: 'category', data: t, axisLabel: xAxisLabel(t), axisTick: { show: false } },
+    yAxis: { type: 'value', name: 'Nm³/h', nameTextStyle: { fontSize: 9 }, axisLabel: { fontSize: 9 } },
     series,
   };
 }
@@ -196,6 +202,7 @@ function buildTankStateChart(result) {
       type: 'line',
       data: press,
       smooth: true, symbol: 'none',
+      color: '#f59e0b',
       lineStyle: { color: '#f59e0b', width: 2 },
       areaStyle: { color: 'rgba(245,158,11,0.12)' },
       yAxisIndex: 0,
@@ -203,7 +210,7 @@ function buildTankStateChart(result) {
   ];
 
   const yAxes = [
-    { type: 'value', name: 'bar', nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10 } },
+    { type: 'value', name: 'bar', nameTextStyle: { fontSize: 9 }, axisLabel: { fontSize: 9 } },
   ];
 
   if (hasSoc) {
@@ -212,13 +219,14 @@ function buildTankStateChart(result) {
       type: 'line',
       data: soc,
       smooth: true, symbol: 'none',
+      color: '#10b981',
       lineStyle: { color: '#10b981', width: 2, type: 'dashed' },
       yAxisIndex: 1,
     });
     yAxes.push({
       type: 'value', name: '%',
       min: 0, max: 100,
-      nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10 },
+      nameTextStyle: { fontSize: 9 }, axisLabel: { fontSize: 9 },
       splitLine: { show: false },
     });
   }
@@ -227,9 +235,9 @@ function buildTankStateChart(result) {
     animation: true,
     animationDuration: 800,
     tooltip: { trigger: 'axis', formatter: tooltipFormatter },
-    legend: { data: series.map((s) => s.name), bottom: 0, textStyle: { fontSize: 11 } },
-    grid: { ...baseGrid, right: hasSoc ? 54 : 20 },
-    xAxis: { type: 'category', data: t, axisLabel: xAxisLabel(t) },
+    legend: { data: series.map((s) => s.name), bottom: 0, textStyle: { fontSize: 9 }, icon: 'roundRect', type: 'scroll' },
+    grid: { ...baseGrid, right: hasSoc ? 56 : 20 },
+    xAxis: { type: 'category', data: t, axisLabel: xAxisLabel(t), axisTick: { show: false } },
     yAxis: yAxes,
     series,
   };
@@ -258,13 +266,13 @@ function buildFcDetailChart(result) {
     animation: true,
     animationDuration: 800,
     tooltip: { trigger: 'axis', formatter: tooltipFormatter },
-    legend: { data: ['Terminal Voltage (V)', 'Current Density (A/cm²)', ...(hasEff ? ['FC Efficiency (%)'] : [])], bottom: 0, textStyle: { fontSize: 11 } },
-    grid: { ...baseGrid, right: hasEff ? 60 : 54 },
-    xAxis: { type: 'category', data: t, axisLabel: xAxisLabel(t) },
+    legend: { data: ['Terminal Voltage (V)', 'Current Density (A/cm²)', ...(hasEff ? ['FC Efficiency (%)'] : [])], bottom: 0, textStyle: { fontSize: 9 }, icon: 'roundRect', type: 'scroll' },
+    grid: { ...baseGrid, right: hasEff ? 60 : 56 },
+    xAxis: { type: 'category', data: t, axisLabel: xAxisLabel(t), axisTick: { show: false } },
     yAxis: [
-      { type: 'value', name: 'V',     nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10 } },
-      { type: 'value', name: 'A/cm²', nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10 }, splitLine: { show: false } },
-      ...(hasEff ? [{ type: 'value', name: '%', min: 0, max: 100, nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10 }, splitLine: { show: false } }] : []),
+      { type: 'value', name: 'V',     nameTextStyle: { fontSize: 9 }, axisLabel: { fontSize: 9 } },
+      { type: 'value', name: 'A/cm²', nameTextStyle: { fontSize: 9 }, axisLabel: { fontSize: 9 }, splitLine: { show: false } },
+      ...(hasEff ? [{ type: 'value', name: '%', min: 0, max: 100, nameTextStyle: { fontSize: 9 }, axisLabel: { fontSize: 9 }, splitLine: { show: false } }] : []),
     ],
     series: [
       {
@@ -272,6 +280,7 @@ function buildFcDetailChart(result) {
         type: 'line',
         data: volt,
         smooth: true, symbol: 'none',
+        color: '#8b5cf6',
         lineStyle: { color: '#8b5cf6', width: 2 },
         yAxisIndex: 0,
       },
@@ -280,6 +289,7 @@ function buildFcDetailChart(result) {
         type: 'line',
         data: curr,
         smooth: true, symbol: 'none',
+        color: '#ec4899',
         lineStyle: { color: '#ec4899', width: 2, type: 'dashed' },
         yAxisIndex: 1,
       },
@@ -288,6 +298,7 @@ function buildFcDetailChart(result) {
         type: 'line',
         data: eff,
         smooth: true, symbol: 'none',
+        color: '#22c55e',
         lineStyle: { color: '#22c55e', width: 1.5, type: 'dotted' },
         yAxisIndex: 2,
       }] : []),
@@ -311,10 +322,10 @@ function buildCumulativeChart(result) {
     animation: true,
     animationDuration: 1000,
     tooltip: { trigger: 'axis', formatter: tooltipFormatter },
-    legend: { data: ['ELZ Energy In (kWh)', 'H₂ Energy Stored (kWh equiv.)', 'FC Energy Out (kWh)'], bottom: 0, textStyle: { fontSize: 11 } },
+    legend: { data: ['ELZ Energy In (kWh)', 'H₂ Energy Stored (kWh equiv.)', 'FC Energy Out (kWh)'], bottom: 0, textStyle: { fontSize: 9 }, icon: 'roundRect', type: 'scroll' },
     grid: baseGrid,
-    xAxis: { type: 'category', data: t, axisLabel: xAxisLabel(t) },
-    yAxis: { type: 'value', name: 'kWh', nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10 } },
+    xAxis: { type: 'category', data: t, axisLabel: xAxisLabel(t), axisTick: { show: false } },
+    yAxis: { type: 'value', name: 'kWh', nameTextStyle: { fontSize: 9 }, axisLabel: { fontSize: 9 } },
     series: [
       {
         name: 'ELZ Energy In (kWh)',
@@ -336,7 +347,8 @@ function buildCumulativeChart(result) {
         name: 'FC Energy Out (kWh)',
         type: 'line',
         data: fcEnergy,
-        smooth: true, symbol: 'emptyCircle', symbolSize: 4,
+        smooth: true, symbol: 'none',
+        color: '#8b5cf6',
         lineStyle: { color: '#8b5cf6', width: 2 },
       },
     ],
