@@ -109,6 +109,8 @@ export default function CCSAbsorberPanel({
     onParamsChange?.(updated);
   };
 
+  const [selectedChart, setSelectedChart] = useState("efficiency");
+
   // Build partial-load capture efficiency curve
   const efficiencyCurve = useMemo(() => {
     const loads = Array.from({ length: 101 }, (_, i) => i);
@@ -190,6 +192,50 @@ export default function CCSAbsorberPanel({
     };
   }, [localParams, meta.hue]);
 
+  // Capture rate & specific energy vs flue gas CO₂ concentration
+  const captureConcentrationChart = useMemo(() => {
+    const concs = Array.from({ length: 23 }, (_, i) => 3 + i);
+    const captureRates = concs.map(c => +Math.min(99, localParams.capture_rate_pct + (c - 3) * 0.12).toFixed(1));
+    const energyReqs  = concs.map(c => +Math.max(2.0, localParams.energy_requirement_gj_tco2 - (c - 3) * 0.035).toFixed(2));
+    return {
+      animation: false,
+      tooltip: { trigger: "axis" },
+      legend: { data: ["Capture Rate", "Specific Energy"], bottom: 0, textStyle: { fontSize: 11 } },
+      grid: { top: 24, bottom: 48, left: 48, right: 52 },
+      xAxis: { type: "category", data: concs.map(c => `${c}%`), name: "Flue Gas CO₂ vol%", nameLocation: "middle", nameGap: 26, axisLabel: { fontSize: 10, interval: 2 } },
+      yAxis: [
+        { type: "value", name: "Capture %", nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10 }, min: 60, max: 100 },
+        { type: "value", name: "GJ/tCO₂",  nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10 }, splitLine: { show: false }, min: 1.5, max: 5.0 },
+      ],
+      series: [
+        { name: "Capture Rate",   type: "line", data: captureRates, smooth: true, symbol: "none", lineStyle: { color: meta.hue, width: 2 }, areaStyle: { color: `${meta.hue}22` }, yAxisIndex: 0 },
+        { name: "Specific Energy", type: "line", data: energyReqs,  smooth: true, symbol: "none", lineStyle: { color: "#ef4444", width: 2 }, yAxisIndex: 1 },
+      ],
+    };
+  }, [localParams.capture_rate_pct, localParams.energy_requirement_gj_tco2, meta.hue]);
+
+  // Capture rate & column pressure drop vs L/G ratio
+  const solventFlowChart = useMemo(() => {
+    const ratios = Array.from({ length: 21 }, (_, i) => +(1.5 + i * 0.2).toFixed(1));
+    const capture = ratios.map(r => +Math.min(99, Math.max(50, localParams.capture_rate_pct + (r - localParams.l_g_ratio) * 3)).toFixed(1));
+    const deltaP  = ratios.map(r => +(0.8 + r * 0.25).toFixed(2));
+    return {
+      animation: false,
+      tooltip: { trigger: "axis" },
+      legend: { data: ["Capture Rate", "Column ΔP"], bottom: 0, textStyle: { fontSize: 11 } },
+      grid: { top: 24, bottom: 48, left: 48, right: 52 },
+      xAxis: { type: "category", data: ratios.map(r => `${r}`), name: "L/G Ratio (L/Nm³)", nameLocation: "middle", nameGap: 26, axisLabel: { fontSize: 10, interval: 2 } },
+      yAxis: [
+        { type: "value", name: "Capture %", nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10 }, min: 50, max: 100 },
+        { type: "value", name: "ΔP (kPa)",  nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10 }, splitLine: { show: false } },
+      ],
+      series: [
+        { name: "Capture Rate", type: "line", data: capture, smooth: true, symbol: "none", lineStyle: { color: meta.hue, width: 2 }, areaStyle: { color: `${meta.hue}22` }, yAxisIndex: 0 },
+        { name: "Column ΔP",    type: "line", data: deltaP,  smooth: true, symbol: "none", lineStyle: { color: "#f59e0b", width: 2 }, yAxisIndex: 1 },
+      ],
+    };
+  }, [localParams.capture_rate_pct, localParams.l_g_ratio, meta.hue]);
+
   return (
     <div className="space-y-5">
       {/* ── Header ────────────────────────────────────────────────────────── */}
@@ -266,13 +312,28 @@ export default function CCSAbsorberPanel({
         </div>
       </div>
 
-      {/* ── Performance Curve ───────────────────────────────────────────────── */}
+      {/* ── Performance Analysis ─────────────────────────────────────────────── */}
       <div className="bg-white rounded-xl border border-slate-200 p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <FiActivity size={14} className="text-violet-500" />
-          <h5 className="font-semibold text-slate-700 text-sm">Partial-Load Performance</h5>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <FiActivity size={14} className="text-violet-500" />
+            <h5 className="font-semibold text-slate-700 text-sm">Performance Analysis</h5>
+          </div>
+          <select
+            value={selectedChart}
+            onChange={(e) => setSelectedChart(e.target.value)}
+            className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-slate-50 text-slate-600 focus:outline-none cursor-pointer"
+          >
+            <option value="efficiency">Partial-Load Capture Efficiency</option>
+            <option value="concentration">CO₂ Concentration Effect</option>
+            <option value="solvent">Solvent Flow vs Capture</option>
+          </select>
         </div>
-        <ReactECharts option={efficiencyCurve} style={{ height: 220 }} />
+        <ReactECharts
+          key={selectedChart}
+          option={selectedChart === "efficiency" ? efficiencyCurve : selectedChart === "concentration" ? captureConcentrationChart : solventFlowChart}
+          style={{ height: 320 }}
+        />
       </div>
 
       {/* ── KPIs ───────────────────────────────────────────────────────────── */}

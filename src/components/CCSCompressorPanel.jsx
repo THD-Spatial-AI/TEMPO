@@ -102,6 +102,8 @@ export default function CCSCompressorPanel({
     onParamsChange?.(updated);
   };
 
+  const [selectedChart, setSelectedChart] = useState("work");
+
   // Build compression work vs. pressure ratio curve (polytropic compression)
   const compressionCurve = useMemo(() => {
     const pressures = Array.from({ length: 121 }, (_, i) => 80 + i);
@@ -190,6 +192,57 @@ export default function CCSCompressorPanel({
     };
   }, [localParams, meta.hue]);
 
+  // Pressure and outlet temperature at each compression stage
+  const stagePressureChart = useMemo(() => {
+    const n = Math.max(1, Math.round(localParams.number_stages));
+    const stageRatio = Math.pow(localParams.target_pressure_bar / 1.013, 1 / n);
+    const labels    = Array.from({ length: n + 1 }, (_, i) => i === 0 ? "Inlet" : `S${i}`);
+    const pressures = Array.from({ length: n + 1 }, (_, i) => +(1.013 * Math.pow(stageRatio, i)).toFixed(1));
+    const T1 = localParams.intercooling_temp_c + 273;
+    const gamma = 1.3;
+    const tempRise = T1 * (Math.pow(stageRatio, (gamma - 1) / gamma) - 1);
+    const temps = Array.from({ length: n + 1 }, (_, i) =>
+      i === 0 ? localParams.intercooling_temp_c : +(localParams.intercooling_temp_c + tempRise - 273).toFixed(1)
+    );
+    return {
+      animation: false,
+      tooltip: { trigger: "axis" },
+      legend: { data: ["Pressure", "Outlet Temp"], bottom: 0, textStyle: { fontSize: 11 } },
+      grid: { top: 24, bottom: 48, left: 56, right: 52 },
+      xAxis: { type: "category", data: labels, axisLabel: { fontSize: 10 } },
+      yAxis: [
+        { type: "value", name: "bar", nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10 } },
+        { type: "value", name: "°C",  nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10 }, splitLine: { show: false } },
+      ],
+      series: [
+        { name: "Pressure",    type: "bar",  data: pressures, itemStyle: { color: meta.hue, opacity: 0.8 }, yAxisIndex: 0 },
+        { name: "Outlet Temp", type: "line", data: temps, symbol: "circle", symbolSize: 6, lineStyle: { color: "#ef4444", width: 2 }, yAxisIndex: 1 },
+      ],
+    };
+  }, [localParams.number_stages, localParams.target_pressure_bar, localParams.intercooling_temp_c, meta.hue]);
+
+  // Specific work vs isentropic efficiency at current target pressure
+  const efficiencyPowerChart = useMemo(() => {
+    const effs = Array.from({ length: 26 }, (_, i) => 70 + i);
+    const P1   = 1.013;
+    const pressureRatio = localParams.target_pressure_bar / P1;
+    const gamma = 1.3;
+    const baseWork = 8.314 * 313 * (Math.pow(pressureRatio, (gamma - 1) / gamma) - 1) / 3600 / 44 * 1000;
+    const works = effs.map(eff => +(baseWork * (100 / eff) * localParams.number_stages / 5).toFixed(0));
+    return {
+      animation: false,
+      tooltip: { trigger: "axis", formatter: ([a]) => `η ${a.name}% → ${a.value} kWh/tCO₂` },
+      grid: { top: 24, bottom: 44, left: 56, right: 16 },
+      xAxis: { type: "category", data: effs.map(e => `${e}%`), name: "Isentropic Efficiency", nameLocation: "middle", nameGap: 26, axisLabel: { fontSize: 10, interval: 4 } },
+      yAxis: { type: "value", name: "kWh/tCO₂", nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10 } },
+      series: [{
+        type: "line", data: works, smooth: true, symbol: "none",
+        lineStyle: { color: meta.hue, width: 2 }, areaStyle: { color: `${meta.hue}22` },
+        markLine: { symbol: ["none", "none"], data: [{ xAxis: `${localParams.isentropic_efficiency_pct}%` }], lineStyle: { color: "#6366f1", type: "dashed", width: 2 }, label: { formatter: "Current", fontSize: 9, position: "insideEndTop" } },
+      }],
+    };
+  }, [localParams.target_pressure_bar, localParams.number_stages, localParams.isentropic_efficiency_pct, meta.hue]);
+
   return (
     <div className="space-y-5">
       {/* ── Header ────────────────────────────────────────────────────────── */}
@@ -257,13 +310,28 @@ export default function CCSCompressorPanel({
         </div>
       </div>
 
-      {/* ── Performance Curve ───────────────────────────────────────────────── */}
+      {/* ── Performance Analysis ─────────────────────────────────────────────── */}
       <div className="bg-white rounded-xl border border-slate-200 p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <FiActivity size={14} className="text-violet-500" />
-          <h5 className="font-semibold text-slate-700 text-sm">Compression Work vs. Pressure</h5>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <FiActivity size={14} className="text-violet-500" />
+            <h5 className="font-semibold text-slate-700 text-sm">Performance Analysis</h5>
+          </div>
+          <select
+            value={selectedChart}
+            onChange={(e) => setSelectedChart(e.target.value)}
+            className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-slate-50 text-slate-600 focus:outline-none cursor-pointer"
+          >
+            <option value="work">Compression Work vs Pressure</option>
+            <option value="stages">Stage Pressure &amp; Temperature</option>
+            <option value="power">Work vs Isentropic Efficiency</option>
+          </select>
         </div>
-        <ReactECharts option={compressionCurve} style={{ height: 220 }} />
+        <ReactECharts
+          key={selectedChart}
+          option={selectedChart === "work" ? compressionCurve : selectedChart === "stages" ? stagePressureChart : efficiencyPowerChart}
+          style={{ height: 320 }}
+        />
       </div>
 
       {/* ── KPIs ───────────────────────────────────────────────────────────── */}
