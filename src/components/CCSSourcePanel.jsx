@@ -127,6 +127,8 @@ export default function CCSSourcePanel({
     onParamsChange?.(updated);
   };
 
+  const [selectedChart, setSelectedChart] = useState("profile");
+
   // Build theoretical flue gas profile chart
   const profileChart = useMemo(() => {
     const hours = Array.from({ length: 24 }, (_, i) => i);
@@ -174,6 +176,46 @@ export default function CCSSourcePanel({
       ],
     };
   }, [localParams, meta.hue]);
+
+  // CO₂ output vs plant load ramp
+  const co2OutputChart = useMemo(() => {
+    const pcts = Array.from({ length: 20 }, (_, i) => (i + 1) * 5);
+    const co2s = pcts.map(p => +(localParams.capacity_kw * p / 100 / 1000 * localParams.co2_emission_kg_kwh).toFixed(2));
+    return {
+      animation: false,
+      tooltip: { trigger: "axis" },
+      grid: { top: 24, bottom: 44, left: 54, right: 16 },
+      xAxis: { type: "category", data: pcts.map(p => `${p}%`), name: "Plant Load", nameLocation: "middle", nameGap: 26, axisLabel: { fontSize: 10 } },
+      yAxis: { type: "value", name: "t CO₂/h", nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10 } },
+      series: [{ type: "line", data: co2s, smooth: false, symbol: "circle", symbolSize: 4, lineStyle: { color: "#ef4444", width: 2 }, areaStyle: { color: "#ef444428" } }],
+    };
+  }, [localParams.capacity_kw, localParams.co2_emission_kg_kwh]);
+
+  // Fuel type emission factor benchmark (horizontal bar)
+  const benchmarkChart = useMemo(() => {
+    const items = [
+      { name: "Biomass BECCS", v: 0.04, c: "#22c55e" },
+      { name: "Gas CCGT",      v: 0.38, c: "#f97316" },
+      { name: "Oil Refinery",  v: 0.44, c: "#a16207" },
+      { name: "Cement",        v: 0.82, c: "#78716c" },
+      { name: "Coal PC",       v: 0.92, c: "#374151" },
+      { name: "Steel BF",      v: 1.70, c: "#dc2626" },
+    ];
+    const cur = localParams.co2_emission_kg_kwh;
+    return {
+      animation: false,
+      tooltip: { trigger: "axis" },
+      grid: { top: 16, bottom: 32, left: 92, right: 72 },
+      xAxis: { type: "value", max: 2.0, axisLabel: { fontSize: 10 }, name: "kg CO₂/kWh", nameLocation: "middle", nameGap: 26 },
+      yAxis: { type: "category", data: items.map(i => i.name), axisLabel: { fontSize: 10 } },
+      series: [{
+        type: "bar",
+        data: items.map(i => ({ value: i.v, itemStyle: { color: i.c, opacity: Math.abs(i.v - cur) < 0.1 ? 1 : 0.45 } })),
+        label: { show: true, position: "right", fontSize: 9, formatter: p => `${p.value.toFixed(2)}` },
+        markLine: { symbol: ["none", "none"], data: [{ xAxis: cur }], lineStyle: { color: meta.hue, width: 2, type: "dashed" }, label: { formatter: `${cur.toFixed(2)} kg/kWh`, fontSize: 9 } },
+      }],
+    };
+  }, [localParams.co2_emission_kg_kwh, meta.hue]);
 
   return (
     <div className="space-y-5">
@@ -251,13 +293,28 @@ export default function CCSSourcePanel({
         </div>
       </div>
 
-      {/* ── Theoretical Profile Chart ──────────────────────────────────────── */}
+      {/* ── Performance Analysis ─────────────────────────────────────────────── */}
       <div className="bg-white rounded-xl border border-slate-200 p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <FiActivity size={14} className="text-violet-500" />
-          <h5 className="font-semibold text-slate-700 text-sm">24-Hour Operation Profile</h5>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <FiActivity size={14} className="text-violet-500" />
+            <h5 className="font-semibold text-slate-700 text-sm">Performance Analysis</h5>
+          </div>
+          <select
+            value={selectedChart}
+            onChange={(e) => setSelectedChart(e.target.value)}
+            className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-slate-50 text-slate-600 focus:outline-none cursor-pointer"
+          >
+            <option value="profile">24-Hour Operation Profile</option>
+            <option value="co2">CO₂ Output vs Plant Load</option>
+            <option value="benchmark">Fuel Type Benchmark</option>
+          </select>
         </div>
-        <ReactECharts option={profileChart} style={{ height: 220 }} />
+        <ReactECharts
+          key={selectedChart}
+          option={selectedChart === "profile" ? profileChart : selectedChart === "co2" ? co2OutputChart : benchmarkChart}
+          style={{ height: 320 }}
+        />
       </div>
 
       {/* ── KPIs ───────────────────────────────────────────────────────────── */}

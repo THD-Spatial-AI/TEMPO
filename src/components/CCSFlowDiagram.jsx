@@ -920,7 +920,7 @@ export default function CCSFlowDiagram({
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-400" />Projection</span>
         </span>
         <span className="ml-auto text-slate-500 italic hidden lg:block">
-          <span className="text-amber-400">Click a node</span> to edit parameters
+          Drag · zoom · <span className="text-amber-400">click a node</span> to open analysis
         </span>
       </div>
 
@@ -943,7 +943,6 @@ export default function CCSFlowDiagram({
           nodesDraggable
           nodesConnectable={false}
           elementsSelectable
-          preventScrolling={false}
           style={{ background: "#0f172a" }}
         >
           <Background
@@ -970,9 +969,11 @@ export default function CCSFlowDiagram({
               if (n.type === "storage") return "#10b981";
               return "#64748b";
             }}
+            position="bottom-left"
             style={{
-              background: "#1e293b",
+              background: "#0f172a",
               border: "1px solid #334155",
+              borderRadius: "8px",
             }}
             maskColor="rgba(15, 23, 42, 0.85)"
           />
