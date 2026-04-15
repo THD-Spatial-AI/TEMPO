@@ -160,13 +160,14 @@ function buildGenerationStatsChart(capacityKw, profile, meta, hue) {
       xAxis: {
         type: "category",
         data: categories,
-        axisLabel: { fontSize: 10, interval: 0, rotate: 10 },
+        axisLabel: { fontSize: 9, interval: 0, rotate: 10 },
+        axisTick: { show: false },
       },
       yAxis: {
         type: "value",
         name: "kW",
-        nameTextStyle: { fontSize: 10 },
-        axisLabel: { fontSize: 10, formatter: (v) => v >= 1000 ? `${(v / 1000).toFixed(0)} MW` : v },
+        nameTextStyle: { fontSize: 9 },
+        axisLabel: { fontSize: 9, formatter: (v) => v >= 1000 ? `${(v / 1000).toFixed(0)} MW` : v },
       },
       series: [{
         type: "bar",
@@ -225,13 +226,14 @@ function buildCsvProfileChart(customProfile, hue) {
         data: labels,
         axisLabel: { fontSize: 9, interval: Math.max(0, Math.floor(labels.length / 12) - 1), rotate: labels.length > 40 ? 25 : 0 },
         boundaryGap: false,
+        axisTick: { show: false },
       },
       yAxis: {
         type: "value",
         name: "kW",
         min: 0,
-        nameTextStyle: { fontSize: 10 },
-        axisLabel: { fontSize: 10, formatter: (v) => v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v },
+        nameTextStyle: { fontSize: 9 },
+        axisLabel: { fontSize: 9, formatter: (v) => v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v },
       },
       series: [
         {
@@ -240,6 +242,7 @@ function buildCsvProfileChart(customProfile, hue) {
           data: values,
           smooth: true,
           symbol: "none",
+          color: hue,
           lineStyle: { color: hue, width: 2 },
           areaStyle: { color: hue.startsWith("#") ? `${hue}28` : `rgba(99,102,241,0.12)` },
         },
@@ -248,6 +251,7 @@ function buildCsvProfileChart(customProfile, hue) {
           type: "line",
           data: labels.map(() => Math.round(avg)),
           symbol: "none",
+          color: "#64748b",
           lineStyle: { color: "#64748b", width: 1.5, type: "dashed" },
         },
       ],
@@ -278,12 +282,12 @@ function buildProfileChart(profile, hue, techType) {
           + `${p.seriesName}: <b>${Number(p.value ?? 0).toLocaleString()} kW</b>`
         ).join("<br/>"),
     },
-    legend: { data: ["Generated Power (kW)"], bottom: 0, textStyle: { fontSize: 11 } },
+    legend: { data: ["Generated Power (kW)"], bottom: 0, textStyle: { fontSize: 9 }, icon: 'roundRect' },
     grid: { top: 16, bottom: 44, left: 60, right: 20 },
-    xAxis: { type: "category", data: profile.labels, axisLabel: { fontSize: 10, interval: 7 }, boundaryGap: false },
+    xAxis: { type: "category", data: profile.labels, axisLabel: { fontSize: 9, interval: 7 }, boundaryGap: false, axisTick: { show: false } },
     yAxis: {
       type: "value", name: "kW", min: 0,
-      nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10, formatter: (v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v },
+      nameTextStyle: { fontSize: 9 }, axisLabel: { fontSize: 9, formatter: (v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v },
     },
     series: [
       {
@@ -292,6 +296,7 @@ function buildProfileChart(profile, hue, techType) {
         data: profile.fullKw,
         smooth: true,
         symbol: "none",
+        color: hue,
         lineStyle: { color: hue, width: 2.5 },
         areaStyle: { color: gradFill },
       },
@@ -327,12 +332,12 @@ function buildActualOutputChart(result, hue, sourceName) {
       },
       legend: {
         data: [`${sourceName ?? "Generator"} Output (kW)`, "Average (kW)"],
-        bottom: 0, textStyle: { fontSize: 11 },
+        bottom: 0, textStyle: { fontSize: 9 }, icon: 'roundRect',
       },
       grid: { top: 16, bottom: 44, left: 58, right: 20 },
-      xAxis: { type: "category", data: t, axisLabel: { fontSize: 10, rotate: t.length > 30 ? 25 : 0 }, boundaryGap: false },
+      xAxis: { type: "category", data: t, axisLabel: { fontSize: 9, rotate: t.length > 30 ? 25 : 0 }, boundaryGap: false, axisTick: { show: false } },
       yAxis: [
-        { type: "value", name: "kW", nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10 } },
+        { type: "value", name: "kW", nameTextStyle: { fontSize: 9 }, axisLabel: { fontSize: 9 } },
       ],
       series: [
         {
@@ -340,6 +345,7 @@ function buildActualOutputChart(result, hue, sourceName) {
           type: "line",
           data: elzP,
           smooth: true, symbol: "none",
+          color: hue,
           lineStyle: { color: hue, width: 2.5 },
           areaStyle: { color: hue.startsWith("#") ? `${hue}22` : "rgba(99,102,241,0.12)" },
           yAxisIndex: 0,
@@ -349,6 +355,7 @@ function buildActualOutputChart(result, hue, sourceName) {
           type: "line",
           data: avgPower ? t.map(() => +avgPower) : [],
           symbol: "none",
+          color: "#64748b",
           lineStyle: { color: "#64748b", width: 1.5, type: "dashed" },
           yAxisIndex: 0,
         },
