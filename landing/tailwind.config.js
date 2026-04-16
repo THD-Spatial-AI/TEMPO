@@ -52,6 +52,8 @@ export default {
         'surface-container-high': '#e2e7ff',
         'outline-variant': '#c6c6c6',
         'on-surface-variant': '#474747',
+        foreground: '#131b2e',
+        'muted-foreground': '#6b7280',
       },
       borderRadius: {
         DEFAULT: '0px',
