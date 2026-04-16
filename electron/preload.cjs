@@ -1,59 +1,62 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
-  // ── Legacy ───────────────────────────────────────────────────────────────
+  // ── Core ─────────────────────────────────────────────────────────────────
   getBackendURL:   () => ipcRenderer.invoke('get-backend-url'),
   getUserDataPath: () => ipcRenderer.invoke('get-user-data-path'),
   saveFile: (filename, content) => ipcRenderer.invoke('save-file', { filename, content }),
 
-  // ── Calliope local execution ─────────────────────────────────────────────
+  // Read a file from the templates directory (works in packaged builds where
+  // fetch('/templates/...') would resolve against the FS root instead of the app)
+  readTemplateFile: (filename) => ipcRenderer.invoke('read-template-file', filename),
+
+  // ── Docker service management ─────────────────────────────────────────────
 
   /**
-   * Verify that conda + the calliope environment are available.
-   * @returns Promise<{ condaFound: bool, envExists: bool, version: string|null, condaPath: string|null }>
+   * Get the running status of all TEMPO Docker services.
+   * @returns Promise<{ dockerAvailable: bool, services: Array<{name, label, port, required, running, healthy, status, portOpen}> }>
    */
-  checkCalliope: () => ipcRenderer.invoke('calliope:check'),
+  getDockerStatus: () => ipcRenderer.invoke('docker:status'),
 
   /**
-   * Create the calliope conda environment (auto-install).
-   * Progress is streamed via onInstallProgress.
+   * Start a specific Docker service by container name.
+   * Progress is streamed via onDockerStartProgress.
+   * @param {string} serviceName  e.g. 'calliope-runner', 'hydrogensim', 'ccssim'
    * @returns Promise<{ success: bool, error?: string }>
    */
-  installCalliope: () => ipcRenderer.invoke('calliope:install'),
+  startDockerService: (serviceName) => ipcRenderer.invoke('docker:start', serviceName),
 
   /**
-   * Subscribe to installation progress events.
-   * Callback receives: { type: 'log'|'done'|'error', line?: string, error?: string }
-   * @returns {Function} call to remove the listener
+   * Start all Docker services that have a compose directory.
+   * Progress is streamed via onDockerStartProgress.
+   * @returns Promise<Record<string, { success: bool, error?: string }>>
    */
-  onInstallProgress: (callback) => {
+  startAllDockerServices: () => ipcRenderer.invoke('docker:start-all'),
+
+  /**
+   * Subscribe to Docker start-up progress events.
+   * Callback receives: { type: 'log'|'stage'|'done'|'error', line?: string, label?: string }
+   * @returns {Function} unsubscribe
+   */
+  onDockerStartProgress: (callback) => {
     const handler = (_event, data) => callback(data);
-    ipcRenderer.on('calliope:install-progress', handler);
-    return () => ipcRenderer.removeListener('calliope:install-progress', handler);
+    ipcRenderer.on('docker:start-progress', handler);
+    return () => ipcRenderer.removeListener('docker:start-progress', handler);
   },
 
-  /**
-   * Start a Calliope optimisation run.
-   * Progress, logs, and the final result are delivered via onCalliopeEvent.
-   * @param {{ modelData: object, solver: string }} config
-   * @returns Promise<{ jobId: string }>
-   */
-  runCalliope: (config) => ipcRenderer.invoke('calliope:run', config),
+  // ── Service URL resolution ────────────────────────────────────────────────
 
   /**
-   * Stop a running Calliope job.
-   * @param {string} jobId
+   * Get all TEMPO service URLs and whether each port is open.
+   * Use in packaged builds (no Vite proxy available in file:// context).
+   * @returns Promise<Record<string, { url: string, running: bool }>>
    */
-  stopCalliope: (jobId) => ipcRenderer.invoke('calliope:stop', { jobId }),
+  getServiceURLs: () => ipcRenderer.invoke('services:urls'),
 
   /**
-   * Subscribe to all Calliope events.
-   * Callback receives: { type: 'log'|'done'|'error', jobId, line?, result?, error? }
-   * @returns {Function} call to remove the listener
+   * Get the Calliope service URL (backward compat for calliopeClient.js).
+   * @returns Promise<{ url: string, running: bool }>
    */
-  onCalliopeEvent: (callback) => {
-    const handler = (_event, data) => callback(data);
-    ipcRenderer.on('calliope:event', handler);
-    return () => ipcRenderer.removeListener('calliope:event', handler);
-  },
+  getCalliopeServiceURL: () => ipcRenderer.invoke('calliope:service-url'),
 });
+

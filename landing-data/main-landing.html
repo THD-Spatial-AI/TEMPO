@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>TEMPO | Open-Source Energy System Planning</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "surface-container-low": "#f2f3ff",
+                      "primary": "#000000",
+                      "secondary-fixed": "#b7c8e1",
+                      "surface-tint": "#5e5e5e",
+                      "surface-container": "#eaedff",
+                      "error-container": "#ffdad6",
+                      "inverse-primary": "#c6c6c6",
+                      "surface-container-highest": "#dae2fd",
+                      "on-primary-fixed": "#ffffff",
+                      "primary-container": "#3b3b3b",
+                      "on-error": "#ffffff",
+                      "surface-variant": "#dae2fd",
+                      "secondary": "#505f76",
+                      "surface": "#faf8ff",
+                      "error": "#ba1a1a",
+                      "on-tertiary-fixed-variant": "#e2e2e2",
+                      "secondary-container": "#c5d6f0",
+                      "on-tertiary-fixed": "#ffffff",
+                      "on-secondary": "#ffffff",
+                      "on-tertiary-container": "#ffffff",
+                      "on-error-container": "#410002",
+                      "inverse-on-surface": "#eef0ff",
+                      "on-secondary-fixed": "#0b1c30",
+                      "primary-fixed-dim": "#474747",
+                      "tertiary": "#3b3b3b",
+                      "surface-dim": "#d2d9f4",
+                      "secondary-fixed-dim": "#9cacc5",
+                      "on-secondary-container": "#0b1c30",
+                      "primary-fixed": "#5e5e5e",
+                      "on-primary-fixed-variant": "#e2e2e2",
+                      "on-secondary-fixed-variant": "#2d3c51",
+                      "on-primary-container": "#ffffff",
+                      "on-primary": "#e2e2e2",
+                      "tertiary-fixed-dim": "#474747",
+                      "on-tertiary": "#e2e2e2",
+                      "outline-variant": "#c6c6c6",
+                      "inverse-surface": "#283044",
+                      "tertiary-container": "#747474",
+                      "on-surface": "#131b2e",
+                      "tertiary-fixed": "#5e5e5e",
+                      "surface-bright": "#faf8ff",
+                      "surface-container-high": "#e2e7ff",
+                      "surface-container-lowest": "#ffffff",
+                      "background": "#faf8ff",
+                      "on-background": "#131b2e",
+                      "outline": "#777777",
+                      "on-surface-variant": "#474747"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0px",
+                      "lg": "0px",
+                      "xl": "0px",
+                      "full": "0px"
+              },
+              "fontFamily": {
+                      "headline": ["Inter", "sans-serif"],
+                      "body": ["Inter", "sans-serif"],
+                      "label": ["Inter", "sans-serif"]
+              }
+            },
+          },
+        }
+      </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        body { font-family: 'Inter', sans-serif; }
+        .ghost-border { border: 1px solid rgba(0, 0, 0, 0.1); }
+        .technical-frost { backdrop-filter: blur(20px); background-color: rgba(255, 255, 255, 0.9); }
+        .grid-bg { background-image: radial-gradient(circle, #e2e2e2 1px, transparent 1px); background-size: 40px 40px; }
+    </style>
+</head>
+<body class="bg-surface text-primary selection:bg-primary selection:text-on-primary grid-bg">
+<!-- TopNavBar -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-8 h-16 max-w-full mx-auto bg-white/90 backdrop-blur-md border-b border-outline-variant/10 transition-colors duration-200">
+<div class="text-xl font-bold tracking-tighter text-black">TEMPO</div>
+<nav class="hidden md:flex items-center gap-8">
+<a class="font-inter tracking-tight font-semibold uppercase text-[11px] text-black border-b-2 border-black pb-1" href="#features">Features</a>
+<a class="font-inter tracking-tight font-semibold uppercase text-[11px] text-neutral-500 hover:text-black transition-colors duration-200" href="#tech">Tech Stack</a>
+<a class="font-inter tracking-tight font-semibold uppercase text-[11px] text-neutral-500 hover:text-black transition-colors duration-200" href="#docs">Documentation</a>
+</nav>
+<div class="flex items-center gap-4">
+<button class="bg-primary text-on-primary px-6 py-2 font-inter tracking-tight font-semibold uppercase text-[11px] hover:bg-neutral-800 transition-all">
+            Get Started
+        </button>
+</div>
+</header>
+<main class="pt-16">
+<!-- Hero Section -->
+<section class="min-h-screen flex flex-col items-center justify-center px-8 py-24">
+<div class="max-w-5xl w-full text-center space-y-10">
+<div class="inline-flex items-center gap-2 px-3 py-1 border border-primary/10 bg-white text-[10px] font-bold uppercase tracking-widest text-primary mb-4">
+<span class="w-2 h-2 bg-black"></span> Open Source Version 1.0.4 Now Available
+            </div>
+<h1 class="text-[3.5rem] md:text-[5.5rem] font-black tracking-tighter leading-[0.95] text-primary">
+                Bridge GIS and Energy Optimization.
+            </h1>
+<p class="text-lg md:text-xl text-on-surface-variant max-w-3xl mx-auto font-body leading-relaxed">
+                A local-first planning platform powered by Calliope. Design, optimize, and visualize complex regional energy systems through a high-precision no-code interface.
+            </p>
+<!-- Dual Download Path -->
+<div class="pt-6 flex flex-col items-center gap-8">
+<div class="flex flex-col sm:flex-row items-stretch justify-center gap-1 w-full max-w-2xl bg-black p-1">
+<button class="flex-1 flex flex-col items-center justify-center bg-white hover:bg-neutral-50 text-black py-6 px-8 transition-all group">
+<span class="material-symbols-outlined text-3xl mb-2" data-icon="desktop_windows">desktop_windows</span>
+<span class="font-bold uppercase text-[12px] tracking-widest">Download for Windows</span>
+<span class="text-[9px] text-neutral-500 mt-1 uppercase">v1.0.4 • .exe • 124MB</span>
+</button>
+<div class="w-px bg-black/10 hidden sm:block"></div>
+<button class="flex-1 flex flex-col items-center justify-center bg-white hover:bg-neutral-50 text-black py-6 px-8 transition-all group">
+<span class="material-symbols-outlined text-3xl mb-2" data-icon="terminal">terminal</span>
+<span class="font-bold uppercase text-[12px] tracking-widest">Download for Linux</span>
+<span class="text-[9px] text-neutral-500 mt-1 uppercase">v1.0.4 • .AppImage • 118MB</span>
+</button>
+</div>
+<div class="flex items-center gap-8">
+<a class="font-bold uppercase text-[10px] tracking-[0.2em] border-b border-black/20 hover:border-black transition-all pb-1" href="#docs">Technical Documentation</a>
+<a class="font-bold uppercase text-[10px] tracking-[0.2em] border-b border-black/20 hover:border-black transition-all pb-1" href="#">Source on GitHub</a>
+</div>
+</div>
+</div>
+<!-- UI Placeholder Frame -->
+<div class="mt-24 w-full max-w-6xl aspect-video bg-white border border-black/5 p-2 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.1)] relative">
+<div class="w-full h-full bg-neutral-50 border border-black/5 flex items-center justify-center overflow-hidden">
+<div class="absolute inset-0 grid-bg opacity-40"></div>
+<div class="text-center relative z-10">
+<span class="material-symbols-outlined text-6xl text-black/10" data-icon="monitoring">monitoring</span>
+<p class="font-label text-[10px] mt-6 tracking-[0.4em] uppercase text-black/40">Real-time Optimization Surface</p>
+</div>
+<!-- Technical Metadata Overlays -->
+<div class="absolute top-6 left-6 bg-black text-white px-3 py-1 font-mono text-[9px] tracking-widest">
+                    SYSTEM_STABLE_1.0.4
+                </div>
+<div class="absolute bottom-6 left-6 text-black/40 font-mono text-[9px] tracking-widest flex flex-col gap-1">
+<span>KERNEL: CALLIOPE v0.6.10</span>
+<span>ENGINE: PY-FASTAPI-TX</span>
+</div>
+<div class="absolute bottom-6 right-6 text-black/40 font-mono text-[9px] tracking-widest text-right">
+                    LOC: 48.8353° N, 12.9644° E<br/>TH DEGGENDORF ANALYTICS UNIT
+                </div>
+</div>
+</div>
+</section>
+<!-- The Workflow -->
+<section class="py-32 px-8 bg-black text-white">
+<div class="max-w-7xl mx-auto">
+<div class="grid grid-cols-1 md:grid-cols-4 gap-12 md:gap-0">
+<div class="flex flex-col items-center text-center px-8 border-r border-white/10 last:border-0">
+<div class="w-12 h-12 flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-2xl" data-icon="database">database</span>
+</div>
+<h3 class="font-bold uppercase text-[10px] tracking-[0.3em] mb-3">01. INGESTION</h3>
+<p class="text-[11px] text-neutral-400 uppercase tracking-widest leading-relaxed">Import heterogeneous spatial &amp; temporal data assets.</p>
+</div>
+<div class="flex flex-col items-center text-center px-8 border-r border-white/10 last:border-0">
+<div class="w-12 h-12 flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-2xl" data-icon="architecture">architecture</span>
+</div>
+<h3 class="font-bold uppercase text-[10px] tracking-[0.3em] mb-3">02. TOPOLOGY</h3>
+<p class="text-[11px] text-neutral-400 uppercase tracking-widest leading-relaxed">Construct multi-node networks via visual architect.</p>
+</div>
+<div class="flex flex-col items-center text-center px-8 border-r border-white/10 last:border-0">
+<div class="w-12 h-12 flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-2xl" data-icon="memory">memory</span>
+</div>
+<h3 class="font-bold uppercase text-[10px] tracking-[0.3em] mb-3">03. SOLVE</h3>
+<p class="text-[11px] text-neutral-400 uppercase tracking-widest leading-relaxed">Execute linear &amp; mixed-integer optimizations.</p>
+</div>
+<div class="flex flex-col items-center text-center px-8">
+<div class="w-12 h-12 flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-2xl" data-icon="analytics">analytics</span>
+</div>
+<h3 class="font-bold uppercase text-[10px] tracking-[0.3em] mb-3">04. ANALYTICS</h3>
+<p class="text-[11px] text-neutral-400 uppercase tracking-widest leading-relaxed">Deconstruct results via interactive GIS dashboards.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Core Features -->
+<section class="py-32 px-8 bg-surface" id="features">
+<div class="max-w-7xl mx-auto">
+<div class="mb-20 flex flex-col md:flex-row md:items-end justify-between gap-8">
+<div class="max-w-2xl">
+<span class="font-bold text-[10px] tracking-[0.4em] uppercase text-neutral-400">System Architecture</span>
+<h2 class="text-5xl font-black mt-4 tracking-tighter">Engineered for Precision.</h2>
+</div>
+<p class="text-sm text-neutral-500 font-body max-w-sm">TEMPO abstracts the complexity of mathematical modeling into a high-performance desktop environment.</p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-px bg-neutral-200 border border-neutral-200">
+<!-- Feature Card 1 -->
+<div class="p-12 bg-white hover:bg-neutral-50 transition-colors group">
+<span class="material-symbols-outlined text-2xl mb-8 text-black" data-icon="account_tree">account_tree</span>
+<h4 class="text-sm font-bold mb-4 uppercase tracking-widest">Model Builder</h4>
+<p class="text-[13px] text-neutral-500 leading-relaxed font-body">Node-based canvas for architecting energy networks with direct translation to Calliope YAML schemas.</p>
+</div>
+<!-- Feature Card 2 -->
+<div class="p-12 bg-white hover:bg-neutral-50 transition-colors group">
+<span class="material-symbols-outlined text-2xl mb-8 text-black" data-icon="map">map</span>
+<h4 class="text-sm font-bold mb-4 uppercase tracking-widest">GIS Integration</h4>
+<p class="text-[13px] text-neutral-500 leading-relaxed font-body">Native support for Shapefiles and GeoJSON for geographically anchored infrastructure planning.</p>
+</div>
+<!-- Feature Card 3 -->
+<div class="p-12 bg-white hover:bg-neutral-50 transition-colors group">
+<span class="material-symbols-outlined text-2xl mb-8 text-black" data-icon="library_books">library_books</span>
+<h4 class="text-sm font-bold mb-4 uppercase tracking-widest">Tech Catalog</h4>
+<p class="text-[13px] text-neutral-500 leading-relaxed font-body">Standardized library of renewable and conventional generators, storage systems, and transmission tech.</p>
+</div>
+<!-- Feature Card 4 -->
+<div class="p-12 bg-white hover:bg-neutral-50 transition-colors group">
+<span class="material-symbols-outlined text-2xl mb-8 text-black" data-icon="terminal">terminal</span>
+<h4 class="text-sm font-bold mb-4 uppercase tracking-widest">Live Runner</h4>
+<p class="text-[13px] text-neutral-500 leading-relaxed font-body">Integrated shell for monitoring optimization logs and solver telemetry in real-time.</p>
+</div>
+<!-- Feature Card 5 -->
+<div class="p-12 bg-white hover:bg-neutral-50 transition-colors group">
+<span class="material-symbols-outlined text-2xl mb-8 text-black" data-icon="experiment">experiment</span>
+<h4 class="text-sm font-bold mb-4 uppercase tracking-widest">Scenario Lab</h4>
+<p class="text-[13px] text-neutral-500 leading-relaxed font-body">Automated multi-run simulations to explore model sensitivity across varying climate and cost parameters.</p>
+</div>
+<!-- Feature Card 6 -->
+<div class="p-12 bg-white hover:bg-neutral-50 transition-colors group">
+<span class="material-symbols-outlined text-2xl mb-8 text-black" data-icon="data_exploration">data_exploration</span>
+<h4 class="text-sm font-bold mb-4 uppercase tracking-widest">Result Analysis</h4>
+<p class="text-[13px] text-neutral-500 leading-relaxed font-body">Aggregated visualization of energy flows, carbon intensity, and system-wide levelized costs.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Tech Stack -->
+<section class="py-32 px-8 bg-neutral-50 border-y border-neutral-200" id="tech">
+<div class="max-w-7xl mx-auto">
+<div class="text-center mb-20">
+<span class="font-bold text-[10px] tracking-[0.4em] uppercase text-neutral-400">Internal Foundations</span>
+<h2 class="text-3xl font-black mt-4 tracking-tighter uppercase">The Modern Energy Stack</h2>
+</div>
+<div class="flex flex-wrap justify-center gap-px bg-neutral-200 border border-neutral-200 max-w-4xl mx-auto">
+<div class="flex-1 min-w-[150px] px-8 py-8 bg-white flex flex-col items-center gap-4 text-center">
+<span class="font-bold text-[10px] uppercase tracking-widest">Core Engine</span>
+<span class="text-[12px] text-neutral-500">Calliope 0.6.10</span>
+</div>
+<div class="flex-1 min-w-[150px] px-8 py-8 bg-white flex flex-col items-center gap-4 text-center">
+<span class="font-bold text-[10px] uppercase tracking-widest">Desktop</span>
+<span class="text-[12px] text-neutral-500">Electron / Vite</span>
+</div>
+<div class="flex-1 min-w-[150px] px-8 py-8 bg-white flex flex-col items-center gap-4 text-center">
+<span class="font-bold text-[10px] uppercase tracking-widest">Backend</span>
+<span class="text-[12px] text-neutral-500">FastAPI / Python</span>
+</div>
+<div class="flex-1 min-w-[150px] px-8 py-8 bg-white flex flex-col items-center gap-4 text-center">
+<span class="font-bold text-[10px] uppercase tracking-widest">Frontend</span>
+<span class="text-[12px] text-neutral-500">React 19 / Tailwind</span>
+</div>
+<div class="flex-1 min-w-[150px] px-8 py-8 bg-white flex flex-col items-center gap-4 text-center">
+<span class="font-bold text-[10px] uppercase tracking-widest">Database</span>
+<span class="text-[12px] text-neutral-500">SQLite / GeoPackage</span>
+</div>
+</div>
+</div>
+</section>
+<!-- CTA Section -->
+<section class="py-32 px-8 bg-white overflow-hidden relative">
+<div class="absolute inset-0 grid-bg opacity-10"></div>
+<div class="max-w-4xl mx-auto text-center space-y-12 relative z-10">
+<h2 class="text-4xl md:text-6xl font-black tracking-tighter leading-tight">Scale your regional energy strategies today.</h2>
+<div class="flex flex-col items-center gap-8">
+<div class="flex flex-col sm:flex-row items-center justify-center gap-4 w-full">
+<button class="w-full sm:w-auto bg-black text-white px-12 py-5 font-black uppercase text-[12px] tracking-[0.2em] hover:bg-neutral-800 transition-all">
+                        Download v1.0.4
+                    </button>
+<button class="w-full sm:w-auto border border-black px-12 py-5 font-black uppercase text-[12px] tracking-[0.2em] hover:bg-black hover:text-white transition-all">
+                        Read Whitepaper
+                    </button>
+</div>
+<p class="text-[10px] uppercase tracking-widest text-neutral-400">Available for Windows 10/11 and major Linux distributions.</p>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="w-full py-16 px-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-12 bg-white border-t border-neutral-100">
+<div class="flex flex-col gap-4">
+<div class="text-2xl font-black tracking-tighter uppercase">TEMPO</div>
+<div class="max-w-xs">
+<p class="font-inter text-[11px] font-medium tracking-wide uppercase text-neutral-400 leading-relaxed">
+                Academic energy planning software developed by TH Deggendorf. Open source under the MIT License.
+            </p>
+</div>
+</div>
+<div class="grid grid-cols-2 sm:grid-cols-3 gap-x-16 gap-y-4">
+<div class="flex flex-col gap-3">
+<span class="text-[10px] font-bold uppercase tracking-[0.2em] text-black">Project</span>
+<a class="text-[11px] uppercase tracking-wide text-neutral-400 hover:text-black transition-all" href="#">GitHub</a>
+<a class="text-[11px] uppercase tracking-wide text-neutral-400 hover:text-black transition-all" href="#">Releases</a>
+</div>
+<div class="flex flex-col gap-3">
+<span class="text-[10px] font-bold uppercase tracking-[0.2em] text-black">Resources</span>
+<a class="text-[11px] uppercase tracking-wide text-neutral-400 hover:text-black transition-all" href="#">Docs</a>
+<a class="text-[11px] uppercase tracking-wide text-neutral-400 hover:text-black transition-all" href="#">API Ref</a>
+</div>
+<div class="flex flex-col gap-3">
+<span class="text-[10px] font-bold uppercase tracking-[0.2em] text-black">Legal</span>
+<a class="text-[11px] uppercase tracking-wide text-neutral-400 hover:text-black transition-all" href="#">License</a>
+<a class="text-[11px] uppercase tracking-wide text-neutral-400 hover:text-black transition-all" href="#">Privacy</a>
+</div>
+</div>
+</footer>
+</body></html>
