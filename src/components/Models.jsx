@@ -3,6 +3,7 @@ import { FiFolder, FiTrash2, FiEdit2, FiCheck, FiX, FiPlus, FiDownload, FiUpload
 import Papa from 'papaparse';
 import { useData } from '../context/DataContext';
 import CSVUploader from './CSVUploader';
+import { fetchTemplate } from '../utils/templateFetch';
 
 const Models = () => {
   const { models, currentModelId, loadModel, deleteModel, renameModel, createModel, technologies, setOverrides, setScenarios, showNotification, getCurrentModel } = useData();
@@ -123,7 +124,7 @@ const Models = () => {
 
   const downloadTemplateFile = async (filename, displayName) => {
     try {
-      const response = await fetch(`/templates/${filename}`);
+      const response = await fetchTemplate(filename);
       if (!response.ok) {
         showNotification(`File ${filename} not found in templates folder`, 'error');
         return;
@@ -326,8 +327,8 @@ const Models = () => {
 
   const loadTemplateModel = async (template) => {
     try {
-      const locationsResponse = await fetch(`/templates/${template.locationsFile}`);
-      const linksResponse = await fetch(`/templates/${template.linksFile}`);
+      const locationsResponse = await fetchTemplate(template.locationsFile);
+      const linksResponse = await fetchTemplate(template.linksFile);
 
       if (!locationsResponse.ok || !linksResponse.ok) {
         throw new Error('Template files not found');
@@ -344,7 +345,7 @@ const Models = () => {
       let demandTotals = {};
       if (template.demandFile) {
         try {
-          const demandResponse = await fetch(`/templates/${template.demandFile}`);
+          const demandResponse = await fetchTemplate(template.demandFile);
           if (demandResponse.ok) {
             const demandText = await demandResponse.text();
             const parsedDemand = Papa.parse(demandText, { header: true, skipEmptyLines: true, dynamicTyping: true });
@@ -391,7 +392,7 @@ const Models = () => {
       if (template.resourceFiles && template.resourceFiles.length > 0) {
         for (const resourceFile of template.resourceFiles) {
           try {
-            const resourceResponse = await fetch(`/templates/${resourceFile.file}`);
+            const resourceResponse = await fetchTemplate(resourceFile.file);
             if (resourceResponse.ok) {
               const resourceText = await resourceResponse.text();
               const parsedResource = Papa.parse(resourceText, { header: true, skipEmptyLines: true, dynamicTyping: true });
@@ -438,7 +439,7 @@ const Models = () => {
       // Try loading technologies from separate file first
       if (template.technologiesFile) {
         try {
-          const techResponse = await fetch(`/templates/${template.technologiesFile}`);
+          const techResponse = await fetchTemplate(template.technologiesFile);
           if (techResponse.ok) {
             const techData = await techResponse.json();
             
@@ -470,7 +471,7 @@ const Models = () => {
       // Try loading scenarios from separate file
       if (template.scenariosFile) {
         try {
-          const scenariosResponse = await fetch(`/templates/${template.scenariosFile}`);
+          const scenariosResponse = await fetchTemplate(template.scenariosFile);
           if (scenariosResponse.ok) {
             const scenariosData = await scenariosResponse.json();
             // Handle both {scenarios: {...}} and direct {...} format
@@ -490,7 +491,7 @@ const Models = () => {
       // Fall back to modelDataFile if technologies/scenarios weren't loaded separately
       if (template.modelDataFile && technologies.length === 0) {
         try {
-          const modelDataResponse = await fetch(`/templates/${template.modelDataFile}`);
+          const modelDataResponse = await fetchTemplate(template.modelDataFile);
           if (modelDataResponse.ok) {
             const modelData = await modelDataResponse.json();
             

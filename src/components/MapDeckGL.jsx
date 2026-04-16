@@ -499,10 +499,15 @@ const MAP_STYLES = {
     sources: {
       osm: {
         type: 'raster',
-        tiles: ['https://a.tile.openstreetmap.org/{z}/{x}/{y}.png'],
+        tiles: [
+          'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+          'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+          'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+          'https://d.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png'
+        ],
         tileSize: 256,
-        attribution: '© OpenStreetMap Contributors',
-        maxzoom: 19
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>',
+        maxzoom: 20
       }
     },
     layers: [{
@@ -533,10 +538,10 @@ const MAP_STYLES = {
     sources: {
       terrain: {
         type: 'raster',
-        tiles: ['https://tile.opentopomap.org/{z}/{x}/{y}.png'],
+        tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}'],
         tileSize: 256,
-        attribution: '© OpenTopoMap',
-        maxzoom: 17
+        attribution: '© Esri, HERE, Garmin, OpenStreetMap contributors',
+        maxzoom: 19
       }
     },
     layers: [{
@@ -550,10 +555,15 @@ const MAP_STYLES = {
     sources: {
       dark: {
         type: 'raster',
-        tiles: ['https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}.png'],
+        tiles: [
+          'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+          'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+          'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+          'https://d.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
+        ],
         tileSize: 256,
-        attribution: '© Stadia Maps',
-        maxzoom: 19
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>',
+        maxzoom: 20
       }
     },
     layers: [{
