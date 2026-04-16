@@ -1,23 +1,21 @@
 import { Link, useLocation } from 'react-router-dom'
+import logo from '../public/img/Logo_TEMPO.PNG'
 
 export default function Header() {
   const { pathname } = useLocation()
 
+  const GITHUB = 'https://github.com/TH-Deggendorf/TEMPO'
   const navLinks = [
     { label: 'Features', to: '/features', internal: true },
-    { label: 'Download', href: '#download' },
-    { label: 'Documentation', href: '#docs' },
-    { label: 'Changelog', href: '#changelog' },
+    { label: 'Documentation', to: '/docs', internal: true },
+    { label: 'GitHub', href: GITHUB, external: true },
   ]
 
   return (
     <header className="bg-[#FAF8FF] fixed top-0 w-full z-50 border-b border-black/15">
       <div className="flex justify-between items-center w-full px-8 h-16 max-w-none">
-        <Link
-          to="/"
-          className="text-2xl font-bold tracking-[-0.02em] text-black uppercase font-inter"
-        >
-          TEMPO
+        <Link to="/" className="flex items-center" aria-label="TEMPO Home">
+          <img src={logo} alt="TEMPO logo" className="h-9 w-auto object-contain logo-on-light" />
         </Link>
 
         <nav className="hidden md:flex space-x-8 h-full items-center">
@@ -42,6 +40,8 @@ export default function Header() {
               <a
                 key={link.label}
                 href={link.href}
+                target={link.external ? '_blank' : undefined}
+                rel={link.external ? 'noopener noreferrer' : undefined}
                 className={`${base} ${inactive}`}
               >
                 {link.label}

@@ -29,3 +29,14 @@ body {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/* Remove white background from logo on light surfaces */
+.logo-on-light {
+  mix-blend-mode: multiply;
+}
+
+/* Remove background from logo on dark surfaces (logo is inverted first) */
+.logo-on-dark {
+  filter: invert(1);
+  mix-blend-mode: screen;
+}
