@@ -1,3 +1,5 @@
+import Footer from '../components/Footer'
+
 export default function Features() {
   const workflowSteps = [
     {
@@ -329,30 +331,8 @@ export default function Features() {
           </div>
         </section>
 
-        {/* ── Footer ── */}
-        <footer className="bg-black text-[#E2E2E2]">
-          <div className="flex flex-col md:flex-row justify-between items-center w-full px-12 py-10">
-            <div className="text-lg font-black text-white uppercase tracking-widest mb-6 md:mb-0">
-              TEMPO
-            </div>
-            <div className="flex flex-wrap justify-center gap-8 mb-6 md:mb-0">
-              {['Privacy Policy', 'Terms of Service', 'API Status', 'GitHub'].map((link) => (
-                <a
-                  key={link}
-                  className="text-[0.6875rem] font-bold uppercase tracking-widest text-[#C6C6C6] hover:text-white underline decoration-1"
-                  href="#"
-                >
-                  {link}
-                </a>
-              ))}
-            </div>
-            <div className="text-[0.6875rem] font-bold uppercase tracking-widest text-[#C6C6C6]">
-              © 2026 TH DEGGENDORF. ALL RIGHTS RESERVED.
-            </div>
-          </div>
-        </footer>
-
       </main>
+      <Footer dark />
     </div>
   )
 }

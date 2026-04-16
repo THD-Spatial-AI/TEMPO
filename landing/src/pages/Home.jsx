@@ -1,3 +1,7 @@
+import { HeroSection } from '../components/ui/HeroSection'
+import Footer from '../components/Footer'
+import logo from '../public/img/Logo_TEMPO.PNG'
+import Creation from '../public/img/creation.png'
 export default function Home() {
   const workflowSteps = [
     { icon: 'database', step: '01. INGESTION', desc: 'Import heterogeneous spatial & temporal data assets.' },
@@ -28,78 +32,32 @@ export default function Home() {
       <main className="pt-16">
 
         {/* ── Hero ── */}
-        <section className="min-h-screen flex flex-col items-center justify-center px-8 py-24">
-          <div className="max-w-5xl w-full text-center space-y-10">
-            <div className="inline-flex items-center gap-2 px-3 py-1 border border-primary/10 bg-white text-[10px] font-bold uppercase tracking-widest text-primary mb-4">
-              <span className="w-2 h-2 bg-black inline-block"></span>
-              Open Source Version 1.0.4 Now Available
-            </div>
-
-            <h1 className="text-[3.5rem] md:text-[5.5rem] font-black tracking-tighter leading-[0.95] text-primary">
-              Bridge GIS and Energy Optimization.
-            </h1>
-
-            <p className="text-lg md:text-xl text-on-surface-variant max-w-3xl mx-auto leading-relaxed">
-              A local-first planning platform powered by Calliope. Design, optimize, and visualize
-              complex regional energy systems through a high-precision no-code interface.
-            </p>
-
-            {/* Download CTA */}
-            <div className="pt-6 flex flex-col items-center gap-8">
-              <div className="flex flex-col sm:flex-row items-stretch justify-center gap-1 w-full max-w-2xl bg-black p-1">
-                <button className="flex-1 flex flex-col items-center justify-center bg-white hover:bg-neutral-50 text-black py-6 px-8 transition-all group">
-                  <span className="material-symbols-outlined text-3xl mb-2">desktop_windows</span>
-                  <span className="font-bold uppercase text-[12px] tracking-widest">Download for Windows</span>
-                  <span className="text-[9px] text-neutral-500 mt-1 uppercase">v1.0.4 · .exe · 124MB</span>
-                </button>
-                <div className="w-px bg-black/10 hidden sm:block"></div>
-                <button className="flex-1 flex flex-col items-center justify-center bg-white hover:bg-neutral-50 text-black py-6 px-8 transition-all group">
-                  <span className="material-symbols-outlined text-3xl mb-2">terminal</span>
-                  <span className="font-bold uppercase text-[12px] tracking-widest">Download for Linux</span>
-                  <span className="text-[9px] text-neutral-500 mt-1 uppercase">v1.0.4 · .AppImage · 118MB</span>
-                </button>
-              </div>
-
-              <div className="flex items-center gap-8">
-                <a
-                  className="font-bold uppercase text-[10px] tracking-[0.2em] border-b border-black/20 hover:border-black transition-all pb-1"
-                  href="#docs"
-                >
-                  Technical Documentation
-                </a>
-                <a
-                  className="font-bold uppercase text-[10px] tracking-[0.2em] border-b border-black/20 hover:border-black transition-all pb-1"
-                  href="#"
-                >
-                  Source on GitHub
-                </a>
-              </div>
-            </div>
-          </div>
-
-          {/* UI Placeholder Frame */}
-          <div className="mt-24 w-full max-w-6xl aspect-video bg-white border border-black/5 p-2 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.1)] relative">
-            <div className="w-full h-full bg-neutral-50 border border-black/5 flex items-center justify-center overflow-hidden relative">
-              <div className="absolute inset-0 grid-bg opacity-40"></div>
-              <div className="text-center relative z-10">
-                <span className="material-symbols-outlined text-6xl text-black/10">monitoring</span>
-                <p className="font-label text-[10px] mt-6 tracking-[0.4em] uppercase text-black/40">
-                  Real-time Optimization Surface
-                </p>
-              </div>
-              <div className="absolute top-6 left-6 bg-black text-white px-3 py-1 font-mono text-[9px] tracking-widest">
-                SYSTEM_STABLE_1.0.4
-              </div>
-              <div className="absolute bottom-6 left-6 text-black/40 font-mono text-[9px] tracking-widest flex flex-col gap-1">
-                <span>KERNEL: CALLIOPE v0.6.8</span>
-                <span>ENGINE: GO-API + FASTAPI-TX</span>
-              </div>
-              <div className="absolute bottom-6 right-6 text-black/40 font-mono text-[9px] tracking-widest text-right">
-                LOC: 48.8353° N, 12.9644° E<br />TH DEGGENDORF ANALYTICS UNIT
-              </div>
-            </div>
-          </div>
-        </section>
+        <HeroSection
+          className="min-h-[calc(100vh-4rem)]"
+          logo={{
+            url: logo,
+            alt: 'TEMPO logo',
+            text: 'TEMPO',
+          }}
+          slogan="Tool for Energy Model Planning and Optimization"
+          title={
+            <>
+              Bridge GIS and <br />
+              <span className="text-primary">Energy Optimization.</span>
+            </>
+          }
+          subtitle="A local-first planning platform powered by Calliope. Design, optimize, and visualize complex regional energy systems through a high-precision no-code interface."
+          callToAction={{
+            text: 'DOWNLOAD NOW →',
+            href: '#download',
+          }}
+          backgroundImage={Creation}
+          contactInfo={{
+            website: 'tempo-tool.github.io',
+            phone: '+49 991 3615-0',
+            address: 'TH Deggendorf, Bavaria',
+          }}
+        />
 
         {/* ── The Workflow ── */}
         <section className="py-32 px-8 bg-black text-white">
@@ -198,36 +156,8 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ── Footer ── */}
-        <footer className="w-full py-16 px-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-12 bg-white border-t border-neutral-100">
-          <div className="flex flex-col gap-4">
-            <div className="text-2xl font-black tracking-tighter uppercase">TEMPO</div>
-            <div className="max-w-xs">
-              <p className="text-[11px] font-medium tracking-wide uppercase text-neutral-400 leading-relaxed">
-                Academic energy planning software developed by TH Deggendorf. Open source under the MIT License.
-              </p>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-16 gap-y-4">
-            <div className="flex flex-col gap-3">
-              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-black">Project</span>
-              <a className="text-[11px] uppercase tracking-wide text-neutral-400 hover:text-black transition-all" href="#">GitHub</a>
-              <a className="text-[11px] uppercase tracking-wide text-neutral-400 hover:text-black transition-all" href="#">Releases</a>
-            </div>
-            <div className="flex flex-col gap-3">
-              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-black">Resources</span>
-              <a className="text-[11px] uppercase tracking-wide text-neutral-400 hover:text-black transition-all" href="#">Docs</a>
-              <a className="text-[11px] uppercase tracking-wide text-neutral-400 hover:text-black transition-all" href="#">API Ref</a>
-            </div>
-            <div className="flex flex-col gap-3">
-              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-black">Legal</span>
-              <a className="text-[11px] uppercase tracking-wide text-neutral-400 hover:text-black transition-all" href="#">License</a>
-              <a className="text-[11px] uppercase tracking-wide text-neutral-400 hover:text-black transition-all" href="#">Privacy</a>
-            </div>
-          </div>
-        </footer>
-
       </main>
+      <Footer />
     </div>
   )
 }

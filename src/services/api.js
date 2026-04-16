@@ -28,11 +28,13 @@ export const api = {
 
   async getModels() {
     const response = await fetch(`${BACKEND_URL}/api/models`);
+    if (!response.ok) throw new Error(`Failed to fetch models (${response.status})`);
     return response.json();
   },
 
   async getModel(id) {
     const response = await fetch(`${BACKEND_URL}/api/models/${id}`);
+    if (!response.ok) throw new Error(`Failed to fetch model (${response.status})`);
     return response.json();
   },
 
@@ -59,16 +61,19 @@ export const api = {
     const response = await fetch(`${BACKEND_URL}/api/models/${modelId}/run`, {
       method: 'POST'
     });
+    if (!response.ok) throw new Error(`Failed to run model (${response.status})`);
     return response.json();
   },
 
   async getJobStatus(jobId) {
     const response = await fetch(`${BACKEND_URL}/api/jobs/${jobId}`);
+    if (!response.ok) throw new Error(`Failed to fetch job status (${response.status})`);
     return response.json();
   },
 
   async getJobResults(jobId) {
     const response = await fetch(`${BACKEND_URL}/api/jobs/${jobId}/results`);
+    if (!response.ok) throw new Error(`Failed to fetch job results (${response.status})`);
     return response.json();
   },
 
