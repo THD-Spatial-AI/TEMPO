@@ -1,26 +1,111 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
 const path = require('path');
-const { spawn, execSync } = require('child_process');
+const { spawn, execFile } = require('child_process');
 const fs = require('fs');
-const os = require('os');
-const https = require('https');
-const http = require('http');
+const net = require('net');
 
 let mainWindow;
-let backendProcess;
-let matlabBridgeProcess = null;
-const BACKEND_PORT = 8082;
-const BRIDGE_PORT    = 8765;
+let backendProcess = null;   // Go REST backend (port 8082)
 
-// Active Calliope jobs: jobId → ChildProcess
-const activeCalliopeJobs = {};
+const BACKEND_PORT = 8082;
+
+// ─── Docker service registry ────────────────────────────────────────────────
+// Returns the full list of TEMPO Docker services with their metadata.
+// Uses a function so `app.isPackaged` is evaluated after app init.
+function getDockerServices() {
+  // In dev: __dirname = calliope_editiontool/electron/
+  //         tempoRoot = calliope_editiontool/../../.. = three levels up = TEMPO/
+  // In packaged: docker compose files are bundled as extraResources/docker/
+  const repoRoot = app.isPackaged
+    ? path.join(process.resourcesPath, 'app.asar.unpacked')
+    : path.join(__dirname, '..');
+
+  const tempoRoot = app.isPackaged
+    ? path.join(process.resourcesPath, 'docker')
+    : path.join(__dirname, '..', '..');
+
+  return [
+    {
+      name: 'calliope-runner',
+      label: 'Calliope Energy Optimizer',
+      port: 5000,
+      composeDir: repoRoot,   // docker-compose.yml lives in repo root
+      required: true,
+    },
+    {
+      name: 'opentech-db',
+      label: 'Technology Database',
+      port: 8000,
+      composeDir: path.join(tempoRoot, 'opentech-db'),
+      required: true,
+    },
+    {
+      name: 'hydrogensim',
+      label: 'Hydrogen Plant Simulation (OpenModelica)',
+      port: 8765,
+      composeDir: path.join(tempoRoot, 'hydrogenmatsim'),
+      required: false,
+    },
+    {
+      name: 'ccssim',
+      label: 'CCS Simulation (OpenModelica)',
+      port: 8766,
+      composeDir: path.join(tempoRoot, 'ccssim'),
+      required: false,
+    },
+    {
+      name: 'calliope-geoserver',
+      label: 'GeoServer (OSM Layers)',
+      port: 8081,
+      composeDir: null,   // managed by scripts/setup_geoserver_docker.ps1
+      required: false,
+    },
+    {
+      name: 'calliope-postgis',
+      label: 'PostGIS Database',
+      port: 5432,
+      composeDir: null,   // managed together with GeoServer
+      required: false,
+    },
+  ];
+}
+
+// ─── Port helper ───────────────────────────────────────────────────────────
+function isPortOpen(port) {
+  return new Promise(resolve => {
+    const sock = new net.Socket();
+    sock.setTimeout(500);
+    sock.on('connect',  () => { sock.destroy(); resolve(true); });
+    sock.on('error',    () => resolve(false));
+    sock.on('timeout',  () => { sock.destroy(); resolve(false); });
+    sock.connect(port, '127.0.0.1');
+  });
+}
+
+/**
+ * Wait until a TCP port accepts connections, or time out.
+ */
+function waitForPort(port, timeoutMs = 30000, intervalMs = 400) {
+  return new Promise((resolve, reject) => {
+    const deadline = Date.now() + timeoutMs;
+    const attempt = () => {
+      isPortOpen(port).then(open => {
+        if (open) { resolve(); return; }
+        if (Date.now() >= deadline) { reject(new Error(`Port ${port} not open after ${timeoutMs}ms`)); return; }
+        setTimeout(attempt, intervalMs);
+      });
+    };
+    attempt();
+  });
+}
 
 // ─── Go backend ────────────────────────────────────────────────────────────
 
 function startBackend() {
+  const binName = process.platform === 'win32' ? 'backend.exe' : 'backend';
   const backendPath = app.isPackaged
-    ? path.join(process.resourcesPath, 'app.asar.unpacked', 'backend-go', 'backend.exe')
-    : path.join(__dirname, '..', 'backend-go', 'backend.exe');
+    ? path.join(process.resourcesPath, 'backend-go', binName)
+    : path.join(__dirname, '..', 'backend-go', binName);
 
   const dbPath = path.join(app.getPath('userData'), 'calliope.db');
 
@@ -41,162 +126,358 @@ function stopBackend() {
   if (backendProcess) { backendProcess.kill(); backendProcess = null; }
 }
 
-// ─── Conda / Python detection ──────────────────────────────────────────────
+// ─── Docker helpers ─────────────────────────────────────────────────────────
 
 /**
- * The directory where the app will install its own private Miniconda.
- * Lives in Electron's userData so it survives app updates and is writable.
+ * Verify Docker daemon is accessible.
+ * @returns {Promise<boolean>}
  */
-function getMinicondaInstallDir() {
-  return path.join(app.getPath('userData'), 'miniconda3');
+function checkDocker() {
+  return new Promise(resolve => {
+    execFile('docker', ['info', '--format', '{{.ServerVersion}}'], { timeout: 6000 }, (err, stdout) => {
+      resolve(!err && stdout.trim().length > 0);
+    });
+  });
 }
 
 /**
- * Find the conda executable on the current platform.
- * First checks the app-managed install, then common system-wide locations.
- * Returns the full path string or null if not found.
+ * Inspect a single container and return its runtime state.
+ * @param {string} name  Container name (e.g. 'calliope-runner')
+ * @returns {Promise<{ name, running, healthy, status }>}
  */
-function findConda() {
+function getContainerStatus(name) {
+  return new Promise(resolve => {
+    execFile(
+      'docker',
+      ['inspect', '--format', '{{.State.Running}}|{{.State.Health.Status}}|{{.State.Status}}', name],
+      { timeout: 6000 },
+      (err, stdout) => {
+        if (err) {
+          resolve({ name, running: false, healthy: null, status: 'not found' });
+          return;
+        }
+        const [running, health, status] = stdout.trim().split('|');
+        resolve({
+          name,
+          running: running === 'true',
+          healthy: health === 'healthy' ? true : health === 'unhealthy' ? false : null,
+          status:  status || 'unknown',
+        });
+      },
+    );
+  });
+}
+
+/**
+ * Collect status for all registered TEMPO Docker services.
+ * @returns {Promise<{ dockerAvailable: bool, services: Array }>}
+ */
+async function getAllDockerStatus() {
+  const dockerAvailable = await checkDocker();
+  const services = getDockerServices();
+
+  if (!dockerAvailable) {
+    return {
+      dockerAvailable: false,
+      services: services.map(s => ({ name: s.name, label: s.label, port: s.port, required: s.required, running: false, healthy: null, status: 'docker not running', portOpen: false })),
+    };
+  }
+
+  const results = await Promise.all(services.map(async svc => {
+    const [st, portOpen] = await Promise.all([getContainerStatus(svc.name), isPortOpen(svc.port)]);
+    return {
+      name:     svc.name,
+      label:    svc.label,
+      port:     svc.port,
+      required: svc.required,
+      running:  st.running,
+      healthy:  st.healthy,
+      status:   st.status,
+      portOpen,
+    };
+  }));
+
+  return { dockerAvailable: true, services: results };
+}
+
+/**
+ * Start a Docker service via `docker compose up -d`.
+ * Streams log lines to the renderer via the given event name.
+ *
+ * @param {string} serviceName   Container name from the registry
+ * @param {string} progressEvent IPC event name for progress messages (or null to suppress)
+ * @returns {Promise<{ success: bool, error?: string }>}
+ */
+function startDockerService(serviceName, progressEvent = null) {
+  const svc = getDockerServices().find(s => s.name === serviceName);
+  if (!svc)           return Promise.resolve({ success: false, error: `Unknown service: ${serviceName}` });
+  if (!svc.composeDir) return Promise.resolve({ success: false, error: `${serviceName} has no compose dir — start it manually` });
+  if (!fs.existsSync(svc.composeDir)) {
+    return Promise.resolve({ success: false, error: `Compose directory not found: ${svc.composeDir}` });
+  }
+
+  const emit = (type, payload) => {
+    if (progressEvent && mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(progressEvent, { type, ...payload });
+    }
+  };
+
+  return new Promise(resolve => {
+    emit('stage', { label: `Starting ${svc.label}…` });
+    const child = spawn('docker', ['compose', 'up', '-d', '--remove-orphans'], {
+      cwd: svc.composeDir,
+      shell: false,
+    });
+    let stderr = '';
+    child.stdout.on('data', d => {
+      for (const l of d.toString().split('\n').filter(x => x.trim())) emit('log', { line: l });
+    });
+    child.stderr.on('data', d => {
+      stderr += d.toString();
+      for (const l of d.toString().split('\n').filter(x => x.trim())) emit('log', { line: l });
+    });
+    child.on('close', code => {
+      if (code === 0) resolve({ success: true });
+      else            resolve({ success: false, error: stderr.trim() || `Exit code ${code}` });
+    });
+    child.on('error', err => resolve({ success: false, error: err.message }));
+  });
+}
+
+// ─── IPC: Docker management ──────────────────────────────────────────────────
+
+// Poll Docker and return per-container status
+ipcMain.handle('docker:status', async () => getAllDockerStatus());
+
+// Start a single named service
+ipcMain.handle('docker:start', async (_event, serviceName) =>
+  startDockerService(serviceName, 'docker:start-progress'),
+);
+
+// Start all services that have a composeDir, streaming progress
+ipcMain.handle('docker:start-all', async () => {
+  const results = {};
+  const required = getDockerServices().filter(s => s.composeDir != null);
+  for (const svc of required) {
+    results[svc.name] = await startDockerService(svc.name, 'docker:start-progress');
+  }
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('docker:start-progress', { type: 'done' });
+  }
+  return results;
+});
+
+// ─── IPC: Service URL registry ───────────────────────────────────────────────
+
+/**
+ * services:urls
+ * Returns all known service base-URLs plus whether their port is open.
+ * The renderer uses this to bypass the Vite proxy in packaged builds.
+ */
+ipcMain.handle('services:urls', async () => {
+  const [c, o, h2, ccs, gs, be] = await Promise.all([
+    isPortOpen(5000),
+    isPortOpen(8000),
+    isPortOpen(8765),
+    isPortOpen(8766),
+    isPortOpen(8081),
+    isPortOpen(BACKEND_PORT),
+  ]);
+  return {
+    calliope:  { url: 'http://localhost:5000',        running: c  },
+    opentech:  { url: 'http://localhost:8000',        running: o  },
+    h2:        { url: 'http://localhost:8765',        running: h2 },
+    ccs:       { url: 'http://localhost:8766',        running: ccs },
+    geoserver: { url: 'http://localhost:8081',        running: gs },
+    backend:   { url: `http://localhost:${BACKEND_PORT}`, running: be },
+  };
+});
+
+// Backward compat — calliopeClient.js calls this
+ipcMain.handle('calliope:service-url', async () => ({
+  url:     'http://127.0.0.1:5000',
+  running: await isPortOpen(5000),
+}));
+
+// ─── IPC: General ───────────────────────────────────────────────────────────
+
+ipcMain.handle('get-backend-url',    () => `http://localhost:${BACKEND_PORT}`);
+ipcMain.handle('get-user-data-path', () => app.getPath('userData'));
+
+// ─── Template file reader ────────────────────────────────────────────────────
+// In packaged builds, fetch('/templates/...') resolves from the FS root (wrong).
+// The renderer calls this IPC handler instead to read template files safely.
+ipcMain.handle('read-template-file', async (_event, filename) => {
+  // Resolve template directory: resources/templates/ when packaged, public/templates/ in dev
+  const templateDir = app.isPackaged
+    ? path.join(process.resourcesPath, 'templates')
+    : path.join(__dirname, '..', 'public', 'templates');
+
+  // Prevent path traversal: normalise and ensure the result stays inside templateDir
+  const resolved = path.resolve(templateDir, filename);
+  if (!resolved.startsWith(path.resolve(templateDir) + path.sep) &&
+      resolved !== path.resolve(templateDir)) {
+    return null; // Reject paths that escape the template directory
+  }
+  if (!fs.existsSync(resolved)) return null;
+  return fs.readFileSync(resolved, 'utf-8');
+});
+
+ipcMain.handle('save-file', async (_event, { filename, content }) => {
+  const savePath = path.join(app.getPath('userData'), 'exports', filename);
+  fs.mkdirSync(path.dirname(savePath), { recursive: true });
+  fs.writeFileSync(savePath, content, 'utf-8');
+  return savePath;
+});
+
+// ─── Window ────────────────────────────────────────────────────────────────
+
+async function createWindow_PLACEHOLDER() {
   const isWin = process.platform === 'win32';
-  const home = os.homedir();
-  const appMiniconda = getMinicondaInstallDir();
+  const binDir = isWin ? 'Scripts' : 'bin';
+  const pyExe  = isWin ? 'python.exe' : 'python3';
+  const pipExe = isWin ? 'pip.exe'    : 'pip3';
 
+  // Candidate venv directories
+  const candidates = [
+    // Repo-local venv (dev or packaged with app.asar.unpacked peer)
+    app.isPackaged
+      ? path.join(process.resourcesPath, 'app.asar.unpacked', '.venv-calliope')
+      : path.join(__dirname, '..', '.venv-calliope'),
+    // Managed install in userData (created by calliope:install)
+    path.join(app.getPath('userData'), 'calliope-venv'),
+  ];
+
+  for (const venvDir of candidates) {
+    const python = path.join(venvDir, binDir, pyExe);
+    const pip    = path.join(venvDir, binDir, pipExe);
+    // Mark as existing only when both the interpreter AND a calliope package marker are present
+    const calliopeMarker = path.join(venvDir, 'Lib', 'site-packages', 'calliope', '__init__.py');
+    const calliopeMarkerUnix = path.join(venvDir, 'lib', 'python3.9', 'site-packages', 'calliope', '__init__.py');
+    const calliopeMarkerGlob = fs.existsSync(calliopeMarker) || fs.existsSync(calliopeMarkerUnix)
+      || (fs.existsSync(path.join(venvDir, 'Lib', 'site-packages'))
+          && fs.readdirSync(path.join(venvDir, 'Lib', 'site-packages')).some(d => d.startsWith('calliope')))
+      || (fs.existsSync(path.join(venvDir, 'lib'))
+          && fs.readdirSync(path.join(venvDir, 'lib')).some(sub => {
+               try {
+                 return fs.readdirSync(path.join(venvDir, 'lib', sub, 'site-packages'))
+                          .some(d => d.startsWith('calliope'));
+               } catch { return false; }
+             }));
+
+    if (fs.existsSync(python)) {
+      return { venvDir, python, pip, exists: calliopeMarkerGlob };
+    }
+  }
+
+  // No venv present yet
+  const managedDir = path.join(app.getPath('userData'), 'calliope-venv');
+  const python = path.join(managedDir, binDir, pyExe);
+  const pip    = path.join(managedDir, binDir, pipExe);
+  return { venvDir: managedDir, python, pip, exists: false };
+}
+
+/**
+ * Find the system Python 3 executable (used only to create the venv on first run).
+ * Returns the path string or null if not found.
+ */
+function findSystemPython() {
+  const isWin = process.platform === 'win32';
   const candidates = isWin
-    ? [
-        // App-managed install (highest priority)
-        path.join(appMiniconda, 'Scripts', 'conda.exe'),
-        // Common user installs
-        path.join(home, 'Miniconda3', 'Scripts', 'conda.exe'),
-        path.join(home, 'miniconda3', 'Scripts', 'conda.exe'),
-        path.join(home, 'Anaconda3', 'Scripts', 'conda.exe'),
-        path.join(home, 'anaconda3', 'Scripts', 'conda.exe'),
-        'C:\\ProgramData\\Miniconda3\\Scripts\\conda.exe',
-        'C:\\ProgramData\\miniconda3\\Scripts\\conda.exe',
-        'C:\\ProgramData\\Anaconda3\\Scripts\\conda.exe',
-        'C:\\tools\\miniconda3\\Scripts\\conda.exe',
-      ]
-    : [
-        // App-managed install (highest priority)
-        path.join(appMiniconda, 'bin', 'conda'),
-        // Common user installs
-        path.join(home, 'miniconda3', 'bin', 'conda'),
-        path.join(home, 'Miniconda3', 'bin', 'conda'),
-        path.join(home, 'anaconda3', 'bin', 'conda'),
-        path.join(home, 'Anaconda3', 'bin', 'conda'),
-        '/opt/conda/bin/conda',
-        '/usr/local/anaconda3/bin/conda',
-      ];
+    ? ['python', 'python3', 'py']
+    : ['python3', 'python'];
 
-  for (const c of candidates) {
-    if (fs.existsSync(c)) return c;
+  for (const cmd of candidates) {
+    try {
+      const { execFileSync } = require('child_process');
+      const out = execFileSync(cmd, ['--version'], { timeout: 5000, stdio: ['ignore', 'pipe', 'pipe'] });
+      const ver = out.toString().trim();
+      if (/python 3\.[89]|python 3\.1[0-9]/i.test(ver)) return cmd;
+    } catch { /* continue */ }
   }
   return null;
 }
 
 /**
- * Resolve the path to calliope_runner.py (packaged or dev).
+ * Resolve paths used by the Python calliope service.
  */
-function getRunnerPath() {
-  return app.isPackaged
-    ? path.join(process.resourcesPath, 'app.asar.unpacked', 'python', 'calliope_runner.py')
-    : path.join(__dirname, '..', 'python', 'calliope_runner.py');
+function getServicePaths() {
+  const pythonDir = app.isPackaged
+    ? path.join(process.resourcesPath, 'app.asar.unpacked', 'python')
+    : path.join(__dirname, '..', 'python');
+  const serviceModule = 'calliope_service:app';
+  return { pythonDir, serviceModule };
 }
 
+// ─── Calliope service (FastAPI / uvicorn) ─────────────────────────────────
+
 /**
- * Download a file from a URL, following redirects.
- * @param {string} url
- * @param {string} dest  Absolute path to save to
- * @param {function} onLog  Called with progress strings
+ * Start the persistent Calliope FastAPI service.
+ * The service stays alive for the whole app lifetime so runs are cheap.
  */
-function downloadFile(url, dest, onLog) {
-  return new Promise((resolve, reject) => {
-    const doGet = (currentUrl) => {
-      const proto = currentUrl.startsWith('https') ? https : http;
-      const req = proto.get(currentUrl, (res) => {
-        // Follow redirects (301, 302, 307, 308)
-        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-          onLog(`Redirecting to ${res.headers.location}`);
-          doGet(res.headers.location);
-          return;
-        }
-        if (res.statusCode !== 200) {
-          reject(new Error(`HTTP ${res.statusCode} for ${currentUrl}`));
-          return;
-        }
+async function startCalliopeService() {
+  if (await isPortOpen(CALLIOPE_PORT)) {
+    console.log('[calliope-svc] Already running on port', CALLIOPE_PORT);
+    return;
+  }
 
-        const total = parseInt(res.headers['content-length'] || '0', 10);
-        let downloaded = 0;
-        let lastPct = -1;
+  const { python, exists } = resolveVenv();
+  if (!exists) {
+    console.log('[calliope-svc] venv not ready — skipping autostart (setup screen will handle install)');
+    return;
+  }
 
-        const file = fs.createWriteStream(dest);
-        res.on('data', (chunk) => {
-          downloaded += chunk.length;
-          if (total > 0) {
-            const pct = Math.floor((downloaded / total) * 100);
-            if (pct !== lastPct && pct % 5 === 0) {
-              lastPct = pct;
-              onLog(`Downloading Miniconda... ${pct}% (${Math.round(downloaded / 1024 / 1024)} / ${Math.round(total / 1024 / 1024)} MB)`);
-            }
-          }
-        });
-        res.pipe(file);
-        file.on('finish', () => { file.close(); resolve(); });
-        file.on('error', (e) => { fs.unlink(dest, () => {}); reject(e); });
-      });
-      req.on('error', (e) => { fs.unlink(dest, () => {}); reject(e); });
-    };
-    doGet(url);
+  const { pythonDir } = getServicePaths();
+  const solverDir = app.isPackaged
+    ? path.join(process.resourcesPath, 'app.asar.unpacked', 'solvers', 'windows')
+    : path.join(__dirname, '..', 'solvers', 'windows');
+
+  const childEnv = { ...process.env };
+  if (fs.existsSync(solverDir)) {
+    childEnv.PATH          = solverDir + path.delimiter + (childEnv.PATH || '');
+    childEnv.CALLIOPE_SOLVER_DIR = solverDir;
+  }
+
+  console.log(`[calliope-svc] Starting uvicorn with python: ${python}`);
+  calliopeService = spawn(python, [
+    '-m', 'uvicorn', 'calliope_service:app',
+    '--host', '127.0.0.1',
+    '--port', String(CALLIOPE_PORT),
+    '--workers', '1',
+    '--log-level', 'warning',
+  ], {
+    cwd: pythonDir,
+    shell: false,
+    env: childEnv,
   });
+
+  calliopeService.stdout.on('data', d => {
+    for (const l of d.toString().split('\n').filter(x => x.trim()))
+      console.log(`[calliope-svc] ${l}`);
+  });
+  calliopeService.stderr.on('data', d => {
+    for (const l of d.toString().split('\n').filter(x => x.trim()))
+      console.log(`[calliope-svc] ${l}`);
+  });
+  calliopeService.on('close', code => {
+    console.log(`[calliope-svc] Process exited with code ${code}`);
+    calliopeService = null;
+  });
+
+  // Wait up to 15 s for the port to open
+  try {
+    await waitForPort(CALLIOPE_PORT, 15000);
+    console.log('[calliope-svc] Service ready on port', CALLIOPE_PORT);
+  } catch {
+    console.warn('[calliope-svc] Service did not start within 15 s — continuing without it');
+  }
 }
 
-/**
- * Download and silently install Miniconda into getMinicondaInstallDir().
- */
-async function ensureMiniconda(sendProgress) {
-  const isWin = process.platform === 'win32';
-  const isMac = process.platform === 'darwin';
-  const installDir = getMinicondaInstallDir();
-
-  const url = isWin
-    ? 'https://repo.anaconda.com/miniconda/Miniconda3-latest-Windows-x86_64.exe'
-    : isMac
-      ? 'https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-x86_64.sh'
-      : 'https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh';
-
-  const tmpInstaller = path.join(os.tmpdir(), isWin ? 'miniconda_setup.exe' : 'miniconda_setup.sh');
-
-  sendProgress({ type: 'log', line: 'Downloading Miniconda installer…' });
-  await downloadFile(url, tmpInstaller, (line) => sendProgress({ type: 'log', line }));
-  sendProgress({ type: 'log', line: 'Download complete. Running installer…' });
-
-  await new Promise((resolve, reject) => {
-    let child;
-    if (isWin) {
-      // Silent install: /S = silent, /D = install directory (must be last arg)
-      child = spawn(tmpInstaller, ['/S', `/D=${installDir}`], { shell: false });
-    } else {
-      // Silent install: -b = batch mode (no prompts), -p = install prefix
-      fs.chmodSync(tmpInstaller, '755');
-      child = spawn('bash', [tmpInstaller, '-b', '-p', installDir], { shell: false });
-    }
-
-    child.stdout.on('data', d => {
-      for (const l of d.toString().split('\n').filter(x => x.trim()))
-        sendProgress({ type: 'log', line: l });
-    });
-    child.stderr.on('data', d => {
-      for (const l of d.toString().split('\n').filter(x => x.trim()))
-        sendProgress({ type: 'log', line: l });
-    });
-    child.on('close', code => {
-      try { fs.unlinkSync(tmpInstaller); } catch (_) {}
-      if (code === 0) resolve();
-      else reject(new Error(`Miniconda installer exited with code ${code}`));
-    });
-    child.on('error', reject);
-  });
-
-  sendProgress({ type: 'log', line: 'Miniconda installed successfully.' });
+function stopCalliopeService() {
+  if (calliopeService) {
+    calliopeService.kill();
+    calliopeService = null;
+  }
 }
 
 // ─── MATLAB bridge auto-start ────────────────────────────────────────────────
@@ -227,14 +508,12 @@ async function startMatlabBridge() {
     return;
   }
 
-  const conda = findConda();
-  if (!conda) {
-    console.log('[bridge] conda not found, cannot auto-start MATLAB bridge');
-    return;
-  }
+  // Prefer the calliope venv's uvicorn if available; otherwise fall back to system python
+  const { python: venvPython, exists: venvExists } = resolveVenv();
+  const bridgePython = venvExists ? venvPython : (findSystemPython() || 'python3');
 
   // Load .env vars from hydrogenmatsim/.env
-  const childEnv = Object.assign({}, process.env);
+  const childEnv = { ...process.env };
   const envFile = path.join(bridgeDir, '.env');
   if (fs.existsSync(envFile)) {
     for (const line of fs.readFileSync(envFile, 'utf-8').split('\n')) {
@@ -246,10 +525,9 @@ async function startMatlabBridge() {
     }
   }
 
-  console.log('[bridge] Starting MATLAB bridge (matlab-bridge conda env)…');
-  matlabBridgeProcess = spawn(conda, [
-    'run', '-n', 'matlab-bridge', '--no-capture-output',
-    'uvicorn', 'main:app',
+  console.log('[bridge] Starting MATLAB bridge (python uvicorn)…');
+  matlabBridgeProcess = spawn(bridgePython, [
+    '-m', 'uvicorn', 'main:app',
     '--host', '0.0.0.0',
     '--port', String(BRIDGE_PORT),
     '--workers', '1',
@@ -282,73 +560,37 @@ function stopMatlabBridge() {
 
 /**
  * calliope:check
- * → { condaFound: bool, envExists: bool, version: string|null, condaPath: string|null }
+ * → { envExists: bool, venvPath: string|null, serviceRunning: bool }
  *
- * Uses `conda env list` (fast, no Python startup) to detect the environment,
- * with a 20-second timeout so it never hangs the setup screen.
+ * Checks for the Python venv and whether the uvicorn service is already up.
  */
-ipcMain.handle('calliope:check', async () => {
-  const conda = findConda();
-  if (!conda) {
-    return { condaFound: false, envExists: false, version: null, condaPath: null };
-  }
-
-  return new Promise(resolve => {
-    // Use `conda env list` — it merely reads directory listings, executes in
-    // under 2 seconds even on first run, and never hangs.
-    const child = spawn(conda, ['env', 'list', '--json'], { shell: false });
-
-    let stdout = '';
-    let timer = setTimeout(() => {
-      try { child.kill(); } catch (_) {}
-      // Timed out → assume env does not exist so setup runs
-      resolve({ condaFound: true, envExists: false, version: null, condaPath: conda });
-    }, 20000);
-
-    child.stdout.on('data', d => { stdout += d.toString(); });
-    child.on('close', code => {
-      clearTimeout(timer);
-      if (code !== 0) {
-        resolve({ condaFound: true, envExists: false, version: null, condaPath: conda });
-        return;
-      }
-      try {
-        const parsed = JSON.parse(stdout);
-        const envs = parsed.envs || [];
-        // Any path that ends with /calliope or \calliope (or is named calliope)
-        const envExists = envs.some(p =>
-          p.toLowerCase().endsWith(`${path.sep}calliope`) ||
-          p.toLowerCase().endsWith('/calliope')
-        );
-        resolve({ condaFound: true, envExists, version: envExists ? 'installed' : null, condaPath: conda });
-      } catch (_) {
-        // JSON parse failed — fall back to plain text scan
-        const envExists = stdout.toLowerCase().includes(`${path.sep}calliope`) ||
-                          stdout.toLowerCase().includes('/calliope');
-        resolve({ condaFound: true, envExists, version: null, condaPath: conda });
-      }
-    });
-    child.on('error', () => {
-      clearTimeout(timer);
-      resolve({ condaFound: true, envExists: false, version: null, condaPath: conda });
-    });
-  });
+ipcMain.handle('_calliope:check_DISABLED', async () => {
+  const { python, exists, venvDir } = resolveVenv();
+  const serviceRunning = await isPortOpen(CALLIOPE_PORT);
+  return {
+    envExists: exists,
+    venvPath: exists ? venvDir : null,
+    serviceRunning,
+  };
 });
 
 /**
  * calliope:install
- * Full zero-touch setup pipeline:
- *   1. If conda not found → download + silent-install Miniconda into userData
- *   2. Create (or recreate) the "calliope" conda env with Calliope + HiGHS solver
+ * Full zero-touch setup pipeline (pure pip, no conda required):
+ *   1. Locate system Python 3 (or embedded Python in packaged build)
+ *   2. Create a venv in userData/calliope-venv
+ *   3. pip install -r python/requirements.txt -r python/requirements.service.txt
+ *   4. Verify the install
+ *   5. Start the persistent uvicorn service
  *
  * Streams progress via calliope:install-progress events:
  *   { type: 'log',   line: string }
- *   { type: 'stage', label: string }   ← friendly step label
- *   { type: 'done'                  }
- *   { type: 'error', error: string  }
+ *   { type: 'stage', label: string }
+ *   { type: 'done'                 }
+ *   { type: 'error', error: string }
  * → { success: bool, error?: string }
  */
-ipcMain.handle('calliope:install', async () => {
+ipcMain.handle('_calliope:install_DISABLED', async () => {
   const sendProgress = (data) => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('calliope:install-progress', data);
@@ -356,52 +598,85 @@ ipcMain.handle('calliope:install', async () => {
   };
 
   try {
-    // ── Step 1: Ensure conda ──────────────────────────────────────────
-    let conda = findConda();
-    if (!conda) {
-      sendProgress({ type: 'stage', label: 'Downloading Miniconda…' });
-      await ensureMiniconda(sendProgress);
-      conda = findConda();
-      if (!conda) throw new Error('Miniconda installation succeeded but conda executable was not found. Please restart the app.');
-    } else {
-      sendProgress({ type: 'log', line: `conda found at: ${conda}` });
+    // ── Step 1: Find Python ───────────────────────────────────────────
+    sendProgress({ type: 'stage', label: 'Locating Python interpreter…' });
+
+    // In a packaged build we bundle a private Python (e.g. python-embed or
+    // a full CPython distributable). Point at it first.
+    const isWin = process.platform === 'win32';
+    let systemPython = null;
+
+    if (app.isPackaged) {
+      const embeddedPy = path.join(
+        process.resourcesPath, 'app.asar.unpacked',
+        isWin ? 'python-embed' : 'python-embed',
+        isWin ? 'python.exe' : 'bin/python3',
+      );
+      if (fs.existsSync(embeddedPy)) systemPython = embeddedPy;
     }
 
-    // ── Step 2: Create calliope env with Calliope + HiGHS ────────────
-    sendProgress({ type: 'stage', label: 'Installing Calliope & HiGHS solver…' });
-    sendProgress({ type: 'log', line: 'Creating conda environment "calliope" (this takes a few minutes)…' });
+    if (!systemPython) systemPython = findSystemPython();
+    if (!systemPython) {
+      throw new Error(
+        'Python 3.9+ not found on this system. ' +
+        'Please install Python from https://python.org and re-open TEMPO.',
+      );
+    }
+    sendProgress({ type: 'log', line: `Python interpreter: ${systemPython}` });
+
+    // ── Step 2: Create venv ───────────────────────────────────────────
+    const { python: venvPython, venvDir } = resolveVenv();
+    sendProgress({ type: 'stage', label: 'Creating Python environment…' });
+    sendProgress({ type: 'log', line: `Creating venv at: ${venvDir}` });
+
+    if (fs.existsSync(venvDir)) {
+      sendProgress({ type: 'log', line: 'Existing venv found — removing and recreating…' });
+      fs.rmSync(venvDir, { recursive: true, force: true });
+    }
 
     await new Promise((resolve, reject) => {
-      const child = spawn(conda, [
-        'create', '-y', '-n', 'calliope',
-        '-c', 'conda-forge',
-        'python=3.9',
-        'calliope=0.6.8',  // calliope_runner.py targets the 0.6.x API
-        'coin-or-cbc',     // CBC open-source LP/MIP solver (free, no licence)
-        'pyomo>=6.4',      // 6.4+ required for HiGHS support in Pyomo
-      ], { shell: false });
-
-      child.stdout.on('data', d => {
-        for (const l of d.toString().split('\n').filter(x => x.trim()))
-          sendProgress({ type: 'log', line: l });
-      });
-      child.stderr.on('data', d => {
-        for (const l of d.toString().split('\n').filter(x => x.trim()))
-          sendProgress({ type: 'log', line: l });
-      });
-      child.on('close', code => {
-        if (code === 0) resolve();
-        else reject(new Error(`conda create exited with code ${code}`));
-      });
+      const child = spawn(systemPython, ['-m', 'venv', venvDir], { shell: false });
+      child.stdout.on('data', d => { for (const l of d.toString().split('\n').filter(x => x.trim())) sendProgress({ type: 'log', line: l }); });
+      child.stderr.on('data', d => { for (const l of d.toString().split('\n').filter(x => x.trim())) sendProgress({ type: 'log', line: l }); });
+      child.on('close', code => { if (code === 0) resolve(); else reject(new Error(`venv creation failed (exit ${code})`)); });
       child.on('error', reject);
     });
 
-    // ── Step 3: Verify the install ────────────────────────────────────
+    // ── Step 3: pip install ───────────────────────────────────────────
+    sendProgress({ type: 'stage', label: 'Installing Calliope & dependencies…' });
+    sendProgress({ type: 'log', line: 'Running pip install — this takes a few minutes…' });
+
+    const pythonDir = app.isPackaged
+      ? path.join(process.resourcesPath, 'app.asar.unpacked', 'python')
+      : path.join(__dirname, '..', 'python');
+
+    const reqMain    = path.join(pythonDir, 'requirements.txt');
+    const reqService = path.join(pythonDir, 'requirements.service.txt');
+
+    const pipArgs = ['-m', 'pip', 'install', '--upgrade', 'pip'];
+    await new Promise((resolve, reject) => {
+      const child = spawn(venvPython, pipArgs, { shell: false });
+      child.stdout.on('data', d => { for (const l of d.toString().split('\n').filter(x => x.trim())) sendProgress({ type: 'log', line: l }); });
+      child.stderr.on('data', d => { for (const l of d.toString().split('\n').filter(x => x.trim())) sendProgress({ type: 'log', line: l }); });
+      child.on('close', code => { if (code === 0) resolve(); else reject(new Error(`pip upgrade failed (exit ${code})`)); });
+      child.on('error', reject);
+    });
+
+    const installArgs = ['-m', 'pip', 'install', '-r', reqMain, '-r', reqService];
+    await new Promise((resolve, reject) => {
+      const child = spawn(venvPython, installArgs, { shell: false });
+      child.stdout.on('data', d => { for (const l of d.toString().split('\n').filter(x => x.trim())) sendProgress({ type: 'log', line: l }); });
+      child.stderr.on('data', d => { for (const l of d.toString().split('\n').filter(x => x.trim())) sendProgress({ type: 'log', line: l }); });
+      child.on('close', code => { if (code === 0) resolve(); else reject(new Error(`pip install failed (exit ${code})`)); });
+      child.on('error', reject);
+    });
+
+    // ── Step 4: Verify ────────────────────────────────────────────────
     sendProgress({ type: 'stage', label: 'Verifying installation…' });
     await new Promise((resolve, reject) => {
-      const child = spawn(conda, [
-        'run', '-n', 'calliope', '--no-capture-output',
-        'python', '-c', 'import calliope; import pyomo.environ; print("OK calliope", calliope.__version__)',
+      const child = spawn(venvPython, [
+        '-c',
+        'import calliope; import pyomo.environ; import uvicorn; print("OK calliope", calliope.__version__)',
       ], { shell: false });
       let out = '';
       child.stdout.on('data', d => { out += d.toString(); });
@@ -414,6 +689,10 @@ ipcMain.handle('calliope:install', async () => {
       child.on('error', reject);
     });
 
+    // ── Step 5: Start service ─────────────────────────────────────────
+    sendProgress({ type: 'stage', label: 'Starting Calliope service…' });
+    await startCalliopeService();
+
     sendProgress({ type: 'done' });
     return { success: true };
 
@@ -425,133 +704,29 @@ ipcMain.handle('calliope:install', async () => {
 });
 
 /**
- * calliope:run  → { jobId: string }
- *
- * Launches the Python runner asynchronously. Streams progress via
- * calliope:event messages to the renderer:
- *   { type: 'log',   jobId, line }
- *   { type: 'done',  jobId, result }
- *   { type: 'error', jobId, error }
+ * calliope:service-url  → { url: string, running: bool }
+ * Returns the URL of the running Calliope service so the renderer
+ * can use it directly for HTTP calls (bypassing Vite proxy in packaged builds).
  */
-ipcMain.handle('calliope:run', async (event, { modelData, solver }) => {
-  const jobId = `job_${Date.now()}`;
-  const tmpDir = os.tmpdir();
-  const inputFile  = path.join(tmpDir, `calliope_in_${jobId}.json`);
-  const outputFile = path.join(tmpDir, `calliope_out_${jobId}.json`);
-
-  // Write the model payload to a temp file
-  const payload = { ...modelData, solver: solver || 'cbc' };
-  fs.writeFileSync(inputFile, JSON.stringify(payload, null, 2), 'utf-8');
-
-  const conda = findConda();
-  if (!conda) {
-    event.sender.send('calliope:event', {
-      type: 'error', jobId,
-      error: 'conda not found. Please restart the app and complete the setup.',
-    });
-    return { jobId };
-  }
-
-  const runnerPath = getRunnerPath();
-
-  // Prepend the bundled solver directory so calliope_runner finds cbc.exe
-  // even if the user's conda env doesn't have coin-or-cbc installed.
-  const solverDir = app.isPackaged
-    ? path.join(process.resourcesPath, 'app.asar.unpacked', 'solvers', 'windows')
-    : path.join(__dirname, '..', 'solvers', 'windows');
-
-  const childEnv = Object.assign({}, process.env);
-  if (fs.existsSync(solverDir)) {
-    childEnv.PATH = solverDir + path.delimiter + (childEnv.PATH || '');
-    childEnv.CALLIOPE_SOLVER_DIR = solverDir;
-  }
-
-  const child = spawn(conda, [
-    'run', '-n', 'calliope', '--no-capture-output',
-    'python', runnerPath, inputFile, outputFile,
-  ], { shell: false, env: childEnv });
-
-  activeCalliopeJobs[jobId] = child;
-
-  const sendEvent = data => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('calliope:event', data);
-    }
-  };
-
-  child.stdout.on('data', data => {
-    for (const line of data.toString().split('\n').filter(l => l.trim())) {
-      sendEvent({ type: 'log', jobId, line });
-    }
-  });
-
-  child.stderr.on('data', data => {
-    for (const line of data.toString().split('\n').filter(l => l.trim())) {
-      sendEvent({ type: 'log', jobId, line: `[STDERR] ${line}` });
-    }
-  });
-
-  child.on('close', code => {
-    delete activeCalliopeJobs[jobId];
-    try { fs.unlinkSync(inputFile); } catch (_) {}
-
-    if (fs.existsSync(outputFile)) {
-      try {
-        const result = JSON.parse(fs.readFileSync(outputFile, 'utf-8'));
-        try { fs.unlinkSync(outputFile); } catch (_) {}
-        sendEvent({ type: 'done', jobId, result });
-      } catch (e) {
-        sendEvent({ type: 'error', jobId, error: `Failed to parse results: ${e.message}` });
-      }
-    } else {
-      sendEvent({
-        type: 'error', jobId,
-        error: code !== 0
-          ? `Process exited with code ${code}. Check logs for details.`
-          : 'Output file was not created – check logs.',
-      });
-    }
-  });
-
-  return { jobId };
+ipcMain.handle('_calliope:service-url_DISABLED', async () => {
+  const running = false;
+  return { url: `http://127.0.0.1:${CALLIOPE_PORT}`, running };
 });
 
 /**
- * calliope:stop  → void
+ * calliope:restart-service
+ * Stops and restarts the Python uvicorn service.
  */
-ipcMain.handle('calliope:stop', async (_event, { jobId }) => {
-  const child = activeCalliopeJobs[jobId];
-  if (child) { child.kill(); delete activeCalliopeJobs[jobId]; }
+ipcMain.handle('calliope:restart-service', async () => {
+  stopCalliopeService();
+  await startCalliopeService();
+  const running = await isPortOpen(CALLIOPE_PORT);
+  return { running };
 });
 
-// ─── Legacy IPC ────────────────────────────────────────────────────────────
 
-ipcMain.handle('get-backend-url', () => `http://localhost:${BACKEND_PORT}`);
-ipcMain.handle('get-user-data-path', () => app.getPath('userData'));
-
-ipcMain.handle('save-file', async (_event, { filename, content }) => {
-  const savePath = path.join(app.getPath('userData'), 'exports', filename);
-  fs.mkdirSync(path.dirname(savePath), { recursive: true });
-  fs.writeFileSync(savePath, content, 'utf-8');
-  return savePath;
-});
 
 // ─── Window ────────────────────────────────────────────────────────────────
-
-/**
- * Check whether a local TCP port is accepting connections.
- */
-function isPortOpen(port) {
-  const net = require('net');
-  return new Promise(resolve => {
-    const sock = new net.Socket();
-    sock.setTimeout(500);
-    sock.on('connect', () => { sock.destroy(); resolve(true); });
-    sock.on('error', () => resolve(false));
-    sock.on('timeout', () => { sock.destroy(); resolve(false); });
-    sock.connect(port, '127.0.0.1');
-  });
-}
 
 async function createWindow() {
   mainWindow = new BrowserWindow({
@@ -590,9 +765,12 @@ async function createWindow() {
   mainWindow.on('closed', () => { mainWindow = null; });
 }
 
+function stopAll() {
+  stopBackend();
+}
+
 app.whenReady().then(async () => {
-  startMatlabBridge(); // fire-and-forget — app opens while bridge starts in background
-  await startBackend();
+  startBackend();
   await createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -600,14 +778,8 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {
-  stopBackend();
-  stopMatlabBridge();
-  Object.values(activeCalliopeJobs).forEach(c => { try { c.kill(); } catch (_) {} });
+  stopAll();
   if (process.platform !== 'darwin') app.quit();
 });
 
-app.on('before-quit', () => {
-  stopBackend();
-  stopMatlabBridge();
-  Object.values(activeCalliopeJobs).forEach(c => { try { c.kill(); } catch (_) {} });
-});
+app.on('before-quit', stopAll);

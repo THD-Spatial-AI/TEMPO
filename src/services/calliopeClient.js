@@ -22,18 +22,41 @@
  *   cancel();
  */
 
-const SERVICE_URL =
-  (import.meta.env && import.meta.env.VITE_CALLIOPE_SERVICE_URL) ||
-  'http://localhost:5000';
+// ---------------------------------------------------------------------------
+// Service URL resolution
+// ---------------------------------------------------------------------------
 
-// ---------------------------------------------------------------------------
-// Health check
-// ---------------------------------------------------------------------------
+// In dev mode Vite proxies /api → localhost:5000 (see vite.config.js).
+// In a packaged Electron build there is no proxy, so we ask the main process
+// for the direct URL via IPC. Fall back to the env var or a sensible default.
+
+let _resolvedServiceURL = null;
+
+async function getServiceURL() {
+  if (_resolvedServiceURL) return _resolvedServiceURL;
+
+  // Electron packaged build: get the authoritative URL from the main process
+  if (typeof window !== 'undefined' && window.electronAPI?.getCalliopeServiceURL) {
+    try {
+      const { url } = await window.electronAPI.getCalliopeServiceURL();
+      _resolvedServiceURL = url;
+      return _resolvedServiceURL;
+    } catch { /* fall through */ }
+  }
+
+  // Dev / browser fallback
+  _resolvedServiceURL =
+    (import.meta.env && import.meta.env.VITE_CALLIOPE_SERVICE_URL) ||
+    'http://localhost:5000';
+  return _resolvedServiceURL;
+}
+
 
 /**
  * Returns true if the Calliope Docker service is reachable and healthy.
  */
 export async function checkCalliopeService() {
+  const SERVICE_URL = await getServiceURL();
   try {
     const res = await fetch(`${SERVICE_URL}/health`, {
       signal: AbortSignal.timeout(4000),
@@ -65,6 +88,7 @@ export async function checkCalliopeService() {
  *   cancel – closes the SSE connection and asks the server to mark the job cancelled
  */
 export async function runCalliopeModel({ modelData, onLog, onStats, onDone, onError }) {
+  const SERVICE_URL = await getServiceURL();
   // ── 1. Submit the model ──────────────────────────────────────────────────
   let response;
   try {

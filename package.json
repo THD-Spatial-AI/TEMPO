@@ -13,45 +13,81 @@
     "preview": "vite preview",
     "electron": "electron .",
     "dev:electron": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
-    "build:electron": "npm run build && electron-builder",
-    "package": "electron-builder --dir",
-    "dist": "electron-builder"
+    "build:go": "cd backend-go && go build -o ../backend-go/backend.exe .",
+    "build:go:linux": "cd backend-go && set GOOS=linux&& set GOARCH=amd64&& go build -o ../backend-go/backend-linux .",
+    "predist": "npm run build && npm run build:go",
+    "predist:linux": "npm run build && npm run build:go && npm run build:go:linux",
+    "dist": "electron-builder --win",
+    "dist:linux": "electron-builder --linux",
+    "dist:all": "npm run build && npm run build:go && npm run build:go:linux && electron-builder --win --linux",
+    "dist:dir": "electron-builder --win --dir",
+    "package": "electron-builder --dir"
   },
   "build": {
     "appId": "com.calliope.visualizator",
     "productName": "TEMPO",
+    "asar": false,
     "directories": {
-      "output": "C:\\temp\\calliope-release"
+      "output": "release"
     },
     "files": [
       "dist/**/*",
+      "!dist/data/**",
+      "!dist/templates/**",
       "electron/**/*",
-      "backend-go/**/*",
-      "python/**/*",
-      "solvers/**/*"
+      "package.json"
     ],
-    "asarUnpack": [
-      "backend-go/**/*",
-      "python/**/*",
-      "solvers/**/*"
+    "extraMetadata": {
+      "dependencies": {}
+    },
+    "extraResources": [
+      {
+        "from": "public/templates",
+        "to": "templates"
+      }
     ],
     "win": {
+      "extraResources": [
+        {
+          "from": "backend-go/backend.exe",
+          "to": "backend-go/backend.exe"
+        }
+      ],
       "target": [
         {
           "target": "nsis",
-          "arch": [
-            "x64"
-          ]
+          "arch": ["x64"]
         }
-      ]
+      ],
+      "icon": "public/icon.png"
+    },
+    "linux": {
+      "extraResources": [
+        {
+          "from": "backend-go/backend-linux",
+          "to": "backend-go/backend"
+        }
+      ],
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": ["x64"]
+        },
+        {
+          "target": "deb",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "public/icon.png",
+      "category": "Science"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "installerIcon": "public/icon.ico",
-      "uninstallerIcon": "public/icon.ico"
+      "shortcutName": "TEMPO",
+      "include": "build/installer.nsh"
     }
   },
   "dependencies": {

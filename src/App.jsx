@@ -220,15 +220,13 @@ function App() {
 
   useEffect(() => {
     if (typeof window !== 'undefined' && window.electronAPI) {
-      window.electronAPI.checkCalliope().then(status => {
-        if (status.envExists) {
-          setAppState('ready');
-        } else {
-          setAppState('setup');
-        }
+      window.electronAPI.getDockerStatus().then(result => {
+        const allReady = result.dockerAvailable &&
+          (result.services || []).filter(s => s.required).every(s => s.running);
+        setAppState(allReady ? 'ready' : 'setup');
       }).catch(() => {
-        // If check fails for any reason, show setup screen
-        setAppState('setup');
+        // If check fails (e.g. non-Electron browser), skip setup
+        setAppState('ready');
       });
     } else {
       // Browser / dev mode without Electron — skip setup

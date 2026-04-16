@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import Papa from 'papaparse';
 import { FiUpload, FiX, FiFile, FiCheck, FiDownload } from 'react-icons/fi';
 import { useData } from '../context/DataContext';
+import { fetchTemplate } from '../utils/templateFetch';
 
 const CSVUploader = () => {
   const { createModel } = useData();
@@ -13,21 +14,27 @@ const CSVUploader = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const downloadTemplate = (type) => {
+  const downloadTemplate = async (type) => {
+    const filename = `${type}_template.csv`;
+    const response = await fetchTemplate(filename);
+    if (!response.ok) { alert(`Template file not found: ${filename}`); return; }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.href = `/templates/${type}_template.csv`;
-    link.download = `${type}_template.csv`;
+    link.href = url;
+    link.download = filename;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const loadExampleData = async () => {
     setLoading(true);
     try {
-      const locationsResponse = await fetch('/templates/locations_template.csv');
-      const linksResponse = await fetch('/templates/links_template.csv');
-      const parametersResponse = await fetch('/templates/parameters_template.csv');
+      const locationsResponse = await fetchTemplate('locations_template.csv');
+      const linksResponse = await fetchTemplate('links_template.csv');
+      const parametersResponse = await fetchTemplate('parameters_template.csv');
 
       const locationsText = await locationsResponse.text();
       const linksText = await linksResponse.text();
