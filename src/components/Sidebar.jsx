@@ -22,6 +22,7 @@ import {
   FiZap,
 } from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
+import tempoLogo from '../assets/Logo_TEMPO.PNG';
 
 const Sidebar = ({ selected, setSelected }) => {
   const [open, setOpen] = useState(true);
@@ -321,27 +322,14 @@ const Logo = () => {
   return (
     <motion.div
       layout
-      className="grid size-10 shrink-0 place-content-center rounded-md bg-gray-600"
+      className="shrink-0 size-10 flex items-center justify-center"
     >
-      <svg
-        width="24"
-        height="24"
-        viewBox="0 0 50 39"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-        className="fill-slate-50"
-        aria-hidden="true"
-        focusable="false"
-      >
-        <path
-          d="M16.4992 2H37.5808L22.0816 24.9729H1L16.4992 2Z"
-          stopColor="#000000"
-        ></path>
-        <path
-          d="M17.4224 27.102L11.4192 36H33.5008L49 13.0271H32.7024L23.2064 27.102H17.4224Z"
-          stopColor="#000000"
-        ></path>
-      </svg>
+      <img
+        src={tempoLogo}
+        alt="TEMPO logo"
+        className="h-10 w-10 object-contain"
+        style={{ mixBlendMode: 'multiply' }}
+      />
     </motion.div>
   );
 };

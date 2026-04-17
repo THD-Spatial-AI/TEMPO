@@ -11,6 +11,7 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    assetsInclude: ['**/*.PNG'],
     base: './',   // relative paths so Electron can load dist/index.html from file://
     server: {
       proxy: {
