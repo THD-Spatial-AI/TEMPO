@@ -49,10 +49,6 @@ export default function Header() {
             )
           })}
         </nav>
-
-        <button className="bg-black text-[#E2E2E2] px-6 py-2 font-bold uppercase text-[0.75rem] tracking-widest hover:bg-[#3B3B3B] transition-all active:translate-y-0.5">
-          Get Started
-        </button>
       </div>
     </header>
   )

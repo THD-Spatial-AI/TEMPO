@@ -1,4 +1,6 @@
 import Footer from '../components/Footer'
+import model from '../public/img/Model.png'
+import InteractiveQGIS from '../public/img/InteractiveQGIS.png'
 
 export default function Features() {
   const workflowSteps = [
@@ -86,52 +88,12 @@ export default function Features() {
 
             {/* Right: node UI mockup */}
             <div className="lg:col-span-8">
-              <div className="bg-surface p-8 ghost-border min-h-[500px] relative overflow-hidden">
-                {/* Dot grid */}
-                <div
-                  className="absolute inset-0 opacity-10 pointer-events-none"
-                  style={{
-                    backgroundImage: 'radial-gradient(#000 1px, transparent 1px)',
-                    backgroundSize: '20px 20px',
-                  }}
-                ></div>
-
-                {/* Node cards */}
-                <div className="relative z-10 flex flex-col gap-6">
-                  <div className="flex gap-12">
-                    <div className="w-48 bg-white p-4 border border-black/10">
-                      <div className="h-2 w-12 bg-black mb-4"></div>
-                      <div className="space-y-2">
-                        <div className="h-1 bg-outline-variant w-full"></div>
-                        <div className="h-1 bg-outline-variant w-4/5"></div>
-                      </div>
-                      <div className="mt-6 flex justify-between">
-                        <div className="w-2 h-2 bg-black"></div>
-                        <div className="w-2 h-2 bg-black"></div>
-                      </div>
-                    </div>
-                    <div className="w-48 bg-white p-4 border-2 border-black">
-                      <div className="h-2 w-12 bg-black mb-4"></div>
-                      <div className="text-[0.625rem] font-bold mb-2">TRANSFORMER_01</div>
-                      <div className="space-y-2">
-                        <div className="h-1 bg-black w-full"></div>
-                      </div>
-                    </div>
-                  </div>
-                  <svg className="absolute top-20 left-48 w-full h-full pointer-events-none opacity-20">
-                    <path
-                      d="M 0 20 C 50 20, 50 20, 100 20"
-                      fill="none"
-                      stroke="black"
-                      strokeWidth="2"
-                    />
-                  </svg>
-                </div>
+              <div className="bg-surface ghost-border min-h-[500px] relative overflow-hidden">
 
                 <img
-                  className="absolute bottom-0 right-0 w-2/3 h-2/3 object-cover opacity-20 grayscale"
-                  alt="Close-up of high-tech circuit board with glowing light paths and complex electronic components"
-                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuA1U9fBs_8M299onXFu-_--C7Yy6D9ddue4_kAx_KwVxNQhrMpIvC3bi7Tca5HEf2v9nZo5dwxUCASBGwE-3O6o9uOFGNOHQktzzcc5ryJnIEF1pVuACI4iiZfV7VYMQHAvib1i2xYPfmCYC6AHlT5UF4tEDjaCiuItBTtHcWNrMKyXHENrnqF5IAeyUXDLgYDrDOq23c6uj0efSw1IOb3fhq0deLMyUuRKGeTBbWqIiIR8Ekx2oyAvkEYkklZEGrIsyrH85ydLchw"
+                    className="absolute"
+                    alt=""
+                    src={model}
                 />
               </div>
             </div>
@@ -153,33 +115,12 @@ export default function Features() {
             </div>
 
             <div className="h-[600px] w-full bg-surface-container relative">
-              <div className="absolute inset-0 z-0">
                 <img
-                  className="w-full h-full object-cover grayscale opacity-40"
-                  alt="Technical grayscale aerial map view of an industrial port area with geometric grid overlays and data points"
-                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuAfxLTHjUteLHsyTUs2nyjV_hM0M3xt2pM3uBtWyRRa1w_4-qrghiJHPmMLNfbT9e_fHZ2Xn89Tta722Q4HUDL2AfAJXVliCASoaTq_LFft6FctN1G0OU8-zTrp7QY_gZ3cwcGS-0JWpxVRPV4WSRlA_LO9GcjjrV9RjdSRFT90a_7QKnEC8ZXTxVktQFDvuOb7WgZX5_2DYn6vAcfsJDrddy7Bsx7X4ZLzxac7yxu-Nqhjbo_tm9AhgGLkSCxqjPxOmyi1JvpkiN4"
+                  className="absolute"
+                  alt=""
+                  src={InteractiveQGIS}
                 />
-              </div>
-              {/* Layer controller overlay */}
-              <div className="absolute top-8 left-8 bg-white/90 p-6 w-64 technical-frost border border-black/5 z-10">
-                <p className="text-[0.6875rem] font-bold uppercase tracking-widest mb-4">
-                  Layer Controller
-                </p>
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[0.75rem]">OSM Substations</span>
-                    <div className="w-3 h-3 bg-black"></div>
-                  </div>
-                  <div className="flex justify-between items-center opacity-40">
-                    <span className="text-[0.75rem]">Transmission Lines</span>
-                    <div className="w-3 h-3 border border-black"></div>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-[0.75rem]">Power Plants</span>
-                    <div className="w-3 h-3 bg-black"></div>
-                  </div>
-                </div>
-              </div>
+
             </div>
           </div>
         </section>
