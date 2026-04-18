@@ -1,11 +1,16 @@
 package api
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
 	"time"
 
 	"calliope-backend/internal/calliope"
@@ -98,10 +103,12 @@ func (s *Server) setupRoutes() {
 		api.GET("/completed-runs", s.listCompletedRuns)
 		api.DELETE("/completed-runs/:id", s.deleteCompletedRun)
 
-		// OSM / Overpass integration
-		api.GET("/osm/:layer", s.getOSMLayer)
+		// OSM / Overpass integration — static routes MUST come before :layer param
 		api.GET("/osm/layers", s.getAvailableLayers)
 		api.GET("/osm/regions", s.getLoadedRegions)
+		api.GET("/osm/regions-db", s.getRegionsDatabase)
+		api.POST("/osm/download", s.downloadOSMRegion)
+		api.GET("/osm/:layer", s.getOSMLayer)
 		api.GET("/geocode", s.geocode)
 
 		// Health check
@@ -587,4 +594,147 @@ func (s *Server) deleteCompletedRun(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "deleted"})
+}
+
+// getRegionsDatabase returns the contents of geofabrik_regions_database.json
+// so the frontend doesn't need to bundle a large static file.
+func (s *Server) getRegionsDatabase(c *gin.Context) {
+	// Locate the JSON file relative to the binary / working directory.
+	// Works both in development (go run .) and when built to a binary.
+	candidates := []string{
+		filepath.Join(".", "..", "osm_processing", "geofabrik_regions_database.json"),
+		filepath.Join(".", "osm_processing", "geofabrik_regions_database.json"),
+	}
+	// Also try relative to the executable
+	if exe, err := os.Executable(); err == nil {
+		exeDir := filepath.Dir(exe)
+		candidates = append(candidates,
+			filepath.Join(exeDir, "..", "osm_processing", "geofabrik_regions_database.json"),
+			filepath.Join(exeDir, "osm_processing", "geofabrik_regions_database.json"),
+		)
+	}
+	var data []byte
+	for _, p := range candidates {
+		if b, err := os.ReadFile(p); err == nil {
+			data = b
+			break
+		}
+	}
+	if data == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "regions database not found"})
+		return
+	}
+	c.Data(http.StatusOK, "application/json", data)
+}
+
+// downloadOSMRegion spawns add_region_to_geoserver.py and streams its output
+// back to the client as newline-delimited JSON log lines.
+//
+// Request body JSON: { "continent": "Europe", "country": "Germany", "region": "Bayern" }
+// region is optional; omit it to import the whole country.
+//
+// Response: text/event-stream — each line is a JSON object:
+//
+//	{ "type": "log",     "message": "..." }
+//	{ "type": "done",    "message": "Import complete" }
+//	{ "type": "error",   "message": "..." }
+func (s *Server) downloadOSMRegion(c *gin.Context) {
+	var req struct {
+		Continent string `json:"continent"`
+		Country   string `json:"country"`
+		Region    string `json:"region"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || req.Continent == "" || req.Country == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "continent and country are required"})
+		return
+	}
+
+	// Resolve project root: working directory when running via `go run .` is backend-go/,
+	// so the project root is one level up. When built to a binary, fall back to exe dir.
+	var projectRoot string
+	if cwd, err := os.Getwd(); err == nil {
+		// If cwd ends in /backend-go, go up one level; otherwise assume we're at root.
+		if filepath.Base(cwd) == "backend-go" {
+			projectRoot = filepath.Dir(cwd)
+		} else {
+			projectRoot = cwd
+		}
+	} else if exe, err := os.Executable(); err == nil {
+		projectRoot = filepath.Dir(filepath.Dir(exe))
+	} else {
+		projectRoot = filepath.Join(".", "..")
+	}
+
+	venvPython := filepath.Join(projectRoot, ".venv-calliope", "Scripts", "python.exe")
+	if runtime.GOOS != "windows" {
+		venvPython = filepath.Join(projectRoot, ".venv-calliope", "bin", "python")
+	}
+	pythonBin := venvPython
+	if _, err := os.Stat(venvPython); err != nil {
+		log.Printf("[OSM] venv python not found at %s, falling back to system python", venvPython)
+		if runtime.GOOS == "windows" {
+			pythonBin = "python"
+		} else {
+			pythonBin = "python3"
+		}
+	} else {
+		log.Printf("[OSM] Using venv python at %s", pythonBin)
+	}
+
+	scriptPath := filepath.Join(projectRoot, "osm_processing", "add_region_to_geoserver.py")
+	log.Printf("[OSM] projectRoot=%s scriptPath=%s", projectRoot, scriptPath)
+
+	args := []string{scriptPath, req.Continent, req.Country}
+	if req.Region != "" {
+		args = append(args, req.Region)
+	}
+
+	log.Printf("[OSM] Starting download: %s %v", pythonBin, args)
+
+	// Stream a startup message so the user sees what's running
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("X-Accel-Buffering", "no")
+	c.Status(http.StatusOK)
+	sendMsg := func(msgType, text string) {
+		msg, _ := json.Marshal(map[string]string{"type": msgType, "message": text})
+		fmt.Fprintf(c.Writer, "data: %s\n\n", msg)
+		c.Writer.Flush()
+	}
+	sendMsg("log", fmt.Sprintf("Python: %s", pythonBin))
+	sendMsg("log", fmt.Sprintf("Script: %s", scriptPath))
+	sendMsg("log", fmt.Sprintf("Args: %s %s %s", req.Continent, req.Country, req.Region))
+
+	cmd := exec.CommandContext(c.Request.Context(), pythonBin, args...)
+	cmd.Dir = filepath.Join(projectRoot, "osm_processing")
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		sendMsg("error", "StdoutPipe: "+err.Error())
+		return
+	}
+	cmd.Stderr = cmd.Stdout // merge stderr so all output is visible
+
+	if err := cmd.Start(); err != nil {
+		sendMsg("error", "could not start python: "+err.Error())
+		return
+	}
+
+	scanner := bufio.NewScanner(stdout)
+	for scanner.Scan() {
+		line := scanner.Text()
+		log.Printf("[OSM] %s", line)
+		msg, _ := json.Marshal(map[string]string{"type": "log", "message": line})
+		fmt.Fprintf(c.Writer, "data: %s\n\n", msg)
+		c.Writer.Flush()
+	}
+
+	if err := cmd.Wait(); err != nil {
+		msg, _ := json.Marshal(map[string]string{"type": "error", "message": err.Error()})
+		fmt.Fprintf(c.Writer, "data: %s\n\n", msg)
+	} else {
+		msg, _ := json.Marshal(map[string]string{"type": "done", "message": "Import complete"})
+		fmt.Fprintf(c.Writer, "data: %s\n\n", msg)
+	}
+	c.Writer.Flush()
 }

@@ -20,7 +20,7 @@ const sections = [
     icon: 'map',
     category: 'Map Interface',
     title: 'GIS & Map Layers',
-    desc: 'Documentation for the MapLibre GL / Deck.gl map, OSM power infrastructure layers, and GeoServer integration.',
+    desc: 'Documentation for the MapLibre GL / Deck.gl map, the right sidebar OSM Infrastructure Panel (region selection, GIS download, layer filters, mesh generator), and GeoServer integration.',
     links: [
       { label: 'Map Interface', href: `${MKDOCS}/map/map-interface/` },
       { label: 'OSM Layers', href: `${MKDOCS}/map/osm-layers/` },
@@ -28,12 +28,24 @@ const sections = [
     ],
   },
   {
+    icon: 'download',
+    category: 'GIS Data',
+    title: 'Download & Import Map Data',
+    desc: 'Download OSM power infrastructure for any country or region directly from the app. Select continent → country → region in the Creation map right sidebar, click Download & Import, and watch the pipeline stream live.',
+    links: [
+      { label: 'Downloading GIS Data', href: `${MKDOCS}/osm-processing/downloading-data/` },
+      { label: 'GeoServer Setup', href: `${MKDOCS}/map/geoserver/` },
+      { label: 'OSM Layers', href: `${MKDOCS}/map/osm-layers/` },
+    ],
+  },
+  {
     icon: 'account_tree',
     category: 'OSM Processing',
     title: 'Data Pipelines',
-    desc: 'Python scripts to download Geofabrik PBF extracts, process power infrastructure, and load regional data into PostGIS.',
+    desc: 'Python scripts that power the download pipeline: Geofabrik PBF download, osmium extraction, PostGIS import, and GeoServer publishing. Also available as CLI tools for batch or headless use.',
     links: [
       { label: 'OSM Processing Overview', href: `${MKDOCS}/osm-processing/` },
+      { label: 'Extracting Data', href: `${MKDOCS}/osm-processing/extracting-data/` },
     ],
   },
   {

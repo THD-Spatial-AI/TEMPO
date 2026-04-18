@@ -46,14 +46,14 @@ export const ImageComparison = ({
       {/* Before image — base layer (bottom) */}
       <img
         src={afterImage}
-        alt={altBefore}
+        alt={altAfter}
         className="absolute inset-0 h-full w-full object-cover object-left-top"
         draggable="false"
       />
 
       {/* Before label */}
       <div className="absolute top-4 right-4 bg-white text-black border border-neutral-200 px-3 py-1 font-black uppercase text-[9px] tracking-widest pointer-events-none z-10">
-        {altBefore}
+        {altAfter}
       </div>
 
       {/* After image — clipped on the left (top) */}
@@ -63,13 +63,13 @@ export const ImageComparison = ({
       >
         <img
           src={beforeImage}
-          alt={altAfter}
+          alt={altBefore}
           className="h-full w-full object-cover object-left-top"
           draggable="false"
         />
         {/* After label */}
         <div className="absolute top-4 left-4 bg-black text-white px-3 py-1 font-black uppercase text-[9px] tracking-widest pointer-events-none">
-          {altAfter}
+          {altBefore}
         </div>
       </div>
 
