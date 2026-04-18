@@ -67,11 +67,15 @@ npm install
 
 ```bash
 cd backend-go
-go build -o backend.exe .
-./backend.exe --port 8082 --db ./calliope.db
+go run .
 ```
 
-Leave this running in a separate terminal.
+The backend starts on port 8082. Leave this terminal running. If port 8082 is already in use, find and kill the old process:
+
+```powershell
+netstat -ano | findstr ":8082"
+taskkill /PID <pid> /F
+```
 
 ### Start the frontend
 
@@ -88,6 +92,52 @@ To run both Vite and Electron together:
 ```bash
 npm run dev:electron
 ```
+
+---
+
+## OSM Processing environment (`.venv-calliope`)
+
+The **Download GIS Data** feature and the OSM processing CLI scripts run inside a dedicated Python virtual environment at `.venv-calliope/` in the project root. The Go backend always uses this venv automatically.
+
+Set it up once:
+
+```powershell
+# Create the venv
+python -m venv .venv-calliope
+
+# Activate it
+.\.venv-calliope\Scripts\Activate.ps1
+
+# Install Calliope + OSM processing dependencies
+pip install calliope
+pip install -r osm_processing/requirements.txt
+```
+
+You can also use the provided setup script:
+
+```powershell
+python setup_calliope_venv.py
+```
+
+---
+
+## GeoServer & PostGIS (for map data)
+
+The OSM infrastructure map layers are served from a local GeoServer instance backed by PostGIS. Both run in Docker:
+
+```powershell
+# Pull and configure containers (run once)
+cd scripts
+.\setup_geoserver_docker.ps1
+
+# Start containers for a session
+docker start calliope-postgis calliope-geoserver
+```
+
+GeoServer web UI: `http://localhost:8080/geoserver` (admin / geoserver)  
+The Go backend connects to GeoServer on port 8081 (configured in `backend-go/config.yaml`).
+
+Once the stack is running, use the **Download GIS Data** panel in the Creation view to load any country or region — no terminal required.
 
 ---
 

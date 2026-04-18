@@ -136,6 +136,29 @@ export const api = {
     return response.json();
   },
 
+  // Returns the full Geofabrik regions database (countries + sub-regions).
+  async getRegionsDatabase() {
+    const response = await fetch(`${BACKEND_URL}/api/osm/regions-db`);
+    if (!response.ok) throw new Error('Could not load regions database');
+    return response.json();
+  },
+
+  // Start an OSM download via the Python pipeline.
+  // Returns an EventSource-compatible URL (or call downloadOSMRegionStream for SSE).
+  // continent: "Europe", country: "Germany", region: "Bayern" (optional)
+  downloadOSMRegionStream(continent, country, region = '') {
+    const url = new URL(`${BACKEND_URL || window.location.origin}/api/osm/download`);
+    // SSE streams are GET by convention, but our endpoint is POST.
+    // We'll use fetch + ReadableStream from the caller.
+    // This method just returns a promise that resolves the response.
+    const body = JSON.stringify({ continent, country, region: region || '' });
+    return fetch(`${BACKEND_URL}/api/osm/download`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+    });
+  },
+
   // Geocode a free-text query via Nominatim (proxied through the backend).
   // Returns an array of Nominatim result objects:
   //   { display_name, lat, lon, boundingbox: [lat_min, lat_max, lon_min, lon_max], ... }

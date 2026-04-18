@@ -8,28 +8,60 @@ The map can display real power infrastructure data from OpenStreetMap — substa
 
 Infrastructure features are fetched in two ways depending on your setup:
 
-1. **Live via Overpass API** (default, no setup needed): the Go backend queries the public [Overpass API](https://overpass-api.de/) on demand when you navigate to a region or select a geographic area. Data reflects the current state of OpenStreetMap.
+1. **Live via Overpass API** (default, no setup needed): the Go backend queries the public [Overpass API](https://overpass-api.de/) on demand when you navigate to a region. Data reflects the current state of OpenStreetMap.
 
-2. **From a local GeoServer instance** (optional): pre-processed vector tile layers served from PostGIS. This is faster and works offline. See [GeoServer Setup](geoserver.md).
+2. **From a local GeoServer instance** (recommended): pre-processed vector tile layers served from PostGIS. Faster, works offline, and scales to country-level or larger areas. See [GeoServer Setup](geoserver.md).
 
 ---
 
-## Loading infrastructure for a region
+## The OSM Infrastructure Panel
 
-1. Open the **OSM Infrastructure Panel** from the toolbar or sidebar.
-2. In the **Region Selector**, search for a country, state, or city by name. The application uses the Nominatim geocoding service to resolve the name to a bounding box.
-3. Select the layers to load: substations, power plants, power lines, administrative boundaries.
-4. Click **Load**. Progress is shown while the backend fetches data from Overpass.
+All OSM-related controls live in the **right sidebar** of the Creation view. The panel has three sections:
 
-!!! note "Large areas"
-    Querying very large areas (e.g. entire countries) can take 30–60 seconds on the public Overpass API and may return very large GeoJSON payloads. For country-scale analysis, use the local GeoServer approach.
+### 1. Select Region (stepper)
+
+A cascading stepper that narrows the geographic focus:
+
+- **Step 1 — Continent** — e.g. Europe
+- **Step 2 — Country** — e.g. Spain
+- **Step 3 — Region** — e.g. Asturias *(if available in your loaded data)*
+- **Step 4 — Sub-region** — e.g. Oviedo *(if available)*
+
+Selecting each level zooms the map and loads the corresponding infrastructure layers from GeoServer or Overpass. Use **Clear All** to reset the selection.
+
+### 2. Download GIS Data
+
+A collapsible section for downloading new regions directly from within the app. Click the header to expand it.
+
+1. Select **Continent → Country → Region** (region is optional — leave blank for whole country).
+2. Click **Download & Import**.
+3. The log terminal streams pipeline output. When it finishes, the new region is immediately available in the stepper above.
+
+See [Downloading GIS Data](../osm-processing/downloading-data.md) for prerequisites and advanced options.
+
+### 3. Infrastructure Layers
+
+Toggle and filter the layers shown on the map:
+
+- **Power Lines** — filter by voltage range (kV).
+- **Power Plants** — filter by energy source (solar, wind, hydro…) and minimum capacity (MW).
+- **Substations** — filter by substation type and voltage range.
+- **Region Boundaries** — administrative boundary polygons for the selected region.
+
+### 4. Power Mesh Generator
+
+Generates a simplified network graph from the loaded power line layer. Use **Generate Mesh Network** to create nodes at line junctions and endpoints. The mesh can be:
+
+- Imported as model **Locations & Links** with one click.
+- Exported as JSON.
+- Toggled on/off or cleared.
 
 ---
 
 ## Available layers
 
 ### Substations
-Power substations extracted from OSM `power=substation` nodes and areas. Each substation is shown as a marker colour-coded by voltage:
+Power substations from OSM `power=substation`. Colour-coded by voltage:
 
 | Colour | Voltage |
 |---|---|
@@ -38,13 +70,13 @@ Power substations extracted from OSM `power=substation` nodes and areas. Each su
 | Yellow | < 110 kV |
 
 ### Power plants
-Shown as markers with the plant type encoded in the icon. OSM `power=plant` relations and nodes.
+Markers with type-encoded icons. From OSM `power=plant`.
 
 ### Power lines
-High-voltage transmission lines from OSM `power=line` ways. Colour-coded by voltage class (230 kV, 380 kV, 500 kV, etc.).
+High-voltage transmission lines from OSM `power=line`. Colour-coded by voltage class.
 
 ### Administrative boundaries
-Country, state, and district boundaries provided as polygon overlays for spatial reference.
+Country, state, and district boundaries as polygon overlays.
 
 ---
 
@@ -52,8 +84,9 @@ Country, state, and district boundaries provided as polygon overlays for spatial
 
 The infrastructure overlay is a reference layer — it does not automatically create model locations. Use it to:
 
-- Identify where large substations or power plants are located and place your model nodes accordingly.
-- Verify that transmission links in your model roughly correspond to real lines.
-- Estimate available land area for renewable generation.
+- Find where major substations or power plants are located and place your model nodes there.
+- Verify that transmission links in your model match real lines.
+- Estimate available land area for renewables.
 
-Right-click a substation or power plant marker to create a model **Location** at that coordinate.
+Use the **Power Mesh Generator** to automatically extract a network topology from the power line layer and import it as model locations and links.
+
