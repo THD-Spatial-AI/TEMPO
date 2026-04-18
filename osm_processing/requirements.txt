@@ -1,5 +1,11 @@
 # OSM Data Processing Requirements
 
+# HTTP requests (Geofabrik downloads)
+requests>=2.31.0
+
+# PostgreSQL / PostGIS
+psycopg2-binary>=2.9.0
+
 # Core OSM processing library
 osmium>=3.7.0
 

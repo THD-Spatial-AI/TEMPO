@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { FiMap, FiChevronDown, FiChevronRight, FiLayers, FiX, FiMapPin, FiGlobe } from 'react-icons/fi';
+import React, { useState, useEffect, useRef } from 'react';
+import { FiMap, FiChevronDown, FiChevronRight, FiLayers, FiX, FiMapPin, FiGlobe, FiDownload } from 'react-icons/fi';
 import RegionSelectionStepper from './RegionSelectionStepper';
 import { api } from '../services/api';
 import { useData } from '../context/DataContext';
@@ -29,6 +29,20 @@ const OsmInfrastructurePanel = ({
   
   const [regionsDatabase, setRegionsDatabase] = useState(null);
   const [loading, setLoading] = useState(false);
+  
+  // --- Download GIS Data section state ---
+  const [showDownload, setShowDownload] = useState(false);
+  const [geoRegionsDB, setGeoRegionsDB] = useState(null);
+  const [geoDBLoading, setGeoDBLoading] = useState(false);
+  const [dlContinent, setDlContinent] = useState('');
+  const [dlCountry, setDlCountry] = useState('');
+  const [dlRegion, setDlRegion] = useState('');
+  const [dlCountries, setDlCountries] = useState([]);
+  const [dlRegions, setDlRegions] = useState([]);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadLogs, setDownloadLogs] = useState([]);
+  const downloadAbortRef = useRef(null);
+  const logsEndRef = useRef(null);
   
   // Expanded state for each layer's filters
   const [expandedFilters, setExpandedFilters] = useState({
@@ -335,6 +349,131 @@ const OsmInfrastructurePanel = ({
     setAvailableCommunes([]);
   };
 
+  // --- Download GIS Data helpers ---
+  const loadGeoRegionsDB = async () => {
+    if (geoRegionsDB) return;
+    setGeoDBLoading(true);
+    try {
+      const raw = await api.getRegionsDatabase();
+
+      // Map country_only_continents keys → display continent names
+      const continentKeyMap = {
+        'Africa': 'Africa',
+        'Asia_Country_Only': 'Asia',
+        'South_America_Country_Only': 'South America',
+        'Central_America_Country_Only': 'Central America',
+        'Europe_Country_Only': 'Europe',
+        'Australia_Oceania_Country_Only': 'Australia-Oceania',
+      };
+      const normName = s => s.replace(/_/g, ' ');
+
+      const transformed = { continents: {} };
+
+      // 1. Countries that have sub-regions (Germany, France, US, etc.)
+      Object.entries(raw.countries || {}).forEach(([country, data]) => {
+        const continent = data.continent || 'Other';
+        if (!transformed.continents[continent]) {
+          transformed.continents[continent] = { countries: {} };
+        }
+        transformed.continents[continent].countries[country] = {
+          regions: (data.regions || []).map(r => r.name),
+        };
+      });
+
+      // 2. Country-only groups (no regional subdivisions)
+      Object.entries(raw.country_only_continents || {}).forEach(([key, group]) => {
+        const continent = continentKeyMap[key] || normName(key.replace(/_Country_Only$/i, ''));
+        if (!transformed.continents[continent]) {
+          transformed.continents[continent] = { countries: {} };
+        }
+        (group.countries || []).forEach(country => {
+          if (!transformed.continents[continent].countries[country]) {
+            transformed.continents[continent].countries[country] = { regions: [] };
+          }
+        });
+      });
+
+      setGeoRegionsDB(transformed);
+    } catch (e) {
+      console.error('Failed to load regions DB:', e);
+      setGeoRegionsDB({ error: e.message, continents: {} });
+    }
+    setGeoDBLoading(false);
+  };
+
+  const handleToggleDownload = () => {
+    const next = !showDownload;
+    setShowDownload(next);
+    if (next) loadGeoRegionsDB();
+  };
+
+  const handleDlContinentChange = (continent) => {
+    setDlContinent(continent);
+    setDlCountry('');
+    setDlRegion('');
+    setDlRegions([]);
+    if (continent && geoRegionsDB?.continents?.[continent]) {
+      setDlCountries(Object.keys(geoRegionsDB.continents[continent].countries).sort());
+    } else {
+      setDlCountries([]);
+    }
+  };
+
+  const handleDlCountryChange = (country) => {
+    setDlCountry(country);
+    setDlRegion('');
+    if (country && dlContinent && geoRegionsDB?.continents?.[dlContinent]?.countries?.[country]) {
+      const regionsList = geoRegionsDB.continents[dlContinent].countries[country].regions || [];
+      setDlRegions([...regionsList].sort());
+    } else {
+      setDlRegions([]);
+    }
+  };
+
+  const handleDownload = async () => {
+    if (!dlContinent || !dlCountry) return;
+    setDownloading(true);
+    setDownloadLogs([]);
+    const abort = new AbortController();
+    downloadAbortRef.current = abort;
+    try {
+      const resp = await api.downloadOSMRegionStream(dlContinent, dlCountry, dlRegion || '');
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const parsed = JSON.parse(line.slice(6));
+              setDownloadLogs(prev => [...prev, parsed]);
+              setTimeout(() => logsEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+            } catch { /* ignore malformed lines */ }
+          }
+        }
+      }
+      setDownloadLogs(prev => [...prev, { type: 'success', message: 'Download complete. Refreshing region list...' }]);
+      loadRegionsDatabase();
+    } catch (e) {
+      if (e.name !== 'AbortError') {
+        setDownloadLogs(prev => [...prev, { type: 'error', message: e.message }]);
+      }
+    }
+    setDownloading(false);
+    downloadAbortRef.current = null;
+  };
+
+  const handleCancelDownload = () => {
+    if (downloadAbortRef.current) downloadAbortRef.current.abort();
+    setDownloading(false);
+    setDownloadLogs(prev => [...prev, { type: 'warn', message: 'Download cancelled.' }]);
+  };
+
   return (
     <div className="flex flex-col h-full w-full bg-white border-l border-slate-200 shadow-lg">
       {/* Header */}
@@ -440,6 +579,134 @@ const OsmInfrastructurePanel = ({
 
           {/* Infrastructure Layers with Integrated Filters */}
           <div className="p-4 border-b border-slate-200">
+            {/* Download GIS Data collapsible section header */}
+            <button
+              onClick={handleToggleDownload}
+              className="w-full flex items-center justify-between mb-4 group"
+            >
+              <div className="flex items-center gap-2">
+                <FiDownload className="text-slate-600" size={16} />
+                <h3 className="text-lg font-semibold text-slate-800">Download GIS Data</h3>
+              </div>
+              {showDownload ? <FiChevronDown size={16} className="text-slate-500" /> : <FiChevronRight size={16} className="text-slate-500" />}
+            </button>
+
+            {showDownload && (
+              <div className="mb-6 space-y-3">
+                {geoDBLoading ? (
+                  <div className="text-center py-4">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-600 mx-auto"></div>
+                    <p className="text-xs text-slate-500 mt-2">Loading available regions...</p>
+                  </div>
+                ) : geoRegionsDB?.error ? (
+                  <div className="text-center py-4 space-y-2">
+                    <p className="text-xs text-red-500">Failed to load: {geoRegionsDB.error}</p>
+                    <button
+                      onClick={() => { setGeoRegionsDB(null); loadGeoRegionsDB(); }}
+                      className="text-xs text-slate-600 underline hover:text-slate-900"
+                    >Retry</button>
+                  </div>
+                ) : (
+                  <>
+                    {/* Continent selector */}
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">
+                        <FiGlobe className="inline mr-1" size={11} />Continent
+                      </label>
+                      <select
+                        value={dlContinent}
+                        onChange={e => handleDlContinentChange(e.target.value)}
+                        className="w-full px-2 py-1.5 text-sm border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-gray-400"
+                      >
+                        <option value="">Select continent...</option>
+                        {geoRegionsDB?.continents && Object.keys(geoRegionsDB.continents).sort().map(c => (
+                          <option key={c} value={c}>{c.replace(/_/g, ' ')}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Country selector */}
+                    {dlContinent && (
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">Country</label>
+                        <select
+                          value={dlCountry}
+                          onChange={e => handleDlCountryChange(e.target.value)}
+                          className="w-full px-2 py-1.5 text-sm border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-gray-400"
+                        >
+                          <option value="">Select country...</option>
+                          {dlCountries.map(c => (
+                            <option key={c} value={c}>{c.replace(/_/g, ' ')}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {/* Region selector */}
+                    {dlCountry && dlRegions.length > 0 && (
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">
+                          Region <span className="text-slate-400 font-normal">(optional)</span>
+                        </label>
+                        <select
+                          value={dlRegion}
+                          onChange={e => setDlRegion(e.target.value)}
+                          className="w-full px-2 py-1.5 text-sm border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-gray-400"
+                        >
+                          <option value="">Whole country</option>
+                          {dlRegions.map(r => (
+                            <option key={r} value={r}>{r.replace(/_/g, ' ')}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {/* Action buttons */}
+                    <div className="flex gap-2 pt-1">
+                      {!downloading ? (
+                        <button
+                          onClick={handleDownload}
+                          disabled={!dlContinent || !dlCountry}
+                          className="flex-1 px-3 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-xs font-medium flex items-center justify-center gap-1.5"
+                        >
+                          <FiDownload size={13} />
+                          Download &amp; Import
+                        </button>
+                      ) : (
+                        <button
+                          onClick={handleCancelDownload}
+                          className="flex-1 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-xs font-medium flex items-center justify-center gap-1.5"
+                        >
+                          <FiX size={13} />
+                          Cancel
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Log output */}
+                    {downloadLogs.length > 0 && (
+                      <div className="bg-slate-900 rounded-lg p-3 max-h-48 overflow-y-auto font-mono text-xs">
+                        {downloadLogs.map((log, i) => (
+                          <div
+                            key={i}
+                            className={
+                              log.type === 'error' ? 'text-red-400' :
+                              log.type === 'success' ? 'text-green-400' :
+                              log.type === 'warn' ? 'text-yellow-400' :
+                              'text-slate-300'
+                            }
+                          >
+                            {log.message}
+                          </div>
+                        ))}
+                        <div ref={logsEndRef} />
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
             <h3 className="text-lg font-semibold text-slate-800 mb-4">
               Infrastructure Layers
             </h3>

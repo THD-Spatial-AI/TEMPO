@@ -12,7 +12,8 @@ The map is the central hub of TEMPO. It shows your model topology overlaid on a 
 | **Location markers** | Circular icons representing model nodes |
 | **Link lines** | Straight lines connecting location markers |
 | **Infrastructure layers** | Optional OSM power infrastructure overlays |
-| **Toolbar** | Top-right panel with layer toggles and zoom controls |
+| **Left sidebar** | Model editor: locations, links, technologies, parameters |
+| **Right sidebar** | OSM Infrastructure Panel (region selection, data download, layer filters, mesh generator) |
 
 ---
 
@@ -30,14 +31,28 @@ The map is the central hub of TEMPO. It shows your model topology overlaid on a 
 
 ---
 
-## Toolbar controls
+## Right sidebar — OSM Infrastructure Panel
 
-The map toolbar (top-right) contains:
+The right sidebar is always visible in the Creation view. Click the collapse arrow (chevron) to minimise it to icon-only mode.
 
-- **Fit to model** — zooms and pans to show all locations in the current model.
-- **Layer toggles** — show or hide: location markers, link lines, OSM substations, OSM power plants, OSM power lines, administrative boundaries.
-- **Basemap switcher** — toggle between OpenStreetMap and satellite imagery.
-- **3D toggle** — enables Deck.gl 3D rendering mode for the infrastructure layers.
+The panel contains four sections from top to bottom:
+
+### Select Region
+A step-by-step region selector (Continent → Country → Region → Sub-region). Each selection zooms the map and loads the corresponding infrastructure data. Use **Clear All** to reset.
+
+### Download GIS Data
+Expand this section to download a new country or region directly into your local GeoServer. Requires Docker containers to be running. Streams live log output from the Python pipeline. See [Downloading GIS Data](../osm-processing/downloading-data.md).
+
+### Infrastructure Layers
+Toggle visibility and apply filters for each layer:
+
+- **Power Lines** — voltage range slider (kV)
+- **Power Plants** — energy source checkboxes, minimum capacity (MW)
+- **Substations** — substation type checkboxes, voltage range slider
+- **Region Boundaries** — on/off toggle
+
+### Power Mesh Generator
+Generates a simplified network graph from the visible power line layer. Click **Generate Mesh Network** to build nodes at line intersections, then optionally import the result as model Locations & Links or export it as JSON.
 
 ---
 
@@ -70,3 +85,4 @@ When 3D mode is enabled, OSM infrastructure features are rendered with height ex
 - **Power lines**: rendered as 3D arcs, colour-coded by voltage class.
 
 3D mode requires a reasonably capable GPU. On integrated graphics it is recommended only for small geographic areas.
+
