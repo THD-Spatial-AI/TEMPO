@@ -12,8 +12,8 @@ import LogoREDRES from '../public/img/REDRES.png'
 import LogoH2V from '../public/img/H2V.png'
 import LogoTHD from '../public/img/THD.svg'
 
-const GITHUB = 'https://github.com/TH-Deggendorf/TEMPO'
-const RELEASES = 'https://github.com/TH-Deggendorf/TEMPO/releases'
+const GITHUB = 'https://github.com/THD-Spatial-AI/TEMPO'
+const RELEASES = 'https://github.com/THD-Spatial-AI/TEMPO/releases'
 
 const DOWNLOADS = [
   {
@@ -102,7 +102,7 @@ export default function Home() {
           subtitle="A local-first planning platform powered by Calliope. Design, optimize, and visualize complex regional energy systems through a high-precision no-code interface."
           downloads={DOWNLOADS}
           contacts={CONTACTS}
-          institution={{ logo: LogoTHD, name: 'TH Deggendorf', group: 'GeoSpatialAI Research Group' }}
+          institution={{ logo: LogoTHD, name: 'TH Deggendorf', group: 'BigGeoData & Spatial AI Research Group' }}
           partners={[
             { logo: LogoH2IN, name: 'H2.in' },
             { logo: LogoREDRES, name: 'RED-RES-H2' },

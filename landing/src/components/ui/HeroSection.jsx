@@ -128,7 +128,16 @@ const HeroSection = React.forwardRef(
                 <div className="flex items-center gap-3 mb-5">
                   <span className="text-[10px] font-bold tracking-[0.3em] uppercase text-muted-foreground whitespace-nowrap">Developed at</span>
                   {institution.logo
-                    ? <img src={institution.logo} alt={institution.name} className="h-12 w-auto object-contain" />
+                    ? (
+                      <div className="relative flex-shrink-0" style={{ width: '10rem', height: '2rem' }}>
+                        <img
+                          src={institution.logo}
+                          alt={institution.name}
+                          className="absolute left-0 w-auto object-contain"
+                          style={{ height: '10rem', top: '50%', transform: 'translateY(-50%)' }}
+                        />
+                      </div>
+                    )
                     : <span className="font-black text-sm text-foreground">{institution.name}</span>
                   }
                   {institution.group && (
