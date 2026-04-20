@@ -232,7 +232,7 @@ const Locations = () => {
   // Helper function to merge template defaults with actual model data
   const getMergedTechData = useCallback((techName, modelTechData) => {
     const template = techMap[techName];
-    if (!template) return modelTechData;
+    if (!template) return modelTechData || { essentials: {}, constraints: {}, costs: {} };
     
     // Start with template data
     const merged = {
@@ -989,9 +989,9 @@ const Locations = () => {
                                 )}
 
                                 {/* If no data sections exist */}
-                                {(!techData.essentials || Object.keys(techData.essentials).length === 0) &&
-                                 (!techData.constraints || Object.keys(techData.constraints).length === 0) &&
-                                 (!techData.costs || Object.keys(techData.costs).length === 0) && (
+                                {(!mergedTechData.essentials || Object.keys(mergedTechData.essentials).length === 0) &&
+                                 (!mergedTechData.constraints || Object.keys(mergedTechData.constraints).length === 0) &&
+                                 (!mergedTechData.costs || Object.keys(mergedTechData.costs).length === 0) && (
                                   <p className="text-xs text-slate-500 italic">No configuration data available for this technology.</p>
                                 )}
                               </div>

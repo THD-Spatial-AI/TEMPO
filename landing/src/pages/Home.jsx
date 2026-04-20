@@ -5,6 +5,10 @@ import logo from '../public/img/Logo_TEMPO.PNG'
 import Hero from '../public/img/Hero.png'
 import BeforeImg from '../public/img/Old.png'
 import AfterImg from '../public/img/New.png'
+import LogoH2IN from '../public/img/H2IN.jpg'
+import LogoREDRES from '../public/img/REDRES.png'
+import LogoH2V from '../public/img/H2V.png'
+import LogoTHD from '../public/img/THD.svg'
 
 const GITHUB = 'https://github.com/TH-Deggendorf/TEMPO'
 const RELEASES = 'https://github.com/TH-Deggendorf/TEMPO/releases'
@@ -12,13 +16,13 @@ const RELEASES = 'https://github.com/TH-Deggendorf/TEMPO/releases'
 const DOWNLOADS = [
   {
     label: 'Download for Windows',
-    sub: 'v1.0.4 · .exe · 124 MB',
+    sub: 'v1.0.0 · .exe · 124 MB',
     icon: 'desktop_windows',
     href: `${RELEASES}/latest/download/TEMPO-Setup-1.0.4.exe`,
   },
   {
     label: 'Download for Linux',
-    sub: 'v1.0.4 · .AppImage · 118 MB',
+    sub: 'v1.0.0 · .AppImage · 118 MB',
     icon: 'terminal',
     href: `${RELEASES}/latest/download/TEMPO-1.0.4.AppImage`,
   },
@@ -96,6 +100,12 @@ export default function Home() {
           subtitle="A local-first planning platform powered by Calliope. Design, optimize, and visualize complex regional energy systems through a high-precision no-code interface."
           downloads={DOWNLOADS}
           contacts={CONTACTS}
+          institution={{ logo: LogoTHD, name: 'TH Deggendorf', group: 'GeoSpatialAI Research Group' }}
+          partners={[
+            { logo: LogoH2IN, name: 'H2.in' },
+            { logo: LogoREDRES, name: 'RED-RES-H2' },
+            { logo: LogoH2V, name: 'H2V+' },
+          ]}
           backgroundImage={Hero}
         />
 
@@ -178,7 +188,7 @@ export default function Home() {
                 </h2>
                 <p className="text-[0.9375rem] text-neutral-500 leading-relaxed mb-6">
                   TEMPO was created at the <strong className="text-black">Technische Hochschule Deggendorf</strong> (THD)
-                  by the <strong className="text-black">THD-Spatial AI</strong> research group. The project bridges
+                  by the <strong className="text-black">Research Group for BigGeoData & Spatial AI</strong> research group. The project bridges
                   geospatial science and energy systems engineering — combining open geographic data from
                   OpenStreetMap with the rigorous optimization framework Calliope to support regional energy transition planning.
                 </p>
@@ -190,11 +200,11 @@ export default function Home() {
                 <div className="border-l-4 border-black pl-8 space-y-3">
                   {[
                     { label: 'Institution', value: 'Technische Hochschule Deggendorf (THD)' },
-                    { label: 'Research Group', value: 'THD-Spatial AI' },
+                    { label: 'Research Group', value: 'Research Group for BigGeoData & Spatial AI' },
                     { label: 'Location', value: 'Deggendorf, Bavaria, Germany' },
                     { label: 'Website', value: 'www.th-deg.de', href: 'https://www.th-deg.de' },
                     { label: 'License', value: 'MIT — Open Source' },
-                    { label: 'First Release', value: '2025' },
+                    { label: 'First Release', value: '2026' },
                   ].map((row) => (
                     <div key={row.label} className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-4">
                       <span className="font-bold text-[10px] uppercase tracking-widest text-neutral-400 min-w-[110px] flex-shrink-0">
@@ -229,6 +239,147 @@ export default function Home() {
                     <p className="text-[11px] text-neutral-400 mt-1">{stat.sub}</p>
                   </div>
                 ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Projects & Partners */}
+        <section className="py-24 px-8 bg-neutral-50 border-y border-neutral-200" id="projects">
+          <div className="max-w-7xl mx-auto">
+            <div className="mb-16">
+              <span className="font-bold text-[10px] tracking-[0.4em] uppercase text-neutral-400 mb-2 block">
+                Research &amp; Industry Projects
+              </span>
+              <h2 className="text-4xl md:text-5xl font-black tracking-tighter uppercase leading-none mb-4">
+                Built for Real Projects
+              </h2>
+              <p className="text-lg text-neutral-500 max-w-3xl">
+                TEMPO was developed at <strong className="text-black">Technische Hochschule Deggendorf</strong> within the <strong className="text-black">Research Group for BigGeoData & Spatial AI</strong>. It is the modelling backbone for several funded research and industry
+                projects focused on regional hydrogen economies and renewable energy planning.
+              </p>
+            </div>
+
+            {/* Project cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
+
+              {/* H2.in */}
+              <div className="bg-white border border-neutral-200 p-8 flex flex-col gap-5">
+                <div className="h-16 flex items-center">
+                  <img src={LogoH2IN} alt="H2.in project logo" className="h-12 w-auto object-contain" style={{ mixBlendMode: 'multiply' }} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black tracking-tight uppercase mb-2">H2 In</h3>
+                  <p className="text-sm text-neutral-500 leading-relaxed">
+                    This is a multidisciplinary research project focused on the multidimensional 
+                    and comprehensive study of the green hydrogen value chain, 
+                    supporting decision-making regarding the technologies that can be used at 
+                    each stage of the value chain, providing public policy recommendations on this topic, 
+                    and developing advanced human capital in this field with international support and 
+                    collaborative networks in Germany.
+
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2 mt-auto">
+                  {['Hydrogen', 'Chile', 'Infrastructure'].map(t => (
+                    <span key={t} className="border border-neutral-300 text-[10px] font-bold tracking-widest uppercase px-2 py-1">{t}</span>
+                  ))}
+                </div>
+                <a href="https://h2in.cl/" target="_blank" rel="noopener noreferrer"
+                      className="text-[10px] font-bold tracking-widest uppercase text-primary hover:opacity-70 transition-opacity mt-2 inline-block">
+                      www.h2in.cl →
+                    </a>
+              </div>
+
+              {/* RED-RES-H2 */}
+              <div className="bg-white border border-neutral-200 p-8 flex flex-col gap-5">
+                <div className="h-16 flex items-center">
+                  <img src={LogoREDRES} alt="RED-RES-H2 project logo" className="h-14 w-auto object-contain" style={{ mixBlendMode: 'multiply' }} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black tracking-tight uppercase mb-2">RED-RES-H2</h3>
+                  <p className="text-sm text-neutral-500 leading-relaxed">
+                    RED-RES-GH2: Reducing the risk generated by
+                    extreme droughts in the Chilean power system
+                    with optimal shares of variable renewable
+                    energy sources including green hydrogen
+                    storage
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2 mt-auto">
+                  {['Renewables', 'Sector Coupling', 'Cross-border', 'Germany', 'Chile'].map(t => (
+                    <span key={t} className="border border-neutral-300 text-[10px] font-bold tracking-widest uppercase px-2 py-1">{t}</span>
+                  ))}
+                </div>
+                <a href="https://zaf.th-deg.de/public/project/fact-sheet/363" target="_blank" rel="noopener noreferrer"
+                      className="text-[10px] font-bold tracking-widest uppercase text-primary hover:opacity-70 transition-opacity mt-2 inline-block">
+                      www.red-res-h2.cl →
+                    </a>
+              </div>
+
+              {/* H2V+ */}
+              <div className="bg-white border border-neutral-200 p-8 flex flex-col gap-5">
+                <div className="h-16 flex items-center">
+                  <img src={LogoH2V} alt="H2V+ project logo" className="h-14 w-auto object-contain" style={{ mixBlendMode: 'multiply' }} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black tracking-tight uppercase mb-2">H2V+ — Valparaíso</h3>
+                  <p className="text-sm text-neutral-500 leading-relaxed">
+                    <em>Interactive Green Hydrogen Platform in the Valparaíso Region:</em>  Driving the energy transition,
+                    promoting clean energy and sustainable solutions.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2 mt-auto">
+                  {['Chile', 'Green H₂', 'Solar'].map(t => (
+                    <span key={t} className="border border-neutral-300 text-[10px] font-bold tracking-widest uppercase px-2 py-1">{t}</span>
+                  ))}
+                </div>
+                <a href="https://hidrogenoverdevalpo.cl/" target="_blank" rel="noopener noreferrer"
+                      className="text-[10px] font-bold tracking-widest uppercase text-primary hover:opacity-70 transition-opacity mt-2 inline-block">
+                      www.hidrogenoverdevalpo.cl →
+                    </a>
+              </div>
+            </div>
+
+            {/* Developed by — institution row */}
+            <div className="border border-neutral-200 bg-white p-8">
+              <p className="text-[10px] font-bold tracking-[0.4em] uppercase text-neutral-400 mb-6">Developed by</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+
+                {/* THD */}
+                <div className="flex items-start gap-5">
+                  <img src={LogoTHD} alt="THD logo" className="h-14 w-auto object-contain shrink-0" />
+                  <div>
+                    <p className="font-black text-sm tracking-tight">Technische Hochschule Deggendorf</p>
+                    <p className="text-xs text-neutral-500 mt-1 leading-relaxed">
+                      University of Applied Sciences — Deggendorf, Bavaria, Germany.
+                      Faculty of Applied Computer Science and Applied Natural Sciences.
+                    </p>
+                    <a href="https://www.th-deg.de" target="_blank" rel="noopener noreferrer"
+                      className="text-[10px] font-bold tracking-widest uppercase text-primary hover:opacity-70 transition-opacity mt-2 inline-block">
+                      www.th-deg.de →
+                    </a>
+                  </div>
+                </div>
+
+                {/* GeoSpatialAI */}
+                <div className="flex items-start gap-5">
+                  <div className="w-16 h-16 border border-neutral-200 flex items-center justify-center bg-neutral-50 shrink-0">
+                    <span className="text-[10px] font-black tracking-tighter text-neutral-700 text-center leading-tight">GEO<br/>SPATIAL<br/>AI</span>
+                  </div>
+                  <div>
+                    <p className="font-black text-sm tracking-tight">Research Group for BigGeoData & Spatial AI of the THD</p>
+                    <p className="text-xs text-neutral-500 mt-1 leading-relaxed">
+                      Applied research group at THD focusing on spatial data science, GIS-driven energy
+                      system modelling, and AI-enhanced land-use analysis.
+                    </p>
+                    <a href="https://github.com/THD-Spatial-AI" target="_blank" rel="noopener noreferrer"
+                      className="text-[10px] font-bold tracking-widest uppercase text-primary hover:opacity-70 transition-opacity mt-2 inline-block">
+                      GitHub →
+                    </a>
+                  </div>
+                </div>
+
               </div>
             </div>
           </div>
@@ -671,7 +822,7 @@ curl "$BASE/adapt/pypsa/ccgt?instance_index=0&discount_rate=0.07"`}
                 >
                   <span className="material-symbols-outlined text-2xl mb-1">desktop_windows</span>
                   <span className="font-black uppercase text-[11px] tracking-widest">Windows</span>
-                  <span className="text-[9px] text-neutral-500 mt-0.5 uppercase">v1.0.4 .exe</span>
+                  <span className="text-[9px] text-neutral-500 mt-0.5 uppercase">v1.0.0 .exe</span>
                 </a>
                 <div className="w-px bg-black/10 hidden sm:block self-stretch"></div>
                 <a
@@ -680,7 +831,7 @@ curl "$BASE/adapt/pypsa/ccgt?instance_index=0&discount_rate=0.07"`}
                 >
                   <span className="material-symbols-outlined text-2xl mb-1">terminal</span>
                   <span className="font-black uppercase text-[11px] tracking-widest">Linux</span>
-                  <span className="text-[9px] text-neutral-500 mt-0.5 uppercase">v1.0.4 .AppImage</span>
+                  <span className="text-[9px] text-neutral-500 mt-0.5 uppercase">v1.0.0 .AppImage</span>
                 </a>
               </div>
               <p className="text-[10px] uppercase tracking-widest text-neutral-400">

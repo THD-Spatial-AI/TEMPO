@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
-import { FiFolder, FiTrash2, FiEdit2, FiCheck, FiX, FiPlus, FiDownload, FiUpload, FiMap, FiZap, FiInfo, FiEye, FiChevronDown, FiChevronRight, FiCpu, FiDatabase, FiActivity, FiLayers, FiUploadCloud } from 'react-icons/fi';
+import { FiFolder, FiTrash2, FiEdit2, FiCheck, FiX, FiPlus, FiDownload, FiUpload, FiMap, FiZap, FiInfo, FiEye, FiChevronDown, FiChevronRight, FiCpu, FiDatabase, FiActivity, FiLayers, FiUploadCloud, FiPackage } from 'react-icons/fi';
 import Papa from 'papaparse';
 import { useData } from '../context/DataContext';
 import CSVUploader from './CSVUploader';
 import { fetchTemplate } from '../utils/templateFetch';
+import CalliopeYAMLImporter from './CalliopeYAMLImporter';
 
 const Models = () => {
   const { models, currentModelId, loadModel, deleteModel, renameModel, createModel, technologies, setOverrides, setScenarios, showNotification, getCurrentModel } = useData();
   const [editingId, setEditingId] = useState(null);
   const [editName, setEditName] = useState('');
   const [viewingTemplate, setViewingTemplate] = useState(null);
+  const [showYAMLImporter, setShowYAMLImporter] = useState(false);
   const [uploadingFilesForModel, setUploadingFilesForModel] = useState(null);
   const [updateFiles, setUpdateFiles] = useState({
     locations: null,
@@ -1438,6 +1440,13 @@ const Models = () => {
           </div>
           <div className="flex gap-3">
             <button
+              onClick={() => setShowYAMLImporter(true)}
+              className="px-4 py-2 bg-blue-700 text-white rounded-lg hover:bg-blue-800 transition-all shadow-md flex items-center gap-2 font-semibold"
+            >
+              <FiPackage size={18} />
+              Import Calliope YAML
+            </button>
+            <button
               onClick={() => setShowCSVWizard(true)}
               className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-all shadow-md flex items-center gap-2 font-semibold"
             >
@@ -1447,6 +1456,20 @@ const Models = () => {
           </div>
         </div>
       </div>
+
+      {/* Calliope YAML Importer panel */}
+      {showYAMLImporter && (
+        <div className="mb-6">
+          <CalliopeYAMLImporter
+            onClose={() => setShowYAMLImporter(false)}
+            onImport={(name, locations, links, parameters, technologies, timeSeries, metadata, overrides, scenarios) => {
+              createModel(name, locations, links, parameters, technologies, timeSeries, metadata, overrides, scenarios);
+              showNotification(`Calliope model "${name}" imported successfully!`, 'success');
+              setShowYAMLImporter(false);
+            }}
+          />
+        </div>
+      )}
 
       {/* CSV Templates Info Banner */}
       <div className="mb-6 bg-gradient-to-r from-gray-500 to-gray-700 text-white rounded-xl p-6 shadow-lg">

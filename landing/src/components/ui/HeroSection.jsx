@@ -37,7 +37,7 @@ const InfoIcon = ({ type }) => {
 };
 
 const HeroSection = React.forwardRef(
-  ({ className, logo, slogan, title, subtitle, downloads = [], contacts = [], backgroundImage, ...props }, ref) => {
+  ({ className, logo, slogan, title, subtitle, downloads = [], contacts = [], institution, partners = [], backgroundImage, ...props }, ref) => {
 
     const containerVariants = {
       hidden: { opacity: 0 },
@@ -121,9 +121,40 @@ const HeroSection = React.forwardRef(
             </motion.main>
           </div>
 
+          {/* Institution + Partners strip */}
+          {(institution || partners.length > 0) && (
+            <motion.div className="mt-10 pt-8 border-t border-foreground/10" variants={itemVariants}>
+              {institution && (
+                <div className="flex items-center gap-3 mb-5">
+                  <span className="text-[10px] font-bold tracking-[0.3em] uppercase text-muted-foreground whitespace-nowrap">Developed at</span>
+                  {institution.logo
+                    ? <img src={institution.logo} alt={institution.name} className="h-12 w-auto object-contain" />
+                    : <span className="font-black text-sm text-foreground">{institution.name}</span>
+                  }
+                  {institution.group && (
+                    <span className="text-[11px] text-muted-foreground border-l border-foreground/20 pl-3">{institution.group}</span>
+                  )}
+                </div>
+              )}
+              {partners.length > 0 && (
+                <div className="flex items-center gap-4 flex-wrap">
+                  <span className="text-[10px] font-bold tracking-[0.3em] uppercase text-muted-foreground whitespace-nowrap">Part of</span>
+                  {partners.map((p) => (
+                    <div key={p.name} className="flex items-center gap-2">
+                      {p.logo
+                        ? <img src={p.logo} alt={p.name} className="h-10 w-auto object-contain" style={{ mixBlendMode: 'multiply' }} />
+                        : <span className="text-xs font-bold text-foreground">{p.name}</span>
+                      }
+                    </div>
+                  ))}
+                </div>
+              )}
+            </motion.div>
+          )}
+
           {/* Bottom Section: Contact links */}
           {contacts.length > 0 && (
-            <motion.footer className="mt-12 w-full" variants={itemVariants}>
+            <motion.footer className="mt-8 w-full" variants={itemVariants}>
               <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
                 {contacts.map((c) => (
                   <a
