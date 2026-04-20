@@ -115,9 +115,23 @@ def log(msg):
 # ---------------------------------------------------------------------------
 
 def convert_value(val):
-    """Convert JS 'inf' / '.inf' strings to Python float."""
-    if isinstance(val, str) and val.lower() in ('inf', '.inf'):
-        return float('inf')
+    """Convert JS 'inf' / '.inf' strings or sanitized-infinity numbers to Python float.
+
+    The browser's sanitizeInfinity() converts JS Infinity → 1e15 and -Infinity → -1e15
+    so that JSON serialisation doesn't turn them into null.  Detect that convention here
+    and restore the proper Python float so that later inf-checks work correctly.
+    """
+    if isinstance(val, str):
+        if val.lower() in ('inf', '.inf'):
+            return float('inf')
+        if val.lower() in ('-inf', '-.inf'):
+            return float('-inf')
+    # Sanitized-infinity sentinel: JS uses ±1e15; anything >= 1e14 is effectively unlimited.
+    if isinstance(val, (int, float)) and not isinstance(val, bool):
+        if val >= 1e14:
+            return float('inf')
+        if val <= -1e14:
+            return float('-inf')
     return val
 
 
@@ -300,7 +314,10 @@ def build_techs_config(technologies):
             # Keep 'parent' first for readability
             ess = {'parent': essentials.get('parent', tech.get('parent', 'supply'))}
             for k, v in essentials.items():
-                if k != 'parent':
+                if k != 'parent' and v is not None:
+                    # Skip null/None values — they would appear as 'carrier_in: null' in the
+                    # generated YAML which confuses Calliope's strict tech-type validation
+                    # (especially for transmission techs where only 'carrier' is expected).
                     ess[k] = v
             cfg['essentials'] = ess
         else:
@@ -726,9 +743,14 @@ def _write_scalar_demand_timeseries(techs, locs_cfg, loc_tech_assign,
             if not loc_has_tech:
                 continue
             loc_techs = locs_cfg[loc_key].setdefault('techs', {})
-            if loc_techs.get(tid) is None:
+            t_entry = loc_techs.get(tid)
+            existing_res = (t_entry or {}).get('constraints', {}).get('resource', '')
+            if isinstance(existing_res, str) and existing_res.startswith('file='):
+                injected_count += 1  # already has a file= resource — keep it
+                continue
+            if t_entry is None:
                 loc_techs[tid] = {}
-            if isinstance(loc_techs[tid], dict):
+            if isinstance(loc_techs.get(tid), dict):
                 loc_techs[tid].setdefault('constraints', {})['resource'] = resource_ref
             else:
                 loc_techs[tid] = {'constraints': {'resource': resource_ref}}
@@ -740,6 +762,12 @@ def _write_scalar_demand_timeseries(techs, locs_cfg, loc_tech_assign,
             for loc_block in locs_cfg.values():
                 if tid in (loc_block.get('techs') or {}):
                     t_slot = loc_block['techs'][tid]
+                    # Never overwrite an existing per-location file= resource reference —
+                    # those are original timeseries from the imported model and must be kept.
+                    existing_res = (t_slot or {}).get('constraints', {}).get('resource', '')
+                    if isinstance(existing_res, str) and existing_res.startswith('file='):
+                        injected_count += 1  # count as handled, don't overwrite
+                        continue
                     if t_slot is None:
                         loc_block['techs'][tid] = {'constraints': {'resource': resource_ref}}
                     elif isinstance(t_slot, dict):

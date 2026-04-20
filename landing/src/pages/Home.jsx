@@ -1,6 +1,7 @@
 ﻿import { HeroSection } from '../components/ui/HeroSection'
 import { ImageComparison } from '../components/ui/ImageComparison'
 import { ShadowOverlay } from '../components/ui/ShadowOverlay'
+import { DottedSurface } from '../components/ui/DottedSurface'
 import Footer from '../components/Footer'
 import logo from '../public/img/Logo_TEMPO.PNG'
 import Hero from '../public/img/Hero.png'
@@ -128,7 +129,9 @@ export default function Home() {
         </section>
 
         {/* From Raw Data to Structured Model */}
-        <section className="py-32 px-8 bg-neutral-50 border-y border-neutral-200" id="comparison">
+        <section className="border-y border-neutral-200 bg-white" id="comparison">
+        <DottedSurface dotColor={0x000000} style={{ width: '100%' }}>
+          <div className="py-32 px-8">
           <div className="max-w-7xl mx-auto">
             <div className="mb-16 flex flex-col md:flex-row md:items-end justify-between gap-8">
               <div>
@@ -154,7 +157,7 @@ export default function Home() {
 
             {/* Caption row */}
             <div className="mt-0 grid grid-cols-2 border-l border-r border-b border-neutral-200">
-              <div className="px-8 py-5 border-r border-neutral-200 flex items-center gap-4">
+              <div className="px-8 py-5 border-r border-neutral-200 flex items-center gap-4 bg-white">
                 <span className="material-symbols-outlined text-lg text-neutral-400">layers</span>
                 <div>
                   <p className="font-black text-[10px] uppercase tracking-widest">Before</p>
@@ -163,7 +166,7 @@ export default function Home() {
                   </p>
                 </div>
               </div>
-              <div className="px-8 py-5 flex items-center gap-4">
+              <div className="px-8 py-5 flex items-center gap-4 bg-white">
                 <span className="material-symbols-outlined text-lg text-black">bolt</span>
                 <div>
                   <p className="font-black text-[10px] uppercase tracking-widest">After</p>
@@ -174,6 +177,8 @@ export default function Home() {
               </div>
             </div>
           </div>
+          </div>
+        </DottedSurface>
         </section>
 
         {/* About the Project */}
@@ -391,21 +396,22 @@ export default function Home() {
           {/* Animated shadow background */}
           <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
             <ShadowOverlay
-              color="rgba(200, 210, 255, 0.55)"
-              animation={{ scale: 40, speed: 20 }}
-              noise={{ opacity: 0.3, scale: 1.5 }}
+              color="rgba(0, 0, 0, 0.85)"
+              animation={{ scale: 100, speed: 90 }}
+              noise={{ opacity: 1, scale: 1.2 }}
+              sizing="fill"
               style={{ width: '100%', height: '100%' }}
             />
           </div>
           <div className="max-w-7xl mx-auto" style={{ position: 'relative', zIndex: 1 }}>
             <div className="mb-20 flex flex-col md:flex-row md:items-end justify-between gap-8">
               <div className="max-w-2xl">
-                <span className="font-bold text-[10px] tracking-[0.4em] uppercase text-neutral-400">
+                <span className="font-black text-[10px] tracking-[0.4em] uppercase text-black">
                   System Architecture
                 </span>
-                <h2 className="text-5xl font-black mt-4 tracking-tighter">Engineered for Precision.</h2>
+                <h2 className="text-5xl font-black mt-4 tracking-tighter text-black">Engineered for Precision.</h2>
               </div>
-              <p className="text-sm text-neutral-500 max-w-sm">
+              <p className="text-sm text-black max-w-sm">
                 TEMPO abstracts the complexity of mathematical modeling into a high-performance desktop environment.
               </p>
             </div>
@@ -425,7 +431,7 @@ export default function Home() {
         <section className="py-32 px-8 bg-neutral-50 border-y border-neutral-200" id="tech">
           <div className="max-w-7xl mx-auto">
             <div className="text-center mb-20">
-              <span className="font-bold text-[10px] tracking-[0.4em] uppercase text-neutral-400">
+              <span className="font-black text-[10px] tracking-[0.4em] uppercase text-neutral-400">
                 Internal Foundations
               </span>
               <h2 className="text-3xl font-black mt-4 tracking-tighter uppercase">The Modern Energy Stack</h2>
