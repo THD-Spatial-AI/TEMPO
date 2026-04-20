@@ -89,31 +89,36 @@
 </head>
 <body class="bg-surface text-primary selection:bg-primary selection:text-on-primary grid-bg">
 <!-- TopNavBar -->
-<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-8 h-16 max-w-full mx-auto bg-white/90 backdrop-blur-md border-b border-outline-variant/10 transition-colors duration-200">
-<div class="text-xl font-bold tracking-tighter text-black">TEMPO</div>
-<nav class="hidden md:flex items-center gap-8">
-<a class="font-inter tracking-tight font-semibold uppercase text-[11px] text-black border-b-2 border-black pb-1" href="#features">Features</a>
-<a class="font-inter tracking-tight font-semibold uppercase text-[11px] text-neutral-500 hover:text-black transition-colors duration-200" href="#tech">Tech Stack</a>
-<a class="font-inter tracking-tight font-semibold uppercase text-[11px] text-neutral-500 hover:text-black transition-colors duration-200" href="#docs">Documentation</a>
-</nav>
-<div class="flex items-center gap-4">
-<button class="bg-primary text-on-primary px-6 py-2 font-inter tracking-tight font-semibold uppercase text-[11px] hover:bg-neutral-800 transition-all">
-            Get Started
-        </button>
-</div>
+<header class="fixed top-0 left-0 w-full z-50 grid grid-cols-3 items-center px-8 h-16 bg-white/90 backdrop-blur-md border-b border-outline-variant/10 transition-colors duration-200">
+  <!-- Left: nav links -->
+  <nav class="hidden md:flex items-center gap-8">
+    <a class="font-inter tracking-tight font-semibold uppercase text-[11px] text-black border-b-2 border-black pb-1" href="#features">Features</a>
+    <a class="font-inter tracking-tight font-semibold uppercase text-[11px] text-neutral-500 hover:text-black transition-colors duration-200" href="#tech">Tech Stack</a>
+    <a class="font-inter tracking-tight font-semibold uppercase text-[11px] text-neutral-500 hover:text-black transition-colors duration-200" href="#docs">Documentation</a>
+  </nav>
+  <!-- Center: TEMPO brand -->
+  <div class="flex justify-center">
+    <span class="text-4xl font-black tracking-tighter uppercase" style="color: #000000; letter-spacing: -0.04em;">TEMPO</span>
+  </div>
+  <!-- Right: CTA -->
+  <div class="flex items-center justify-end gap-4">
+    <button class="bg-primary text-on-primary px-6 py-2 font-inter tracking-tight font-semibold uppercase text-[11px] hover:bg-neutral-800 transition-all">
+      Get Started
+    </button>
+  </div>
 </header>
 <main class="pt-16">
 <!-- Hero Section -->
 <section class="min-h-screen flex flex-col items-center justify-center px-8 py-24">
 <div class="max-w-5xl w-full text-center space-y-10">
 <div class="inline-flex items-center gap-2 px-3 py-1 border border-primary/10 bg-white text-[10px] font-bold uppercase tracking-widest text-primary mb-4">
-<span class="w-2 h-2 bg-black"></span> Open Source Version 1.0.4 Now Available
+<span class="w-2 h-2 bg-black"></span> Open Source Version 1.0.0 Now Available
             </div>
 <h1 class="text-[3.5rem] md:text-[5.5rem] font-black tracking-tighter leading-[0.95] text-primary">
                 Bridge GIS and Energy Optimization.
             </h1>
 <p class="text-lg md:text-xl text-on-surface-variant max-w-3xl mx-auto font-body leading-relaxed">
-                A local-first planning platform powered by Calliope. Design, optimize, and visualize complex regional energy systems through a high-precision no-code interface.
+                A local-first planning platform powered by <a href="https://callio.pe" target="_blank" rel="noopener noreferrer" class="underline underline-offset-2 hover:opacity-70 transition-opacity">Calliope</a><sup class="text-[9px] ml-0.5">&#91;1&#93;</sup>. Design, optimize, and visualize complex regional energy systems through a high-precision no-code interface.
             </p>
 <!-- Dual Download Path -->
 <div class="pt-6 flex flex-col items-center gap-8">
@@ -208,7 +213,7 @@
 <div class="p-12 bg-white hover:bg-neutral-50 transition-colors group">
 <span class="material-symbols-outlined text-2xl mb-8 text-black" data-icon="account_tree">account_tree</span>
 <h4 class="text-sm font-bold mb-4 uppercase tracking-widest">Model Builder</h4>
-<p class="text-[13px] text-neutral-500 leading-relaxed font-body">Node-based canvas for architecting energy networks with direct translation to Calliope YAML schemas.</p>
+<p class="text-[13px] text-neutral-500 leading-relaxed font-body">Node-based canvas for architecting energy networks with direct translation to <a href="https://callio.pe" target="_blank" rel="noopener noreferrer" class="underline underline-offset-2 hover:text-black transition-colors">Calliope</a> YAML schemas.</p>
 </div>
 <!-- Feature Card 2 -->
 <div class="p-12 bg-white hover:bg-neutral-50 transition-colors group">
@@ -253,7 +258,7 @@
 <div class="flex flex-wrap justify-center gap-px bg-neutral-200 border border-neutral-200 max-w-4xl mx-auto">
 <div class="flex-1 min-w-[150px] px-8 py-8 bg-white flex flex-col items-center gap-4 text-center">
 <span class="font-bold text-[10px] uppercase tracking-widest">Core Engine</span>
-<span class="text-[12px] text-neutral-500">Calliope 0.6.10</span>
+<span class="text-[12px] text-neutral-500"><a href="https://callio.pe" target="_blank" rel="noopener noreferrer" class="hover:underline">Calliope</a> 0.6.10</span>
 </div>
 <div class="flex-1 min-w-[150px] px-8 py-8 bg-white flex flex-col items-center gap-4 text-center">
 <span class="font-bold text-[10px] uppercase tracking-widest">Desktop</span>
@@ -321,4 +326,14 @@
 </div>
 </div>
 </footer>
+<!-- Calliope Citation -->
+<div class="w-full bg-neutral-50 border-t border-neutral-200 px-8 py-6">
+  <p class="text-[10px] text-neutral-400 max-w-7xl mx-auto leading-relaxed">
+    <span class="font-bold text-neutral-500">[1] Calliope citation:</span>
+    Stefan Pfenninger and Bryn Pickering (2018). Calliope: a multi-scale energy systems modelling framework.
+    <em>Journal of Open Source Software.</em>
+    doi: <a href="https://doi.org/10.21105/joss.00825" target="_blank" rel="noopener noreferrer" class="underline hover:text-black transition-colors">10.21105/joss.00825</a>.
+    Website: <a href="https://callio.pe" target="_blank" rel="noopener noreferrer" class="underline hover:text-black transition-colors">callio.pe</a>.
+  </p>
+</div>
 </body></html>

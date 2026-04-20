@@ -21,4 +21,5 @@ Write-Host "[Calliope Service] Starting on port $Port using conda env 'calliope'
 conda run -n calliope uvicorn calliope_service:app `
     --host 0.0.0.0 `
     --port $Port `
-    --app-dir $PythonDir
+    --app-dir $PythonDir `
+    --reload

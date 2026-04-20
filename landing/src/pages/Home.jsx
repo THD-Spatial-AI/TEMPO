@@ -1,5 +1,6 @@
 ﻿import { HeroSection } from '../components/ui/HeroSection'
 import { ImageComparison } from '../components/ui/ImageComparison'
+import { ShadowOverlay } from '../components/ui/ShadowOverlay'
 import Footer from '../components/Footer'
 import logo from '../public/img/Logo_TEMPO.PNG'
 import Hero from '../public/img/Hero.png'
@@ -29,7 +30,7 @@ const DOWNLOADS = [
 ]
 
 const CONTACTS = [
-  { label: 'github.com/TH-Deggendorf/TEMPO', icon: 'github', href: GITHUB, external: true },
+  { label: 'https://github.com/THD-Spatial-AI/TEMPO', icon: 'github', href: GITHUB, external: true },
   { label: 'tempo@th-deg.de', icon: 'email', href: 'mailto:tempo@th-deg.de' },
   { label: 'www.th-deg.de', icon: 'website', href: 'https://www.th-deg.de', external: true },
   { label: 'Deggendorf, Bavaria', icon: 'address', href: 'https://maps.google.com/?q=TH+Deggendorf', external: true },
@@ -40,7 +41,7 @@ const CONTRIBUTE_STEPS = [
     num: '01',
     title: 'Fork & Clone',
     desc: 'Fork the repository on GitHub and clone it locally. The monorepo contains the React frontend, Go backend, Python service, and OSM processing scripts.',
-    code: 'git clone https://github.com/TH-Deggendorf/TEMPO.git',
+    code: 'git clone https://github.com/THD-Spatial-AI/TEMPO.git',
   },
   {
     num: '02',
@@ -386,8 +387,17 @@ export default function Home() {
         </section>
 
         {/* Core Features */}
-        <section className="py-32 px-8 bg-surface" id="features">
-          <div className="max-w-7xl mx-auto">
+        <section className="py-32 px-8 overflow-hidden" id="features" style={{ position: 'relative' }}>
+          {/* Animated shadow background */}
+          <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
+            <ShadowOverlay
+              color="rgba(200, 210, 255, 0.55)"
+              animation={{ scale: 40, speed: 20 }}
+              noise={{ opacity: 0.3, scale: 1.5 }}
+              style={{ width: '100%', height: '100%' }}
+            />
+          </div>
+          <div className="max-w-7xl mx-auto" style={{ position: 'relative', zIndex: 1 }}>
             <div className="mb-20 flex flex-col md:flex-row md:items-end justify-between gap-8">
               <div className="max-w-2xl">
                 <span className="font-bold text-[10px] tracking-[0.4em] uppercase text-neutral-400">

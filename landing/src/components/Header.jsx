@@ -4,7 +4,7 @@ import logo from '../public/img/Logo_TEMPO.PNG'
 export default function Header() {
   const { pathname } = useLocation()
 
-  const GITHUB = 'https://github.com/TH-Deggendorf/TEMPO'
+  const GITHUB = 'https://github.com/THD-Spatial-AI/TEMPO'
   const navLinks = [
     { label: 'Features', to: '/features', internal: true },
     { label: 'Documentation', to: '/docs', internal: true },
@@ -13,12 +13,25 @@ export default function Header() {
 
   return (
     <header className="bg-[#FAF8FF] fixed top-0 w-full z-50 border-b border-black/15">
-      <div className="flex justify-between items-center w-full px-8 h-16 max-w-none">
+      <div className="grid grid-cols-3 items-center w-full px-8 h-16">
+        {/* Left: logo */}
         <Link to="/" className="flex items-center" aria-label="TEMPO Home">
           <img src={logo} alt="TEMPO logo" className="h-9 w-auto object-contain logo-on-light" />
         </Link>
 
-        <nav className="hidden md:flex space-x-8 h-full items-center">
+        {/* Center: TEMPO name */}
+        <div className="flex justify-center">
+          <Link
+            to="/"
+            className="text-3xl font-black tracking-tighter text-black uppercase leading-none select-none"
+            style={{ color: '#000000' }}
+          >
+            TEMPO
+          </Link>
+        </div>
+
+        {/* Right: nav links */}
+        <nav className="hidden md:flex justify-end space-x-8 h-full items-center">
           {navLinks.map((link) => {
             const isActive = link.internal ? pathname === link.to : false
             const base = 'font-inter font-semibold text-[0.875rem] tracking-tight uppercase'
