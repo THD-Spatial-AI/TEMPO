@@ -90,15 +90,22 @@ const TimeSeries = () => {
       // Check if we already have properly formatted CSV data for this model
       const hasProperCSVData = timeSeries.some(ts => 
         ts.modelId === currentModel.id && 
-        ts.source === 'template' && 
+        (ts.source === 'template' || ts.source === 'calliope_yaml') && 
         ts.columns && 
-        ts.columns.length > 2 && // More than just date + one column
+        ts.columns.length > 1 && // date + at least one data column
         typeof ts.data?.[0] === 'object' // Proper row objects
       );
       
       if (hasProperCSVData) {
         console.log('CSV data already loaded for this model');
         return; // Already loaded
+      }
+
+      // If this model was imported from a Calliope YAML, don't attempt a network re-fetch
+      // (the data lives in the timeSeries state and may just be temporarily stale due to
+      //  the async backend ID swap — DataContext will sync the modelIds shortly)
+      if (currentModel.metadata?.source === 'calliope_yaml') {
+        return;
       }
 
       setLoading(true);

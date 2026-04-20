@@ -312,6 +312,10 @@ export const DataProvider = ({ children }) => {
               prev.map(m => m.id === tempId ? { ...m, id: finalId } : m)
             );
             setCurrentModelId(prev => prev === tempId ? finalId : prev);
+            // Keep timeSeries modelId in sync so they remain visible after the ID swap
+            setTimeSeries(prev =>
+              prev.map(ts => ts.modelId === tempId ? { ...ts, modelId: finalId } : ts)
+            );
             import.meta.env.DEV && console.log('Model id updated to backend id:', finalId);
           }
         })

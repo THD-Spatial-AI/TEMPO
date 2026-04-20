@@ -811,9 +811,10 @@ const MapDeckGL = () => {
     const existingEssentials = {};
     const existingCosts = {};
     Object.entries(location.techs || {}).forEach(([techName, techData]) => {
-      if (techData.constraints) existingConstraints[techName] = techData.constraints;
-      if (techData.essentials) existingEssentials[techName] = techData.essentials;
-      if (techData.costs?.monetary) existingCosts[techName] = techData.costs.monetary;
+      const td = techData || {};
+      if (td.constraints) existingConstraints[techName] = td.constraints;
+      if (td.essentials) existingEssentials[techName] = td.essentials;
+      if (td.costs?.monetary) existingCosts[techName] = td.costs.monetary;
     });
     setEditingConstraints(existingConstraints);
     setEditingEssentials(existingEssentials);
@@ -2153,27 +2154,34 @@ const MapDeckGL = () => {
                         bgColor = 'bg-gray-50'; borderColor = 'border-gray-300'; textColor = 'text-gray-900';
                       }
                       
+                      const td = techData || {};
+                      const fmtVal = (v) => {
+                        if (v === null || v === undefined) return '—';
+                        if (typeof v === 'number') return isFinite(v) ? v.toFixed(2) : String(v);
+                        if (typeof v === 'object') return JSON.stringify(v);
+                        return String(v);
+                      };
                       return (
                         <div key={techName} className={`text-xs py-2 px-2 ${bgColor} rounded mb-1 border ${borderColor}`}>
                           <div className={`font-medium ${textColor}`}>{techName}</div>
-                          {techData.constraints && Object.keys(techData.constraints).length > 0 && (
+                          {td.constraints && Object.keys(td.constraints).length > 0 && (
                             <div className="text-slate-600 mt-1 space-y-0.5">
-                              {Object.entries(techData.constraints).slice(0, 5).map(([key, value]) => (
+                              {Object.entries(td.constraints).slice(0, 5).map(([key, value]) => (
                                 <div key={key} className="text-xs">
-                                  <span className="font-medium">{key}:</span> {typeof value === 'number' ? value.toFixed(2) : value}
+                                  <span className="font-medium">{key}:</span> {fmtVal(value)}
                                 </div>
                               ))}
-                              {Object.keys(techData.constraints).length > 5 && (
-                                <div className="text-slate-500 italic">+ {Object.keys(techData.constraints).length - 5} more...</div>
+                              {Object.keys(td.constraints).length > 5 && (
+                                <div className="text-slate-500 italic">+ {Object.keys(td.constraints).length - 5} more...</div>
                               )}
                             </div>
                           )}
-                          {techData.costs && Object.keys(techData.costs).length > 0 && (
+                          {td.costs && Object.keys(td.costs).length > 0 && (
                             <div className="text-slate-600 mt-1 pt-1 border-t border-slate-200">
                               <div className="font-medium text-xs">Costs:</div>
-                              {Object.entries(techData.costs).slice(0, 3).map(([key, value]) => (
+                              {Object.entries(td.costs).slice(0, 3).map(([key, value]) => (
                                 <div key={key} className="text-xs">
-                                  <span className="font-medium">{key}:</span> {typeof value === 'number' ? value.toFixed(2) : value}
+                                  <span className="font-medium">{key}:</span> {fmtVal(value)}
                                 </div>
                               ))}
                             </div>

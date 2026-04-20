@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import logo from '../public/img/Logo_TEMPO.PNG'
+import logoTHD from '../public/img/THD.svg'
 
 const GITHUB = 'https://github.com/TH-Deggendorf/TEMPO'
 const GITHUB_RELEASES = 'https://github.com/TH-Deggendorf/TEMPO/releases'
@@ -56,6 +57,30 @@ export default function Footer({ dark = false }) {
           </p>
         </div>
 
+        {/* THD institution block */}
+        <div className="flex flex-col gap-4 max-w-xs">
+          <img
+            src={logoTHD}
+            alt="Technische Hochschule Deggendorf"
+            className={`h-10 w-auto object-contain ${dark ? 'brightness-0 invert' : ''}`}
+          />
+          <p className={`text-[11px] font-medium tracking-wide uppercase leading-relaxed ${sub}`}>
+            Technische Hochschule Deggendorf
+          </p>
+          <p className={`text-[11px] leading-relaxed ${sub}`}>
+            University of Applied Sciences — Deggendorf, Bavaria.<br />
+            GeoSpatialAI Research Group.
+          </p>
+          <a
+            href="https://www.th-deg.de"
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`text-[10px] font-bold uppercase tracking-widest transition-all ${linkClass}`}
+          >
+            www.th-deg.de →
+          </a>
+        </div>
+
         {/* Nav columns */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-16 gap-y-4">
           {sections.map((section) => (
@@ -91,7 +116,7 @@ export default function Footer({ dark = false }) {
 
       <div className={`max-w-7xl mx-auto mt-12 pt-8 border-t ${dark ? 'border-white/10' : 'border-neutral-100'} flex flex-col sm:flex-row justify-between items-center gap-4`}>
         <span className={`text-[10px] font-bold uppercase tracking-widest ${sub}`}>
-          © 2026 TH Deggendorf — THD-Spatial. All Rights Reserved.
+          © 2026 Technische Hochschule Deggendorf — GeoSpatialAI Research Group. All Rights Reserved.
         </span>
         <span className={`text-[10px] font-bold uppercase tracking-widest ${sub}`}>
           MIT License
