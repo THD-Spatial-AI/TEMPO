@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import logo from '../public/img/Logo_TEMPO.PNG'
 import logoTHD from '../public/img/THD.svg'
 
-const GITHUB = 'https://github.com/TH-Deggendorf/TEMPO'
+const GITHUB = 'https://github.com/THD-Spatial-AI/TEMPO'
 const GITHUB_RELEASES = 'https://github.com/TH-Deggendorf/TEMPO/releases'
 
 const sections = [

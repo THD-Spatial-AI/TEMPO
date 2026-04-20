@@ -367,11 +367,11 @@ def build_locations_config(locations, location_tech_assignments, technologies):
         # Assignments may be keyed by original id or normalised id.
         # Fall back to the location's own techs dict (set when loading templates)
         # so that template models work without needing explicit locationTechAssignments.
-        assigned = (location_tech_assignments.get(raw_id) or
-                    location_tech_assignments.get(loc_id) or [])
-        if not assigned:
-            loc_techs_direct = loc.get('techs') or {}
-            assigned = list(loc_techs_direct.keys())
+        assigned_from_assignments = (location_tech_assignments.get(raw_id) or
+                                     location_tech_assignments.get(loc_id) or [])
+        loc_techs_direct = loc.get('techs') or {}
+        assigned = assigned_from_assignments if assigned_from_assignments else list(loc_techs_direct.keys())
+        use_direct = not assigned_from_assignments  # preserve per-loc overrides only when reading from loc.techs
 
         if assigned:
             resolved = {}
@@ -379,7 +379,14 @@ def build_locations_config(locations, location_tech_assignments, technologies):
                 normalized = ref.replace(' ', '_').lower()
                 tech_key = tech_id_map.get(ref) or tech_id_map.get(normalized)
                 if tech_key:
-                    resolved[tech_key] = None
+                    # When reading directly from the imported location's techs dict,
+                    # preserve any per-location constraint overrides (e.g. resource: file=
+                    # or energy_cap_equals) instead of always setting None.
+                    if use_direct:
+                        per_loc = loc_techs_direct.get(ref) or loc_techs_direct.get(normalized)
+                        resolved[tech_key] = per_loc if isinstance(per_loc, dict) else None
+                    else:
+                        resolved[tech_key] = None
                 elif normalized in _HUB_LABELS:
                     # Hub/substation marker — skip silently, count for summary
                     _skipped_hub[normalized] = _skipped_hub.get(normalized, 0) + 1
@@ -493,6 +500,49 @@ def build_links_config(links):
 
         calliope_links[f"{from_loc},{to_loc}"] = link_entry
     return calliope_links
+
+
+# ---------------------------------------------------------------------------
+# Imported CSV writer (calliope_yaml source)
+# ---------------------------------------------------------------------------
+
+def _write_calliope_yaml_csv_files(model_data, config_dir):
+    """
+    When a model was imported from a Calliope YAML, its timeSeries list carries
+    the original CSV data as row-object arrays (e.g. hydro_reservoirs.csv,
+    pv_series.csv, wind_series.csv, regional_demand.csv).  Write each of them
+    back to *config_dir* so that `file=xxx.csv` references in techs.yaml /
+    locations.yaml resolve correctly when Calliope loads the model.
+    """
+    ts_list = model_data.get('timeSeries') or []
+    log(f"  [CSV] Payload timeSeries entries: {len(ts_list)}")
+    if not ts_list:
+        return
+
+    import pandas as pd
+
+    written = []
+    for ts in ts_list:
+        data    = ts.get('data') or []
+        columns = ts.get('columns') or []
+        file_name = ts.get('fileName') or ts.get('file') or ts.get('name')
+        if not file_name or not data or not columns:
+            continue
+        if not file_name.lower().endswith('.csv'):
+            file_name = file_name + '.csv'
+
+        # Build DataFrame from row objects
+        df = pd.DataFrame(data, columns=[c for c in columns if c])
+        date_col = ts.get('dateColumn') or (columns[0] if columns else None)
+        if date_col and date_col in df.columns:
+            df = df.set_index(date_col)
+
+        out_path = config_dir / file_name
+        df.to_csv(out_path)
+        written.append(file_name)
+
+    if written:
+        log(f"  Written {len(written)} imported CSV file(s) to model_config: {', '.join(written)}")
 
 
 # ---------------------------------------------------------------------------
@@ -723,6 +773,129 @@ def _write_scalar_demand_timeseries(techs, locs_cfg, loc_tech_assign,
 
 
 # ---------------------------------------------------------------------------
+# Missing file= CSV safety net
+# ---------------------------------------------------------------------------
+
+def _ensure_missing_file_csvs(techs, locs, time_start, time_end, config_dir):
+    """
+    Safety-net step: after all CSV-writing passes, scan techs and locs for any
+    remaining 'file=xxx.csv' references that are still absent from config_dir
+    and write them from one of two sources::
+
+    1. Local template filesystem — searches ``public/templates/*/timeseries_data/``
+       next to this file.  Copies the original CSV (accurate data).
+    2. Constant-value placeholder (0.5) — ensures Calliope can at least load and
+       run the model.  Results will differ from historical resource profiles.
+
+    This handles the common case where the browser's timeSeries state was lost
+    (page reload, model re-selection, backend sync) so the payload arrived empty.
+    """
+    import pandas as pd
+
+    def _extract_file_refs(obj):
+        """Return {filename: set(col_hints)} for all 'file=...' values in obj."""
+        refs = {}
+        if isinstance(obj, dict):
+            for v in obj.values():
+                if isinstance(v, str) and v.startswith('file='):
+                    rest = v[5:]
+                    colon = rest.find(':')
+                    fname = rest[:colon].strip() if colon >= 0 else rest.strip()
+                    col   = rest[colon + 1:].strip() if colon >= 0 else None
+                    if fname:
+                        refs.setdefault(fname, set())
+                        if col:
+                            refs[fname].add(col)
+                elif isinstance(v, (dict, list)):
+                    for fn, cols in _extract_file_refs(v).items():
+                        refs.setdefault(fn, set()).update(cols)
+        elif isinstance(obj, list):
+            for item in obj:
+                for fn, cols in _extract_file_refs(item).items():
+                    refs.setdefault(fn, set()).update(cols)
+        return refs
+
+    # Files referenced globally in techs → all locations may use them
+    global_refs = _extract_file_refs(techs)
+
+    # Files referenced per-location → track which locations + col hints
+    loc_col_hints = {}   # fname -> set of explicit column hints
+    loc_to_locs   = {}   # fname -> set of location names
+    for loc_name, loc_data in locs.items():
+        if not isinstance(loc_data, dict):
+            continue
+        for fname, cols in _extract_file_refs(loc_data.get('techs') or {}).items():
+            loc_col_hints.setdefault(fname, set()).update(cols)
+            loc_to_locs.setdefault(fname, set()).add(loc_name)
+
+    all_refs = dict(global_refs)
+    for fname, cols in loc_col_hints.items():
+        all_refs.setdefault(fname, set()).update(cols)
+
+    if not all_refs:
+        return
+
+    missing = {f: c for f, c in all_refs.items() if not (config_dir / f).exists()}
+    if not missing:
+        return
+
+    # ── Strategy 1: copy from local templates directory ──────────────────────
+    _here = Path(__file__).parent           # python/
+    templates_root = _here.parent / 'public' / 'templates'
+    still_missing = {}
+
+    if templates_root.exists():
+        for fname in list(missing):
+            found = False
+            for tmpl_dir in templates_root.iterdir():
+                if not tmpl_dir.is_dir():
+                    continue
+                for sub in ('timeseries_data', 'timeseries', ''):
+                    candidate = (tmpl_dir / sub / fname) if sub else (tmpl_dir / fname)
+                    if candidate.exists():
+                        import shutil as _shutil
+                        _shutil.copy2(str(candidate), str(config_dir / fname))
+                        log(f"  Copied original CSV from template: {fname}")
+                        found = True
+                        break
+                if found:
+                    break
+            if not found:
+                still_missing[fname] = missing[fname]
+    else:
+        still_missing = missing
+
+    if not still_missing:
+        return
+
+    # ── Strategy 2: constant-value placeholder CSV ───────────────────────────
+    try:
+        end_inclusive = pd.Timestamp(time_end) + pd.Timedelta(hours=23)
+        ts_index = pd.date_range(start=time_start, end=end_inclusive, freq='H')
+    except Exception:
+        ts_index = pd.date_range(start=time_start, periods=48, freq='H')
+
+    all_loc_names = sorted(locs.keys())
+    for fname, col_hints in still_missing.items():
+        # Column priority: explicit hints → per-location names → all locations
+        if col_hints:
+            columns = sorted(col_hints)
+        elif fname in loc_to_locs:
+            columns = sorted(loc_to_locs[fname])
+        else:
+            columns = all_loc_names
+        if not columns:
+            columns = ['value']
+
+        df = pd.DataFrame(0.5, index=ts_index, columns=columns)
+        df.index.name = ''
+        df.to_csv(config_dir / fname)
+        log(f"  [FALLBACK] Placeholder CSV written (constant 0.5) for: {fname}")
+
+    log("  [FALLBACK] Placeholder CSVs use constant values — results are approximate.")
+
+
+# ---------------------------------------------------------------------------
 # Main run logic  
 # ---------------------------------------------------------------------------
 
@@ -812,6 +985,16 @@ def _run_model_impl(model_data, work_dir):
             elif k == 'subset_time_end':
                 time_end = p.get('value', time_end)
 
+    # Fall back to metadata.subsetTime when no explicit parameters were set.
+    # This handles Calliope YAML imports where subsetTime is stored in metadata.
+    if time_start == '2005-01-01' and time_end == '2005-01-07':
+        _meta_subset = (model_data.get('metadata') or {}).get('subsetTime')
+        if (isinstance(_meta_subset, (list, tuple)) and len(_meta_subset) == 2
+                and _meta_subset[0] and _meta_subset[1]):
+            time_start = str(_meta_subset[0])
+            time_end   = str(_meta_subset[1])
+            log(f"  Using subset_time from model metadata: {time_start} → {time_end}")
+
     # ------------------------------------------------------------------
     # Technologies
     # ------------------------------------------------------------------
@@ -885,16 +1068,27 @@ def _run_model_impl(model_data, work_dir):
     # Write YAML files
     # ------------------------------------------------------------------
 
-    # Step 1: Use actual per-location demand timeseries from demandProfile
+    # Step 1: Write any CSV files embedded in the payload from a calliope_yaml import.
+    # These are the original timeseries CSVs (hydro_reservoirs.csv, pv_series.csv, …)
+    # that are referenced via `file=xxx.csv` in techs.yaml / locations.yaml.
+    _write_calliope_yaml_csv_files(model_data, config_dir)
+
+    # Step 2: Use actual per-location demand timeseries from demandProfile
     # (set by the frontend when loading a template with a demand CSV).
     # Returns the set of demand tech IDs already handled so the next step skips them.
     _write_demand_profiles(locations, locs, techs, time_start, time_end, config_dir)
 
-    # Step 2: For every remaining tech with a plain scalar `resource`, auto-generate
+    # Step 3: For every remaining tech with a plain scalar `resource`, auto-generate
     # a flat CSV and inject the reference into each location's tech block.
     _write_scalar_demand_timeseries(techs, locs, loc_tech_assign,
                                     time_start, time_end, config_dir,
                                     technologies=technologies)
+
+    # Step 4: Safety net — copy any still-missing 'file=xxx.csv' CSVs from the
+    # local templates directory, or generate constant-value placeholders as a last
+    # resort.  This handles YAML-imported models where timeSeries was not in the
+    # payload (e.g. after page reload or model re-selection).
+    _ensure_missing_file_csvs(techs, locs, time_start, time_end, config_dir)
 
     with open(config_dir / 'techs.yaml', 'w') as f:
         f.write(dump_yaml({'techs': techs}))

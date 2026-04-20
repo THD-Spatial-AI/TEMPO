@@ -41,7 +41,7 @@ const SOLVER_OPTIONS = {
 
 
 const Run = ({ onNavigate }) => {
-  const { models, getCurrentModel, showNotification, addCompletedJob, removeCompletedJob, completedJobs, setActiveResultJobId } = useData();
+  const { models, getCurrentModel, showNotification, addCompletedJob, removeCompletedJob, completedJobs, setActiveResultJobId, timeSeries } = useData();
 
   const [selectedModel, setSelectedModel]       = useState(null);
   const [selectedFramework, setSelectedFramework] = useState('calliope');
@@ -219,7 +219,13 @@ const Run = ({ onNavigate }) => {
 
     try {
       const { cancel } = await runCalliopeModel({
-        modelData: { ...selectedModel, solver: selectedSolver },
+        modelData: {
+          ...selectedModel,
+          solver: selectedSolver,
+          // Always use the live timeSeries from context so CSV data is included
+          // even when selectedModel.timeSeries was stripped (e.g. after backend sync).
+          timeSeries: timeSeries.filter(ts => ts.modelId === selectedModel.id),
+        },
         onLog: (line) =>
           setRunningJobs(prev =>
             prev.map(j => j.id === jobId ? { ...j, logs: [...j.logs, line] } : j)

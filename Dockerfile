@@ -57,4 +57,4 @@ HEALTHCHECK --interval=10s --timeout=5s --start-period=20s --retries=3 \
 # Tell Calliope/Pyomo to use the system CBC binary (installed via coinor-cbc above)
 ENV CALLIOPE_SOLVER_DIR=""
 
-CMD ["uvicorn", "python.calliope_service:app", "--host", "0.0.0.0", "--port", "5000"]
+CMD ["uvicorn", "python.calliope_service:app", "--host", "0.0.0.0", "--port", "5000", "--reload"]

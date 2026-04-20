@@ -497,14 +497,12 @@ const Dashboard = () => {
   }, [locations, links, techMap, getTechParent]); // eslint-disable-line
 
   // ── Time-series helpers ──────────────────────────────────────────────────
-  // Only use wide CSV files loaded by the Dashboard (source === 'template').
-  // Per-location TS fragments created by the template loader have data as a plain
-  // number array and no dataColumns — they are not compatible with buildTsCharts.
+  // Include both template-fetched and calliope_yaml-imported TS files.
   const modelTimeSeries = useMemo(() => {
     if (!currentModel) return [];
     return timeSeries.filter(ts =>
       ts.modelId === currentModel.id &&
-      ts.source === 'template' &&
+      (ts.source === 'template' || ts.source === 'calliope_yaml') &&
       ts.columns?.length > 1 &&
       ts.data?.length > 0
     );
@@ -513,8 +511,9 @@ const Dashboard = () => {
   // Auto-load TS CSV files when timeseries tab is active
   useEffect(() => {
     if (!['timeseries', 'demand'].includes(activeTab) || !currentModel || tsLoading) return;
+    // If this is a calliope_yaml model, data was already embedded at import time — skip fetch.
+    if (currentModel.metadata?.source === 'calliope_yaml') return;
     // Only consider wide CSV files previously loaded by this auto-loader.
-    // Per-location TS fragments (no source field) must not block this from running.
     const hasData = timeSeries.some(ts =>
       ts.modelId === currentModel.id &&
       ts.source === 'template' &&
