@@ -962,6 +962,7 @@ def _run_model_impl(model_data, work_dir):
     solver = model_data.get('solver', 'cbc')   # default: CBC (free, open-source, bundled)
     overrides = model_data.get('overrides') or {}
     scenarios = model_data.get('scenarios') or {}
+    model_config_payload = model_data.get('modelConfig') or {}  # from Run.jsx UI
 
     # ------------------------------------------------------------------
     # Solver availability check — fall back gracefully when the requested
@@ -1022,6 +1023,13 @@ def _run_model_impl(model_data, work_dir):
             time_start = str(_meta_subset[0])
             time_end   = str(_meta_subset[1])
             log(f"  Using subset_time from model metadata: {time_start} → {time_end}")
+
+    # Highest priority: modelConfig.startDate / endDate from the Run UI
+    if model_config_payload.get('startDate'):
+        time_start = str(model_config_payload['startDate'])[:10]
+    if model_config_payload.get('endDate'):
+        time_end   = str(model_config_payload['endDate'])[:10]
+    log(f"  subset_time: {time_start} → {time_end}")
 
     # ------------------------------------------------------------------
     # Technologies
@@ -1152,8 +1160,57 @@ def _run_model_impl(model_data, work_dir):
         'zero_threshold': 1e-10,
         'mode': 'plan',
     }
+
+    # Apply modelConfig overrides (from Run UI) — mode, feasibility, cyclic storage
+    if model_config_payload.get('mode') in ('plan', 'operate'):
+        run_cfg['mode'] = model_config_payload['mode']
+    if model_config_payload.get('ensureFeasibility') is not None:
+        run_cfg['ensure_feasibility'] = bool(model_config_payload['ensureFeasibility'])
+    if model_config_payload.get('cyclicStorage') is not None:
+        run_cfg['cyclic_storage'] = bool(model_config_payload['cyclicStorage'])
+
+    # Also honour mode/ensure_feasibility stored in model metadata.runConfig
+    # (populated from Calliope YAML import) — only if UI did not explicitly set them.
+    _meta_run = (model_data.get('metadata') or {}).get('runConfig') or {}
+    if not model_config_payload.get('mode') and _meta_run.get('mode') in ('plan', 'operate'):
+        run_cfg['mode'] = _meta_run['mode']
+    if model_config_payload.get('ensureFeasibility') is None and _meta_run.get('ensure_feasibility') is not None:
+        run_cfg['ensure_feasibility'] = bool(_meta_run['ensure_feasibility'])
+
     if solver_options:
         run_cfg['solver_options'] = solver_options
+
+    # Merge solver_options from model metadata.runConfig.solver_options (YAML import)
+    # — only when no explicit UI solver_options override.
+    ui_solver_opts = model_config_payload.get('solverOptions') or {}
+    meta_solver_opts = _meta_run.get('solver_options') or {}
+    if meta_solver_opts and not ui_solver_opts:
+        run_cfg['solver_options'] = {**run_cfg.get('solver_options', {}), **meta_solver_opts}
+
+    # Apply UI solver_options (highest priority), mapping camelCase → solver-specific keys.
+    if ui_solver_opts:
+        _GUROBI_MAP = {
+            'threads': 'Threads', 'method': 'Method', 'mipGap': 'MIPGap',
+            'feasibilityTol': 'FeasibilityTol', 'optimalityTol': 'OptimalityTol',
+            'barConvTol': 'BarConvTol', 'numericFocus': 'NumericFocus',
+            'crossover': 'Crossover', 'barHomogeneous': 'BarHomogeneous',
+            'presolve': 'Presolve', 'aggFill': 'AggFill', 'preDual': 'PreDual',
+            'rins': 'RINS', 'nodefileStart': 'NodefileStart', 'seed': 'Seed',
+        }
+        _CBC_MAP    = {'mipGap': 'ratioGap', 'threads': 'threads', 'timeLimit': 'seconds'}
+        _HIGHS_MAP  = {'mipGap': 'mip_rel_gap', 'threads': 'threads', 'timeLimit': 'time_limit'}
+        _GLPK_MAP   = {'mipGap': 'mipgap'}
+        _SOLVER_KEY_MAP = {'gurobi': _GUROBI_MAP, 'cplex': _GUROBI_MAP,
+                           'cbc': _CBC_MAP, 'highs': _HIGHS_MAP, 'highs_direct': _HIGHS_MAP,
+                           'glpk': _GLPK_MAP}
+        key_map = _SOLVER_KEY_MAP.get(solver, _GUROBI_MAP)
+        mapped = {}
+        for ui_key, ui_val in ui_solver_opts.items():
+            mapped_key = key_map.get(ui_key)
+            if mapped_key is not None:
+                mapped[mapped_key] = ui_val
+        if mapped:
+            run_cfg['solver_options'] = {**run_cfg.get('solver_options', {}), **mapped}
 
     model_yaml = {
         'import': ['model_config/techs.yaml', 'model_config/locations.yaml'],

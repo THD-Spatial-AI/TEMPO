@@ -86,14 +86,6 @@ const Sidebar = ({ selected, setSelected }) => {
             isNested
           />
           <Option
-            Icon={FiSettings}
-            title="Configuration"
-            selected={selected}
-            setSelected={setSelected}
-            open={open}
-            isNested
-          />
-          <Option
             Icon={FiMapPin}
             title="Locations"
             selected={selected}

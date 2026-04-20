@@ -8,7 +8,6 @@ import Dashboard from "./components/Dashboard";
 const Tutorial = lazy(() => import("./components/Tutorial"));
 const Models = lazy(() => import("./components/Models"));
 const MapView = lazy(() => import("./components/MapView"));
-const Configuration = lazy(() => import("./components/Configuration"));
 const Creation = lazy(() => import("./components/Creation"));
 const Locations = lazy(() => import("./components/Locations"));
 const Links = lazy(() => import("./components/Links"));
@@ -60,7 +59,6 @@ function AppContent() {
       case "Tutorial":       return <Tutorial />;
       case "Models":         return <Models />;
       case "Map View":       return <MapView />;
-      case "Configuration":  return <Configuration />;
       case "Creation":       return <Creation />;
       case "Locations":      return <Locations />;
       case "Links":          return <Links />;

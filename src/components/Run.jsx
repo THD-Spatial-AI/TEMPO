@@ -6,6 +6,7 @@ import {
   FiClock, FiCpu, FiZap, FiActivity, FiSettings,
   FiTerminal, FiTrash2, FiAlertTriangle, FiBox,
   FiBarChart2, FiDownload, FiEye, FiList,
+  FiCalendar, FiChevronDown, FiChevronRight, FiHelpCircle,
 } from 'react-icons/fi';
 
 const MODELING_FRAMEWORKS = [
@@ -47,14 +48,42 @@ const Run = ({ onNavigate }) => {
   const [selectedFramework, setSelectedFramework] = useState('calliope');
   const [selectedSolver, setSelectedSolver]     = useState('cbc');
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
-  const [advancedSettings, setAdvancedSettings] = useState({
-    threads: 4,
-    timeLimit: 3600,
-    mipGap: 0.001,
+  const [modelConfig, setModelConfig] = useState({
+    startDate: '2024-01-01',
+    endDate: '2024-12-31',
+    mode: 'plan',
+    ensureFeasibility: true,
+    cyclicStorage: false,
+    solverOptions: {
+      threads: 4,
+      timeLimit: 3600,
+      method: 2,
+      barConvTol: 1e-3,
+      feasibilityTol: 1e-3,
+      optimalityTol: 1e-3,
+      mipGap: 1e-3,
+      numericFocus: 2,
+      crossover: 0,
+      barHomogeneous: 1,
+      presolve: 2,
+      aggFill: 10,
+      preDual: 2,
+      rins: 100,
+      nodefileStart: 0.5,
+      seed: 42,
+    }
   });
+
+  const calculateDuration = () => {
+    const start = new Date(modelConfig.startDate);
+    const end = new Date(modelConfig.endDate);
+    return Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+  };
 
   // Docker service status: null = checking, true = reachable, false = unavailable
   const [serviceStatus, setServiceStatus] = useState(null);
+  // Ref so the health-check interval can read current job count without a stale closure
+  const runningJobsRef = useRef([]);
 
   // Cancel handles keyed by jobId
   const cancelFnsRef = useRef({});
@@ -75,15 +104,75 @@ const Run = ({ onNavigate }) => {
     if (current) setSelectedModel(current);
   }, [getCurrentModel]);
 
-  // Check Docker service health on mount and every 30 s
+  // Pre-fill modelConfig + solver from the selected model's metadata / parameters
+  useEffect(() => {
+    if (!selectedModel) return;
+    const meta = selectedModel.metadata || {};
+    const runCfg = meta.runConfig || {};
+    const params = selectedModel.parameters || [];
+
+    // Resolve dates: parameters list → metadata.subsetTime → keep current
+    let start = null;
+    let end   = null;
+    params.forEach(p => {
+      if (p.key === 'subset_time_start') start = p.value;
+      if (p.key === 'subset_time_end')   end   = p.value;
+    });
+    if (!start && !end && Array.isArray(meta.subsetTime) && meta.subsetTime.length === 2) {
+      start = String(meta.subsetTime[0]);
+      end   = String(meta.subsetTime[1]);
+    }
+    // Normalise to YYYY-MM-DD (strip time component if present)
+    const toDateStr = (s) => (s ? String(s).slice(0, 10) : null);
+    start = toDateStr(start);
+    end   = toDateStr(end);
+
+    // Resolve solver
+    const metaSolver = runCfg.solver;
+    if (metaSolver) {
+      const available = SOLVER_OPTIONS[selectedFramework] || [];
+      if (available.includes(metaSolver)) setSelectedSolver(metaSolver);
+    }
+
+    setModelConfig(prev => ({
+      ...prev,
+      ...(start ? { startDate: start } : {}),
+      ...(end   ? { endDate:   end   } : {}),
+      ...(runCfg.mode               != null ? { mode:               runCfg.mode               } : {}),
+      ...(runCfg.ensure_feasibility != null ? { ensureFeasibility:  !!runCfg.ensure_feasibility } : {}),
+      ...(runCfg.cyclic_storage     != null ? { cyclicStorage:      !!runCfg.cyclic_storage     } : {}),
+    }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedModel?.id]);
+
+  // Keep ref in sync with state so the health-check interval sees current jobs
+  useEffect(() => { runningJobsRef.current = runningJobs; }, [runningJobs]);
+
+  // Check Docker service health on mount and every 30 s.
+  // Skip updates while a job is running: CBC solves can stall uvicorn responses
+  // for >4 s (the health-check timeout), causing false "offline" flashes.
   useEffect(() => {
     let cancelled = false;
-    const check = () =>
+    const check = () => {
+      if (runningJobsRef.current.length > 0) return;
       checkCalliopeService().then(ok => { if (!cancelled) setServiceStatus(ok); });
+    };
     check();
     const id = setInterval(check, 30_000);
     return () => { cancelled = true; clearInterval(id); };
   }, []);
+
+  // Once the last running job finishes, re-check service health immediately
+  // (the 30s interval was skipped during the run)
+  const prevRunningJobsLenRef = useRef(0);
+  useEffect(() => {
+    const prev = prevRunningJobsLenRef.current;
+    const curr = runningJobs.length;
+    prevRunningJobsLenRef.current = curr;
+    if (prev > 0 && curr === 0) {
+      checkCalliopeService().then(ok => setServiceStatus(ok));
+    }
+  }, [runningJobs.length]);
 
   useEffect(() => {
     const solvers = SOLVER_OPTIONS[selectedFramework] || [];
@@ -222,6 +311,7 @@ const Run = ({ onNavigate }) => {
         modelData: {
           ...selectedModel,
           solver: selectedSolver,
+          modelConfig,
           // Always use the live timeSeries from context so CSV data is included
           // even when selectedModel.timeSeries was stripped (e.g. after backend sync).
           timeSeries: timeSeries.filter(ts => ts.modelId === selectedModel.id),
@@ -328,7 +418,7 @@ const Run = ({ onNavigate }) => {
               <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-4 flex items-center gap-2">
                 <FiSettings size={13} className="text-electric-500" /> Configuration
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Model</label>
                   <select
@@ -354,6 +444,17 @@ const Run = ({ onNavigate }) => {
                     {(SOLVER_OPTIONS[selectedFramework] || []).map(s => (
                       <option key={s} value={s}>{s.toUpperCase()}</option>
                     ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Mode</label>
+                  <select
+                    value={modelConfig.mode}
+                    onChange={e => setModelConfig(p => ({ ...p, mode: e.target.value }))}
+                    className="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-electric-500 focus:border-transparent bg-white"
+                  >
+                    <option value="plan">Plan — capacity planning</option>
+                    <option value="operate">Operate — operational</option>
                   </select>
                 </div>
               </div>
@@ -400,30 +501,147 @@ const Run = ({ onNavigate }) => {
               </div>
             </div>
 
-            {/* Advanced settings */}
+            {/* Time Settings */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+              <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-4 flex items-center gap-2">
+                <FiCalendar size={13} className="text-electric-500" /> Time Settings
+              </h2>
+              {/* Quick presets */}
+              <div className="flex flex-wrap gap-2 mb-4">
+                {[
+                  { label: '1 Day',   days: 0 },
+                  { label: '1 Week',  days: 6 },
+                  { label: '1 Month', months: 1 },
+                  { label: '1 Year',  years: 1 },
+                ].map(preset => (
+                  <button
+                    key={preset.label}
+                    type="button"
+                    onClick={() => {
+                      const s = new Date(modelConfig.startDate + 'T00:00:00');
+                      const e = new Date(s);
+                      if (preset.days  != null) e.setDate(e.getDate() + preset.days);
+                      if (preset.months)        e.setMonth(e.getMonth() + preset.months, e.getDate() - 1);
+                      if (preset.years)         e.setFullYear(e.getFullYear() + preset.years, e.getMonth(), e.getDate() - 1);
+                      setModelConfig(p => ({ ...p, endDate: e.toISOString().slice(0, 10) }));
+                    }}
+                    className="px-3 py-1 text-xs font-medium rounded-lg border border-slate-200 bg-slate-50 hover:bg-electric-50 hover:border-electric-300 hover:text-electric-700 transition-colors"
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Start Date</label>
+                  <div className="relative">
+                    <input
+                      type="date"
+                      value={modelConfig.startDate}
+                      onChange={e => setModelConfig(p => ({ ...p, startDate: e.target.value }))}
+                      className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-electric-500 pr-9"
+                      style={{ colorScheme: 'light' }}
+                    />
+                    <FiCalendar className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">End Date</label>
+                  <div className="relative">
+                    <input
+                      type="date"
+                      value={modelConfig.endDate}
+                      min={modelConfig.startDate}
+                      onChange={e => setModelConfig(p => ({ ...p, endDate: e.target.value }))}
+                      className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-electric-500 pr-9"
+                      style={{ colorScheme: 'light' }}
+                    />
+                    <FiCalendar className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+                  </div>
+                </div>
+              </div>
+              <div className="mt-3 px-3 py-2 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between text-xs text-slate-500">
+                <span><span className="font-semibold text-slate-700">{calculateDuration()} days</span> · ≈ {Math.ceil(calculateDuration() / 7)} weeks · ≈ {Math.ceil(calculateDuration() / 30)} months</span>
+                <span>{new Date(modelConfig.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} → {new Date(modelConfig.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+              </div>
+            </div>
+
+            {/* Solver Options */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+              <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-4 flex items-center gap-2">
+                <FiCpu size={13} className="text-electric-500" /> Solver Options
+              </h2>
+              <div className="space-y-3 mb-4">
+                <div className="flex items-center gap-3 p-3 border border-slate-200 rounded-lg">
+                  <input
+                    type="checkbox"
+                    id="ensureFeasibility"
+                    checked={modelConfig.ensureFeasibility}
+                    onChange={e => setModelConfig(p => ({ ...p, ensureFeasibility: e.target.checked }))}
+                    className="w-4 h-4 text-electric-600 border-slate-300 rounded"
+                  />
+                  <label htmlFor="ensureFeasibility" className="text-sm text-slate-700 cursor-pointer">
+                    <span className="font-medium">Ensure Feasibility</span>
+                    <p className="text-xs text-slate-500">Allows unmet demand to ensure model feasibility</p>
+                  </label>
+                </div>
+                <div className="flex items-center gap-3 p-3 border border-slate-200 rounded-lg">
+                  <input
+                    type="checkbox"
+                    id="cyclicStorage"
+                    checked={modelConfig.cyclicStorage}
+                    onChange={e => setModelConfig(p => ({ ...p, cyclicStorage: e.target.checked }))}
+                    className="w-4 h-4 text-electric-600 border-slate-300 rounded"
+                  />
+                  <label htmlFor="cyclicStorage" className="text-sm text-slate-700 cursor-pointer">
+                    <span className="font-medium">Cyclic Storage</span>
+                    <p className="text-xs text-slate-500">Storage levels at end equal storage at start</p>
+                  </label>
+                </div>
+              </div>
               <button
                 onClick={() => setShowAdvancedSettings(v => !v)}
-                className="w-full flex items-center justify-between text-sm text-slate-600 hover:text-slate-800"
+                className="w-full flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors"
               >
-                <span className="flex items-center gap-2 font-medium text-xs text-slate-500 uppercase tracking-wide">
-                  <FiSettings size={13} className="text-slate-400" /> Advanced settings
-                </span>
-                <span className="text-xs text-slate-400">{showAdvancedSettings ? '▲ hide' : '▼ show'}</span>
+                <span className="text-xs font-medium text-slate-600">Advanced Solver Parameters</span>
+                {showAdvancedSettings ? <FiChevronDown size={16} className="text-slate-400" /> : <FiChevronRight size={16} className="text-slate-400" />}
               </button>
               {showAdvancedSettings && (
-                <div className="mt-4 grid grid-cols-3 gap-4">
+                <div className="mt-3 border border-slate-200 rounded-lg p-4 grid grid-cols-2 gap-x-6 gap-y-4">
                   {[
-                    { label: 'Threads', key: 'threads', step: 1 },
-                    { label: 'Time limit (s)', key: 'timeLimit', step: 1 },
-                    { label: 'MIP gap', key: 'mipGap', step: 0.0001 },
-                  ].map(({ label, key, step }) => (
+                    { label: 'Threads', key: 'threads', step: 1, tip: 'Number of CPU threads for parallel computation' },
+                    { label: 'Time Limit (s)', key: 'timeLimit', step: 1, tip: 'Maximum solve time in seconds' },
+                    { label: 'Method', key: 'method', step: 1, tip: 'Algorithm: 0=primal, 1=dual, 2=barrier, 3=concurrent' },
+                    { label: 'MIP Gap', key: 'mipGap', step: 0.001, tip: 'Relative optimality gap for mixed-integer problems' },
+                    { label: 'Feasibility Tol', key: 'feasibilityTol', step: 0.001, tip: 'Maximum constraint violation allowed' },
+                    { label: 'Optimality Tol', key: 'optimalityTol', step: 0.001, tip: 'Maximum reduced cost violation allowed' },
+                    { label: 'Bar Conv Tol', key: 'barConvTol', step: 0.001, tip: 'Barrier algorithm convergence tolerance' },
+                    { label: 'Numeric Focus', key: 'numericFocus', step: 1, tip: 'Precision: 0=auto, 1–3=increasing stability' },
+                    { label: 'Crossover', key: 'crossover', step: 1, tip: 'Barrier crossover: -1=auto, 0=off, 1=on' },
+                    { label: 'Bar Homogeneous', key: 'barHomogeneous', step: 1, tip: 'Homogeneous self-dual: -1=auto, 0=off, 1=on' },
+                    { label: 'Presolve', key: 'presolve', step: 1, tip: 'Presolve: -1=auto, 0=off, 1=conservative, 2=aggressive' },
+                    { label: 'Agg Fill', key: 'aggFill', step: 1, tip: 'Max fill during presolve aggregation' },
+                    { label: 'Pre Dual', key: 'preDual', step: 1, tip: 'Presolve dualization: -1=auto, 0=off, 2=aggressive' },
+                    { label: 'RINS', key: 'rins', step: 1, tip: 'RINS heuristic: -1=auto, 0=off, N=every N nodes' },
+                    { label: 'Nodefile Start (GB)', key: 'nodefileStart', step: 0.1, tip: 'RAM threshold for writing nodes to disk' },
+                    { label: 'Random Seed', key: 'seed', step: 1, tip: 'Seed for reproducibility (same seed = same results)' },
+                  ].map(({ label, key, step, tip }) => (
                     <div key={key}>
-                      <label className="block text-xs font-medium text-slate-600 mb-1">{label}</label>
+                      <div className="flex items-center gap-1 mb-1">
+                        <label className="text-xs font-medium text-slate-700">{label}</label>
+                        <div className="group relative">
+                          <FiHelpCircle size={12} className="text-slate-400 cursor-help hover:text-slate-600" />
+                          <div className="hidden group-hover:block absolute left-0 top-5 z-10 w-56 p-2 bg-slate-800 text-white text-xs rounded shadow-lg">{tip}</div>
+                        </div>
+                      </div>
                       <input
-                        type="number" step={step}
-                        value={advancedSettings[key]}
-                        onChange={e => setAdvancedSettings(p => ({ ...p, [key]: parseFloat(e.target.value) }))}
+                        type="number"
+                        step={step}
+                        value={modelConfig.solverOptions[key]}
+                        onChange={e => setModelConfig(p => ({
+                          ...p,
+                          solverOptions: { ...p.solverOptions, [key]: parseFloat(e.target.value) || 0 }
+                        }))}
                         className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-electric-500"
                       />
                     </div>
