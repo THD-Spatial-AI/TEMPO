@@ -54,6 +54,23 @@ const SERVER_TEMPLATES = [
     ],
     color: 'green',
   },
+  {
+    id:          'uk_model',
+    name:        'UK Energy System',
+    description: 'Multi-zone UK power system (17 zones) with wind, solar, hydro, fossil, nuclear, storage and HVAC/HVDC transmission. Based on UK-Calliope 0.6.3.',
+    flag:        '🇬🇧',
+    rootYaml:    'uk-calliope-master/uk-calliope-master/model.yaml',
+    basePath:    'uk-calliope-master/uk-calliope-master',
+    // YAML imports are auto-discovered recursively — no need to list them explicitly
+    imports:     [],
+    csvFiles:    [
+      'data/demand.csv',
+      'data/pv.csv',
+      'data/wind_onshore.csv',
+      'data/wind_offshore.csv',
+    ],
+    color: 'blue',
+  },
 ];
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -166,6 +183,11 @@ function sanitizeInfinity(obj) {
   return obj;
 }
 
+const _CALLIOPE_BASE_TYPES = new Set([
+  'supply', 'supply_plus', 'demand', 'storage',
+  'transmission', 'conversion', 'conversion_plus',
+]);
+
 function techColor(parent) {
   return ({
     supply:          '#F59E0B',
@@ -176,6 +198,133 @@ function techColor(parent) {
     conversion:      '#10B981',
     conversion_plus: '#10B981',
   })[parent] || '#6B7280';
+}
+
+/**
+ * Walk the tech_groups inheritance chain to find the nearest Calliope base type.
+ * tech_groups are abstract parent classes defined per-model (e.g. supply_electricity_fossil).
+ */
+function resolveBaseType(parentName, techGroups, depth = 0) {
+  if (!parentName || depth > 12) return parentName || 'supply';
+  if (_CALLIOPE_BASE_TYPES.has(parentName)) return parentName;
+  const group = techGroups[parentName];
+  if (!group) return parentName; // unknown group — keep as-is
+  const next = group?.essentials?.parent;
+  if (!next || next === parentName) return parentName;
+  return resolveBaseType(next, techGroups, depth + 1);
+}
+
+/**
+ * Walk the tech_groups inheritance chain to find the first defined value for
+ * any of the given essentials fields (checked in order). Returns null if none found.
+ *
+ * Used to inherit carrier / carrier_out / carrier_in from abstract tech_groups
+ * (e.g. storage_electricity defines carrier: electricity, transmission_electricity
+ * defines carrier: electricity) into the concrete tech's essentials.
+ */
+function resolveFromChain(startParent, techGroups, fields, depth = 0) {
+  if (!startParent || depth > 12) return null;
+  const group = techGroups[startParent];
+  if (!group) return null;
+  const ess = group?.essentials || {};
+  for (const f of fields) {
+    if (ess[f] != null) return ess[f];
+  }
+  return resolveFromChain(ess.parent, techGroups, fields, depth + 1);
+}
+
+/**
+ * Walk the tech_groups chain to find the first non-null value at an arbitrary
+ * nested path within a group entry (e.g. ['constraints','lifetime']).
+ * Unlike resolveFromChain which searches inside `essentials`, this helper
+ * searches anywhere in the group object, following `essentials.parent` to walk up.
+ */
+function resolveNestedFromChain(startParent, techGroups, path, depth = 0) {
+  if (!startParent || depth > 12) return null;
+  const group = techGroups[startParent];
+  if (!group) return null;
+  const val = path.reduce((o, k) => (o != null ? o[k] : undefined), group);
+  if (val != null) return val;
+  return resolveNestedFromChain(group?.essentials?.parent, techGroups, path, depth + 1);
+}
+
+/**
+ * Expand Calliope dot-notation shorthand into nested objects.
+ *
+ * Calliope 0.6 allows flat dot-path keys as a compact override syntax:
+ *   Z2.techs.hvdc_import.constraints.energy_cap_equals: 1400000
+ * instead of the fully-nested equivalent. js-yaml keeps these as literal
+ * string keys, so we must expand them before any further processing.
+ *
+ * Non-dot keys are passed through unchanged (they may still be
+ * comma-separated location lists, handled by expandLocations next).
+ */
+function expandDotKeys(obj) {
+  const result = {};
+  for (const [key, val] of Object.entries(obj)) {
+    if (!key.includes('.')) {
+      // Plain key — keep as-is; deepMerge handles the rare case of duplicates
+      result[key] = result[key] !== undefined
+        ? deepMerge(result[key] || {}, val ?? {})
+        : val;
+    } else {
+      // Dot-path key — build nested object from right to left, then merge
+      const parts = key.split('.');
+      const topKey = parts[0];
+      let nested = val;
+      for (let i = parts.length - 1; i >= 1; i--) {
+        nested = { [parts[i]]: nested };
+      }
+      result[topKey] = deepMerge(result[topKey] ?? {}, nested);
+    }
+  }
+  return result;
+}
+
+/**
+ * Expand comma-separated location keys into individual per-location entries.
+ *
+ * Calliope allows shorthand like:
+ *   Z1,Z2,Z3:
+ *     techs:
+ *       demand_electricity:
+ * to assign the same config to multiple locations at once.
+ * TEMPO's internal format needs one entry per location.
+ */
+function expandLocations(locationsRaw) {
+  // First, normalise any dot-notation keys into proper nested objects.
+  // This handles entries like:
+  //   Z2.techs.hvdc_import.constraints.energy_cap_equals: 1400000
+  const normalised = expandDotKeys(locationsRaw);
+
+  // Accumulate shared (comma-key) config per location name
+  const sharedByName = {}; // locName → merged config from all comma-keys that include it
+  const singleByName = {}; // locName → config from individual key
+
+  for (const [key, val] of Object.entries(normalised)) {
+    const names = key.split(',').map(s => s.trim()).filter(Boolean);
+    if (names.length > 1) {
+      // Comma-separated key — distribute to each named location
+      for (const name of names) {
+        sharedByName[name] = deepMerge(sharedByName[name] || {}, val || {});
+      }
+    } else {
+      singleByName[names[0]] = deepMerge(singleByName[names[0]] || {}, val || {});
+    }
+  }
+
+  // Collect all unique location names
+  const allNames = new Set([
+    ...Object.keys(sharedByName),
+    ...Object.keys(singleByName),
+  ]);
+
+  const result = {};
+  for (const name of allNames) {
+    // Shared config is the base; individual entry overrides (coordinates and per-tech constraints)
+    result[name] = deepMerge(sharedByName[name] || {}, singleByName[name] || {});
+  }
+  return result;
 }
 
 // ─── YAML parser ──────────────────────────────────────────────────────────────
@@ -231,31 +380,79 @@ function translateCalliopeModel(mergedDoc, filesMap) {
   const log = [];
   const doc = sanitizeInfinity(mergedDoc);
 
+  // Tech groups (abstract parent classes — used only for parent-chain resolution)
+  const techGroupsRaw = doc.tech_groups || {};
+  if (Object.keys(techGroupsRaw).length)
+    log.push('Found ' + Object.keys(techGroupsRaw).length + ' tech_groups (used for parent resolution)');
+
   // Technologies
   const techsRaw = doc.techs || {};
   const technologies = Object.entries(techsRaw).map(([id, tech]) => {
-    const ess    = tech?.essentials || {};
-    const parent = ess.parent || 'supply';
+    const ess           = tech?.essentials || {};
+    const rawParent     = ess.parent || 'supply';
+    // Resolve parent chain through tech_groups to find the Calliope base type
+    const resolvedParent = resolveBaseType(rawParent, techGroupsRaw);
+
+    // Inherit carrier fields from the tech_groups chain when not set on the tech itself.
+    // Calliope 0.6 rules:
+    //   storage / transmission  → require 'carrier'      (not carrier_out/carrier_in)
+    //   demand                  → require 'carrier_in'   (not carrier_out)
+    //   supply / supply_plus    → require 'carrier_out'
+    //   conversion              → require both carrier_in + carrier_out
+    const isStorageTrans = resolvedParent === 'storage' || resolvedParent === 'transmission';
+    const isDemand       = resolvedParent === 'demand'  || resolvedParent === 'unmet_demand';
+    const isConversion   = resolvedParent === 'conversion' || resolvedParent === 'conversion_plus';
+
+    const chainCarrier    = ess.carrier     || resolveFromChain(rawParent, techGroupsRaw, ['carrier']);
+    const chainCarrierOut = ess.carrier_out || resolveFromChain(rawParent, techGroupsRaw, ['carrier_out', 'carrier']);
+    const chainCarrierIn  = ess.carrier_in  || resolveFromChain(rawParent, techGroupsRaw, ['carrier_in', 'carrier']);
+
+    // Assign the right field per Calliope type
+    const resolvedCarrier    = isStorageTrans ? (chainCarrier || chainCarrierOut || chainCarrierIn || 'electricity') : null;
+    const resolvedCarrierOut = (!isStorageTrans && !isDemand) ? (chainCarrierOut || 'electricity') : null;
+    // demand always needs carrier_in; conversion also needs it; supply optionally
+    const resolvedCarrierIn  = isStorageTrans ? null
+      : isDemand    ? (chainCarrierIn || chainCarrier || chainCarrierOut || 'electricity')
+      : isConversion ? (chainCarrierIn || chainCarrier || 'electricity')
+      : chainCarrierIn;  // supply: carry through if explicitly set
+
     return {
-      name: id, parent,
+      name: id, parent: resolvedParent,
       description: ess.name || id,
       essentials: {
-        name:        ess.name        || id,
-        color:       ess.color       || techColor(parent),
-        parent,
-        carrier_out: ess.carrier_out || ess.carrier || 'electricity',
-        carrier_in:  ess.carrier_in  || null,
-        carrier:     ess.carrier     || null,
+        name:        ess.name  || id,
+        color:       ess.color || techColor(resolvedParent),
+        parent:      resolvedParent,
+        carrier_out: resolvedCarrierOut,
+        carrier_in:  resolvedCarrierIn,
+        carrier:     resolvedCarrier,
       },
-      constraints: tech?.constraints || {},
-      costs:       tech?.costs       || { monetary: {} },
+      constraints: (() => {
+        const base = tech?.constraints || {};
+        // Inherit lifetime from tech_groups chain if not set on this tech
+        if (base.lifetime == null) {
+          const inherited = resolveNestedFromChain(rawParent, techGroupsRaw, ['constraints', 'lifetime']);
+          if (inherited != null) return { ...base, lifetime: inherited };
+        }
+        return base;
+      })(),
+      costs: (() => {
+        const baseMon = tech?.costs?.monetary || {};
+        const inherited = {};
+        // Inherit interest_rate from tech_groups chain if not set on this tech
+        if (baseMon.interest_rate == null) {
+          const ir = resolveNestedFromChain(rawParent, techGroupsRaw, ['costs', 'monetary', 'interest_rate']);
+          if (ir != null) inherited.interest_rate = ir;
+        }
+        return { monetary: { ...inherited, ...baseMon } };
+      })(),
     };
   });
   log.push('Found ' + technologies.length + ' technologies');
 
-  // Locations
-  const locationsRaw = doc.locations || {};
-  const locations = Object.entries(locationsRaw).map(([name, loc]) => {
+  // Locations — expand comma-separated shorthand keys first
+  const locationsExpanded = expandLocations(doc.locations || {});
+  const locations = Object.entries(locationsExpanded).map(([name, loc]) => {
     const c   = loc?.coordinates || {};
     const lat = c.lat ?? c.latitude  ?? loc?.lat  ?? loc?.latitude  ?? 0;
     const lon = c.lon ?? c.longitude ?? loc?.lon  ?? loc?.longitude ?? 0;
@@ -269,12 +466,14 @@ function translateCalliopeModel(mergedDoc, filesMap) {
     const parts = key.split(',').map(s => s.trim());
     const techs = link?.techs || {};
     const ft    = Object.keys(techs)[0] || 'ac_transmission';
+    const tc    = techs[ft]?.constraints || {};
     return {
       from:     parts[0] || '',
       to:       parts[1] || '',
       tech:     ft,
-      capacity: techs[ft]?.constraints?.energy_cap_max ?? 0,
-      distance: link?.distance ?? 0,
+      // energy_cap_equals takes precedence (UK model uses it), fall back to energy_cap_max/min
+      capacity: tc.energy_cap_equals ?? tc.energy_cap_max ?? tc.energy_cap_min ?? 0,
+      distance: tc.distance ?? link?.distance ?? techs[ft]?.distance ?? 0,
     };
   });
   log.push('Found ' + links.length + ' links');
@@ -321,7 +520,8 @@ function translateCalliopeModel(mergedDoc, filesMap) {
   };
 
   // Scan per-location tech constraints (canonical source of per-location timeseries)
-  Object.entries(doc.locations || {}).forEach(([locName, loc]) => {
+  // Use expanded locations so comma-key entries are properly attributed
+  Object.entries(locationsExpanded).forEach(([locName, loc]) => {
     Object.entries(loc?.techs || {}).forEach(([techName, tech]) => {
       if (tech?.constraints) collectFileRefs(tech.constraints, locName, techName);
     });
@@ -500,19 +700,48 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
         const text = await resp.text();
         if (storeAs) filesMap.set(storeAs, text);
         filesMap.set(templateRelPath.split('/').pop(), text);
-        // also store relative to basePath for import:  resolution
+        // also store relative to basePath for import: resolution
         const subPath = templateRelPath.replace(tpl.basePath + '/', '');
         if (subPath !== storeAs) filesMap.set(subPath, text);
-        return true;
+        return text;
+      };
+
+      // Recursively fetch all YAML files referenced via `import:` in the model,
+      // starting from the root. This handles models with arbitrary directory structures
+      // without needing to enumerate every file in the template definition.
+      const fetchedPaths = new Set();
+      const fetchYamlRecursive = async (relPathFromBase) => {
+        if (fetchedPaths.has(relPathFromBase)) return;
+        fetchedPaths.add(relPathFromBase);
+        const fullPath = tpl.basePath + '/' + relPathFromBase;
+        const text = await fetchFile(fullPath, relPathFromBase);
+        if (!text) { addLog('⚠ Import not found on server: ' + relPathFromBase); return; }
+        try {
+          const parsed = jsyaml.load(text, { schema: jsyaml.DEFAULT_SCHEMA }) || {};
+          for (const imp of (parsed.import || [])) {
+            // import paths in Calliope are always relative to the model root
+            if (!fetchedPaths.has(imp)) await fetchYamlRecursive(imp);
+          }
+        } catch (_) { /* ignore parse errors during pre-fetch */ }
       };
 
       addLog('Fetching ' + tpl.rootYaml);
-      const ok = await fetchFile(tpl.rootYaml, 'model.yaml');
-      if (!ok) throw new Error('Cannot fetch ' + tpl.rootYaml);
+      // Determine the root yaml path relative to basePath
+      const rootRelPath = tpl.rootYaml.replace(tpl.basePath + '/', '');
+      await fetchYamlRecursive(rootRelPath);
+      if (!filesMap.has(rootRelPath) && !filesMap.has('model.yaml')) {
+        throw new Error('Cannot fetch ' + tpl.rootYaml);
+      }
+      // Ensure the root is also accessible as 'model.yaml'
+      const rootContent = filesMap.get(rootRelPath);
+      if (rootContent && !filesMap.has('model.yaml')) filesMap.set('model.yaml', rootContent);
 
+      // Also fetch any explicitly listed imports (legacy / extra files)
       for (const imp of (tpl.imports || [])) {
-        addLog('Fetching ' + imp);
-        await fetchFile(tpl.basePath + '/' + imp, imp);
+        if (!fetchedPaths.has(imp)) {
+          addLog('Fetching ' + imp);
+          await fetchFile(tpl.basePath + '/' + imp, imp);
+        }
       }
 
       for (const csv of (tpl.csvFiles || [])) {
