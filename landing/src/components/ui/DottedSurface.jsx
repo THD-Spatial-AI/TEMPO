@@ -23,7 +23,7 @@ export function DottedSurface({ dotColor = 0x000000, className = "", children, s
       1,
       10000,
     );
-    camera.position.set(0, 150, 1220);
+    camera.position.set(0, 300, 1220);
 
     const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
     renderer.setPixelRatio(window.devicePixelRatio);

@@ -776,7 +776,7 @@ const Results = () => {
       series: [{
         type: 'bar', barMaxWidth: 28,
         data: sorted.map(([tech, v]) => ({ value: v, itemStyle: { color: techColorFn(tech), borderRadius: [0, 4, 4, 0] } })),
-        label: { show: true, position: 'right', formatter: p => fmt(p.value) + ' ' + unit, fontSize: 9, color: '#64748b' },
+        label: { show: true, position: 'right', formatter: p => fmt(p.value), fontSize: 9, color: '#64748b' },
       }],
       tooltip: { trigger: 'axis', formatter: p => `${p[0].name}<br/><b>${fmt(p[0].value)} ${unit}</b>` },
     };
@@ -820,7 +820,7 @@ const Results = () => {
       series: [{
         type: 'bar', barMaxWidth: 28,
         data: sorted.map(([tech, v]) => ({ value: v, itemStyle: { color: techColorFn(tech), borderRadius: [0, 4, 4, 0] } })),
-        label: { show: true, position: 'right', formatter: p => fmt(p.value) + ' ' + unit, fontSize: 9, color: '#64748b' },
+        label: { show: true, position: 'right', formatter: p => fmt(p.value), fontSize: 9, color: '#64748b' },
       }],
       tooltip: { trigger: 'axis', formatter: p => `${p[0].name}<br/><b>${fmt(p[0].value)} ${unit}</b>` },
     };
@@ -1129,7 +1129,7 @@ const Results = () => {
       series: [{
         type: 'bar', barMaxWidth: 28,
         data: data.map(d => ({ value: +d.costPerMwh.toFixed(2), itemStyle: { color: techColorFn(d.tech), borderRadius: [0,4,4,0] } })),
-        label: { show: true, position: 'right', formatter: p => p.value.toFixed(1) + ' €/MWh', fontSize: 9, color: '#64748b' },
+        label: { show: true, position: 'right', formatter: p => p.value.toFixed(1), fontSize: 9, color: '#64748b' },
       }],
       tooltip: { trigger: 'axis', formatter: p => `${p[0].name}<br/><b>${p[0].value.toFixed(2)} €/MWh</b>` },
     };

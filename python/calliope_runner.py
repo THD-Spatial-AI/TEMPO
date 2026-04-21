@@ -319,6 +319,26 @@ def build_techs_config(technologies):
                     # generated YAML which confuses Calliope's strict tech-type validation
                     # (especially for transmission techs where only 'carrier' is expected).
                     ess[k] = v
+
+            # Safety net: Calliope 0.6 requires 'carrier' (not carrier_out) for storage
+            # and transmission types.  If the importer didn't set it but carrier_out is
+            # present, promote carrier_out → carrier and remove the directional field.
+            parent_type = ess.get('parent', '')
+            if parent_type in ('storage', 'transmission'):
+                if 'carrier' not in ess:
+                    fallback = ess.pop('carrier_out', None) or ess.pop('carrier_in', None) or 'electricity'
+                    ess['carrier'] = fallback
+                # Always drop carrier_out/carrier_in for these types to avoid Calliope confusion
+                ess.pop('carrier_out', None)
+                ess.pop('carrier_in', None)
+            elif parent_type in ('demand', 'unmet_demand'):
+                # demand requires carrier_in; drop carrier_out if accidentally set
+                if 'carrier_in' not in ess:
+                    fallback = ess.pop('carrier_out', None) or ess.get('carrier') or 'electricity'
+                    ess['carrier_in'] = fallback
+                ess.pop('carrier_out', None)
+                ess.pop('carrier', None)
+
             cfg['essentials'] = ess
         else:
             cfg['essentials'] = {
@@ -878,14 +898,15 @@ def _ensure_missing_file_csvs(techs, locs, time_start, time_end, config_dir):
             for tmpl_dir in templates_root.iterdir():
                 if not tmpl_dir.is_dir():
                     continue
-                for sub in ('timeseries_data', 'timeseries', ''):
-                    candidate = (tmpl_dir / sub / fname) if sub else (tmpl_dir / fname)
-                    if candidate.exists():
-                        import shutil as _shutil
-                        _shutil.copy2(str(candidate), str(config_dir / fname))
-                        log(f"  Copied original CSV from template: {fname}")
-                        found = True
-                        break
+                # Use recursive glob to find the CSV anywhere inside the template tree.
+                # This handles both Italian_model/timeseries_data/ and
+                # uk-calliope-master/uk-calliope-master/data/ structures.
+                candidates = list(tmpl_dir.rglob(fname))
+                if candidates:
+                    import shutil as _shutil
+                    _shutil.copy2(str(candidates[0]), str(config_dir / fname))
+                    log(f"  Copied original CSV from template: {fname}")
+                    found = True
                 if found:
                     break
             if not found:
