@@ -73,12 +73,12 @@ export default function Home() {
   ]
 
   const features = [
-    { icon: 'account_tree', title: 'Model Builder', desc: 'Node-based canvas for architecting energy networks with direct translation to Calliope YAML schemas.' },
-    { icon: 'map', title: 'GIS Integration', desc: 'Native support for Shapefiles and GeoJSON for geographically anchored infrastructure planning.' },
-    { icon: 'library_books', title: 'Tech Catalog', desc: 'Standardized library of renewable and conventional generators, storage systems, and transmission tech.' },
-    { icon: 'terminal', title: 'Live Runner', desc: 'Integrated shell for monitoring optimization logs and solver telemetry in real-time.' },
-    { icon: 'experiment', title: 'Scenario Lab', desc: 'Automated multi-run simulations to explore model sensitivity across varying climate and cost parameters.' },
-    { icon: 'data_exploration', title: 'Result Analysis', desc: 'Aggregated visualization of energy flows, carbon intensity, and system-wide levelized costs.' },
+    { icon: 'account_tree', title: 'Model Builder', desc: 'Node-based canvas for architecting energy networks with direct, lossless translation to Calliope YAML schemas.' },
+    { icon: 'map', title: 'GIS Integration', desc: 'Native Shapefile and GeoJSON support. Locations and links are geographically anchored via live OSM data.' },
+    { icon: 'library_books', title: 'Tech Catalog', desc: 'OEO-aligned library of 55+ energy technologies backed by OpenTech-DB.' },
+    { icon: 'ssid_chart', title: 'Timeseries Editor', desc: 'Interactive per-column CSV editor with drag-to-edit data points, charts, and seasonal windowed views.' },
+    { icon: 'output', title: 'Multi-Format Export', desc: 'Export to Calliope ZIP folder. Planned adapters for PyPSA, OSeMOSYS, and AdoptNET.' },
+    { icon: 'data_exploration', title: 'Result Analysis', desc: 'Charts for energy dispatch, installed capacity, carbon intensity, and levelized costs.' },
   ]
 
   const techStack = [

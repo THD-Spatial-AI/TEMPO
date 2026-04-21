@@ -570,18 +570,40 @@ const Results = () => {
     [techMetaMap],
   );
 
+  // Detect a Calliope transmission tech from its parsed coord string.
+  // In Calliope capacities: non-transmission = "loc::tech", transmission = "loc::tech:dest_loc"
+  // After parseLTC the `tech` field for transmission will contain a colon (:dest suffix).
+  // We also catch any tech whose name literally contains 'transmission' as belt-and-suspenders.
+  const isTransTech = useCallback((tech) => tech.includes(':') || tech.toLowerCase().includes('transmission'), []);
+
   // ── Derived data ───────────────────────────────────────────────────────────
   const derivedData = useMemo(() => {
     if (!result) return null;
 
     // Parse capacities: "Berlin::solar_pv" → {loc, tech, value}
+    // Calliope 0.6 key formats:
+    //   non-transmission: "loc::tech"
+    //   transmission:     "loc::tech:dest_loc"  (tech contains a colon)
+    // We exclude transmission directed entries from the supply/demand tables and
+    // aggregate them separately under their base tech name (strip the :dest suffix).
     const capEntries = Object.entries(result.capacities || {})
       .map(([k, v]) => ({ ...parseLTC(k), value: Number(v) || 0 }))
-      .filter(e => e.value > 0 && !e.tech.includes('transmission'));
+      .filter(e => e.value > 0 && !isTransTech(e.tech));
 
-    // Capacity by tech (summed)
+    // Capacity by tech (summed) — supply/storage/demand only
     const capByTech = {};
     capEntries.forEach(({ tech, value }) => { capByTech[tech] = (capByTech[tech] || 0) + value; });
+
+    // Transmission capacity aggregated by base tech name (stripped of :dest)
+    const txCapByTech = {};
+    Object.entries(result.capacities || {}).forEach(([k, v]) => {
+      const { tech } = parseLTC(k);
+      const val = Number(v) || 0;
+      if (val > 0 && tech.includes(':')) {
+        const baseTech = tech.split(':')[0];
+        txCapByTech[baseTech] = (txCapByTech[baseTech] || 0) + val;
+      }
+    });
 
     // Capacity by location (summed)
     const capByLoc = {};
@@ -623,7 +645,7 @@ const Results = () => {
       return d.toLocaleDateString('en-GB', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
     });
 
-    return { capByTech, capByLoc, domTech, genByTech, genByLoc, totalGen, totalCap, timestamps };
+    return { capByTech, txCapByTech, capByLoc, domTech, genByTech, genByLoc, totalGen, totalCap, timestamps };
   }, [result]);
 
   // ── Transmission link pairs (for map) ─────────────────────────────────────
@@ -838,7 +860,7 @@ const Results = () => {
       .slice(0, isLargeModel ? LOC_CHART_LIMIT : allLocs.length);
     const truncated = isLargeModel && allLocs.length > LOC_CHART_LIMIT;
     const techSet = [...new Set(locs.flatMap(l => Object.keys(result.costs_by_location[l])))]
-      .filter(t => !t.includes('transmission') && isTechVisible(t));
+      .filter(t => !isTransTech(t) && isTechVisible(t));
     const maxCost = Math.max(1, ...locs.map(l => totalCostByLoc[l] || 0));
     const { div, unit } = autoScale(maxCost, '€');
     const fmt = scaledFmt(div);
@@ -933,7 +955,7 @@ const Results = () => {
     if (!derivedData?.capByTech) return null;
     const capEntries = Object.entries(result?.capacities || {})
       .map(([k, v]) => ({ ...parseLTC(k), value: Number(v) || 0 }))
-      .filter(e => e.value > 0 && !e.tech.includes('transmission') && isTechVisible(e.tech));
+      .filter(e => e.value > 0 && !isTransTech(e.tech) && isTechVisible(e.tech));
 
     const allLocs = [...new Set(capEntries.map(e => e.loc))];
     const totalCapByLoc = Object.fromEntries(
@@ -980,7 +1002,7 @@ const Results = () => {
     if (!result?.generation) return null;
     const genEntries = Object.entries(result.generation || {})
       .map(([k, v]) => ({ ...parseLTC(k), value: Number(v) || 0 }))
-      .filter(e => e.value > 0 && !e.tech.includes('transmission'));
+      .filter(e => e.value > 0 && !isTransTech(e.tech));
     if (!genEntries.length) return null;
 
     // Build nodes & links: Tech → Carrier
@@ -1043,7 +1065,7 @@ const Results = () => {
     if (!derivedData?.capByTech || !result?.generation) return null;
     const capEntries = Object.entries(result?.capacities || {})
       .map(([k, v]) => ({ ...parseLTC(k), value: Number(v) || 0 }))
-      .filter(e => e.value > 0 && !e.tech.includes('transmission') && isTechVisible(e.tech));
+      .filter(e => e.value > 0 && !isTransTech(e.tech) && isTechVisible(e.tech));
     const genEntries = Object.entries(result.generation || {})
       .map(([k, v]) => ({ ...parseLTC(k), value: Number(v) || 0 }))
       .filter(e => e.value > 0 && isTechVisible(e.tech));
@@ -1053,7 +1075,7 @@ const Results = () => {
       const techCap = {};
       const techGen = {};
       capEntries.forEach(({ tech, value }) => { techCap[tech] = (techCap[tech] || 0) + value; });
-      genEntries.filter(e => !e.tech.includes('transmission')).forEach(({ tech, value }) => { techGen[tech] = (techGen[tech] || 0) + value; });
+      genEntries.filter(e => !isTransTech(e.tech)).forEach(({ tech, value }) => { techGen[tech] = (techGen[tech] || 0) + value; });
       const data = Object.keys(techCap).map(tech => ({
         tech, cf: techCap[tech] > 0 ? Math.min(100, (techGen[tech] || 0) / (techCap[tech] * hrs) * 100) : 0,
       })).filter(d => d.cf > 0).sort((a, b) => b.cf - a.cf);
@@ -1557,6 +1579,27 @@ const Results = () => {
                                     </span>
                                   ) : '—'}
                                 </td>
+                              </tr>
+                            );
+                          })}
+                          {/* Transmission techs: show aggregated total capacity per link type */}
+                          {Object.keys(derivedData.txCapByTech || {}).sort().map((tech, i) => {
+                            const cap = derivedData.txCapByTech[tech] || 0;
+                            const cost = result?.costs_by_tech?.[tech] || 0;
+                            return (
+                              <tr key={`tx-${tech}`} className="border-b border-slate-50 opacity-70">
+                                <td className="py-2.5 pr-6">
+                                  <div className="flex items-center gap-2">
+                                    <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0 opacity-70" style={{ background: techColorFn(tech) }} />
+                                    <span className="font-medium text-slate-500 capitalize">{tech.replace(/_/g, ' ')}</span>
+                                    <span className="text-xs text-slate-400 italic">transmission</span>
+                                  </div>
+                                </td>
+                                <td className="py-2.5 px-4 text-right text-slate-500 font-mono text-xs">{fmtFull(cap)}</td>
+                                <td className="py-2.5 px-4 text-right text-slate-400 font-mono text-xs">—</td>
+                                <td className="py-2.5 px-4 text-right text-slate-500 font-mono text-xs">{cost > 0 ? fmtFull(cost) : '—'}</td>
+                                <td className="py-2.5 px-4 text-right font-mono text-xs text-slate-400">—</td>
+                                <td className="py-2.5 pl-4 text-right font-mono text-xs text-slate-400">—</td>
                               </tr>
                             );
                           })}

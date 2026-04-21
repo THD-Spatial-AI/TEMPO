@@ -71,6 +71,19 @@ const SERVER_TEMPLATES = [
     ],
     color: 'blue',
   },
+  {
+    id:          'cambridge_model',
+    name:        'Cambridge District Energy',
+    description: 'West Cambridge district-scale multi-carrier model (~50 building nodes) with CHP, GSHP, PV, solar thermal, storage and district heat/gas/electricity networks.',
+    flag:        '🎓',
+    rootYaml:    'cambridge-calliope-master/model/model.yaml',
+    basePath:    'cambridge-calliope-master/model',
+    // YAML imports + CSVs are auto-discovered via fetchYamlRecursive
+    imports:     [],
+    csvFiles:    [],
+    auto:        true,
+    color: 'purple',
+  },
 ];
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -282,6 +295,27 @@ function expandDotKeys(obj) {
 }
 
 /**
+ * Recursively apply expandDotKeys at every level of a plain-object tree.
+ *
+ * Calliope 0.6 allows dot-path shorthand at any nesting depth:
+ *   - tech_groups: costs.monetary.interest_rate: 0.1  (not inside essentials)
+ *   - techs:       costs.monetary: { energy_cap: 700 }  (dot-key as map key)
+ *   - links:       D07b,D06.techs: { ... }  (dot-key with location pair)
+ *   - link techs:  electricity_lines.distance: 99
+ * Running this once over the whole merged document before any field lookups
+ * means all subsequent code can use plain nested-object access.
+ */
+function deepExpandDotKeys(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+  const shallow = expandDotKeys(value);
+  const result = {};
+  for (const [k, v] of Object.entries(shallow)) {
+    result[k] = deepExpandDotKeys(v);
+  }
+  return result;
+}
+
+/**
  * Expand comma-separated location keys into individual per-location entries.
  *
  * Calliope allows shorthand like:
@@ -378,7 +412,10 @@ async function parseFilesMap(filesMap, addLog) {
 
 function translateCalliopeModel(mergedDoc, filesMap) {
   const log = [];
-  const doc = sanitizeInfinity(mergedDoc);
+  // Normalise ALL Calliope dot-path shorthand at every level before any field
+  // lookups. This covers tech_group bare keys (costs.monetary.interest_rate: 0.1),
+  // tech-level keys (costs.monetary: {...}), and link keys (D07b,D06.techs: {...}).
+  const doc = deepExpandDotKeys(sanitizeInfinity(mergedDoc));
 
   // Tech groups (abstract parent classes — used only for parent-chain resolution)
   const techGroupsRaw = doc.tech_groups || {};
@@ -404,7 +441,9 @@ function translateCalliopeModel(mergedDoc, filesMap) {
     const isConversion   = resolvedParent === 'conversion' || resolvedParent === 'conversion_plus';
 
     const chainCarrier    = ess.carrier     || resolveFromChain(rawParent, techGroupsRaw, ['carrier']);
-    const chainCarrierOut = ess.carrier_out || resolveFromChain(rawParent, techGroupsRaw, ['carrier_out', 'carrier']);
+    // ess.carrier is Calliope's shorthand for carrier_out (used by supply, storage, etc.)
+    // so include it as a fallback before walking the tech_groups chain.
+    const chainCarrierOut = ess.carrier_out || ess.carrier || resolveFromChain(rawParent, techGroupsRaw, ['carrier_out', 'carrier']);
     const chainCarrierIn  = ess.carrier_in  || resolveFromChain(rawParent, techGroupsRaw, ['carrier_in', 'carrier']);
 
     // Assign the right field per Calliope type
@@ -426,6 +465,16 @@ function translateCalliopeModel(mergedDoc, filesMap) {
         carrier_out: resolvedCarrierOut,
         carrier_in:  resolvedCarrierIn,
         carrier:     resolvedCarrier,
+        // Preserve conversion_plus / supply_plus secondary carrier fields and other
+        // essentials that are tech-specific and must not be silently dropped.
+        ...(ess.primary_carrier_out != null ? { primary_carrier_out: ess.primary_carrier_out } : {}),
+        ...(ess.primary_carrier_in  != null ? { primary_carrier_in:  ess.primary_carrier_in  } : {}),
+        ...(ess.carrier_out_2       != null ? { carrier_out_2:       ess.carrier_out_2       } : {}),
+        ...(ess.carrier_out_3       != null ? { carrier_out_3:       ess.carrier_out_3       } : {}),
+        ...(ess.carrier_in_2        != null ? { carrier_in_2:        ess.carrier_in_2        } : {}),
+        ...(ess.carrier_in_3        != null ? { carrier_in_3:        ess.carrier_in_3        } : {}),
+        ...(ess.stack_weight        != null ? { stack_weight:        ess.stack_weight        } : {}),
+        ...(ess.export_carrier      != null ? { export_carrier:      ess.export_carrier      } : {}),
       },
       constraints: (() => {
         const base = tech?.constraints || {};
@@ -482,7 +531,25 @@ function translateCalliopeModel(mergedDoc, filesMap) {
   const modelConf  = doc.model || {};
   const runConf    = doc.run   || {};
   const modelName  = modelConf.name || 'Imported Calliope Model';
-  const subsetTime = modelConf.subset_time || null;
+  // Normalise subset_time to a 2-element [start, end] date string array.
+  // Calliope allows: a bare year integer (2015), a single year string ('2015'),
+  // a list of two date strings, or a string like '2015-01-01'.
+  const normaliseSubsetTime = (raw) => {
+    if (!raw && raw !== 0) return null;
+    if (Array.isArray(raw) && raw.length === 2) {
+      // Already a range — normalise each element to YYYY-MM-DD
+      const toDate = (v) => {
+        const s = String(v).trim();
+        return /^\d{4}$/.test(s) ? s + '-01-01' : s.slice(0, 10);
+      };
+      return [toDate(raw[0]), toDate(raw[1])];
+    }
+    // Single value: a year like 2015 or '2015'
+    const s = String(raw).trim().slice(0, 10);
+    if (/^\d{4}$/.test(s)) return [s + '-01-01', s + '-12-31'];
+    return [s, s];
+  };
+  const subsetTime = normaliseSubsetTime(modelConf.subset_time);
   const tsPath     = modelConf.timeseries_data_path || 'timeseries_data';
   const runConfig  = {
     solver:             runConf.solver             || 'cbc',
@@ -526,9 +593,11 @@ function translateCalliopeModel(mergedDoc, filesMap) {
       if (tech?.constraints) collectFileRefs(tech.constraints, locName, techName);
     });
   });
-  // Also scan global techs (file= without an implicit location column)
+  // Scan all techs for file= references in constraints AND costs
+  // (e.g. Cambridge model uses costs.monetary.export: file=export_price.csv:export)
   Object.entries(doc.techs || {}).forEach(([techName, tech]) => {
     if (tech?.constraints) collectFileRefs(tech.constraints, null, techName);
+    if (tech?.costs)       collectFileRefs(tech.costs, null, techName);
   });
 
   // ── Build one timeSeries entry per CSV file ────────────────────────────────
@@ -747,6 +816,33 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
       for (const csv of (tpl.csvFiles || [])) {
         const csvOk = await fetchFile(tpl.basePath + '/' + csv, csv.split('/').pop());
         if (csvOk) addLog('Fetched CSV: ' + csv.split('/').pop());
+      }
+
+      // Auto-discover and fetch any 'file=xxx.csv' references found across all
+      // fetched YAML content (handles cost timeseries like export_price.csv that
+      // are not listed in tpl.csvFiles and not reachable via YAML import: chains).
+      const allCsvRefs = new Set();
+      for (const [, yamlText] of filesMap) {
+        if (!yamlText || typeof yamlText !== 'string' || !yamlText.includes('file=')) continue;
+        for (const m of yamlText.matchAll(/file=([^\s:'"]+\.csv)/gi)) {
+          allCsvRefs.add(m[1]);
+        }
+      }
+      for (const ref of allCsvRefs) {
+        if (filesMap.has(ref)) continue; // already loaded
+        // Try tsPath (timeseries_data subdirs) first, then basePath root
+        const tryPaths = [
+          tpl.basePath + '/timeseries_data/DMUU/' + ref,
+          tpl.basePath + '/timeseries_data/' + ref,
+          tpl.basePath + '/data/' + ref,
+          tpl.basePath + '/' + ref,
+        ];
+        let fetched = false;
+        for (const p of tryPaths) {
+          const ok = await fetchFile(p, ref);
+          if (ok) { addLog('Auto-fetched CSV: ' + ref); fetched = true; break; }
+        }
+        if (!fetched) addLog('⚠ CSV not on server: ' + ref + ' (safety net will handle it)');
       }
 
       await runParse(filesMap);
