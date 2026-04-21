@@ -118,9 +118,17 @@ const Run = ({ onNavigate }) => {
       if (p.key === 'subset_time_start') start = p.value;
       if (p.key === 'subset_time_end')   end   = p.value;
     });
-    if (!start && !end && Array.isArray(meta.subsetTime) && meta.subsetTime.length === 2) {
-      start = String(meta.subsetTime[0]);
-      end   = String(meta.subsetTime[1]);
+    if (!start && !end && meta.subsetTime) {
+      const st = meta.subsetTime;
+      if (Array.isArray(st) && st.length === 2) {
+        start = String(st[0]);
+        end   = String(st[1]);
+      } else {
+        // bare year or single date string
+        const s = String(st).trim().slice(0, 10);
+        start = /^\d{4}$/.test(s) ? s + '-01-01' : s;
+        end   = /^\d{4}$/.test(s) ? s + '-12-31' : s;
+      }
     }
     // Normalise to YYYY-MM-DD (strip time component if present)
     const toDateStr = (s) => (s ? String(s).slice(0, 10) : null);

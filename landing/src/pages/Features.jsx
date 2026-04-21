@@ -1,23 +1,34 @@
 import Footer from '../components/Footer'
 import model from '../public/img/Model.png'
 import InteractiveQGIS from '../public/img/InteractiveQGIS.png'
+import Dashboard from '../public/img/Dashboard.png'
 
 export default function Features() {
   const workflowSteps = [
     {
       num: '01',
-      title: 'Ingestion',
-      desc: 'Import time-series data or link to live feeds. TEMPO handles normalization and gap-filling automatically.',
+      title: 'Ingest',
+      desc: 'Import OSM data for your region, load CSV timeseries, or drop a full Calliope YAML model (ZIP or folder). TEMPO resolves all imports recursively.',
     },
     {
       num: '02',
       title: 'Architect',
-      desc: 'Map the physical assets to digital nodes. Define constraints, efficiencies, and operational logic in the Model Builder.',
+      desc: 'Click the map to place nodes, draw transmission links, and assign technologies from the catalog. Every change live-previews CAPEX and OPEX estimates.',
     },
     {
       num: '03',
-      title: 'Simulate',
-      desc: 'Run Monte Carlo simulations or deterministic paths. Real-time feedback via SSE streaming ensures instant insight.',
+      title: 'Parametrize',
+      desc: 'Edit timeseries columns directly on the chart, apply named override groups for costs and CO₂ limits, and compose multi-scenario batches.',
+    },
+    {
+      num: '04',
+      title: 'Solve',
+      desc: 'Execute the Calliope + CBC solver locally or in Docker. Logs stream live via SSE — watch objective gaps close in real time.',
+    },
+    {
+      num: '05',
+      title: 'Analyze',
+      desc: 'Interactive dispatch charts, capacity breakdowns, carbon intensity timelines, and LCOE tables. Export any chart or the full result set as CSV.',
     },
   ]
 
@@ -67,11 +78,12 @@ export default function Features() {
                   MODEL BUILDER
                 </h2>
                 <p className="text-on-surface-variant mb-8 leading-relaxed">
-                  A visual-first node-based interface that abstracts complex calculus into
-                  architectural components. Construct logic flows with zero overhead.
+                  A visual-first GIS interface for defining model topology. Click the map to place
+                  location nodes, draw transmission links, and assign technology stacks — each node
+                  translates directly to a Calliope <code className="text-xs bg-black/5 px-1">locations.yaml</code> entry.
                 </p>
                 <ul className="space-y-4">
-                  {['Logic-Gating Connectors', 'Sub-system Nesting', 'Real-time Error Validation'].map(
+                  {['Click-to-place node & link authoring', 'Calliope YAML export without data loss', 'Real-time CAPEX / OPEX estimation', 'Template models: Germany, Italy & more'].map(
                     (item) => (
                       <li
                         key={item}
@@ -109,8 +121,9 @@ export default function Features() {
                 <h2 className="text-[2.75rem] font-bold tracking-tight">INTERACTIVE GIS</h2>
               </div>
               <p className="max-w-md text-on-surface-variant font-medium">
-                Seamless integration with MapLibre GL. Overlay spatial datasets, transmission grids,
-                and topography directly into your simulation environment.
+                Download any national or sub-national OpenStreetMap extract via Geofabrik, push it
+                into PostGIS, and overlay power lines, substations, and plants directly in the
+                map canvas. Generate a mesh network and import it as model locations and links in one click.
               </p>
             </div>
 
@@ -120,70 +133,147 @@ export default function Features() {
                   alt=""
                   src={InteractiveQGIS}
                 />
-
             </div>
           </div>
         </section>
 
-        {/* ── Advanced Components — Bento Grid ── */}
+        {/* ── Result Analysis ── */}
+        <section className="bg-surface-container-lowest py-32 px-8 ghost-border">
+          <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-16 items-start">
+            {/* Left: full-width screenshot */}
+            <div className="lg:col-span-8">
+              <div className="bg-surface ghost-border min-h-[520px] relative overflow-hidden">
+                <img
+                  className="w-full h-auto"
+                  alt="TEMPO model dashboard showing dispatch charts and location map"
+                  src={Dashboard}
+                />
+              </div>
+            </div>
+
+            {/* Right: sticky copy */}
+            <div className="lg:col-span-4">
+              <div className="sticky top-32">
+                <span className="material-symbols-outlined text-primary text-4xl mb-6 block">
+                  data_exploration
+                </span>
+                <h2 className="text-[2.75rem] font-bold tracking-tight leading-none mb-6">
+                  RESULT ANALYSIS
+                </h2>
+                <p className="text-on-surface-variant mb-8 leading-relaxed">
+                  After the solver finishes, TEMPO surfaces every key output — installed capacity,
+                  hourly dispatch, carbon intensity, and system-wide LCOE — in a multi-tab dashboard
+                  with interactive ECharts visualizations.
+                </p>
+                <ul className="space-y-4">
+                  {['Energy dispatch by technology', 'Installed capacity breakdown', 'Carbon intensity timeline', 'Levelized cost of electricity (LCOE)', 'Filterable by tech group & time window'].map(
+                    (item) => (
+                      <li
+                        key={item}
+                        className="flex items-center gap-3 text-[0.6875rem] font-bold uppercase tracking-widest"
+                      >
+                        <span className="material-symbols-outlined text-[1rem]">check_circle</span>
+                        {item}
+                      </li>
+                    )
+                  )}
+                </ul>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Complete Feature Set ── */}
         <section className="py-32 px-8 bg-surface-container-lowest">
           <div className="max-w-7xl mx-auto">
-            <h2 className="text-[2.75rem] font-bold tracking-tight mb-16 uppercase">
-              Advanced Components
+            <h2 className="text-[2.75rem] font-bold tracking-tight mb-4 uppercase">
+              Complete Feature Set
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 auto-rows-[300px]">
-              {/* Card 1 — PV */}
-              <div className="md:col-span-8 bg-surface p-10 flex flex-col justify-between border-b-4 border-black group">
+            <p className="text-on-surface-variant max-w-2xl mb-16">
+              Every screen in TEMPO is purpose-built around the energy modelling workflow.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 auto-rows-[280px]">
+
+              {/* Timeseries Editor — wide */}
+              <div className="md:col-span-8 bg-surface p-10 flex flex-col justify-between border-b-4 border-black">
                 <div>
-                  <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-outline">
-                    Renewables
-                  </span>
-                  <h3 className="text-2xl font-bold mt-2">MULTI-ARRAY PHOTOVOLTAICS</h3>
+                  <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-outline">Data</span>
+                  <h3 className="text-2xl font-bold mt-2 uppercase">Timeseries Editor</h3>
                 </div>
                 <p className="text-on-surface-variant max-w-md">
-                  Precision irradiance modeling with 15-minute resolution and panel-level degradation curves.
+                  Interactive per-column CSV editor. Drag data points directly on the chart to
+                  adjust demand curves or resource profiles. Supports line, bar, and scatter views
+                  with seasonal, monthly, and custom time windows.
                 </p>
               </div>
 
-              {/* Card 2 — H2 */}
+              {/* Multi-Format Export — narrow black */}
               <div className="md:col-span-4 bg-black p-10 flex flex-col justify-between text-white">
-                <span className="material-symbols-outlined text-3xl">cyclone</span>
+                <span className="material-symbols-outlined text-3xl">output</span>
                 <div>
-                  <h3 className="text-xl font-bold uppercase">H2 Electrolysis</h3>
-                  <p className="text-[0.75rem] text-on-tertiary mt-2">
-                    Dynamic PEM and Alkaline cell stacks.
+                  <h3 className="text-xl font-bold uppercase">Multi-Format Export</h3>
+                  <p className="text-[0.75rem] text-neutral-300 mt-2">
+                    ZIP folder export for Calliope. Planned adapters: PyPSA, OSeMOSYS, AdoptNET.
+                    Run your model externally with any solver.
                   </p>
                 </div>
               </div>
 
-              {/* Card 3 — BESS */}
-              <div className="md:col-span-4 bg-surface-container p-10 flex flex-col justify-center items-center text-center">
-                <span className="material-symbols-outlined text-5xl mb-4">storage</span>
-                <h3 className="text-lg font-bold uppercase">BESS Systems</h3>
-                <p className="text-[0.75rem] mt-2">
-                  LFP and NMC chemistry profiles with thermal management modeling.
+              {/* YAML Model Import — narrow */}
+              <div className="md:col-span-4 bg-surface p-10 flex flex-col justify-center items-start">
+                <span className="material-symbols-outlined text-4xl mb-4">upload_file</span>
+                <h3 className="text-lg font-bold uppercase">YAML Import</h3>
+                <p className="text-[0.75rem] mt-2 text-on-surface-variant">
+                  Import any Calliope 0.6.x model from a ZIP archive, folder drop, or individual
+                  YAML + CSV files with full recursive import resolution.
                 </p>
               </div>
 
-              {/* Card 4 — CCS */}
-              <div className="md:col-span-8 bg-surface p-10 relative overflow-hidden">
-                <div className="relative z-10 h-full flex flex-col justify-between">
-                  <h3 className="text-2xl font-bold uppercase">Carbon Capture (CCS)</h3>
-                  <div className="flex gap-4">
-                    <button className="border border-black px-4 py-2 text-[0.6875rem] font-bold uppercase tracking-widest hover:bg-black hover:text-white transition-colors">
-                      Documentation
-                    </button>
-                    <button className="border border-black px-4 py-2 text-[0.6875rem] font-bold uppercase tracking-widest hover:bg-black hover:text-white transition-colors">
-                      Specs
-                    </button>
+              {/* Override & Scenario Engine — wide */}
+              <div className="md:col-span-8 bg-surface p-10 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center gap-4 mb-2">
+                    <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-outline">Scenarios</span>
+                  </div>
+                  <h3 className="text-2xl font-bold uppercase">Override &amp; Scenario Engine</h3>
+                </div>
+                <div>
+                  <p className="text-on-surface-variant mb-6">
+                    Parameterize any technology constraint through named override groups. Template
+                    library covers cost, capacity, CO₂, and policy scenarios. Compose multi-run
+                    batches and stream solver telemetry live.
+                  </p>
+                  <div className="flex gap-3">
+                    <span className="text-[0.6875rem] font-bold uppercase tracking-widest border border-black px-3 py-1">Cost Overrides</span>
+                    <span className="text-[0.6875rem] font-bold uppercase tracking-widest border border-black px-3 py-1">CO₂ Limits</span>
+                    <span className="text-[0.6875rem] font-bold uppercase tracking-widest border border-black px-3 py-1">Policy Runs</span>
                   </div>
                 </div>
-                <img
-                  className="absolute inset-0 w-full h-full object-cover grayscale opacity-10"
-                  alt="Industrial abstract of massive steel pipes and ventilation systems at a carbon capture facility"
-                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuBnIJSttYhwUoKfTZCMSM4w_0PDXiCJpaTJYmAs_bOjI1LAbEBqL3SapnE8iy-Hd8zQiJsbgglaMgHZb0LPptDMM8aeWNyGCog1nz7_7AL10KSb_utAs1YGnSYLXb5aCIl2ICHBPlHROrJc3KiHmfGSHOlOcpVze_3q416B2-7Wrb5opUwUNvoEMyZJXgxLwqjNZTtAIRy4Ua1Lwt4At1SGQiYNGbYYk1XB7sfjDc1XLwMfL9SlyBu-YlNdPHrvooT1OB-HJSPo9PE"
-                />
               </div>
+
+              {/* H2 & CCS — wide */}
+              <div className="md:col-span-8 bg-black text-white p-10 flex flex-col justify-between">
+                <div>
+                  <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-neutral-400">Digital Twins</span>
+                  <h3 className="text-2xl font-bold mt-2 uppercase">H₂ &amp; CCS Simulation</h3>
+                </div>
+                <p className="text-neutral-300 max-w-md">
+                  OpenModelica-based digital twins for hydrogen power plants (electrolyzer,
+                  compressor, storage tank) and carbon capture systems, with interactive
+                  flow diagrams and real-time parameter sweeps.
+                </p>
+              </div>
+
+              {/* Offline-First — narrow */}
+              <div className="md:col-span-4 bg-surface p-10 flex flex-col justify-center items-start">
+                <span className="material-symbols-outlined text-4xl mb-4">laptop_mac</span>
+                <h3 className="text-lg font-bold uppercase">Offline-First Desktop</h3>
+                <p className="text-[0.75rem] mt-2 text-on-surface-variant">
+                  Runs entirely as an Electron app. No cloud dependency — model, optimize,
+                  and analyze without an internet connection.
+                </p>
+              </div>
+
             </div>
           </div>
         </section>

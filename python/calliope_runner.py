@@ -1407,94 +1407,97 @@ def _run_model_impl(model_data, work_dir):
     #           transmission_type, from_location = tech.split(':')
     #
     # carrier_prod at (to_loc, "tx_type:from_loc") = power ARRIVING at to_loc FROM from_loc.
-    try:
-        import numpy as np
-        fa = model.get_formatted_array('carrier_prod')
-        tx_timestamps = results.get('timestamps') or [str(t) for t in fa.timesteps.values]
+    if 'carrier_prod' not in ds:
+        log("  Skipping transmission flow extraction: carrier_prod not in model results")
+    else:
+        try:
+            import numpy as np
+            fa = model.get_formatted_array('carrier_prod')
+            tx_timestamps = results.get('timestamps') or [str(t) for t in fa.timesteps.values]
 
-        # raw_tx["to_loc::from_loc"] = summed production arriving at to_loc from from_loc (1D)
-        raw_tx = {}
-        for location in fa.locs.values:
-            to_loc = str(location)
-            for carrier in fa.carriers.values:
-                # df: rows = tech strings, columns = timesteps
-                sub = fa.sel(carriers=carrier, locs=location)
-                if sub.dims[0] != 'techs':
-                    sub = sub.transpose('techs', 'timesteps')
-                df = sub.to_pandas()
-                for tech_name, ts in df.iterrows():
-                    tech = str(tech_name)
-                    if len(tech.split(':')) < 2:
-                        continue  # not transmission (flows.py: len(tech.split(":")) > 1)
-                    from_loc = tech.split(':', 1)[1]
-                    if from_loc == to_loc:
-                        continue
-                    vals = np.where(np.isnan(ts.values), 0.0, ts.values.astype(float))
-                    # Skip link-timesteps that are entirely zero to avoid building millions
-                    # of raw_tx entries for inactive links in large sparse models.
-                    if np.abs(vals).max() < 1e-6:
-                        continue
-                    key = f"{to_loc}::{from_loc}"
-                    if key not in raw_tx:
-                        raw_tx[key] = np.zeros(len(vals))
-                    raw_tx[key] += vals
+            # raw_tx["to_loc::from_loc"] = summed production arriving at to_loc from from_loc (1D)
+            raw_tx = {}
+            for location in fa.locs.values:
+                to_loc = str(location)
+                for carrier in fa.carriers.values:
+                    # df: rows = tech strings, columns = timesteps
+                    sub = fa.sel(carriers=carrier, locs=location)
+                    if sub.dims[0] != 'techs':
+                        sub = sub.transpose('techs', 'timesteps')
+                    df = sub.to_pandas()
+                    for tech_name, ts in df.iterrows():
+                        tech = str(tech_name)
+                        if len(tech.split(':')) < 2:
+                            continue  # not transmission (flows.py: len(tech.split(":")) > 1)
+                        from_loc = tech.split(':', 1)[1]
+                        if from_loc == to_loc:
+                            continue
+                        vals = np.where(np.isnan(ts.values), 0.0, ts.values.astype(float))
+                        # Skip link-timesteps that are entirely zero to avoid building millions
+                        # of raw_tx entries for inactive links in large sparse models.
+                        if np.abs(vals).max() < 1e-6:
+                            continue
+                        key = f"{to_loc}::{from_loc}"
+                        if key not in raw_tx:
+                            raw_tx[key] = np.zeros(len(vals))
+                        raw_tx[key] += vals
 
-        # Build undirected net flow per pair keyed as "a::b" (a < b lexically).
-        # raw_tx["B::A"] = A→B flow (power arriving at B from A).
-        # Net A→B = raw_tx["B::A"] - raw_tx["A::B"]
-        #
-        # CAP: with large models (e.g. 2000+ locations) there can be millions of
-        # pairs whose serialisation would produce gigabytes of JSON, hanging the
-        # service.  We keep only the MAX_TX_PAIRS pairs with the highest peak flow.
-        MAX_TX_PAIRS = 500
+            # Build undirected net flow per pair keyed as "a::b" (a < b lexically).
+            # raw_tx["B::A"] = A→B flow (power arriving at B from A).
+            # Net A→B = raw_tx["B::A"] - raw_tx["A::B"]
+            #
+            # CAP: with large models (e.g. 2000+ locations) there can be millions of
+            # pairs whose serialisation would produce gigabytes of JSON, hanging the
+            # service.  We keep only the MAX_TX_PAIRS pairs with the highest peak flow.
+            MAX_TX_PAIRS = 500
 
-        processed_pairs = set()
-        pair_stats = {}   # pair_key → (net_array, abs_peak)
-        for key in list(raw_tx.keys()):
-            to_loc, from_loc = key.split('::', 1)
-            a, b = sorted([to_loc, from_loc])
-            pair_key = f"{a}::{b}"
-            if pair_key in processed_pairs:
-                continue
-            processed_pairs.add(pair_key)
-            n = len(raw_tx[key])
-            a_to_b = raw_tx.get(f"{b}::{a}", np.zeros(n))
-            b_to_a = raw_tx.get(f"{a}::{b}", np.zeros(n))
-            net = a_to_b - b_to_a
-            abs_peak = float(np.abs(net).max()) if n else 0.0
-            # Skip pairs with no actual flow
-            if abs_peak < 1e-6:
-                continue
-            pair_stats[pair_key] = (a, b, net, abs_peak)
+            processed_pairs = set()
+            pair_stats = {}   # pair_key → (net_array, abs_peak)
+            for key in list(raw_tx.keys()):
+                to_loc, from_loc = key.split('::', 1)
+                a, b = sorted([to_loc, from_loc])
+                pair_key = f"{a}::{b}"
+                if pair_key in processed_pairs:
+                    continue
+                processed_pairs.add(pair_key)
+                n = len(raw_tx[key])
+                a_to_b = raw_tx.get(f"{b}::{a}", np.zeros(n))
+                b_to_a = raw_tx.get(f"{a}::{b}", np.zeros(n))
+                net = a_to_b - b_to_a
+                abs_peak = float(np.abs(net).max()) if n else 0.0
+                # Skip pairs with no actual flow
+                if abs_peak < 1e-6:
+                    continue
+                pair_stats[pair_key] = (a, b, net, abs_peak)
 
-        total_pairs = len(pair_stats)
-        if total_pairs > MAX_TX_PAIRS:
-            log(f"  WARNING: {total_pairs} active transmission pairs — keeping top {MAX_TX_PAIRS} by peak flow to avoid oversized response")
-            top_keys = sorted(pair_stats, key=lambda k: pair_stats[k][3], reverse=True)[:MAX_TX_PAIRS]
-            pair_stats = {k: pair_stats[k] for k in top_keys}
+            total_pairs = len(pair_stats)
+            if total_pairs > MAX_TX_PAIRS:
+                log(f"  WARNING: {total_pairs} active transmission pairs — keeping top {MAX_TX_PAIRS} by peak flow to avoid oversized response")
+                top_keys = sorted(pair_stats, key=lambda k: pair_stats[k][3], reverse=True)[:MAX_TX_PAIRS]
+                pair_stats = {k: pair_stats[k] for k in top_keys}
 
-        tx_flow = {}
-        for pair_key, (a, b, net, _) in pair_stats.items():
-            tx_flow[pair_key] = {
-                'from': a,
-                'to':   b,
-                'timeseries': [round(float(v), 3) for v in net.tolist()],
-            }
+            tx_flow = {}
+            for pair_key, (a, b, net, _) in pair_stats.items():
+                tx_flow[pair_key] = {
+                    'from': a,
+                    'to':   b,
+                    'timeseries': [round(float(v), 3) for v in net.tolist()],
+                }
 
-        if tx_flow:
-            results['transmission_flow'] = tx_flow
-            log(f"  Extracted transmission flow for {len(tx_flow)} pair(s)"
-                + (f" (capped from {total_pairs})" if total_pairs > MAX_TX_PAIRS else ""))
-        else:
-            log("  No active transmission flows found in carrier_prod")
+            if tx_flow:
+                results['transmission_flow'] = tx_flow
+                log(f"  Extracted transmission flow for {len(tx_flow)} pair(s)"
+                    + (f" (capped from {total_pairs})" if total_pairs > MAX_TX_PAIRS else ""))
+            else:
+                log("  No active transmission flows found in carrier_prod")
 
-        if 'timestamps' not in results:
-            results['timestamps'] = tx_timestamps
+            if 'timestamps' not in results:
+                results['timestamps'] = tx_timestamps
 
-    except Exception as e:
-        import traceback as _tb
-        log(f"  Could not extract transmission flow timeseries: {e}")
-        log(_tb.format_exc())
+        except Exception as e:
+            import traceback as _tb
+            log(f"  Could not extract transmission flow timeseries: {e}")
+            log(_tb.format_exc())
 
     # Demand timeseries from carrier_con (demand techs consume electricity)
     if 'carrier_con' in ds:
