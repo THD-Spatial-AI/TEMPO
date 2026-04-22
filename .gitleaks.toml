@@ -1,0 +1,16 @@
+title = "TEMPO Gitleaks configuration"
+
+[allowlist]
+description = "Known safe defaults and example credentials that are not real secrets"
+
+# The GeoServer admin/geoserver pair is the published factory default for GeoServer.
+# It is used in backend-go/config.yaml as a local-dev placeholder.
+# See https://docs.geoserver.org/stable/en/user/installation/passwords.html
+regexes = [
+  '''password:\s*["']geoserver["']''',
+]
+
+# Allowlist the specific config file so the rule applies repo-wide to that file only
+paths = [
+  "backend-go/config.yaml",
+]
