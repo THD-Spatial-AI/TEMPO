@@ -3,6 +3,8 @@ package storage
 import (
 	"database/sql"
 	"encoding/json"
+	"log"
+	"os"
 	"time"
 
 	"calliope-backend/internal/models"
@@ -25,10 +27,12 @@ func InitDB(path string) (*DB, error) {
 
 	// Enable WAL journal mode for better concurrent read performance and
 	// set a 10 s busy timeout so transient lock conflicts retry automatically.
+	// foreign_keys=ON enforces referential integrity (disabled by default in SQLite).
 	pragmas := []string{
 		"PRAGMA journal_mode=WAL;",
 		"PRAGMA busy_timeout=10000;",
 		"PRAGMA synchronous=NORMAL;",
+		"PRAGMA foreign_keys=ON;",
 	}
 	for _, p := range pragmas {
 		if _, err := conn.Exec(p); err != nil {
@@ -81,6 +85,12 @@ func InitDB(path string) (*DB, error) {
 
 	if _, err := conn.Exec(schema); err != nil {
 		return nil, err
+	}
+
+	// Restrict file permissions to owner-only (mode 0600) so other OS users
+	// cannot read the database file containing saved energy models.
+	if err := os.Chmod(path, 0600); err != nil {
+		log.Printf("Warning: could not set DB file permissions: %v", err)
 	}
 
 	return &DB{conn: conn}, nil

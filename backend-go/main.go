@@ -24,9 +24,9 @@ func main() {
 	// Initialize API server
 	server := api.NewServer(db, *port)
 
-	// Write PID file for Electron to manage
+	// Write PID file for Electron to manage (owner-only permissions).
 	pidFile := ".backend.pid"
-	if err := os.WriteFile(pidFile, []byte(fmt.Sprintf("%d", os.Getpid())), 0644); err != nil {
+	if err := os.WriteFile(pidFile, []byte(fmt.Sprintf("%d", os.Getpid())), 0600); err != nil {
 		log.Printf("Warning: Could not write PID file: %v", err)
 	}
 	defer os.Remove(pidFile)

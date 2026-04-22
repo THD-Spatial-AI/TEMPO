@@ -2,6 +2,7 @@ import React, { Suspense, lazy, useState, useEffect } from "react";
 import { DataProvider, useData } from "./context/DataContext";
 import Sidebar from "./components/Sidebar";
 import ErrorBoundary from "./components/ErrorBoundary";
+import PrivacyDialog from "./components/PrivacyDialog";
 // Dashboard is the initial view — load eagerly
 import Dashboard from "./components/Dashboard";
 // All other views are lazy-loaded to reduce initial bundle size (LCP/INP fix)
@@ -197,6 +198,16 @@ function AppContent() {
 function App() {
   // 'checking' | 'setup' | 'ready'
   const [appState, setAppState] = useState('checking');
+  const [consentGiven, setConsentGiven] = useState(true); // optimistic; corrected after check
+
+  // Check whether the user has already accepted the privacy notice.
+  // In non-Electron (browser dev) environments the API is absent — skip the check.
+  useEffect(() => {
+    if (!window.electronAPI?.getPrivacyConsent) return;
+    window.electronAPI.getPrivacyConsent().then(({ accepted }) => {
+      setConsentGiven(accepted);
+    }).catch(() => setConsentGiven(true));
+  }, []);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && window.electronAPI) {
@@ -228,6 +239,9 @@ function App() {
 
   return (
     <ErrorBoundary>
+      {!consentGiven && (
+        <PrivacyDialog onAccept={() => setConsentGiven(true)} />
+      )}
       <DataProvider>
         <AppContent />
       </DataProvider>

@@ -6,6 +6,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getUserDataPath: () => ipcRenderer.invoke('get-user-data-path'),
   saveFile: (filename, content) => ipcRenderer.invoke('save-file', { filename, content }),
 
+  // ── Privacy & data management ─────────────────────────────────────────────
+  getPrivacyConsent: () => ipcRenderer.invoke('privacy:get-consent'),
+  setPrivacyConsent: (accepted) => ipcRenderer.invoke('privacy:set-consent', accepted),
+  clearAllData: () => ipcRenderer.invoke('data:clear-all'),
+
   // Read a file from the templates directory (works in packaged builds where
   // fetch('/templates/...') would resolve against the FS root instead of the app)
   readTemplateFile: (filename) => ipcRenderer.invoke('read-template-file', filename),
