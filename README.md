@@ -1,9 +1,9 @@
 # TEMPO — Tool for Energy Model Planning and Optimization
 
+[![Docs](https://img.shields.io/badge/docs-MkDocs-blue)](https://THD-Spatial.github.io/TEMPO)
+[![GitHub Release](https://img.shields.io/github/v/release/THD-Spatial-AI/TEMPO)](https://github.com/THD-Spatial-AI/TEMPO/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![GitHub Discussions](https://img.shields.io/github/discussions/THD-Spatial-AI/TEMPO)](https://github.com/THD-Spatial-AI/TEMPO/discussions)
-[//]: # [![Main branch build status](https://github.com/calliope-project/calliope/actions/workflows/commit-ci.yml/badge.svg?branch=main)](https://github.com/calliope-project/calliope/actions/workflows/commit-ci.yml)
-[//]: # [![Documentation build status](https://img.shields.io/readthedocs/calliope.svg?version=latest)](https://readthedocs.org/projects/calliope/builds/)
-[//]: # [![Test coverage](https://codecov.io/gh/calliope-project/calliope/graph/badge.svg?token=UM542yaYrh)](https://codecov.io/gh/ calliope-project/calliope)
 
 
 
