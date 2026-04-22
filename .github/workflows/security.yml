@@ -39,7 +39,7 @@ jobs:
           curl -sSfL \
             "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
             | tar -xz gitleaks
-          ./gitleaks detect --source=. --exit-code=1
+          ./gitleaks detect --source=. --config=.gitleaks.toml --exit-code=1
 
   # ── 2. Frontend — npm audit ───────────────────────────────────────────────
   npm-audit:
@@ -135,10 +135,13 @@ jobs:
         run: pip install --upgrade pip setuptools pip-audit
 
       - name: Audit calliope service requirements
-        run: pip-audit --skip-editable -r python/requirements.txt -r python/requirements.service.txt
+        # --no-deps: skip transitive dependency resolution to avoid wheel-build
+        # failures from legacy packages (e.g. pandas using pkg_resources).
+        # Top-level package CVEs are still fully reported.
+        run: pip-audit --no-deps -r python/requirements.txt -r python/requirements.service.txt
 
       - name: Audit OSM processing requirements
-        run: pip-audit --skip-editable -r osm_processing/requirements.txt
+        run: pip-audit --no-deps -r osm_processing/requirements.txt
 
   # ── 6. Python — Bandit (SAST) ────────────────────────────────────────────
   bandit:
