@@ -26,11 +26,35 @@ const HydrogenPlantDashboard = lazy(() => import("./components/HydrogenPlantDash
 function AppContent() {
   const [selected, setSelected] = useState("Dashboard");
   const [pendingNavigation, setPendingNavigation] = useState(null);
-  const [showSaveDialog, setShowSaveDialog] = useState(false);
-  const { navigationWarning, locations, links, createModel, showNotification } = useData();
+  const { isDirty, saveNow, locations, links, timeSeries, overrides, scenarios, technologies, currentModelId, showNotification } = useData();
+
+  // Screens that carry editable model data — navigating away always asks to save
+  // when a model is loaded (currentModelId is set).
+  const EDITING_VIEWS = new Set([
+    'Locations', 'Links', 'TimeSeries', 'Overrides', 'Scenarios', 'Technologies',
+    'Tech Database', 'Parameters', 'Creation',
+  ]);
+
+  // Global Ctrl+S save shortcut
+  React.useEffect(() => {
+    const onKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        if (currentModelId && EDITING_VIEWS.has(selected)) {
+          saveNow();
+          showNotification('Model saved.', 'success');
+        }
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentModelId, selected, saveNow]);
 
   const handleNavigation = (newView) => {
-    if (navigationWarning) {
+    // Always intercept when leaving an editing screen that has a model loaded.
+    // The user should consciously decide whether to save before leaving.
+    if (currentModelId && EDITING_VIEWS.has(selected) && newView !== selected) {
       setPendingNavigation(newView);
     } else {
       setSelected(newView);
@@ -47,9 +71,11 @@ function AppContent() {
   const cancelNavigation = () => {
     setPendingNavigation(null);
   };
-  
+
   const handleSaveAndNavigate = () => {
-    setShowSaveDialog(true);
+    saveNow();
+    showNotification('Changes saved.', 'success');
+    confirmNavigation();
   };
 
   const renderContent = () => {
@@ -110,99 +136,75 @@ function AppContent() {
         </main>
       </div>
 
-      {/* Navigation Warning Dialog - Enhanced */}
-      {pendingNavigation && navigationWarning && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[10000] animate-fadeIn">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 animate-scaleIn border border-slate-200">
-            <div className="p-6 border-b border-slate-100">
-              <h3 className="text-xl font-semibold text-slate-900">Unsaved Work</h3>
+      {/* ── Navigation guard ─────────────────────────────────────────── */}
+      {pendingNavigation && currentModelId && EDITING_VIEWS.has(selected) && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[10000]">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 border border-slate-200">
+
+            {/* Header */}
+            <div className="flex items-center gap-3 p-6 border-b border-slate-100">
+              <span className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${isDirty ? 'bg-amber-100' : 'bg-blue-100'}`}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                     className={isDirty ? 'text-amber-600' : 'text-blue-600'}>
+                  {isDirty
+                    ? <><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></>
+                    : <><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v14a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></>
+                  }
+                </svg>
+              </span>
+              <div>
+                <h3 className="text-base font-semibold text-slate-900">
+                  {isDirty ? 'Unsaved changes' : 'Save before leaving?'}
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {isDirty
+                    ? `You're leaving ${selected} without saving`
+                    : `Your last changes were auto-saved`}
+                </p>
+              </div>
             </div>
+
+            {/* Body */}
             <div className="p-6">
-              <p className="text-slate-600 leading-relaxed mb-3">
-                You have unsaved work in your model:
-              </p>
-              <ul className="text-sm text-slate-500 space-y-1 ml-4">
-                {locations.length > 0 && <li>• {locations.length} location{locations.length !== 1 ? 's' : ''}</li>}
-                {links.length > 0 && <li>• {links.length} link{links.length !== 1 ? 's' : ''}</li>}
-              </ul>
-              <p className="text-slate-600 mt-4">
-                Do you want to save your work before leaving, or discard it?
-              </p>
+              {isDirty ? (
+                <div className="space-y-2">
+                  <p className="text-sm text-slate-700">These items have pending changes:</p>
+                  <ul className="text-xs text-slate-500 space-y-1 ml-1 mt-2">
+                    {locations.length > 0     && <li className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"/>{locations.length} location{locations.length !== 1 ? 's' : ''}</li>}
+                    {links.length > 0         && <li className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"/>{links.length} link{links.length !== 1 ? 's' : ''}</li>}
+                    {timeSeries.length > 0    && <li className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"/>{timeSeries.length} time series</li>}
+                    {Object.keys(overrides).length > 0  && <li className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"/>{Object.keys(overrides).length} override{Object.keys(overrides).length !== 1 ? 's' : ''}</li>}
+                    {Object.keys(scenarios).length > 0  && <li className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"/>{Object.keys(scenarios).length} scenario{Object.keys(scenarios).length !== 1 ? 's' : ''}</li>}
+                    {technologies.length > 0  && <li className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"/>{technologies.length} technolog{technologies.length !== 1 ? 'ies' : 'y'}</li>}
+                  </ul>
+                </div>
+              ) : (
+                <p className="text-sm text-slate-600">
+                  Your model changes have been auto-saved. You can also click{' '}
+                  <strong>Save &amp; leave</strong> to make a manual save before continuing.
+                </p>
+              )}
             </div>
-            <div className="p-6 border-t border-slate-100 flex gap-3 justify-end">
+
+            {/* Actions */}
+            <div className="p-6 pt-0 flex gap-2 justify-end flex-wrap">
               <button
                 onClick={cancelNavigation}
-                className="px-5 py-2.5 border-2 border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 hover:border-slate-300 transition-all duration-200 font-medium"
+                className="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 transition-colors"
               >
-                Cancel
+                Stay here
               </button>
               <button
                 onClick={confirmNavigation}
-                className="px-5 py-2.5 border-2 border-red-200 text-red-600 rounded-lg hover:bg-red-50 hover:border-red-300 transition-all duration-200 font-medium"
+                className="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors"
               >
-                Discard
+                Leave
               </button>
               <button
                 onClick={handleSaveAndNavigate}
-                className="px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-lg hover:from-emerald-600 hover:to-emerald-700 shadow-md hover:shadow-lg transition-all duration-200 font-medium"
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-emerald-500 hover:bg-emerald-600 shadow-sm transition-colors"
               >
-                Save & Leave
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {/* Save Dialog (triggered from navigation warning) */}
-      {showSaveDialog && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[10001] animate-fadeIn">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 animate-scaleIn border border-slate-200">
-            <div className="p-6 border-b border-slate-100">
-              <h3 className="text-xl font-semibold text-slate-900">Save Model</h3>
-            </div>
-            <div className="p-6">
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Model Name
-              </label>
-              <input
-                type="text"
-                placeholder="Enter model name..."
-                className="w-full px-4 py-2.5 border-2 border-slate-200 rounded-lg focus:outline-none focus:border-emerald-500 transition-colors"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    const name = e.target.value.trim();
-                    if (name) {
-                      createModel(name);
-                      showNotification('Model saved successfully!', 'success');
-                      setShowSaveDialog(false);
-                      confirmNavigation();
-                    }
-                  }
-                }}
-                autoFocus
-              />
-            </div>
-            <div className="p-6 border-t border-slate-100 flex gap-3 justify-end">
-              <button
-                onClick={() => setShowSaveDialog(false)}
-                className="px-5 py-2.5 border-2 border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 hover:border-slate-300 transition-all duration-200 font-medium"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={(e) => {
-                  const input = e.target.closest('.bg-white').querySelector('input');
-                  const name = input.value.trim();
-                  if (name) {
-                    createModel(name);
-                    showNotification('Model saved successfully!', 'success');
-                    setShowSaveDialog(false);
-                    confirmNavigation();
-                  }
-                }}
-                className="px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-lg hover:from-emerald-600 hover:to-emerald-700 shadow-md hover:shadow-lg transition-all duration-200 font-medium"
-              >
-                Save
+                Save &amp; leave
               </button>
             </div>
           </div>

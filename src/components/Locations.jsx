@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { FiEdit2, FiTrash2, FiCheck, FiX, FiPlus, FiChevronDown, FiChevronRight, FiCpu, FiSun, FiWind, FiBattery, FiZap, FiActivity, FiDroplet, FiHome, FiCircle, FiSearch, FiArrowRight, FiHelpCircle, FiSave } from "react-icons/fi";
 import { useData } from "../context/DataContext";
+import SaveBar from './ui/SaveBar';
 import { TECH_TEMPLATES, useLiveTechTemplates } from "./TechnologiesData";
 
 // Constraint definitions with categories (complete from Creation.jsx)
@@ -558,7 +559,9 @@ const Locations = () => {
   };
 
   return (
-    <div className="flex-1 p-8 bg-gray-50">
+    <div className="flex-1 flex flex-col bg-gray-50 min-h-0">
+      <SaveBar label="Locations" />
+      <div className="flex-1 p-8 overflow-y-auto">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-slate-800 mb-2">Locations</h1>
         <p className="text-slate-600">Manage energy system nodes and locations</p>
@@ -1457,6 +1460,7 @@ const Locations = () => {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 };

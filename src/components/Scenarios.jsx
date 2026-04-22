@@ -5,6 +5,7 @@ import {
   FiBookOpen, FiList,
 } from 'react-icons/fi';
 import { useData } from '../context/DataContext';
+import SaveBar from './ui/SaveBar';
 import {
   SCENARIO_TEMPLATES, SWEEP_PRESETS, ALL_OVERRIDE_TEMPLATES, setNestedValue,
 } from '../data/overrideTemplates';
@@ -489,6 +490,7 @@ const Scenarios = () => {
 
   return (
     <div className="flex-1 h-screen overflow-hidden flex flex-col bg-slate-50">
+      <SaveBar label="Scenarios" />
       {/* ── Header ── */}
       <div className="bg-white border-b border-slate-200 px-6 py-4 shrink-0">
         <div className="flex items-center justify-between">

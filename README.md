@@ -1,5 +1,12 @@
 # TEMPO — Tool for Energy Model Planning and Optimization
 
+[![GitHub Discussions](https://img.shields.io/github/discussions/THD-Spatial-AI/TEMPO)](https://github.com/THD-Spatial-AI/TEMPO/discussions)
+[//]: # [![Main branch build status](https://github.com/calliope-project/calliope/actions/workflows/commit-ci.yml/badge.svg?branch=main)](https://github.com/calliope-project/calliope/actions/workflows/commit-ci.yml)
+[//]: # [![Documentation build status](https://img.shields.io/readthedocs/calliope.svg?version=latest)](https://readthedocs.org/projects/calliope/builds/)
+[//]: # [![Test coverage](https://codecov.io/gh/calliope-project/calliope/graph/badge.svg?token=UM542yaYrh)](https://codecov.io/gh/ calliope-project/calliope)
+
+
+
 Desktop and web application for building, running, and visualizing Calliope energy system models. Built with React + Go + Python + Electron at [TH Deggendorf](https://www.th-deg.de).
 
 > **Just want the app?** Download the installer from the project website or directly from [GitHub Releases](https://github.com/THD-Spatial-AI/TEMPO/releases):
