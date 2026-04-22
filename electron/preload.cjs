@@ -12,28 +12,26 @@ contextBridge.exposeInMainWorld('electronAPI', {
   clearAllData: () => ipcRenderer.invoke('data:clear-all'),
 
   // Read a file from the templates directory (works in packaged builds where
-  // fetch('/templates/...') would resolve against the FS root instead of the app)
+  // fetch('/templates/...') would resolve against the FS root)
   readTemplateFile: (filename) => ipcRenderer.invoke('read-template-file', filename),
 
   // ── Docker service management ─────────────────────────────────────────────
 
   /**
    * Get the running status of all TEMPO Docker services.
-   * @returns Promise<{ dockerAvailable: bool, services: Array<{name, label, port, required, running, healthy, status, portOpen}> }>
+   * @returns Promise<{ dockerAvailable: bool, services: Array }>
    */
   getDockerStatus: () => ipcRenderer.invoke('docker:status'),
 
   /**
    * Start a specific Docker service by container name.
-   * Progress is streamed via onDockerStartProgress.
-   * @param {string} serviceName  e.g. 'calliope-runner', 'hydrogensim', 'ccssim'
+   * @param {string} serviceName  e.g. 'calliope-runner', 'opentech-db'
    * @returns Promise<{ success: bool, error?: string }>
    */
   startDockerService: (serviceName) => ipcRenderer.invoke('docker:start', serviceName),
 
   /**
    * Start all Docker services that have a compose directory.
-   * Progress is streamed via onDockerStartProgress.
    * @returns Promise<Record<string, { success: bool, error?: string }>>
    */
   startAllDockerServices: () => ipcRenderer.invoke('docker:start-all'),
@@ -53,15 +51,46 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   /**
    * Get all TEMPO service URLs and whether each port is open.
-   * Use in packaged builds (no Vite proxy available in file:// context).
    * @returns Promise<Record<string, { url: string, running: bool }>>
    */
   getServiceURLs: () => ipcRenderer.invoke('services:urls'),
 
   /**
-   * Get the Calliope service URL (backward compat for calliopeClient.js).
+   * Get the Calliope service URL (used by calliopeClient.js).
    * @returns Promise<{ url: string, running: bool }>
    */
   getCalliopeServiceURL: () => ipcRenderer.invoke('calliope:service-url'),
+
+  // ── Calliope Python service (direct venv mode) ────────────────────────────
+
+  /**
+   * Check whether the Python venv exists and the service is running.
+   * @returns Promise<{ envExists: bool, venvPath: string|null, serviceRunning: bool }>
+   */
+  checkCalliopeEnv: () => ipcRenderer.invoke('calliope:check'),
+
+  /**
+   * Full zero-touch install: create venv, pip install, verify, start service.
+   * Streams progress via onCalliopeInstallProgress.
+   * @returns Promise<{ success: bool, error?: string }>
+   */
+  installCalliopeEnv: () => ipcRenderer.invoke('calliope:install'),
+
+  /**
+   * Subscribe to Calliope install progress events.
+   * @returns {Function} unsubscribe
+   */
+  onCalliopeInstallProgress: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('calliope:install-progress', handler);
+    return () => ipcRenderer.removeListener('calliope:install-progress', handler);
+  },
+
+  /**
+   * Restart the running Calliope uvicorn service.
+   * @returns Promise<{ running: bool }>
+   */
+  restartCalliopeService: () => ipcRenderer.invoke('calliope:restart-service'),
 });
+
 
