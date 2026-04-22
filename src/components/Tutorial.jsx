@@ -22,6 +22,7 @@ import { ENTITY_TYPES } from '../config/domainModel';
 import { generateCSVDownload, generateJSONDownload } from '../config/dataTemplates';
 import { ModelStructureTutorial } from './ModelStructureTutorial';
 
+
 // Screenshot caption component with a number badge
 const Step = ({ n, title, children }) => (
   <div className="bg-white rounded-2xl p-6 shadow-md">
@@ -246,21 +247,14 @@ const Tutorial = () => {
                     <FiEdit className="text-white text-3xl" />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-bold text-slate-800">Manual Creation — Bavaria Example</h3>
-                    <p className="text-slate-500">4 locations · 3 links · solar + wind + gas + demand system</p>
+                    <h3 className="text-2xl font-bold text-slate-800">Manual Creation — Germany Example</h3>
+                    <p className="text-slate-500">12 locations · 12 links · solar + wind + gas + nuclear + hydro + coal + biomass + battery + demand system</p>
                   </div>
                 </div>
 
                 <div className="space-y-5">
                   <Step n={1} title="Open Creation Mode & Pick a Region">
                     <p className="text-slate-600 text-sm">Click <strong>Creation</strong> in the left sidebar. The map appears with an empty canvas.</p>
-                    <p className="text-slate-600 text-sm mt-2">In the <strong>right sidebar</strong>, use the "SELECT REGION" stepper:</p>
-                    <div className="flex gap-2 mt-2 flex-wrap">
-                      {['1. Europe', '2. Germany', '3. Bavaria'].map(s => (
-                        <span key={s} className="bg-slate-200 text-slate-700 px-3 py-1 rounded-full text-xs font-medium">{s}</span>
-                      ))}
-                    </div>
-                    <p className="text-slate-500 text-xs mt-2">The map zooms to Bavaria and loads real power lines, substations, and power plant locations from OpenStreetMap.</p>
                     <Screenshot src="/img/Model.png" alt="Creation mode with region selector" caption="Creation Mode — left panel shows mode selector; right sidebar shows the Region Selection stepper (Continent → Country → Region → Subregion) and Infrastructure Layers toggles." />
                   </Step>
 
@@ -279,10 +273,18 @@ const Tutorial = () => {
                         </thead>
                         <tbody className="font-mono">
                           {[
-                            ['Munich_Demand', '48.14°N, 11.58°E', 'City demand center'],
-                            ['Ingolstadt_Sub', '48.76°N, 11.42°E', 'Transmission substation'],
-                            ['Solar_Augsburg', '48.37°N, 10.90°E', 'Solar PV farm'],
-                            ['Wind_Regensburg', '49.01°N, 12.10°E', 'Wind farm'],
+                            ['Berlin', '52.5200, 13.4050', 'Solar, Wind, Battery, Gas'],
+                            ['Munich', '48.1351, 11.5820', 'Solar, Wind, Battery, Gas'],
+                            ['Hamburg', '53.5511, 9.9937', 'Solar, Wind, Battery, Gas'],
+                            ['Frankfurt', '50.1109, 8.6821', 'Solar, Battery, Gas'],
+                            ['Cologne', '50.9375, 6.9603', 'Solar, Wind, Gas'],
+                            ['Stuttgart', '48.7758, 9.1829', 'Solar, Battery, Biomass'],
+                            ['Dresden', '51.0504, 13.7373', 'Solar, Wind, Coal'],
+                            ['Hannover', '52.3759, 9.7320', 'Solar, Wind, Gas'],
+                            ['Leipzig', '51.3397, 12.3731', 'Solar, Wind, Battery'],
+                            ['Nuremberg', '49.4521, 11.0767', 'Solar, Biomass, Gas'],
+                            ['Node_North', '53.0000, 10.0000', 'Transmission'],
+                            ['Node_South', '49.0000, 11.5000', 'Transmission'],
                           ].map(([n, c, r]) => (
                             <tr key={n} className="hover:bg-slate-50">
                               <td className="border border-slate-200 px-3 py-1.5 text-slate-800 font-semibold">{n}</td>
@@ -293,7 +295,6 @@ const Tutorial = () => {
                         </tbody>
                       </table>
                     </div>
-                    <Tip>Use the real OSM power plant markers as a guide — right-click → "Place Location Here" to snap to an existing plant.</Tip>
                   </Step>
 
                   <Step n={3} title="Configure Each Location — Add Technologies">
@@ -310,7 +311,7 @@ const Tutorial = () => {
                         </div>
                       ))}
                     </div>
-                    <p className="text-slate-500 text-xs mt-3">Repeat for each location. Assign <strong>power_demand</strong> to Munich_Demand, <strong>Wind Onshore</strong> to Wind_Regensburg, and <strong>Gas CCGT</strong> to Ingolstadt_Sub as a backup plant.</p>
+                    <p className="text-slate-500 text-xs mt-3">Repeat for each location. Assign <strong>power_demand</strong> to Munich_Demand, <strong>Wind Onshore</strong> to Wind_Frankfurt, and <strong>Gas CCGT</strong> to Dresden as a backup plant.</p>
                   </Step>
 
                   <Step n={4} title="Connect with Transmission Links">
@@ -327,9 +328,18 @@ const Tutorial = () => {
                         </thead>
                         <tbody className="font-mono">
                           {[
-                            ['Solar_Augsburg', 'Ingolstadt_Sub', 'HVAC 110 kV', '150 MW'],
-                            ['Wind_Regensburg', 'Ingolstadt_Sub', 'HVAC 110 kV', '200 MW'],
-                            ['Ingolstadt_Sub', 'Munich_Demand', 'HVAC 380 kV', '800 MW'],
+                            ['Berlin', 'Leipzig', 'AC Transmission', '149 MW'],
+                            ['Berlin', 'Dresden', 'AC Transmission', '165 MW'],
+                            ['Berlin', 'Hannover', 'AC Transmission', '250 MW'],
+                            ['Berlin', 'Node_North', 'AC Transmission', '280 MW'],
+                            ['Munich', 'Stuttgart', 'AC Transmission', '190 MW'],
+                            ['Munich', 'Nuremberg', 'AC Transmission', '150 MW'],
+                            ['Munich', 'Node_South', 'AC Transmission', '120 MW'],
+                            ['Hamburg', 'Hannover', 'AC Transmission', '132 MW'],
+                            ['Hamburg', 'Node_North', 'AC Transmission', '150 MW'],
+                            ['Frankfurt', 'Cologne', 'AC Transmission', '152 MW'],
+                            ['Frankfurt', 'Stuttgart', 'AC Transmission', '152 MW'],
+                            ['Node_North', 'Node_South', 'HVDC Transmission', '450 MW'],
                           ].map(([f, t, ty, c]) => (
                             <tr key={f+t} className="hover:bg-slate-50">
                               <td className="border border-slate-200 px-3 py-1.5 text-slate-700">{f}</td>
@@ -341,7 +351,6 @@ const Tutorial = () => {
                         </tbody>
                       </table>
                     </div>
-                    <Tip>Line colour auto-matches voltage level (380 kV = dark red, 110 kV = orange). You can change the default type in the "HVAC Overhead Line" dropdown in the left panel before clicking.</Tip>
                   </Step>
 
                   <Step n={5} title="Save & Validate">
@@ -372,22 +381,37 @@ const Tutorial = () => {
                   <Step n={1} title="Download the Locations Template">
                     <p className="text-slate-600 text-sm mb-3">Go to the <strong>Templates</strong> tab and download <code className="bg-slate-100 px-1 rounded">locations_template.csv</code>. Open it in Excel or Google Sheets.</p>
                     <p className="text-slate-600 text-sm mb-2">The template already contains a Berlin example. Replace it with your own rows:</p>
-                    <CodeBlock>{`name,type,latitude,longitude,capacity_mw,voltage_level,subtype,operator
-Munich_Main,substation,48.1374,11.5755,,380,,TenneT
-Hamburg_Wind,renewable_site,53.5753,10.0153,500,,wind_onshore,EnBW
-Berlin_City,demand_center,52.5200,13.4050,8000,,mixed,
-Frankfurt_Gas,power_plant,50.1109,8.6821,1200,,gas,Uniper AG
-Stuttgart_Solar,renewable_site,48.7758,9.1829,200,,solar_pv,BayWa`}</CodeBlock>
+                    <CodeBlock>{`name,latitude,longitude,techs,energy_cap_max,demand_types,resource_files
+Berlin,52.52,13.405,"solar_pv,wind_onshore,battery_storage,gas_ccgt",4000,power_demand,german_demand_2024
+Munich,48.1351,11.582,"solar_pv,wind_onshore,gas_ccgt,battery_storage",3000,power_demand,german_demand_2024
+Hamburg,53.5511,9.9937,"wind_offshore,solar_pv,battery_storage,gas_ccgt",3500,power_demand,german_demand_2024
+Frankfurt,50.1109,8.6821,"solar_pv,gas_ccgt,battery_storage",2500,power_demand,german_demand_2024
+Cologne,50.9375,6.9603,"solar_pv,wind_onshore,gas_ccgt",2200,power_demand,german_demand_2024
+Stuttgart,48.7758,9.1829,"solar_pv,biomass,battery_storage",2000,power_demand,german_demand_2024
+Dresden,51.0504,13.7373,"solar_pv,wind_onshore,coal",1800,power_demand,german_demand_2024
+Hannover,52.3759,9.732,"wind_onshore,solar_pv,gas_ccgt",1700,power_demand,german_demand_2024
+Leipzig,51.3397,12.3731,"solar_pv,wind_onshore,battery_storage",1500,power_demand,german_demand_2024
+Nuremberg,49.4521,11.0767,"solar_pv,biomass,gas_ccgt",1800,power_demand,german_demand_2024
+Node_North,53.0,10.0,ac_transmission,8000,,
+Node_South,49.0,11.5,ac_transmission,7000,,`}</CodeBlock>
                     <Tip>Keep the header row exactly as-is. Only <code>name</code>, <code>type</code>, <code>latitude</code>, <code>longitude</code> are required — all other columns are optional.</Tip>
                   </Step>
 
                   <Step n={2} title="Fill the Transmission Template">
                     <p className="text-slate-600 text-sm mb-2">Download <code className="bg-slate-100 px-1 rounded">transmission_lines_template.csv</code>. Reference the <strong>exact same names</strong> from your locations file:</p>
-                    <CodeBlock>{`from,to,type,capacity_mw,voltage_kv,length_km,efficiency
-Munich_Main,Hamburg_Wind,ac_transmission,800,380,778,0.95
-Munich_Main,Frankfurt_Gas,ac_transmission,1200,380,300,0.97
-Berlin_City,Hamburg_Wind,ac_transmission,600,220,255,0.96
-Stuttgart_Solar,Munich_Main,ac_transmission,250,110,220,0.98`}</CodeBlock>
+                    <CodeBlock>{`from,to,distance_km,capacity_MW,voltage_kV,tech
+Berlin,Leipzig,149,2000,220,ac_transmission
+Berlin,Dresden,165,1800,220,ac_transmission
+Berlin,Hannover,250,2200,220,ac_transmission
+Berlin,Node_North,280,3000,380,ac_transmission
+Munich,Stuttgart,190,2000,220,ac_transmission
+Munich,Nuremberg,150,1800,220,ac_transmission
+Munich,Node_South,120,2500,380,ac_transmission
+Hamburg,Hannover,132,2500,220,ac_transmission
+Hamburg,Node_North,150,3000,380,ac_transmission
+Frankfurt,Cologne,152,2200,220,ac_transmission
+Frankfurt,Stuttgart,152,2000,220,ac_transmission
+Node_North,Node_South,450,4000,380,hvdc_transmission`}</CodeBlock>
                   </Step>
 
                   <Step n={3} title="Upload via Import">
@@ -403,8 +427,8 @@ Stuttgart_Solar,Munich_Main,ac_transmission,250,110,220,0.98`}</CodeBlock>
                   </Step>
 
                   <Step n={4} title="Review & Refine on the Map">
-                    <p className="text-slate-600 text-sm">After import, open <strong>Creation</strong> to see all nodes placed on the map with connecting lines. Click any node to add technologies or adjust parameters.</p>
-                    <Screenshot src="/img/Hero.png" alt="Imported model on dark map" caption="An imported multi-node German model — Hamburg, Hannover, Berlin, Leipzig, Frankfurt, Stuttgart, Nuremberg, Munich — with transmission links drawn automatically from the CSV." />
+                    <p className="text-slate-600 text-sm">After import, open <strong>Map View</strong> to see all nodes placed on the map with connecting lines. Click any node to add technologies or adjust parameters.</p>
+                    <Screenshot src="/img/Mapview.png" alt="Imported model on dark map" caption="An imported multi-node German model — Hamburg, Hannover, Berlin, Leipzig, Frankfurt, Stuttgart, Nuremberg, Munich — with transmission links drawn automatically from the CSV." />
                   </Step>
                 </div>
 
