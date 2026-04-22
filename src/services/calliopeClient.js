@@ -26,29 +26,31 @@
 // Service URL resolution
 // ---------------------------------------------------------------------------
 
-// In dev mode Vite proxies /api → localhost:5000 (see vite.config.js).
-// In a packaged Electron build there is no proxy, so we ask the main process
-// for the direct URL via IPC. Fall back to the env var or a sensible default.
-
-let _resolvedServiceURL = null;
+// In Electron (packaged), the renderer has no dev proxy – ask the main process
+// for the direct URL via IPC.  In the browser (both dev and prod), we call
+// http://localhost:5000 directly; since the service uses allow_origins=["*"]
+// this works from any origin including the Vite dev server.
+// An explicit VITE_CALLIOPE_SERVICE_URL env var overrides everything.
+//
+// NOTE: URL is NOT cached — it is resolved fresh each call so that hot-module
+// replacement never leaves a stale value behind.
 
 async function getServiceURL() {
-  if (_resolvedServiceURL) return _resolvedServiceURL;
-
   // Electron packaged build: get the authoritative URL from the main process
   if (typeof window !== 'undefined' && window.electronAPI?.getCalliopeServiceURL) {
     try {
       const { url } = await window.electronAPI.getCalliopeServiceURL();
-      _resolvedServiceURL = url;
-      return _resolvedServiceURL;
+      if (url) return url;
     } catch { /* fall through */ }
   }
 
-  // Dev / browser fallback
-  _resolvedServiceURL =
-    (import.meta.env && import.meta.env.VITE_CALLIOPE_SERVICE_URL) ||
-    'http://localhost:5000';
-  return _resolvedServiceURL;
+  // Explicit override via env var (for custom deployments)
+  if (import.meta.env?.VITE_CALLIOPE_SERVICE_URL) {
+    return import.meta.env.VITE_CALLIOPE_SERVICE_URL;
+  }
+
+  // Default: direct URL — CORS allow_origins=["*"] lets the browser reach it
+  return 'http://localhost:5000';
 }
 
 
@@ -57,14 +59,22 @@ async function getServiceURL() {
  */
 export async function checkCalliopeService() {
   const SERVICE_URL = await getServiceURL();
+  console.debug('[calliopeClient] health-check →', SERVICE_URL + '/health');
   try {
     const res = await fetch(`${SERVICE_URL}/health`, {
       signal: AbortSignal.timeout(4000),
+      cache: 'no-store',
     });
-    if (!res.ok) return false;
+    if (!res.ok) {
+      console.warn('[calliopeClient] health-check HTTP', res.status);
+      return false;
+    }
     const data = await res.json();
-    return data?.status === 'ok';
-  } catch {
+    const ok = data?.status === 'ok';
+    console.debug('[calliopeClient] health-check result:', ok, data);
+    return ok;
+  } catch (err) {
+    console.warn('[calliopeClient] health-check failed:', err?.message ?? err);
     return false;
   }
 }
