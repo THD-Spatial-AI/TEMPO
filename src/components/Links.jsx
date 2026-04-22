@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { FiEdit2, FiTrash2, FiCheck, FiX, FiPlus, FiSearch, FiLink } from "react-icons/fi";
 import { useData } from "../context/DataContext";
+import SaveBar from './ui/SaveBar';
 import { LINK_TYPES, LINK_TYPES_BY_GROUP, getLinkTypeColor } from "../config/linkTypes";
 import { CARRIERS, getCarrierColor, getCarrierLabel } from "../config/carriers";
 
@@ -149,7 +150,9 @@ const Links = () => {
   };
 
   return (
-    <div className="flex-1 p-8 bg-gray-50">
+    <div className="flex-1 flex flex-col bg-gray-50 min-h-0">
+      <SaveBar label="Links" />
+      <div className="flex-1 p-8 overflow-y-auto">
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-slate-800 mb-2">Links</h1>
@@ -396,6 +399,7 @@ const Links = () => {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 };

@@ -86,6 +86,16 @@ export const DataProvider = ({ children }) => {
   const [navigationWarning, setNavigationWarning] = useState(null);
   const [backendAvailable, setBackendAvailable] = useState(false);
 
+  // ── Unsaved-changes tracking ───────────────────────────────────────────────
+  // `isDirty` is true whenever model state has changed since the last explicit
+  // save or model load.  It is set automatically by a useEffect watching the
+  // six mutable slices, and cleared by the debounced auto-save or an explicit
+  // save triggered by the user.
+  const [isDirty, setIsDirty] = useState(false);
+  // A ref lets us suppress the very first flush that occurs when a model is
+  // loaded (applyModelToState sets all slices, which would falsely mark dirty).
+  const suppressDirtyRef = useRef(false);
+
   // OSM Infrastructure data and region selection (persisted across navigation)
   const [osmSubstations, setOsmSubstations] = useState(null);
   const [osmPowerPlants, setOsmPowerPlants] = useState(null);
@@ -149,6 +159,7 @@ export const DataProvider = ({ children }) => {
   // Also seed confirmedBackendIds when loading from backend on mount so that
   // models loaded from the DB can be updated immediately.
   const applyModelToState = (model) => {
+    suppressDirtyRef.current = true;   // next state-change batch = load, not edit
     setCurrentModelId(model.id);
     setLocations(model.locations || []);
     setLinks(model.links || []);
@@ -157,6 +168,7 @@ export const DataProvider = ({ children }) => {
     setTimeSeries(model.timeSeries || []);
     setOverrides(model.overrides || {});
     setScenarios(model.scenarios || {});
+    setIsDirty(false);
   };
 
   const normaliseModel = (m) => ({
@@ -421,7 +433,15 @@ export const DataProvider = ({ children }) => {
   const getCurrentModel = () =>
     stateRef.current.models.find(m => m.id === stateRef.current.currentModelId);
 
+  // Explicit user-triggered save: persist immediately and clear dirty flag.
+  const saveNow = useCallback(() => {
+    updateCurrentModel();
+    setIsDirty(false);
+  }, [updateCurrentModel]);
+
   const clearData = () => {
+    suppressDirtyRef.current = true;
+    setIsDirty(false);
     setCurrentModelId(null);
     setLocations([]);
     setLinks([]);
@@ -451,6 +471,21 @@ export const DataProvider = ({ children }) => {
     setMeshVisible(false);
   };
 
+  // ── Mark dirty whenever any model slice changes ───────────────────────────
+  // We skip the very first change that occurs immediately after a model load
+  // (applyModelToState sets suppressDirtyRef before calling setters, and React
+  // batches the updates so the suppression flag is still true in this effect).
+  useEffect(() => {
+    if (!currentModelId) return;
+    if (suppressDirtyRef.current) {
+      // Consume the suppression flag; next change will mark dirty normally.
+      suppressDirtyRef.current = false;
+      return;
+    }
+    setIsDirty(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locations, links, parameters, technologies, timeSeries, overrides, scenarios]);
+
   // ── Debounced auto-save ───────────────────────────────────────────────────
   useEffect(() => {
     if (!currentModelId) return;
@@ -460,7 +495,10 @@ export const DataProvider = ({ children }) => {
       Object.keys(overrides).length > 0 || Object.keys(scenarios).length > 0;
     if (!hasData) return;
 
-    const timeout = setTimeout(() => updateCurrentModel(), 1500);
+    const timeout = setTimeout(() => {
+      updateCurrentModel();
+      setIsDirty(false);   // optimistically clear; data is already in local state
+    }, 1500);
     return () => clearTimeout(timeout);
   }, [locations, links, parameters, technologies, timeSeries, overrides, scenarios, currentModelId, updateCurrentModel]);
 
@@ -497,6 +535,8 @@ export const DataProvider = ({ children }) => {
     models,
     currentModelId,
     backendAvailable,
+    isDirty,
+    saveNow,
     locations, setLocations,
     links, setLinks,
     parameters, setParameters,

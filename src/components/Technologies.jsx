@@ -3,6 +3,7 @@ import { FiSearch, FiEdit2, FiX, FiSave, FiTrash2, FiChevronDown,
          FiChevronRight as FiChevronRightIcon, FiArrowRight, FiHelpCircle, FiCopy, FiZap,
          FiSun, FiDatabase, FiRefreshCw, FiShare2, FiBarChart2, FiStar, FiPlus } from 'react-icons/fi';
 import { useData } from '../context/DataContext';
+import SaveBar from './ui/SaveBar';
 import { TECH_TEMPLATES, PARENT_TYPES, useLiveTechTemplates } from './TechnologiesData';
 import { CARRIERS, CARRIERS_BY_GROUP, getCarrierColor, getCarrierLabel } from '../config/carriers';
 
@@ -488,7 +489,9 @@ function Technologies() {
   }, [allTechnologies]);
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex flex-col h-screen bg-gray-50 overflow-hidden">
+      <SaveBar label="Technologies" />
+      <div className="flex flex-1 overflow-hidden">
       <style>{customScrollbarStyles}</style>
 
       {/* Sidebar */}
@@ -957,6 +960,7 @@ function Technologies() {
           </div>
         </div>
       )}
+      </div>{/* end flex-1 overflow-hidden */}
     </div>
   );
 }

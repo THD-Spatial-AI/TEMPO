@@ -15,6 +15,7 @@ import {
 import ReactECharts from 'echarts-for-react';
 import Papa from 'papaparse';
 import { useData } from '../context/DataContext';
+import SaveBar from './ui/SaveBar';
 
 const TimeSeries = () => {
   const { timeSeries, setTimeSeries, getCurrentModel } = useData();
@@ -607,6 +608,7 @@ const TimeSeries = () => {
 
   return (
     <div className="flex-1 flex flex-col h-screen bg-gray-50">
+      <SaveBar label="Time Series" />
       {/* Header */}
       <div className="bg-white border-b border-slate-200 px-4 py-2">
         <div className="flex items-center justify-between">
