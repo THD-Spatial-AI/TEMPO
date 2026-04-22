@@ -2,6 +2,10 @@ import Footer from '../components/Footer'
 import model from '../public/img/Model.png'
 import InteractiveQGIS from '../public/img/InteractiveQGIS.png'
 import Dashboard from '../public/img/Dashboard.png'
+import Results from '../public/img/results.png'
+import ScreenTimeseries from '../public/img/timeseries.png' 
+import ScreenH2 from '../public/img/h2.png'        
+import ScreenCCS from '../public/img/ccs.png'     
 
 export default function Features() {
   const workflowSteps = [
@@ -23,7 +27,7 @@ export default function Features() {
     {
       num: '04',
       title: 'Solve',
-      desc: 'Execute the Calliope + CBC solver locally or in Docker. Logs stream live via SSE — watch objective gaps close in real time.',
+      desc: 'Execute the Calliope + CBC solver locally or in Docker. Logs stream live via SSE.',
     },
     {
       num: '05',
@@ -127,9 +131,9 @@ export default function Features() {
               </p>
             </div>
 
-            <div className="h-[600px] w-full bg-surface-container relative">
+            <div className="h-[600px] w-auto">
                 <img
-                  className="absolute"
+                  className="w-auto h-[600px]"
                   alt=""
                   src={InteractiveQGIS}
                 />
@@ -146,7 +150,7 @@ export default function Features() {
                 <img
                   className="w-full h-auto"
                   alt="TEMPO model dashboard showing dispatch charts and location map"
-                  src={Dashboard}
+                  src={Results}
                 />
               </div>
             </div>
@@ -183,6 +187,110 @@ export default function Features() {
           </div>
         </section>
 
+        {/* ── Timeseries Editor ── */}
+        <section className="py-32 px-8 bg-surface">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-8">
+              <div>
+                <span className="material-symbols-outlined text-primary text-4xl mb-6 block">ssid_chart</span>
+                <h2 className="text-[2.75rem] font-bold tracking-tight">TIMESERIES EDITOR</h2>
+              </div>
+              <p className="max-w-md text-on-surface-variant font-medium">
+                Interactive per-column CSV editor. Drag data points on the chart to adjust demand
+                curves or resource profiles. Supports line, bar, and scatter views with seasonal,
+                monthly, and custom time windows.
+              </p>
+            </div>
+            <div className="h-[600px] w-full bg-surface-container relative overflow-hidden">
+              <img
+                className="w-full h-full object-cover object-top"
+                alt="TEMPO Timeseries Editor"
+                src={ScreenTimeseries}
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* ── H₂ Simulation ── */}
+        <section className="bg-surface-container-lowest py-32 px-8 ghost-border">
+          <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-16 items-start">
+            <div className="lg:col-span-4">
+              <div className="sticky top-32">
+                <span className="material-symbols-outlined text-primary text-4xl mb-6 block">
+                  local_gas_station
+                </span>
+                <h2 className="text-[2.75rem] font-bold tracking-tight leading-none mb-6">
+                  H₂ PLANT<br />SIMULATION
+                </h2>
+                <p className="text-on-surface-variant mb-8 leading-relaxed">
+                  OpenModelica-based digital twin for hydrogen power plants. Configure
+                  electrolyzer stacks, compressor stages, and storage tanks — efficiency
+                  and output metrics update in real time.
+                </p>
+                <ul className="space-y-4">
+                  {['PEM & Alkaline electrolyzer models', 'H₂ compressor & storage tank', 'Pressure & temperature control', 'Real-time flow diagram', 'Energy & H₂ output charts'].map(
+                    (item) => (
+                      <li key={item} className="flex items-center gap-3 text-[0.6875rem] font-bold uppercase tracking-widest">
+                        <span className="material-symbols-outlined text-[1rem]">check_circle</span>
+                        {item}
+                      </li>
+                    )
+                  )}
+                </ul>
+              </div>
+            </div>
+            <div className="lg:col-span-8">
+              <div className="bg-surface ghost-border relative overflow-hidden">
+                <img
+                  className="w-full h-auto"
+                  alt="TEMPO H₂ plant simulation dashboard"
+                  src={ScreenH2}
+                />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── CCS Simulation ── */}
+        <section className="py-32 px-8 bg-surface">
+          <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-16 items-start">
+            <div className="lg:col-span-8">
+              <div className="bg-surface ghost-border relative overflow-hidden">
+                <img
+                  className="w-full h-auto"
+                  alt="TEMPO CCS simulation dashboard"
+                  src={ScreenCCS}
+                />
+              </div>
+            </div>
+            <div className="lg:col-span-4">
+              <div className="sticky top-32">
+                <span className="material-symbols-outlined text-primary text-4xl mb-6 block">
+                  co2
+                </span>
+                <h2 className="text-[2.75rem] font-bold tracking-tight leading-none mb-6">
+                  CCS<br />SIMULATION
+                </h2>
+                <p className="text-on-surface-variant mb-8 leading-relaxed">
+                  Digital twin for carbon capture and storage systems. Model the full capture
+                  chain — absorber, stripper, compressor — with configurable CO₂ source
+                  characteristics and capture rate targets.
+                </p>
+                <ul className="space-y-4">
+                  {['CO₂ source & absorber column', 'Stripper & solvent regeneration', 'CCS compressor chain', 'Configurable capture rate (%)', 'Energy penalty breakdown'].map(
+                    (item) => (
+                      <li key={item} className="flex items-center gap-3 text-[0.6875rem] font-bold uppercase tracking-widest">
+                        <span className="material-symbols-outlined text-[1rem]">check_circle</span>
+                        {item}
+                      </li>
+                    )
+                  )}
+                </ul>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* ── Complete Feature Set ── */}
         <section className="py-32 px-8 bg-surface-container-lowest">
           <div className="max-w-7xl mx-auto">
@@ -194,27 +302,15 @@ export default function Features() {
             </p>
             <div className="grid grid-cols-1 md:grid-cols-12 gap-4 auto-rows-[280px]">
 
-              {/* Timeseries Editor — wide */}
-              <div className="md:col-span-8 bg-surface p-10 flex flex-col justify-between border-b-4 border-black">
-                <div>
-                  <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-outline">Data</span>
-                  <h3 className="text-2xl font-bold mt-2 uppercase">Timeseries Editor</h3>
-                </div>
-                <p className="text-on-surface-variant max-w-md">
-                  Interactive per-column CSV editor. Drag data points directly on the chart to
-                  adjust demand curves or resource profiles. Supports line, bar, and scatter views
-                  with seasonal, monthly, and custom time windows.
-                </p>
-              </div>
-
-              {/* Multi-Format Export — narrow black */}
-              <div className="md:col-span-4 bg-black p-10 flex flex-col justify-between text-white">
+              {/* Multi-Format Export — wide */}
+              <div className="md:col-span-8 bg-black p-10 flex flex-col justify-between text-white">
                 <span className="material-symbols-outlined text-3xl">output</span>
                 <div>
-                  <h3 className="text-xl font-bold uppercase">Multi-Format Export</h3>
-                  <p className="text-[0.75rem] text-neutral-300 mt-2">
-                    ZIP folder export for Calliope. Planned adapters: PyPSA, OSeMOSYS, AdoptNET.
-                    Run your model externally with any solver.
+                  <h3 className="text-2xl font-bold uppercase">Multi-Format Export</h3>
+                  <p className="text-neutral-300 mt-3 max-w-md">
+                    Export the full model as a structured ZIP folder ready to run with Calliope.
+                    Planned adapters for PyPSA, OSeMOSYS, and AdoptNET let you run externally
+                    with any solver or integration.
                   </p>
                 </div>
               </div>
@@ -232,10 +328,8 @@ export default function Features() {
               {/* Override & Scenario Engine — wide */}
               <div className="md:col-span-8 bg-surface p-10 flex flex-col justify-between">
                 <div>
-                  <div className="flex items-center gap-4 mb-2">
-                    <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-outline">Scenarios</span>
-                  </div>
-                  <h3 className="text-2xl font-bold uppercase">Override &amp; Scenario Engine</h3>
+                  <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-outline">Scenarios</span>
+                  <h3 className="text-2xl font-bold uppercase mt-2">Override &amp; Scenario Engine</h3>
                 </div>
                 <div>
                   <p className="text-on-surface-variant mb-6">
@@ -243,25 +337,12 @@ export default function Features() {
                     library covers cost, capacity, CO₂, and policy scenarios. Compose multi-run
                     batches and stream solver telemetry live.
                   </p>
-                  <div className="flex gap-3">
+                  <div className="flex gap-3 flex-wrap">
                     <span className="text-[0.6875rem] font-bold uppercase tracking-widest border border-black px-3 py-1">Cost Overrides</span>
                     <span className="text-[0.6875rem] font-bold uppercase tracking-widest border border-black px-3 py-1">CO₂ Limits</span>
                     <span className="text-[0.6875rem] font-bold uppercase tracking-widest border border-black px-3 py-1">Policy Runs</span>
                   </div>
                 </div>
-              </div>
-
-              {/* H2 & CCS — wide */}
-              <div className="md:col-span-8 bg-black text-white p-10 flex flex-col justify-between">
-                <div>
-                  <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-neutral-400">Digital Twins</span>
-                  <h3 className="text-2xl font-bold mt-2 uppercase">H₂ &amp; CCS Simulation</h3>
-                </div>
-                <p className="text-neutral-300 max-w-md">
-                  OpenModelica-based digital twins for hydrogen power plants (electrolyzer,
-                  compressor, storage tank) and carbon capture systems, with interactive
-                  flow diagrams and real-time parameter sweeps.
-                </p>
               </div>
 
               {/* Offline-First — narrow */}
@@ -349,14 +430,41 @@ export default function Features() {
                 </span>
               </div>
               <div className="font-mono text-[0.75rem] text-green-400 p-4 space-y-1">
-                <div>[INFO] <span className="text-white">Connecting to simulation stream...</span></div>
-                <div>[INFO] <span className="text-white">Handshake successful. Buffer size 4096.</span></div>
-                <div>[STREAM] <span className="text-white">Frame 001: Calliope model loaded. 48 timesteps.</span></div>
-                <div>[STREAM] <span className="text-white">Frame 002: CBC solver initialized. Objective: minimize cost.</span></div>
-                <div>[STREAM] <span className="text-white">Frame 003: Optimization in progress — gap 2.1%</span></div>
+                <div>[CALLIOPE] <span className="text-white">CBC solver found on PATH ✓</span></div>
+                <div>[CALLIOPE] <span className="text-white">Building model 'Imported Calliope Model'</span></div>
+                <div>[CALLIOPE] <span className="text-white">Locations: 44 Technologies: 16 Links: 44</span></div>
+                <div>[CALLIOPE] [OEO] <span className="text-white">Tech Database API unreachable – running with local technology data.</span></div>
+                <div>[CALLIOPE] <span className="text-white">Using subset_time from model metadata: 2015-01-01 → 2015-12-31</span></div>
+                <div>[CALLIOPE] <span className="text-white">subset_time: 2015-01-01 → 2015-01-06</span></div>
+                <div>[CALLIOPE] [CSV] <span className="text-white">Payload timeSeries entries: 4</span></div>
+                <div>[CALLIOPE] <span className="text-white">Written 4 imported CSV file(s) to model_config: export_price.csv, solar_resource.csv, demand_electricity_mean.csv, demand_heat_mean.csv</span></div>
+                <div>[CALLIOPE] <span className="text-white">Generated timeseries CSV for 'ground_heat': ground_heat_resource.csv (144 hours, injected into 1 location(s))</span></div>
+                <div>[CALLIOPE] <span className="text-white">Wrote techs.yaml</span></div>
+                <div>[CALLIOPE] <span className="text-white">Wrote locations.yaml</span></div>
+                <div>[CALLIOPE] <span className="text-white">Wrote model.yaml</span></div>
+
+                <div>[CALLIOPE] <span className="text-white">Loading Calliope model …</span></div>
+                <div>[CALLIOPE] <span className="text-white">Running optimisation with solver=cbc …</span></div>
+                <div>[CALLIOPE] <span className="text-white">Optimisation finished. Extracting results …</span></div>
+                <div>[CALLIOPE] <span className="text-white">Extracted transmission flow for 43 pair(s)</span></div>
+                <div>[CALLIOPE] <span className="text-white">Objective value: 240068.55598877</span></div>
+
+
                 <div className="animate-pulse">
-                  [SYSTEM] <span className="text-yellow-400">Processing solution vector batch #1092...</span>
+                  [CALLIOPE] <span className="text-yellow-400">Loading Calliope model … #1092...</span>                                               
                 </div>
+                <div className="animate-pulse">
+                  [CALLIOPE] <span className="text-yellow-400">Running optimisation with solver=cbc … #1092...</span>
+                </div>  
+                <div className="animate-pulse">
+                  [CALLIOPE] <span className="text-yellow-400">Optimisation finished. Extracting results … #1092...</span>
+                </div> 
+                <div className="animate-pulse">
+                  [CALLIOPE] <span className="text-yellow-400">Extracted transmission flow for 43 pair(s) #1092...</span>
+                </div> 
+                <div className="animate-pulse">
+                  [CALLIOPE] <span className="text-yellow-400">Objective value: 240068.55598877 #1092...</span>
+                </div> 
               </div>
             </div>
           </div>
