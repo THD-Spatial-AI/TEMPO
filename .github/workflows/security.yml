@@ -130,18 +130,35 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install pip-audit and build tools
-        # setuptools (pkg_resources) is required by some packages' build systems
-        run: pip install --upgrade pip setuptools pip-audit
+      - name: Install pip-audit
+        run: pip install --upgrade pip-audit
+
+      - name: Prepare calliope service audit environment
+        # Create a dedicated venv with setuptools pre-installed, then use
+        # --prefer-binary so pip downloads pre-built wheels (pandas, etc.)
+        # instead of building from source — avoiding the pkg_resources error
+        # that occurs in PEP-517 isolated build environments.
+        run: |
+          python -m venv /tmp/calliope-audit
+          /tmp/calliope-audit/bin/pip install --upgrade pip setuptools wheel
+          /tmp/calliope-audit/bin/pip install --prefer-binary \
+            -r python/requirements.txt \
+            -r python/requirements.service.txt
 
       - name: Audit calliope service requirements
-        # --no-deps: skip transitive dependency resolution to avoid wheel-build
-        # failures from legacy packages (e.g. pandas using pkg_resources).
-        # Top-level package CVEs are still fully reported.
-        run: pip-audit --no-deps -r python/requirements.txt -r python/requirements.service.txt
+        # --path: audit an already-installed environment instead of letting
+        # pip-audit create its own isolated venv (which lacks setuptools).
+        run: pip-audit --path /tmp/calliope-audit
+
+      - name: Prepare OSM processing audit environment
+        run: |
+          python -m venv /tmp/osm-audit
+          /tmp/osm-audit/bin/pip install --upgrade pip setuptools wheel
+          /tmp/osm-audit/bin/pip install --prefer-binary \
+            -r osm_processing/requirements.txt
 
       - name: Audit OSM processing requirements
-        run: pip-audit --no-deps -r osm_processing/requirements.txt
+        run: pip-audit --path /tmp/osm-audit
 
   # ── 6. Python — Bandit (SAST) ────────────────────────────────────────────
   bandit:
