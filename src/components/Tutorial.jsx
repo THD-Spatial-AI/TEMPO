@@ -428,7 +428,7 @@ Node_North,Node_South,450,4000,380,hvdc_transmission`}</CodeBlock>
 
                   <Step n={4} title="Review & Refine on the Map">
                     <p className="text-slate-600 text-sm">After import, open <strong>Map View</strong> to see all nodes placed on the map with connecting lines. Click any node to add technologies or adjust parameters.</p>
-                    <Screenshot src="/img/Mapview.png" alt="Imported model on dark map" caption="An imported multi-node German model — Hamburg, Hannover, Berlin, Leipzig, Frankfurt, Stuttgart, Nuremberg, Munich — with transmission links drawn automatically from the CSV." />
+                    <Screenshot src="/img/Map_view.png" alt="Imported model on dark map" caption="An imported multi-node German model — Hamburg, Hannover, Berlin, Leipzig, Frankfurt, Stuttgart, Nuremberg, Munich — with transmission links drawn automatically from the CSV." />
                   </Step>
                 </div>
 
@@ -457,55 +457,43 @@ Node_North,Node_South,450,4000,380,hvdc_transmission`}</CodeBlock>
             {/* Infrastructure screenshot */}
             <div>
               <h3 className="text-xl font-bold text-slate-800 mb-3">What the Infrastructure Overlay Looks Like</h3>
-              <Screenshot src="/img/Creation.png" alt="OSM infrastructure layers — Bavaria" caption="Bavaria with OSM power infrastructure loaded: red/orange/yellow lines = 220 kV / 110–220 kV / 20–110 kV transmission lines; coloured squares = power plants (solar=orange, coal=grey, gas=navy, nuclear=pink, hydro=blue, biomass=green)." />
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-4">
-                {[
-                  { colour: 'bg-red-500', label: '≥ 220 kV lines' },
-                  { colour: 'bg-orange-400', label: '110–220 kV lines' },
-                  { colour: 'bg-yellow-400', label: '20–110 kV lines' },
-                  { colour: 'bg-orange-300', label: 'Solar plants' },
-                  { colour: 'bg-blue-400', label: 'Hydro / Wind plants' },
-                  { colour: 'bg-slate-700', label: 'Coal / Gas plants' },
-                ].map(({ colour, label }) => (
-                  <div key={label} className="flex items-center gap-2 text-sm text-slate-700">
-                    <div className={`w-4 h-4 rounded-sm flex-shrink-0 ${colour}`} />
-                    <span>{label}</span>
-                  </div>
-                ))}
-              </div>
+              <Screenshot src="/img/GISdata.png" alt="OSM infrastructure layers — Bavaria" caption="Bavaria with OSM power infrastructure loaded: red/orange/yellow lines = 220 kV / 110–220 kV / 20–110 kV transmission lines; coloured squares = power plants (solar=orange, coal=grey, gas=navy, nuclear=pink, hydro=blue, biomass=green)." />
             </div>
 
             {/* Right sidebar walk-through */}
             <div>
-              <h3 className="text-xl font-bold text-slate-800 mb-3">The OSM Infrastructure Panel (Right Sidebar)</h3>
-              <Screenshot src="/img/Model.png" alt="Creation mode right sidebar" caption="Right sidebar in Creation mode — Region Selection stepper (top), Infrastructure Layers toggles, and Power Mesh Generator button." />
-              <div className="space-y-4 mt-4">
-                {[
-                  {
-                    icon: FiGlobe, title: '① SELECT REGION stepper',
-                    body: 'Cascade through Continent → Country → Region → Subregion. Each selection zooms the map and loads data for that area. Use "Clear All" to reset.'
-                  },
-                  {
-                    icon: FiDownload, title: '② Download GIS Data (collapsible)',
-                    body: 'Expand to download a new country from Geofabrik. Pick Continent + Country + (optional) Region and click "Download & Import". A live log terminal streams pipeline progress.'
-                  },
-                  {
-                    icon: FiSliders, title: '③ Infrastructure Layers',
-                    body: 'Toggle Power Lines, Power Plants, Substations, Region Boundaries independently. Expand each row to filter by voltage range (kV) or energy source.'
-                  },
-                  {
-                    icon: FiServer, title: '④ Power Mesh Generator',
-                    body: 'Click "Generate Mesh Network" to build a graph of intersections from the visible power line layer. Import the result as model Locations & Links with one click.'
-                  },
-                ].map(({ icon: Icon, title, body }) => (
-                  <div key={title} className="flex gap-4 bg-white border border-slate-200 rounded-xl p-4">
-                    <Icon className="text-slate-500 flex-shrink-0 mt-0.5" size={20} />
-                    <div>
-                      <div className="font-semibold text-slate-800 text-sm mb-1">{title}</div>
-                      <p className="text-slate-600 text-sm">{body}</p>
+              <h3 className="text-xl font-bold text-slate-800 mb-4">The OSM Infrastructure Panel (Right Sidebar)</h3>
+              <div className="flex gap-6 items-start">
+                <img className="h-[700px] w-auto flex-shrink-0 rounded-xl border border-slate-200 shadow-md object-contain" src="/img/OSMsidebar.png" alt="Creation mode right sidebar" />
+                <img className="h-[350px] w-auto flex-shrink-0 rounded-xl border border-slate-200 shadow-md object-contain" src="/img/Meshgenerator.png" alt="Creation mode right sidebar" />
+                <div className="space-y-4 flex-1">
+                  {[
+                    {
+                      icon: FiGlobe, title: '① SELECT REGION stepper',
+                      body: 'Cascade through Continent → Country → Region → Subregion. Each selection zooms the map and loads data for that area. Use "Clear All" to reset.'
+                    },
+                    {
+                      icon: FiDownload, title: '② Download GIS Data (collapsible)',
+                      body: 'Expand to download a new country from Geofabrik. Pick Continent + Country + (optional) Region and click "Download & Import". A live log terminal streams pipeline progress.'
+                    },
+                    {
+                      icon: FiSliders, title: '③ Infrastructure Layers',
+                      body: 'Toggle Power Lines, Power Plants, Substations, Region Boundaries independently. Expand each row to filter by voltage range (kV) or energy source.'
+                    },
+                    {
+                      icon: FiServer, title: '④ Power Mesh Generator',
+                      body: 'Click "Generate Mesh Network" to build a graph of intersections from the visible power line layer. Import the result as model Locations & Links with one click.'
+                    },
+                  ].map(({ icon: Icon, title, body }) => (
+                    <div key={title} className="flex gap-4 bg-white border border-slate-200 rounded-xl p-4">
+                      <Icon className="text-slate-500 flex-shrink-0 mt-0.5" size={20} />
+                      <div>
+                        <div className="font-semibold text-slate-800 text-sm mb-1">{title}</div>
+                        <p className="text-slate-600 text-sm">{body}</p>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -513,9 +501,7 @@ Node_North,Node_South,450,4000,380,hvdc_transmission`}</CodeBlock>
             <div>
               <h3 className="text-xl font-bold text-slate-800 mb-4">How to Download a New Region (in-app)</h3>
               <div className="bg-slate-50 border-2 border-slate-200 rounded-3xl p-6 space-y-4">
-                <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-amber-800 text-sm">
-                  <strong>Prerequisites:</strong> Docker Desktop must be running with the <code className="bg-amber-100 px-1 rounded">calliope-postgis</code> and <code className="bg-amber-100 px-1 rounded">calliope-geoserver</code> containers started. See the Installation guide for setup.
-                </div>
+
 
                 <Step n={1} title='Open Creation → expand "Download GIS Data"'>
                   <p className="text-slate-600 text-sm">In the right sidebar, scroll down past the SELECT REGION stepper. Click the <strong>"Download GIS Data"</strong> header to expand the collapsible panel.</p>
