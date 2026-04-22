@@ -1,6 +1,6 @@
 # TEMPO — Tool for Energy Model Planning and Optimization
 
-[![Docs](https://img.shields.io/badge/docs-MkDocs-blue)](https://THD-Spatial.github.io/TEMPO)
+[![Docs](https://img.shields.io/badge/docs-MkDocs-blue)](https://thd-spatial-ai.github.io/TEMPO/)
 [![GitHub Release](https://img.shields.io/github/v/release/THD-Spatial-AI/TEMPO)](https://github.com/THD-Spatial-AI/TEMPO/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![GitHub Discussions](https://img.shields.io/github/discussions/THD-Spatial-AI/TEMPO)](https://github.com/THD-Spatial-AI/TEMPO/discussions)
