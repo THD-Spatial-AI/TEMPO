@@ -40,13 +40,6 @@ function getDockerServices() {
       required: true,
     },
     {
-      name: 'hydrogensim',
-      label: 'Hydrogen Plant Simulation (OpenModelica)',
-      port: 8765,
-      composeDir: path.join(tempoRoot, 'hydrogenmatsim'),
-      required: false,
-    },
-    {
       name: 'ccssim',
       label: 'CCS Simulation (OpenModelica)',
       port: 8766,
@@ -275,10 +268,9 @@ ipcMain.handle('docker:start-all', async () => {
  * The renderer uses this to bypass the Vite proxy in packaged builds.
  */
 ipcMain.handle('services:urls', async () => {
-  const [c, o, h2, ccs, gs, be] = await Promise.all([
+  const [c, o, ccs, gs, be] = await Promise.all([
     isPortOpen(5000),
     isPortOpen(8000),
-    isPortOpen(8765),
     isPortOpen(8766),
     isPortOpen(8081),
     isPortOpen(BACKEND_PORT),
@@ -286,7 +278,6 @@ ipcMain.handle('services:urls', async () => {
   return {
     calliope:  { url: 'http://localhost:5000',        running: c  },
     opentech:  { url: 'http://localhost:8000',        running: o  },
-    h2:        { url: 'http://localhost:8765',        running: h2 },
     ccs:       { url: 'http://localhost:8766',        running: ccs },
     geoserver: { url: 'http://localhost:8081',        running: gs },
     backend:   { url: `http://localhost:${BACKEND_PORT}`, running: be },
@@ -324,17 +315,100 @@ ipcMain.handle('read-template-file', async (_event, filename) => {
 });
 
 ipcMain.handle('save-file', async (_event, { filename, content }) => {
-  const savePath = path.join(app.getPath('userData'), 'exports', filename);
-  fs.mkdirSync(path.dirname(savePath), { recursive: true });
+  // Strip any directory components to block path traversal.
+  const safeName = path.basename(filename);
+  if (!safeName || safeName === '.' || safeName === '..') {
+    throw new Error('Invalid filename');
+  }
+
+  // Reject payloads above 10 MB (generous ceiling for any YAML/JSON export).
+  if (typeof content !== 'string' || content.length > 10 * 1024 * 1024) {
+    throw new Error('Content exceeds maximum size limit');
+  }
+
+  const exportDir = path.resolve(app.getPath('userData'), 'exports');
+  const savePath  = path.resolve(exportDir, safeName);
+
+  // Confirm the resolved path still lives inside exportDir.
+  if (!savePath.startsWith(exportDir + path.sep)) {
+    throw new Error('Path traversal detected');
+  }
+
+  fs.mkdirSync(exportDir, { recursive: true });
   fs.writeFileSync(savePath, content, 'utf-8');
   return savePath;
 });
 
-// ─── Window ────────────────────────────────────────────────────────────────
+// ─── IPC: Privacy consent ────────────────────────────────────────────────────
 
-async function createWindow_PLACEHOLDER() {
-  const isWin = process.platform === 'win32';
-  const binDir = isWin ? 'Scripts' : 'bin';
+const CONSENT_VERSION = 1;
+
+function getConsentFilePath() {
+  return path.join(app.getPath('userData'), 'privacy-consent.json');
+}
+
+// privacy:get-consent → { accepted: bool, timestamp: string|null, version: number|null }
+ipcMain.handle('privacy:get-consent', () => {
+  const filePath = getConsentFilePath();
+  if (!fs.existsSync(filePath)) return { accepted: false, timestamp: null, version: null };
+  try {
+    const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    return {
+      accepted:  data.accepted === true,
+      timestamp: data.timestamp || null,
+      version:   data.version   || null,
+    };
+  } catch {
+    return { accepted: false, timestamp: null, version: null };
+  }
+});
+
+// privacy:set-consent → { success: bool }
+ipcMain.handle('privacy:set-consent', (_event, accepted) => {
+  const record = {
+    version:   CONSENT_VERSION,
+    accepted:  accepted === true,
+    timestamp: new Date().toISOString(),
+  };
+  try {
+    fs.writeFileSync(getConsentFilePath(), JSON.stringify(record, null, 2), 'utf-8');
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+// ─── IPC: Clear all user data (GDPR right to erasure) ───────────────────────
+
+ipcMain.handle('data:clear-all', () => {
+  const userData   = app.getPath('userData');
+  const toDelete   = [
+    path.join(userData, 'calliope.db'),
+    path.join(userData, 'calliope.db-shm'),
+    path.join(userData, 'calliope.db-wal'),
+    path.join(userData, 'exports'),
+    path.join(userData, 'privacy-consent.json'),
+  ];
+
+  const deleted = [];
+  for (const target of toDelete) {
+    try {
+      if (!fs.existsSync(target)) continue;
+      const stat = fs.statSync(target);
+      if (stat.isDirectory()) {
+        fs.rmSync(target, { recursive: true, force: true });
+      } else {
+        fs.unlinkSync(target);
+      }
+      deleted.push(path.basename(target));
+    } catch (err) {
+      console.warn(`[data:clear-all] Could not remove ${target}:`, err.message);
+    }
+  }
+
+  return { success: true, deleted };
+});
+
   const pyExe  = isWin ? 'python.exe' : 'python3';
   const pipExe = isWin ? 'pip.exe'    : 'pip3';
 
@@ -477,82 +551,6 @@ function stopCalliopeService() {
   if (calliopeService) {
     calliopeService.kill();
     calliopeService = null;
-  }
-}
-
-// ─── MATLAB bridge auto-start ────────────────────────────────────────────────
-
-/**
- * Resolve the hydrogenmatsim directory (sibling of calliope_editiontool).
- * Returns null in packaged builds where MATLAB is not bundled.
- */
-function getBridgeDir() {
-  if (app.isPackaged) return null;
-  return path.join(__dirname, '..', '..', 'hydrogenmatsim');
-}
-
-/**
- * Start the MATLAB bridge (conda env matlab-bridge, uvicorn on port 8765).
- * Fire-and-forget: does not block app startup.
- * Skips silently if already running, conda not found, or dir missing.
- */
-async function startMatlabBridge() {
-  if (await isPortOpen(BRIDGE_PORT)) {
-    console.log('[bridge] MATLAB bridge already running on port', BRIDGE_PORT);
-    return;
-  }
-
-  const bridgeDir = getBridgeDir();
-  if (!bridgeDir || !fs.existsSync(bridgeDir)) {
-    console.log('[bridge] hydrogenmatsim directory not found, skipping');
-    return;
-  }
-
-  // Prefer the calliope venv's uvicorn if available; otherwise fall back to system python
-  const { python: venvPython, exists: venvExists } = resolveVenv();
-  const bridgePython = venvExists ? venvPython : (findSystemPython() || 'python3');
-
-  // Load .env vars from hydrogenmatsim/.env
-  const childEnv = { ...process.env };
-  const envFile = path.join(bridgeDir, '.env');
-  if (fs.existsSync(envFile)) {
-    for (const line of fs.readFileSync(envFile, 'utf-8').split('\n')) {
-      const t = line.trim();
-      if (t && !t.startsWith('#') && t.includes('=')) {
-        const idx = t.indexOf('=');
-        childEnv[t.slice(0, idx).trim()] = t.slice(idx + 1).trim();
-      }
-    }
-  }
-
-  console.log('[bridge] Starting MATLAB bridge (python uvicorn)…');
-  matlabBridgeProcess = spawn(bridgePython, [
-    '-m', 'uvicorn', 'main:app',
-    '--host', '0.0.0.0',
-    '--port', String(BRIDGE_PORT),
-    '--workers', '1',
-    '--log-level', 'info',
-  ], { cwd: bridgeDir, shell: false, env: childEnv });
-
-  matlabBridgeProcess.stdout.on('data', d => {
-    for (const l of d.toString().split('\n').filter(x => x.trim()))
-      console.log(`[bridge] ${l}`);
-  });
-  matlabBridgeProcess.stderr.on('data', d => {
-    for (const l of d.toString().split('\n').filter(x => x.trim()))
-      console.log(`[bridge] ${l}`);
-  });
-  matlabBridgeProcess.on('close', code => {
-    console.log(`[bridge] Process exited with code ${code}`);
-    matlabBridgeProcess = null;
-  });
-}
-
-function stopMatlabBridge() {
-  if (matlabBridgeProcess) {
-    console.log('[bridge] Stopping MATLAB bridge…');
-    matlabBridgeProcess.kill();
-    matlabBridgeProcess = null;
   }
 }
 

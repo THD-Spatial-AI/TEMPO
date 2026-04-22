@@ -4,11 +4,27 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
+	"regexp"
+	"strings"
 	"sync"
 	"time"
 )
+
+// regionPathRe restricts region_path values to slash-separated path segments
+// containing only letters, digits, hyphens, and underscores — no SQL metacharacters.
+var regionPathRe = regexp.MustCompile(`^[A-Za-z0-9\-_]+((/[A-Za-z0-9\-_]+)*)$`)
+
+// validLayers is the authoritative set of PostGIS table names this client may query.
+var validLayers = map[string]bool{
+	"osm_substations": true,
+	"osm_power_plants": true,
+	"osm_power_lines":  true,
+	"osm_communes":     true,
+	"osm_districts":    true,
+}
 
 type Client struct {
 	baseURL    string
@@ -51,6 +67,16 @@ func NewClient(baseURL string) *Client {
 //   GetOSMLayer("osm_substations", nil, "")
 //   GetOSMLayer("osm_substations", &BBox{...}, "Europe/Germany/Bayern")
 func (c *Client) GetOSMLayer(layerName string, bbox *BBox, regionPath string) ([]byte, error) {
+	// Validate layerName against known-good set to prevent injection via typeName parameter.
+	if !validLayers[layerName] {
+		return nil, fmt.Errorf("unknown layer: %q", layerName)
+	}
+
+	// Validate regionPath to contains only safe path characters.
+	if regionPath != "" && !regionPathRe.MatchString(regionPath) {
+		return nil, fmt.Errorf("invalid region path: %q", regionPath)
+	}
+
 	// Check cache first (5 minute TTL)
 	var bboxKey string
 	if bbox != nil {
@@ -83,11 +109,12 @@ func (c *Client) GetOSMLayer(layerName string, bbox *BBox, regionPath string) ([
 	// For spatial filtering based on district boundaries when data is tagged
 	// at country level, see GetOSMLayerByBoundary()
 	if regionPath != "" {
-		// Use LIKE with wildcard for prefix matching
-		// Note: url.Values.Encode() will properly escape the % character
-		cqlFilter := fmt.Sprintf("region_path LIKE '%s%%'", regionPath)
+		// Escape any literal single quotes per CQL spec (double them: '')
+		// before interpolating into the LIKE expression.
+		safePath := strings.ReplaceAll(regionPath, "'", "''")
+		cqlFilter := fmt.Sprintf("region_path LIKE '%s%%'", safePath)
 		params.Add("cql_filter", cqlFilter)
-		fmt.Printf("[DEBUG] CQL Filter: %s\n", cqlFilter)
+		log.Printf("[geoserver] CQL filter applied for layer %s", layerName)
 	} else if bbox != nil {
 		// Only add bbox if no region filter (GeoServer returns 500 when both are combined)
 		params.Add("bbox", fmt.Sprintf("%f,%f,%f,%f,EPSG:4326",
@@ -95,7 +122,6 @@ func (c *Client) GetOSMLayer(layerName string, bbox *BBox, regionPath string) ([
 	}
 
 	reqURL := fmt.Sprintf("%s/wfs?%s", c.baseURL, params.Encode())
-	fmt.Printf("[DEBUG] Request URL: %s\n", reqURL)
 
 	resp, err := c.httpClient.Get(reqURL)
 	if err != nil {

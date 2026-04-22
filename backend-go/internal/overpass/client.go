@@ -192,7 +192,15 @@ func buildQuery(layer string, bbox *BBox) string {
 }
 
 func (c *Client) runOverpassQuery(query string) ([]byte, error) {
-	resp, err := http.PostForm(c.overpassURL, url.Values{"data": {query}})
+	req, err := http.NewRequest("POST", c.overpassURL,
+		strings.NewReader(url.Values{"data": {query}}.Encode()))
+	if err != nil {
+		return nil, fmt.Errorf("overpass request failed: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("User-Agent", "TEMPO/1.0 (energy-system-modelling)")
+
+	resp, err := c.http.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("overpass request failed: %w", err)
 	}

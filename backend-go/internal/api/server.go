@@ -9,8 +9,12 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
+	"regexp"
 	"runtime"
+	"strconv"
+	"strings"
 	"time"
 
 	"calliope-backend/internal/calliope"
@@ -22,6 +26,22 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
+
+// geoComponentRe restricts OSM region/country/continent values to safe identifiers.
+var geoComponentRe = regexp.MustCompile(`^[A-Za-z0-9\-_ ]{1,80}$`)
+
+// allowedCORSOrigins is the strict set of origins permitted to call this API.
+// Electron file:// renderer sends Origin: "null"; all others must be local Vite dev origins.
+var allowedCORSOrigins = map[string]bool{
+	"http://localhost:5173":  true,
+	"http://localhost:5174":  true,
+	"http://127.0.0.1:5173": true,
+	"http://127.0.0.1:5174": true,
+}
+
+// maxModelBodyBytes caps incoming model payloads at 4 MB — far above any
+// realistic Calliope YAML/JSON config while preventing DoS via huge bodies.
+const maxModelBodyBytes = 4 << 20 // 4 MB
 
 const geoServerURL = "http://localhost:8081/geoserver"
 const techAPIURL = "http://localhost:8000"
@@ -39,21 +59,31 @@ func NewServer(db *storage.DB, port string) *Server {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.Default()
 
-	// Enable CORS for Electron
+	// Strict CORS: allow only the Electron renderer (null origin) and local Vite dev origins.
 	router.Use(func(c *gin.Context) {
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		origin := c.GetHeader("Origin")
+		switch {
+		case origin == "" || origin == "null":
+			// Electron file:// renderer — allow.
+			c.Writer.Header().Set("Access-Control-Allow-Origin", "null")
+		case allowedCORSOrigins[origin]:
+			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+			c.Writer.Header().Set("Vary", "Origin")
+		default:
+			if c.Request.Method == http.MethodOptions {
+				c.AbortWithStatus(http.StatusForbidden)
+				return
+			}
+		}
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(204)
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		c.Writer.Header().Set("Access-Control-Max-Age", "3600")
+		if c.Request.Method == http.MethodOptions {
+			c.AbortWithStatus(http.StatusNoContent)
 			return
 		}
 		c.Next()
 	})
-
-	// Increase max body size to 64 MB to accommodate large model payloads
-	router.MaxMultipartMemory = 64 << 20
 
 	server := &Server{
 		db:          db,
@@ -127,12 +157,14 @@ func (s *Server) Start() error {
 }
 
 // readJSONBody reads the raw request body and unmarshals it into a map.
-// Using io.ReadAll avoids issues with Gin's ShouldBindJSON on large or
-// non-standard payloads while still accepting any valid JSON object.
+// Capped at maxModelBodyBytes (4 MB) to prevent DoS via oversized payloads.
 func readJSONBody(c *gin.Context) (map[string]interface{}, error) {
-	body, err := io.ReadAll(io.LimitReader(c.Request.Body, 64<<20))
+	body, err := io.ReadAll(io.LimitReader(c.Request.Body, maxModelBodyBytes))
 	if err != nil {
 		return nil, err
+	}
+	if len(body) == 0 {
+		return nil, fmt.Errorf("empty body")
 	}
 	var result map[string]interface{}
 	if err := json.Unmarshal(body, &result); err != nil {
@@ -201,9 +233,11 @@ func (s *Server) listModels(c *gin.Context) {
 
 // getModel retrieves a specific model with parsed config
 func (s *Server) getModel(c *gin.Context) {
-	id := c.Param("id")
-	var modelID int64
-	fmt.Sscanf(id, "%d", &modelID)
+	modelID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || modelID <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid model id"})
+		return
+	}
 
 	m, err := s.db.GetModel(modelID)
 	if err != nil {
@@ -225,8 +259,11 @@ func (s *Server) getModel(c *gin.Context) {
 
 // updateModel updates an existing model
 func (s *Server) updateModel(c *gin.Context) {
-	var modelID int64
-	fmt.Sscanf(c.Param("id"), "%d", &modelID)
+	modelID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || modelID <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid model id"})
+		return
+	}
 
 	rawModel, err := readJSONBody(c)
 	if err != nil {
@@ -255,8 +292,11 @@ func (s *Server) updateModel(c *gin.Context) {
 
 // deleteModel removes a model by ID
 func (s *Server) deleteModel(c *gin.Context) {
-	var modelID int64
-	fmt.Sscanf(c.Param("id"), "%d", &modelID)
+	modelID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || modelID <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid model id"})
+		return
+	}
 
 	if err := s.db.DeleteModel(modelID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -268,8 +308,11 @@ func (s *Server) deleteModel(c *gin.Context) {
 
 // runModel executes optimization via Calliope webservice
 func (s *Server) runModel(c *gin.Context) {
-	var modelID int64
-	fmt.Sscanf(c.Param("id"), "%d", &modelID)
+	modelID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || modelID <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid model id"})
+		return
+	}
 
 	// Get model config
 	savedModel, err := s.db.GetModel(modelID)
@@ -480,11 +523,21 @@ func (s *Server) getAvailableLayers(c *gin.Context) {
 
 // proxyTechAPI forwards /tech/api/v1/* requests to the opentech-db Python API on port 8000.
 func (s *Server) proxyTechAPI(c *gin.Context) {
-	path := c.Param("path") // e.g. "/technologies?limit=200"
-	target := techAPIURL + "/api/v1" + path
+	// Canonicalise the path to strip any traversal sequences before forwarding.
+	rawPath := c.Param("path")
+	cleanedPath := path.Clean("/" + strings.TrimPrefix(rawPath, "/"))
+	if !strings.HasPrefix(cleanedPath, "/") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid path"})
+		return
+	}
+
+	target := techAPIURL + "/api/v1" + cleanedPath
 	if c.Request.URL.RawQuery != "" {
 		target += "?" + c.Request.URL.RawQuery
 	}
+
+	// Limit forwarded body size to prevent DoS relay attacks.
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 4<<20)
 
 	req, err := http.NewRequestWithContext(c.Request.Context(), c.Request.Method, target, c.Request.Body)
 	if err != nil {
@@ -649,6 +702,17 @@ func (s *Server) downloadOSMRegion(c *gin.Context) {
 		return
 	}
 
+	// Validate all geo components against a strict allowlist to prevent path
+	// traversal or injection via positional args passed to the Python subprocess.
+	if !geoComponentRe.MatchString(req.Continent) || !geoComponentRe.MatchString(req.Country) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid continent or country value"})
+		return
+	}
+	if req.Region != "" && !geoComponentRe.MatchString(req.Region) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid region value"})
+		return
+	}
+
 	// Resolve project root: working directory when running via `go run .` is backend-go/,
 	// so the project root is one level up. When built to a binary, fall back to exe dir.
 	var projectRoot string
@@ -683,6 +747,14 @@ func (s *Server) downloadOSMRegion(c *gin.Context) {
 
 	scriptPath := filepath.Join(projectRoot, "osm_processing", "add_region_to_geoserver.py")
 	log.Printf("[OSM] projectRoot=%s scriptPath=%s", projectRoot, scriptPath)
+
+	// Verify the resolved script path is inside the expected osm_processing directory.
+	expectedScriptDir := filepath.Clean(filepath.Join(projectRoot, "osm_processing"))
+	if !strings.HasPrefix(filepath.Clean(scriptPath), expectedScriptDir+string(filepath.Separator)) &&
+		filepath.Clean(scriptPath) != expectedScriptDir {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "script path resolution error"})
+		return
+	}
 
 	args := []string{scriptPath, req.Continent, req.Country}
 	if req.Region != "" {
