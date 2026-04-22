@@ -342,6 +342,16 @@ const InputMap = ({ locations, links, getTechColor }) => {
       mapInstanceRef.current = map;
       map.on('load', () => {
         if (destroyed) return;
+        // Fit map to the actual extent of all locations
+        if (locs.length === 1) {
+          map.flyTo({ center: [locs[0].longitude, locs[0].latitude], zoom: 12, duration: 0 });
+        } else {
+          const minLon = Math.min(...locs.map(l => l.longitude));
+          const maxLon = Math.max(...locs.map(l => l.longitude));
+          const minLat = Math.min(...locs.map(l => l.latitude));
+          const maxLat = Math.max(...locs.map(l => l.latitude));
+          map.fitBounds([[minLon, minLat], [maxLon, maxLat]], { padding: 60, maxZoom: 16, duration: 0 });
+        }
         // Link lines
         const linkFeatures = (links || []).flatMap(link => {
           const src = locs.find(l => l.id === link.from || l.name === link.from);
@@ -401,6 +411,15 @@ const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [tsLoading, setTsLoading] = useState(false);
   const [genTsActiveIdx, setGenTsActiveIdx] = useState(0);
+
+  // Reset TS loading flag whenever the active model changes so the auto-loader re-runs
+  const prevModelIdRef = useRef(currentModel?.id);
+  useEffect(() => {
+    if (prevModelIdRef.current !== currentModel?.id) {
+      prevModelIdRef.current = currentModel?.id;
+      setTsLoading(false);
+    }
+  }, [currentModel?.id]);
   const [demandViewOpts, setDemandViewOpts] = useState({ mode: 'weeks2', month: 0, season: 'DJF', customStart: '', customEnd: '', locs: [], resolution: 'hourly' });
   const [demandLocSearch, setDemandLocSearch] = useState('');
   const [genViewOpts, setGenViewOpts] = useState({ mode: 'weeks2', month: 0, season: 'DJF', customStart: '', customEnd: '', locs: [], resolution: 'hourly' });
@@ -728,7 +747,7 @@ const Dashboard = () => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
               <Panel title="Location Map" icon={FiMap} className="lg:col-span-2">
                 <div style={{ height: 380 }}>
-                  <InputMap locations={locations||[]} links={links||[]} getTechColor={getTechColor} />
+                  <InputMap key={currentModel?.id} locations={locations||[]} links={links||[]} getTechColor={getTechColor} />
                 </div>
               </Panel>
               <Panel title="Technology Categories" icon={FiPieChart}>
@@ -1006,7 +1025,7 @@ const Dashboard = () => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
               <Panel title="Location Map" icon={FiMap} className="lg:col-span-2">
                 <div style={{ height: 380 }}>
-                  <InputMap locations={locations||[]} links={links||[]} getTechColor={getTechColor} />
+                  <InputMap key={currentModel?.id} locations={locations||[]} links={links||[]} getTechColor={getTechColor} />
                 </div>
               </Panel>
               <Panel title="Technologies per Location" icon={FiBarChart2}>
