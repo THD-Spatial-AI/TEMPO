@@ -133,7 +133,7 @@ model:
         Object.entries(loc.techs).forEach(([techName, techData]) => {
           yaml += `            ${techName}:\n`;
           
-          if (techData.constraints && Object.keys(techData.constraints).length > 0) {
+          if (techData && techData.constraints && Object.keys(techData.constraints).length > 0) {
             yaml += `                constraints:\n`;
             Object.entries(techData.constraints).forEach(([key, value]) => {
               yaml += `                    ${key}: ${value}\n`;

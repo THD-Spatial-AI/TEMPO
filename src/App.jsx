@@ -52,9 +52,9 @@ function AppContent() {
   }, [currentModelId, selected, saveNow]);
 
   const handleNavigation = (newView) => {
-    // Always intercept when leaving an editing screen that has a model loaded.
-    // The user should consciously decide whether to save before leaving.
-    if (currentModelId && EDITING_VIEWS.has(selected) && newView !== selected) {
+    // Only intercept navigation when there are genuinely unsaved changes.
+    // Auto-save runs after 1.5s — when isDirty=false the model is already saved.
+    if (isDirty && currentModelId && EDITING_VIEWS.has(selected) && newView !== selected) {
       setPendingNavigation(newView);
     } else {
       setSelected(newView);
@@ -63,6 +63,9 @@ function AppContent() {
 
   const confirmNavigation = () => {
     if (pendingNavigation) {
+      // Always flush current state to models array before navigating so data
+      // is not lost even if the 1.5 s auto-save debounce hasn't fired yet.
+      saveNow();
       setSelected(pendingNavigation);
       setPendingNavigation(null);
     }
@@ -136,58 +139,34 @@ function AppContent() {
         </main>
       </div>
 
-      {/* ── Navigation guard ─────────────────────────────────────────── */}
-      {pendingNavigation && currentModelId && EDITING_VIEWS.has(selected) && (
+      {/* ── Navigation guard — only shown when isDirty=true ─────────── */}
+      {pendingNavigation && isDirty && currentModelId && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[10000]">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 border border-slate-200">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full mx-4 border border-slate-200">
 
             {/* Header */}
             <div className="flex items-center gap-3 p-6 border-b border-slate-100">
-              <span className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${isDirty ? 'bg-amber-100' : 'bg-blue-100'}`}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                     className={isDirty ? 'text-amber-600' : 'text-blue-600'}>
-                  {isDirty
-                    ? <><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></>
-                    : <><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v14a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></>
-                  }
+              <span className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-amber-600">
+                  <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                  <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
                 </svg>
               </span>
               <div>
-                <h3 className="text-base font-semibold text-slate-900">
-                  {isDirty ? 'Unsaved changes' : 'Save before leaving?'}
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  {isDirty
-                    ? `You're leaving ${selected} without saving`
-                    : `Your last changes were auto-saved`}
-                </p>
+                <h3 className="text-base font-semibold text-slate-900">Unsaved changes</h3>
+                <p className="text-xs text-slate-500 mt-0.5">You're leaving <span className="font-medium text-slate-700">{selected}</span> with unsaved edits</p>
               </div>
             </div>
 
             {/* Body */}
-            <div className="p-6">
-              {isDirty ? (
-                <div className="space-y-2">
-                  <p className="text-sm text-slate-700">These items have pending changes:</p>
-                  <ul className="text-xs text-slate-500 space-y-1 ml-1 mt-2">
-                    {locations.length > 0     && <li className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"/>{locations.length} location{locations.length !== 1 ? 's' : ''}</li>}
-                    {links.length > 0         && <li className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"/>{links.length} link{links.length !== 1 ? 's' : ''}</li>}
-                    {timeSeries.length > 0    && <li className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"/>{timeSeries.length} time series</li>}
-                    {Object.keys(overrides).length > 0  && <li className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"/>{Object.keys(overrides).length} override{Object.keys(overrides).length !== 1 ? 's' : ''}</li>}
-                    {Object.keys(scenarios).length > 0  && <li className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"/>{Object.keys(scenarios).length} scenario{Object.keys(scenarios).length !== 1 ? 's' : ''}</li>}
-                    {technologies.length > 0  && <li className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"/>{technologies.length} technolog{technologies.length !== 1 ? 'ies' : 'y'}</li>}
-                  </ul>
-                </div>
-              ) : (
-                <p className="text-sm text-slate-600">
-                  Your model changes have been auto-saved. You can also click{' '}
-                  <strong>Save &amp; leave</strong> to make a manual save before continuing.
-                </p>
-              )}
+            <div className="px-6 py-4">
+              <p className="text-sm text-slate-600">
+                Your changes haven't been saved yet. Save now to make sure nothing is lost.
+              </p>
             </div>
 
             {/* Actions */}
-            <div className="p-6 pt-0 flex gap-2 justify-end flex-wrap">
+            <div className="p-6 pt-0 flex gap-2 justify-end">
               <button
                 onClick={cancelNavigation}
                 className="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 transition-colors"
@@ -196,9 +175,10 @@ function AppContent() {
               </button>
               <button
                 onClick={confirmNavigation}
-                className="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors"
+                className="px-4 py-2 rounded-lg text-sm font-medium text-slate-500 hover:bg-slate-100 transition-colors"
+                title="Leave without an explicit save — auto-save will still run in ~1.5 s"
               >
-                Leave
+                Leave anyway
               </button>
               <button
                 onClick={handleSaveAndNavigate}

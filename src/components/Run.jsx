@@ -402,16 +402,27 @@ const Run = ({ onNavigate }) => {
 
         {/* OFFLINE BANNER */}
         {!serviceChecking && !serviceReady && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
-            <strong>Calliope service offline.</strong>{' '}
-            Start it with:{' '}
-            <code className="bg-amber-100 px-1.5 py-0.5 rounded font-mono text-xs">
-              .\scripts\start_calliope_service.ps1
-            </code>
-            {' '}or{' '}
-            <code className="bg-amber-100 px-1.5 py-0.5 rounded font-mono text-xs">
-              docker compose up calliope-runner
-            </code>
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800 flex items-start justify-between gap-4">
+            <div>
+              <strong>Calliope service offline.</strong>{' '}
+              Start it with:{' '}
+              <code className="bg-amber-100 px-1.5 py-0.5 rounded font-mono text-xs">
+                .\scripts\start_calliope_service.ps1
+              </code>
+              {' '}or{' '}
+              <code className="bg-amber-100 px-1.5 py-0.5 rounded font-mono text-xs">
+                docker compose up calliope-runner
+              </code>
+            </div>
+            <button
+              onClick={() => {
+                setServiceStatus(null);
+                checkCalliopeService().then(ok => setServiceStatus(ok));
+              }}
+              className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-200 hover:bg-amber-300 text-amber-900 transition-colors"
+            >
+              Retry
+            </button>
           </div>
         )}
 

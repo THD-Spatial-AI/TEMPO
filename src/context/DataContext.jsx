@@ -92,9 +92,11 @@ export const DataProvider = ({ children }) => {
   // six mutable slices, and cleared by the debounced auto-save or an explicit
   // save triggered by the user.
   const [isDirty, setIsDirty] = useState(false);
-  // A ref lets us suppress the very first flush that occurs when a model is
-  // loaded (applyModelToState sets all slices, which would falsely mark dirty).
-  const suppressDirtyRef = useRef(false);
+  // Timestamp-based suppress window: after applyModelToState we ignore effect
+  // firings for 200 ms so React StrictMode's double-invocation does not falsely
+  // mark a freshly-loaded model as dirty. 200 ms is long enough to absorb both
+  // strict-mode runs (synchronous), but no real user edit can happen that fast.
+  const suppressDirtyUntilRef = useRef(0);
 
   // OSM Infrastructure data and region selection (persisted across navigation)
   const [osmSubstations, setOsmSubstations] = useState(null);
@@ -159,7 +161,10 @@ export const DataProvider = ({ children }) => {
   // Also seed confirmedBackendIds when loading from backend on mount so that
   // models loaded from the DB can be updated immediately.
   const applyModelToState = (model) => {
-    suppressDirtyRef.current = true;   // next state-change batch = load, not edit
+    // Open a 200 ms window during which the dirty-tracking effect will not fire.
+    // This absorbs both React StrictMode double-invocations and any normal first
+    // flush that would otherwise falsely mark a freshly-loaded model as dirty.
+    suppressDirtyUntilRef.current = Date.now() + 200;
     setCurrentModelId(model.id);
     setLocations(model.locations || []);
     setLinks(model.links || []);
@@ -440,7 +445,7 @@ export const DataProvider = ({ children }) => {
   }, [updateCurrentModel]);
 
   const clearData = () => {
-    suppressDirtyRef.current = true;
+    suppressDirtyUntilRef.current = Date.now() + 200;
     setIsDirty(false);
     setCurrentModelId(null);
     setLocations([]);
@@ -472,14 +477,13 @@ export const DataProvider = ({ children }) => {
   };
 
   // ── Mark dirty whenever any model slice changes ───────────────────────────
-  // We skip the very first change that occurs immediately after a model load
-  // (applyModelToState sets suppressDirtyRef before calling setters, and React
-  // batches the updates so the suppression flag is still true in this effect).
+  // Skip changes that occur within 200 ms of a model load so that React
+  // StrictMode's double-invocation of effects doesn't falsely mark a freshly
+  // loaded model as dirty.
   useEffect(() => {
     if (!currentModelId) return;
-    if (suppressDirtyRef.current) {
-      // Consume the suppression flag; next change will mark dirty normally.
-      suppressDirtyRef.current = false;
+    if (Date.now() <= suppressDirtyUntilRef.current) {
+      setIsDirty(false); // actively clear any prior false-dirty set by previous run
       return;
     }
     setIsDirty(true);
