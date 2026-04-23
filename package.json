@@ -70,7 +70,7 @@
           ]
         }
       ],
-      "icon": "public/icon.png"
+      "icon": "public/icon.ico"
     },
     "linux": {
       "extraResources": [
@@ -93,7 +93,7 @@
           ]
         }
       ],
-      "icon": "public/icon.png",
+      "icon": "public/icon.ico",
       "category": "Science"
     },
     "nsis": {
