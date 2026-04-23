@@ -14,7 +14,7 @@
  *  5. Scan `file=xxx.csv` references in constraints and load CSV timeseries if present.
  */
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   FiUploadCloud, FiPackage, FiCheckCircle,
   FiAlertTriangle, FiX, FiChevronDown, FiChevronRight,
@@ -669,6 +669,22 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
   const [showLog,    setShowLog]    = useState(false);
   const [modelName,  setModelName]  = useState('');
   const [loadingTpl, setLoadingTpl] = useState(null);
+  const [tplAvailable, setTplAvailable] = useState({});
+
+  // Check which server templates are actually present on first switch to 'server' tab
+  useEffect(() => {
+    if (uploadMode !== 'server') return;
+    (async () => {
+      const avail = {};
+      await Promise.all(SERVER_TEMPLATES.map(async tpl => {
+        try {
+          const resp = await fetchTemplate(tpl.rootYaml);
+          avail[tpl.id] = resp.ok;
+        } catch { avail[tpl.id] = false; }
+      }));
+      setTplAvailable(avail);
+    })();
+  }, [uploadMode]);
 
   const zipRef    = useRef(null);
   const filesRef  = useRef(null);
@@ -990,12 +1006,18 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
 
             {uploadMode === 'server' && (
               <div className="space-y-3">
-                {SERVER_TEMPLATES.map(tpl => (
-                  <div key={tpl.id} className="border border-green-200 rounded-xl p-5 flex items-start gap-4 bg-green-50">
+                {SERVER_TEMPLATES.map(tpl => {
+                  const available = tplAvailable[tpl.id] !== false; // default true while checking
+                  const checking  = !(tpl.id in tplAvailable);
+                  return (
+                  <div key={tpl.id} className={`border rounded-xl p-5 flex items-start gap-4 ${available ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50 opacity-60'}`}>
                     <div className="text-3xl">{tpl.flag}</div>
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-bold text-green-800 text-base">{tpl.name}</h4>
-                      <p className="text-green-700 text-sm mt-1">{tpl.description}</p>
+                      <h4 className={`font-bold text-base ${available ? 'text-green-800' : 'text-gray-500'}`}>{tpl.name}</h4>
+                      <p className={`text-sm mt-1 ${available ? 'text-green-700' : 'text-gray-400'}`}>{tpl.description}</p>
+                      {!available && !checking && (
+                        <p className="text-xs text-amber-600 mt-1">⚠ Template files not found in <code className="bg-amber-50 px-1 rounded">public/templates/{tpl.basePath}/</code></p>
+                      )}
                       <div className="flex flex-wrap gap-1.5 mt-2">
                         {tpl.imports.map(f => (
                           <span key={f} className="text-xs bg-white border border-gray-200 rounded px-1.5 py-0.5 font-mono text-gray-500">{f}</span>
@@ -1004,14 +1026,15 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
                     </div>
                     <button
                       onClick={() => loadServerTemplate(tpl)}
-                      disabled={loadingTpl !== null}
-                      className="px-5 py-2 rounded-lg text-sm font-bold text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-wait flex items-center gap-2 flex-shrink-0"
+                      disabled={loadingTpl !== null || !available || checking}
+                      className={`px-5 py-2 rounded-lg text-sm font-bold text-white flex items-center gap-2 flex-shrink-0 ${available && !checking ? 'bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-wait' : 'bg-gray-400 cursor-not-allowed'}`}
                     >
                       {loadingTpl === tpl.id && <FiRefreshCw size={13} className="animate-spin" />}
-                      {loadingTpl === tpl.id ? 'Loading…' : 'Load'}
+                      {checking ? '…' : loadingTpl === tpl.id ? 'Loading…' : available ? 'Load' : 'Not available'}
                     </button>
                   </div>
-                ))}
+                  );
+                })}
                 <div className="bg-gray-50 border border-dashed border-gray-300 rounded-xl p-4 text-center text-sm text-gray-400">
                   More templates can be added by placing YAML models in <code className="bg-gray-100 px-1 rounded text-xs">public/templates/</code>
                 </div>

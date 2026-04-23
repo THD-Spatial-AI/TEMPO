@@ -3,7 +3,11 @@
   "private": true,
   "version": "0.0.0",
   "description": "Energy System Optimization Visualizer with Calliope Integration",
-  "author": "TH Deggendorf",
+  "homepage": "https://github.com/TH-Deggendorf/TEMPO",
+  "author": {
+    "name": "TH Deggendorf",
+    "email": "tempo@th-deg.de"
+  },
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
@@ -19,6 +23,7 @@
     "predist:linux": "npm run build && npm run build:go && npm run build:go:linux",
     "dist": "electron-builder --win",
     "dist:linux": "electron-builder --linux",
+    "dist:linux:wsl": "wsl -- bash scripts/build_linux_wsl.sh",
     "dist:all": "npm run build && npm run build:go && npm run build:go:linux && electron-builder --win --linux",
     "dist:dir": "electron-builder --win --dir",
     "package": "electron-builder --dir"
@@ -35,7 +40,8 @@
       "!dist/data/**",
       "!dist/templates/**",
       "electron/**/*",
-      "package.json"
+      "package.json",
+      "!node_modules/**"
     ],
     "extraMetadata": {
       "dependencies": {}
@@ -43,7 +49,12 @@
     "extraResources": [
       {
         "from": "public/templates",
-        "to": "templates"
+        "to": "templates",
+        "filter": [
+          "**/*",
+          "!**/DMUU/scenarios/**",
+          "!**/demand_2014.csv"
+        ]
       },
       {
         "from": "python",
@@ -93,8 +104,9 @@
           ]
         }
       ],
-      "icon": "public/icon.ico",
-      "category": "Science"
+      "icon": "public/icon.png",
+      "category": "Science",
+      "maintainer": "TH Deggendorf <tempo@th-deg.de>"
     },
     "nsis": {
       "oneClick": false,
@@ -102,7 +114,8 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "TEMPO"
-    }
+    },
+    "electronLanguages": ["en-US", "en-GB", "de"]
   },
   "dependencies": {
     "@deck.gl/core": "^9.2.5",

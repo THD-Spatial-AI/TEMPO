@@ -3,6 +3,7 @@ import ModelSelector from "./ModelSelector";
 import { useData } from "../context/DataContext";
 import ReactECharts from 'echarts-for-react';
 import Papa from 'papaparse';
+import { fetchTemplate } from '../utils/templateFetch';
 import {
   FiMapPin, FiLink, FiZap, FiBarChart2, FiPieChart, FiActivity, FiDollarSign,
   FiChevronDown, FiChevronUp, FiCpu, FiLayers, FiMap, FiClock, FiGrid, FiSun, FiFilter,
@@ -559,7 +560,7 @@ const Dashboard = () => {
         const loaded = [];
         for (const fileName of files) {
           let clean = fileName.includes('/') ? fileName.split('/').pop() : fileName;
-          const resp = await fetch(`/templates/${folder}/timeseries_data/${clean}`);
+          const resp = await fetchTemplate(`${folder}/timeseries_data/${clean}`);
           if (!resp.ok) continue;
           const text = await resp.text();
           if (text.trim().startsWith('<')) continue;

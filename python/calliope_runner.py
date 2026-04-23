@@ -888,8 +888,12 @@ def _ensure_missing_file_csvs(techs, locs, time_start, time_end, config_dir):
         return
 
     # ── Strategy 1: copy from local templates directory ──────────────────────
+    # In packaged Electron builds the templates are in $TEMPO_TEMPLATES_PATH
+    # (set by main.cjs); fall back to the dev-tree location.
+    import os as _os
     _here = Path(__file__).parent           # python/
-    templates_root = _here.parent / 'public' / 'templates'
+    _env_path = _os.environ.get('TEMPO_TEMPLATES_PATH', '')
+    templates_root = Path(_env_path) if _env_path else (_here.parent / 'public' / 'templates')
     still_missing = {}
 
     if templates_root.exists():
@@ -918,6 +922,26 @@ def _ensure_missing_file_csvs(techs, locs, time_start, time_end, config_dir):
         return
 
     # ── Strategy 2: constant-value placeholder CSV ───────────────────────────
+    # Detect which CSV filenames are referenced by demand techs so we can give
+    # them negative placeholder values (Calliope requires demand resource < 0).
+    demand_csv_fnames = set()
+    for tid, tconf in techs.items():
+        parent = (tconf.get('essentials') or {}).get('parent', '')
+        if parent in ('demand', 'unmet_demand'):
+            res = (tconf.get('constraints') or {}).get('resource', '')
+            if isinstance(res, str) and res.startswith('file='):
+                csv_part = res.replace('file=', '').split(':')[0].strip()
+                demand_csv_fnames.add(csv_part)
+    # Also catch location-level overrides
+    for loc_data in locs.values():
+        if not isinstance(loc_data, dict):
+            continue
+        for ltid, lt_data in (loc_data.get('techs') or {}).items():
+            if (techs.get(ltid, {}).get('essentials') or {}).get('parent', '') in ('demand', 'unmet_demand'):
+                res = (lt_data.get('constraints') or {}).get('resource', '')
+                if isinstance(res, str) and res.startswith('file='):
+                    csv_part = res.replace('file=', '').split(':')[0].strip()
+                    demand_csv_fnames.add(csv_part)
     try:
         end_inclusive = pd.Timestamp(time_end) + pd.Timedelta(hours=23)
         ts_index = pd.date_range(start=time_start, end=end_inclusive, freq='H')
@@ -936,10 +960,11 @@ def _ensure_missing_file_csvs(techs, locs, time_start, time_end, config_dir):
         if not columns:
             columns = ['value']
 
-        df = pd.DataFrame(0.5, index=ts_index, columns=columns)
+        fill_value = -1.0 if fname in demand_csv_fnames else 0.5
+        df = pd.DataFrame(fill_value, index=ts_index, columns=columns)
         df.index.name = ''
         df.to_csv(config_dir / fname)
-        log(f"  [FALLBACK] Placeholder CSV written (constant 0.5) for: {fname}")
+        log(f"  [FALLBACK] Placeholder CSV written (constant {fill_value}) for: {fname}")
 
     log("  [FALLBACK] Placeholder CSVs use constant values — results are approximate.")
 
