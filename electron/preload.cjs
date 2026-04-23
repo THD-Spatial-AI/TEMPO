@@ -91,6 +91,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
    * @returns Promise<{ running: bool }>
    */
   restartCalliopeService: () => ipcRenderer.invoke('calliope:restart-service'),
+
+  // ── opentech-db URL ───────────────────────────────────────────────────────
+
+  /**
+   * Get the opentech-db API base URL.
+   * Reads TEMPO_TECH_API_URL env var in main process; falls back to localhost:8000.
+   * Set TEMPO_TECH_API_URL to point at the deployed public opentech-db instance.
+   * @returns Promise<string>
+   */
+  getTechApiURL: () => ipcRenderer.invoke('tech:api-url'),
 });
 
 

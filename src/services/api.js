@@ -1,20 +1,30 @@
 // Frontend API client for Go backend
 // In Vite dev mode the /api prefix is proxied to localhost:8082 by vite.config.js,
 // so the browser never makes a cross-origin request (avoids CORS issues).
-// In Electron (file://) or an unknown context we fall back to the absolute URL.
-let BACKEND_URL = import.meta.env.DEV ? '' : 'http://localhost:8082';
+// In Electron (file://) or an unknown context we ask the main process for the URL.
+let _backendURLPromise = null;
 
-// Override from Electron host bridge if available
-if (window.electronAPI) {
-  window.electronAPI.getBackendURL().then(url => {
-    BACKEND_URL = url;
-  });
+function getBackendURL() {
+  if (_backendURLPromise) return _backendURLPromise;
+  if (typeof window !== 'undefined' && window.electronAPI?.getBackendURL) {
+    _backendURLPromise = window.electronAPI.getBackendURL().catch(() => 'http://localhost:8082');
+  } else if (import.meta.env.DEV) {
+    _backendURLPromise = Promise.resolve('');
+  } else {
+    _backendURLPromise = Promise.resolve('http://localhost:8082');
+  }
+  return _backendURLPromise;
+}
+
+async function apiFetch(path, opts) {
+  const base = await getBackendURL();
+  return fetch(`${base}${path}`, opts);
 }
 
 export const api = {
   // Model Management
   async saveModel(modelData) {
-    const response = await fetch(`${BACKEND_URL}/api/models`, {
+    const response = await apiFetch('/api/models', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(modelData)
@@ -27,19 +37,19 @@ export const api = {
   },
 
   async getModels() {
-    const response = await fetch(`${BACKEND_URL}/api/models`);
+    const response = await apiFetch('/api/models');
     if (!response.ok) throw new Error(`Failed to fetch models (${response.status})`);
     return response.json();
   },
 
   async getModel(id) {
-    const response = await fetch(`${BACKEND_URL}/api/models/${id}`);
+    const response = await apiFetch(`/api/models/${id}`);
     if (!response.ok) throw new Error(`Failed to fetch model (${response.status})`);
     return response.json();
   },
 
   async updateModel(id, modelData) {
-    const response = await fetch(`${BACKEND_URL}/api/models/${id}`, {
+    const response = await apiFetch(`/api/models/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(modelData)
@@ -49,7 +59,7 @@ export const api = {
   },
 
   async deleteModel(id) {
-    const response = await fetch(`${BACKEND_URL}/api/models/${id}`, {
+    const response = await apiFetch(`/api/models/${id}`, {
       method: 'DELETE'
     });
     if (!response.ok) throw new Error(`Failed to delete model: ${response.statusText}`);
@@ -58,7 +68,7 @@ export const api = {
 
   // Job Management
   async runModel(modelId) {
-    const response = await fetch(`${BACKEND_URL}/api/models/${modelId}/run`, {
+    const response = await apiFetch(`/api/models/${modelId}/run`, {
       method: 'POST'
     });
     if (!response.ok) throw new Error(`Failed to run model (${response.status})`);
@@ -66,20 +76,20 @@ export const api = {
   },
 
   async getJobStatus(jobId) {
-    const response = await fetch(`${BACKEND_URL}/api/jobs/${jobId}`);
+    const response = await apiFetch(`/api/jobs/${jobId}`);
     if (!response.ok) throw new Error(`Failed to fetch job status (${response.status})`);
     return response.json();
   },
 
   async getJobResults(jobId) {
-    const response = await fetch(`${BACKEND_URL}/api/jobs/${jobId}/results`);
+    const response = await apiFetch(`/api/jobs/${jobId}/results`);
     if (!response.ok) throw new Error(`Failed to fetch job results (${response.status})`);
     return response.json();
   },
 
   // Completed Runs (persisted history)
   async saveCompletedRun(run) {
-    const response = await fetch(`${BACKEND_URL}/api/completed-runs`, {
+    const response = await apiFetch('/api/completed-runs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(run),
@@ -89,13 +99,13 @@ export const api = {
   },
 
   async getCompletedRuns() {
-    const response = await fetch(`${BACKEND_URL}/api/completed-runs`);
+    const response = await apiFetch('/api/completed-runs');
     if (!response.ok) throw new Error('Failed to fetch completed runs');
     return response.json();
   },
 
   async deleteCompletedRun(id) {
-    const response = await fetch(`${BACKEND_URL}/api/completed-runs/${encodeURIComponent(id)}`, {
+    const response = await apiFetch(`/api/completed-runs/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
     if (!response.ok) throw new Error(`Failed to delete completed run: ${response.statusText}`);
@@ -116,7 +126,7 @@ export const api = {
       params.append('region', regionPath);
     }
 
-    const response = await fetch(`${BACKEND_URL}/api/osm/${layerName}?${params}`);
+    const response = await apiFetch(`/api/osm/${layerName}?${params}`);
     if (!response.ok) {
       throw new Error(`Failed to fetch ${layerName}: ${response.statusText}`);
     }
@@ -124,35 +134,28 @@ export const api = {
   },
 
   async getAvailableLayers() {
-    const response = await fetch(`${BACKEND_URL}/api/osm/layers`);
+    const response = await apiFetch('/api/osm/layers');
     return response.json();
   },
 
   // Returns distinct region_paths currently loaded in PostGIS
-  // e.g. ["Europe/Germany/Bayern/Niederbayern", "South_America/Chile/Metropolitana"]
   async getLoadedRegions() {
-    const response = await fetch(`${BACKEND_URL}/api/osm/regions`);
+    const response = await apiFetch('/api/osm/regions');
     if (!response.ok) return { regions: [] };
     return response.json();
   },
 
   // Returns the full Geofabrik regions database (countries + sub-regions).
   async getRegionsDatabase() {
-    const response = await fetch(`${BACKEND_URL}/api/osm/regions-db`);
+    const response = await apiFetch('/api/osm/regions-db');
     if (!response.ok) throw new Error('Could not load regions database');
     return response.json();
   },
 
   // Start an OSM download via the Python pipeline.
-  // Returns an EventSource-compatible URL (or call downloadOSMRegionStream for SSE).
-  // continent: "Europe", country: "Germany", region: "Bayern" (optional)
   downloadOSMRegionStream(continent, country, region = '') {
-    const url = new URL(`${BACKEND_URL || window.location.origin}/api/osm/download`);
-    // SSE streams are GET by convention, but our endpoint is POST.
-    // We'll use fetch + ReadableStream from the caller.
-    // This method just returns a promise that resolves the response.
     const body = JSON.stringify({ continent, country, region: region || '' });
-    return fetch(`${BACKEND_URL}/api/osm/download`, {
+    return apiFetch('/api/osm/download', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body,
@@ -160,11 +163,9 @@ export const api = {
   },
 
   // Geocode a free-text query via Nominatim (proxied through the backend).
-  // Returns an array of Nominatim result objects:
-  //   { display_name, lat, lon, boundingbox: [lat_min, lat_max, lon_min, lon_max], ... }
   async geocode(query) {
     if (!query) return [];
-    const response = await fetch(`${BACKEND_URL}/api/geocode?q=${encodeURIComponent(query)}`);
+    const response = await apiFetch(`/api/geocode?q=${encodeURIComponent(query)}`);
     if (!response.ok) return [];
     return response.json();
   },
@@ -172,7 +173,7 @@ export const api = {
   // Health Check
   async checkHealth() {
     try {
-      const response = await fetch(`${BACKEND_URL}/api/health`);
+      const response = await apiFetch('/api/health');
       return response.ok;
     } catch {
       return false;
@@ -208,3 +209,4 @@ export const api = {
 };
 
 export default api;
+

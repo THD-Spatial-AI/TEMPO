@@ -8,6 +8,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const h2Target = (env.VITE_H2_SERVICE_URL || 'http://localhost:8765').replace(/\/$/, '')
   const ccsTarget = (env.VITE_CCS_SERVICE_URL || 'http://localhost:8766').replace(/\/$/, '')
+  const techTarget = (env.VITE_TECH_API_URL || 'http://localhost:8000').replace(/\/$/, '')
 
   return {
     plugins: [react()],
@@ -39,7 +40,7 @@ export default defineConfig(({ mode }) => {
         },
         // ── OpenTech-DB technology catalog ───────────────────────────────────
         '/tech': {
-          target: 'http://localhost:8000',
+          target: techTarget,
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/tech/, ''),
         },

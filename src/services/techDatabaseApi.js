@@ -1,8 +1,7 @@
 /**
  * techDatabaseApi.js
  * ------------------
- * Frontend client for the opentech-db Technology Catalog API
- * (default: hosted ngrok instance — no local setup required).
+ * Frontend client for the opentech-db Technology Catalog API.
  *
  * Supported endpoints:
  *   GET  /api/v1/technologies                     – paginated catalog list
@@ -19,55 +18,80 @@
  * All functions return Promises. Callers fall back to TECH_TEMPLATES when
  * the API is offline — no exceptions bubble to UI.
  *
- * Hosted URL: https://marleigh-unmuttering-effortlessly.ngrok-free.dev
- * Override with: VITE_TECH_API_URL=http://localhost:8000  (local dev)
+ * URL resolution order (first that resolves wins):
+ *   1. Electron: TEMPO_TECH_API_URL env var read by main process, exposed via IPC
+ *   2. VITE_TECH_API_URL build-time env var
+ *   3. Vite dev proxy at '/tech'  (dev mode only)
+ *   4. http://localhost:8000     (local Docker fallback)
  */
 
 // ---------------------------------------------------------------------------
 // Configuration
 // ---------------------------------------------------------------------------
 
+// Synchronous export kept for backward compat / display purposes.
+// All actual fetch calls go through getTechBaseURL() which is async and cached.
 export const OEO_API_BASE_URL =
   (typeof import.meta !== 'undefined' && import.meta.env?.VITE_TECH_API_URL) ||
-  // In packaged Electron there is no Vite proxy, so call localhost:8000 directly.
-  // In the browser/dev-server, /tech is proxied by Vite to http://localhost:8000.
   (typeof window !== 'undefined' && window.electronAPI ? 'http://localhost:8000' : '/tech');
 
-// No extra headers needed for local Docker
 const EXTRA_HEADERS = {};
-
-const API_V1 = `${OEO_API_BASE_URL}/api/v1`;
 const DEFAULT_TIMEOUT_MS = 10_000;
 
 /** Valid opentech-db category names */
 export const TECH_CATEGORIES = ['generation', 'storage', 'transmission', 'conversion'];
 
 // ---------------------------------------------------------------------------
+// Async URL resolver — resolves once, cached forever
+// ---------------------------------------------------------------------------
+
+let _techBaseURLCache = null;
+
+/**
+ * Resolve the base URL for opentech-db.
+ * In Electron the main process reads TEMPO_TECH_API_URL from the environment
+ * so the URL can be set at build/launch time without rebuilding the renderer.
+ */
+async function getTechBaseURL() {
+  if (_techBaseURLCache) return _techBaseURLCache;
+  if (typeof window !== 'undefined' && window.electronAPI?.getTechApiURL) {
+    try {
+      _techBaseURLCache = await window.electronAPI.getTechApiURL();
+      return _techBaseURLCache;
+    } catch { /* fall through */ }
+  }
+  if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_TECH_API_URL) {
+    _techBaseURLCache = import.meta.env.VITE_TECH_API_URL;
+    return _techBaseURLCache;
+  }
+  _techBaseURLCache = (typeof import.meta !== 'undefined' && import.meta.env?.DEV)
+    ? '/tech'
+    : 'http://localhost:8000';
+  return _techBaseURLCache;
+}
+
+// ---------------------------------------------------------------------------
 // Low-level fetch helper (with timeout + graceful error handling)
 // ---------------------------------------------------------------------------
 
 /**
- * @param {string} path  - API path, e.g. "/api/technologies"
+ * @param {string} path  - API path, e.g. "/api/v1/technologies"
  * @param {number} [timeoutMs]
  * @returns {Promise<any>}
  * @throws {Error} if the request fails or times out
  */
 async function apiFetch(path, timeoutMs = DEFAULT_TIMEOUT_MS) {
-  const url = path.startsWith('http') ? path : `${OEO_API_BASE_URL}${path}`;
+  const base = await getTechBaseURL();
+  const url = path.startsWith('http') ? path : `${base}${path}`;
 
   const controller = new AbortController();
   const timerId = setTimeout(() => controller.abort(), timeoutMs);
-
   try {
     const response = await fetch(url, { signal: controller.signal, headers: EXTRA_HEADERS });
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText} (${url})`);
-    }
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText} (${url})`);
     return await response.json();
   } catch (err) {
-    if (err.name === 'AbortError') {
-      throw new Error(`Request timed out after ${timeoutMs}ms (${url})`);
-    }
+    if (err.name === 'AbortError') throw new Error(`Request timed out after ${timeoutMs}ms (${url})`);
     throw err;
   } finally {
     clearTimeout(timerId);
@@ -193,11 +217,8 @@ export async function isTechApiAvailable(timeoutMs = 3000) {
     return true;
   } catch {
     try {
-      const controller = new AbortController();
-      const t = setTimeout(() => controller.abort(), timeoutMs);
-      const r = await fetch(`${API_V1}/technologies?limit=1`, { signal: controller.signal });
-      clearTimeout(t);
-      return r.ok;
+      await apiFetch('/api/v1/technologies?limit=1', timeoutMs);
+      return true;
     } catch {
       return false;
     }
@@ -534,13 +555,7 @@ export async function fetchFullCatalogWithInstances() {
     catalogList.map(entry => {
       const techId = entry.technology_id || entry.id;
       if (!techId) return Promise.reject(new Error('Missing technology_id'));
-      const ctrl = new AbortController();
-      setTimeout(() => ctrl.abort(), DEFAULT_TIMEOUT_MS);
-      return fetch(`${API_V1}/technologies/${encodeURIComponent(techId)}`, { signal: ctrl.signal })
-        .then(r => {
-          if (!r.ok) throw new Error(`HTTP ${r.status} for ${techId}`);
-          return r.json();
-        });
+      return apiFetch(`/api/v1/technologies/${encodeURIComponent(techId)}`);
     })
   );
 
@@ -592,10 +607,7 @@ export async function fetchFullCatalogByCategory() {
   const detailResults = await Promise.allSettled(
     uniqueEntries.map(entry => {
       const techId = entry.technology_id || entry.id;
-      const ctrl = new AbortController();
-      setTimeout(() => ctrl.abort(), DEFAULT_TIMEOUT_MS);
-      return fetch(`${API_V1}/technologies/${encodeURIComponent(techId)}`, { signal: ctrl.signal })
-        .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status} for ${techId}`)));
+      return apiFetch(`/api/v1/technologies/${encodeURIComponent(techId)}`);
     })
   );
 

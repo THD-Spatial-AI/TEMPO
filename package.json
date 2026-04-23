@@ -53,7 +53,9 @@
         "filter": [
           "**/*",
           "!**/DMUU/scenarios/**",
-          "!**/demand_2014.csv"
+          "!**/demand_2014.csv",
+          "!**/__pycache__/**",
+          "!**/*.pyc"
         ]
       },
       {
