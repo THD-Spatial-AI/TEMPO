@@ -1,0 +1,146 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      upload_artifacts:
+        description: 'Upload build artifacts'
+        type: boolean
+        default: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+permissions:
+  contents: write   # needed to create GitHub Releases and upload assets
+
+jobs:
+  # ── Windows build (NSIS installer) ────────────────────────────────────────
+  build-windows:
+    name: Build Windows
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Vite frontend
+        run: npm run build
+
+      - name: Build Go backend (Windows)
+        run: npm run build:go
+
+      - name: Build Electron installer (Windows)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --win --publish never
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: TEMPO-Windows
+          path: |
+            release/*.exe
+            release/*.exe.blockmap
+          retention-days: 30
+
+  # ── Linux build (AppImage + deb) ──────────────────────────────────────────
+  build-linux:
+    name: Build Linux
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            fuse \
+            libfuse2 \
+            squashfs-tools \
+            rpm \
+            dpkg
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Build Vite frontend
+        run: npm run build
+
+      - name: Build Go backend (Linux)
+        run: |
+          cd backend-go
+          GOOS=linux GOARCH=amd64 go build -o ../backend-go/backend-linux .
+
+      - name: Build Electron packages (Linux)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --linux --publish never
+
+      - name: Upload Linux packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: TEMPO-Linux
+          path: |
+            release/*.AppImage
+            release/*.deb
+          retention-days: 30
+
+  # ── GitHub Release (only on tag push) ────────────────────────────────────
+  release:
+    name: Create GitHub Release
+    needs: [build-windows, build-linux]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: TEMPO-Windows
+          path: release/
+
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: TEMPO-Linux
+          path: release/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: TEMPO ${{ github.ref_name }}
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-beta') || contains(github.ref_name, '-rc') }}
+          generate_release_notes: true
+          files: |
+            release/*.exe
+            release/*.AppImage
+            release/*.deb

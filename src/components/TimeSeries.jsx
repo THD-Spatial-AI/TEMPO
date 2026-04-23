@@ -14,6 +14,7 @@ import {
 } from 'react-icons/fi';
 import ReactECharts from 'echarts-for-react';
 import Papa from 'papaparse';
+import { fetchTemplate } from '../utils/templateFetch';
 import { useData } from '../context/DataContext';
 import SaveBar from './ui/SaveBar';
 
@@ -163,11 +164,11 @@ const TimeSeries = () => {
               cleanFileName = fileName.split('/').pop();
             }
             
-            const filePath = `/templates/${templateFolder}/timeseries_data/${cleanFileName}`;
+            const filePath = `${templateFolder}/timeseries_data/${cleanFileName}`;
             
             console.log('Loading CSV file:', filePath);
             
-            const response = await fetch(filePath);
+            const response = await fetchTemplate(filePath);
             
             if (!response.ok) {
               console.warn(`Could not load ${cleanFileName} from ${filePath}`, response.status);

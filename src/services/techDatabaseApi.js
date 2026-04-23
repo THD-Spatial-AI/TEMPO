@@ -29,7 +29,9 @@
 
 export const OEO_API_BASE_URL =
   (typeof import.meta !== 'undefined' && import.meta.env?.VITE_TECH_API_URL) ||
-  '/tech'; // Vite dev proxy: /tech/* → http://localhost:8000 (Docker)
+  // In packaged Electron there is no Vite proxy, so call localhost:8000 directly.
+  // In the browser/dev-server, /tech is proxied by Vite to http://localhost:8000.
+  (typeof window !== 'undefined' && window.electronAPI ? 'http://localhost:8000' : '/tech');
 
 // No extra headers needed for local Docker
 const EXTRA_HEADERS = {};

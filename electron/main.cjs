@@ -417,6 +417,13 @@ async function startCalliopeService() {
     childEnv.CALLIOPE_SOLVER_DIR = solverDir;
   }
 
+  // Tell the Python runner where Calliope YAML templates are stored so it can
+  // copy missing CSV files from the bundled templates rather than generating
+  // placeholder data with wrong signs (demand CSVs need negative values).
+  childEnv.TEMPO_TEMPLATES_PATH = app.isPackaged
+    ? path.join(process.resourcesPath, 'templates')
+    : path.join(__dirname, '..', 'public', 'templates');
+
   console.log(`[calliope-svc] Starting uvicorn with: ${python}`);
   calliopeService = spawn(python, [
     '-m', 'uvicorn', 'calliope_service:app',
