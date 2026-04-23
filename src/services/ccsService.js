@@ -173,14 +173,25 @@ export async function runCCSSimulation(params, callbacks = {}) {
   // Normalise: always emit a string so callers can render it safely
   const emitError = (err) => onError(err instanceof Error ? err.message : String(err ?? 'Unknown error'));
 
+  // ── Preflight: check whether the Docker service is reachable ──────────────
+  // If not, immediately fall back to the client-side physics engine so users
+  // without Docker still get simulation results (lower fidelity but instant).
+  try {
+    await checkHealth();
+  } catch {
+    console.log('[ccsService] Service unreachable — using local physics fallback');
+    return runCCSSimulationFallback(params, { onProgress: emitProgress, onDone, onError: emitError });
+  }
+
   // ── Step 1: Submit simulation ──────────────────────────────────────────────
   onQueued();
   let jobData;
   try {
     jobData = await startCCSSimulation(params);
   } catch (err) {
-    emitError(err);
-    return () => {}; // no-op cancel
+    // Service was reachable at health-check but failed on submit — fall back
+    console.warn('[ccsService] Submit failed, falling back to local physics:', err.message);
+    return runCCSSimulationFallback(params, { onProgress: emitProgress, onDone, onError: emitError });
   }
 
   const { job_id } = jobData;

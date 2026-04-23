@@ -9,8 +9,8 @@ let mainWindow       = null;
 let backendProcess   = null;   // Go REST backend (port 8082)
 let calliopeService  = null;   // Python uvicorn service (port 5000, optional)
 
-const BACKEND_PORT  = 8082;
-const CALLIOPE_PORT = 5000;
+let BACKEND_PORT  = 8082;   // may be reassigned at startup if port is taken
+let CALLIOPE_PORT = 5000;   // may be reassigned at startup if port is taken
 const IS_WIN        = process.platform === 'win32';
 const IS_LINUX      = process.platform === 'linux';
 
@@ -64,6 +64,26 @@ function getDockerServices() {
 }
 
 // ─── Port helper ───────────────────────────────────────────────────────────
+/**
+ * Find a free TCP port starting at `preferred`, scanning upward up to +20.
+ * Returns `preferred` if it is already free, otherwise the first free port found.
+ */
+function findFreePort(preferred) {
+  return new Promise((resolve, reject) => {
+    let candidate = preferred;
+    const tryNext = () => {
+      if (candidate > preferred + 20) { reject(new Error(`No free port in range ${preferred}–${preferred + 20}`)); return; }
+      const server = net.createServer();
+      server.listen(candidate, '127.0.0.1', () => {
+        const port = server.address().port;
+        server.close(() => resolve(port));
+      });
+      server.on('error', () => { candidate++; tryNext(); });
+    };
+    tryNext();
+  });
+}
+
 function isPortOpen(port) {
   return new Promise(resolve => {
     const sock = new net.Socket();
@@ -210,21 +230,25 @@ ipcMain.handle('docker:start-all', async () => {
 // ─── IPC: Service URL registry ───────────────────────────────────────────────
 ipcMain.handle('services:urls', async () => {
   const [c, o, ccs, gs, be] = await Promise.all([
-    isPortOpen(5000), isPortOpen(8000), isPortOpen(8766), isPortOpen(8081), isPortOpen(BACKEND_PORT),
+    isPortOpen(CALLIOPE_PORT), isPortOpen(8000), isPortOpen(8766), isPortOpen(8081), isPortOpen(BACKEND_PORT),
   ]);
   return {
-    calliope:  { url: 'http://localhost:5000',            running: c   },
-    opentech:  { url: 'http://localhost:8000',            running: o   },
-    ccs:       { url: 'http://localhost:8766',            running: ccs },
-    geoserver: { url: 'http://localhost:8081',            running: gs  },
-    backend:   { url: `http://localhost:${BACKEND_PORT}`, running: be  },
+    calliope:  { url: `http://localhost:${CALLIOPE_PORT}`, running: c   },
+    opentech:  { url: 'http://localhost:8000',             running: o   },
+    ccs:       { url: 'http://localhost:8766',             running: ccs },
+    geoserver: { url: 'http://localhost:8081',             running: gs  },
+    backend:   { url: `http://localhost:${BACKEND_PORT}`,  running: be  },
   };
 });
 
+// opentech-db base URL — override by setting TEMPO_TECH_API_URL at build/launch time
+const TECH_API_URL = process.env.TEMPO_TECH_API_URL || 'http://localhost:8000';
+ipcMain.handle('tech:api-url', () => TECH_API_URL);
+
 // Backward compat — calliopeClient.js calls this
 ipcMain.handle('calliope:service-url', async () => ({
-  url:     'http://127.0.0.1:5000',
-  running: await isPortOpen(5000),
+  url:     `http://127.0.0.1:${CALLIOPE_PORT}`,
+  running: await isPortOpen(CALLIOPE_PORT),
 }));
 
 // ─── IPC: General ───────────────────────────────────────────────────────────
@@ -579,7 +603,15 @@ function stopAll() {
 }
 
 app.whenReady().then(async () => {
+  // Allocate free ports before starting services so we don't collide with
+  // other applications that may already be using the default ports.
+  try { BACKEND_PORT  = await findFreePort(BACKEND_PORT);  } catch { /* keep default */ }
+  try { CALLIOPE_PORT = await findFreePort(CALLIOPE_PORT); } catch { /* keep default */ }
+  console.log(`[ports] backend=${BACKEND_PORT}  calliope=${CALLIOPE_PORT}`);
+
   await startBackend();
+  // Start native calliope service (no-op if venv not installed yet)
+  startCalliopeService().catch(err => console.warn('[calliope-svc] autostart error:', err.message));
   await createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

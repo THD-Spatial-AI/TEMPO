@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { FiCheckCircle, FiAlertCircle, FiLoader, FiTerminal, FiRefreshCw, FiClock, FiPlay, FiBox } from 'react-icons/fi';
+import { FiCheckCircle, FiAlertCircle, FiLoader, FiTerminal, FiRefreshCw, FiClock, FiPlay, FiBox, FiDownload } from 'react-icons/fi';
 
 // ── Status icon ───────────────────────────────────────────────────────────────
 function ServiceIcon({ running, healthy }) {
@@ -57,26 +57,61 @@ export default function SetupScreen({ onComplete }) {
     if (!window.electronAPI) { onComplete(); return; }
 
     try {
-      const result = await window.electronAPI.getDockerStatus();
-      setDockerAvailable(result.dockerAvailable);
-      setServices(result.services || []);
+      const [dockerResult, serviceURLs, calliopeEnv] = await Promise.all([
+        window.electronAPI.getDockerStatus().catch(() => ({ dockerAvailable: false, services: [] })),
+        window.electronAPI.getServiceURLs().catch(() => null),
+        window.electronAPI.checkCalliopeEnv().catch(() => ({ envExists: false, serviceRunning: false })),
+      ]);
 
-      if (!result.dockerAvailable) {
-        setPhase('error');
-        setErrorMsg('Docker Desktop is not running. Please start Docker Desktop and relaunch TEMPO.');
+      setDockerAvailable(dockerResult.dockerAvailable);
+      setServices(dockerResult.services || []);
+
+      // Native mode: backend + calliope service are both up (no Docker needed)
+      if (serviceURLs?.backend?.running && serviceURLs?.calliope?.running) {
+        setPhase('done');
+        setTimeout(onComplete, 600);
         return;
       }
 
-      const requiredAll = (result.services || []).filter(s => s.required).every(s => s.running);
-      if (requiredAll) {
-        setPhase('done');
-        setTimeout(onComplete, 600);
+      // Docker mode: all required containers running
+      if (dockerResult.dockerAvailable) {
+        const requiredAll = (dockerResult.services || []).filter(s => s.required).every(s => s.running);
+        if (requiredAll) {
+          setPhase('done');
+          setTimeout(onComplete, 600);
+        } else {
+          setPhase('needs-start');
+        }
+        return;
+      }
+
+      // No Docker available — offer native venv install as alternative
+      if (calliopeEnv.envExists) {
+        // Venv is installed. Service should have been autostarted — wait a bit and recheck.
+        setPhase('native-starting');
+        setTimeout(async () => {
+          const urls2 = await window.electronAPI.getServiceURLs().catch(() => null);
+          if (urls2?.calliope?.running) {
+            setPhase('done');
+            setTimeout(onComplete, 600);
+          } else {
+            // Try restarting the service
+            await window.electronAPI.restartCalliopeService().catch(() => {});
+            const urls3 = await window.electronAPI.getServiceURLs().catch(() => null);
+            if (urls3?.calliope?.running) {
+              setPhase('done');
+              setTimeout(onComplete, 600);
+            } else {
+              setPhase('native-needs-install');
+            }
+          }
+        }, 3000);
       } else {
-        setPhase('needs-start');
+        setPhase('native-needs-install');
       }
     } catch (err) {
       setPhase('error');
-      setErrorMsg(err.message || 'Failed to check Docker status.');
+      setErrorMsg(err.message || 'Failed to check services.');
     }
   }, [onComplete]);
 
@@ -118,13 +153,113 @@ export default function SetupScreen({ onComplete }) {
     window.electronAPI.startAllDockerServices();
   };
 
+  // ── Native Calliope venv install ──────────────────────────────────────────
+  const installNative = async () => {
+    setPhase('native-installing');
+    setLogs([]);
+    setErrorMsg('');
+    const unsub = window.electronAPI.onCalliopeInstallProgress((data) => {
+      if (data.type === 'log')   appendLog(data.line);
+      if (data.type === 'stage') appendLog('▶ ' + data.label);
+      if (data.type === 'done') {
+        if (unsub) unsub();
+        unsubRef.current = null;
+        setPhase('done');
+        setTimeout(onComplete, 800);
+      }
+      if (data.type === 'error') {
+        appendLog('✗ ' + (data.error || data.label || 'Install error'));
+        setErrorMsg(data.error || 'Installation failed.');
+        setPhase('native-needs-install');
+        if (unsub) unsub();
+        unsubRef.current = null;
+      }
+    });
+    unsubRef.current = unsub;
+    window.electronAPI.installCalliopeEnv();
+  };
+
   // ── Renders ───────────────────────────────────────────────────────────────
   if (phase === 'checking') {
     return (
       <FullScreenCard>
         <SpinnerIcon />
         <h2 className="mt-6 text-2xl font-semibold text-slate-800">Checking services…</h2>
-        <p className="mt-2 text-slate-500 text-sm">Verifying TEMPO Docker containers</p>
+        <p className="mt-2 text-slate-500 text-sm">Verifying TEMPO services</p>
+      </FullScreenCard>
+    );
+  }
+
+  if (phase === 'native-starting') {
+    return (
+      <FullScreenCard>
+        <SpinnerIcon />
+        <h2 className="mt-6 text-2xl font-semibold text-slate-800">Starting Calliope…</h2>
+        <p className="mt-2 text-slate-500 text-sm">Launching the energy model service</p>
+      </FullScreenCard>
+    );
+  }
+
+  if (phase === 'native-needs-install') {
+    return (
+      <FullScreenCard>
+        <div className="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center">
+          <FiDownload className="w-8 h-8 text-blue-500" />
+        </div>
+        <h2 className="mt-6 text-2xl font-semibold text-slate-800">First-time setup</h2>
+        <p className="mt-3 text-slate-500 text-sm text-center max-w-sm">
+          TEMPO needs to install the Calliope energy modelling environment.
+          This requires Python 3.9+ and an internet connection.
+          It only happens once.
+        </p>
+        {errorMsg && <p className="mt-2 text-sm text-red-500">{errorMsg}</p>}
+        <div className="flex gap-3 mt-6">
+          <button
+            onClick={installNative}
+            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl font-semibold shadow-md hover:from-blue-600 hover:to-blue-700 transition-all"
+          >
+            <FiDownload className="w-4 h-4" /> Install Calliope
+          </button>
+          <button
+            onClick={onComplete}
+            className="flex items-center gap-2 px-5 py-3 border-2 border-slate-200 text-slate-500 rounded-xl font-semibold hover:bg-slate-50 transition-all"
+          >
+            Skip for now
+          </button>
+        </div>
+        <p className="mt-4 text-xs text-slate-400">Docker is not available — using native Python mode</p>
+      </FullScreenCard>
+    );
+  }
+
+  if (phase === 'native-installing') {
+    return (
+      <FullScreenCard wide>
+        <SpinnerIcon />
+        <h2 className="mt-4 text-2xl font-semibold text-slate-800">Installing Calliope…</h2>
+        <p className="mt-1 text-slate-500 text-sm">Creating Python environment and installing packages</p>
+        <div className="w-full max-w-2xl mt-6">
+          <div className="flex items-center gap-2 mb-2">
+            <FiTerminal className="w-4 h-4 text-slate-400" />
+            <span className="text-xs font-mono text-slate-400 uppercase tracking-wide">Install output</span>
+          </div>
+          <div className="bg-slate-950 rounded-xl p-4 h-64 overflow-y-auto font-mono text-xs leading-relaxed">
+            {logs.length === 0
+              ? <span className="text-slate-600">Starting…</span>
+              : logs.map((l, i) => (
+                  <div key={i} className="flex gap-2">
+                    <span className="text-slate-600 select-none flex-shrink-0">{l.ts}</span>
+                    <span className={
+                      l.text.startsWith('▶') ? 'text-yellow-400' :
+                      l.text.startsWith('✗') ? 'text-red-400' :
+                      'text-slate-300'
+                    }>{l.text}</span>
+                  </div>
+                ))
+            }
+            <div ref={logEndRef} />
+          </div>
+        </div>
       </FullScreenCard>
     );
   }
@@ -149,12 +284,20 @@ export default function SetupScreen({ onComplete }) {
         </div>
         <h2 className="mt-6 text-2xl font-semibold text-slate-800">Cannot start services</h2>
         <p className="mt-3 text-slate-500 text-sm text-center max-w-sm">{errorMsg}</p>
-        <button
-          onClick={checkStatus}
-          className="mt-6 flex items-center gap-2 px-6 py-3 bg-blue-500 text-white rounded-xl font-semibold shadow hover:bg-blue-600 transition-colors"
-        >
-          <FiRefreshCw className="w-4 h-4" /> Retry
-        </button>
+        <div className="flex gap-3 mt-6">
+          <button
+            onClick={checkStatus}
+            className="flex items-center gap-2 px-6 py-3 bg-blue-500 text-white rounded-xl font-semibold shadow hover:bg-blue-600 transition-colors"
+          >
+            <FiRefreshCw className="w-4 h-4" /> Retry
+          </button>
+          <button
+            onClick={onComplete}
+            className="flex items-center gap-2 px-5 py-3 border-2 border-slate-200 text-slate-500 rounded-xl font-semibold hover:bg-slate-50 transition-colors"
+          >
+            Continue Anyway
+          </button>
+        </div>
       </FullScreenCard>
     );
   }

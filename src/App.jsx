@@ -211,9 +211,18 @@ function App() {
 
   useEffect(() => {
     if (typeof window !== 'undefined' && window.electronAPI) {
-      window.electronAPI.getDockerStatus().then(result => {
-        const allReady = result.dockerAvailable &&
-          (result.services || []).filter(s => s.required).every(s => s.running);
+      Promise.all([
+        window.electronAPI.getDockerStatus().catch(() => null),
+        window.electronAPI.getServiceURLs().catch(() => null),
+      ]).then(([dockerResult, serviceURLs]) => {
+        // Native (non-Docker) mode: if backend + calliope are both up, skip setup
+        if (serviceURLs?.backend?.running && serviceURLs?.calliope?.running) {
+          setAppState('ready');
+          return;
+        }
+        // Docker mode: all required containers must be running
+        const allReady = dockerResult?.dockerAvailable &&
+          (dockerResult?.services || []).filter(s => s.required).every(s => s.running);
         setAppState(allReady ? 'ready' : 'setup');
       }).catch(() => {
         // If check fails (e.g. non-Electron browser), skip setup
