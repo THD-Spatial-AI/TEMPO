@@ -1,19 +1,18 @@
-# Calliope runner dependencies
-# Install into a plain venv (no conda required):
+# Aggregate requirements file – installs the Calliope framework + service layer.
+# Used by the TEMPO installer (main.cjs) and manual dev setup.
+#
+# Subfiles:
+#   requirements.calliope.txt  – Calliope energy modeling (Python 3.9–3.11)
+#   requirements.pypsa.txt     – PyPSA energy modeling
+#   requirements.adopt.txt     – ADOPT optimisation (experimental)
+#   requirements.service.txt   – FastAPI / uvicorn service layer (always installed)
+#
+# Quick install (dev):
 #   python -m venv .venv-calliope
 #   .venv-calliope\Scripts\activate   (Windows)
-#   pip install -r python/requirements.txt
+#   pip install --prefer-binary -r python/requirements.txt
 #
-# Pinned packages intentionally minimal: calliope 0.6.8 declares its own
-# strict constraints on numpy, pandas, xarray, plotly, scikit-learn, etc.
-# Adding our own pins on top causes ResolutionImpossible errors.
+# Tested Python versions: 3.9, 3.10, 3.11
+# Python 3.12+ is NOT supported by calliope 0.6.8.
 
-calliope==0.6.8
-
-# Extras not declared by calliope but needed by calliope_runner.py / service
-pyomo>=6.0,<7.0    # LP/MIP modelling layer (calliope uses it but doesn't always pin)
-highspy>=1.5       # HiGHS solver — open-source, no separate install needed
-
-# Optional – nicer tracebacks in dev
-ipython
-ipdb
+-r requirements.calliope.txt

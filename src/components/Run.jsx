@@ -37,7 +37,7 @@ const MODELING_FRAMEWORKS = [
 ];
 
 const SOLVER_OPTIONS = {
-  calliope: ['cbc', 'highs', 'glpk', 'gurobi', 'cplex'],
+  calliope: ['highs'],
 };
 
 
@@ -46,7 +46,7 @@ const Run = ({ onNavigate }) => {
 
   const [selectedModel, setSelectedModel]       = useState(null);
   const [selectedFramework, setSelectedFramework] = useState('calliope');
-  const [selectedSolver, setSelectedSolver]     = useState('cbc');
+  const [selectedSolver, setSelectedSolver]     = useState('highs');
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [modelConfig, setModelConfig] = useState({
     startDate: '2024-01-01',
@@ -161,11 +161,25 @@ const Run = ({ onNavigate }) => {
   // for >4 s (the health-check timeout), causing false "offline" flashes.
   useEffect(() => {
     let cancelled = false;
+
+    // On first mount the service may still be starting (uvicorn takes 3-8 s).
+    // Retry with exponential backoff before declaring "offline".
+    async function checkWithRetry(attemptsLeft = 5, delayMs = 2000) {
+      if (cancelled) return;
+      const ok = await checkCalliopeService();
+      if (!cancelled) setServiceStatus(ok);
+      if (!ok && attemptsLeft > 0) {
+        await new Promise(r => setTimeout(r, delayMs));
+        return checkWithRetry(attemptsLeft - 1, Math.min(delayMs * 1.5, 8000));
+      }
+    }
+
     const check = () => {
       if (runningJobsRef.current.length > 0) return;
       checkCalliopeService().then(ok => { if (!cancelled) setServiceStatus(ok); });
     };
-    check();
+
+    checkWithRetry();
     const id = setInterval(check, 30_000);
     return () => { cancelled = true; clearInterval(id); };
   }, []);
@@ -178,7 +192,17 @@ const Run = ({ onNavigate }) => {
     const curr = runningJobs.length;
     prevRunningJobsLenRef.current = curr;
     if (prev > 0 && curr === 0) {
-      checkCalliopeService().then(ok => setServiceStatus(ok));
+      // Retry up to 3 times — CBC subprocess cleanup can briefly delay
+      // uvicorn's ability to answer a health-check, causing a false offline.
+      let attempts = 0;
+      const retry = () => {
+        checkCalliopeService().then(ok => {
+          if (ok) { setServiceStatus(true); return; }
+          if (++attempts < 3) setTimeout(retry, 2000);
+          else setServiceStatus(false);
+        });
+      };
+      retry();
     }
   }, [runningJobs.length]);
 
@@ -292,11 +316,17 @@ const Run = ({ onNavigate }) => {
     }
 
     if (!serviceStatus) {
-      showNotification(
-        'Calliope Docker service is not available. Run: docker compose up',
-        'error'
-      );
-      return;
+      // Do a fresh check — the stored status may be stale from a timing issue
+      // after a previous run completed or errored.
+      const isUp = await checkCalliopeService();
+      setServiceStatus(isUp);
+      if (!isUp) {
+        showNotification(
+          'Calliope service is not running. Click "Retry" on the offline banner to reconnect.',
+          'error'
+        );
+        return;
+      }
     }
 
     const jobId = `job_${Date.now()}`;
@@ -455,15 +485,9 @@ const Run = ({ onNavigate }) => {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Solver</label>
-                  <select
-                    value={selectedSolver}
-                    onChange={e => setSelectedSolver(e.target.value)}
-                    className="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-electric-500 focus:border-transparent bg-white"
-                  >
-                    {(SOLVER_OPTIONS[selectedFramework] || []).map(s => (
-                      <option key={s} value={s}>{s.toUpperCase()}</option>
-                    ))}
-                  </select>
+                  <div className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg bg-slate-50 text-slate-700">
+                    HiGHS
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Mode</label>

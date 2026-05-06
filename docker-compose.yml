@@ -11,6 +11,8 @@ services:
     volumes:
       - ./python:/app/python:ro
       - ./public/templates:/app/public/templates:ro
+    # Override CMD for live-reload during development:
+    # command: ["uvicorn", "python.calliope_service:app", "--host", "0.0.0.0", "--port", "5000", "--reload"]
     # Optional: mount a local solvers dir if you prefer bundled binaries over coinor-cbc
     # volumes:
     #   - ./solvers/linux:/app/solvers/linux:ro

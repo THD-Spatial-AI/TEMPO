@@ -1,0 +1,41 @@
+# Calliope 0.6.8 runtime dependencies — Python 3.9–3.11
+#
+# IMPORTANT: calliope itself is NOT listed here.
+# It is installed separately with --no-deps in electron/main.cjs to bypass
+# its PyPI metadata constraint "numpy<1.21".  numpy 1.20-1.22 ships no
+# pre-built wheels for Python 3.11 on Windows, so pip would try to compile
+# from source and fail (requires MSVC).  Installing calliope --no-deps and
+# providing its runtime deps below (with modern wheel-friendly pins) avoids
+# this entirely.  All packages below have verified cp311-win_amd64 wheels.
+#
+# Source of truth: https://github.com/calliope-project/calliope/blob/v0.6.8/requirements.txt
+
+# Core numeric stack — exact pins avoid ABI drift on future wheels/resolvers.
+numpy==1.23.5
+# pandas 2.0 made str.rsplit() expand= keyword-only; calliope 0.6.8 passes it
+# positionally.  Pinning to <2.0 prevents the regression on fresh installs.
+# (calliope_runner.py also applies a runtime monkey-patch for existing venvs.)
+pandas==1.5.3
+# scipy is a calliope runtime dep but is omitted from its PyPI metadata.
+# Must be listed here because calliope is installed --no-deps.
+# Keep SciPy aligned with the pinned NumPy/Pandas set for Calliope 0.6.8.
+scipy==1.10.1
+
+# calliope 0.6.8 declared deps (widened to versions that ship 3.11 wheels)
+xarray>=0.20
+netcdf4>=1.5.4
+pyomo>=6.2,<7.0
+scikit-learn>=0.24
+plotly>=5.0,<6.0
+# ruamel.yaml 0.18 removed safe_load() which calliope 0.6.8 uses directly.
+# 0.17.x still has safe_load (deprecated but present). Must stay < 0.18.
+ruamel.yaml>=0.16,<0.18
+natsort>=5.0,<9
+click>=7.0,<9
+# Jinja2 is used by calliope for template rendering (config/*.html)
+jinja2>=2.10
+# ipython is imported by calliope's analysis/notebook utilities
+ipython>=7
+# HiGHS is installed separately by the Electron setup flow.
+# Do not include it here: reinstalling highspy with dependencies can disturb
+# the pinned NumPy/Pandas ABI-compatible stack on Windows.

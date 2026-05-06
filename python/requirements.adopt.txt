@@ -1,0 +1,7 @@
+# ADOPT – power system optimisation framework
+# https://github.com/ADOPT-model/adopt  (verify URL before use)
+# Status: experimental – confirm package name before distributing
+
+# TODO: Replace with the verified PyPI package name once confirmed.
+# Common candidates: adopt, adopt-model, python-adopt
+# adopt>=0.1

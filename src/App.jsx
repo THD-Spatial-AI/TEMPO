@@ -197,7 +197,8 @@ function AppContent() {
 
 function App() {
   // 'checking' | 'setup' | 'ready'
-  const [appState, setAppState] = useState('checking');
+  const [appState, setAppState]       = useState('checking');
+  const [freshInstall, setFreshInstall] = useState(false); // true when this is a new-version launch
   const [consentGiven, setConsentGiven] = useState(true); // optimistic; corrected after check
 
   // Check whether the user has already accepted the privacy notice.
@@ -214,7 +215,19 @@ function App() {
       Promise.all([
         window.electronAPI.getDockerStatus().catch(() => null),
         window.electronAPI.getServiceURLs().catch(() => null),
-      ]).then(([dockerResult, serviceURLs]) => {
+        window.electronAPI.getSetupVersion?.().catch(() => null),
+      ]).then(([dockerResult, serviceURLs, setupInfo]) => {
+        // Force setup whenever the app version has changed (fresh install / upgrade),
+        // even if the old environment is still running on this machine.
+        const setupVersion    = setupInfo?.setupVersion ?? null;
+        const currentVersion  = setupInfo?.currentVersion ?? null;
+        const isNewVersion    = !setupVersion || (currentVersion && setupVersion !== currentVersion);
+        if (isNewVersion) {
+          setFreshInstall(true);
+          setAppState('setup');
+          return;
+        }
+        // Same version already completed setup — check if services are alive.
         // Native (non-Docker) mode: if backend + calliope are both up, skip setup
         if (serviceURLs?.backend?.running && serviceURLs?.calliope?.running) {
           setAppState('ready');
@@ -243,7 +256,15 @@ function App() {
   }
 
   if (appState === 'setup') {
-    return <SetupScreen onComplete={() => setAppState('ready')} />;
+    return (
+      <SetupScreen
+        freshInstall={freshInstall}
+        onComplete={() => {
+          window.electronAPI?.markSetupComplete?.();
+          setAppState('ready');
+        }}
+      />
+    );
   }
 
   return (

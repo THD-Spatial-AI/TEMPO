@@ -83,8 +83,7 @@ export default function Features() {
                 </h2>
                 <p className="text-on-surface-variant mb-8 leading-relaxed">
                   A visual-first GIS interface for defining model topology. Click the map to place
-                  location nodes, draw transmission links, and assign technology stacks — each node
-                  translates directly to a Calliope <code className="text-xs bg-black/5 px-1">locations.yaml</code> entry.
+                  location nodes, draw transmission links, and assign technology stacks.
                 </p>
                 <ul className="space-y-4">
                   {['Click-to-place node & link authoring', 'Calliope YAML export without data loss', 'Real-time CAPEX / OPEX estimation', 'Template models: Germany, Italy & more'].map(
@@ -138,6 +137,45 @@ export default function Features() {
                   src={InteractiveQGIS}
                 />
             </div>
+            <p className="mt-4 text-[0.6875rem] text-outline">
+              Map data ©{' '}
+              <a
+                href="https://www.openstreetmap.org/copyright"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-primary"
+              >
+                OpenStreetMap contributors
+              </a>
+              {' '}— available under the{' '}
+              <a
+                href="https://opendatacommons.org/licenses/odbl/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-primary"
+              >
+                Open Database Licence (ODbL)
+              </a>
+              . Geocoding via{' '}
+              <a
+                href="https://nominatim.openstreetmap.org"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-primary"
+              >
+                Nominatim
+              </a>
+              {' '}under the{' '}
+              <a
+                href="https://operations.osmfoundation.org/policies/nominatim/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-primary"
+              >
+                Nominatim Usage Policy
+              </a>
+              .
+            </p>
           </div>
         </section>
 
@@ -165,8 +203,8 @@ export default function Features() {
                   RESULT ANALYSIS
                 </h2>
                 <p className="text-on-surface-variant mb-8 leading-relaxed">
-                  After the solver finishes, TEMPO surfaces every key output — installed capacity,
-                  hourly dispatch, carbon intensity, and system-wide LCOE — in a multi-tab dashboard
+                  After the solver finishes, TEMPO surfaces every key output, like installed capacity,
+                  hourly dispatch, carbon intensity, and system-wide LCOE in a multi-tab dashboard
                   with interactive ECharts visualizations.
                 </p>
                 <ul className="space-y-4">
@@ -224,7 +262,7 @@ export default function Features() {
                 </h2>
                 <p className="text-on-surface-variant mb-8 leading-relaxed">
                   OpenModelica-based digital twin for hydrogen power plants. Configure
-                  electrolyzer stacks, compressor stages, and storage tanks — efficiency
+                  electrolyzer stacks, compressor stages, and storage tanks, efficiency
                   and output metrics update in real time.
                 </p>
                 <ul className="space-y-4">
@@ -273,7 +311,7 @@ export default function Features() {
                 </h2>
                 <p className="text-on-surface-variant mb-8 leading-relaxed">
                   Digital twin for carbon capture and storage systems. Model the full capture
-                  chain — absorber, stripper, compressor — with configurable CO₂ source
+                  chain, considering absorber, stripper, compressor with configurable CO₂ source
                   characteristics and capture rate targets.
                 </p>
                 <ul className="space-y-4">
@@ -350,8 +388,7 @@ export default function Features() {
                 <span className="material-symbols-outlined text-4xl mb-4">laptop_mac</span>
                 <h3 className="text-lg font-bold uppercase">Offline-First Desktop</h3>
                 <p className="text-[0.75rem] mt-2 text-on-surface-variant">
-                  Runs entirely as an Electron app. No cloud dependency — model, optimize,
-                  and analyze without an internet connection.
+                  Runs entirely as an Electron app. No cloud dependency.
                 </p>
               </div>
 

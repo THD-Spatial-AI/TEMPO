@@ -1,5 +1,6 @@
 import { HashRouter, Routes, Route } from 'react-router-dom'
 import Header from './components/Header'
+import CookieConsent from './components/CookieConsent'
 import Home from './pages/Home'
 import Features from './pages/Features'
 import Docs from './pages/Docs'
@@ -12,6 +13,7 @@ export default function App() {
   return (
     <HashRouter>
       <Header />
+      <CookieConsent />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/features" element={<Features />} />

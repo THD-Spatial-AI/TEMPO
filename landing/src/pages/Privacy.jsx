@@ -62,11 +62,12 @@ export default function Privacy() {
               {
                 title: 'Third-Party Network Requests',
                 items: [
-                  'OSM / Overpass API — used as a fallback for power infrastructure data when GeoServer is not configured. No personal data is included in these requests.',
-                  'OpenStreetMap tile servers (MapLibre GL) — map tiles are fetched for display. Standard HTTP requests; no user data is attached.',
-                  'Geofabrik (optional) — OSM processing scripts may download PBF extracts. These are public, unauthenticated downloads.',
+                  'OpenStreetMap tile servers (MapLibre GL) — map tiles are fetched for map display. Standard HTTP requests; no personal data is attached. Map data © OpenStreetMap contributors, available under the Open Database Licence (ODbL).',
+                  'Overpass API (overpass-api.de) — used as a fallback to query power infrastructure (lines, substations, plants) when GeoServer is not configured. Requests are user-triggered and limited; no personal data is transmitted.',
+                  'Nominatim (nominatim.openstreetmap.org) — geocoding service used for place and region search on the map. Used strictly on user action (max 1 request/s), with a valid User-Agent header, in compliance with the Nominatim Usage Policy. Results are cached locally.',
+                  'Geofabrik (download.geofabrik.de) — optional: OSM processing scripts may download regional PBF extracts. These are public, unauthenticated bulk downloads performed by the user on demand.',
                 ],
-                note: 'All network access is optional and documented. You can run TEMPO fully offline with pre-loaded GeoServer data.',
+                note: 'All external network access is optional, user-triggered, and documented. TEMPO complies with OpenStreetMap Foundation attribution requirements: map data is credited as © OpenStreetMap contributors under ODbL. You can run TEMPO fully offline with pre-loaded GeoServer data.',
               },
               {
                 title: 'Docker Containers',
