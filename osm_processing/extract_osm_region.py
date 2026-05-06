@@ -9,8 +9,17 @@ Example: python extract_osm_region.py Europe Germany Bayern Mittelfranken
 import osmium
 import json
 import sys
+import os
 from pathlib import Path
 from collections import defaultdict
+
+def _rel(p: Path, base: Path) -> Path:
+    """Return p relative to base, or p itself if it's outside base."""
+    try:
+        return p.relative_to(base)
+    except ValueError:
+        return p
+
 
 class DataExtractor(osmium.SimpleHandler):
     def __init__(self):
@@ -246,6 +255,7 @@ def main():
         return
     
     project_dir = Path(__file__).parent.parent
+    data_root = Path(os.environ["TEMPO_DATA_DIR"]) if os.environ.get("TEMPO_DATA_DIR") else (project_dir / "public" / "data")
     
     # Parse arguments
     continent = sys.argv[1]
@@ -262,7 +272,7 @@ def main():
     
     # Find OSM file - search in the most specific directory first, then parent directories
     osm_file = None
-    search_dir = project_dir / "public" / "data" / "countries" / Path(*path_parts)
+    search_dir = data_root / "countries" / Path(*path_parts)
     
     # If extracting a region/subregion, try to find file in that directory
     if region:
@@ -272,7 +282,7 @@ def main():
     
     # If not found and extracting a region, try country level
     if not osm_file and region:
-        country_dir = project_dir / "public" / "data" / "countries" / continent / country
+        country_dir = data_root / "countries" / continent / country
         osm_files = list(country_dir.glob("*.osm.pbf"))
         if osm_files:
             osm_file = osm_files[0]
@@ -280,7 +290,7 @@ def main():
     
     # If extracting country without OSM file, scan for regions with OSM files and extract them
     if not osm_file and not region:
-        country_dir = project_dir / "public" / "data" / "countries" / continent / country
+        country_dir = data_root / "countries" / continent / country
         osm_files = list(country_dir.glob("*.osm.pbf"))
         
         if osm_files:
@@ -292,7 +302,7 @@ def main():
             print(f"COUNTRY-LEVEL EXTRACTION: {continent} > {country}")
             print("="*70)
             print(f"ℹ️  No country-level OSM file found")
-            print(f"ℹ️  Searching for region/subregion OSM files in: {country_dir.relative_to(project_dir)}")
+            print(f"ℹ️  Searching for region/subregion OSM files in: {_rel(country_dir, project_dir)}")
             print("="*70)
             
             # Find all OSM files in subdirectories
@@ -347,12 +357,13 @@ def extract_single_region(osm_file, path_parts, region_name, project_dir):
     """Extract data for a single region and save to GeoJSON files"""
     
     # Output directory (mirrored structure in osm_extracts)
-    output_dir = project_dir / "public" / "data" / "osm_extracts" / Path(*path_parts)
+    data_root = Path(os.environ["TEMPO_DATA_DIR"]) if os.environ.get("TEMPO_DATA_DIR") else (project_dir / "public" / "data")
+    output_dir = data_root / "osm_extracts" / Path(*path_parts)
     output_dir.mkdir(parents=True, exist_ok=True)
     
     print(f"Region: {' > '.join(path_parts)}")
-    print(f"Input:  {osm_file.relative_to(project_dir) if isinstance(osm_file, Path) else osm_file}")
-    print(f"Output: {output_dir.relative_to(project_dir)}")
+    print(f"Input:  {_rel(osm_file, project_dir) if isinstance(osm_file, Path) else osm_file}")
+    print(f"Output: {_rel(output_dir, project_dir)}")
     print(f"\nProcessing... This may take a few minutes.")
     
     # Extract data
@@ -426,7 +437,7 @@ def extract_single_region(osm_file, path_parts, region_name, project_dir):
                 }, f, indent=2)
             print(f"  ✅ {boundary_file.name} ({len(features)} features)")
     
-    print(f"\n✅ Files saved to: {output_dir.relative_to(project_dir)}")
+    print(f"\n✅ Files saved to: {_rel(output_dir, project_dir)}")
     
     # Update regions_database.json with the new files
     update_regions_database(path_parts, region_name, project_dir)
@@ -438,7 +449,8 @@ def update_regions_database(path_parts, region_name, project_dir):
     print("UPDATING REGIONS DATABASE")
     print("="*70)
     
-    database_path = project_dir / "public" / "data" / "osm_extracts" / "regions_database.json"
+    data_root = Path(os.environ["TEMPO_DATA_DIR"]) if os.environ.get("TEMPO_DATA_DIR") else (project_dir / "public" / "data")
+    database_path = data_root / "osm_extracts" / "regions_database.json"
     
     if not database_path.exists():
         print(f"❌ ERROR: Database not found at {database_path}")
@@ -452,6 +464,12 @@ def update_regions_database(path_parts, region_name, project_dir):
         if 'continents' in full_database:
             database = full_database['continents']
             has_wrapper = True
+        elif 'countries' in full_database and isinstance(full_database['countries'], dict):
+            # New country-centric catalog format (metadata/countries/...).
+            # This schema is used as a verified lookup catalog and is not meant
+            # to be mutated with per-region file references.
+            print("ℹ️  regions_database.json uses country-centric catalog schema; skipping file-reference update.")
+            return
         else:
             database = full_database
             has_wrapper = False
@@ -545,10 +563,10 @@ def update_regions_database(path_parts, region_name, project_dir):
             return
         
         # Build the files dictionary based on what files exist
-        output_dir = project_dir / "public" / "data" / "osm_extracts" / Path(*path_parts)
+        output_dir = data_root / "osm_extracts" / Path(*path_parts)
         files_dict = {}
         
-        print(f"\nScanning directory: {output_dir.relative_to(project_dir)}")
+        print(f"\nScanning directory: {_rel(output_dir, project_dir)}")
         
         possible_files = {
             'substations': f"{region_name}_substations.geojson",
@@ -583,7 +601,7 @@ def update_regions_database(path_parts, region_name, project_dir):
         
         print(f"\n✅ Updated database for: {location_str}")
         print(f"✅ Added {len(files_dict)} file references")
-        print(f"✅ Database saved: {database_path.relative_to(project_dir)}")
+        print(f"✅ Database saved: {_rel(database_path, project_dir)}")
         
     except Exception as e:
         print(f"❌ ERROR updating database: {e}")

@@ -26,6 +26,12 @@ function getDockerServices() {
     ? path.join(process.resourcesPath, 'docker')
     : path.join(__dirname, '..', '..');
 
+  const geoComposeDir = app.isPackaged
+    ? path.join(process.resourcesPath, 'geoserver')
+    : repoRoot;
+
+  const geoComposeFile = 'docker-compose.geoserver.yml';
+
   return [
     {
       name: 'calliope-runner',
@@ -42,17 +48,19 @@ function getDockerServices() {
       required: true,
     },
     {
-      name: 'calliope-geoserver',
-      label: 'GeoServer (OSM Layers)',
-      port: 8081,
-      composeDir: null,
-      required: false,
-    },
-    {
       name: 'calliope-postgis',
       label: 'PostGIS Database',
       port: 5432,
-      composeDir: null,
+      composeDir: geoComposeDir,
+      composeFile: geoComposeFile,
+      required: false,
+    },
+    {
+      name: 'calliope-geoserver',
+      label: 'GeoServer (OSM Layers)',
+      port: 8081,
+      composeDir: geoComposeDir,
+      composeFile: geoComposeFile,
       required: false,
     },
   ];
@@ -113,13 +121,34 @@ function startBackend() {
 
   const dbPath = path.join(app.getPath('userData'), 'calliope.db');
 
+  // OSM pipeline: python with psycopg2/osmium/geopandas lives in osm-venv
+  const osmPython = IS_WIN
+    ? path.join(app.getPath('userData'), 'osm-venv', 'Scripts', 'python.exe')
+    : path.join(app.getPath('userData'), 'osm-venv', 'bin', 'python3');
+
+  // OSM data (PBF downloads + GeoJSON extracts) must be written to a writable
+  // directory; in packaged mode resources/ is read-only so we use userData.
+  const osmDataDir = path.join(app.getPath('userData'), 'osm_data');
+  const osmScriptsRoot = app.isPackaged
+    ? process.resourcesPath
+    : path.join(__dirname, '..');
+
   console.log('[backend] Starting:', backendPath);
   if (!fs.existsSync(backendPath)) {
     console.warn('[backend] Not found at:', backendPath);
     return Promise.resolve();
   }
 
-  backendProcess = spawn(backendPath, ['--port', BACKEND_PORT.toString(), '--db', dbPath], { shell: false });
+  backendProcess = spawn(backendPath, ['--port', BACKEND_PORT.toString(), '--db', dbPath], {
+    shell: false,
+    cwd: osmScriptsRoot,
+    env: {
+      ...process.env,
+      TEMPO_OSM_PYTHON: osmPython,
+      TEMPO_DATA_DIR:   osmDataDir,
+      TEMPO_OSM_SCRIPTS: osmScriptsRoot,
+    },
+  });
   backendProcess.stdout.on('data', d => console.log(`[backend] ${d.toString().trim()}`));
   backendProcess.stderr.on('data', d => console.error(`[backend] ${d.toString().trim()}`));
   backendProcess.on('close', code => console.log(`[backend] Exited: ${code}`));
@@ -209,7 +238,7 @@ function startDockerService(serviceName, progressEvent = null) {
       }
     }
 
-    const child = spawn('docker', ['compose', 'up', '-d', '--remove-orphans'], { cwd: svc.composeDir, shell: false });
+    const child = spawn('docker', ['compose', ...(svc.composeFile ? ['-f', svc.composeFile] : []), 'up', '-d', '--remove-orphans'], { cwd: svc.composeDir, shell: false });
     let stderr = '';
     child.stdout.on('data', d => { for (const l of d.toString().split('\n').filter(x => x.trim())) emit('log', { line: l }); });
     child.stderr.on('data', d => { stderr += d.toString(); for (const l of d.toString().split('\n').filter(x => x.trim())) emit('log', { line: l }); });
@@ -1265,6 +1294,42 @@ ipcMain.handle('calliope:install', async (_event, selectedModules = ['calliope']
         sendProgress({ type: 'log', line: `⚠ ${sim.label} install failed: ${(simErr.message || String(simErr)).split('\n')[0]}` });
         sendProgress({ type: 'log', line: `  ${sim.label} will use local fallback physics — no action needed` });
       }
+    }
+
+    // ── Install OSM processing venv ───────────────────────────────────────
+    // Separate venv because osm_processing needs numpy>=1.24 (conflicts with
+    // calliope's pinned numpy==1.23.5) plus osmium, geopandas, psycopg2-binary.
+    sendProgress({ type: 'stage', label: 'Installing OSM processing tools…' });
+    try {
+      const osmVenvDir = path.join(app.getPath('userData'), 'osm-venv');
+      const osmVenvPy  = path.join(osmVenvDir, IS_WIN ? 'Scripts' : 'bin', IS_WIN ? 'python.exe' : 'python3');
+      const osmReqFile = path.join(pythonDir, 'requirements.osm.txt');
+      const osmDataDir = path.join(app.getPath('userData'), 'osm_data');
+      const osmExtractsDir = path.join(osmDataDir, 'osm_extracts');
+      const dbDst = path.join(osmExtractsDir, 'regions_database.json');
+      const dbSrc = app.isPackaged
+        ? path.join(process.resourcesPath, 'osm_processing', 'geofabrik_regions_database.json')
+        : path.join(__dirname, '..', 'osm_processing', 'geofabrik_regions_database.json');
+
+      fs.mkdirSync(osmExtractsDir, { recursive: true });
+      if (!fs.existsSync(dbDst) && fs.existsSync(dbSrc)) {
+        fs.copyFileSync(dbSrc, dbDst);
+        sendProgress({ type: 'log', line: 'Seeded OSM regions database' });
+      }
+
+      await runChild(systemPython, ['-m', 'venv', '--clear', osmVenvDir], 'osm-venv creation');
+      try { await runChild(osmVenvPy, ['-m', 'ensurepip', '--upgrade'], 'osm ensurepip'); } catch { /* non-fatal */ }
+      await runChild(osmVenvPy, ['-m', 'pip', 'install', '--upgrade', '--quiet', 'pip', 'setuptools', 'wheel'], 'osm pip upgrade');
+
+      if (fs.existsSync(osmReqFile)) {
+        await runChild(osmVenvPy, ['-m', 'pip', 'install', '--prefer-binary', '--no-cache-dir', '-r', osmReqFile], 'osm deps');
+      }
+
+      await runChild(osmVenvPy, ['-c', 'import psycopg2, requests; print("osm-ok")'], 'osm verify');
+      sendProgress({ type: 'log', line: '✓ OSM processing tools installed' });
+    } catch (osmErr) {
+      sendProgress({ type: 'log', line: `⚠ OSM tools install failed: ${(osmErr.message || String(osmErr)).split('\n')[0]}` });
+      sendProgress({ type: 'log', line: '  OSM download will fall back to Overpass API — no action needed' });
     }
 
     sendProgress({ type: 'done' });
