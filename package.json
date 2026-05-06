@@ -64,19 +64,14 @@
         "filter": ["**/*", "!__pycache__/**", "!*.pyc"]
       },
       {
-        "from": "../opentech-db",
-        "to": "docker/opentech-db",
-        "filter": ["**/*", "!**/.git/**", "!**/.venv/**", "!**/.vscode/**", "!**/__pycache__/**", "!**/*.pyc"]
-      },
-      {
         "from": "../ccssim",
-        "to": "docker/ccssim",
-        "filter": ["**/*", "!**/.git/**", "!**/.venv/**", "!**/.vscode/**", "!**/__pycache__/**", "!**/*.pyc"]
+        "to": "ccssim",
+        "filter": ["**/*", "!**/.git/**", "!**/.venv/**", "!**/.vscode/**", "!**/__pycache__/**", "!**/*.pyc", "!**/docker-compose.yml", "!**/Dockerfile", "!**/.env**"]
       },
       {
         "from": "../hydrogenmatsim",
-        "to": "docker/hydrogenmatsim",
-        "filter": ["**/*", "!**/.git/**", "!**/.venv/**", "!**/.vscode/**", "!**/__pycache__/**", "!**/*.pyc"]
+        "to": "hydrogensim",
+        "filter": ["**/*", "!**/.git/**", "!**/.venv/**", "!**/.vscode/**", "!**/__pycache__/**", "!**/*.pyc", "!**/docker-compose.yml", "!**/Dockerfile", "!**/.env**"]
       }
     ],
     "win": {
