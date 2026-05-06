@@ -26,9 +26,20 @@ Flags:
     --list            List all available regions and exit
 """
 
+import os
+import socket
+import subprocess
 import sys
 import time
 from pathlib import Path
+
+# Windows packaged installs may default to cp1252 for stdout/stderr.
+# This script prints box-drawing characters; force UTF-8 with replacement
+# so logging never crashes the pipeline.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 # ── Resolve sibling module imports ────────────────────────────────────────────
 _DIR = Path(__file__).parent
@@ -50,9 +61,11 @@ import psycopg2
 
 def _geojson_dir(region_tuple):
     """Return the osm_extracts directory for a region tuple (may not exist yet)."""
+    import os
     project_dir = Path(__file__).parent.parent
+    base = Path(os.environ["TEMPO_DATA_DIR"]) if os.environ.get("TEMPO_DATA_DIR") else project_dir / "public" / "data"
     path_parts  = list(region_tuple)
-    d = project_dir / "public" / "data" / "osm_extracts"
+    d = base / "osm_extracts"
     for part in path_parts:
         d = d / part
     return d
@@ -74,13 +87,101 @@ def _geojsons_exist(region_tuple):
 
 def _pbf_exists(region_tuple):
     """Return True if a PBF file is already present for this region (any level)."""
+    import os
     project_dir   = Path(__file__).parent.parent
+    base          = Path(os.environ["TEMPO_DATA_DIR"]) if os.environ.get("TEMPO_DATA_DIR") else project_dir / "public" / "data"
     path_parts    = list(region_tuple)
-    countries_root = project_dir / "public" / "data" / "countries"
+    countries_root = base / "countries"
     for depth in range(len(path_parts), 0, -1):
         search_dir = countries_root.joinpath(*path_parts[:depth])
         if list(search_dir.glob("*.osm.pbf")):
             return True
+    return False
+
+
+def _is_port_open(host, port, timeout=1.0):
+    try:
+        with socket.create_connection((host, int(port)), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
+def _find_geoserver_compose_file():
+    """Locate docker-compose.geoserver.yml in dev and packaged layouts."""
+    script_root = Path(os.environ.get("TEMPO_OSM_SCRIPTS", Path(__file__).parent.parent))
+    candidates = [
+        script_root / "geoserver" / "docker-compose.geoserver.yml",
+        script_root / "docker-compose.geoserver.yml",
+        Path(__file__).parent.parent / "geoserver" / "docker-compose.geoserver.yml",
+        Path(__file__).parent.parent / "docker-compose.geoserver.yml",
+    ]
+    for c in candidates:
+        if c.exists():
+            return c
+    return None
+
+
+def _ensure_postgis_running():
+    """Best-effort start of PostGIS/GeoServer stack when DB is down."""
+    host = DB_CONFIG.get('host', 'localhost')
+    port = int(DB_CONFIG.get('port', 5432))
+    if _is_port_open(host, port):
+        return True
+
+    compose_file = _find_geoserver_compose_file()
+    if not compose_file:
+        print("⚠️  GeoServer compose file not found; cannot auto-start PostGIS.")
+        return False
+
+    print("ℹ️  PostgreSQL is not reachable. Attempting to start TEMPO GeoServer/PostGIS Docker services…")
+    try:
+        subprocess.run(['docker', 'info'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:
+        print("⚠️  Docker is not available/running. Please start Docker Desktop and retry.")
+        return False
+
+    # First try to start already-existing containers (common after upgrades).
+    for name in ('calliope-postgis', 'calliope-geoserver'):
+        try:
+            subprocess.run(['docker', 'start', name], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception:
+            pass
+    if _is_port_open(host, port):
+        print("✓ PostGIS is up")
+        return True
+
+    # If not running yet, bring up via compose.
+    try:
+        compose_cmd = ['docker', 'compose', '-f', str(compose_file), 'up', '-d', '--remove-orphans', 'calliope-postgis', 'calliope-geoserver']
+        proc = subprocess.run(
+            compose_cmd,
+            cwd=str(compose_file.parent),
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if proc.returncode != 0:
+            out = (proc.stdout or '') + '\n' + (proc.stderr or '')
+            # Container-name conflict usually means container already exists and just needs start.
+            if 'already in use by container' in out.lower() or 'conflict' in out.lower():
+                for name in ('calliope-postgis', 'calliope-geoserver'):
+                    subprocess.run(['docker', 'start', name], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            else:
+                print(f"⚠️  Failed to start GeoServer/PostGIS stack: {out.strip()}")
+                return False
+    except Exception as e:
+        print(f"⚠️  Failed to start GeoServer/PostGIS stack: {e}")
+        return False
+
+    deadline = time.time() + 90
+    while time.time() < deadline:
+        if _is_port_open(host, port):
+            print("✓ PostGIS is up")
+            return True
+        time.sleep(2)
+
+    print("⚠️  PostGIS did not become ready in time.")
     return False
 
 
@@ -122,7 +223,9 @@ def stage_extract(region_tuple):
         path_parts.append(subregion)
 
     # Search for the downloaded PBF file (most specific level first, then up)
-    countries_root = project_dir / "public" / "data" / "countries"
+    import os
+    data_root = Path(os.environ["TEMPO_DATA_DIR"]) if os.environ.get("TEMPO_DATA_DIR") else (project_dir / "public" / "data")
+    countries_root = data_root / "countries"
     osm_file = None
 
     for depth in range(len(path_parts), 0, -1):
@@ -168,9 +271,7 @@ def stage_upload(region_tuple):
     region_path = '/'.join(path_parts)
     region_name = path_parts[-1].lower()
 
-    data_dir = project_dir / "public" / "data" / "osm_extracts"
-    for part in path_parts:
-        data_dir = data_dir / part
+    data_dir = _geojson_dir(tuple(path_parts))
 
     if not data_dir.exists():
         print(f"❌ No extracted data found at {data_dir}")
@@ -178,6 +279,7 @@ def stage_upload(region_tuple):
         return False
 
     # Connect
+    _ensure_postgis_running()
     try:
         print(f"Connecting to PostgreSQL ({DB_CONFIG['host']}:{DB_CONFIG['port']})...")
         conn = psycopg2.connect(**DB_CONFIG)
@@ -185,7 +287,8 @@ def stage_upload(region_tuple):
     except Exception as e:
         print(f"❌ Cannot connect to PostgreSQL: {e}")
         print("   Check DB_CONFIG in upload_to_postgis.py or ensure PostgreSQL is running.")
-        return False
+        print("ℹ️  Continuing in local-file mode (GeoJSON saved under TEMPO data directory).")
+        return True
 
     try:
         create_tables(conn)

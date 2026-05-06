@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -444,6 +445,81 @@ func isEmptyFC(data []byte) bool {
 	return len(fc.Features) == 0
 }
 
+func resolveTempoDataRoot() string {
+	if d := os.Getenv("TEMPO_DATA_DIR"); d != "" {
+		return d
+	}
+	// Dev fallback: repository public/data
+	if cwd, err := os.Getwd(); err == nil {
+		projectRoot := cwd
+		if filepath.Base(cwd) == "backend-go" {
+			projectRoot = filepath.Dir(cwd)
+		}
+		return filepath.Join(projectRoot, "public", "data")
+	}
+	return filepath.Join("public", "data")
+}
+
+func localLayerFilePath(layer, regionPath string) string {
+	if strings.TrimSpace(regionPath) == "" {
+		return ""
+	}
+	parts := strings.Split(strings.Trim(regionPath, "/"), "/")
+	if len(parts) == 0 {
+		return ""
+	}
+	leaf := strings.ToLower(parts[len(parts)-1])
+	suffixMap := map[string]string{
+		"osm_substations":  "substations",
+		"osm_power_plants": "power_plants",
+		"osm_power_lines":  "power_lines",
+		"osm_communes":     "communes",
+		"osm_districts":    "districts",
+	}
+	suffix, ok := suffixMap[layer]
+	if !ok {
+		return ""
+	}
+	base := resolveTempoDataRoot()
+	file := fmt.Sprintf("%s_%s.geojson", leaf, suffix)
+	all := append([]string{base, "osm_extracts"}, parts...)
+	all = append(all, file)
+	return filepath.Join(all...)
+}
+
+func listLocalExtractedRegions() []string {
+	base := filepath.Join(resolveTempoDataRoot(), "osm_extracts")
+	var regions []string
+	_ = filepath.WalkDir(base, func(p string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil
+		}
+		name := strings.ToLower(d.Name())
+		if !strings.HasSuffix(name, "_substations.geojson") {
+			return nil
+		}
+		rel, err := filepath.Rel(base, filepath.Dir(p))
+		if err != nil || rel == "." {
+			return nil
+		}
+		regions = append(regions, filepath.ToSlash(rel))
+		return nil
+	})
+	if len(regions) == 0 {
+		return regions
+	}
+	uniq := make(map[string]struct{}, len(regions))
+	for _, r := range regions {
+		uniq[r] = struct{}{}
+	}
+	out := make([]string, 0, len(uniq))
+	for r := range uniq {
+		out = append(out, r)
+	}
+	sort.Strings(out)
+	return out
+}
+
 // getOSMLayer returns GeoJSON for the requested layer.
 //
 // Strategy:
@@ -488,7 +564,16 @@ func (s *Server) getOSMLayer(c *gin.Context) {
 		log.Printf("[OSM] GeoServer returned empty for %s – falling back to Overpass", layer)
 	}
 
-	// ── 2. Overpass API (fallback) ───────────────────────────────────────────
+	// ── 2. Local extracted GeoJSON (no-DB fallback) ──────────────────────────
+	if fp := localLayerFilePath(layer, regionPath); fp != "" {
+		if b, readErr := os.ReadFile(fp); readErr == nil && !isEmptyFC(b) {
+			log.Printf("[OSM] Local extract ✓ %s (%s, %d B)", layer, fp, len(b))
+			c.Data(http.StatusOK, "application/json", b)
+			return
+		}
+	}
+
+	// ── 3. Overpass API (fallback) ───────────────────────────────────────────
 	var opBBox *overpass.BBox
 	if hasBBox {
 		opBBox = &overpass.BBox{MinLon: minLon, MinLat: minLat, MaxLon: maxLon, MaxLat: maxLat}
@@ -509,6 +594,11 @@ func (s *Server) getOSMLayer(c *gin.Context) {
 func (s *Server) getLoadedRegions(c *gin.Context) {
 	regions, err := s.geoServer.GetLoadedRegions()
 	if err != nil || len(regions) == 0 {
+		local := listLocalExtractedRegions()
+		if len(local) > 0 {
+			c.JSON(http.StatusOK, gin.H{"regions": local})
+			return
+		}
 		c.JSON(http.StatusOK, gin.H{"regions": []string{}})
 		return
 	}
@@ -713,43 +803,97 @@ func (s *Server) downloadOSMRegion(c *gin.Context) {
 		return
 	}
 
-	// Resolve project root: working directory when running via `go run .` is backend-go/,
-	// so the project root is one level up. When built to a binary, fall back to exe dir.
+	// Resolve project root robustly across dev and packaged installs.
+	// Prefer cwd only if it actually contains osm_processing, otherwise derive
+	// from the backend executable location (resources directory in packaged app).
 	var projectRoot string
 	if cwd, err := os.Getwd(); err == nil {
-		// If cwd ends in /backend-go, go up one level; otherwise assume we're at root.
 		if filepath.Base(cwd) == "backend-go" {
 			projectRoot = filepath.Dir(cwd)
 		} else {
 			projectRoot = cwd
 		}
-	} else if exe, err := os.Executable(); err == nil {
-		projectRoot = filepath.Dir(filepath.Dir(exe))
-	} else {
+	}
+	if projectRoot == "" || func() bool {
+		_, err := os.Stat(filepath.Join(projectRoot, "osm_processing", "add_region_to_geoserver.py"))
+		return err != nil
+	}() {
+		if exe, err := os.Executable(); err == nil {
+			projectRoot = filepath.Dir(filepath.Dir(exe))
+		}
+	}
+	if projectRoot == "" {
 		projectRoot = filepath.Join(".", "..")
 	}
 
-	venvPython := filepath.Join(projectRoot, ".venv-calliope", "Scripts", "python.exe")
-	if runtime.GOOS != "windows" {
-		venvPython = filepath.Join(projectRoot, ".venv-calliope", "bin", "python")
-	}
-	pythonBin := venvPython
-	if _, err := os.Stat(venvPython); err != nil {
-		log.Printf("[OSM] venv python not found at %s, falling back to system python", venvPython)
-		if runtime.GOOS == "windows" {
-			pythonBin = "python"
+	// Prefer the osm-venv python injected by Electron via TEMPO_OSM_PYTHON.
+	// Fall back to .venv-calliope, then system python.
+	var pythonBin string
+	if envPy := os.Getenv("TEMPO_OSM_PYTHON"); envPy != "" {
+		if _, err := os.Stat(envPy); err == nil {
+			pythonBin = envPy
+			log.Printf("[OSM] Using TEMPO_OSM_PYTHON: %s", pythonBin)
 		} else {
-			pythonBin = "python3"
+			log.Printf("[OSM] TEMPO_OSM_PYTHON set but not found (%s), falling back", envPy)
 		}
-	} else {
-		log.Printf("[OSM] Using venv python at %s", pythonBin)
+	}
+	if pythonBin == "" {
+		venvPython := filepath.Join(projectRoot, ".venv-calliope", "Scripts", "python.exe")
+		if runtime.GOOS != "windows" {
+			venvPython = filepath.Join(projectRoot, ".venv-calliope", "bin", "python")
+		}
+		if _, err := os.Stat(venvPython); err == nil {
+			pythonBin = venvPython
+			log.Printf("[OSM] Using venv python at %s", pythonBin)
+		} else {
+			if runtime.GOOS == "windows" {
+				pythonBin = "python"
+			} else {
+				pythonBin = "python3"
+			}
+			log.Printf("[OSM] venv python not found, falling back to system python: %s", pythonBin)
+		}
 	}
 
-	scriptPath := filepath.Join(projectRoot, "osm_processing", "add_region_to_geoserver.py")
-	log.Printf("[OSM] projectRoot=%s scriptPath=%s", projectRoot, scriptPath)
+	// Resolve osm_processing root.
+	// TEMPO_OSM_SCRIPTS may point to:
+	//   - root containing osm_processing/
+	//   - osm_processing/ directory itself
+	//   - add_region_to_geoserver.py file path
+	osmScriptsDir := projectRoot
+	if envScripts := os.Getenv("TEMPO_OSM_SCRIPTS"); envScripts != "" {
+		if st, err := os.Stat(envScripts); err == nil {
+			if st.IsDir() {
+				// If it is already the osm_processing dir, use its parent as root.
+				if filepath.Base(envScripts) == "osm_processing" {
+					osmScriptsDir = filepath.Dir(envScripts)
+				} else {
+					osmScriptsDir = envScripts
+				}
+			} else {
+				// File path provided; use containing directory or its parent if file is in osm_processing.
+				parent := filepath.Dir(envScripts)
+				if filepath.Base(parent) == "osm_processing" {
+					osmScriptsDir = filepath.Dir(parent)
+				} else {
+					osmScriptsDir = parent
+				}
+			}
+		}
+	}
+
+	scriptPath := filepath.Join(osmScriptsDir, "osm_processing", "add_region_to_geoserver.py")
+	if _, err := os.Stat(scriptPath); err != nil {
+		alt := filepath.Join(osmScriptsDir, "resources", "osm_processing", "add_region_to_geoserver.py")
+		if _, altErr := os.Stat(alt); altErr == nil {
+			scriptPath = alt
+			osmScriptsDir = filepath.Join(osmScriptsDir, "resources")
+		}
+	}
+	log.Printf("[OSM] projectRoot=%s scriptPath=%s", osmScriptsDir, scriptPath)
 
 	// Verify the resolved script path is inside the expected osm_processing directory.
-	expectedScriptDir := filepath.Clean(filepath.Join(projectRoot, "osm_processing"))
+	expectedScriptDir := filepath.Clean(filepath.Join(osmScriptsDir, "osm_processing"))
 	if !strings.HasPrefix(filepath.Clean(scriptPath), expectedScriptDir+string(filepath.Separator)) &&
 		filepath.Clean(scriptPath) != expectedScriptDir {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "script path resolution error"})
@@ -778,7 +922,15 @@ func (s *Server) downloadOSMRegion(c *gin.Context) {
 	sendMsg("log", fmt.Sprintf("Args: %s %s %s", req.Continent, req.Country, req.Region))
 
 	cmd := exec.CommandContext(c.Request.Context(), pythonBin, args...)
-	cmd.Dir = filepath.Join(projectRoot, "osm_processing")
+	cmd.Dir = filepath.Join(osmScriptsDir, "osm_processing")
+	cmd.Env = append(os.Environ(),
+		"PYTHONIOENCODING=utf-8",
+		"PYTHONUTF8=1",
+	)
+	// Forward TEMPO_DATA_DIR so Python scripts write PBF/GeoJSON to userData.
+	if tempoData := os.Getenv("TEMPO_DATA_DIR"); tempoData != "" {
+		cmd.Env = append(cmd.Env, "TEMPO_DATA_DIR="+tempoData)
+	}
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {

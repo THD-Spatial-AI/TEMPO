@@ -1,0 +1,59 @@
+# GeoServer + PostGIS stack for TEMPO OSM data storage and serving.
+# Managed by the Electron main process alongside the other Docker services.
+#
+#   docker compose -f docker-compose.geoserver.yml up -d
+#
+# Ports:
+#   8081 → GeoServer  (http://localhost:8081/geoserver  admin/geoserver)
+#   5432 → PostGIS    (postgres / geoserver123 / db: gis)
+
+services:
+  calliope-postgis:
+    image: kartoza/postgis:14-3.3
+    container_name: calliope-postgis
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: gis
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: geoserver123
+      ALLOW_IP_RANGE: "0.0.0.0/0"
+      POSTGRES_MULTIPLE_EXTENSIONS: postgis,hstore
+    volumes:
+      - postgis_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "gis"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  calliope-geoserver:
+    image: kartoza/geoserver:2.23.0
+    container_name: calliope-geoserver
+    ports:
+      - "8081:8080"
+    depends_on:
+      calliope-postgis:
+        condition: service_healthy
+    environment:
+      GEOSERVER_DATA_DIR: /opt/geoserver/data_dir
+      GEOSERVER_CSRF_WHITELIST: localhost,127.0.0.1
+      HTTP_PORT: 8080
+      INITIAL_MEMORY: 256M
+      MAXIMUM_MEMORY: 768M
+      GEOSERVER_ADMIN_PASSWORD: geoserver
+    volumes:
+      - geoserver_data:/opt/geoserver/data_dir
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/geoserver/web/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+volumes:
+  postgis_data:
+  geoserver_data:

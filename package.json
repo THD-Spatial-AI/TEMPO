@@ -23,6 +23,7 @@
     "predist:linux": "npm run build && npm run build:go && npm run build:go:linux",
     "dist": "electron-builder --win",
     "dist:linux": "electron-builder --linux",
+    "dist:linux:full": "electron-builder --linux --config.linux.target=AppImage --config.linux.target=deb",
     "dist:linux:wsl": "wsl -- bash scripts/build_linux_wsl.sh",
     "dist:all": "npm run build && npm run build:go && npm run build:go:linux && electron-builder --win --linux",
     "dist:dir": "electron-builder --win --dir",
@@ -72,6 +73,15 @@
         "from": "../hydrogenmatsim",
         "to": "hydrogensim",
         "filter": ["**/*", "!**/.git/**", "!**/.venv/**", "!**/.vscode/**", "!**/__pycache__/**", "!**/*.pyc", "!**/docker-compose.yml", "!**/Dockerfile", "!**/.env**"]
+      },
+      {
+        "from": "docker-compose.geoserver.yml",
+        "to": "geoserver/docker-compose.geoserver.yml"
+      },
+      {
+        "from": "osm_processing",
+        "to": "osm_processing",
+        "filter": ["**/*", "!**/__pycache__/**", "!**/*.pyc", "!**/.venv/**", "!**/.vscode/**"]
       }
     ],
     "win": {

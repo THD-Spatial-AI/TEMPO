@@ -3,6 +3,7 @@ Download ALL OSM data from Geofabrik for the entire world
 Systematically downloads all available regions into organized folders
 """
 
+import os
 import requests
 from pathlib import Path
 from tqdm import tqdm
@@ -15,7 +16,8 @@ class WorldOSMDownloader:
     
     def __init__(self):
         self.project_dir = Path(__file__).parent.parent
-        self.data_dir = self.project_dir / "public" / "data" / "countries"
+        _base = Path(os.environ["TEMPO_DATA_DIR"]) if os.environ.get("TEMPO_DATA_DIR") else self.project_dir / "public" / "data"
+        self.data_dir = _base / "countries"
         self.successful = []
         self.failed = []
         self.skipped = []
