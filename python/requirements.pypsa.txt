@@ -1,0 +1,11 @@
+# PyPSA – Python for Power System Analysis
+# https://pypsa.org
+# Tested Python versions: 3.9, 3.10, 3.11, 3.12
+
+pypsa>=0.26,<0.30
+
+# Core runtime deps (pypsa installs these; pin for reproducibility)
+numpy>=1.23,<2.0
+pandas>=1.5,<2.2
+networkx>=2.8
+scipy>=1.6

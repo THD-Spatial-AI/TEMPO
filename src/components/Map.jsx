@@ -340,22 +340,22 @@ const MAP_LAYERS = {
   streets: {
     name: "Streets",
     url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>',
   },
   blackWhite: {
     name: "Black & White",
     url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a> &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>',
   },
   dark: {
     name: "Dark",
     url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a> &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>',
   },
   terrain: {
     name: "Terrain",
     url: "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, SRTM | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a>',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>, SRTM | Style: &copy; <a href="https://opentopomap.org" target="_blank" rel="noopener">OpenTopoMap</a>',
   },
 };
 
@@ -1615,6 +1615,33 @@ const Map = ({ center = [51.505, -0.09], zoom = 13 }) => {
         <div className="leaflet-bottom leaflet-left" style={{ pointerEvents: 'none' }}>
           <div className="bg-white px-3 py-2 rounded shadow-lg text-xs text-slate-600 m-4">
             Showing {locations.length} locations (Canvas Rendering)
+          </div>
+        </div>
+
+        {/* OSM usage advisory — required by OpenStreetMap tile usage policy */}
+        {/* https://operations.osmfoundation.org/policies/tiles/            */}
+        <div className="leaflet-bottom leaflet-right" style={{ pointerEvents: 'auto' }}>
+          <div className="bg-white bg-opacity-90 px-2 py-1 rounded-tl shadow text-[10px] text-slate-500 flex items-center gap-1" style={{ maxWidth: 280 }}>
+            <span>Map data</span>
+            <a
+              href="https://www.openstreetmap.org/copyright"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:underline font-medium"
+              onClick={e => e.stopPropagation()}
+            >
+              © OpenStreetMap contributors
+            </a>
+            <span>·</span>
+            <a
+              href="https://operations.osmfoundation.org/policies/nominatim/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:underline"
+              onClick={e => e.stopPropagation()}
+            >
+              Usage policy
+            </a>
           </div>
         </div>
 

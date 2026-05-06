@@ -72,9 +72,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   /**
    * Full zero-touch install: create venv, pip install, verify, start service.
    * Streams progress via onCalliopeInstallProgress.
+   * @param {string[]} [modules=['calliope']]  Module IDs to install
+   * @param {boolean}  [downloadSolvers=false] Download CBC binary for Windows
    * @returns Promise<{ success: bool, error?: string }>
    */
-  installCalliopeEnv: () => ipcRenderer.invoke('calliope:install'),
+  installCalliopeEnv: (modules = ['calliope'], downloadSolvers = false) =>
+    ipcRenderer.invoke('calliope:install', modules, downloadSolvers),
 
   /**
    * Subscribe to Calliope install progress events.
@@ -101,6 +104,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
    * @returns Promise<string>
    */
   getTechApiURL: () => ipcRenderer.invoke('tech:api-url'),
+
+  // ── Setup version tracking ────────────────────────────────────────────────
+
+  /**
+   * Returns the stored setup version and the current app version.
+   * If setupVersion !== currentVersion (or setupVersion is null), setup must run.
+   * @returns Promise<{ setupVersion: string|null, currentVersion: string }>
+   */
+  getSetupVersion: () => ipcRenderer.invoke('setup:get-version'),
+
+  /**
+   * Record that setup completed successfully for the running app version.
+   * Call this once the user finishes the setup wizard.
+   * @returns Promise<{ success: bool }>
+   */
+  markSetupComplete: () => ipcRenderer.invoke('setup:mark-complete'),
 });
 
 

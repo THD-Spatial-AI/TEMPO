@@ -40,11 +40,27 @@ const axisNameStyle = (unit) => ({
   nameTextStyle: { fontSize: 10, color: '#94a3b8', fontStyle: 'italic' },
 });
 
-// OSM base-map style
+// OSM base-map style — attribution required per OpenStreetMap tile usage policy:
+// https://operations.osmfoundation.org/policies/tiles/
 const OSM_STYLE = {
   version: 8,
-  sources: { osm: { type: 'raster', tiles: ['https://a.tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, maxzoom: 19 } },
+  sources: {
+    osm: {
+      type: 'raster',
+      tiles: ['https://a.tile.openstreetmap.org/{z}/{x}/{y}.png'],
+      tileSize: 256,
+      maxzoom: 19,
+      attribution: '\u00a9 <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>',
+    },
+  },
   layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
+};
+
+const osmTransformRequest = (url) => {
+  if (/tile\.openstreetmap\.org|nominatim\.openstreetmap\.org|basemaps\.cartocdn\.com|tile\.opentopomap\.org/.test(url)) {
+    return { url, headers: { Referer: 'https://www.openstreetmap.org/', 'User-Agent': 'TEMPO-Energy-Tool/1.0' } };
+  }
+  return { url };
 };
 
 const PARENT_COLORS = {
@@ -338,7 +354,8 @@ const InputMap = ({ locations, links, getTechColor }) => {
       const map = new mgl.Map({
         container: mapRef.current, style: OSM_STYLE,
         center: [avgLon, avgLat], zoom: 5,
-        attributionControl: false, failIfMajorPerformanceCaveat: false,
+        attributionControl: { compact: true }, failIfMajorPerformanceCaveat: false,
+        transformRequest: osmTransformRequest,
       });
       mapInstanceRef.current = map;
       map.on('load', () => {

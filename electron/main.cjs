@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, dialog, session } = require('electron');
 const path = require('path');
 const { spawn, execFile, execFileSync } = require('child_process');
 const fs = require('fs');
@@ -44,6 +44,13 @@ function getDockerServices() {
       label: 'CCS Simulation (OpenModelica)',
       port: 8766,
       composeDir: path.join(tempoRoot, 'ccssim'),
+      required: false,
+    },
+    {
+      name: 'hydrogensim',
+      label: 'Hydrogen Plant Simulation (OpenModelica)',
+      port: 8765,
+      composeDir: path.join(tempoRoot, 'hydrogenmatsim'),
       required: false,
     },
     {
@@ -199,6 +206,21 @@ function startDockerService(serviceName, progressEvent = null) {
 
   return new Promise(resolve => {
     emit('stage', { label: `Starting ${svc.label}…` });
+
+    if (svc.name === 'ccssim') {
+      try {
+        execFileSync('docker', ['network', 'inspect', 'tempo-network'], { timeout: 6000, stdio: ['ignore', 'pipe', 'pipe'] });
+      } catch {
+        try {
+          emit('log', { line: 'Creating Docker network tempo-network…' });
+          execFileSync('docker', ['network', 'create', 'tempo-network'], { timeout: 15000, stdio: ['ignore', 'pipe', 'pipe'] });
+        } catch (networkErr) {
+          resolve({ success: false, error: `Failed to create Docker network tempo-network: ${networkErr.message}` });
+          return;
+        }
+      }
+    }
+
     const child = spawn('docker', ['compose', 'up', '-d', '--remove-orphans'], { cwd: svc.composeDir, shell: false });
     let stderr = '';
     child.stdout.on('data', d => { for (const l of d.toString().split('\n').filter(x => x.trim())) emit('log', { line: l }); });
@@ -217,8 +239,8 @@ ipcMain.handle('docker:start', async (_event, serviceName) =>
 
 ipcMain.handle('docker:start-all', async () => {
   const results = {};
-  const required = getDockerServices().filter(s => s.composeDir != null);
-  for (const svc of required) {
+  const composeServices = getDockerServices().filter(s => s.composeDir != null);
+  for (const svc of composeServices) {
     results[svc.name] = await startDockerService(svc.name, 'docker:start-progress');
   }
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -229,12 +251,13 @@ ipcMain.handle('docker:start-all', async () => {
 
 // ─── IPC: Service URL registry ───────────────────────────────────────────────
 ipcMain.handle('services:urls', async () => {
-  const [c, o, ccs, gs, be] = await Promise.all([
-    isPortOpen(CALLIOPE_PORT), isPortOpen(8000), isPortOpen(8766), isPortOpen(8081), isPortOpen(BACKEND_PORT),
+  const [c, o, h2, ccs, gs, be] = await Promise.all([
+    isPortOpen(CALLIOPE_PORT), isPortOpen(8000), isPortOpen(8765), isPortOpen(8766), isPortOpen(8081), isPortOpen(BACKEND_PORT),
   ]);
   return {
     calliope:  { url: `http://localhost:${CALLIOPE_PORT}`, running: c   },
     opentech:  { url: 'http://localhost:8000',             running: o   },
+    hydrogen:  { url: 'http://localhost:8765',             running: h2  },
     ccs:       { url: 'http://localhost:8766',             running: ccs },
     geoserver: { url: 'http://localhost:8081',             running: gs  },
     backend:   { url: `http://localhost:${BACKEND_PORT}`,  running: be  },
@@ -337,6 +360,35 @@ ipcMain.handle('data:clear-all', () => {
   return { success: true, deleted };
 });
 
+// ─── IPC: Setup version tracking ─────────────────────────────────────────────
+// Shows the setup wizard whenever the user runs a *new* version of the app
+// for the first time on this machine — even if the old env is still healthy.
+function getSetupVersionFilePath() {
+  return path.join(app.getPath('userData'), 'setup-version.json');
+}
+
+ipcMain.handle('setup:get-version', () => {
+  const filePath = getSetupVersionFilePath();
+  const currentVersion = app.getVersion();
+  if (!fs.existsSync(filePath)) return { setupVersion: null, currentVersion };
+  try {
+    const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    return { setupVersion: data.setupVersion || null, currentVersion };
+  } catch {
+    return { setupVersion: null, currentVersion };
+  }
+});
+
+ipcMain.handle('setup:mark-complete', () => {
+  const record = { setupVersion: app.getVersion(), timestamp: new Date().toISOString() };
+  try {
+    fs.writeFileSync(getSetupVersionFilePath(), JSON.stringify(record, null, 2), 'utf-8');
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
 // ─── Python venv resolver ─────────────────────────────────────────────────
 /**
  * Find the Calliope Python venv, whether it's the repo-local .venv-calliope
@@ -389,16 +441,310 @@ function resolveVenv() {
 
 /**
  * Find the system Python 3 executable (used only to create a venv).
+ * Only accepts 3.9–3.11 — calliope 0.6.8 is incompatible with 3.12+.
  */
 function findSystemPython() {
   const candidates = IS_WIN ? ['python', 'python3', 'py'] : ['python3', 'python'];
   for (const cmd of candidates) {
     try {
       const out = execFileSync(cmd, ['--version'], { timeout: 5000, stdio: ['ignore', 'pipe', 'pipe'] }).toString();
-      if (/python 3\.[89]|python 3\.1[0-9]/i.test(out)) return cmd;
+      if (/python 3\.[9](?:\D|$)|python 3\.1[01](?:\D|$)/i.test(out)) return cmd;
     } catch { /* continue */ }
   }
   return null;
+}
+
+// ─── Auto-install Python 3.11 on Windows ────────────────────────────────────
+
+/**
+ * Download Python 3.11.9 from the official NuGet package and extract it to
+ * LocalAppData/TEMPO/python311. This avoids the flaky GUI installer path on
+ * locked-down Windows machines and still provides a full interpreter with venv.
+ * @param {Function} sendProgress
+ * @returns {Promise<string>} path to python.exe
+ */
+async function downloadAndInstallPython311Win(sendProgress) {
+  const https = require('https');
+  const os    = require('os');
+
+  const localAppData = process.env.LOCALAPPDATA || app.getPath('temp');
+  const installDir = path.join(localAppData, 'TEMPO', 'python311');
+  const pythonExe  = path.join(installDir, 'python.exe');
+  const legacyInstallDir = path.join(app.getPath('userData'), 'python311');
+
+  const getWinPythonCandidates = () => {
+    const candidates = [
+      pythonExe,
+      path.join(installDir, 'Python311', 'python.exe'),
+      path.join(installDir, 'tools', 'python.exe'),
+      path.join(legacyInstallDir, 'python.exe'),
+      path.join(legacyInstallDir, 'Python311', 'python.exe'),
+      path.join(legacyInstallDir, 'tools', 'python.exe'),
+      path.join(localAppData, 'Programs', 'Python', 'Python311', 'python.exe'),
+      path.join(localAppData, 'Programs', 'Python', 'Python311-32', 'python.exe'),
+    ];
+    return [...new Set(candidates.filter(Boolean))];
+  };
+
+  const resolveInstalledPython311 = () => {
+    for (const p of getWinPythonCandidates()) {
+      if (fs.existsSync(p)) return p;
+    }
+    try {
+      const pyPath = execFileSync('py', ['-3.11', '-c', 'import sys; print(sys.executable)'],
+        { timeout: 5000, stdio: ['ignore', 'pipe', 'pipe'] }).toString().trim();
+      if (pyPath) return pyPath;
+    } catch {
+      // py launcher may not be installed; ignore
+    }
+    return null;
+  };
+
+  // Re-use a previous download if it's there and healthy
+  const cachedPython = resolveInstalledPython311();
+  if (cachedPython) {
+    sendProgress({ type: 'log', line: `Using cached Python 3.11: ${cachedPython}` });
+    return cachedPython;
+  }
+
+  fs.mkdirSync(installDir, { recursive: true });
+
+  const PY_URL = 'https://www.nuget.org/api/v2/package/python/3.11.9';
+  const tmpPkg = path.join(os.tmpdir(), 'tempo-python-3.11.9.nupkg');
+  const tmpZip = path.join(os.tmpdir(), 'tempo-python-3.11.9.zip');
+
+  sendProgress({ type: 'stage', label: 'Downloading Python 3.11.9…' });
+  sendProgress({ type: 'log',   line: 'Source: nuget.org/package/python/3.11.9' });
+  sendProgress({ type: 'log',   line: 'Size: ~35 MB — please wait…' });
+
+  // Fetch with redirect support
+  await new Promise((resolve, reject) => {
+    const file = fs.createWriteStream(tmpPkg);
+    let downloaded = 0, lastPct = -10;
+
+    function doGet(url) {
+      const req = https.get(url, { timeout: 120_000 }, (res) => {
+        if (res.statusCode === 301 || res.statusCode === 302) {
+          req.destroy(); doGet(res.headers.location); return;
+        }
+        if (res.statusCode !== 200) {
+          reject(new Error(`HTTP ${res.statusCode} downloading Python — check your internet connection`)); return;
+        }
+        const total = parseInt(res.headers['content-length'] || '0', 10);
+        res.on('data', chunk => {
+          downloaded += chunk.length;
+          const pct = total > 0 ? Math.floor(downloaded / total * 100) : 0;
+          if (pct >= lastPct + 10) {
+            lastPct = pct;
+            sendProgress({ type: 'log', line: `  ${pct}% (${(downloaded / 1024 / 1024).toFixed(1)} MB)` });
+          }
+        });
+        res.pipe(file);
+        file.on('finish', () => file.close(resolve));
+        file.on('error',  reject);
+        res.on('error',   reject);
+      });
+      req.on('error',   reject);
+      req.on('timeout', () => { req.destroy(); reject(new Error('Python download timed out')); });
+    }
+    doGet(PY_URL);
+  });
+
+  sendProgress({ type: 'stage', label: 'Extracting Python 3.11.9 (no admin required)…' });
+  sendProgress({ type: 'log',   line: `Target: ${installDir}` });
+
+  const waitForPython = async (timeoutMs = 120_000) => {
+    const deadline = Date.now() + timeoutMs;
+    let found = null;
+    while (!found && Date.now() < deadline) {
+      found = resolveInstalledPython311();
+      if (found) break;
+      await new Promise(r => setTimeout(r, 1000));
+    }
+    return found;
+  };
+
+  try {
+    if (fs.existsSync(installDir)) {
+      fs.rmSync(installDir, { recursive: true, force: true });
+    }
+    fs.mkdirSync(installDir, { recursive: true });
+    fs.copyFileSync(tmpPkg, tmpZip);
+
+    const ps = (s) => s.replace(/'/g, "''");
+    const psCmd = `Expand-Archive -Path '${ps(tmpZip)}' -DestinationPath '${ps(installDir)}' -Force`;
+    await new Promise((resolve, reject) => {
+      const child = spawn('powershell', ['-NoProfile', '-NonInteractive', '-Command', psCmd], { shell: false });
+      let stderr = '';
+      child.stderr.on('data', d => { stderr += d.toString(); });
+      child.on('close', code => {
+        if (code === 0) resolve();
+        else reject(new Error(`Python package extraction failed (exit ${code}): ${stderr.trim()}`));
+      });
+      child.on('error', err => reject(new Error(`Cannot run PowerShell for Python extraction: ${err.message}`)));
+    });
+  } finally {
+    try { fs.unlinkSync(tmpPkg); } catch { /* ignore cleanup errors */ }
+    try { fs.unlinkSync(tmpZip); } catch { /* ignore cleanup errors */ }
+  }
+
+  const foundPython = await waitForPython(30_000);
+
+  if (!foundPython) {
+    const checked = getWinPythonCandidates().join('\n  - ');
+    throw new Error(
+      'Python 3.11 installation completed but no interpreter was found in known locations.\n' +
+      `Checked:\n  - ${checked}\n` +
+      'Install Python 3.11 manually (Add Python to PATH), then click Retry.'
+    );
+  }
+
+  sendProgress({ type: 'log', line: `✓ Python 3.11.9 installed: ${foundPython}` });
+  return foundPython;
+}
+
+/**
+ * Download the CBC 2.10.x solver binary for Windows and place it in targetDir.
+ * Uses the official COIN-OR GitHub release.
+ * @param {string} targetDir   Directory where cbc.exe will be placed.
+ * @param {Function} sendProgress
+ */
+async function downloadCbcWin(targetDir, sendProgress) {
+  const https = require('https');
+  const os    = require('os');
+
+  // COIN-OR CBC release asset naming changed across versions (releases. prefix, w64 vs win64).
+  // Try candidates in preference order — first HTTP-200 wins.
+  const CBC_CANDIDATES = [
+    { version: '2.10.13', zip: 'Cbc-releases.2.10.13-w64-msvc17-md.zip' },
+    { version: '2.10.12', zip: 'Cbc-releases.2.10.12-w64-msvc17-md.zip' },
+    { version: '2.10.11', zip: 'Cbc-releases.2.10.11-w64-msvc17-md.zip' },
+    { version: '2.10.10', zip: 'Cbc-releases.2.10.10-w64-msvc17-md.zip' },
+  ];
+
+  const cbcExeDst = path.join(targetDir, 'cbc.exe');
+
+  // Re-use an already-downloaded binary
+  if (fs.existsSync(cbcExeDst)) {
+    sendProgress({ type: 'log', line: `CBC already present: ${cbcExeDst}` });
+    return;
+  }
+
+  // Find the first candidate URL that actually exists (HEAD check)
+  let chosen = null;
+  for (const c of CBC_CANDIDATES) {
+    const url = `https://github.com/coin-or/Cbc/releases/download/releases/${c.version}/${c.zip}`;
+    sendProgress({ type: 'log', line: `Checking CBC ${c.version}…` });
+    const ok = await new Promise(resolve => {
+      const req = https.request(url, { method: 'HEAD', timeout: 10_000 }, res => {
+        resolve(res.statusCode === 200 || res.statusCode === 302 || res.statusCode === 301);
+      });
+      req.on('error', () => resolve(false));
+      req.on('timeout', () => { req.destroy(); resolve(false); });
+      req.end();
+    });
+    if (ok) { chosen = { ...c, url }; break; }
+  }
+  if (!chosen) throw new Error('No CBC binary found at any known URL — install manually via https://github.com/coin-or/Cbc/releases');
+
+  const tmpZip     = path.join(os.tmpdir(), chosen.zip);
+  const tmpExtract = path.join(os.tmpdir(), 'tempo-cbc-extract');
+
+  sendProgress({ type: 'log', line: `Downloading CBC ${chosen.version} (~20 MB)…` });
+
+  await new Promise((resolve, reject) => {
+    const file = fs.createWriteStream(tmpZip);
+    function doGet(url) {
+      const req = https.get(url, { timeout: 120_000 }, res => {
+        if (res.statusCode === 301 || res.statusCode === 302) { req.destroy(); doGet(res.headers.location); return; }
+        if (res.statusCode !== 200) { reject(new Error(`HTTP ${res.statusCode} downloading CBC`)); return; }
+        res.pipe(file);
+        file.on('finish', () => file.close(resolve));
+        file.on('error', reject);
+        res.on('error', reject);
+      });
+      req.on('error', reject);
+      req.on('timeout', () => { req.destroy(); reject(new Error('CBC download timed out')); });
+    }
+    doGet(chosen.url);
+  });
+
+  sendProgress({ type: 'log', line: 'Extracting cbc.exe…' });
+  fs.mkdirSync(targetDir, { recursive: true });
+
+  // Use PowerShell's Expand-Archive (built into Windows 5.1+) to extract the zip
+  const ps = (s) => s.replace(/'/g, "''"); // PowerShell single-quote escape
+  const psCmd = [
+    `if (Test-Path '${ps(tmpExtract)}') { Remove-Item '${ps(tmpExtract)}' -Recurse -Force }`,
+    `Expand-Archive -Path '${ps(tmpZip)}' -DestinationPath '${ps(tmpExtract)}' -Force`,
+    `$f = Get-ChildItem -Path '${ps(tmpExtract)}' -Filter 'cbc.exe' -Recurse | Select-Object -First 1`,
+    `if ($f) { Copy-Item $f.FullName -Destination '${ps(cbcExeDst)}' -Force } else { exit 1 }`,
+  ].join('; ');
+
+  await new Promise((resolve, reject) => {
+    const child = spawn('powershell', ['-NoProfile', '-NonInteractive', '-Command', psCmd], { shell: false });
+    let stderr = '';
+    child.stderr.on('data', d => { stderr += d.toString(); });
+    child.on('close', code => {
+      try { if (fs.existsSync(tmpZip))     fs.unlinkSync(tmpZip);          } catch { /* ignore */ }
+      try { if (fs.existsSync(tmpExtract)) fs.rmSync(tmpExtract, { recursive: true, force: true }); } catch { /* ignore */ }
+      if (code === 0 && fs.existsSync(cbcExeDst)) resolve();
+      else reject(new Error(`CBC extraction failed (exit ${code}): ${stderr.trim()}`));
+    });
+    child.on('error', err => reject(new Error(`Cannot run PowerShell for CBC extraction: ${err.message}`)));
+  });
+
+  sendProgress({ type: 'log', line: `✓ CBC ${chosen.version} installed: ${cbcExeDst}` });
+}
+
+/**
+ * Resolve a Python 3.9–3.11 interpreter, auto-installing Python 3.11 on
+ * Windows if no compatible version is present on the system PATH.
+ * @param {Function} sendProgress
+ * @returns {Promise<string>} path or command for the Python interpreter
+ */
+async function ensureCompatiblePython(sendProgress) {
+  // Windows: try the py launcher so we can request a specific version
+  if (IS_WIN) {
+    for (const ver of ['3.11', '3.10', '3.9']) {
+      try {
+        const verOut = execFileSync('py', [`-${ver}`, '--version'],
+          { timeout: 5000, stdio: ['ignore', 'pipe', 'pipe'] }).toString().trim();
+        if (new RegExp(`Python ${ver.replace('.', '\\.')}`, 'i').test(verOut)) {
+          const pyPath = execFileSync('py', [`-${ver}`, '-c', 'import sys; print(sys.executable)'],
+            { timeout: 5000, stdio: ['ignore', 'pipe', 'pipe'] }).toString().trim();
+          sendProgress({ type: 'log', line: `${verOut} → ${pyPath}` });
+          return pyPath;
+        }
+      } catch { /* version not installed via py launcher */ }
+    }
+  }
+
+  // Generic PATH search (3.9–3.11 only)
+  const sysPy = findSystemPython();
+  if (sysPy) {
+    try {
+      const verOut = execFileSync(sysPy, ['--version'],
+        { timeout: 5000, stdio: ['ignore', 'pipe', 'pipe'] }).toString().trim();
+      sendProgress({ type: 'log', line: `Found: ${verOut}` });
+    } catch { /* ignore */ }
+    return sysPy;
+  }
+
+  // Windows fallback: download + install Python 3.11 automatically
+  if (IS_WIN) {
+    sendProgress({ type: 'log', line: 'No Python 3.9–3.11 found on this machine — downloading Python 3.11.9…' });
+    return downloadAndInstallPython311Win(sendProgress);
+  }
+
+  // Linux / macOS — tell the user what to install
+  throw new Error(
+    'Python 3.9–3.11 not found.\n' +
+    'Install it, then relaunch TEMPO:\n' +
+    '  Ubuntu/Debian: sudo apt-get install python3.11 python3.11-venv python3.11-pip\n' +
+    '  macOS:         brew install python@3.11\n' +
+    '  Other:         https://www.python.org/downloads/release/python-3119/',
+  );
 }
 
 function getServicePaths() {
@@ -409,11 +755,17 @@ function getServicePaths() {
 }
 
 // ─── Calliope service (FastAPI / uvicorn) ────────────────────────────────────
+let _svcIntentionalStop = false;  // set true before deliberate kills so no restart happens
+let _svcRestartCount    = 0;
+const _SVC_MAX_RESTARTS = 5;
+
 /**
  * Start the persistent Calliope FastAPI service.
  * Used only when NOT relying on Docker (i.e. direct venv mode).
  */
 async function startCalliopeService() {
+  _svcIntentionalStop = false;
+  _svcRestartCount    = 0;
   if (await isPortOpen(CALLIOPE_PORT)) {
     console.log('[calliope-svc] Already running on port', CALLIOPE_PORT);
     return;
@@ -427,7 +779,7 @@ async function startCalliopeService() {
 
   const { pythonDir } = getServicePaths();
 
-  // Platform-specific solver directory
+  // Platform-specific solver directory (bundled with app)
   const solverSubdir = IS_WIN ? 'windows' : IS_LINUX ? 'linux' : '';
   const solverDir = solverSubdir
     ? (app.isPackaged
@@ -435,10 +787,18 @@ async function startCalliopeService() {
       : path.join(__dirname, '..', 'solvers', solverSubdir))
     : null;
 
+  // User-downloaded solver directory (e.g. CBC downloaded via setup screen)
+  const userSolverDir = solverSubdir
+    ? path.join(app.getPath('userData'), 'solvers', solverSubdir)
+    : null;
+
   const childEnv = { ...process.env };
-  if (solverDir && fs.existsSync(solverDir)) {
-    childEnv.PATH                = solverDir + path.delimiter + (childEnv.PATH || '');
-    childEnv.CALLIOPE_SOLVER_DIR = solverDir;
+  // Prepend bundled solver dir, then user solver dir, to PATH
+  const solverDirs = [solverDir, userSolverDir].filter(d => d && fs.existsSync(d));
+  if (solverDirs.length > 0) {
+    childEnv.PATH = solverDirs.join(path.delimiter) + path.delimiter + (childEnv.PATH || '');
+    // Tell calliope_runner.py where to find solvers
+    childEnv.CALLIOPE_SOLVER_DIR = solverDirs[0];
   }
 
   // Tell the Python runner where Calliope YAML templates are stored so it can
@@ -459,7 +819,16 @@ async function startCalliopeService() {
 
   calliopeService.stdout.on('data', d => { for (const l of d.toString().split('\n').filter(x => x.trim())) console.log(`[calliope-svc] ${l}`); });
   calliopeService.stderr.on('data', d => { for (const l of d.toString().split('\n').filter(x => x.trim())) console.log(`[calliope-svc] ${l}`); });
-  calliopeService.on('close', code => { console.log(`[calliope-svc] Exited: ${code}`); calliopeService = null; });
+  calliopeService.on('close', code => {
+    console.log(`[calliope-svc] Exited: ${code}`);
+    calliopeService = null;
+    if (!_svcIntentionalStop && _svcRestartCount < _SVC_MAX_RESTARTS) {
+      _svcRestartCount++;
+      const delay = Math.min(2000 * _svcRestartCount, 10000);
+      console.log(`[calliope-svc] Unexpected exit — restarting in ${delay}ms (attempt ${_svcRestartCount}/${_SVC_MAX_RESTARTS})`);
+      setTimeout(() => startCalliopeService().catch(e => console.warn('[calliope-svc] Restart failed:', e)), delay);
+    }
+  });
 
   try {
     await waitForPort(CALLIOPE_PORT, 15000);
@@ -470,6 +839,7 @@ async function startCalliopeService() {
 }
 
 function stopCalliopeService() {
+  _svcIntentionalStop = true;
   if (calliopeService) { calliopeService.kill(); calliopeService = null; }
 }
 
@@ -478,61 +848,296 @@ function stopCalliopeService() {
 ipcMain.handle('calliope:check', async () => {
   const { python, exists, venvDir } = resolveVenv();
   const serviceRunning = await isPortOpen(CALLIOPE_PORT);
-  return { envExists: exists, venvPath: exists ? venvDir : null, serviceRunning };
+
+  // Deep health check: verify the packages that actually fail at runtime.
+  // "import calliope" alone is NOT sufficient — it succeeds even with
+  // ruamel.yaml 0.18+ or missing jinja2, because safe_load is only called
+  // when calliope reads a YAML file, not at module import time.
+  let importOk = false;
+  if (exists && fs.existsSync(python)) {
+    try {
+      execFileSync(python, ['-c',
+        'import calliope, jinja2, ruamel.yaml as ry;' +
+        'assert hasattr(ry, "safe_load"), ' +
+          'f"ruamel.yaml {ry.version_info} incompatible (>= 0.18, safe_load removed)";' +
+        'print("ok", calliope.__version__)'
+      ], { timeout: 20000, stdio: ['ignore', 'pipe', 'pipe'] });
+      importOk = true;
+    } catch { importOk = false; }
+  }
+
+  return { envExists: importOk, venvPath: importOk ? venvDir : null, serviceRunning, platform: process.platform };
 });
 
-ipcMain.handle('calliope:install', async () => {
+ipcMain.handle('calliope:install', async (_event, selectedModules = ['calliope'], downloadSolvers = false) => {
   const sendProgress = (data) => {
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('calliope:install-progress', data);
   };
 
+  // Verify imports expected per module
+  const MODULE_VERIFY = {
+    calliope: 'import calliope; print("calliope", calliope.__version__)',
+    pypsa:    'import pypsa;    print("pypsa",    pypsa.__version__)',
+    adopt:    'import adopt;    print("adopt OK")',
+  };
+
   try {
-    sendProgress({ type: 'stage', label: 'Locating Python interpreter…' });
+    sendProgress({ type: 'stage', label: 'Locating Python 3.9–3.11…' });
 
-    let systemPython = null;
-    if (app.isPackaged) {
-      const embeddedPy = path.join(
-        process.resourcesPath, 'app.asar.unpacked',
-        IS_WIN ? path.join('python-embed', 'python.exe') : path.join('python-embed', 'bin', 'python3'),
-      );
-      if (fs.existsSync(embeddedPy)) systemPython = embeddedPy;
+    // ensureCompatiblePython resolves a Python 3.9–3.11 binary.
+    // On Windows it auto-downloads Python 3.11 if no compatible version is found.
+    const systemPython = await ensureCompatiblePython(sendProgress);
+
+    // ── Always install to userData ──────────────────────────────────────
+    // NEVER write to the app resources dir — it's in Program Files on some
+    // machines and the path may change across installer upgrades.
+    const venvDir = path.join(app.getPath('userData'), 'calliope-venv');
+    const binDir  = IS_WIN ? 'Scripts' : 'bin';
+    const pyExe   = IS_WIN ? 'python.exe' : 'python3';
+    const venvPython = path.join(venvDir, binDir, pyExe);
+
+    // Stop the running service BEFORE touching the venv.
+    // On Windows, a running Python process holds file handles; rmSync would
+    // silently skip locked files and leave a half-deleted corrupted venv.
+    sendProgress({ type: 'log', line: 'Stopping any running Calliope service…' });
+    stopCalliopeService();
+    await new Promise(r => setTimeout(r, 2000)); // give Windows time to release handles
+
+    // Wipe ALL known venv locations so there is no stale venv for resolveVenv()
+    // to find on the next startup (e.g. old resources-dir venv from a prior version).
+    const allVenvCandidates = [
+      venvDir,  // userData/calliope-venv (primary target)
+      app.isPackaged
+        ? path.join(process.resourcesPath, 'app.asar.unpacked', '.venv-calliope')
+        : path.join(__dirname, '..', '.venv-calliope'),
+    ];
+    for (const loc of allVenvCandidates) {
+      if (!fs.existsSync(loc)) continue;
+      sendProgress({ type: 'log', line: `Removing old environment: ${path.basename(loc)}…` });
+      // On Windows use cmd /c rmdir which works even with some locked handles,
+      // unlike Node's rmSync which silently skips locked files.
+      if (IS_WIN) {
+        try {
+          execFileSync('cmd', ['/c', 'rmdir', '/s', '/q', loc],
+            { timeout: 30000, stdio: ['ignore', 'pipe', 'pipe'] });
+        } catch (e) {
+          sendProgress({ type: 'log', line: `⚠ rmdir warning: ${e.message}` });
+        }
+      } else {
+        try { fs.rmSync(loc, { recursive: true, force: true }); } catch (e) {
+          sendProgress({ type: 'log', line: `⚠ Remove warning: ${e.message}` });
+        }
+      }
+      if (fs.existsSync(loc)) {
+        sendProgress({ type: 'log', line: `⚠ ${loc} still exists after delete — some files may be locked by another process. Close all Python windows and click Retry.` });
+      }
     }
-    if (!systemPython) systemPython = findSystemPython();
-    if (!systemPython) throw new Error('Python 3.9+ not found. Install from https://python.org and relaunch TEMPO.');
-    sendProgress({ type: 'log', line: `Python: ${systemPython}` });
 
-    const { python: venvPython, venvDir } = resolveVenv();
-    sendProgress({ type: 'stage', label: 'Creating Python environment…' });
-    sendProgress({ type: 'log', line: `venv: ${venvDir}` });
+    sendProgress({ type: 'stage', label: 'Creating fresh Python environment…' });
+    sendProgress({ type: 'log', line: `Location: ${venvDir}` });
+    fs.mkdirSync(path.dirname(venvDir), { recursive: true }); // ensure parent exists
 
-    if (fs.existsSync(venvDir)) {
-      sendProgress({ type: 'log', line: 'Removing existing venv…' });
-      fs.rmSync(venvDir, { recursive: true, force: true });
-    }
-
+    // ── Collect recent lines for error context ─────────────────────────────
+    const recentLines = [];
+    // PIP_PREFER_BINARY and PIP_NO_CACHE_DIR are env vars that pip reads in
+    // EVERY invocation — including pip sub-processes spawned inside PEP-517
+    // build isolation environments (where CLI flags like --prefer-binary never
+    // reach).  This is the only reliable way to prevent source builds there.
+    const pipEnv = {
+      ...process.env,
+      PIP_PREFER_BINARY: '1',
+      PIP_NO_CACHE_DIR: '1',
+    };
     const runChild = (cmd, args, label) => new Promise((resolve, reject) => {
-      const child = spawn(cmd, args, { shell: false });
-      child.stdout.on('data', d => { for (const l of d.toString().split('\n').filter(x => x.trim())) sendProgress({ type: 'log', line: l }); });
-      child.stderr.on('data', d => { for (const l of d.toString().split('\n').filter(x => x.trim())) sendProgress({ type: 'log', line: l }); });
-      child.on('close', code => { if (code === 0) resolve(); else reject(new Error(`${label} failed (exit ${code})`)); });
-      child.on('error', reject);
+      const child = spawn(cmd, args, { shell: false, env: pipEnv });
+      const onLine = l => {
+        recentLines.push(l);
+        if (recentLines.length > 50) recentLines.shift();
+        sendProgress({ type: 'log', line: l });
+      };
+      child.stdout.on('data', d => { for (const l of d.toString().split('\n').filter(x => x.trim())) onLine(l); });
+      child.stderr.on('data', d => { for (const l of d.toString().split('\n').filter(x => x.trim())) onLine(l); });
+      child.on('close', code => {
+        if (code === 0) {
+          resolve();
+        } else {
+          const tail = recentLines.slice(-10).join('\n');
+          reject(new Error(`${label} failed (exit ${code})\n\n${tail}`));
+        }
+      });
+      child.on('error', err => reject(new Error(`${label} could not start: ${err.message}`)));
     });
 
-    await runChild(systemPython, ['-m', 'venv', venvDir], 'venv creation');
+    // ── Create venv ────────────────────────────────────────────────────────
+    await runChild(systemPython, ['-m', 'venv', '--clear', venvDir], 'venv creation');
 
-    sendProgress({ type: 'stage', label: 'Installing Calliope & dependencies…' });
-    await runChild(venvPython, ['-m', 'pip', 'install', '--upgrade', 'pip'], 'pip upgrade');
+    // Ensure pip is bootstrapped in the new venv (some Windows installs omit it)
+    try {
+      await runChild(venvPython, ['-m', 'ensurepip', '--upgrade'], 'ensurepip');
+    } catch { /* non-fatal — pip may already be present */ }
+
+    sendProgress({ type: 'stage', label: 'Upgrading build tools…' });
+    recentLines.length = 0;
+    await runChild(venvPython, [
+      '-m', 'pip', 'install', '--upgrade', '--quiet',
+      'pip', 'setuptools', 'wheel',
+    ], 'pip/setuptools/wheel upgrade');
 
     const { pythonDir } = getServicePaths();
-    const reqMain    = path.join(pythonDir, 'requirements.txt');
-    const reqService = path.join(pythonDir, 'requirements.service.txt');
-    await runChild(venvPython, ['-m', 'pip', 'install', '-r', reqMain, '-r', reqService], 'pip install');
+    // --prefer-binary  → prefer wheels over source distributions
+    // --no-cache-dir   → ignore any cached (possibly corrupt) source builds from prior attempts
+    const pipFlags = ['--prefer-binary', '--no-warn-script-location', '--no-cache-dir'];
 
+    // ── Service layer (FastAPI + uvicorn) — always installed ────────────────
+    sendProgress({ type: 'stage', label: 'Installing service layer…' });
+    recentLines.length = 0;
+    await runChild(venvPython, [
+      '-m', 'pip', 'install', ...pipFlags,
+      '-r', path.join(pythonDir, 'requirements.service.txt'),
+    ], 'pip install (service layer)');
+
+    // ── Selected modules ──────────────────────────────────────────────────
+    for (const moduleId of selectedModules) {
+      const reqFile = path.join(pythonDir, `requirements.${moduleId}.txt`);
+      if (!fs.existsSync(reqFile)) {
+        sendProgress({ type: 'log', line: `⚠ No requirements file for "${moduleId}" — skipping` });
+        continue;
+      }
+
+      if (moduleId === 'calliope') {
+        // calliope 0.6.8's PyPI metadata declares numpy<1.21.  numpy 1.20-1.22
+        // ships no cp311-win_amd64 wheels, so pip would attempt a source build
+        // and fail (requires MSVC).  We bypass this permanently by:
+        //   1. Installing all of calliope's runtime deps from requirements.calliope.txt
+        //      (which lists them with modern, wheel-friendly pin ranges and does NOT
+        //      include calliope itself).
+        //   2. Installing calliope with --no-deps so pip never reads or applies the
+        //      broken numpy<1.21 constraint from calliope's own metadata.
+        sendProgress({ type: 'stage', label: 'Installing calliope dependencies…' });
+        recentLines.length = 0;
+        await runChild(venvPython, [
+          '-m', 'pip', 'install', ...pipFlags,
+          '-r', reqFile,
+        ], 'pip install (calliope deps)');
+        sendProgress({ type: 'stage', label: 'Aligning numeric stack…' });
+        sendProgress({ type: 'log', line: 'Pinning NumPy/Pandas/SciPy to a known Calliope-compatible wheel set…' });
+        recentLines.length = 0;
+        await runChild(venvPython, [
+          '-m', 'pip', 'install',
+          '--upgrade',
+          '--force-reinstall',
+          '--no-cache-dir',
+          'numpy==1.23.5',
+          'pandas==1.5.3',
+          'scipy==1.10.1',
+        ], 'numeric stack alignment');
+        sendProgress({ type: 'stage', label: 'Installing calliope…' });
+        sendProgress({ type: 'log', line: 'Using --no-deps to bypass outdated numpy<1.21 constraint in calliope metadata…' });
+        recentLines.length = 0;
+        await runChild(venvPython, [
+          '-m', 'pip', 'install', '--no-deps', '--no-cache-dir',
+          'calliope==0.6.8',
+        ], 'pip install calliope (no-deps)');
+      } else {
+        sendProgress({ type: 'stage', label: `Installing ${moduleId}…` });
+        recentLines.length = 0;
+        await runChild(venvPython, [
+          '-m', 'pip', 'install', ...pipFlags,
+          '-r', reqFile,
+        ], `pip install (${moduleId})`);
+      }
+    }
+
+    // ── HiGHS solver (required for Calliope default) ───────────────────────
+    if (selectedModules.includes('calliope')) {
+      sendProgress({ type: 'log', line: 'Installing HiGHS solver…' });
+
+      // Some locked-down Windows machines fail to load the newest highspy wheel
+      // at runtime (ImportError: DLL load failed while importing _core).
+      // Try a small list of known-good 1.x wheels and keep the first that imports.
+      const highspyCandidates = [
+        'highspy>=1.5,<2.0',
+        'highspy==1.7.2',
+        'highspy==1.5.3',
+      ];
+
+      let highspyOk = false;
+      let highspyLastErr = '';
+      for (const spec of highspyCandidates) {
+        sendProgress({ type: 'log', line: `  Trying ${spec}…` });
+        try {
+          await runChild(venvPython, [
+            '-m', 'pip', 'install',
+            '--no-deps',
+            '--only-binary=highspy',
+            '--upgrade',
+            '--force-reinstall',
+            '--no-cache-dir',
+            '--quiet',
+            spec,
+          ], `highspy install (${spec})`);
+
+          recentLines.length = 0;
+          await runChild(venvPython, ['-c', 'import highspy; print("highspy-import-ok", getattr(highspy, "__file__", "module"))'], `highspy import check (${spec})`);
+          sendProgress({ type: 'log', line: `✓ HiGHS solver installed and importable (${spec})` });
+          highspyOk = true;
+          break;
+        } catch (e) {
+          highspyLastErr = e?.message || String(e);
+          sendProgress({ type: 'log', line: `  ${spec} failed: ${highspyLastErr.split('\n')[0]}` });
+        }
+      }
+
+      if (!highspyOk) {
+        throw new Error(
+          'HiGHS installation failed on this machine. highspy is installed but cannot load its native DLLs.\n\n' +
+          `${highspyLastErr}\n\n` +
+          'Install the Microsoft Visual C++ 2015-2022 Redistributable (x64) and retry setup.'
+        );
+      }
+    }
+
+    // ── Download CBC solver (optional — Windows only) ─────────────────────
+    if (downloadSolvers && IS_WIN && selectedModules.includes('calliope')) {
+      sendProgress({ type: 'stage', label: 'Downloading CBC solver…' });
+      const cbcTargetDir = path.join(app.getPath('userData'), 'solvers', 'windows');
+      try {
+        await downloadCbcWin(cbcTargetDir, sendProgress);
+      } catch (cbcErr) {
+        sendProgress({ type: 'log', line: `⚠ CBC download failed: ${cbcErr.message}` });
+        sendProgress({ type: 'log', line: '  HiGHS (via highspy) will be used instead — no action needed.' });
+      }
+    }
+
+    // ── Verification ──────────────────────────────────────────────────────
     sendProgress({ type: 'stage', label: 'Verifying installation…' });
-    await runChild(venvPython, ['-c', 'import calliope, pyomo.environ, uvicorn; print("OK", calliope.__version__)'], 'verification');
+    const verifyStatements = selectedModules
+      .map(m => MODULE_VERIFY[m])
+      .filter(Boolean);
+    if (verifyStatements.length > 0) {
+      recentLines.length = 0;
+      await runChild(venvPython, ['-c', verifyStatements.join('; ')], 'verification');
+    }
 
-    sendProgress({ type: 'stage', label: 'Starting Calliope service…' });
-    await startCalliopeService();
+    if (selectedModules.includes('calliope')) {
+      const solverVerification = [
+        'import highspy',
+        'import pyomo.environ',
+        'from pyomo.opt import SolverFactory',
+        's = SolverFactory("appsi_highs")',
+        'ok = type(s).__name__ != "UnknownSolver" and getattr(s, "available", lambda **kwargs: False)(exception_flag=False) is True',
+        'assert ok, "appsi_highs registered but unavailable"',
+        'print("solver-ok", "appsi_highs", getattr(highspy, "__file__", "module"))',
+      ].join('; ');
+      recentLines.length = 0;
+      await runChild(venvPython, ['-c', solverVerification], 'solver verification');
+    }
+
+    // ── Start Calliope service ────────────────────────────────────────────
+    if (selectedModules.includes('calliope')) {
+      sendProgress({ type: 'stage', label: 'Starting Calliope service…' });
+      await startCalliopeService();
+    }
 
     sendProgress({ type: 'done' });
     return { success: true };
@@ -603,6 +1208,37 @@ function stopAll() {
 }
 
 app.whenReady().then(async () => {
+  // ── OSM tile / Nominatim policy compliance ─────────────────────────────
+  // Electron loads pages from file:// which sends no Referer header.
+  // OSM tile servers and Nominatim REQUIRE a valid Referer + User-Agent per
+  // their tile usage policy and Nominatim usage policy:
+  //   https://operations.osmfoundation.org/policies/tiles/
+  //   https://operations.osmfoundation.org/policies/nominatim/
+  // Without a Referer the tile CDN returns 403.  We inject at the network
+  // layer so every tile/geocode request from any renderer component is
+  // compliant automatically — no per-component changes needed.
+  session.defaultSession.webRequest.onBeforeSendHeaders(
+    {
+      urls: [
+        'https://*.tile.openstreetmap.org/*',
+        'https://tile.openstreetmap.org/*',
+        'https://nominatim.openstreetmap.org/*',
+        'https://*.basemaps.cartocdn.com/*',
+        'https://*.tile.opentopomap.org/*',
+        'https://server.arcgisonline.com/*',
+      ],
+    },
+    (details, callback) => {
+      callback({
+        requestHeaders: {
+          ...details.requestHeaders,
+          Referer: 'https://www.openstreetmap.org/',
+          'User-Agent': `TEMPO-Energy-Tool/${app.getVersion()} (https://tempo-energy.app)`,
+        },
+      });
+    },
+  );
+
   // Allocate free ports before starting services so we don't collide with
   // other applications that may already be using the default ports.
   try { BACKEND_PORT  = await findFreePort(BACKEND_PORT);  } catch { /* keep default */ }

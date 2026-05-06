@@ -66,12 +66,12 @@ def _setup_bundled_solver():
     if added:
         log(f"  Bundled solver dir added to PATH: {', '.join(added)}")
 
-    # Quick sanity-check: is cbc on PATH now?
     import shutil as _shutil
+    import importlib.util as _ilu2
     if _shutil.which('cbc') or _shutil.which('cbc.exe'):
-        log("  CBC solver found on PATH ✓")
+        log("  CBC solver found on PATH \u2713")
     else:
-        log("  WARNING: cbc not found on PATH — run scripts/download_cbc.ps1 first")
+        log("  WARNING: cbc not found on PATH \u2014 run scripts/download_cbc.ps1 or install coinor-cbc")
 
 # ---------------------------------------------------------------------------
 # OEO Tech Database integration (optional – graceful fallback if offline)
@@ -161,9 +161,22 @@ def dump_yaml(data):
 # Model component builders
 # ---------------------------------------------------------------------------
 
+def _safe_id(name):
+    """Sanitize a string for use as a Calliope tech/location identifier.
+    Calliope uses '::' as loc/tech/carrier separator and ':' as transmission suffix;
+    if names contain these, MultiIndex parsing will crash with 'Length of names must
+    match number of levels in MultiIndex'."""
+    import re
+    s = str(name).strip()
+    s = s.replace('::', '__').replace(':', '_')  # strip calliope-reserved separators
+    s = re.sub(r'[^A-Za-z0-9_\-]', '_', s)      # remove other illegal chars (space, /, etc)
+    s = re.sub(r'_+', '_', s).strip('_')          # collapse repeated underscores
+    return s or 'unknown'  # preserve original case — calliope is case-sensitive
+
+
 def _tech_id(tech):
     """Derive a clean snake_case Calliope tech identifier."""
-    return (tech.get('name') or tech.get('id') or 'unknown').replace(' ', '_').lower()
+    return _safe_id(tech.get('name') or tech.get('id') or 'unknown')
 
 
 # ---------------------------------------------------------------------------
@@ -393,7 +406,7 @@ def build_locations_config(locations, location_tech_assignments, technologies):
     locs = {}
     for loc in locations:
         raw_id = loc.get('id') or loc.get('name') or 'loc'
-        loc_id = raw_id.replace(' ', '_')
+        loc_id = _safe_id(raw_id).lower()  # Calliope normalises loc keys to lowercase
 
         cfg = {}
         lat = loc.get('lat') or loc.get('latitude')
@@ -503,8 +516,8 @@ def build_links_config(links):
     """Convert the app's links list to a Calliope `links:` dict."""
     calliope_links = {}
     for link in links:
-        from_loc = (link.get('from') or '').replace(' ', '_')
-        to_loc = (link.get('to') or '').replace(' ', '_')
+        from_loc = _safe_id(link.get('from') or '').lower()
+        to_loc = _safe_id(link.get('to') or '').lower()
         if not from_loc or not to_loc:
             continue
 
@@ -550,32 +563,58 @@ def _write_calliope_yaml_csv_files(model_data, config_dir):
     pv_series.csv, wind_series.csv, regional_demand.csv).  Write each of them
     back to *config_dir* so that `file=xxx.csv` references in techs.yaml /
     locations.yaml resolve correctly when Calliope loads the model.
+
+    Column headers are normalised to lowercase to match the location IDs
+    produced by build_locations_config() — Calliope lowercases loc names when
+    building its internal MultiIndex.  We use the csv module directly (not
+    pandas) so the normalisation is guaranteed regardless of DataFrame edge cases.
     """
+    import csv as _csv_mod
+
     ts_list = model_data.get('timeSeries') or []
     log(f"  [CSV] Payload timeSeries entries: {len(ts_list)}")
     if not ts_list:
         return
 
-    import pandas as pd
-
     written = []
     for ts in ts_list:
-        data    = ts.get('data') or []
-        columns = ts.get('columns') or []
+        data      = ts.get('data') or []
+        columns   = ts.get('columns') or []
         file_name = ts.get('fileName') or ts.get('file') or ts.get('name')
         if not file_name or not data or not columns:
             continue
         if not file_name.lower().endswith('.csv'):
             file_name = file_name + '.csv'
 
-        # Build DataFrame from row objects
-        df = pd.DataFrame(data, columns=[c for c in columns if c])
-        date_col = ts.get('dateColumn') or (columns[0] if columns else None)
-        if date_col and date_col in df.columns:
-            df = df.set_index(date_col)
+        date_col  = ts.get('dateColumn') or (columns[0] if columns else None)
+        # All non-date columns — preserve original names for dict lookup, then
+        # write lowercase versions as the CSV header.
+        data_cols = [c for c in columns if c and c != date_col]
+
+        # Build normalised header row
+        norm_header = (
+            ([date_col] if date_col else []) +
+            [_safe_id(c).lower() for c in data_cols]
+        )
+        log(f"  [CSV] {file_name}: orig={columns[:4]}… → norm={norm_header[:4]}…")
 
         out_path = config_dir / file_name
-        df.to_csv(out_path)
+        try:
+            with open(str(out_path), 'w', newline='', encoding='utf-8') as _fh:
+                writer = _csv_mod.writer(_fh)
+                writer.writerow(norm_header)
+                for row in data:
+                    if isinstance(row, dict):
+                        row_vals = (
+                            ([row.get(date_col, '')] if date_col else []) +
+                            [row.get(c, '') for c in data_cols]
+                        )
+                    else:
+                        row_vals = list(row)
+                    writer.writerow(row_vals)
+        except Exception as _we:
+            log(f"  [CSV] ERROR writing {file_name}: {_we}")
+            continue
         written.append(file_name)
 
     if written:
@@ -618,17 +657,17 @@ def _write_demand_profiles(locations, locs_cfg, techs, time_start, time_end, con
 
     try:
         end_inclusive = pd.Timestamp(time_end) + pd.Timedelta(hours=23)
-        ts_index = pd.date_range(start=time_start, end=end_inclusive, freq='H')
+        ts_index = pd.date_range(start=time_start, end=end_inclusive, freq='h')
     except Exception:
-        ts_index = pd.date_range(start=time_start, periods=48, freq='H')
+        ts_index = pd.date_range(start=time_start, periods=48, freq='h')
 
     if len(ts_index) == 0:
-        ts_index = pd.date_range(start=time_start, periods=48, freq='H')
+        ts_index = pd.date_range(start=time_start, periods=48, freq='h')
 
     # Build demand CSV columns (one per location with profile data)
     csv_data = {}
     for loc_name, ts_vals in profiled:
-        col = loc_name.replace(' ', '_')
+        col = _safe_id(loc_name).lower()
         # Tile the pattern to cover the full model period, negate for Calliope convention
         vals = list(itertools.islice(itertools.cycle(ts_vals), len(ts_index)))
         csv_data[col] = [-v for v in vals]
@@ -649,8 +688,8 @@ def _write_demand_profiles(locations, locs_cfg, techs, time_start, time_end, con
         handled.add(demand_tid)
 
         for loc_name, _ in profiled:
-            col = loc_name.replace(' ', '_')
-            loc_key = loc_name.replace(' ', '_')
+            col = _safe_id(loc_name).lower()
+            loc_key = _safe_id(loc_name).lower()
             if loc_key not in locs_cfg:
                 continue
             loc_techs = locs_cfg[loc_key].setdefault('techs', {})
@@ -708,12 +747,12 @@ def _write_scalar_demand_timeseries(techs, locs_cfg, loc_tech_assign,
     # time_end to ensure the CSV spans the full requested period.
     try:
         end_inclusive = pd.Timestamp(time_end) + pd.Timedelta(hours=23)
-        ts_index = pd.date_range(start=time_start, end=end_inclusive, freq='H')
+        ts_index = pd.date_range(start=time_start, end=end_inclusive, freq='h')
     except Exception:
-        ts_index = pd.date_range(start=time_start, periods=48, freq='H')
+        ts_index = pd.date_range(start=time_start, periods=48, freq='h')
 
     if len(ts_index) == 0:
-        ts_index = pd.date_range(start=time_start, periods=48, freq='H')
+        ts_index = pd.date_range(start=time_start, periods=48, freq='h')
 
     generated = False
 
@@ -753,7 +792,7 @@ def _write_scalar_demand_timeseries(techs, locs_cfg, loc_tech_assign,
         # Match by any raw form (id, name, calliope-normalised id).
         injected_count = 0
         for loc_id, assigned in loc_tech_assign.items():
-            loc_key = loc_id.replace(' ', '_')
+            loc_key = loc_id.replace(' ', '_').lower()
             if loc_key not in locs_cfg:
                 continue
             loc_has_tech = any(
@@ -909,6 +948,27 @@ def _ensure_missing_file_csvs(techs, locs, time_start, time_end, config_dir):
                 if candidates:
                     import shutil as _shutil
                     _shutil.copy2(str(candidates[0]), str(config_dir / fname))
+                    # Normalize column headers to lowercase so they match the
+                    # location IDs in the generated locations.yaml (which are
+                    # also lowercased).  The original template CSVs use
+                    # uppercase headers (NORD, CNOR, R1, etc.).
+                    # Use the csv module directly to avoid pandas index parsing
+                    # issues that would silently leave headers uppercase.
+                    try:
+                        import csv as _csv_mod
+                        _rows_tmp = []
+                        with open(str(config_dir / fname), newline='', encoding='utf-8-sig') as _fh_r:
+                            for _ri, _row in enumerate(_csv_mod.reader(_fh_r)):
+                                if _ri == 0 and len(_row) > 1:
+                                    # Skip column 0 (datetime/index column) to
+                                    # avoid mangling timestamp strings.
+                                    _row = [_row[0]] + [_safe_id(c).lower() for c in _row[1:]]
+                                _rows_tmp.append(_row)
+                        with open(str(config_dir / fname), 'w', newline='', encoding='utf-8') as _fh_w:
+                            _csv_mod.writer(_fh_w).writerows(_rows_tmp)
+                        log(f"  Normalized CSV column headers for {fname}")
+                    except Exception as _csv_err:
+                        log(f"  Warning: could not normalise CSV headers for {fname}: {_csv_err}")
                     log(f"  Copied original CSV from template: {fname}")
                     found = True
                 if found:
@@ -944,9 +1004,9 @@ def _ensure_missing_file_csvs(techs, locs, time_start, time_end, config_dir):
                     demand_csv_fnames.add(csv_part)
     try:
         end_inclusive = pd.Timestamp(time_end) + pd.Timedelta(hours=23)
-        ts_index = pd.date_range(start=time_start, end=end_inclusive, freq='H')
+        ts_index = pd.date_range(start=time_start, end=end_inclusive, freq='h')
     except Exception:
-        ts_index = pd.date_range(start=time_start, periods=48, freq='H')
+        ts_index = pd.date_range(start=time_start, periods=48, freq='h')
 
     all_loc_names = sorted(locs.keys())
     for fname, col_hints in still_missing.items():
@@ -994,7 +1054,223 @@ def run_model(model_data, work_dir, log_fn=None):
 
 def _run_model_impl(model_data, work_dir):
     """Internal implementation – call run_model() instead."""
+    # ── Pandas 2.0 compatibility patch ──────────────────────────────────────
+    # Calliope 0.6.8 calls  series.str.rsplit(pat, n, expand)  with all three
+    # args positional.  Pandas 2.0 made `expand` keyword-only, raising:
+    #   "StringMethods.rsplit() takes from 1 to 2 positional arguments but 3 were given"
+    # We patch the method before importing calliope so the fix is transparent.
+    try:
+        import pandas as _pd
+        _str_rsplit_orig = _pd.core.strings.accessor.StringMethods.rsplit
+        def _str_rsplit_compat(self, pat=None, n=-1, expand=False):
+            return _str_rsplit_orig(self, pat=pat, n=n, expand=expand)
+        _pd.core.strings.accessor.StringMethods.rsplit = _str_rsplit_compat
+    except Exception:
+        pass  # pandas not yet importable or already compatible — skip
+    # ────────────────────────────────────────────────────────────────────────
     import calliope  # noqa – must run inside the calliope conda environment  # type: ignore
+
+    # ── Calliope pyomo NaT compatibility patch ───────────────────────────────
+    # calliope.backend.pyomo.util.string_to_datetime uses:
+    #   model_data[var].fillna(pd.NaT).astype("datetime64[ns]")
+    # With numpy 1.20 / xarray 0.20, xarray internally calls np.dtype(pd.NaT)
+    # to determine the fill dtype, which raises:
+    #   "Cannot interpret 'NaT' as a data type"
+    # Fix: replace pd.NaT with np.datetime64('NaT') in the fill value.
+    # string_to_datetime is imported by name into interface.py and model.py,
+    # so we must patch all three modules.
+    try:
+        import numpy as _np
+        import calliope.backend.pyomo.util as _cpu
+        import calliope.backend.pyomo.model as _cpm
+        import calliope.backend.pyomo.interface as _cpi
+        def _string_to_datetime_compat(backend_model, model_data):
+            for attr, set_name in backend_model.__calliope_datetime_data:
+                if attr == 'coords' and set_name in model_data:
+                    model_data.coords[set_name] = model_data[set_name].astype('datetime64[ns]')
+                elif set_name in model_data:
+                    model_data[set_name] = (
+                        model_data[set_name]
+                        .fillna(_np.datetime64('NaT'))
+                        .astype('datetime64[ns]')
+                    )
+            return model_data
+        _cpu.string_to_datetime = _string_to_datetime_compat
+        _cpm.string_to_datetime = _string_to_datetime_compat
+        _cpi.string_to_datetime = _string_to_datetime_compat
+    except Exception:
+        pass  # calliope.backend.pyomo not available — skip
+
+    # ── APPSI solver_io + warmstart compatibility patch ──────────────────────
+    # calliope 0.6.8 / Pyomo 6.4+ incompatibilities in solve_model():
+    #
+    #   1. SolverFactory('appsi_highs', solver_io=None) — APPSI __init__ rejects
+    #      solver_io as a keyword arg, causing Pyomo to return UnknownSolver.
+    #      Fix: patch the SolverFactory *name* in calliope's model module so
+    #      solver_io is stripped before the APPSI constructor is called.
+    #
+    #   2. opt.solve(backend_model, warmstart=...) — APPSI solve() rejects warmstart.
+    #      calliope only strips it when solver in ["glpk","cbc"], missing appsi_highs.
+    #      Fix: patch solve_model to drop warmstart from solve_kwargs for APPSI.
+    #
+    # Both patches guard against double-application across multiple model runs.
+    try:
+        import calliope.backend.pyomo.model as _cpm
+        _APPSI_SOLVERS = frozenset(('appsi_highs', 'highs_direct'))
+
+        # ── Patch 1: SolverFactory — strip solver_io for APPSI solvers ──────
+        if not getattr(_cpm.SolverFactory, '_appsi_patched', False):
+            _orig_sf = _cpm.SolverFactory
+
+            def _appsi_aware_solver_factory(solver_name, **kwargs):
+                if solver_name in _APPSI_SOLVERS:
+                    kwargs.pop('solver_io', None)
+                return _orig_sf(solver_name, **kwargs)
+
+            _appsi_aware_solver_factory._appsi_patched = True
+            _cpm.SolverFactory = _appsi_aware_solver_factory
+
+        # ── Patch 2: solve_model — strip warmstart for APPSI; fix opt.name ──
+        # solve_model returns (results, opt) — a 2-tuple.
+        # calliope/backend/run.py accesses `opt.name` directly, but
+        # Pyomo 6.4+ APPSI LegacySolver has no .name attribute.
+        # We inject .name into the opt object inside the returned tuple so
+        # run.py never sees a missing attribute — no file writes needed,
+        # works regardless of UAC/AV restrictions on site-packages.
+        if not getattr(_cpm.solve_model, '_appsi_patched', False):
+            _orig_solve_model = _cpm.solve_model
+
+            def _appsi_aware_solve_model(
+                backend_model,
+                solver,
+                solver_io=None,
+                solver_options=None,
+                save_logs=False,
+                opt=None,
+                **solve_kwargs,
+            ):
+                if solver in _APPSI_SOLVERS:
+                    solve_kwargs.pop('warmstart', None)
+                result = _orig_solve_model(
+                    backend_model,
+                    solver,
+                    solver_io=solver_io,
+                    solver_options=solver_options,
+                    save_logs=save_logs,
+                    opt=opt,
+                    **solve_kwargs,
+                )
+                # result is (results, opt) — 2-tuple.  Add .name to opt if
+                # the Pyomo 6.4+ APPSI LegacySolver object is missing it.
+                if isinstance(result, tuple) and len(result) >= 2:
+                    _opt_out = result[1]
+                    if _opt_out is not None and not hasattr(_opt_out, 'name'):
+                        try:
+                            _opt_out.name = ''
+                        except Exception:
+                            pass
+                return result
+
+            _appsi_aware_solve_model._appsi_patched = True
+            _cpm.solve_model = _appsi_aware_solve_model
+    except Exception:
+        pass  # calliope.backend.pyomo.model not available — skip
+    # ────────────────────────────────────────────────────────────────────────
+
+    # ── get_var Pyomo 6.4+ index_set name compatibility patch ────────────────
+    # calliope 0.6.8 uses this logic to determine dim names for each variable:
+    #   if var + "_index" == index_set().name: dims = [s.name for s in subsets()]
+    #   else: dims = [index_set().name]   <-- Pyomo 6.2 assumption
+    # In Pyomo 6.4+, multi-dimensional index sets are named 'SetProduct_OrderedSet'
+    # (an internal name) instead of var + "_index".  The else-branch then uses
+    # 'SetProduct_OrderedSet' as the single dim name, which leaks into DataArray
+    # coordinates and breaks postprocess/results.py lookups.
+    # Fix: replace the dims logic so that when index_set().name is NOT the
+    # calliope-expected name, we always fall back to the subsets, which still
+    # carry the correct calliope set names ('loc_tech_carriers_prod', 'timesteps',…).
+    try:
+        import calliope.backend.pyomo.util as _cpu
+        import calliope.backend.pyomo.model as _cpm_gv
+        if not getattr(_cpu.get_var, '_dims_patched', False):
+            _orig_get_var = _cpu.get_var
+
+            def _get_var_safe(backend_model, var, dims=None, sparse=False, expr=False):
+                if not dims:
+                    try:
+                        var_container = getattr(backend_model, var)
+                        idx_set = var_container.index_set()
+                        idx_name = idx_set.name
+                        if var + '_index' == idx_name:
+                            # Original calliope 0.6.8 / Pyomo 6.2 path
+                            dims = [s.name for s in idx_set.subsets()]
+                        else:
+                            # Pyomo 6.4+: always try subsets; fall back to the
+                            # set name only when there's exactly one subset.
+                            try:
+                                subs = list(idx_set.subsets())
+                                dims = [s.name for s in subs] if len(subs) > 0 else [idx_name]
+                            except Exception:
+                                dims = [idx_name]
+                    except Exception:
+                        pass  # let original handle it
+                return _orig_get_var(backend_model, var, dims=dims, sparse=sparse, expr=expr)
+
+            _get_var_safe._dims_patched = True
+            _cpu.get_var = _get_var_safe
+            if getattr(_cpm_gv, 'get_var', None) is _orig_get_var:
+                _cpm_gv.get_var = _get_var_safe
+    except Exception:
+        pass  # calliope.backend.pyomo.util not available — skip
+    # ────────────────────────────────────────────────────────────────────────
+
+    # ── Calliope split_loc_techs MultiIndex robustness patch ────────────────
+    # split_loc_techs is imported *by name* in 5 separate modules — patch all.
+    try:
+        import calliope.core.util.dataset as _cds
+        if not getattr(_cds.split_loc_techs, '_safe_patched', False):
+            _split_orig = _cds.split_loc_techs
+            def _split_loc_techs_safe(data_var, return_as='DataArray'):
+                loc_tech_dim = [i for i in data_var.dims if 'loc_tech' in i]
+                if not loc_tech_dim:
+                    loc_tech_dim = [i for i in data_var.dims if 'loc_carrier' in i]
+                if loc_tech_dim:
+                    _possible = ['loc', 'tech', 'carrier']
+                    dim        = loc_tech_dim[0]
+                    expected   = len([i for i in _possible if i in dim])
+                    if expected > 0:
+                        idx_vals   = data_var[dim].to_index()
+                        index_list = idx_vals.str.split('::').tolist()
+                        if any(len(t) != expected for t in index_list):
+                            fixed = []
+                            for t in index_list:
+                                if len(t) == expected:
+                                    fixed.append(t)
+                                elif len(t) > expected:
+                                    fixed.append(t[:expected])
+                                else:
+                                    fixed.append(t + ['unknown'] * (expected - len(t)))
+                            safe_vals = ['::'.join(t) for t in fixed]
+                            data_var  = data_var.assign_coords({dim: safe_vals})
+                return _split_orig(data_var, return_as)
+            _split_loc_techs_safe._safe_patched = True
+            _cds.split_loc_techs = _split_loc_techs_safe
+            import importlib as _il
+            for _modname in (
+                'calliope.core.io',
+                'calliope.backend.run',
+                'calliope.core.model',
+                'calliope.postprocess.results',
+                'calliope.time.masks',
+            ):
+                try:
+                    _m = _il.import_module(_modname)
+                    if getattr(_m, 'split_loc_techs', None) is _split_orig:
+                        _m.split_loc_techs = _split_loc_techs_safe
+                except Exception:
+                    pass
+    except Exception:
+        pass  # calliope not importable or already patched
+    # ────────────────────────────────────────────────────────────────────────
 
     # Inject bundled CBC so Pyomo can find it without a system-wide install
     _setup_bundled_solver()
@@ -1005,36 +1281,170 @@ def _run_model_impl(model_data, work_dir):
     technologies = model_data.get('technologies', [])
     loc_tech_assign = model_data.get('locationTechAssignments', {})
     parameters = model_data.get('parameters') or []
-    solver = model_data.get('solver', 'cbc')   # default: CBC (free, open-source, bundled)
+    solver = model_data.get('solver') or 'highs'  # None/'' from DB → default to 'highs'
+    # Normalise 'highs' → 'appsi_highs': HiGHS is installed as the Python package
+    # highspy, not as a standalone binary.  'appsi_highs' is the correct Pyomo solver
+    # name for the highspy-backed APPSI interface (shutil.which('highs') always fails).
+    if solver == 'highs':
+        solver = 'appsi_highs'
     overrides = model_data.get('overrides') or {}
     scenarios = model_data.get('scenarios') or {}
     model_config_payload = model_data.get('modelConfig') or {}  # from Run.jsx UI
 
     # ------------------------------------------------------------------
     # Solver availability check — fall back gracefully when the requested
-    # binary is not on PATH (e.g. 'highs' in the Docker container which
-    # only has coinor-cbc installed).
+    # solver is not available.
     # ------------------------------------------------------------------
     import shutil as _shutil
+
+    # Binary-based solvers: presence checked via shutil.which.
+    # Note: 'highs' is not listed here — HiGHS is a Python package (highspy)
+    # and is always checked via _pyomo_solver_ok('appsi_highs') instead.
     _SOLVER_BINARIES = {
-        'highs':       ['highs'],
-        'cbc':         ['cbc', 'cbc.exe'],
-        'glpk':        ['glpsol'],
-        'gurobi':      ['gurobi_cl'],
-        'cplex':       ['cplex'],
-        'highs_direct': ['highs'],
+        'cbc':    ['cbc', 'cbc.exe'],
+        'glpk':   ['glpsol'],
+        'gurobi': ['gurobi_cl', 'gurobi'],
+        'cplex':  ['cplex'],
     }
+    # Commercial solvers - for these we do an extra license/functional check
+    # to avoid selecting a solver that is on PATH but has no valid license.
+    _COMMERCIAL_SOLVERS = frozenset(('gurobi', 'cplex'))
+
+    def _commercial_solver_licensed(name):
+        """Quick sanity-check that a commercial solver binary actually responds
+        without a licence error.  Returns False on any doubt."""
+        import subprocess as _sp
+        binary = (_SOLVER_BINARIES.get(name) or [name])[0]
+        try:
+            r = _sp.run([binary, '--version'], capture_output=True, text=True, timeout=8)
+            out = (r.stdout + r.stderr).lower()
+            # Gurobi/CPLEX print 'error' or 'license' when unlicensed
+            if 'error' in out and ('license' in out or 'no license' in out or '10009' in out):
+                return False
+            return r.returncode == 0
+        except Exception:
+            return False
+
+    def _pyomo_solver_ok(name):
+        """Return True only when Pyomo APPSI solver is registered AND available.
+        Must import pyomo.environ first to trigger plugin registration.
+        Must call s.available() — type check alone is NOT sufficient.
+
+        Critical for appsi_highs / highs_direct: Pyomo's APPSI framework
+        registers an AppsiHighs object even when the 'highspy' Python package
+        is not installed, and some Pyomo versions return available()=True
+        spuriously.  We guard against this by verifying the package is
+        importable before trusting the Pyomo availability check."""
+        try:
+            # For HiGHS-backed solvers, confirm the Python package is present
+            # BEFORE asking Pyomo — avoids a false positive on environments
+            # where Pyomo is installed but highspy is not (e.g. Python 3.8
+            # containers where no highspy wheel exists).
+            if name in ('appsi_highs', 'highs_direct'):
+                try:
+                    import highspy  # noqa
+                except ImportError:
+                    return False
+            import pyomo.environ  # noqa — registers all solver plugins
+            from pyomo.opt import SolverFactory as _SF
+            s = _SF(name)
+            if type(s).__name__ == 'UnknownSolver':
+                return False
+            # available() returns True/False or the string 'NotFound'
+            try:
+                avail = s.available(exception_flag=False)
+            except TypeError:
+                avail = s.available()  # older Pyomo API without exception_flag
+            return avail is True
+        except Exception:
+            return False
+
     def _solver_available(name):
-        for binary in _SOLVER_BINARIES.get(name, [name]):
+        # APPSI/plugin solvers: use Pyomo's own readiness test
+        if name in ('highs_direct', 'appsi_highs'):
+            return _pyomo_solver_ok(name)
+        # Commercial solvers: binary must exist AND respond without licence error
+        if name in _COMMERCIAL_SOLVERS:
+            return bool(_shutil.which((_SOLVER_BINARIES.get(name) or [name])[0])) \
+                   and _commercial_solver_licensed(name)
+        for binary in (_SOLVER_BINARIES.get(name) or [name]):
             if _shutil.which(binary):
                 return True
         return False
 
     if not _solver_available(solver):
-        fallbacks = ['cbc', 'glpk']
+        # Free-solver fallback chain only — never auto-fall back to commercial
+        # solvers (Gurobi/CPLEX) that may be on PATH but unlicensed.
+        fallbacks = ['highs_direct', 'appsi_highs', 'cbc', 'glpk']
         original = solver
-        solver = next((s for s in fallbacks if _solver_available(s)), 'cbc')
-        log(f"  WARNING: solver '{original}' not found on PATH — falling back to '{solver}'")
+        solver = next((s for s in fallbacks if _solver_available(s)), None)
+        if solver is None:
+            raise RuntimeError(
+                f"No solver available (requested: '{original}'). "
+                "Open TEMPO's setup screen and install CBC, or run "
+                "scripts/download_cbc.ps1 to download the CBC solver binary."
+            )
+        log(f"  WARNING: solver '{original}' not available — falling back to '{solver}'")
+
+    # ------------------------------------------------------------------
+    # CBC smoke-test: verify the binary actually starts up.
+    # shutil.which() only confirms the file exists; it cannot detect missing
+    # MSVC DLL dependencies (VC++ Redistributable) or wrong architecture.
+    # Running `cbc --version` is the cheapest reliable test.
+    # ------------------------------------------------------------------
+    if solver == 'cbc':
+        import subprocess as _sp
+        _cbc_bin = _shutil.which('cbc') or _shutil.which('cbc.exe') or 'cbc'
+        _cbc_ok = False
+        _cbc_fail_msg = None
+        try:
+            _sp_kwargs = dict(capture_output=True, text=False, timeout=15)
+            # Suppress Windows Error Reporting dialog boxes for missing-DLL crashes
+            if sys.platform == 'win32':
+                _sp_kwargs['creationflags'] = 0x08000000  # CREATE_NO_WINDOW
+            _r = _sp.run([_cbc_bin, '--version'], **_sp_kwargs)
+            _out = (_r.stdout + _r.stderr).decode('utf-8', errors='replace').strip()
+            if _r.returncode == 0 or 'cbc' in _out.lower() or 'coin' in _out.lower():
+                log(f"  CBC smoke-test passed: {_out.splitlines()[0] if _out else 'OK'}")
+                _cbc_ok = True
+            else:
+                _cbc_fail_msg = (
+                    f"CBC binary at '{_cbc_bin}' failed to start (exit {_r.returncode}). "
+                    "This usually means the Microsoft Visual C++ 2022 Redistributable "
+                    "is not installed. Fix: install VC++ Redistributable from Microsoft, "
+                    "then re-download CBC via Settings → Python Environment."
+                )
+                log(f"  WARNING: {_cbc_fail_msg}")
+        except FileNotFoundError:
+            _cbc_fail_msg = (
+                f"CBC binary '{_cbc_bin}' not found after PATH setup. "
+                "Re-run the TEMPO Setup wizard to download CBC."
+            )
+            log(f"  WARNING: {_cbc_fail_msg}")
+        except Exception as _e:
+            _cbc_fail_msg = f"CBC smoke-test error: {_e}"
+            log(f"  WARNING: {_cbc_fail_msg}")
+
+        if not _cbc_ok:
+            # CBC is broken — try to fall back to another solver.
+            # Use the same _solver_available() / _pyomo_solver_ok() that is used for
+            # the initial solver selection.  This is safe for HiGHS: unlike CBC
+            # (a Win32 binary with MSVC dependencies), highspy is a self-contained
+            # Python wheel.  _pyomo_solver_ok() catches all Python-level exceptions
+            # and does a real availability check (not just find_spec).
+            _cbc_fallbacks = ['highs_direct', 'appsi_highs', 'glpk']
+            _fb = next((s for s in _cbc_fallbacks if _solver_available(s)), None)
+            if _fb:
+                log(f"  Falling back to '{_fb}' solver because CBC could not start.")
+                solver = _fb
+            else:
+                raise RuntimeError(
+                    f"{_cbc_fail_msg}\n\n"
+                    "No fallback solver (HiGHS, GLPK) is available either.\n"
+                    "Reinstall the Python environment from TEMPO Settings to get a\n"
+                    "working HiGHS solver, or install the Microsoft Visual C++ 2022\n"
+                    "Redistributable to fix CBC."
+                )
 
     log(f"Building model '{model_name}'")
     log(f"  Locations: {len(locations)}  Technologies: {len(technologies)}  Links: {len(links)}")
@@ -1183,19 +1593,62 @@ def _run_model_impl(model_data, work_dir):
         f.write(dump_yaml(locations_doc))
     log("  Wrote locations.yaml")
 
-    # Solver-specific options
-    solver_options = {}
-    if solver in ('highs', 'highs_direct'):
-        solver_options = {
-            'mip_rel_gap': 1e-3,
-            'primal_feasibility_tolerance': 1e-6,
-            'dual_feasibility_tolerance': 1e-6,
-            'ipm_optimality_tolerance': 1e-6,
-        }
-    elif solver in ('cbc',):
-        solver_options = {'ratioGap': 1e-3}
-    elif solver == 'glpk':
-        solver_options = {'mipgap': 1e-3}
+    # ── Canonical option-key mappings per solver ─────────────────────────────
+    # Each solver only accepts its own option names.  We define both the default
+    # options to inject and the camelCase→solver mapping for UI overrides in one
+    # place so there is a single source of truth.
+    #
+    # Key "mip_gap" is a unified camelCase alias accepted from both the frontend
+    # UI and model metadata (YAML import).  It is mapped to the solver-specific
+    # key by the dict below.
+    _SOLVER_INFO = {
+        # solver:  (default_options, unified_key→solver_key map)
+        'highs_direct': (
+            {'mip_rel_gap': 1e-3, 'primal_feasibility_tolerance': 1e-6,
+             'dual_feasibility_tolerance': 1e-6, 'ipm_optimality_tolerance': 1e-6},
+            {'mipGap': 'mip_rel_gap', 'threads': 'threads', 'timeLimit': 'time_limit',
+             'primalTol': 'primal_feasibility_tolerance', 'dualTol': 'dual_feasibility_tolerance'},
+        ),
+        'appsi_highs': (
+            {'mip_rel_gap': 1e-3, 'primal_feasibility_tolerance': 1e-6,
+             'dual_feasibility_tolerance': 1e-6, 'ipm_optimality_tolerance': 1e-6},
+            {'mipGap': 'mip_rel_gap', 'threads': 'threads', 'timeLimit': 'time_limit',
+             'primalTol': 'primal_feasibility_tolerance', 'dualTol': 'dual_feasibility_tolerance'},
+        ),
+        'highs': (
+            {'mip_rel_gap': 1e-3},
+            {'mipGap': 'mip_rel_gap', 'threads': 'threads', 'timeLimit': 'time_limit'},
+        ),
+        'cbc': (
+            {'ratioGap': 1e-3},
+            {'mipGap': 'ratioGap', 'threads': 'threads', 'timeLimit': 'seconds'},
+        ),
+        'glpk': (
+            {'mipgap': 1e-3},
+            {'mipGap': 'mipgap'},
+        ),
+        'gurobi': (
+            {'MIPGap': 1e-3},
+            {'mipGap': 'MIPGap', 'threads': 'Threads', 'method': 'Method',
+             'feasibilityTol': 'FeasibilityTol', 'optimalityTol': 'OptimalityTol',
+             'barConvTol': 'BarConvTol', 'numericFocus': 'NumericFocus',
+             'crossover': 'Crossover', 'barHomogeneous': 'BarHomogeneous',
+             'presolve': 'Presolve', 'seed': 'Seed'},
+        ),
+        'cplex': (
+            {'epgap': 1e-3},
+            {'mipGap': 'epgap', 'threads': 'threads', 'timeLimit': 'timelimit'},
+        ),
+    }
+
+    _defaults, _key_map = _SOLVER_INFO.get(solver, ({}, {}))
+
+    # Valid option keys for the selected solver — used to strip unrelated keys
+    # that may be present in imported YAML metadata (e.g. Gurobi keys when we
+    # fall back to CBC).
+    _valid_keys = set(_key_map.values()) | set(_defaults.keys())
+
+    solver_options = dict(_defaults)  # start from per-solver defaults
 
     run_cfg = {
         'solver': solver,
@@ -1215,44 +1668,35 @@ def _run_model_impl(model_data, work_dir):
     if model_config_payload.get('cyclicStorage') is not None:
         run_cfg['cyclic_storage'] = bool(model_config_payload['cyclicStorage'])
 
-    # Also honour mode/ensure_feasibility stored in model metadata.runConfig
-    # (populated from Calliope YAML import) — only if UI did not explicitly set them.
+    # Also honour mode stored in model metadata.runConfig
+    # (populated from Calliope YAML import) — only if UI did not explicitly set it.
     _meta_run = (model_data.get('metadata') or {}).get('runConfig') or {}
     if not model_config_payload.get('mode') and _meta_run.get('mode') in ('plan', 'operate'):
         run_cfg['mode'] = _meta_run['mode']
-    if model_config_payload.get('ensureFeasibility') is None and _meta_run.get('ensure_feasibility') is not None:
-        run_cfg['ensure_feasibility'] = bool(_meta_run['ensure_feasibility'])
+    # NOTE: ensure_feasibility=False is intentionally NOT inherited from templates.
+    # Templates for commercial solvers (Gurobi) set it False; free solvers crash
+    # without the unmet_demand slack variable.  The UI can still override via
+    # modelConfig.ensureFeasibility (already applied above).
 
     if solver_options:
         run_cfg['solver_options'] = solver_options
 
-    # Merge solver_options from model metadata.runConfig.solver_options (YAML import)
-    # — only when no explicit UI solver_options override.
+    # Merge solver_options from model metadata.runConfig.solver_options (YAML import).
+    # IMPORTANT: only keep keys that are valid for the *current* solver — the
+    # template may have been authored for a different solver (e.g. Gurobi) and
+    # blindly inheriting its keys (Method, Crossover…) causes Pyomo to crash.
     ui_solver_opts = model_config_payload.get('solverOptions') or {}
     meta_solver_opts = _meta_run.get('solver_options') or {}
     if meta_solver_opts and not ui_solver_opts:
-        run_cfg['solver_options'] = {**run_cfg.get('solver_options', {}), **meta_solver_opts}
+        filtered_meta = {k: v for k, v in meta_solver_opts.items() if k in _valid_keys}
+        if filtered_meta:
+            run_cfg['solver_options'] = {**run_cfg.get('solver_options', {}), **filtered_meta}
 
     # Apply UI solver_options (highest priority), mapping camelCase → solver-specific keys.
     if ui_solver_opts:
-        _GUROBI_MAP = {
-            'threads': 'Threads', 'method': 'Method', 'mipGap': 'MIPGap',
-            'feasibilityTol': 'FeasibilityTol', 'optimalityTol': 'OptimalityTol',
-            'barConvTol': 'BarConvTol', 'numericFocus': 'NumericFocus',
-            'crossover': 'Crossover', 'barHomogeneous': 'BarHomogeneous',
-            'presolve': 'Presolve', 'aggFill': 'AggFill', 'preDual': 'PreDual',
-            'rins': 'RINS', 'nodefileStart': 'NodefileStart', 'seed': 'Seed',
-        }
-        _CBC_MAP    = {'mipGap': 'ratioGap', 'threads': 'threads', 'timeLimit': 'seconds'}
-        _HIGHS_MAP  = {'mipGap': 'mip_rel_gap', 'threads': 'threads', 'timeLimit': 'time_limit'}
-        _GLPK_MAP   = {'mipGap': 'mipgap'}
-        _SOLVER_KEY_MAP = {'gurobi': _GUROBI_MAP, 'cplex': _GUROBI_MAP,
-                           'cbc': _CBC_MAP, 'highs': _HIGHS_MAP, 'highs_direct': _HIGHS_MAP,
-                           'glpk': _GLPK_MAP}
-        key_map = _SOLVER_KEY_MAP.get(solver, _GUROBI_MAP)
         mapped = {}
         for ui_key, ui_val in ui_solver_opts.items():
-            mapped_key = key_map.get(ui_key)
+            mapped_key = _key_map.get(ui_key)
             if mapped_key is not None:
                 mapped[mapped_key] = ui_val
         if mapped:
@@ -1264,7 +1708,12 @@ def _run_model_impl(model_data, work_dir):
             'name': model_name,
             'calliope_version': '0.6.8',
             'timeseries_data_path': 'model_config',
-            'subset_time': [time_start, time_end],
+            # Pandas >= 2.0 requires full %Y-%m-%d %H:%M:%S format for strptime;
+            # bare YYYY-MM-DD strings cause a ValueError in Calliope's timeseries subset.
+            'subset_time': [
+                f'{str(time_start)[:10]} 00:00:00',
+                f'{str(time_end)[:10]} 23:00:00',
+            ],
         },
         'run': run_cfg,
     }
@@ -1284,7 +1733,29 @@ def _run_model_impl(model_data, work_dir):
     log("Loading Calliope model …")
     model = calliope.Model(str(model_yaml_path))
     log(f"Running optimisation with solver={solver} …")
-    model.run()
+    try:
+        model.run()
+    except Exception as _run_exc:
+        _exc_str = str(_run_exc)
+        # Pyomo raises this when CBC (or any subprocess solver) exits without
+        # producing a solution file — most common causes on Windows:
+        #   1) Missing MSVC DLL dependencies  2) Temp-file path encoding issue
+        #   3) Model is numerically infeasible despite ensure_feasibility=True
+        if 'did not exit normally' in _exc_str or ('Solver (' in _exc_str and 'exit' in _exc_str):
+            raise RuntimeError(
+                f"The {solver.upper()} solver failed to produce a solution.\n"
+                "Common causes:\n"
+                "  • Missing Visual C++ 2022 Redistributable (most common on Windows)\n"
+                "  • The downloaded CBC binary does not match your system architecture\n"
+                "  • Model is numerically infeasible (try a different solver or check constraints)\n"
+                "  • Temp-directory path contains special characters\n\n"
+                f"Original error: {_exc_str}\n\n"
+                "Suggested fixes:\n"
+                "  1) Install Microsoft Visual C++ 2022 Redistributable from Microsoft\n"
+                "  2) Re-download CBC via Settings → Python Environment\n"
+                "  3) Switch to 'highs' solver in the Run configuration"
+            ) from _run_exc
+        raise  # unknown error — propagate as-is
     log("Optimisation finished. Extracting results …")
 
     # ------------------------------------------------------------------

@@ -191,13 +191,18 @@ def _run_job_thread(job_id: str, model_data: dict) -> None:
         # the browser EventSource with a 50-100 MB JSON blob.
         summary = {k: v for k, v in result.items() if k not in _HEAVY_KEYS}
         _push({"type": "done", "result": summary})
-    except Exception as exc:
+    except BaseException as exc:  # catch SystemExit, KeyboardInterrupt etc. too
         import traceback as _tb
         tb = _tb.format_exc()
-        _log_fn(f"ERROR: {exc}")
-        _push({"type": "error", "error": str(exc), "traceback": tb})
+        err_msg = str(exc) if str(exc) else repr(exc)
+        _log_fn(f"ERROR: {err_msg}")
+        _push({"type": "error", "error": err_msg, "traceback": tb})
         with _jobs_lock:
             job.update(status="error", finished_at=time.time())
+        # Re-raise SystemExit/KeyboardInterrupt so the service can shut down cleanly.
+        # Regular exceptions (RuntimeError, ValueError, etc.) are swallowed here.
+        if isinstance(exc, (SystemExit, KeyboardInterrupt)):
+            raise
     finally:
         _stop_stats.set()
         shutil.rmtree(work_dir, ignore_errors=True)
@@ -267,7 +272,15 @@ async def stream_run(job_id: str) -> StreamingResponse:
         # Immediately confirm connection
         yield ": connected\n\n"
         while True:
-            event = await async_queue.get()
+            # Use a timeout so we can send SSE keepalive comments periodically.
+            # This prevents intermediate proxies and EventSource implementations
+            # from closing an idle connection while the solver is crunching numbers.
+            try:
+                event = await asyncio.wait_for(async_queue.get(), timeout=15.0)
+            except asyncio.TimeoutError:
+                # No event yet — send a keepalive comment and loop
+                yield ": keepalive\n\n"
+                continue
             yield f"data: {json.dumps(event)}\n\n"
             if event.get("type") in ("done", "error"):
                 break

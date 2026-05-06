@@ -597,7 +597,7 @@ curl "$BASE/adapt/pypsa/ccgt?instance_index=0&discount_rate=0.07"`}
                 OpenModelica Simulation Services
               </h2>
               <p className="text-lg text-neutral-500 max-w-3xl">
-                Physics-based simulation engines for hydrogen production and carbon capture plants —
+                Physics-based simulation engines for hydrogen production and carbon capture plants
                 backed by <strong className="text-black">OpenModelica</strong> component libraries,
                 exposed as Docker-ready REST/WebSocket APIs and integrated directly into the TEMPO frontend.
               </p>
@@ -624,11 +624,11 @@ curl "$BASE/adapt/pypsa/ccgt?instance_index=0&discount_rate=0.07"`}
                   <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-neutral-400 mb-3">Modelica Components</p>
                   <div className="grid grid-cols-2 gap-2">
                     {[
-                      { name: 'Electrolyzer.mo', desc: 'PEM / Alkaline / SOEC / AEM — partial-load efficiency curves' },
-                      { name: 'Compressor.mo', desc: 'Multi-stage H₂ compression  350 – 700 bar' },
-                      { name: 'Storage.mo', desc: 'Compressed H₂ tank — ideal gas model' },
-                      { name: 'FuelCell.mo', desc: 'PEM / SOFC — polarisation curves' },
-                      { name: 'CompleteSystem.mo', desc: 'Integrated full-plant system model' },
+                      { name: 'Electrolyzer', desc: 'PEM / Alkaline / SOEC / AEM — partial-load efficiency curves' },
+                      { name: 'Compressor', desc: 'Multi-stage H₂ compression  350 – 700 bar' },
+                      { name: 'Storage', desc: 'Compressed H₂ tank — ideal gas model' },
+                      { name: 'FuelCell', desc: 'PEM / SOFC — polarisation curves' },
+                      { name: 'CompleteSystem', desc: 'Integrated full-plant system model' },
                     ].map(c => (
                       <div key={c.name} className="bg-neutral-50 border border-neutral-100 p-3">
                         <p className="text-[11px] font-mono font-semibold text-black">{c.name}</p>
@@ -712,8 +712,7 @@ curl "$BASE/adapt/pypsa/ccgt?instance_index=0&discount_rate=0.07"`}
               <div className="p-8 border-b md:border-b-0 md:border-r border-neutral-200">
                 <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-neutral-400 mb-3">Open-Source Engine</p>
                 <p className="text-sm text-neutral-600">
-                  Both services use <strong className="text-black">OpenModelica</strong> (OSMC Public License) —
-                  no MATLAB licence required, fully Docker-friendly with a mock-fallback mode for development.
+                  Both services use <strong className="text-black">OpenModelica</strong> (OSMC Public License)
                 </p>
               </div>
               <div className="p-8 border-b md:border-b-0 md:border-r border-neutral-200">

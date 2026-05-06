@@ -110,8 +110,10 @@ const HeroSection = React.forwardRef(
                     <a
                       key={dl.label}
                       href={dl.href}
+                      
                       className="inline-flex items-center gap-2 bg-primary text-on-primary px-5 py-3 text-sm font-bold tracking-wide hover:opacity-80 transition-opacity"
                     >
+                      <span className="material-symbols-outlined text-2xl mb-1">desktop_windows</span>
                       {dl.label}
                       {dl.sub && <span className="text-[10px] font-normal opacity-70 ml-1">{dl.sub}</span>}
                     </a>

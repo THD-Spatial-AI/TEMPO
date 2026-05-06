@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { FiCheckCircle, FiAlertCircle, FiLoader, FiTerminal, FiRefreshCw, FiClock, FiPlay, FiBox, FiDownload } from 'react-icons/fi';
+import { FiCheckCircle, FiAlertCircle, FiLoader, FiTerminal, FiRefreshCw, FiClock, FiPlay, FiBox, FiDownload, FiZap, FiInfo, FiCpu } from 'react-icons/fi';
 
 // ── Status icon ───────────────────────────────────────────────────────────────
 function ServiceIcon({ running, healthy }) {
@@ -36,12 +36,16 @@ function ServiceRow({ svc }) {
  * If all required services are up → calls onComplete() immediately.
  * Otherwise shows service status + a "Start Services" button.
  */
-export default function SetupScreen({ onComplete }) {
+export default function SetupScreen({ onComplete, freshInstall = false }) {
   const [phase, setPhase] = useState('checking');  // 'checking' | 'ready' | 'needs-start' | 'starting' | 'done' | 'error'
   const [dockerAvailable, setDockerAvailable] = useState(true);
   const [services, setServices] = useState([]);
   const [logs, setLogs] = useState([]);
   const [errorMsg, setErrorMsg] = useState('');
+  // No module selection needed — always install calliope only
+  const selectedModules = ['calliope'];
+  // Platform from calliope:check (set during initial status check)
+  const [platform, setPlatform] = useState('');
   const logEndRef = useRef(null);
   const unsubRef  = useRef(null);
 
@@ -57,6 +61,18 @@ export default function SetupScreen({ onComplete }) {
     if (!window.electronAPI) { onComplete(); return; }
 
     try {
+      // ── Fresh install: ALWAYS show the install UI, never auto-skip ──────────
+      // Even if the old env is healthy and services are still running from a
+      // previous installation, a fresh install must go through the full wizard
+      // so the user can choose modules and we create a brand-new environment.
+      if (freshInstall) {
+        const calliopeEnv = await window.electronAPI.checkCalliopeEnv()
+          .catch(() => ({ envExists: false, serviceRunning: false, platform: '' }));
+        if (calliopeEnv.platform) setPlatform(calliopeEnv.platform);
+        setPhase('native-needs-install');
+        return;
+      }
+
       const [dockerResult, serviceURLs, calliopeEnv] = await Promise.all([
         window.electronAPI.getDockerStatus().catch(() => ({ dockerAvailable: false, services: [] })),
         window.electronAPI.getServiceURLs().catch(() => null),
@@ -65,9 +81,12 @@ export default function SetupScreen({ onComplete }) {
 
       setDockerAvailable(dockerResult.dockerAvailable);
       setServices(dockerResult.services || []);
+      if (calliopeEnv.platform) setPlatform(calliopeEnv.platform);
 
-      // Native mode: backend + calliope service are both up (no Docker needed)
-      if (serviceURLs?.backend?.running && serviceURLs?.calliope?.running) {
+      // Native mode: backend + calliope service are both up (no Docker needed).
+      // envExists must also be true — the port being open from a PREVIOUS broken
+      // install is not sufficient; the venv packages must be actually healthy.
+      if (serviceURLs?.backend?.running && serviceURLs?.calliope?.running && calliopeEnv.envExists) {
         setPhase('done');
         setTimeout(onComplete, 600);
         return;
@@ -113,7 +132,7 @@ export default function SetupScreen({ onComplete }) {
       setPhase('error');
       setErrorMsg(err.message || 'Failed to check services.');
     }
-  }, [onComplete]);
+  }, [onComplete, freshInstall]);
 
   useEffect(() => { checkStatus(); }, [checkStatus]);
 
@@ -176,7 +195,7 @@ export default function SetupScreen({ onComplete }) {
       }
     });
     unsubRef.current = unsub;
-    window.electronAPI.installCalliopeEnv();
+    window.electronAPI.installCalliopeEnv(selectedModules, false);
   };
 
   // ── Renders ───────────────────────────────────────────────────────────────
@@ -201,33 +220,71 @@ export default function SetupScreen({ onComplete }) {
   }
 
   if (phase === 'native-needs-install') {
+    const installFailed = !!errorMsg;
+
     return (
-      <FullScreenCard>
-        <div className="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center">
-          <FiDownload className="w-8 h-8 text-blue-500" />
+      <FullScreenCard wide>
+        <div className="w-14 h-14 rounded-full bg-white border-2 border-black flex items-center justify-center">
+          <FiDownload className="w-7 h-7 text-black" />
         </div>
-        <h2 className="mt-6 text-2xl font-semibold text-slate-800">First-time setup</h2>
-        <p className="mt-3 text-slate-500 text-sm text-center max-w-sm">
-          TEMPO needs to install the Calliope energy modelling environment.
-          This requires Python 3.9+ and an internet connection.
-          It only happens once.
+        <h2 className="mt-5 text-2xl font-bold text-black">Setup TEMPO</h2>
+        <p className="mt-2 text-gray-500 text-sm text-center max-w-md">
+          An internet connection and Python 3.9–3.11 are required.
+          Installation takes a few minutes and only needs to run once.
         </p>
-        {errorMsg && <p className="mt-2 text-sm text-red-500">{errorMsg}</p>}
+
+        {/* What gets installed */}
+        <div className="w-full mt-6 border border-gray-200 rounded-lg divide-y divide-gray-100">
+          <div className="flex items-center justify-between px-4 py-3">
+            <div>
+              <p className="text-sm font-semibold text-black">Calliope <span className="font-normal text-gray-400">0.6.8</span></p>
+              <p className="text-xs text-gray-400 mt-0.5">Energy system modelling &amp; optimisation</p>
+            </div>
+            <svg className="w-4 h-4 text-black flex-shrink-0" viewBox="0 0 12 12" fill="none">
+              <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
+          <div className="flex items-center justify-between px-4 py-3">
+            <div>
+              <p className="text-sm font-semibold text-black">HiGHS solver</p>
+              <p className="text-xs text-gray-400 mt-0.5">LP/MIP solver — installed as Python package, no binary needed</p>
+            </div>
+            <svg className="w-4 h-4 text-black flex-shrink-0" viewBox="0 0 12 12" fill="none">
+              <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
+        </div>
+
+        {/* Error panel */}
+        {installFailed && (
+          <div className="mt-4 w-full border border-black rounded-lg p-4 text-xs text-black">
+            <p className="font-semibold mb-1">Installation failed:</p>
+            <pre className="whitespace-pre-wrap break-all max-h-32 overflow-y-auto bg-gray-100 rounded p-2 text-gray-800">{errorMsg}</pre>
+            <p className="mt-2 text-gray-500">
+              Requires <strong className="text-black">Python 3.9–3.11</strong>.{' '}
+              <a href="https://www.python.org/downloads/release/python-3119/"
+                 className="underline text-black" target="_blank" rel="noreferrer">Download Python 3.11</a>
+              {' '}— check "Add Python to PATH", then click Retry.
+            </p>
+          </div>
+        )}
+
+        {/* Buttons */}
         <div className="flex gap-3 mt-6">
           <button
             onClick={installNative}
-            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl font-semibold shadow-md hover:from-blue-600 hover:to-blue-700 transition-all"
+            className="flex items-center gap-2 px-6 py-3 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors"
           >
-            <FiDownload className="w-4 h-4" /> Install Calliope
+            <FiDownload className="w-4 h-4" />
+            {installFailed ? 'Retry' : 'Install'}
           </button>
           <button
             onClick={onComplete}
-            className="flex items-center gap-2 px-5 py-3 border-2 border-slate-200 text-slate-500 rounded-xl font-semibold hover:bg-slate-50 transition-all"
+            className="flex items-center gap-2 px-5 py-3 border border-gray-300 text-gray-500 rounded-lg font-medium hover:bg-gray-50 transition-colors"
           >
-            Skip for now
+            Skip
           </button>
         </div>
-        <p className="mt-4 text-xs text-slate-400">Docker is not available — using native Python mode</p>
       </FullScreenCard>
     );
   }

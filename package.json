@@ -1,8 +1,8 @@
 {
-  "name": "calliope_visualizator",
+  "name": "tempo",
   "private": true,
-  "version": "0.0.0",
-  "description": "Energy System Optimization Visualizer with Calliope Integration",
+  "version": "1.0.0",
+  "description": "Tool for Energy Model Preparation and Optimization",
   "homepage": "https://github.com/TH-Deggendorf/TEMPO",
   "author": {
     "name": "TH Deggendorf",
@@ -62,6 +62,21 @@
         "from": "python",
         "to": "app.asar.unpacked/python",
         "filter": ["**/*", "!__pycache__/**", "!*.pyc"]
+      },
+      {
+        "from": "../opentech-db",
+        "to": "docker/opentech-db",
+        "filter": ["**/*", "!**/.git/**", "!**/.venv/**", "!**/.vscode/**", "!**/__pycache__/**", "!**/*.pyc"]
+      },
+      {
+        "from": "../ccssim",
+        "to": "docker/ccssim",
+        "filter": ["**/*", "!**/.git/**", "!**/.venv/**", "!**/.vscode/**", "!**/__pycache__/**", "!**/*.pyc"]
+      },
+      {
+        "from": "../hydrogenmatsim",
+        "to": "docker/hydrogenmatsim",
+        "filter": ["**/*", "!**/.git/**", "!**/.venv/**", "!**/.vscode/**", "!**/__pycache__/**", "!**/*.pyc"]
       }
     ],
     "win": {
@@ -115,7 +130,8 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "TEMPO"
+      "shortcutName": "TEMPO",
+      "include": "build/installer.nsh"
     },
     "electronLanguages": ["en-US", "en-GB", "de"]
   },

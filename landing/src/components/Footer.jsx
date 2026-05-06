@@ -119,11 +119,25 @@ export default function Footer({ dark = false }) {
 
       <div className={`max-w-7xl mx-auto mt-12 pt-8 border-t ${dark ? 'border-white/10' : 'border-neutral-100'} flex flex-col sm:flex-row justify-between items-center gap-4`}>
         <span className={`text-[10px] font-bold uppercase tracking-widest ${sub}`}>
-          © 2026 Technische Hochschule Deggendorf — BigGeoData & Spatial AI Research Group. All Rights Reserved.
+          © 2026 Technische Hochschule Deggendorf — BigGeoData &amp; Spatial AI Research Group. All Rights Reserved.
         </span>
-        <span className={`text-[10px] font-bold uppercase tracking-widest ${sub}`}>
-          MIT License
-        </span>
+        <div className="flex flex-wrap gap-4 items-center">
+          <span className={`text-[10px] font-bold uppercase tracking-widest ${sub}`}>
+            MIT License
+          </span>
+          <span className={`text-[10px] ${sub}`}>
+            Map data ©{' '}
+            <a
+              href="https://www.openstreetmap.org/copyright"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`underline ${linkClass}`}
+            >
+              OpenStreetMap contributors
+            </a>
+            {' '}— ODbL
+          </span>
+        </div>
       </div>
     </footer>
   )

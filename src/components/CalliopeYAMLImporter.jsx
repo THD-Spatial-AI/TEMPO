@@ -486,14 +486,16 @@ function translateCalliopeModel(mergedDoc, filesMap) {
         return base;
       })(),
       costs: (() => {
-        const baseMon = tech?.costs?.monetary || {};
+        const allCosts = tech?.costs || {};
+        const baseMon = allCosts.monetary || {};
         const inherited = {};
         // Inherit interest_rate from tech_groups chain if not set on this tech
         if (baseMon.interest_rate == null) {
           const ir = resolveNestedFromChain(rawParent, techGroupsRaw, ['costs', 'monetary', 'interest_rate']);
           if (ir != null) inherited.interest_rate = ir;
         }
-        return { monetary: { ...inherited, ...baseMon } };
+        // Preserve all cost classes (nos_score, excl_score, co2, etc.) — not just monetary
+        return { ...allCosts, monetary: { ...inherited, ...baseMon } };
       })(),
     };
   });
@@ -552,7 +554,7 @@ function translateCalliopeModel(mergedDoc, filesMap) {
   const subsetTime = normaliseSubsetTime(modelConf.subset_time);
   const tsPath     = modelConf.timeseries_data_path || 'timeseries_data';
   const runConfig  = {
-    solver:             runConf.solver             || 'cbc',
+    solver:             runConf.solver             || 'highs',
     mode:               runConf.mode               || 'plan',
     ensure_feasibility: !!runConf.ensure_feasibility,
     cyclic_storage:     runConf.cyclic_storage      ?? true,
