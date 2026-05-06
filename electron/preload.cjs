@@ -105,6 +105,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   getTechApiURL: () => ipcRenderer.invoke('tech:api-url'),
 
+  /**
+   * Check simulation services (CCS + Hydrogen) venv and port status.
+   * @returns Promise<{ ccssim: { venvExists, running }, hydrogensim: { venvExists, running } }>
+   */
+  checkSimEnvs: () => ipcRenderer.invoke('sim:check'),
+
+  /**
+   * Restart simulation services.
+   * @returns Promise<{ ccssim: bool, hydrogensim: bool }>
+   */
+  restartSimServices: () => ipcRenderer.invoke('sim:restart'),
+
   // ── Setup version tracking ────────────────────────────────────────────────
 
   /**
