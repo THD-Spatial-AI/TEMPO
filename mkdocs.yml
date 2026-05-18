@@ -140,6 +140,7 @@ nav:
   - Reference:
       - Technology Templates: reference/technology-templates.md
       - Backend API: reference/api-endpoints.md
+      - Codebase Reference: reference/codebase-reference.md
 
 # Copyright
 copyright: |

@@ -7,6 +7,8 @@ import DeckGL from '@deck.gl/react';
 import { ScatterplotLayer, LineLayer, IconLayer, GeoJsonLayer, PathLayer } from '@deck.gl/layers';
 import { FlyToInterpolator } from '@deck.gl/core';
 import { Map as MapGL } from 'react-map-gl/maplibre';
+import { canCreateWebGLContext, webglUnavailableMessage } from '../utils/webglSupport';
+import 'leaflet/dist/leaflet.css';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import GlobalDataPanel from './GlobalDataPanel';
 import OsmInfrastructurePanel from './OsmInfrastructurePanel';
@@ -841,7 +843,11 @@ const Creation = () => {
   const [showLayerSelector, setShowLayerSelector] = useState(false);
   const [hoveredInfo, setHoveredInfo] = useState(null);
   const [mapReady, setMapReady] = useState(false);
+  const [webglAvailable, setWebglAvailable] = useState(null);
+  const [webglErrorMsg, setWebglErrorMsg] = useState('');
   const deckRef = useRef(null);
+  const leafletMapRef = useRef(null);
+  const leafletContainerRef = useRef(null);
   const iconCache = useRef(new Map());
   const selectedForDragRef = useRef(null);
   
@@ -946,6 +952,114 @@ const Creation = () => {
       });
     });
   }, []);
+
+  useEffect(() => {
+    const available = canCreateWebGLContext();
+    setWebglAvailable(available);
+    if (!available) {
+      setWebglErrorMsg(webglUnavailableMessage());
+    }
+  }, []);
+
+  useEffect(() => {
+    if (webglAvailable !== false || !leafletContainerRef.current) return;
+    let destroyed = false;
+
+    const clearLeafletMap = () => {
+      if (leafletMapRef.current) {
+        leafletMapRef.current.remove();
+        leafletMapRef.current = null;
+      }
+    };
+
+    import('leaflet').then(({ default: leaflet }) => {
+      if (destroyed || !leafletContainerRef.current) return;
+      const L = leaflet;
+      clearLeafletMap();
+
+      const map = L.map(leafletContainerRef.current, {
+        zoomControl: true,
+        preferCanvas: true,
+      });
+      leafletMapRef.current = map;
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap contributors',
+      }).addTo(map);
+
+      const tempLocations = locationManager.tempLocations || [];
+      const tempLinks = locationManager.tempLinks || [];
+      const boundsPoints = [];
+
+      tempLocations.forEach(loc => {
+        boundsPoints.push([loc.latitude, loc.longitude]);
+        const techCount = Object.keys(loc.techs || {}).length;
+        L.circleMarker([loc.latitude, loc.longitude], {
+          radius: 7,
+          color: '#2563eb',
+          fillColor: '#3b82f6',
+          fillOpacity: 0.9,
+          weight: 2,
+        }).addTo(map).bindPopup(`<b>${loc.name || 'Location'}</b><br/>${techCount} tech${techCount === 1 ? '' : 's'}`);
+      });
+
+      tempLinks.forEach(link => {
+        const fromLoc = tempLocations.find(loc => loc.id === link.from);
+        const toLoc = tempLocations.find(loc => loc.id === link.to);
+        if (!fromLoc || !toLoc) return;
+        boundsPoints.push([fromLoc.latitude, fromLoc.longitude], [toLoc.latitude, toLoc.longitude]);
+        L.polyline([
+          [fromLoc.latitude, fromLoc.longitude],
+          [toLoc.latitude, toLoc.longitude],
+        ], {
+          color: '#94a3b8',
+          weight: 2,
+          opacity: 0.8,
+        }).addTo(map);
+      });
+
+      if (selectedRegionBoundary?.features?.length > 0) {
+        const boundaryLayer = L.geoJSON(selectedRegionBoundary, {
+          style: {
+            color: '#1d4ed8',
+            weight: 2,
+            fillColor: '#60a5fa',
+            fillOpacity: 0.08,
+          },
+        }).addTo(map);
+        try {
+          const boundaryBounds = boundaryLayer.getBounds();
+          if (boundaryBounds.isValid()) {
+            map.fitBounds(boundaryBounds, { padding: [30, 30], maxZoom: 14 });
+          }
+        } catch {
+          // ignore invalid bounds
+        }
+      } else if (boundsPoints.length === 1) {
+        map.setView(boundsPoints[0], 6);
+      } else if (boundsPoints.length > 1) {
+        map.fitBounds(boundsPoints, { padding: [40, 40], maxZoom: 14 });
+      } else {
+        map.setView([viewState.latitude, viewState.longitude], viewState.zoom || 4);
+      }
+
+      map.on('click', (event) => {
+        handleMapClickWithModal(
+          { coordinate: [event.latlng.lng, event.latlng.lat], object: null, layer: { id: 'leaflet-base' } },
+          { srcEvent: { button: 0 } }
+        );
+      });
+    }).catch((err) => {
+      console.error('Creation Leaflet fallback failed:', err);
+      setWebglErrorMsg(err?.message || 'Leaflet fallback map failed to initialize');
+    });
+
+    return () => {
+      destroyed = true;
+      clearLeafletMap();
+    };
+  }, [webglAvailable, mapReady, locationManager.tempLocations, locationManager.tempLinks, selectedRegionBoundary, viewState.latitude, viewState.longitude, viewState.zoom, handleMapClickWithModal]);
   
   // Map toolbar handlers
   const handleFitBounds = useCallback(() => {
@@ -1991,7 +2105,7 @@ const Creation = () => {
           </div>
         )}
 
-        {mapReady && (
+        {mapReady && webglAvailable !== false && (
           <DeckGL
             ref={deckRef}
             viewState={viewState}
@@ -2003,6 +2117,15 @@ const Creation = () => {
               if (!info.object) {
                 setHoveredInfo(null);
               }
+            }}
+            onError={(error) => {
+              const msg = error?.message || error?.statusMessage || 'Failed to initialize WebGL';
+              if (/webgl|gl context|webglcontextcreationerror|FEATURE_FAILURE_EGL_NO_CONFIG|FEATURE_FAILURE_WEBGL_EXHAUSTED_DRIVERS|Failed to initialize WebGL/i.test(msg)) {
+                setWebglAvailable(false);
+                setWebglErrorMsg(msg);
+                return;
+              }
+              console.error('Creation map error:', error);
             }}
             layers={[
               // Selected Region Territory Overlay (shown first so it appears under infrastructure)
@@ -2392,6 +2515,21 @@ const Creation = () => {
               attributionControl={false}
             />
           </DeckGL>
+        )}
+
+        {mapReady && webglAvailable === false && (
+          <div className="absolute inset-0 z-10">
+            <div ref={leafletContainerRef} className="w-full h-full" />
+            <div className="absolute top-4 left-4 bg-white/95 backdrop-blur rounded-lg shadow-lg px-4 py-3 max-w-md">
+              <div className="font-semibold text-slate-800 text-sm">Compatibility map mode</div>
+              <div className="text-slate-600 text-xs mt-1">
+                DeckGL could not create a WebGL context, so Creation is using Leaflet instead.
+              </div>
+              {webglErrorMsg && (
+                <div className="text-slate-500 text-[11px] mt-1 break-words">{webglErrorMsg}</div>
+              )}
+            </div>
+          </div>
         )}
 
         {/* Hover Tooltip */}

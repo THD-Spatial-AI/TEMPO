@@ -138,16 +138,26 @@ Retrieve the optimization results for a completed job.
 
 ### `GET /api/osm/:layer`
 
-Fetch OSM features as GeoJSON for a bounding box.
+Fetch OSM features as GeoJSON.
 
-**Path parameter**: `layer` — one of `substations`, `power_plants`, `power_lines`, `boundaries`.
+**Path parameter**: `layer` — one of:
+
+| Value | GeoServer table | Geometry |
+|---|---|---|
+| `substations` | `osm:osm_substations` | Point |
+| `power_plants` | `osm:osm_power_plants` | Point |
+| `power_lines` | `osm:osm_power_lines` | LineString |
+| `communes` | `osm:osm_communes` | Polygon |
+| `districts` | `osm:osm_districts` | Polygon |
 
 **Query parameters**:
 
 | Parameter | Description |
 |---|---|
 | `bbox` | Bounding box as `minLon,minLat,maxLon,maxLat` |
-| `country` | ISO country code (alternative to bbox) |
+| `region` | GeoServer region path, e.g. `europe/germany/bavaria` |
+
+When GeoServer is unavailable, the backend automatically falls back to the public Overpass API.
 
 **Response**: GeoJSON `FeatureCollection`.
 
@@ -161,7 +171,40 @@ List available OSM layer names.
 
 ### `GET /api/osm/regions`
 
-List geographic regions for which pre-processed data is available (GeoServer mode only).
+List geographic regions currently loaded into PostGIS/GeoServer.
+
+**Response**
+```json
+["europe/germany/bavaria", "europe/france"]
+```
+
+---
+
+### `GET /api/osm/regions-db`
+
+Return the full Geofabrik regions metadata database (used by the region selection wizard).
+
+**Response**: JSON array of `{ name, path, url, parent }` objects covering all downloadable regions.
+
+---
+
+### `POST /api/osm/download`
+
+Trigger a background OSM region download and PostGIS import.
+
+**Request body**
+```json
+{
+  "region": "europe/germany/bavaria",
+  "continent": "europe",
+  "country": "germany"
+}
+```
+
+**Response**
+```json
+{ "job_id": "osm-dl-xyz...", "status": "started" }
+```
 
 ---
 
