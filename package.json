@@ -62,17 +62,41 @@
       {
         "from": "python",
         "to": "app.asar.unpacked/python",
-        "filter": ["**/*", "!__pycache__/**", "!*.pyc"]
+        "filter": [
+          "**/*",
+          "!__pycache__/**",
+          "!*.pyc"
+        ]
       },
       {
         "from": "../ccssim",
         "to": "ccssim",
-        "filter": ["**/*", "!**/.git/**", "!**/.venv/**", "!**/.vscode/**", "!**/__pycache__/**", "!**/*.pyc", "!**/docker-compose.yml", "!**/Dockerfile", "!**/.env**"]
+        "filter": [
+          "**/*",
+          "!**/.git/**",
+          "!**/.venv/**",
+          "!**/.vscode/**",
+          "!**/__pycache__/**",
+          "!**/*.pyc",
+          "!**/docker-compose.yml",
+          "!**/Dockerfile",
+          "!**/.env**"
+        ]
       },
       {
         "from": "../hydrogenmatsim",
         "to": "hydrogensim",
-        "filter": ["**/*", "!**/.git/**", "!**/.venv/**", "!**/.vscode/**", "!**/__pycache__/**", "!**/*.pyc", "!**/docker-compose.yml", "!**/Dockerfile", "!**/.env**"]
+        "filter": [
+          "**/*",
+          "!**/.git/**",
+          "!**/.venv/**",
+          "!**/.vscode/**",
+          "!**/__pycache__/**",
+          "!**/*.pyc",
+          "!**/docker-compose.yml",
+          "!**/Dockerfile",
+          "!**/.env**"
+        ]
       },
       {
         "from": "docker-compose.geoserver.yml",
@@ -81,7 +105,13 @@
       {
         "from": "osm_processing",
         "to": "osm_processing",
-        "filter": ["**/*", "!**/__pycache__/**", "!**/*.pyc", "!**/.venv/**", "!**/.vscode/**"]
+        "filter": [
+          "**/*",
+          "!**/__pycache__/**",
+          "!**/*.pyc",
+          "!**/.venv/**",
+          "!**/.vscode/**"
+        ]
       }
     ],
     "win": {
@@ -138,7 +168,11 @@
       "shortcutName": "TEMPO",
       "include": "build/installer.nsh"
     },
-    "electronLanguages": ["en-US", "en-GB", "de"]
+    "electronLanguages": [
+      "en-US",
+      "en-GB",
+      "de"
+    ]
   },
   "dependencies": {
     "@deck.gl/core": "^9.2.5",
@@ -160,6 +194,7 @@
     "framer-motion": "^12.23.27",
     "js-yaml": "^4.1.1",
     "jszip": "^3.10.1",
+    "leaflet": "^1.9.4",
     "lucide-react": "^0.562.0",
     "maplibre-gl": "^5.16.0",
     "papaparse": "^5.5.3",

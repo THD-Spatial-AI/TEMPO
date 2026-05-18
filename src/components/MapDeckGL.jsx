@@ -6,6 +6,8 @@ import { useData } from '../context/DataContext';
 import { FiLayers, FiPlus, FiLink, FiEye, FiEdit2, FiMapPin, FiTrash2, FiCpu, FiChevronDown, FiChevronRight, FiChevronLeft, FiZoomIn, FiZoomOut, FiMaximize2, FiX, FiCheck, FiHelpCircle, FiArrowRight, FiActivity, FiZap, FiCircle, FiNavigation, FiSave, FiFolder } from 'react-icons/fi';
 import ChangeHistoryIcon from '@mui/icons-material/ChangeHistory';
 import { TECH_TEMPLATES, useLiveTechTemplates } from './TechnologiesData';
+import { canCreateWebGLContext, webglUnavailableMessage } from '../utils/webglSupport';
+import 'leaflet/dist/leaflet.css';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 // Technology color mapping for power plants and other types
@@ -630,17 +632,163 @@ const MapDeckGL = () => {
   const [showIconSelector, setShowIconSelector] = useState(false);
   const [selectedLocationForIcon, setSelectedLocationForIcon] = useState(null);
   const [isDraggingEnabled, setIsDraggingEnabled] = useState(false);
+  const [webglAvailable, setWebglAvailable] = useState(null);
+  const [webglErrorMsg, setWebglErrorMsg] = useState('');
+  const [webglCompatMode, setWebglCompatMode] = useState(false);
+  const [webglRetryAttempted, setWebglRetryAttempted] = useState(false);
   const deckRef = useRef(null);
-  
-  // Initialize map after component mount to avoid WebGL context errors
-  useEffect(() => {
-    // Use requestAnimationFrame to initialize after DOM is ready but without delay
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        setMapReady(true);
-      });
-    });
+  const leafletMapRef = useRef(null);
+  const leafletContainerRef = useRef(null);
+
+  const toSafeString = useCallback((value) => {
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
   }, []);
+
+  const normalizeWebglErrorMessage = useCallback((error) => {
+    const raw = toSafeString(error?.message || error?.statusMessage || error);
+    if (!raw) return webglUnavailableMessage();
+    const trimmed = raw.trim();
+
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (typeof parsed?.statusMessage === 'string' && parsed.statusMessage.trim()) {
+          return parsed.statusMessage.trim();
+        }
+        if (typeof parsed?.message === 'string' && parsed.message.trim()) {
+          return parsed.message.trim();
+        }
+      } catch {
+        // Fall through to raw text when message isn't valid JSON
+      }
+    }
+
+    return trimmed;
+  }, [toSafeString]);
+  
+  // Initialize map after component mount
+  useEffect(() => {
+    const available = canCreateWebGLContext();
+    setWebglAvailable(available);
+    if (!available) {
+      setWebglErrorMsg(webglUnavailableMessage());
+    }
+    // Use requestAnimationFrame to initialize after DOM is ready but without delay
+    if (available) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setMapReady(true);
+        });
+      });
+    }
+  }, []);
+
+  const deckGlOptions = webglCompatMode
+    ? {
+        antialias: false,
+        alpha: true,
+        depth: false,
+        stencil: false,
+        preserveDrawingBuffer: false,
+        premultipliedAlpha: true,
+        desynchronized: true,
+        powerPreference: 'default',
+        failIfMajorPerformanceCaveat: false,
+      }
+    : {
+        antialias: false,
+        alpha: true,
+        depth: true,
+        stencil: true,
+        preserveDrawingBuffer: false,
+        premultipliedAlpha: true,
+        desynchronized: false,
+        powerPreference: 'high-performance',
+        failIfMajorPerformanceCaveat: false,
+      };
+
+  useEffect(() => {
+    if (webglAvailable !== false || !leafletContainerRef.current) return;
+    let destroyed = false;
+
+    const clearLeafletMap = () => {
+      if (leafletMapRef.current) {
+        leafletMapRef.current.remove();
+        leafletMapRef.current = null;
+      }
+    };
+
+    import('leaflet').then(({ default: leaflet }) => {
+      if (destroyed || !leafletContainerRef.current) return;
+      const L = leaflet;
+      const locs = locations.filter(loc => loc.latitude && loc.longitude);
+      clearLeafletMap();
+
+      const map = L.map(leafletContainerRef.current, {
+        zoomControl: true,
+        preferCanvas: true,
+      });
+      leafletMapRef.current = map;
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap contributors',
+      }).addTo(map);
+
+      const boundsPoints = [];
+
+      locs.forEach(loc => {
+        boundsPoints.push([loc.latitude, loc.longitude]);
+        const techNames = Object.keys(loc.techs || {});
+        const dominant = techNames.find(t => !/demand/i.test(t)) || techNames[0] || '';
+        const color = Array.isArray(getLocationColor(loc)) ? getLocationColor(loc) : [100, 116, 139, 220];
+        const marker = L.circleMarker([loc.latitude, loc.longitude], {
+          radius: 7,
+          color: `rgb(${color[0]}, ${color[1]}, ${color[2]})`,
+          fillColor: `rgb(${color[0]}, ${color[1]}, ${color[2]})`,
+          fillOpacity: 0.9,
+          weight: 2,
+        }).addTo(map);
+        marker.bindPopup(`<b>${loc.name || 'Location'}</b><br/>${techNames.length} tech${techNames.length === 1 ? '' : 's'}`);
+      });
+
+      (links || []).forEach(link => {
+        const src = locs.find(l => l.id === link.from || l.name === link.from);
+        const dst = locs.find(l => l.id === link.to || l.name === link.to);
+        if (!src || !dst) return;
+        boundsPoints.push([src.latitude, src.longitude], [dst.latitude, dst.longitude]);
+        L.polyline([
+          [src.latitude, src.longitude],
+          [dst.latitude, dst.longitude],
+        ], {
+          color: '#94a3b8',
+          weight: 2,
+          opacity: 0.8,
+        }).addTo(map);
+      });
+
+      if (boundsPoints.length === 1) {
+        map.setView(boundsPoints[0], 6);
+      } else if (boundsPoints.length > 1) {
+        map.fitBounds(boundsPoints, { padding: [40, 40], maxZoom: 16 });
+      } else {
+        map.setView([0, 0], 2);
+      }
+    }).catch(err => {
+      console.error('Leaflet fallback map failed:', err);
+    });
+
+    return () => {
+      destroyed = true;
+      clearLeafletMap();
+    };
+  }, [webglAvailable, locations, links]);
   
   // Create technology map — live API catalog with instance arrays, fallback to static
   const techMap = useMemo(() => {
@@ -1280,7 +1428,6 @@ const MapDeckGL = () => {
     return 'grab';
   }, [mode]);
   
-  // Show loading state while WebGL initializes
   if (!mapReady) {
     return (
       <div className="flex items-center justify-center w-full h-screen bg-slate-50">
@@ -1789,38 +1936,64 @@ const MapDeckGL = () => {
 
       {/* Right Panel - Map */}
       <div className="flex-1 relative">
-        <DeckGL
-          ref={deckRef}
-          viewState={viewState}
-          onViewStateChange={handleViewStateChange}
-          controller={!draggedLocation}
-          layers={layers}
-          onClick={handleMapClick}
-          getCursor={getCursorStyle}
-          getTooltip={null}
-          _pickable={true}
-          parameters={{
-            depthTest: false,
-            blend: true,
-            blendFunc: [770, 771],
-            blendEquation: 32774
-          }}
-          _typedArrayManagerProps={{
-            overAlloc: 1,
-            poolSize: 0
-          }}
-          onError={(error) => {
-            // Suppress WebGL context initialization errors
-            if (!error?.message?.includes('maxTextureDimension2D')) {
-              console.error('Deck.gl error:', error);
-            }
-          }}
-        >
-          <MapGL 
-            mapStyle={MAP_STYLES[currentStyle]}
-            attributionControl={false}
-          />
-        </DeckGL>
+        {webglAvailable !== false ? (
+          <DeckGL
+            key={webglCompatMode ? 'deck-compat' : 'deck-default'}
+            ref={deckRef}
+            viewState={viewState}
+            onViewStateChange={handleViewStateChange}
+            controller={!draggedLocation}
+            layers={layers}
+            onClick={handleMapClick}
+            getCursor={getCursorStyle}
+            getTooltip={null}
+            _pickable={true}
+            parameters={{
+              depthTest: false,
+              blend: true,
+              blendFunc: [770, 771],
+              blendEquation: 32774
+            }}
+            _typedArrayManagerProps={{
+              overAlloc: 1,
+              poolSize: 0
+            }}
+            glOptions={deckGlOptions}
+            onError={(error) => {
+              const msg = normalizeWebglErrorMessage(error);
+              if (/webgl|gl context|Failed to initialize WebGL|FEATURE_FAILURE_EGL_NO_CONFIG|FEATURE_FAILURE_WEBGL_EXHAUSTED_DRIVERS/i.test(msg)) {
+                if (!webglRetryAttempted) {
+                  setWebglRetryAttempted(true);
+                  setWebglCompatMode(true);
+                  return;
+                }
+                setWebglAvailable(false);
+                setWebglErrorMsg(msg || webglUnavailableMessage());
+                return;
+              }
+              if (!msg.includes('maxTextureDimension2D')) console.error('Deck.gl error:', error);
+            }}
+          >
+            <MapGL 
+              mapStyle={MAP_STYLES[currentStyle]}
+              attributionControl={false}
+              canvasContextAttributes={deckGlOptions}
+            />
+          </DeckGL>
+        ) : (
+          <div className="absolute inset-0 z-0">
+            <div ref={leafletContainerRef} className="w-full h-full" />
+            <div className="absolute top-4 left-4 bg-white/95 backdrop-blur rounded-lg shadow-lg px-4 py-3 max-w-md z-20">
+              <div className="font-semibold text-slate-800 text-sm">Compatibility map mode</div>
+              <div className="text-slate-600 text-xs mt-1">
+                WebGL failed here, so this map is using Leaflet instead.
+              </div>
+              {webglErrorMsg && (
+                <div className="text-slate-500 text-[11px] mt-1 break-words">{webglErrorMsg}</div>
+              )}
+            </div>
+          </div>
+        )}
         
         {/* Map Legend - Dynamic based on model technologies */}
         {(locations.length > 0 || links.length > 0) && (() => {

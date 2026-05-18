@@ -8,7 +8,7 @@ import {
   FiMapPin, FiLink, FiZap, FiBarChart2, FiPieChart, FiActivity, FiDollarSign,
   FiChevronDown, FiChevronUp, FiCpu, FiLayers, FiMap, FiClock, FiGrid, FiSun, FiFilter,
 } from 'react-icons/fi';
-import 'maplibre-gl/dist/maplibre-gl.css';
+import 'leaflet/dist/leaflet.css';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const fmtNum = (v, dec = 1) => {
@@ -339,70 +339,91 @@ const KpiCard = ({ icon: Ic, label, value, sub, accent }) => (
 // ── Map component ─────────────────────────────────────────────────────────────
 const InputMap = ({ locations, links, getTechColor }) => {
   const mapRef = useRef(null);
-  const mapInstanceRef = useRef(null);
+  const leafletMapRef = useRef(null);
   const markersRef = useRef([]);
 
   useEffect(() => {
-    if (!mapRef.current || mapInstanceRef.current) return;
+    if (!mapRef.current || leafletMapRef.current) return;
     let destroyed = false;
-    import('maplibre-gl').then(({ default: mgl }) => {
-      if (destroyed || !mapRef.current) return;
-      const locs = locations.filter(l => l.latitude && l.longitude);
-      if (!locs.length) return;
-      const avgLat = locs.reduce((s, l) => s + l.latitude, 0) / locs.length;
-      const avgLon = locs.reduce((s, l) => s + l.longitude, 0) / locs.length;
-      const map = new mgl.Map({
-        container: mapRef.current, style: OSM_STYLE,
-        center: [avgLon, avgLat], zoom: 5,
-        attributionControl: { compact: true }, failIfMajorPerformanceCaveat: false,
-        transformRequest: osmTransformRequest,
-      });
-      mapInstanceRef.current = map;
-      map.on('load', () => {
-        if (destroyed) return;
-        // Fit map to the actual extent of all locations
+
+    const clearMapAndMarkers = () => {
+      markersRef.current.forEach(m => m.remove());
+      markersRef.current = [];
+      if (leafletMapRef.current) {
+        leafletMapRef.current.remove();
+        leafletMapRef.current = null;
+      }
+    };
+
+    import('leaflet')
+      .then(({ default: leaflet }) => {
+        if (destroyed || !mapRef.current) return;
+        const L = leaflet;
+        const locs = locations.filter(l => l.latitude && l.longitude);
+        if (!locs.length) return;
+
+        clearMapAndMarkers();
+
+        const map = L.map(mapRef.current, {
+          zoomControl: true,
+          preferCanvas: true,
+        });
+        leafletMapRef.current = map;
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19,
+          attribution: '© OpenStreetMap contributors',
+        }).addTo(map);
+
         if (locs.length === 1) {
-          map.flyTo({ center: [locs[0].longitude, locs[0].latitude], zoom: 12, duration: 0 });
+          map.setView([locs[0].latitude, locs[0].longitude], 12);
         } else {
-          const minLon = Math.min(...locs.map(l => l.longitude));
-          const maxLon = Math.max(...locs.map(l => l.longitude));
-          const minLat = Math.min(...locs.map(l => l.latitude));
-          const maxLat = Math.max(...locs.map(l => l.latitude));
-          map.fitBounds([[minLon, minLat], [maxLon, maxLat]], { padding: 60, maxZoom: 16, duration: 0 });
+          const bounds = L.latLngBounds(locs.map(l => [l.latitude, l.longitude]));
+          map.fitBounds(bounds, { padding: [60, 60], maxZoom: 16 });
         }
-        // Link lines
-        const linkFeatures = (links || []).flatMap(link => {
+
+        (links || []).forEach(link => {
           const src = locs.find(l => l.id === link.from || l.name === link.from);
           const dst = locs.find(l => l.id === link.to || l.name === link.to);
-          if (!src || !dst) return [];
-          return [{ type: 'Feature', geometry: { type: 'LineString', coordinates: [[src.longitude, src.latitude], [dst.longitude, dst.latitude]] }, properties: {} }];
+          if (!src || !dst) return;
+          L.polyline(
+            [
+              [src.latitude, src.longitude],
+              [dst.latitude, dst.longitude],
+            ],
+            { color: '#94a3b8', weight: 2, opacity: 0.7 }
+          ).addTo(map);
         });
-        if (linkFeatures.length) {
-          map.addSource('links', { type: 'geojson', data: { type: 'FeatureCollection', features: linkFeatures } });
-          map.addLayer({ id: 'links-line', type: 'line', source: 'links', paint: { 'line-color': '#94a3b8', 'line-width': 1.5, 'line-opacity': 0.7 } });
-        }
-        // Location markers
+
         locs.forEach(loc => {
           const techNames = Object.keys(loc.techs || {});
           const dominant = techNames.find(t => !/demand/i.test(t)) || techNames[0] || '';
           const color = getTechColor(dominant) || '#64748b';
-          const el = document.createElement('div');
-          el.style.cssText = `width:28px;height:28px;border-radius:50%;background:${color}CC;border:2px solid ${color};box-shadow:0 2px 6px rgba(0,0,0,0.3);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.6)`;
-          el.textContent = techNames.length;
-          const techList = techNames.slice(0, 6).map(t => `<li>${t.replace(/_/g, ' ')}</li>`).join('');
-          const popup = new mgl.Popup({ offset: 16, closeButton: false, maxWidth: '200px' })
-            .setHTML(`<div style="font-family:system-ui;padding:2px"><b style="font-size:12px">${loc.name}</b><ul style="margin:4px 0 0 12px;font-size:10px;color:#333;padding:0">${techList}${techNames.length > 6 ? `<li style="color:#aaa">+${techNames.length - 6} more</li>` : ''}</ul></div>`);
-          markersRef.current.push(new mgl.Marker({ element: el }).setLngLat([loc.longitude, loc.latitude]).setPopup(popup).addTo(map));
+          const popupItems = techNames
+            .slice(0, 6)
+            .map(t => `<li>${t.replace(/_/g, ' ')}</li>`)
+            .join('');
+          const popupHtml = `<div style="font-family:system-ui;padding:2px"><b style="font-size:12px">${loc.name}</b><ul style="margin:4px 0 0 12px;font-size:10px;color:#333;padding:0">${popupItems}${techNames.length > 6 ? `<li style="color:#aaa">+${techNames.length - 6} more</li>` : ''}</ul></div>`;
+
+          L.circleMarker([loc.latitude, loc.longitude], {
+            radius: 8,
+            color,
+            fillColor: color,
+            fillOpacity: 0.85,
+            weight: 2,
+          })
+            .addTo(map)
+            .bindPopup(popupHtml);
         });
+      })
+      .catch((err) => {
+        console.error('Dashboard Leaflet map failed to initialize:', err);
       });
-    });
     return () => {
       destroyed = true;
-      markersRef.current.forEach(m => m.remove());
-      markersRef.current = [];
-      if (mapInstanceRef.current) { mapInstanceRef.current.remove(); mapInstanceRef.current = null; }
+      clearMapAndMarkers();
     };
-  }, []); // eslint-disable-line
+  }, [locations, links, getTechColor]);
 
   if (!locations.some(l => l.latitude && l.longitude)) return (
     <div className="h-full flex items-center justify-center text-slate-400 text-sm">

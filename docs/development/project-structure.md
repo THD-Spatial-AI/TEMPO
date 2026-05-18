@@ -78,6 +78,8 @@ src/
 │   ├── CCSStoragePanel.jsx         # CCS CO₂ storage panel
 │   ├── CCSFlowDiagram.jsx          # CCS process flow diagram
 │   ├── CCSEnergyCharts.jsx         # CCS energy result charts
+│   ├── CCSConfigPanel.jsx          # CCS top-level configuration aggregator
+│   ├── OSMDownloader.jsx           # Triggers OSM region download and tracks progress
 │   ├── Settings.jsx        # Application settings screen
 │   ├── SetupScreen.jsx     # First-run Python environment setup
 │   ├── Sidebar.jsx         # Navigation sidebar
@@ -86,9 +88,35 @@ src/
 │   ├── Tutorial.jsx        # In-app tutorial overlay
 │   ├── ModelStructureTutorial.jsx  # Model structure guided tour
 │   └── ui/                 # Shared low-level UI primitives
-├── context/                # React Context providers (model state, notifications)
-├── services/               # HTTP client functions for the backend API
+│       ├── Badge.jsx        # Status badge chip (success / warning / error / neutral)
+│       ├── Button.jsx       # Standard button with variant props
+│       ├── Card.jsx         # Container card with optional header and action area
+│       ├── Modal.jsx        # Accessible modal dialog (Framer Motion)
+│       └── SaveBar.jsx      # Sticky bottom bar shown when unsaved changes exist
+├── context/
+│   └── DataContext.jsx     # Global model state, localStorage fallback, auto-save debounce
+├── services/               # HTTP clients for all backend and external services
+│   ├── api.js              # Go backend client (models, jobs, OSM, geocode)
+│   ├── calliopeClient.js   # Direct Calliope runner client (SSE streaming)
+│   ├── techDatabaseApi.js  # OEO Technology Database API client
+│   ├── hydrogenService.js  # H₂ plant simulation service client (port 8765) + WS fallback
+│   ├── ccsService.js       # CCS simulation service client (port 8766) + WS fallback
+│   ├── h2Physics.js        # Client-side H₂ physics fallback (offline approximate simulation)
+│   ├── ccsPhysics.js       # Client-side CCS physics fallback (offline approximate simulation)
+│   ├── h2TechModels.js     # H₂ technology parameter definitions
+│   ├── ccsTechModels.js    # CCS technology parameter definitions
+│   ├── h2SimPayload.js     # H₂ simulation JSON payload factory functions
+│   ├── ccsSimPayload.js    # CCS simulation JSON payload factory functions
+│   └── h2SourceProfiles.js # Renewable resource profiles for H₂ electricity sources
 ├── hooks/                  # Custom React hooks
+│   ├── useLocationManager.js   # Location/link CRUD + Haversine distance calculation
+│   ├── useTechnologyManager.js # Technology assignment to locations
+│   ├── useMapInteractions.js   # Map click events, pin/polyline mode
+│   ├── usePolylineMode.js      # Link-drawing state machine
+│   ├── useGeoServerData.js     # Parallel OSM layer fetching via GeoServer api
+│   ├── useLocalOSMData.js      # OSM GeoJSON fetch from public/data/ (offline mode)
+│   ├── useLoadedRegions.js     # Fetch regions loaded in GeoServer/PostGIS
+│   └── useOSMLayerFilters.js   # Layer visibility state (persisted to localStorage)
 ├── utils/                  # Pure utility functions
 └── config/                 # App-wide constants and configuration
 ```
@@ -137,7 +165,7 @@ python/
 │   ├── pypsa_adapter.py        # (experimental) PyPSA export adapter
 │   └── osemosys_adapter.py     # (experimental) OSeMOSYS export adapter
 └── services/
-    └── tech_database.py        # Client for the OEO Technology Database API (port 8005)
+    └── tech_database.py        # Client for the OEO Technology Database API (port 8000)
 ```
 
 ---
