@@ -680,13 +680,11 @@ const MapDeckGL = () => {
       setWebglErrorMsg(webglUnavailableMessage());
     }
     // Use requestAnimationFrame to initialize after DOM is ready but without delay
-    if (available) {
+    requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          setMapReady(true);
-        });
+        setMapReady(true);
       });
-    }
+    });
   }, []);
 
   const deckGlOptions = webglCompatMode
@@ -746,8 +744,10 @@ const MapDeckGL = () => {
       locs.forEach(loc => {
         boundsPoints.push([loc.latitude, loc.longitude]);
         const techNames = Object.keys(loc.techs || {});
-        const dominant = techNames.find(t => !/demand/i.test(t)) || techNames[0] || '';
-        const color = Array.isArray(getLocationColor(loc)) ? getLocationColor(loc) : [100, 116, 139, 220];
+        const firstTech = loc.techs?.[techNames[0]];
+        const color = loc.isNode
+          ? (loc.demandProfile || loc.totalDemandMWh ? [244, 67, 54, 255] : [33, 33, 33, 255])
+          : getTechColor(firstTech || techNames[0] || '', techMap);
         const marker = L.circleMarker([loc.latitude, loc.longitude], {
           radius: 7,
           color: `rgb(${color[0]}, ${color[1]}, ${color[2]})`,
@@ -773,6 +773,7 @@ const MapDeckGL = () => {
         }).addTo(map);
       });
 
+      map.invalidateSize();
       if (boundsPoints.length === 1) {
         map.setView(boundsPoints[0], 6);
       } else if (boundsPoints.length > 1) {
@@ -788,7 +789,7 @@ const MapDeckGL = () => {
       destroyed = true;
       clearLeafletMap();
     };
-  }, [webglAvailable, locations, links]);
+  }, [webglAvailable, mapReady, locations, links]);
   
   // Create technology map — live API catalog with instance arrays, fallback to static
   const techMap = useMemo(() => {

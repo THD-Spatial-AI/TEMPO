@@ -98,3 +98,5 @@ public/templates
 
 .github/ISSUE_TEMPLATE/*
 .github/skills
+/.agents
+/.claude
