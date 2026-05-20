@@ -25,7 +25,12 @@ export function DottedSurface({ dotColor = 0x000000, className = "", children, s
     );
     camera.position.set(0, 300, 1220);
 
-    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    } catch {
+      return; // WebGL unavailable — render children without 3D background
+    }
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setClearColor(scene.fog.color, 0);

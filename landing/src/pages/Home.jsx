@@ -18,15 +18,15 @@ const RELEASES = 'https://github.com/THD-Spatial-AI/TEMPO/releases'
 const DOWNLOADS = [
   {
     label: 'Download for Windows',
-    sub: 'v1.0.0 · .exe · 124 MB',
+    sub: 'v1.0.0 · .exe · 218 MB',
     icon: 'desktop_windows',
-    href: `${RELEASES}/latest/download/TEMPO-Setup-1.0.4.exe`,
+    href: `${RELEASES}/download/release/TEMPO.Setup.1.0.0.exe`,
   },
   {
     label: 'Download for Linux',
-    sub: 'v1.0.0 · .AppImage · 118 MB',
+    sub: 'v1.0.0 · .AppImage · 252 MB',
     icon: 'terminal',
-    href: `${RELEASES}/latest/download/TEMPO-1.0.4.AppImage`,
+    href: `${RELEASES}/download/release/TEMPO-1.0.0.AppImage`,
   },
 ]
 
@@ -104,9 +104,10 @@ export default function Home() {
           contacts={CONTACTS}
           institution={{ logo: LogoTHD, name: 'TH Deggendorf', group: 'BigGeoData & Spatial AI Research Group' }}
           partners={[
-            { logo: LogoH2IN, name: 'H2.in' },
+            { logo: LogoH2IN, name: 'H2.in', href: 'https://h2in.cl/' },
             { logo: LogoREDRES, name: 'RED-RES-H2' },
             { logo: LogoH2V, name: 'H2V+' },
+            
           ]}
           backgroundImage={Hero}
         />
