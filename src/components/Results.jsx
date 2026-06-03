@@ -6,9 +6,10 @@ import {
   FiRefreshCw, FiAlertCircle, FiCheckCircle, FiTrash2,
   FiTerminal, FiAlertTriangle, FiMapPin, FiDollarSign,
   FiZap, FiActivity, FiClock, FiCpu, FiMap, FiLayers, FiShare2, FiGrid,
-  FiChevronDown, FiFilter,
+  FiChevronDown, FiFilter, FiGitMerge,
 } from 'react-icons/fi';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import ScenarioComparison from './ScenarioComparison';
 
 // ── Tech colour palette ──────────────────────────────────────────────────────
 const TECH_COLORS = {
@@ -474,6 +475,7 @@ const Results = () => {
   const { completedJobs, removeCompletedJob, showNotification, models, activeResultJobId, setActiveResultJobId } = useData();
   const [selectedJobId, setSelectedJobId] = useState(null);
   const [tab, setTab] = useState('overview');
+  const [compareMode, setCompareMode] = useState(false);
   const [mapView, setMapView] = useState('capacity');
   // Tech inclusion filter: empty Set = show all; non-empty = show only listed techs.
   const [techFilter, setTechFilter] = useState(new Set());
@@ -1195,20 +1197,47 @@ const Results = () => {
       <div className="max-w-screen-2xl mx-auto p-6 space-y-5">
 
         {/* ── Header ── */}
-        <div className="flex items-end justify-between">
+        <div className="flex items-end justify-between gap-4 flex-wrap">
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-gray-900 mb-1">Results Dashboard</h1>
             <p className="text-slate-500 text-sm">Calliope optimisation results · interactive analysis</p>
           </div>
-          {result && (
-            <button onClick={handleExport}
-              className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white text-slate-700 rounded-xl hover:bg-slate-50 transition text-sm shadow-sm">
-              <FiDownload size={14} /> Export JSON
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {/* View toggle */}
+            <div className="flex gap-1 bg-slate-100 rounded-xl p-1">
+              <button
+                onClick={() => setCompareMode(false)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  !compareMode ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}>
+                <FiLayers size={12} /> Single Run
+              </button>
+              <button
+                onClick={() => setCompareMode(true)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  compareMode ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}>
+                <FiGitMerge size={12} /> Compare Scenarios
+              </button>
+            </div>
+            {result && !compareMode && (
+              <button onClick={handleExport}
+                className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white text-slate-700 rounded-xl hover:bg-slate-50 transition text-sm shadow-sm">
+                <FiDownload size={14} /> Export JSON
+              </button>
+            )}
+          </div>
         </div>
 
+        {/* ── Compare mode ── */}
+        {compareMode && (
+          <div className="min-h-[600px]">
+            <ScenarioComparison />
+          </div>
+        )}
+
         {/* ── Run selector (compact chip strip) ── */}
+        {!compareMode && (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-3 py-2 flex items-center gap-2 overflow-x-auto">
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap flex-shrink-0 border-r border-slate-200 pr-2 mr-1">Runs</span>
           {completedJobs.length === 0 ? (
@@ -1235,14 +1264,17 @@ const Results = () => {
           ))}
         </div>
 
+        )}{/* end run selector */}
+
         {/* ── Main content ── */}
-        {!selectedJob ? (
+        {!compareMode && !selectedJob && (
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-24 text-center text-slate-400">
             <FiBarChart2 size={56} className="mx-auto mb-4 opacity-15" />
             <h3 className="text-xl font-semibold mb-1 text-slate-600">Select a run above</h3>
             <p className="text-sm">Run a model from the Run section, then select it here</p>
           </div>
-        ) : selectedJob.status === 'failed' ? (
+        )}
+        {!compareMode && selectedJob?.status === 'failed' && (
           <div className="space-y-4">
             <div className="bg-white rounded-2xl shadow-sm border border-red-200 p-6 flex gap-4">
               <FiAlertTriangle className="text-red-500 flex-shrink-0" size={24} />
@@ -1257,7 +1289,8 @@ const Results = () => {
               </div>
             )}
           </div>
-        ) : (
+        )}
+        {!compareMode && selectedJob && selectedJob.status !== 'failed' && (
           <div className="space-y-4">
 
             {/* ── KPI strip (compact inline bar) ── */}

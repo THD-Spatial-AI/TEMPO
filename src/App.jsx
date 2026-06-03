@@ -126,14 +126,14 @@ function AppContent() {
         
         <Sidebar selected={selected} setSelected={handleNavigation} />
         
-        <main id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto relative z-10">
+        <main id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto relative z-10 flex flex-col">
           {/* Suspense boundary for lazy-loaded view chunks */}
           <Suspense fallback={
             <div className="flex-1 flex items-center justify-center h-full">
               <div className="w-8 h-8 border-4 border-gray-600 border-t-transparent rounded-full animate-spin" />
             </div>
           }>
-            <div className="animate-fadeIn">
+            <div className="animate-fadeIn flex-1 flex flex-col min-h-0">
               {renderContent()}
             </div>
           </Suspense>

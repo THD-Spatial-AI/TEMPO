@@ -306,18 +306,18 @@ const TsViewControls = ({ opts, onChange, ts, locSearch, onLocSearch, accentColo
 };
 
 // ── Collapsible panel ────────────────────────────────────────────────────────
-const Panel = ({ title, icon: Icon, defaultOpen = true, children, className = '' }) => {
+const Panel = ({ title, icon: Icon, defaultOpen = true, children, className = '', fill = false }) => {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className={`bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden ${className}`}>
+    <div className={`bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden ${fill ? 'flex flex-col' : ''} ${className}`}>
       <button onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-5 py-3 hover:bg-slate-50 transition-colors">
+        className="w-full flex items-center justify-between px-5 py-3 hover:bg-slate-50 transition-colors flex-shrink-0">
         <span className="flex items-center gap-2 text-sm font-semibold text-slate-700">
           {Icon && <Icon size={15} className="text-slate-500" />}{title}
         </span>
         {open ? <FiChevronUp size={14} className="text-slate-400" /> : <FiChevronDown size={14} className="text-slate-400" />}
       </button>
-      {open && <div className="border-t border-slate-100">{children}</div>}
+      {open && <div className={`border-t border-slate-100${fill ? ' flex-1 overflow-hidden' : ''}`}>{children}</div>}
     </div>
   );
 };
@@ -767,35 +767,41 @@ const Dashboard = () => {
       </div>
 
       {/* Content area */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+
+          {/* ── OVERVIEW — full-height, fills screen ──────────────────── */}
+          {activeTab === 'overview' && (
+            <div className="flex-1 min-h-0 flex flex-col gap-5 p-6 overflow-hidden">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 flex-shrink-0">
+                <KpiCard icon={FiMapPin}    label="Locations"       value={(locations||[]).length}               sub="nodes" />
+                <KpiCard icon={FiLink}      label="Links"           value={(links||[]).length}                   sub="connections" />
+                <KpiCard icon={FiZap}       label="Gen Technologies" value={genTechCount}                        sub="supply types" />
+                <KpiCard icon={FiActivity}  label="Max Capacity"    value={(d.totalCap/capDiv).toFixed(1)}       sub={`${capUnit} total`} accent="bg-amber-500" />
+                <KpiCard icon={FiDollarSign} label="Est. CAPEX"     value={(d.totalCapex/costDiv).toFixed(1)}    sub={costUnit} />
+                <KpiCard icon={FiDollarSign} label="Est. OPEX/yr"   value={fmtNum(d.totalOpex)}                  sub="€/yr O&M" />
+                <KpiCard icon={FiCpu}       label="Tech Categories" value={Object.keys(d.byParent).length}       sub="parent groups" />
+                <KpiCard icon={FiClock}     label="Time Series"     value={tsCount || (timeSeries||[]).length}   sub="files" />
+              </div>
+
+              <div className="flex gap-5 flex-1 min-h-0">
+                <Panel title="Location Map" icon={FiMap} fill className="flex-[2] min-w-0">
+                  <div className="h-full">
+                    <InputMap key={currentModel?.id} locations={locations||[]} links={links||[]} getTechColor={getTechColor} />
+                  </div>
+                </Panel>
+                <Panel title="Technology Categories" icon={FiPieChart} fill className="flex-1 min-w-0">
+                  {techGroupDonut
+                    ? <ReactECharts option={techGroupDonut} style={{ height: '100%' }} notMerge lazyUpdate />
+                    : <div className="h-40 flex items-center justify-center text-slate-400 text-sm">No technologies loaded</div>}
+                </Panel>
+              </div>
+            </div>
+          )}
+
+        {/* other tabs — scrollable */}
+        {activeTab !== 'overview' && (
+        <div className="flex-1 overflow-auto">
         <div className="p-6 space-y-5">
-
-          {/* ── OVERVIEW ──────────────────────────────────────────────── */}
-          {activeTab === 'overview' && (<>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <KpiCard icon={FiMapPin}    label="Locations"       value={(locations||[]).length}               sub="nodes" />
-              <KpiCard icon={FiLink}      label="Links"           value={(links||[]).length}                   sub="connections" />
-              <KpiCard icon={FiZap}       label="Gen Technologies" value={genTechCount}                        sub="supply types" />
-              <KpiCard icon={FiActivity}  label="Max Capacity"    value={(d.totalCap/capDiv).toFixed(1)}       sub={`${capUnit} total`} accent="bg-amber-500" />
-              <KpiCard icon={FiDollarSign} label="Est. CAPEX"     value={(d.totalCapex/costDiv).toFixed(1)}    sub={costUnit} />
-              <KpiCard icon={FiDollarSign} label="Est. OPEX/yr"   value={fmtNum(d.totalOpex)}                  sub="€/yr O&M" />
-              <KpiCard icon={FiCpu}       label="Tech Categories" value={Object.keys(d.byParent).length}       sub="parent groups" />
-              <KpiCard icon={FiClock}     label="Time Series"     value={tsCount || (timeSeries||[]).length}   sub="files" />
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-              <Panel title="Location Map" icon={FiMap} className="lg:col-span-2">
-                <div style={{ height: 380 }}>
-                  <InputMap key={currentModel?.id} locations={locations||[]} links={links||[]} getTechColor={getTechColor} />
-                </div>
-              </Panel>
-              <Panel title="Technology Categories" icon={FiPieChart}>
-                {techGroupDonut
-                  ? <ReactECharts option={techGroupDonut} style={{ height: 380 }} notMerge lazyUpdate />
-                  : <div className="h-40 flex items-center justify-center text-slate-400 text-sm">No technologies loaded</div>}
-              </Panel>
-            </div>
-          </>)}
 
           {/* ── GENERATION ────────────────────────────────────────────── */}
           {activeTab === 'generation' && (<>
@@ -1249,6 +1255,8 @@ const Dashboard = () => {
           })()}
 
         </div>
+        </div>
+        )}
       </div>
     </div>
   );
