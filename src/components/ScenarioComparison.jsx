@@ -4,7 +4,7 @@ import ReactECharts from 'echarts-for-react';
 import {
   FiSearch, FiBarChart2, FiGrid, FiTrendingUp, FiZap,
   FiDollarSign, FiSliders, FiLayers, FiInfo, FiCheckSquare,
-  FiSquare, FiDownload,
+  FiSquare, FiDownload, FiFilter, FiChevronDown,
 } from 'react-icons/fi';
 
 // ─── Qualitative colour palette (20 perceptually-distinct colours) ────────────
@@ -33,6 +33,22 @@ function isRenewable(techName, techMeta) {
   if (meta?.parent === 'demand' || meta?.parent === 'transmission') return false;
   const n = techName.toLowerCase();
   return RENEWABLE_KW.some(r => n.includes(r));
+}
+
+// ─── Tech classification groups (for filter bar) ──────────────────────────
+const COMPARE_TECH_GROUPS = [
+  { id: 'gen',     label: 'Generation',    color: '#f59e0b',  match: (b) => /solar|\bpv\b|wind|hydro|biomass|coal|gas|nuclear|geotherm|csp|ccgt|ocgt|diesel|oil/i.test(b) },
+  { id: 'stor',    label: 'Storage',       color: '#8b5cf6',  match: (b) => /bat(ter)?|storage|pumped|embalse/i.test(b) },
+  { id: 'demand',  label: 'Demand',        color: '#ef4444',  match: (b) => /\bdemand\b|\bload\b/i.test(b) },
+  { id: 'tx',      label: 'Links',         color: '#0ea5e9',  match: (b) => b.includes(':') },
+  { id: 'conv',    label: 'Conversion',    color: '#10b981',  match: (b) => /heat.?pump|boiler|chp|methan|convert/i.test(b) },
+  { id: 'h2',      label: 'Hydrogen',      color: '#7c3aed',  match: (b) => /\bh2\b|hydrogen|electrolys|fuel.?cell/i.test(b) },
+  { id: 'other',   label: 'Other',         color: '#64748b',  match: () => true },
+];
+function classifyCompareTech(t) {
+  if (t.includes(':')) return 'tx';
+  const base = t.split(':')[0];
+  return COMPARE_TECH_GROUPS.find(g => g.match(base))?.id ?? 'other';
 }
 
 // ─── KPI extraction from one result object ─────────────────────────────────
@@ -73,14 +89,33 @@ function extractKPIs(result) {
   const renewableGen = allTechs
     .filter(t => isRenewable(t, techMeta))
     .reduce((s, t) => s + (genByTech[t] || 0), 0);
+  const renewableCap = allTechs
+    .filter(t => isRenewable(t, techMeta))
+    .reduce((s, t) => s + (capByTech[t] || 0), 0);
+  const hrs = result.timestamps?.length || 8760;
+
+  const genCF = {};
+  allTechs.forEach(t => {
+    const cap = capByTech[t] || 0;
+    const gen = genByTech[t] || 0;
+    genCF[t] = cap > 0 ? (gen / (cap * hrs)) : 0;
+  });
+  const avgCF = Object.values(genCF).reduce((s, v) => s + v, 0) / Math.max(1, Object.keys(genCF).length);
+
+  const lcoe = totalGen > 0 ? totalCost / totalGen : 0;
 
   return {
     capByTech, genByTech, costByTech, allTechs,
     totalCap, totalGen, totalCost,
     renewableShare: totalGen > 0 ? renewableGen / totalGen : 0,
+    renewableCapShare: totalCap > 0 ? renewableCap / totalCap : 0,
     locationCount: locations.size,
     techCount: allTechs.length,
-    timestepCount: result.timestamps?.length || 0,
+    timestepCount: hrs,
+    lcoe,
+    avgCF,
+    costPerMW: totalCap > 0 ? totalCost / totalCap : 0,
+    peakGen: Math.max(0, ...Object.values(genByTech)),
   };
 }
 
@@ -170,12 +205,15 @@ function buildParallelOption(kpisPerJob, colorMap) {
   if (kpisPerJob.length < 2) return {};
 
   const AXES = [
-    { dim: 0, name: 'Capacity\n(MW)',   key: 'totalCap',       scale: 1,   fmt: v => fmtNum(v) },
-    { dim: 1, name: 'Generation\n(MWh)',key: 'totalGen',       scale: 1,   fmt: v => fmtNum(v) },
-    { dim: 2, name: 'Cost (€)',         key: 'totalCost',      scale: 1,   fmt: v => fmtNum(v) },
-    { dim: 3, name: 'Renewable\n(%)',   key: 'renewableShare', scale: 100, fmt: v => v.toFixed(0) + '%' },
-    { dim: 4, name: 'Locations',        key: 'locationCount',  scale: 1,   fmt: v => String(Math.round(v)) },
-    { dim: 5, name: 'Technologies',     key: 'techCount',      scale: 1,   fmt: v => String(Math.round(v)) },
+    { dim: 0, name: 'Capacity\n(MW)',       key: 'totalCap',          scale: 1,   fmt: v => fmtNum(v) },
+    { dim: 1, name: 'Generation\n(MWh)',     key: 'totalGen',          scale: 1,   fmt: v => fmtNum(v) },
+    { dim: 2, name: 'Cost (€)',             key: 'totalCost',         scale: 1,   fmt: v => fmtNum(v) },
+    { dim: 3, name: 'Renewable\n(%)',       key: 'renewableShare',    scale: 100, fmt: v => v.toFixed(0) + '%' },
+    { dim: 4, name: 'Renewable\nCap (%)',   key: 'renewableCapShare', scale: 100, fmt: v => v.toFixed(0) + '%' },
+    { dim: 5, name: 'LCOE\n(€/MWh)',        key: 'lcoe',              scale: 1,   fmt: v => fmtNum(v) },
+    { dim: 6, name: 'Avg CF\n(%)',          key: 'avgCF',             scale: 100, fmt: v => v.toFixed(0) + '%' },
+    { dim: 7, name: 'Locations',            key: 'locationCount',     scale: 1,   fmt: v => String(Math.round(v)) },
+    { dim: 8, name: 'Technologies',         key: 'techCount',         scale: 1,   fmt: v => String(Math.round(v)) },
   ];
 
   // Drop axes where all values are zero (e.g. no costs defined)
@@ -231,13 +269,17 @@ function buildParallelOption(kpisPerJob, colorMap) {
 
 // ─── Build scatter-plot ECharts option ────────────────────────────────────
 const SCATTER_METRICS = [
-  { key: 'renewableShare', label: 'Renewable Share (%)', scale: 100 },
-  { key: 'totalCost',      label: 'System Cost (€)',     scale: 1 },
-  { key: 'totalCap',       label: 'Total Capacity (MW)', scale: 1 },
-  { key: 'totalGen',       label: 'Total Generation (MWh)', scale: 1 },
-  { key: 'locationCount',  label: 'Locations',           scale: 1 },
-  { key: 'techCount',      label: 'Technologies',        scale: 1 },
-  { key: 'timestepCount',  label: 'Timesteps',           scale: 1 },
+  { key: 'renewableShare',   label: 'Renewable Gen. Share (%)', scale: 100 },
+  { key: 'renewableCapShare', label: 'Renewable Cap. Share (%)', scale: 100 },
+  { key: 'totalCost',        label: 'System Cost (€)',          scale: 1 },
+  { key: 'totalCap',         label: 'Total Capacity (MW)',      scale: 1 },
+  { key: 'totalGen',         label: 'Total Generation (MWh)',   scale: 1 },
+  { key: 'lcoe',             label: 'LCOE (€/MWh)',             scale: 1 },
+  { key: 'avgCF',            label: 'Avg Cap. Factor (%)',      scale: 100 },
+  { key: 'costPerMW',        label: 'Cost per MW (€/MW)',       scale: 1 },
+  { key: 'locationCount',    label: 'Locations',                scale: 1 },
+  { key: 'techCount',        label: 'Technologies',             scale: 1 },
+  { key: 'timestepCount',    label: 'Timesteps',                scale: 1 },
 ];
 
 function buildScatterOption(kpisPerJob, colorMap, xKey, yKey) {
@@ -311,13 +353,17 @@ function buildScatterOption(kpisPerJob, colorMap, xKey, yKey) {
 
 // ─── KPI table row definitions ─────────────────────────────────────────────
 const KPI_ROWS = [
-  { key: 'totalCap',       label: 'Total Installed Capacity', fmt: v => fmtNum(v) + ' MW',  best: 'none' },
-  { key: 'totalGen',       label: 'Total Generation',         fmt: v => fmtNum(v) + ' MWh', best: 'none' },
-  { key: 'totalCost',      label: 'System Cost',              fmt: v => '€\u202f' + fmtNum(v), best: 'min' },
-  { key: 'renewableShare', label: 'Renewable Share',          fmt: v => (v * 100).toFixed(1) + '%', best: 'max' },
-  { key: 'locationCount',  label: 'Locations',                fmt: v => v.toLocaleString(), best: 'none' },
-  { key: 'techCount',      label: 'Technologies',             fmt: v => String(v), best: 'none' },
-  { key: 'timestepCount',  label: 'Timesteps',                fmt: v => v.toLocaleString(), best: 'none' },
+  { key: 'totalCap',        label: 'Total Capacity',          fmt: v => fmtNum(v) + ' MW',  best: 'none' },
+  { key: 'totalGen',        label: 'Total Generation',        fmt: v => fmtNum(v) + ' MWh', best: 'none' },
+  { key: 'totalCost',       label: 'System Cost',             fmt: v => '€\u202f' + fmtNum(v), best: 'min' },
+  { key: 'renewableShare',  label: 'Renewable Gen. Share',    fmt: v => (v * 100).toFixed(1) + '%', best: 'max' },
+  { key: 'renewableCapShare', label: 'Renewable Cap. Share',  fmt: v => (v * 100).toFixed(1) + '%', best: 'max' },
+  { key: 'lcoe',            label: 'LCOE',                    fmt: v => '€\u202f' + fmtNum(v) + '/MWh', best: 'min' },
+  { key: 'avgCF',           label: 'Avg Cap. Factor',         fmt: v => (v * 100).toFixed(1) + '%', best: 'max' },
+  { key: 'costPerMW',       label: 'Cost per MW',             fmt: v => '€\u202f' + fmtNum(v) + '/MW', best: 'min' },
+  { key: 'locationCount',   label: 'Locations',               fmt: v => v.toLocaleString(), best: 'none' },
+  { key: 'techCount',       label: 'Technologies',            fmt: v => String(v), best: 'none' },
+  { key: 'timestepCount',   label: 'Timesteps',               fmt: v => v.toLocaleString(), best: 'none' },
 ];
 
 // ─── Chart-view tabs ───────────────────────────────────────────────────────
@@ -341,6 +387,10 @@ function exportCSV(kpisPerJob) {
     kpis.totalGen.toFixed(2),
     kpis.totalCost.toFixed(2),
     (kpis.renewableShare * 100).toFixed(2),
+    (kpis.renewableCapShare * 100).toFixed(2),
+    kpis.lcoe.toFixed(2),
+    (kpis.avgCF * 100).toFixed(2),
+    kpis.costPerMW.toFixed(2),
     kpis.locationCount,
     kpis.techCount,
     kpis.timestepCount,
@@ -366,6 +416,7 @@ export default function ScenarioComparison() {
   const [chartView,   setChartView]   = useState('table');
   const [scatterX,    setScatterX]    = useState('renewableShare');
   const [scatterY,    setScatterY]    = useState('totalCost');
+  const [techFilter,  setTechFilter]  = useState(new Set());
 
   // Jobs with a usable result
   const validJobs = useMemo(
@@ -408,18 +459,55 @@ export default function ScenarioComparison() {
     return [...s].sort();
   }, [kpisPerJob]);
 
+  // Tech filter: techs grouped by category for the filter bar
+  const techsByGroup = useMemo(() => {
+    const map = {};
+    allTechs.forEach(t => {
+      const gid = classifyCompareTech(t);
+      (map[gid] = map[gid] || []).push(t);
+    });
+    return map;
+  }, [allTechs]);
+
+  const activeGroups = useMemo(() =>
+    COMPARE_TECH_GROUPS.filter(g => (techsByGroup[g.id] || []).length > 0),
+    [techsByGroup]
+  );
+
+  // Filtered allTechs (applied to charts)
+  const filteredAllTechs = useMemo(() =>
+    techFilter.size === 0
+      ? allTechs
+      : allTechs.filter(t => techFilter.has(t)),
+    [allTechs, techFilter]
+  );
+
+  const toggleGroup = useCallback((gid) => {
+    const groupTechs = techsByGroup[gid] || [];
+    if (!groupTechs.length) return;
+    setTechFilter(prev => {
+      const expanded = prev.size === 0 ? new Set(allTechs) : new Set(prev);
+      const allIn = groupTechs.every(t => expanded.has(t));
+      if (allIn) groupTechs.forEach(t => expanded.delete(t));
+      else groupTechs.forEach(t => expanded.add(t));
+      return expanded.size >= allTechs.length ? new Set() : expanded;
+    });
+  }, [allTechs, techsByGroup]);
+
+  const clearTechFilter = useCallback(() => setTechFilter(new Set()), []);
+
   // Pre-computed chart options
   const capacityOption = useMemo(
-    () => buildStackedBar(kpisPerJob, allTechs, 'capByTech',  'MW'),
-    [kpisPerJob, allTechs]
+    () => buildStackedBar(kpisPerJob, filteredAllTechs, 'capByTech',  'MW'),
+    [kpisPerJob, filteredAllTechs]
   );
   const genOption = useMemo(
-    () => buildStackedBar(kpisPerJob, allTechs, 'genByTech',  'MWh'),
-    [kpisPerJob, allTechs]
+    () => buildStackedBar(kpisPerJob, filteredAllTechs, 'genByTech',  'MWh'),
+    [kpisPerJob, filteredAllTechs]
   );
   const costsOption = useMemo(
-    () => buildStackedBar(kpisPerJob, allTechs, 'costByTech', '€'),
-    [kpisPerJob, allTechs]
+    () => buildStackedBar(kpisPerJob, filteredAllTechs, 'costByTech', '€'),
+    [kpisPerJob, filteredAllTechs]
   );
   const parallelOption = useMemo(
     () => buildParallelOption(kpisPerJob, colorMap),
@@ -447,7 +535,7 @@ export default function ScenarioComparison() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="flex gap-4" style={{ minHeight: 0, height: '100%' }}>
+    <div className="flex gap-4 h-full">
 
       {/* ══ Left: Job Picker ══════════════════════════════════════════════ */}
       <div className="w-64 flex-shrink-0 flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -530,229 +618,221 @@ export default function ScenarioComparison() {
       </div>
 
       {/* ══ Right: Chart Area ═════════════════════════════════════════════ */}
-      <div className="flex-1 min-w-0 flex flex-col gap-4">
+      <div className="flex-1 min-w-0 flex flex-col">
 
         {selectedJobs.length === 0 ? (
-          /* Empty state */
           <div className="flex-1 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center p-12">
             <FiLayers size={44} className="text-slate-200 mb-4" />
             <p className="text-slate-600 font-semibold text-lg mb-2">Select runs to compare</p>
             <p className="text-slate-400 text-sm max-w-xs leading-relaxed">
               Pick two or more completed runs from the left panel.
-              Supports dozens to hundreds of scenarios for energy model exploration.
             </p>
           </div>
         ) : (
           <>
-            {/* ── Toolbar ── */}
-            <div className="flex items-center gap-3 flex-wrap">
-              {/* Chart-type tabs */}
+            <div className="flex-shrink-0 flex items-center gap-3 flex-wrap mb-3">
               <div className="flex gap-1 bg-slate-100 rounded-xl p-1">
-                {CHART_VIEWS.map(({ id, label, icon: Icon }) => (
-                  <button key={id} onClick={() => setChartView(id)}
+                {CHART_VIEWS.map((v) => {
+                  const Icon = v.icon;
+                  return (
+                  <button key={v.id} onClick={() => setChartView(v.id)}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
-                      chartView === id
+                      chartView === v.id
                         ? 'bg-white text-slate-800 shadow-sm'
                         : 'text-slate-500 hover:text-slate-700'
                     }`}>
-                    <Icon size={12} /> {label}
+                    <Icon size={12} /> {v.label}
                   </button>
-                ))}
+                  );
+                })}
               </div>
-
-              {/* Large-N hint */}
               {manySelected && chartView !== 'parallel' && chartView !== 'scatter' && chartView !== 'table' && (
                 <span className="flex items-center gap-1.5 text-amber-600 text-xs bg-amber-50 border border-amber-200 px-2.5 py-1.5 rounded-lg">
                   <FiInfo size={12} />
-                  {selectedJobs.length} runs — <b>Parallel</b> or <b>Scatter</b> views scale better for this many scenarios
+                  {selectedJobs.length} runs — <b>Parallel</b> or <b>Scatter</b> views scale better
                 </span>
               )}
-
-              {/* CSV export */}
-              <button
-                onClick={() => exportCSV(kpisPerJob)}
+              <button onClick={() => exportCSV(kpisPerJob)}
                 className="ml-auto flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 bg-white text-slate-600 rounded-xl hover:bg-slate-50 text-xs font-medium transition shadow-sm">
                 <FiDownload size={12} /> Export CSV
               </button>
             </div>
 
-            {/* ════ SUMMARY TABLE ════════════════════════════════════════ */}
-            {chartView === 'table' && (
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-3">
-                  <span className="font-semibold text-slate-800 text-sm">
-                    KPI Summary — {kpisPerJob.length} run{kpisPerJob.length !== 1 ? 's' : ''}
-                  </span>
-                  <span className="text-slate-400 text-xs">
-                    ★ marks the best value per metric
-                  </span>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="bg-slate-50 border-b border-slate-100">
-                        <th className="text-left px-4 py-2.5 text-slate-500 font-semibold sticky left-0 bg-slate-50 z-10 min-w-[160px]">
-                          Metric
-                        </th>
-                        {kpisPerJob.map(({ job }, i) => (
-                          <th key={job.id} className="px-3 py-2.5 text-left min-w-[130px]">
-                            <span className="flex items-center gap-1.5">
-                              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                                style={{ background: colorMap[job.id] || jobColor(i) }} />
-                              <span className="text-slate-700 font-medium truncate max-w-[100px]"
-                                title={job.modelName}>
-                                {job.modelName}
+            {allTechs.length > 1 && (
+              <div className="flex-shrink-0 flex items-center gap-1.5 flex-wrap mb-3 px-3 py-2 bg-white rounded-xl border border-slate-200 shadow-sm">
+                <FiFilter size={11} className="text-slate-400 flex-shrink-0" />
+                <button onClick={clearTechFilter}
+                  className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-all flex-shrink-0 ${
+                    techFilter.size === 0
+                      ? 'bg-gray-900 text-white'
+                      : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                  }`}>All</button>
+                {activeGroups.map(grp => {
+                  const gTechs = techsByGroup[grp.id] || [];
+                  const allInGroup = techFilter.size === 0 || gTechs.every(t => techFilter.has(t));
+                  const anyInGroup = techFilter.size === 0 || gTechs.some(t => techFilter.has(t));
+                  return (
+                    <button key={grp.id} onClick={() => toggleGroup(grp.id)}
+                      className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium transition-all flex-shrink-0 border ${
+                        allInGroup
+                          ? 'border-transparent text-white'
+                          : anyInGroup
+                            ? 'border-dashed'
+                            : 'bg-white border-slate-200 text-slate-300 line-through opacity-40'
+                      }`}
+                      style={allInGroup || anyInGroup ? {
+                        background: allInGroup ? grp.color : grp.color + '22',
+                        borderColor: grp.color + (anyInGroup ? '55' : 'aa'),
+                        color: allInGroup ? '#fff' : grp.color,
+                      } : {}}>
+                      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                        style={{ background: allInGroup ? '#fff' : grp.color }} />
+                      {grp.label}
+                      <span className="text-[9px] opacity-60 ml-0.5">{gTechs.length}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="flex-1 min-h-0">
+              {chartView === 'table' && (
+                <div className="h-full bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col">
+                  <div className="flex-shrink-0 px-4 py-3 border-b border-slate-100 flex items-center gap-3">
+                    <span className="font-semibold text-slate-800 text-sm">
+                      KPI Summary — {kpisPerJob.length} run{kpisPerJob.length !== 1 ? 's' : ''}
+                    </span>
+                    <span className="text-slate-400 text-xs">★ marks the best value per metric</span>
+                  </div>
+                  <div className="flex-1 overflow-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-100 sticky top-0 z-10">
+                          <th className="text-left px-4 py-2.5 text-slate-500 font-semibold min-w-[160px] bg-slate-50">Metric</th>
+                          {kpisPerJob.map(({ job }, i) => (
+                            <th key={job.id} className="px-3 py-2.5 text-left min-w-[130px] bg-slate-50">
+                              <span className="flex items-center gap-1.5">
+                                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                  style={{ background: colorMap[job.id] || jobColor(i) }} />
+                                <span className="text-slate-700 font-medium truncate max-w-[100px]" title={job.modelName}>
+                                  {job.modelName}
+                                </span>
                               </span>
-                            </span>
-                            <span className="block text-[10px] text-slate-400 font-normal mt-0.5">
-                              {new Date(job.completedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                            </span>
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {KPI_ROWS.map(({ key, label, fmt, best }) => {
-                        const vals = kpisPerJob.map(({ kpis }) => kpis[key] ?? 0);
-                        const bestVal = best === 'max' ? Math.max(...vals)
-                                      : best === 'min' ? Math.min(...vals)
-                                      : null;
-                        return (
-                          <tr key={key} className="border-b border-slate-50 hover:bg-slate-50/60 transition-colors">
-                            <td className="px-4 py-2.5 text-slate-500 font-medium sticky left-0 bg-white z-10">
-                              {label}
-                            </td>
-                            {kpisPerJob.map(({ job, kpis }) => {
-                              const v       = kpis[key] ?? 0;
-                              const isBest  = bestVal !== null && v === bestVal && kpisPerJob.length > 1;
-                              return (
-                                <td key={job.id}
-                                  className={`px-3 py-2.5 font-mono tabular-nums ${
-                                    isBest ? 'text-emerald-700 font-bold bg-emerald-50/60' : 'text-slate-700'
-                                  }`}>
-                                  {isBest && <span className="mr-1 text-emerald-500">★</span>}
-                                  {fmt(v)}
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {/* ════ CAPACITY MIX ══════════════════════════════════════════ */}
-            {chartView === 'capacity' && (
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
-                <p className="font-semibold text-slate-800 text-sm mb-1">
-                  Installed Capacity by Technology
-                </p>
-                <p className="text-xs text-slate-400 mb-3">
-                  Stacked bars · each segment = one technology · MW
-                </p>
-                <ReactECharts option={capacityOption} style={{ height: 420 }} notMerge />
-              </div>
-            )}
-
-            {/* ════ GENERATION MIX ════════════════════════════════════════ */}
-            {chartView === 'gen' && (
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
-                <p className="font-semibold text-slate-800 text-sm mb-1">
-                  Generation Mix by Technology
-                </p>
-                <p className="text-xs text-slate-400 mb-3">
-                  Stacked bars · each segment = one technology · MWh/year
-                </p>
-                <ReactECharts option={genOption} style={{ height: 420 }} notMerge />
-              </div>
-            )}
-
-            {/* ════ SYSTEM COSTS ══════════════════════════════════════════ */}
-            {chartView === 'costs' && (
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
-                <p className="font-semibold text-slate-800 text-sm mb-1">
-                  System Cost by Technology
-                </p>
-                <p className="text-xs text-slate-400 mb-3">
-                  Stacked bars · annualised cost breakdown · €
-                </p>
-                <ReactECharts option={costsOption} style={{ height: 420 }} notMerge />
-              </div>
-            )}
-
-            {/* ════ PARALLEL COORDINATES ══════════════════════════════════ */}
-            {chartView === 'parallel' && (
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
-                <p className="font-semibold text-slate-800 text-sm mb-1">
-                  Parallel Coordinates
-                </p>
-                <p className="text-xs text-slate-400 mb-3">
-                  One line per run · drag an axis band to filter · ideal for 20 – 1000+ scenarios
-                </p>
-                {kpisPerJob.length < 2 ? (
-                  <p className="text-slate-400 text-sm text-center py-14">
-                    Select at least 2 runs to use parallel coordinates.
-                  </p>
-                ) : (
-                  <ReactECharts option={parallelOption} style={{ height: 440 }} notMerge />
-                )}
-              </div>
-            )}
-
-            {/* ════ SCATTER PLOT ══════════════════════════════════════════ */}
-            {chartView === 'scatter' && (
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
-                {/* Header + axis selectors */}
-                <div className="flex items-center gap-4 mb-3 flex-wrap">
-                  <div>
-                    <p className="font-semibold text-slate-800 text-sm">Scatter Plot</p>
-                    <p className="text-xs text-slate-400">Explore relationships between any two metrics</p>
-                  </div>
-                  <div className="ml-auto flex items-center gap-3 flex-wrap">
-                    <label className="flex items-center gap-1.5 text-xs text-slate-500">
-                      X-axis:
-                      <select
-                        value={scatterX}
-                        onChange={e => setScatterX(e.target.value)}
-                        className="border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400">
-                        {SCATTER_METRICS.map(m => (
-                          <option key={m.key} value={m.key}>{m.label}</option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="flex items-center gap-1.5 text-xs text-slate-500">
-                      Y-axis:
-                      <select
-                        value={scatterY}
-                        onChange={e => setScatterY(e.target.value)}
-                        className="border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400">
-                        {SCATTER_METRICS.map(m => (
-                          <option key={m.key} value={m.key}>{m.label}</option>
-                        ))}
-                      </select>
-                    </label>
+                              <span className="block text-[10px] text-slate-400 font-normal mt-0.5">
+                                {new Date(job.completedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                              </span>
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {KPI_ROWS.map(({ key, label, fmt, best }) => {
+                          const vals = kpisPerJob.map(({ kpis }) => kpis[key] ?? 0);
+                          const bestVal = best === 'max' ? Math.max(...vals)
+                                        : best === 'min' ? Math.min(...vals)
+                                        : null;
+                          return (
+                            <tr key={key} className="border-b border-slate-50 hover:bg-slate-50/60 transition-colors">
+                              <td className="px-4 py-2.5 text-slate-500 font-medium">{label}</td>
+                              {kpisPerJob.map(({ job, kpis }) => {
+                                const v = kpis[key] ?? 0;
+                                const isBest = bestVal !== null && v === bestVal && kpisPerJob.length > 1;
+                                return (
+                                  <td key={job.id}
+                                    className={`px-3 py-2.5 font-mono tabular-nums ${
+                                      isBest ? 'text-emerald-700 font-bold bg-emerald-50/60' : 'text-slate-700'
+                                    }`}>
+                                    {isBest && <span className="mr-1 text-emerald-500">★</span>}
+                                    {fmt(v)}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
+              )}
 
-                {kpisPerJob.length < 2 ? (
-                  <p className="text-slate-400 text-sm text-center py-14">
-                    Select at least 2 runs to use the scatter plot.
-                  </p>
-                ) : (
-                  <ReactECharts option={scatterOption} style={{ height: 420 }} notMerge />
-                )}
-              </div>
-            )}
+              {['capacity', 'gen', 'costs'].includes(chartView) && (
+                <div className="h-full bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex flex-col">
+                  <div className="flex-shrink-0 mb-1">
+                    <p className="font-semibold text-slate-800 text-sm">
+                      {chartView === 'capacity' && 'Installed Capacity by Technology'}
+                      {chartView === 'gen' && 'Generation Mix by Technology'}
+                      {chartView === 'costs' && 'System Cost by Technology'}
+                    </p>
+                    <p className="text-xs text-slate-400">
+                      {chartView === 'capacity' && 'Stacked bars · each segment = one technology · MW'}
+                      {chartView === 'gen' && 'Stacked bars · each segment = one technology · MWh/year'}
+                      {chartView === 'costs' && 'Stacked bars · annualised cost breakdown · €'}
+                    </p>
+                  </div>
+                  <div className="flex-1 min-h-0">
+                    <ReactECharts option={
+                      chartView === 'capacity' ? capacityOption
+                      : chartView === 'gen' ? genOption
+                      : costsOption
+                    } style={{ height: '100%' }} notMerge />
+                  </div>
+                </div>
+              )}
 
-            {/* ── Legend strip (always shown when runs are selected) ── */}
+              {chartView === 'parallel' && (
+                <div className="h-full bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex flex-col">
+                  <div className="flex-shrink-0 mb-1">
+                    <p className="font-semibold text-slate-800 text-sm">Parallel Coordinates</p>
+                    <p className="text-xs text-slate-400">One line per run · drag an axis band to filter</p>
+                  </div>
+                  <div className="flex-1 min-h-0">
+                    {kpisPerJob.length < 2 ? (
+                      <p className="text-slate-400 text-sm text-center py-14">Select at least 2 runs.</p>
+                    ) : (
+                      <ReactECharts option={parallelOption} style={{ height: '100%' }} notMerge />
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {chartView === 'scatter' && (
+                <div className="h-full bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex flex-col">
+                  <div className="flex-shrink-0 flex items-center gap-4 mb-1 flex-wrap">
+                    <div>
+                      <p className="font-semibold text-slate-800 text-sm">Scatter Plot</p>
+                      <p className="text-xs text-slate-400">Explore relationships between any two metrics</p>
+                    </div>
+                    <div className="ml-auto flex items-center gap-3 flex-wrap">
+                      <label className="flex items-center gap-1.5 text-xs text-slate-500">
+                        X:
+                        <select value={scatterX} onChange={e => setScatterX(e.target.value)}
+                          className="border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400">
+                          {SCATTER_METRICS.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
+                        </select>
+                      </label>
+                      <label className="flex items-center gap-1.5 text-xs text-slate-500">
+                        Y:
+                        <select value={scatterY} onChange={e => setScatterY(e.target.value)}
+                          className="border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400">
+                          {SCATTER_METRICS.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
+                        </select>
+                      </label>
+                    </div>
+                  </div>
+                  <div className="flex-1 min-h-0">
+                    {kpisPerJob.length < 2 ? (
+                      <p className="text-slate-400 text-sm text-center py-14">Select at least 2 runs.</p>
+                    ) : (
+                      <ReactECharts option={scatterOption} style={{ height: '100%' }} notMerge />
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {kpisPerJob.length > 0 && (
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-4 py-3">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">
-                  Selected Runs
-                </p>
+              <div className="flex-shrink-0 bg-white rounded-2xl border border-slate-200 shadow-sm px-4 py-2.5 mt-3">
                 <div className="flex flex-wrap gap-2">
                   {kpisPerJob.map(({ job }, i) => (
                     <span key={job.id}

@@ -1,0 +1,20 @@
+services:
+  adoptnet0-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.adoptnet0
+    image: adoptnet0-runner:latest
+    container_name: adoptnet0-runner
+    ports:
+      - "5001:5001"
+    restart: unless-stopped
+    volumes:
+      - ./python:/app/python:ro
+    # Override CMD for live-reload during development:
+    # command: ["uvicorn", "python.adoptnet0_service:app", "--host", "0.0.0.0", "--port", "5001", "--reload"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s

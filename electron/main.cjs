@@ -8,11 +8,13 @@ const net = require('net');
 let mainWindow         = null;
 let backendProcess     = null;   // Go REST backend (port 8082)
 let calliopeService    = null;   // Python uvicorn service (port 5000, optional)
+let adoptnet0Service   = null;   // AdOpT-NET0 FastAPI service (port 5001, optional)
 let ccsSimService      = null;   // CCS simulation FastAPI service (port 8766)
 let hydrogenSimService = null;   // Hydrogen simulation FastAPI service (port 8765)
 
-let BACKEND_PORT  = 8082;   // may be reassigned at startup if port is taken
-let CALLIOPE_PORT = 5000;   // may be reassigned at startup if port is taken
+let BACKEND_PORT    = 8082;   // may be reassigned at startup if port is taken
+let CALLIOPE_PORT   = 5000;   // may be reassigned at startup if port is taken
+let ADOPTNET0_PORT  = 5001;   // may be reassigned at startup if port is taken
 const IS_WIN        = process.platform === 'win32';
 const IS_LINUX      = process.platform === 'linux';
 
@@ -39,6 +41,14 @@ function getDockerServices() {
       port: CALLIOPE_PORT,
       composeDir: repoRoot,
       required: true,
+    },
+    {
+      name: 'adoptnet0-runner',
+      label: 'AdOpT-NET0 Energy Optimizer',
+      port: ADOPTNET0_PORT,
+      composeDir: repoRoot,
+      composeFile: 'docker-compose.adoptnet0.yml',
+      required: false,
     },
     {
       name: 'opentech-db',
@@ -268,16 +278,18 @@ ipcMain.handle('docker:start-all', async () => {
 
 // ─── IPC: Service URL registry ───────────────────────────────────────────────
 ipcMain.handle('services:urls', async () => {
-  const [c, o, h2, ccs, gs, be] = await Promise.all([
-    isPortOpen(CALLIOPE_PORT), isPortOpen(8000), isPortOpen(8765), isPortOpen(8766), isPortOpen(8081), isPortOpen(BACKEND_PORT),
+  const [c, a, o, h2, ccs, gs, be] = await Promise.all([
+    isPortOpen(CALLIOPE_PORT), isPortOpen(ADOPTNET0_PORT), isPortOpen(8000),
+    isPortOpen(8765), isPortOpen(8766), isPortOpen(8081), isPortOpen(BACKEND_PORT),
   ]);
   return {
-    calliope:  { url: `http://localhost:${CALLIOPE_PORT}`, running: c   },
-    opentech:  { url: 'http://localhost:8000',             running: o   },
-    hydrogen:  { url: 'http://localhost:8765',             running: h2  },
-    ccs:       { url: 'http://localhost:8766',             running: ccs },
-    geoserver: { url: 'http://localhost:8081',             running: gs  },
-    backend:   { url: `http://localhost:${BACKEND_PORT}`,  running: be  },
+    calliope:   { url: `http://localhost:${CALLIOPE_PORT}`,  running: c   },
+    adoptnet0:  { url: `http://localhost:${ADOPTNET0_PORT}`, running: a   },
+    opentech:   { url: 'http://localhost:8000',              running: o   },
+    hydrogen:   { url: 'http://localhost:8765',              running: h2  },
+    ccs:        { url: 'http://localhost:8766',              running: ccs },
+    geoserver:  { url: 'http://localhost:8081',              running: gs  },
+    backend:    { url: `http://localhost:${BACKEND_PORT}`,   running: be  },
   };
 });
 
@@ -1347,6 +1359,370 @@ ipcMain.handle('calliope:restart-service', async () => {
   return { running: await isPortOpen(CALLIOPE_PORT) };
 });
 
+// ─── AdOpT-NET0 venv (Python 3.12+) ─────────────────────────────────────────
+
+function resolveAdoptnet0Venv() {
+  const binDir = IS_WIN ? 'Scripts' : 'bin';
+  const pyExe  = IS_WIN ? 'python.exe' : 'python3';
+  const venvDir = path.join(app.getPath('userData'), 'adoptnet0-venv');
+  const python  = path.join(venvDir, binDir, pyExe);
+
+  const hasAdopt = (dir) => {
+    try { return fs.readdirSync(dir).some(d => d.startsWith('adopt_net0')); }
+    catch { return false; }
+  };
+
+  let exists = false;
+  if (fs.existsSync(python)) {
+    const siteWin  = path.join(venvDir, 'Lib', 'site-packages');
+    const siteUnix = path.join(venvDir, 'lib');
+    exists = hasAdopt(siteWin);
+    if (!exists && fs.existsSync(siteUnix)) {
+      exists = fs.readdirSync(siteUnix).some(ver => {
+        try { return hasAdopt(path.join(siteUnix, ver, 'site-packages')); } catch { return false; }
+      });
+    }
+  }
+
+  return { venvDir, python, exists };
+}
+
+/**
+ * Find a Python 3.12+ interpreter on the system PATH.
+ * Returns the command/path string, or null if none found.
+ */
+function findSystemPython312Plus() {
+  // Windows py launcher — try specific versions first
+  if (IS_WIN) {
+    for (const ver of ['3.13', '3.12']) {
+      try {
+        const out = execFileSync('py', [`-${ver}`, '--version'],
+          { timeout: 5000, stdio: ['ignore', 'pipe', 'pipe'] }).toString();
+        if (new RegExp(`Python ${ver.replace('.', '\\.')}`, 'i').test(out)) {
+          return execFileSync('py', [`-${ver}`, '-c', 'import sys; print(sys.executable)'],
+            { timeout: 5000, stdio: ['ignore', 'pipe', 'pipe'] }).toString().trim();
+        }
+      } catch { /* version not installed via py launcher */ }
+    }
+  }
+
+  // Generic PATH search
+  const candidates = IS_WIN ? ['python3.12', 'python3.13', 'python', 'python3']
+                             : ['python3.12', 'python3.13', 'python3', 'python'];
+  for (const cmd of candidates) {
+    try {
+      const out = execFileSync(cmd, ['--version'],
+        { timeout: 5000, stdio: ['ignore', 'pipe', 'pipe'] }).toString();
+      if (/python 3\.1[2-9](?:\D|$)|python 3\.[2-9]\d(?:\D|$)/i.test(out)) return cmd;
+    } catch { /* continue */ }
+  }
+  return null;
+}
+
+/**
+ * Download Python 3.12.9 from NuGet on Windows (no admin rights required).
+ * Mirrors downloadAndInstallPython311Win but for 3.12.
+ */
+async function downloadAndInstallPython312Win(sendProgress) {
+  const https = require('https');
+  const os    = require('os');
+
+  const localAppData = process.env.LOCALAPPDATA || app.getPath('temp');
+  const installDir   = path.join(localAppData, 'TEMPO', 'python312');
+  const pythonExe    = path.join(installDir, 'python.exe');
+
+  const getCandidates = () => [
+    pythonExe,
+    path.join(installDir, 'Python312', 'python.exe'),
+    path.join(installDir, 'tools', 'python.exe'),
+  ].filter(Boolean);
+
+  const resolveInstalled = () => {
+    for (const p of getCandidates()) { if (fs.existsSync(p)) return p; }
+    try {
+      const p = execFileSync('py', ['-3.12', '-c', 'import sys; print(sys.executable)'],
+        { timeout: 5000, stdio: ['ignore', 'pipe', 'pipe'] }).toString().trim();
+      if (p) return p;
+    } catch { }
+    return null;
+  };
+
+  const cached = resolveInstalled();
+  if (cached) {
+    sendProgress({ type: 'log', line: `Using cached Python 3.12: ${cached}` });
+    return cached;
+  }
+
+  fs.mkdirSync(installDir, { recursive: true });
+
+  const PY_URL = 'https://www.nuget.org/api/v2/package/python/3.12.9';
+  const tmpPkg = path.join(os.tmpdir(), 'tempo-python-3.12.9.nupkg');
+  const tmpZip = path.join(os.tmpdir(), 'tempo-python-3.12.9.zip');
+
+  sendProgress({ type: 'stage', label: 'Downloading Python 3.12.9…' });
+  sendProgress({ type: 'log',   line: 'Source: nuget.org/package/python/3.12.9 (~35 MB)' });
+
+  await new Promise((resolve, reject) => {
+    const file = fs.createWriteStream(tmpPkg);
+    let downloaded = 0, lastPct = -10;
+    function doGet(url) {
+      const req = https.get(url, { timeout: 120_000 }, (res) => {
+        if (res.statusCode === 301 || res.statusCode === 302) { req.destroy(); doGet(res.headers.location); return; }
+        if (res.statusCode !== 200) { reject(new Error(`HTTP ${res.statusCode} downloading Python 3.12`)); return; }
+        const total = parseInt(res.headers['content-length'] || '0', 10);
+        res.on('data', chunk => {
+          downloaded += chunk.length;
+          const pct = total > 0 ? Math.floor(downloaded / total * 100) : 0;
+          if (pct >= lastPct + 10) { lastPct = pct; sendProgress({ type: 'log', line: `  ${pct}% (${(downloaded/1024/1024).toFixed(1)} MB)` }); }
+        });
+        res.pipe(file);
+        file.on('finish', () => file.close(resolve));
+        file.on('error', reject);
+        res.on('error', reject);
+      });
+      req.on('error', reject);
+      req.on('timeout', () => { req.destroy(); reject(new Error('Python 3.12 download timed out')); });
+    }
+    doGet(PY_URL);
+  });
+
+  sendProgress({ type: 'stage', label: 'Extracting Python 3.12.9…' });
+  try {
+    if (fs.existsSync(installDir)) fs.rmSync(installDir, { recursive: true, force: true });
+    fs.mkdirSync(installDir, { recursive: true });
+    fs.copyFileSync(tmpPkg, tmpZip);
+    const ps = (s) => s.replace(/'/g, "''");
+    const psCmd = `Expand-Archive -Path '${ps(tmpZip)}' -DestinationPath '${ps(installDir)}' -Force`;
+    await new Promise((resolve, reject) => {
+      const child = spawn('powershell', ['-NoProfile', '-NonInteractive', '-Command', psCmd], { shell: false });
+      let stderr = '';
+      child.stderr.on('data', d => { stderr += d.toString(); });
+      child.on('close', code => { if (code === 0) resolve(); else reject(new Error(`Python 3.12 extraction failed (exit ${code}): ${stderr.trim()}`)); });
+      child.on('error', err => reject(new Error(`Cannot run PowerShell: ${err.message}`)));
+    });
+  } finally {
+    try { fs.unlinkSync(tmpPkg); } catch { }
+    try { fs.unlinkSync(tmpZip); } catch { }
+  }
+
+  // Wait up to 30 s for the interpreter to appear
+  const deadline = Date.now() + 30_000;
+  let found = null;
+  while (!found && Date.now() < deadline) {
+    found = resolveInstalled();
+    if (!found) await new Promise(r => setTimeout(r, 1000));
+  }
+
+  if (!found) throw new Error(
+    'Python 3.12 installation completed but no interpreter was found.\n' +
+    'Install Python 3.12 manually (https://www.python.org/downloads/), add it to PATH, then click Retry.'
+  );
+
+  sendProgress({ type: 'log', line: `✓ Python 3.12.9 installed: ${found}` });
+  return found;
+}
+
+/**
+ * Ensure a Python 3.12+ interpreter is available, auto-downloading on Windows if needed.
+ */
+async function ensureAdoptnet0Python(sendProgress) {
+  const found = findSystemPython312Plus();
+  if (found) {
+    try {
+      const ver = execFileSync(found, ['--version'],
+        { timeout: 5000, stdio: ['ignore', 'pipe', 'pipe'] }).toString().trim();
+      sendProgress({ type: 'log', line: `Found: ${ver} → ${found}` });
+    } catch { }
+    return found;
+  }
+
+  if (IS_WIN) {
+    sendProgress({ type: 'log', line: 'No Python 3.12+ found — downloading Python 3.12.9…' });
+    return downloadAndInstallPython312Win(sendProgress);
+  }
+
+  throw new Error(
+    'Python 3.12+ not found.\n' +
+    'Install it, then relaunch TEMPO:\n' +
+    '  Ubuntu/Debian: sudo apt-get install python3.12 python3.12-venv\n' +
+    '  macOS:         brew install python@3.12\n' +
+    '  Other:         https://www.python.org/downloads/'
+  );
+}
+
+// ─── AdOpT-NET0 service (FastAPI / uvicorn) ──────────────────────────────────
+let _adoptnet0SvcIntentionalStop = false;
+let _adoptnet0SvcRestartCount    = 0;
+const _ADOPTNET0_MAX_RESTARTS    = 5;
+
+async function startAdoptnet0Service() {
+  _adoptnet0SvcIntentionalStop = false;
+  _adoptnet0SvcRestartCount    = 0;
+  if (await isPortOpen(ADOPTNET0_PORT)) {
+    console.log('[adoptnet0-svc] Already running on port', ADOPTNET0_PORT);
+    return;
+  }
+
+  const { python, exists } = resolveAdoptnet0Venv();
+  if (!exists) {
+    console.log('[adoptnet0-svc] venv not ready — skipping autostart');
+    return;
+  }
+
+  const { pythonDir } = getServicePaths();
+
+  console.log(`[adoptnet0-svc] Starting uvicorn on port ${ADOPTNET0_PORT}`);
+  adoptnet0Service = spawn(python, [
+    '-m', 'uvicorn', 'adoptnet0_service:app',
+    '--host', '127.0.0.1',
+    '--port', String(ADOPTNET0_PORT),
+    '--workers', '1',
+    '--log-level', 'warning',
+  ], { cwd: pythonDir, shell: false });
+
+  adoptnet0Service.stdout.on('data', d => { for (const l of d.toString().split('\n').filter(x => x.trim())) console.log(`[adoptnet0-svc] ${l}`); });
+  adoptnet0Service.stderr.on('data', d => { for (const l of d.toString().split('\n').filter(x => x.trim())) console.log(`[adoptnet0-svc] ${l}`); });
+  adoptnet0Service.on('close', code => {
+    console.log(`[adoptnet0-svc] Exited: ${code}`);
+    adoptnet0Service = null;
+    if (!_adoptnet0SvcIntentionalStop && _adoptnet0SvcRestartCount < _ADOPTNET0_MAX_RESTARTS) {
+      _adoptnet0SvcRestartCount++;
+      const delay = Math.min(2000 * _adoptnet0SvcRestartCount, 10000);
+      setTimeout(() => startAdoptnet0Service().catch(e => console.warn('[adoptnet0-svc] Restart failed:', e)), delay);
+    }
+  });
+
+  try {
+    await waitForPort(ADOPTNET0_PORT, 15000);
+    console.log('[adoptnet0-svc] Ready on port', ADOPTNET0_PORT);
+  } catch {
+    console.warn('[adoptnet0-svc] Did not start within 15 s — continuing anyway');
+  }
+}
+
+function stopAdoptnet0Service() {
+  _adoptnet0SvcIntentionalStop = true;
+  if (adoptnet0Service) { adoptnet0Service.kill(); adoptnet0Service = null; }
+}
+
+// ─── IPC: AdOpT-NET0 service management ──────────────────────────────────────
+
+ipcMain.handle('adoptnet0:service-url', async () => ({
+  url:     `http://127.0.0.1:${ADOPTNET0_PORT}`,
+  running: await isPortOpen(ADOPTNET0_PORT),
+}));
+
+ipcMain.handle('adoptnet0:check', async () => {
+  const { python, exists, venvDir } = resolveAdoptnet0Venv();
+  const serviceRunning = await isPortOpen(ADOPTNET0_PORT);
+
+  let importOk = false;
+  if (exists && fs.existsSync(python)) {
+    try {
+      execFileSync(python, ['-c', 'import adopt_net0; print("ok", adopt_net0.__version__)'],
+        { timeout: 30000, stdio: ['ignore', 'pipe', 'pipe'] });
+      importOk = true;
+    } catch { importOk = false; }
+  }
+
+  return { envExists: importOk, venvPath: importOk ? venvDir : null, serviceRunning, platform: process.platform };
+});
+
+ipcMain.handle('adoptnet0:install', async (_event) => {
+  const sendProgress = (data) => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('adoptnet0:install-progress', data);
+  };
+
+  try {
+    sendProgress({ type: 'stage', label: 'Locating Python 3.12+…' });
+    const systemPython = await ensureAdoptnet0Python(sendProgress);
+
+    const venvDir    = path.join(app.getPath('userData'), 'adoptnet0-venv');
+    const binDir     = IS_WIN ? 'Scripts' : 'bin';
+    const pyExe      = IS_WIN ? 'python.exe' : 'python3';
+    const venvPython = path.join(venvDir, binDir, pyExe);
+
+    sendProgress({ type: 'log', line: 'Stopping any running AdOpT-NET0 service…' });
+    stopAdoptnet0Service();
+    await new Promise(r => setTimeout(r, 2000));
+
+    if (fs.existsSync(venvDir)) {
+      sendProgress({ type: 'log', line: 'Removing old AdOpT-NET0 environment…' });
+      if (IS_WIN) {
+        try { execFileSync('cmd', ['/c', 'rmdir', '/s', '/q', venvDir], { timeout: 30000, stdio: ['ignore', 'pipe', 'pipe'] }); }
+        catch (e) { sendProgress({ type: 'log', line: `⚠ rmdir warning: ${e.message}` }); }
+      } else {
+        try { fs.rmSync(venvDir, { recursive: true, force: true }); }
+        catch (e) { sendProgress({ type: 'log', line: `⚠ Remove warning: ${e.message}` }); }
+      }
+    }
+
+    sendProgress({ type: 'stage', label: 'Creating AdOpT-NET0 Python environment…' });
+    sendProgress({ type: 'log', line: `Location: ${venvDir}` });
+    fs.mkdirSync(path.dirname(venvDir), { recursive: true });
+
+    const pipEnv = { ...process.env, PIP_PREFER_BINARY: '1', PIP_NO_CACHE_DIR: '1' };
+    const recentLines = [];
+    const runChild = (cmd, args, label) => new Promise((resolve, reject) => {
+      const child = spawn(cmd, args, { shell: false, env: pipEnv });
+      const onLine = l => {
+        recentLines.push(l);
+        if (recentLines.length > 50) recentLines.shift();
+        sendProgress({ type: 'log', line: l });
+      };
+      child.stdout.on('data', d => { for (const l of d.toString().split('\n').filter(x => x.trim())) onLine(l); });
+      child.stderr.on('data', d => { for (const l of d.toString().split('\n').filter(x => x.trim())) onLine(l); });
+      child.on('close', code => {
+        if (code === 0) resolve();
+        else reject(new Error(`${label} failed (exit ${code})\n\n${recentLines.slice(-10).join('\n')}`));
+      });
+      child.on('error', err => reject(new Error(`${label} could not start: ${err.message}`)));
+    });
+
+    await runChild(systemPython, ['-m', 'venv', '--clear', venvDir], 'venv creation');
+    try { await runChild(venvPython, ['-m', 'ensurepip', '--upgrade'], 'ensurepip'); } catch { /* non-fatal */ }
+
+    sendProgress({ type: 'stage', label: 'Upgrading build tools…' });
+    await runChild(venvPython, ['-m', 'pip', 'install', '--upgrade', '--quiet', 'pip', 'setuptools', 'wheel'], 'pip upgrade');
+
+    const { pythonDir } = getServicePaths();
+
+    sendProgress({ type: 'stage', label: 'Installing service layer (FastAPI + uvicorn)…' });
+    await runChild(venvPython, [
+      '-m', 'pip', 'install', '--prefer-binary', '--no-warn-script-location', '--no-cache-dir',
+      '-r', path.join(pythonDir, 'requirements.service.txt'),
+    ], 'pip install (service layer)');
+
+    sendProgress({ type: 'stage', label: 'Installing AdOpT-NET0…' });
+    sendProgress({ type: 'log', line: 'This may take several minutes (many dependencies)…' });
+    recentLines.length = 0;
+    await runChild(venvPython, [
+      '-m', 'pip', 'install', '--prefer-binary', '--no-warn-script-location', '--no-cache-dir',
+      'adopt_net0>=0.1.10',
+    ], 'pip install adopt_net0');
+
+    sendProgress({ type: 'stage', label: 'Verifying AdOpT-NET0 installation…' });
+    recentLines.length = 0;
+    await runChild(venvPython, ['-c', 'import adopt_net0; print("adopt_net0", adopt_net0.__version__)'], 'verification');
+
+    sendProgress({ type: 'stage', label: 'Starting AdOpT-NET0 service…' });
+    await startAdoptnet0Service();
+
+    sendProgress({ type: 'done' });
+    return { success: true };
+  } catch (err) {
+    const msg = err.message || String(err);
+    sendProgress({ type: 'error', error: msg });
+    return { success: false, error: msg };
+  }
+});
+
+ipcMain.handle('adoptnet0:restart-service', async () => {
+  stopAdoptnet0Service();
+  await startAdoptnet0Service();
+  return { running: await isPortOpen(ADOPTNET0_PORT) };
+});
+
 // ─── Window ────────────────────────────────────────────────────────────────
 async function createWindow() {
   mainWindow = new BrowserWindow({
@@ -1397,6 +1773,7 @@ async function createWindow() {
 
 function stopAll() {
   stopCalliopeService();
+  stopAdoptnet0Service();
   stopSimServices();
   stopBackend();
 }
@@ -1435,13 +1812,22 @@ app.whenReady().then(async () => {
 
   // Allocate free ports before starting services so we don't collide with
   // other applications that may already be using the default ports.
-  try { BACKEND_PORT  = await findFreePort(BACKEND_PORT);  } catch { /* keep default */ }
-  try { CALLIOPE_PORT = await findFreePort(CALLIOPE_PORT); } catch { /* keep default */ }
-  console.log(`[ports] backend=${BACKEND_PORT}  calliope=${CALLIOPE_PORT}`);
+  // For service ports: if the port is already open (Docker container is serving),
+  // keep it — only reassign when the port is genuinely free to grab.
+  try { BACKEND_PORT = await findFreePort(BACKEND_PORT); } catch { /* keep default */ }
+  if (!await isPortOpen(CALLIOPE_PORT)) {
+    try { CALLIOPE_PORT  = await findFreePort(CALLIOPE_PORT);  } catch { /* keep default */ }
+  }
+  if (!await isPortOpen(ADOPTNET0_PORT)) {
+    try { ADOPTNET0_PORT = await findFreePort(ADOPTNET0_PORT); } catch { /* keep default */ }
+  }
+  console.log(`[ports] backend=${BACKEND_PORT}  calliope=${CALLIOPE_PORT}  adoptnet0=${ADOPTNET0_PORT}`);
 
   await startBackend();
   // Start native calliope service (no-op if venv not installed yet)
   startCalliopeService().catch(err => console.warn('[calliope-svc] autostart error:', err.message));
+  // Start AdOpT-NET0 service (no-op if venv not installed yet)
+  startAdoptnet0Service().catch(err => console.warn('[adoptnet0-svc] autostart error:', err.message));
   // Start simulation services (no-op if venvs not installed yet)
   startAllSimServices().catch(err => console.warn('[sim-svc] autostart error:', err.message));
   await createWindow();

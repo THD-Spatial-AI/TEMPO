@@ -95,6 +95,30 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   restartCalliopeService: () => ipcRenderer.invoke('calliope:restart-service'),
 
+  // ── AdOpT-NET0 Python service (direct venv mode) ──────────────────────────
+
+  /** Get the AdOpT-NET0 service URL (used by adoptnet0Client.js). */
+  getAdoptnet0ServiceURL: () => ipcRenderer.invoke('adoptnet0:service-url'),
+
+  /** Check whether the AdOpT-NET0 venv exists and the service is running. */
+  checkAdoptnet0Env: () => ipcRenderer.invoke('adoptnet0:check'),
+
+  /**
+   * Install the AdOpT-NET0 venv (Python 3.12+) and start the service.
+   * Streams progress via onAdoptnet0InstallProgress.
+   */
+  installAdoptnet0Env: () => ipcRenderer.invoke('adoptnet0:install'),
+
+  /** Subscribe to AdOpT-NET0 install progress events. */
+  onAdoptnet0InstallProgress: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('adoptnet0:install-progress', handler);
+    return () => ipcRenderer.removeListener('adoptnet0:install-progress', handler);
+  },
+
+  /** Restart the running AdOpT-NET0 uvicorn service. */
+  restartAdoptnet0Service: () => ipcRenderer.invoke('adoptnet0:restart-service'),
+
   // ── opentech-db URL ───────────────────────────────────────────────────────
 
   /**

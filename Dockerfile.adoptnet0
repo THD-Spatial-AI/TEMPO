@@ -1,0 +1,46 @@
+# ─── AdOpT-NET0 Web Service ───────────────────────────────────────────────────
+# Runs the AdOpT-NET0 optimisation framework as an HTTP service with SSE streaming.
+#
+# Build:   docker build -f Dockerfile.adoptnet0 -t adoptnet0-runner .
+# Run:     docker run -p 5001:5001 adoptnet0-runner
+# ─────────────────────────────────────────────────────────────────────────────
+
+FROM python:3.12-slim
+
+LABEL org.opencontainers.image.description="AdOpT-NET0 optimisation web service"
+
+WORKDIR /app
+
+# System dependencies: HDF5 libraries (required by h5py) + build tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libhdf5-dev \
+        build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies in two layers for better caching:
+#   1. Service deps (fastapi, uvicorn, psutil) — change rarely
+#   2. AdOpT-NET0 + its scientific stack — heavy but stable
+COPY python/requirements.service.txt ./requirements.service.txt
+COPY python/requirements.adoptnet0.txt ./requirements.adoptnet0.txt
+
+# 1. Upgrade toolchain
+RUN pip install --upgrade pip setuptools wheel
+
+# 2. Service deps
+RUN pip install --no-cache-dir -r requirements.service.txt
+
+# 3. AdOpT-NET0 and its full dependency tree (numpy>=1.26.4, pandas>=2.2.2,
+#    scipy>=1.13.0, pyomo, highspy, h5py, pvlib, tsam, etc.)
+RUN pip install --no-cache-dir -r requirements.adoptnet0.txt
+
+# Copy the python package (runner + service)
+COPY python/ ./python/
+
+# Expose the service port
+EXPOSE 5001
+
+# Health-check so Docker knows when the service is ready
+HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5001/health')"
+
+CMD ["uvicorn", "python.adoptnet0_service:app", "--host", "0.0.0.0", "--port", "5001", "--workers", "1"]

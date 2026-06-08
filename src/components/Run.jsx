@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { checkCalliopeService, runCalliopeModel } from '../services/calliopeClient';
+import { checkAdoptnet0Service, runAdoptnet0Model } from '../services/adoptnet0Client';
 import {
   FiPlay, FiStopCircle, FiCheckCircle, FiAlertCircle,
   FiClock, FiCpu, FiZap, FiActivity, FiSettings,
@@ -19,10 +20,18 @@ const MODELING_FRAMEWORKS = [
     supported: true,
   },
   {
+    id: 'adoptnet0',
+    name: 'AdOpT-NET0',
+    description: 'Adaptive Optimisation Tool for Net-Zero Energy Systems',
+    icon: FiActivity,
+    color: 'from-emerald-500 to-teal-600',
+    supported: true,
+  },
+  {
     id: 'pypsa',
     name: 'PyPSA',
     description: 'Python for Power System Analysis',
-    icon: FiActivity,
+    icon: FiCpu,
     color: 'from-green-500 to-green-600',
     supported: false,
   },
@@ -30,14 +39,15 @@ const MODELING_FRAMEWORKS = [
     id: 'osemosys',
     name: 'OSeMOSYS',
     description: 'Open Source Energy Modelling System',
-    icon: FiCpu,
+    icon: FiBarChart2,
     color: 'from-purple-500 to-purple-600',
     supported: false,
   },
 ];
 
 const SOLVER_OPTIONS = {
-  calliope: ['highs'],
+  calliope:  ['highs'],
+  adoptnet0: ['highs', 'gurobi', 'glpk'],
 };
 
 
@@ -80,8 +90,9 @@ const Run = ({ onNavigate }) => {
     return Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
   };
 
-  // Docker service status: null = checking, true = reachable, false = unavailable
-  const [serviceStatus, setServiceStatus] = useState(null);
+  // Service status per framework: null = checking, true = reachable, false = unavailable
+  const [serviceStatus,    setServiceStatus]    = useState(null); // calliope
+  const [adoptnet0Status,  setAdoptnet0Status]  = useState(null); // adoptnet0
   // Ref so the health-check interval can read current job count without a stale closure
   const runningJobsRef = useRef([]);
 
@@ -156,14 +167,9 @@ const Run = ({ onNavigate }) => {
   // Keep ref in sync with state so the health-check interval sees current jobs
   useEffect(() => { runningJobsRef.current = runningJobs; }, [runningJobs]);
 
-  // Check Docker service health on mount and every 30 s.
-  // Skip updates while a job is running: CBC solves can stall uvicorn responses
-  // for >4 s (the health-check timeout), causing false "offline" flashes.
+  // Check Calliope service health on mount and every 30 s.
   useEffect(() => {
     let cancelled = false;
-
-    // On first mount the service may still be starting (uvicorn takes 3-8 s).
-    // Retry with exponential backoff before declaring "offline".
     async function checkWithRetry(attemptsLeft = 5, delayMs = 2000) {
       if (cancelled) return;
       const ok = await checkCalliopeService();
@@ -173,33 +179,49 @@ const Run = ({ onNavigate }) => {
         return checkWithRetry(attemptsLeft - 1, Math.min(delayMs * 1.5, 8000));
       }
     }
-
     const check = () => {
       if (runningJobsRef.current.length > 0) return;
       checkCalliopeService().then(ok => { if (!cancelled) setServiceStatus(ok); });
     };
-
     checkWithRetry();
     const id = setInterval(check, 30_000);
     return () => { cancelled = true; clearInterval(id); };
   }, []);
 
-  // Once the last running job finishes, re-check service health immediately
-  // (the 30s interval was skipped during the run)
+  // Check AdOpT-NET0 service health on mount and every 30 s.
+  useEffect(() => {
+    let cancelled = false;
+    async function checkWithRetry(attemptsLeft = 5, delayMs = 2000) {
+      if (cancelled) return;
+      const ok = await checkAdoptnet0Service();
+      if (!cancelled) setAdoptnet0Status(ok);
+      if (!ok && attemptsLeft > 0) {
+        await new Promise(r => setTimeout(r, delayMs));
+        return checkWithRetry(attemptsLeft - 1, Math.min(delayMs * 1.5, 8000));
+      }
+    }
+    const check = () => {
+      if (runningJobsRef.current.length > 0) return;
+      checkAdoptnet0Service().then(ok => { if (!cancelled) setAdoptnet0Status(ok); });
+    };
+    checkWithRetry();
+    const id = setInterval(check, 30_000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, []);
+
+  // Once the last running job finishes, re-check both service health immediately.
   const prevRunningJobsLenRef = useRef(0);
   useEffect(() => {
     const prev = prevRunningJobsLenRef.current;
     const curr = runningJobs.length;
     prevRunningJobsLenRef.current = curr;
     if (prev > 0 && curr === 0) {
-      // Retry up to 3 times — CBC subprocess cleanup can briefly delay
-      // uvicorn's ability to answer a health-check, causing a false offline.
       let attempts = 0;
       const retry = () => {
-        checkCalliopeService().then(ok => {
-          if (ok) { setServiceStatus(true); return; }
-          if (++attempts < 3) setTimeout(retry, 2000);
-          else setServiceStatus(false);
+        Promise.all([checkCalliopeService(), checkAdoptnet0Service()]).then(([c, a]) => {
+          setServiceStatus(c);
+          setAdoptnet0Status(a);
+          if ((!c || !a) && ++attempts < 3) setTimeout(retry, 2000);
         });
       };
       retry();
@@ -315,14 +337,19 @@ const Run = ({ onNavigate }) => {
       return;
     }
 
-    if (!serviceStatus) {
-      // Do a fresh check — the stored status may be stale from a timing issue
-      // after a previous run completed or errored.
-      const isUp = await checkCalliopeService();
-      setServiceStatus(isUp);
+    // Framework-aware service check
+    const isAdoptnet0 = selectedFramework === 'adoptnet0';
+    const currentStatus = isAdoptnet0 ? adoptnet0Status : serviceStatus;
+    const checkFn = isAdoptnet0 ? checkAdoptnet0Service : checkCalliopeService;
+    const setStatus = isAdoptnet0 ? setAdoptnet0Status : setServiceStatus;
+    const frameworkLabel = framework.name;
+
+    if (!currentStatus) {
+      const isUp = await checkFn();
+      setStatus(isUp);
       if (!isUp) {
         showNotification(
-          'Calliope service is not running. Click "Retry" on the offline banner to reconnect.',
+          `${frameworkLabel} service is not running. Install it from the Setup screen.`,
           'error'
         );
         return;
@@ -337,23 +364,25 @@ const Run = ({ onNavigate }) => {
       solver: selectedSolver,
       startTime: new Date().toISOString(),
       logs: [],
-      stats: null, // latest resource snapshot from server
+      stats: null,
     };
 
     setRunningJobs(prev => [...prev, newJob]);
     setExpandedLog(jobId);
-    showNotification(`Started Calliope run for "${selectedModel.name}"`, 'success');
+    showNotification(`Started ${frameworkLabel} run for "${selectedModel.name}"`, 'success');
+
+    const modelData = {
+      ...selectedModel,
+      solver: selectedSolver,
+      modelConfig,
+      timeSeries: timeSeries.filter(ts => ts.modelId === selectedModel.id),
+    };
+
+    const runFn = isAdoptnet0 ? runAdoptnet0Model : runCalliopeModel;
 
     try {
-      const { cancel } = await runCalliopeModel({
-        modelData: {
-          ...selectedModel,
-          solver: selectedSolver,
-          modelConfig,
-          // Always use the live timeSeries from context so CSV data is included
-          // even when selectedModel.timeSeries was stripped (e.g. after backend sync).
-          timeSeries: timeSeries.filter(ts => ts.modelId === selectedModel.id),
-        },
+      const { cancel } = await runFn({
+        modelData,
         onLog: (line) =>
           setRunningJobs(prev =>
             prev.map(j => j.id === jobId ? { ...j, logs: [...j.logs, line] } : j)
@@ -399,8 +428,10 @@ const Run = ({ onNavigate }) => {
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
-  const serviceReady    = serviceStatus === true;
-  const serviceChecking = serviceStatus === null;
+  const activeStatus    = selectedFramework === 'adoptnet0' ? adoptnet0Status : serviceStatus;
+  const serviceReady    = activeStatus === true;
+  const serviceChecking = activeStatus === null;
+  const activeFrameworkLabel = MODELING_FRAMEWORKS.find(f => f.id === selectedFramework)?.name || 'Service';
 
   return (
     <div className="h-full bg-gradient-to-br from-slate-50 to-slate-100 overflow-y-auto">
@@ -412,7 +443,7 @@ const Run = ({ onNavigate }) => {
             <h1 className="text-3xl font-bold bg-gradient-to-r from-electric-600 to-violet-600 bg-clip-text text-transparent">
               Run Model
             </h1>
-            <p className="text-sm text-slate-500 mt-0.5">Execute your energy model locally using Calliope</p>
+            <p className="text-sm text-slate-500 mt-0.5">Execute your energy model locally using {activeFrameworkLabel}</p>
           </div>
           <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border ${
             serviceChecking ? 'bg-slate-100 border-slate-200 text-slate-500'
@@ -426,7 +457,7 @@ const Run = ({ onNavigate }) => {
               }`} />
             </span>
             <FiBox size={12} />
-            {serviceChecking ? 'Connecting…' : serviceReady ? 'Calliope service online' : 'Calliope service offline'}
+            {serviceChecking ? 'Connecting…' : serviceReady ? `${activeFrameworkLabel} online` : `${activeFrameworkLabel} offline`}
           </div>
         </div>
 
@@ -434,20 +465,29 @@ const Run = ({ onNavigate }) => {
         {!serviceChecking && !serviceReady && (
           <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800 flex items-start justify-between gap-4">
             <div>
-              <strong>Calliope service offline.</strong>{' '}
-              Start it with:{' '}
-              <code className="bg-amber-100 px-1.5 py-0.5 rounded font-mono text-xs">
-                .\scripts\start_calliope_service.ps1
-              </code>
-              {' '}or{' '}
-              <code className="bg-amber-100 px-1.5 py-0.5 rounded font-mono text-xs">
-                docker compose up calliope-runner
-              </code>
+              <strong>{activeFrameworkLabel} service offline.</strong>{' '}
+              {selectedFramework === 'adoptnet0'
+                ? 'Install the AdOpT-NET0 environment from the Setup screen, or restart the service.'
+                : <>Start it with:{' '}
+                    <code className="bg-amber-100 px-1.5 py-0.5 rounded font-mono text-xs">
+                      .\scripts\start_calliope_service.ps1
+                    </code>
+                    {' '}or{' '}
+                    <code className="bg-amber-100 px-1.5 py-0.5 rounded font-mono text-xs">
+                      docker compose up calliope-runner
+                    </code>
+                  </>
+              }
             </div>
             <button
               onClick={() => {
-                setServiceStatus(null);
-                checkCalliopeService().then(ok => setServiceStatus(ok));
+                if (selectedFramework === 'adoptnet0') {
+                  setAdoptnet0Status(null);
+                  checkAdoptnet0Service().then(ok => setAdoptnet0Status(ok));
+                } else {
+                  setServiceStatus(null);
+                  checkCalliopeService().then(ok => setServiceStatus(ok));
+                }
               }}
               className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-200 hover:bg-amber-300 text-amber-900 transition-colors"
             >

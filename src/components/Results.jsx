@@ -1193,48 +1193,75 @@ const Results = () => {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="h-full bg-gradient-to-br from-slate-50 to-slate-100 overflow-y-auto">
-      <div className="max-w-screen-2xl mx-auto p-6 space-y-5">
+    <div className="h-full bg-gradient-to-br from-slate-50 to-slate-100 flex flex-col">
 
-        {/* ── Header ── */}
-        <div className="flex items-end justify-between gap-4 flex-wrap">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-gray-900 mb-1">Results Dashboard</h1>
-            <p className="text-slate-500 text-sm">Calliope optimisation results · interactive analysis</p>
-          </div>
-          <div className="flex items-center gap-2">
-            {/* View toggle */}
-            <div className="flex gap-1 bg-slate-100 rounded-xl p-1">
-              <button
-                onClick={() => setCompareMode(false)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  !compareMode ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                }`}>
-                <FiLayers size={12} /> Single Run
-              </button>
-              <button
-                onClick={() => setCompareMode(true)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  compareMode ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                }`}>
-                <FiGitMerge size={12} /> Compare Scenarios
-              </button>
+      {compareMode ? (
+        /* ══ Full-screen compare mode ════════════════════════════════════ */
+        <>
+          <div className="flex-shrink-0 px-6 pt-5 pb-0">
+            <div className="flex items-end justify-between gap-4 flex-wrap">
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight text-gray-900 mb-1">Results Dashboard</h1>
+                <p className="text-slate-500 text-sm">Calliope optimisation results · interactive analysis</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex gap-1 bg-slate-100 rounded-xl p-1">
+                  <button onClick={() => setCompareMode(false)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                      !compareMode ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                    }`}>
+                    <FiLayers size={12} /> Single Run
+                  </button>
+                  <button onClick={() => setCompareMode(true)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                      compareMode ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                    }`}>
+                    <FiGitMerge size={12} /> Compare Scenarios
+                  </button>
+                </div>
+              </div>
             </div>
-            {result && !compareMode && (
-              <button onClick={handleExport}
-                className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white text-slate-700 rounded-xl hover:bg-slate-50 transition text-sm shadow-sm">
-                <FiDownload size={14} /> Export JSON
-              </button>
-            )}
           </div>
-        </div>
-
-        {/* ── Compare mode ── */}
-        {compareMode && (
-          <div className="min-h-[600px]">
+          <div className="flex-1 min-h-0 px-6 pb-5 pt-3">
             <ScenarioComparison />
           </div>
-        )}
+        </>
+      ) : (
+        /* ══ Single-run view (padded, scrollable) ═══════════════════════ */
+        <div className="max-w-screen-2xl mx-auto p-6 space-y-5 overflow-y-auto flex-1 min-h-0">
+
+          {/* ── Header ── */}
+          <div className="flex items-end justify-between gap-4 flex-wrap">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight text-gray-900 mb-1">Results Dashboard</h1>
+              <p className="text-slate-500 text-sm">Calliope optimisation results · interactive analysis</p>
+            </div>
+            <div className="flex items-center gap-2">
+              {/* View toggle */}
+              <div className="flex gap-1 bg-slate-100 rounded-xl p-1">
+                <button
+                  onClick={() => setCompareMode(false)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    !compareMode ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  }`}>
+                  <FiLayers size={12} /> Single Run
+                </button>
+                <button
+                  onClick={() => setCompareMode(true)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    compareMode ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  }`}>
+                  <FiGitMerge size={12} /> Compare Scenarios
+                </button>
+              </div>
+              {result && !compareMode && (
+                <button onClick={handleExport}
+                  className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white text-slate-700 rounded-xl hover:bg-slate-50 transition text-sm shadow-sm">
+                  <FiDownload size={14} /> Export JSON
+                </button>
+              )}
+            </div>
+          </div>
 
         {/* ── Run selector (compact chip strip) ── */}
         {!compareMode && (
@@ -2029,9 +2056,10 @@ const Results = () => {
               </div>
             )}
 
-          </div>
-        )}
-      </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

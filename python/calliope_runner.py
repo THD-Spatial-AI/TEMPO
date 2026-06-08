@@ -19,6 +19,22 @@ import logging
 import threading
 from pathlib import Path
 
+# NumPy 2.0 compatibility shim — must run before pyomo/calliope are imported
+try:
+    import numpy as _np
+    if not hasattr(_np, 'float_'):
+        _np.float_ = _np.float64
+    if not hasattr(_np, 'complex_'):
+        _np.complex_ = _np.complex128
+    if not hasattr(_np, 'object_'):
+        _np.object_ = object
+    if not hasattr(_np, 'bool_'):
+        _np.bool_ = _np.bool_  # still exists in NumPy 2.x
+    if not hasattr(_np, 'int_'):
+        _np.int_ = _np.intp
+except Exception:
+    pass
+
 # Thread-local storage so each job thread can have its own log callback
 _thread_local = threading.local()
 
@@ -566,8 +582,10 @@ def _write_calliope_yaml_csv_files(model_data, config_dir):
 
     Column headers are normalised to lowercase to match the location IDs
     produced by build_locations_config() — Calliope lowercases loc names when
-    building its internal MultiIndex.  We use the csv module directly (not
-    pandas) so the normalisation is guaranteed regardless of DataFrame edge cases.
+    building its internal MultiIndex.  The companion function
+    _normalize_locs_csv_col_refs() updates the `file=csv:col` references in
+    the generated locations.yaml to use the same normalised names, keeping
+    both sides consistent.
     """
     import csv as _csv_mod
 
@@ -587,11 +605,11 @@ def _write_calliope_yaml_csv_files(model_data, config_dir):
             file_name = file_name + '.csv'
 
         date_col  = ts.get('dateColumn') or (columns[0] if columns else None)
-        # All non-date columns — preserve original names for dict lookup, then
-        # write lowercase versions as the CSV header.
         data_cols = [c for c in columns if c and c != date_col]
 
-        # Build normalised header row
+        # Normalise column headers so they match the lowercased location IDs
+        # produced by build_locations_config().  _normalize_locs_csv_col_refs()
+        # will update the file=csv:col references in locs to match.
         norm_header = (
             ([date_col] if date_col else []) +
             [_safe_id(c).lower() for c in data_cols]
@@ -619,6 +637,47 @@ def _write_calliope_yaml_csv_files(model_data, config_dir):
 
     if written:
         log(f"  Written {len(written)} imported CSV file(s) to model_config: {', '.join(written)}")
+
+
+def _normalize_locs_csv_col_refs(locs):
+    """
+    Walk the generated locations dict and normalise any explicit column
+    specifiers in `resource: file=xxx.csv:OriginalColumn` constraints so they
+    match the normalised CSV headers written by _write_calliope_yaml_csv_files.
+
+    Without this step a Chile-style model where the YAML carries
+      resource: file=total_demand.csv:Antofagasta
+    fails because the CSV column was normalised to `antofagasta` but Calliope
+    looks for the literal string `Antofagasta`.
+
+    Only the column part (after the colon) is normalised — the filename is
+    left unchanged.  References with no explicit column specifier (e.g.
+    `file=regional_demand.csv`) are left untouched since Calliope infers the
+    column from the already-normalised location ID in that case.
+    """
+    log(f"  [norm] Scanning {len(locs)} location(s) for file=csv:col references")
+    changed = 0
+    for loc_id, loc_data in locs.items():
+        if not isinstance(loc_data, dict):
+            continue
+        for tech_id, tech_data in (loc_data.get('techs') or {}).items():
+            if not isinstance(tech_data, dict):
+                continue
+            constraints = tech_data.get('constraints') or {}
+            resource = constraints.get('resource')
+            if not isinstance(resource, str) or not resource.startswith('file='):
+                continue
+            # Format: file=filename.csv:ColumnName
+            rest = resource[len('file='):]
+            if ':' not in rest:
+                continue  # no explicit column specifier — leave as-is
+            fname, col = rest.split(':', 1)
+            norm_col = _safe_id(col).lower()
+            log(f"  [norm]   {loc_id}::{tech_id} resource={resource!r} → col={col!r} norm={norm_col!r}")
+            if norm_col != col:
+                constraints['resource'] = f'file={fname}:{norm_col}'
+                changed += 1
+    log(f"  [norm] Normalised {changed} file=csv:col reference(s) in locations config")
 
 
 # ---------------------------------------------------------------------------
@@ -1067,6 +1126,26 @@ def _run_model_impl(model_data, work_dir):
         _pd.core.strings.accessor.StringMethods.rsplit = _str_rsplit_compat
     except Exception:
         pass  # pandas not yet importable or already compatible — skip
+
+    # ── Pandas 3.0 compatibility: negative integer indexing removed ──────────
+    # calliope/preprocess/time.py line 183: time_delta[-1] = time_delta[-2]
+    # pandas 3.0 removed Series.__getitem__ with negative integers; use .iloc.
+    try:
+        import calliope.preprocess.time as _ctime
+        import inspect as _inspect, textwrap as _textwrap
+        _src = _inspect.getsource(_ctime.add_time_dimension)
+        if 'time_delta[-1] = time_delta[-2]' in _src:
+            import types as _types
+            _fixed_src = _src.replace(
+                'time_delta[-1] = time_delta[-2]',
+                'time_delta.iloc[-1] = time_delta.iloc[-2]'
+            )
+            _fixed_src = _textwrap.dedent(_fixed_src)
+            _ns = {**vars(_ctime)}
+            exec(compile(_fixed_src, '<patch>', 'exec'), _ns)
+            _ctime.add_time_dimension = _ns['add_time_dimension']
+    except Exception:
+        pass  # if source patching fails, the venv file edit already covers it
     # ────────────────────────────────────────────────────────────────────────
     import calliope  # noqa – must run inside the calliope conda environment  # type: ignore
 
@@ -1563,7 +1642,10 @@ def _run_model_impl(model_data, work_dir):
     # Step 1: Write any CSV files embedded in the payload from a calliope_yaml import.
     # These are the original timeseries CSVs (hydro_reservoirs.csv, pv_series.csv, …)
     # that are referenced via `file=xxx.csv` in techs.yaml / locations.yaml.
+    # CSV column headers are normalised to lowercase; the companion call below
+    # updates the file=csv:col references in locs to match.
     _write_calliope_yaml_csv_files(model_data, config_dir)
+    _normalize_locs_csv_col_refs(locs)
 
     # Step 2: Use actual per-location demand timeseries from demandProfile
     # (set by the frontend when loading a template with a demand CSV).
@@ -1731,7 +1813,13 @@ def _run_model_impl(model_data, work_dir):
     # Load & run
     # ------------------------------------------------------------------
     log("Loading Calliope model …")
-    model = calliope.Model(str(model_yaml_path))
+    try:
+        model = calliope.Model(str(model_yaml_path))
+    except Exception as _load_exc:
+        import traceback as _tb2
+        log(f"Calliope load FAILED [{type(_load_exc).__name__}]: {_load_exc}")
+        log(_tb2.format_exc())
+        raise
     log(f"Running optimisation with solver={solver} …")
     try:
         model.run()
