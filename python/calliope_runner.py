@@ -1368,6 +1368,8 @@ def _run_model_impl(model_data, work_dir):
         solver = 'appsi_highs'
     overrides = model_data.get('overrides') or {}
     scenarios = model_data.get('scenarios') or {}
+    scenario_to_run = model_data.get('scenario')  # name of scenario to activate at runtime
+    override_to_run = model_data.get('override')  # name of override to activate at runtime
     model_config_payload = model_data.get('modelConfig') or {}  # from Run.jsx UI
 
     # ------------------------------------------------------------------
@@ -1783,6 +1785,12 @@ def _run_model_impl(model_data, work_dir):
                 mapped[mapped_key] = ui_val
         if mapped:
             run_cfg['solver_options'] = {**run_cfg.get('solver_options', {}), **mapped}
+
+    # Activate scenario/override at runtime via YAML run config
+    if scenario_to_run and not override_to_run:
+        run_cfg['scenario'] = scenario_to_run
+    elif override_to_run:
+        run_cfg['override'] = override_to_run
 
     model_yaml = {
         'import': ['model_config/techs.yaml', 'model_config/locations.yaml'],

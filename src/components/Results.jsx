@@ -6,7 +6,7 @@ import {
   FiRefreshCw, FiAlertCircle, FiCheckCircle, FiTrash2,
   FiTerminal, FiAlertTriangle, FiMapPin, FiDollarSign,
   FiZap, FiActivity, FiClock, FiCpu, FiMap, FiLayers, FiShare2, FiGrid,
-  FiChevronDown, FiFilter, FiGitMerge,
+  FiChevronDown, FiFilter, FiGitMerge, FiSearch, FiX,
 } from 'react-icons/fi';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import ScenarioComparison from './ScenarioComparison';
@@ -135,6 +135,16 @@ const classifyTech = (t) => {
 // For a link tech like "pFV:CHERCAN", return the base type label "pFV"
 const linkTechBase = (t) => t.split(':')[0];
 
+// Replicate Python's _safe_id(name).lower() — the exact transform Calliope applies
+// to frontend model location names before they become result keys.
+const calliopeLocName = (name) => {
+  const s = String(name).trim();
+  return s.replace(/::/g, '__').replace(/:/g, '_')
+    .replace(/[^A-Za-z0-9_-]/g, '_')
+    .replace(/_+/g, '_').replace(/^_|_$/g, '')
+    .toLowerCase() || 'unknown';
+};
+
 // Parse "Berlin::solar_pv::electricity" → {loc, tech, carrier}
 const parseLTC = (s) => {
   const p = String(s).split('::');
@@ -176,15 +186,17 @@ const ResultsMap = ({ locations, capacitiesByLoc, dominantTechByLoc, generationB
 
   // ── Capacity circles view ──
   const drawCapacityView = (map, mgl, locs) => {
-    const maxCap = Math.max(1, ...locs.map(l => capacitiesByLoc[l.name] || 0), 1);
+    const lk = (loc) => loc.calliopeName || loc.name;
+    const maxCap = Math.max(1, ...locs.map(l => capacitiesByLoc[lk(l)] || 0), 1);
     locs.forEach(loc => {
-      const cap = capacitiesByLoc[loc.name] || 0;
+      const key = lk(loc);
+      const cap = capacitiesByLoc[key] || 0;
       const radius = 8 + Math.sqrt(cap / maxCap) * 30;
-      const color = colorFn(dominantTechByLoc[loc.name] || 'generic');
+      const color = colorFn(dominantTechByLoc[key] || 'generic');
       const el = document.createElement('div');
       el.style.cssText = `width:${radius*2}px;height:${radius*2}px;border-radius:50%;background:${color}CC;border:2px solid ${color};box-shadow:0 2px 8px rgba(0,0,0,0.35);cursor:pointer;`;
       const popup = new mgl.Popup({ offset: radius + 2, closeButton: false, maxWidth: '220px' })
-        .setHTML(`<div style="font-family:system-ui;padding:4px"><b style="font-size:13px">${loc.name}</b><br/><small style="color:#555">Capacity: <b>${fmtNum(cap)} MW</b><br/>Dominant: ${(dominantTechByLoc[loc.name]||'—').replace(/_/g,' ')}</small></div>`);
+        .setHTML(`<div style="font-family:system-ui;padding:4px"><b style="font-size:13px">${loc.name}</b><br/><small style="color:#555">Capacity: <b>${fmtNum(cap)} MW</b><br/>Dominant: ${(dominantTechByLoc[key]||'—').replace(/_/g,' ')}</small></div>`);
       const m = new mgl.Marker({ element: el }).setLngLat([loc.longitude, loc.latitude]).setPopup(popup).addTo(map);
       markersRef.current.push(m);
     });
@@ -193,7 +205,8 @@ const ResultsMap = ({ locations, capacitiesByLoc, dominantTechByLoc, generationB
   // ── Generation heatmap view (MapLibre native heatmap layer) ──
   const drawGenerationView = (map, mgl, locs) => {
     const genMap = generationByLoc || {};
-    const values = locs.map(l => genMap[l.name] || 0);
+    const lk = (loc) => loc.calliopeName || loc.name;
+    const values = locs.map(l => genMap[lk(l)] || 0);
     const maxGen = Math.max(1, ...values);
 
     // Native MapLibre heatmap layer — much better than HTML circles
@@ -204,7 +217,7 @@ const ResultsMap = ({ locations, capacitiesByLoc, dominantTechByLoc, generationB
         features: locs.map(loc => ({
           type: 'Feature',
           geometry: { type: 'Point', coordinates: [loc.longitude, loc.latitude] },
-          properties: { intensity: genMap[loc.name] || 0 },
+          properties: { intensity: genMap[lk(loc)] || 0 },
         })),
       },
     });
@@ -231,7 +244,7 @@ const ResultsMap = ({ locations, capacitiesByLoc, dominantTechByLoc, generationB
 
     // Labeled ghost-circle markers on top for hover info
     locs.forEach(loc => {
-      const gen = genMap[loc.name] || 0;
+      const gen = genMap[lk(loc)] || 0;
       if (!gen) return;
       const pct = gen / maxGen;
       const r = 12 + pct * 18;
@@ -274,124 +287,285 @@ const ResultsMap = ({ locations, capacitiesByLoc, dominantTechByLoc, generationB
   return <div ref={mapRef} style={{ width: '100%', height: '100%', borderRadius: '12px', overflow: 'hidden' }} />;
 };
 
-// ── Animated Transmission Power-Flow Map ─────────────────────────────────────
+// ── Congestion colour (flow / capacity ratio) ────────────────────────────────
+const congestionColor = (util) => {
+  if (util >= 0.9) return '#ef4444';
+  if (util >= 0.75) return '#f97316';
+  if (util >= 0.5)  return '#eab308';
+  return '#22c55e';
+};
+const CONGESTION_LEVELS = [
+  { label: 'Free Flow', threshold: '< 50%',  color: '#22c55e' },
+  { label: 'Moderate',  threshold: '50-75%', color: '#eab308' },
+  { label: 'High Load', threshold: '75-90%', color: '#f97316' },
+  { label: 'Congested', threshold: '> 90%',  color: '#ef4444' },
+];
+
+// ── Transmission Power-Flow Map ───────────────────────────────────────────────
 const TransmissionFlowMap = ({ locations, transmissionFlowData, capacitiesByLoc, timestamps }) => {
-  const mapRef   = useRef(null);
-  const mapInst  = useRef(null);
-  const animRef  = useRef(null);
-  const timerRef = useRef(null);
+  const mapRef       = useRef(null);
+  const canvasRef    = useRef(null);
+  const mapInst      = useRef(null);
+  const animRef      = useRef(null);
+  const timerRef     = useRef(null);
+  const particlesRef = useRef({});
+  const stepRef      = useRef(0);
+  const modeRef      = useRef('static');
+
   const [timestep, setTimestep] = useState(0);
   const [playing,  setPlaying]  = useState(false);
-  const [speed,    setSpeed]    = useState(150);
+  const [speed,    setSpeed]    = useState(200);
+  const [mode,     setMode]     = useState('static'); // 'static' | 'animate'
 
-  const locs    = useMemo(() => locations.filter(l => l.latitude && l.longitude), [locations]);
-  const hasFlow = (transmissionFlowData?.length > 0) && (timestamps?.length > 0);
+  const lk   = (loc) => loc.calliopeName || loc.name;
+  const locs = useMemo(() => locations.filter(l => l.latitude && l.longitude), [locations]);
+  const hasFlow = (transmissionFlowData?.length ?? 0) > 0 && (timestamps?.length ?? 0) > 0;
   const maxStep = Math.max(0, (timestamps?.length || 1) - 1);
 
-  // Build GeoJSON for a given timestep.
-  // Negative flow → coordinates are flipped so animated dashes travel in the correct direction.
-  const buildGeoJSON = useCallback((step) => {
-    const features = (transmissionFlowData || []).flatMap(({ fromLoc, toLoc, timeseries, cap }) => {
-      const from = locs.find(l => l.name === fromLoc);
-      const to   = locs.find(l => l.name === toLoc);
-      if (!from || !to || !timeseries?.length) return [];
-      const rawFlow        = Number(timeseries[Math.min(step, timeseries.length - 1)]) || 0;
-      const absFlow        = Math.abs(rawFlow);
-      const normalizedFlow = Math.min(1, absFlow / Math.max(1, cap));
-      const coords = rawFlow >= 0
-        ? [[from.longitude, from.latitude], [to.longitude, to.latitude]]
-        : [[to.longitude,   to.latitude],   [from.longitude, from.latitude]];
-      return [{ type: 'Feature',
-        properties: { absFlow, normalizedFlow, lineWidth: Math.max(1.5, normalizedFlow * 9),
-                      isReverse: rawFlow < 0 ? 1 : 0, rawFlow, fromLoc, toLoc },
-        geometry: { type: 'LineString', coordinates: coords },
-      }];
-    });
-    return { type: 'FeatureCollection', features };
-  }, [locs, transmissionFlowData]);
+  // Sync refs so rAF closures always read current values without stale state
+  useEffect(() => { stepRef.current = timestep; }, [timestep]);
+  useEffect(() => { modeRef.current = mode; },     [mode]);
 
-  // Init map once on mount
+  // Per-link statistics (peak / avg utilisation, dominant direction)
+  const linkStats = useMemo(() => (transmissionFlowData || []).map(({ fromLoc, toLoc, timeseries, cap }) => {
+    const vals    = (timeseries || []).map(v => Number(v) || 0);
+    const absVals = vals.map(Math.abs);
+    const peakFlow = absVals.length ? Math.max(...absVals) : 0;
+    const avgFlow  = absVals.length ? absVals.reduce((a, b) => a + b, 0) / absVals.length : 0;
+    const peakUtil = cap > 0 ? peakFlow / cap : 0;
+    const avgUtil  = cap > 0 ? avgFlow  / cap : 0;
+    const netFlow  = vals.reduce((a, b) => a + b, 0);
+    return { fromLoc, toLoc, cap, peakFlow, avgFlow, peakUtil, avgUtil, netFlow, timeseries: vals };
+  }), [transmissionFlowData]);
+
+  const capWidth = (cap) => Math.max(2.5, Math.min(10, 2.5 + cap / 300));
+
+  // Static GeoJSON -- oriented in dominant flow direction, coloured by peak utilisation
+  const staticGeoJSON = useMemo(() => ({
+    type: 'FeatureCollection',
+    features: linkStats.map(({ fromLoc, toLoc, cap, peakUtil, avgUtil, peakFlow, avgFlow, netFlow }) => {
+      const from = locs.find(l => lk(l) === fromLoc);
+      const to   = locs.find(l => lk(l) === toLoc);
+      if (!from || !to) return null;
+      const coords = netFlow >= 0
+        ? [[from.longitude, from.latitude], [to.longitude, to.latitude]]
+        : [[to.longitude, to.latitude], [from.longitude, from.latitude]];
+      return {
+        type: 'Feature',
+        properties: { fromLoc, toLoc, cap, peakUtil, avgUtil, peakFlow, avgFlow,
+                      color: congestionColor(peakUtil), lineWidth: capWidth(cap) },
+        geometry: { type: 'LineString', coordinates: coords },
+      };
+    }).filter(Boolean),
+  }), [locs, linkStats]);
+
+  // Per-timestep GeoJSON for animate mode
+  const buildStepGeoJSON = useCallback((step) => ({
+    type: 'FeatureCollection',
+    features: linkStats.map(({ fromLoc, toLoc, cap, timeseries }) => {
+      const from = locs.find(l => lk(l) === fromLoc);
+      const to   = locs.find(l => lk(l) === toLoc);
+      if (!from || !to) return null;
+      const flow    = timeseries[Math.min(step, timeseries.length - 1)] || 0;
+      const absFlow = Math.abs(flow);
+      const util    = cap > 0 ? absFlow / cap : 0;
+      const coords  = flow >= 0
+        ? [[from.longitude, from.latitude], [to.longitude, to.latitude]]
+        : [[to.longitude, to.latitude], [from.longitude, from.latitude]];
+      return {
+        type: 'Feature',
+        properties: { fromLoc, toLoc, cap, flow: absFlow, util,
+                      color: congestionColor(util), lineWidth: capWidth(cap) },
+        geometry: { type: 'LineString', coordinates: coords },
+      };
+    }).filter(Boolean),
+  }), [locs, linkStats]);
+
+  // Keep canvas sized to map container
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const container = mapRef.current;
+    if (!canvas || !container) return;
+    const sync = () => { canvas.width = container.offsetWidth; canvas.height = container.offsetHeight; };
+    sync();
+    const ro = new ResizeObserver(sync);
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, []);
+
+  // Stagger initial particle positions per link
+  useEffect(() => {
+    const pts = {};
+    linkStats.forEach(({ fromLoc, toLoc, peakUtil }) => {
+      const count = Math.max(3, Math.min(10, Math.round(3 + peakUtil * 7)));
+      pts[`${fromLoc}::${toLoc}`] = Array.from({ length: count }, (_, i) => ({ t: i / count }));
+    });
+    particlesRef.current = pts;
+  }, [linkStats]);
+
+  // Canvas particle animation loop -- only active in animate mode
+  useEffect(() => {
+    if (mode !== 'animate') {
+      if (animRef.current) cancelAnimationFrame(animRef.current);
+      const cv = canvasRef.current;
+      if (cv) cv.getContext('2d').clearRect(0, 0, cv.width, cv.height);
+      return;
+    }
+    const draw = () => {
+      const cv  = canvasRef.current;
+      const map = mapInst.current;
+      if (!cv || !map) { animRef.current = requestAnimationFrame(draw); return; }
+      const ctx  = cv.getContext('2d');
+      const step = stepRef.current;
+      ctx.clearRect(0, 0, cv.width, cv.height);
+
+      linkStats.forEach(({ fromLoc, toLoc, cap, timeseries }) => {
+        const flow    = timeseries[Math.min(step, timeseries.length - 1)] || 0;
+        const absFlow = Math.abs(flow);
+        const util    = cap > 0 ? absFlow / cap : 0;
+        if (absFlow < 0.5) return;
+
+        const fObj = locs.find(l => lk(l) === fromLoc);
+        const tObj = locs.find(l => lk(l) === toLoc);
+        if (!fObj || !tObj) return;
+
+        const [src, dst] = flow >= 0 ? [fObj, tObj] : [tObj, fObj];
+        try {
+          const s     = map.project([src.longitude, src.latitude]);
+          const d     = map.project([dst.longitude, dst.latitude]);
+          const color = congestionColor(util);
+          const key   = `${fromLoc}::${toLoc}`;
+          const ps    = particlesRef.current[key] || [];
+          const spd   = 0.003 + util * 0.005;
+
+          ps.forEach(p => {
+            p.t = (p.t + spd) % 1;
+            const x = s.x + (d.x - s.x) * p.t;
+            const y = s.y + (d.y - s.y) * p.t;
+            // Soft halo
+            ctx.beginPath();
+            ctx.arc(x, y, 8, 0, Math.PI * 2);
+            ctx.fillStyle = color + '30';
+            ctx.fill();
+            // White ring
+            ctx.beginPath();
+            ctx.arc(x, y, 4, 0, Math.PI * 2);
+            ctx.fillStyle = '#ffffff';
+            ctx.fill();
+            // Colour core
+            ctx.beginPath();
+            ctx.arc(x, y, 2.8, 0, Math.PI * 2);
+            ctx.fillStyle = color;
+            ctx.fill();
+          });
+        } catch (_) {}
+      });
+      animRef.current = requestAnimationFrame(draw);
+    };
+    animRef.current = requestAnimationFrame(draw);
+    return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
+  }, [mode, locs, linkStats]);
+
+  // Map initialisation -- runs once on mount
   useEffect(() => {
     if (!mapRef.current || mapInst.current) return;
     let destroyed = false;
+
     import('maplibre-gl').then(({ default: mgl }) => {
       if (destroyed || !mapRef.current) return;
       const avgLat = locs.length ? locs.reduce((s, l) => s + l.latitude,  0) / locs.length : 50;
       const avgLon = locs.length ? locs.reduce((s, l) => s + l.longitude, 0) / locs.length : 10;
       const map = new mgl.Map({
-        container: mapRef.current, style: OSM_STYLE, center: [avgLon, avgLat], zoom: 5,
-        attributionControl: { compact: true }, failIfMajorPerformanceCaveat: false,
+        container: mapRef.current, style: OSM_STYLE,
+        center: [avgLon, avgLat], zoom: 5,
+        attributionControl: { compact: true },
+        failIfMajorPerformanceCaveat: false,
         transformRequest: osmTransformRequest,
       });
       mapInst.current = map;
+      const hoverPopup = new mgl.Popup({ closeButton: false, maxWidth: '280px', offset: 10 });
 
       map.on('load', () => {
         if (destroyed) return;
-        map.addSource('flow', { type: 'geojson', data: buildGeoJSON(0) });
 
-        // 1. Dark width-scaled track
-        map.addLayer({ id: 'flow-track', type: 'line', source: 'flow',
+        map.addSource('flow', { type: 'geojson', data: staticGeoJSON });
+
+        // Dark drop-shadow beneath each line
+        map.addLayer({ id: 'flow-shadow', type: 'line', source: 'flow',
           layout: { 'line-cap': 'round', 'line-join': 'round' },
-          paint: { 'line-color': '#1e293b', 'line-width': ['get', 'lineWidth'], 'line-opacity': 0.9 } });
+          paint: { 'line-color': '#0f172a', 'line-width': ['*', ['get', 'lineWidth'], 2.2],
+                   'line-blur': 10, 'line-opacity': 0.55 } });
 
-        // 2. Color glow: cyan=forward, amber=reverse
+        // Colour glow
         map.addLayer({ id: 'flow-glow', type: 'line', source: 'flow',
-          paint: { 'line-color': ['case', ['==', ['get', 'isReverse'], 0], '#38bdf8', '#fb923c'],
-                   'line-width': ['*', ['get', 'lineWidth'], 4], 'line-blur': 14, 'line-opacity': 0.25 } });
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+          paint: { 'line-color': ['get', 'color'], 'line-width': ['*', ['get', 'lineWidth'], 2.8],
+                   'line-blur': 14, 'line-opacity': 0.3 } });
 
-        // 3. Animated dashes — direction baked into geometry
-        map.addLayer({ id: 'flow-dashes', type: 'line', source: 'flow',
-          filter: ['>', ['get', 'absFlow'], 0],
-          paint: { 'line-color': ['case', ['==', ['get', 'isReverse'], 0], '#7dd3fc', '#fdba74'],
-                   'line-width': ['get', 'lineWidth'],
-                   'line-opacity': ['interpolate', ['linear'], ['get', 'normalizedFlow'], 0, 0, 0.05, 0.7, 1, 1],
-                   'line-dasharray': [2, 3] } });
+        // Main coloured line
+        map.addLayer({ id: 'flow-lines', type: 'line', source: 'flow',
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+          paint: { 'line-color': ['get', 'color'], 'line-width': ['get', 'lineWidth'],
+                   'line-opacity': 0.95 } });
 
-        // 4. Faint dashes for zero-flow links
-        map.addLayer({ id: 'flow-zero', type: 'line', source: 'flow',
-          filter: ['==', ['get', 'absFlow'], 0],
-          paint: { 'line-color': '#334155', 'line-width': 1.5, 'line-opacity': 0.4, 'line-dasharray': [4, 8] } });
+        // Directional arrows placed along each line
+        map.addLayer({ id: 'flow-arrows', type: 'symbol', source: 'flow',
+          layout: {
+            'symbol-placement': 'line', 'symbol-spacing': 100,
+            'text-field': '>', 'text-size': 14, 'text-keep-upright': false,
+          },
+          paint: { 'text-color': ['get', 'color'], 'text-halo-color': '#0f172a',
+                   'text-halo-width': 2, 'text-opacity': 0.9 } });
 
-        // Capacity labels at link midpoints
-        (transmissionFlowData || []).forEach(({ fromLoc, toLoc, cap }) => {
-          const from = locs.find(l => l.name === fromLoc);
-          const to   = locs.find(l => l.name === toLoc);
-          if (!from || !to) return;
-          const el = document.createElement('div');
-          el.style.cssText = `background:rgba(15,23,42,0.88);color:#64748b;font-size:9px;font-family:system-ui;padding:2px 7px;border-radius:6px;border:1px solid #334155;pointer-events:none;white-space:nowrap;`;
-          el.textContent = `${fmtNum(cap)} MW cap`;
-          new mgl.Marker({ element: el, anchor: 'center' })
-            .setLngLat([(from.longitude + to.longitude) / 2, (from.latitude + to.latitude) / 2])
-            .addTo(map);
-        });
-
-        // Node circles sized by capacity
-        const maxCap = Math.max(1, ...locs.map(l => capacitiesByLoc[l.name] || 0));
+        // Node circles sized by total installed capacity
+        const maxCap = Math.max(1, ...locs.map(l => capacitiesByLoc[lk(l)] || 0));
         locs.forEach(loc => {
-          const cap = capacitiesByLoc[loc.name] || 0;
-          const r = 8 + Math.sqrt(cap / maxCap) * 14;
-          const label = loc.name.length > 8 ? loc.name.slice(0, 7) + '\u2026' : loc.name;
-          const el = document.createElement('div');
-          el.style.cssText = `width:${r*2}px;height:${r*2}px;border-radius:50%;background:#0f172a;border:2.5px solid #38bdf8;box-shadow:0 0 14px rgba(56,189,248,0.55);cursor:pointer;display:flex;align-items:center;justify-content:center;`;
-          el.innerHTML = `<span style="color:#e2e8f0;font-size:8px;font-weight:700;pointer-events:none;max-width:${r*1.8}px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${label}</span>`;
-          const popup = new mgl.Popup({ offset: r + 3, closeButton: false, maxWidth: '200px' })
-            .setHTML(`<div style="font-family:system-ui;padding:4px"><b>${loc.name}</b><br/><small style="color:#555">Cap: ${fmtNum(cap)} MW</small></div>`);
-          new mgl.Marker({ element: el }).setLngLat([loc.longitude, loc.latitude]).setPopup(popup).addTo(map);
+          const cap   = capacitiesByLoc[lk(loc)] || 0;
+          const r     = 8 + Math.sqrt(cap / maxCap) * 12;
+          const label = loc.name.length > 9 ? loc.name.slice(0, 8) + '...' : loc.name;
+          const el    = document.createElement('div');
+          el.style.cssText = `width:${r*2}px;height:${r*2}px;border-radius:50%;background:rgba(15,23,42,0.92);border:2px solid #38bdf8;box-shadow:0 0 10px rgba(56,189,248,0.35);display:flex;align-items:center;justify-content:center;cursor:default;`;
+          el.innerHTML = `<span style="color:#e2e8f0;font-size:${Math.max(7, r*0.62)}px;font-weight:700;font-family:system-ui;pointer-events:none;overflow:hidden;white-space:nowrap;max-width:${r*1.8}px;text-overflow:ellipsis">${label}</span>`;
+          const nodePopup = new mgl.Popup({ offset: r + 4, closeButton: false, maxWidth: '200px' })
+            .setHTML(`<div style="font-family:system-ui;padding:4px 2px"><b>${loc.name}</b><br/><small style="color:#666">Installed capacity: ${fmtNum(cap)} MW</small></div>`);
+          new mgl.Marker({ element: el }).setLngLat([loc.longitude, loc.latitude]).setPopup(nodePopup).addTo(map);
         });
 
-        // rAF: decrement dash-offset → dashes appear to march forward
-        let offset = 0;
-        const animate = () => {
-          if (destroyed) return;
-          offset -= 0.4;
-          try {
-            if (map.getLayer('flow-dashes')) map.setPaintProperty('flow-dashes', 'line-dash-offset', offset);
-          } catch (_) { return; } // stop silently if WebGL context lost
-          animRef.current = requestAnimationFrame(animate);
-        };
-        animate();
+        // Hover popup showing link stats
+        map.on('mouseenter', 'flow-lines', (e) => {
+          map.getCanvas().style.cursor = 'pointer';
+          const props = e.features[0]?.properties || {};
+          const stat  = linkStats.find(s => s.fromLoc === props.fromLoc && s.toLoc === props.toLoc);
+          if (!stat) return;
+          const col       = congestionColor(stat.peakUtil);
+          const congLabel = stat.peakUtil >= 0.9 ? 'Congested' : stat.peakUtil >= 0.75 ? 'High Load'
+                          : stat.peakUtil >= 0.5 ? 'Moderate' : 'Free Flow';
+          hoverPopup.setLngLat(e.lngLat).setHTML(`
+            <div style="font-family:system-ui;padding:6px 2px;min-width:200px">
+              <div style="font-weight:700;font-size:13px;margin-bottom:8px;color:#111">
+                ${stat.fromLoc} to ${stat.toLoc}
+              </div>
+              <div style="display:grid;grid-template-columns:1fr auto;gap:3px 12px;font-size:11px;color:#555">
+                <span>Capacity</span><strong style="color:#111">${fmtNum(stat.cap)} MW</strong>
+                <span>Peak flow</span><strong style="color:#111">${fmtNum(stat.peakFlow)} MW</strong>
+                <span>Avg flow</span><strong style="color:#111">${fmtNum(stat.avgFlow)} MW</strong>
+                <span>Peak util.</span><strong style="color:${congestionColor(stat.peakUtil)}">${(stat.peakUtil*100).toFixed(0)}%</strong>
+                <span>Avg util.</span><strong style="color:${congestionColor(stat.avgUtil)}">${(stat.avgUtil*100).toFixed(0)}%</strong>
+              </div>
+              <div style="margin-top:8px;display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:5px;font-size:10px;font-weight:700;background:${col}18;color:${col};border:1px solid ${col}44">
+                <span style="width:6px;height:6px;border-radius:50%;background:${col};display:inline-block"></span>
+                ${congLabel}
+              </div>
+            </div>
+          `).addTo(map);
+        });
+        map.on('mouseleave', 'flow-lines', () => {
+          map.getCanvas().style.cursor = '';
+          hoverPopup.remove();
+        });
       });
     });
+
     return () => {
       destroyed = true;
       if (animRef.current)  cancelAnimationFrame(animRef.current);
@@ -400,15 +574,15 @@ const TransmissionFlowMap = ({ locations, transmissionFlowData, capacitiesByLoc,
     };
   }, []);
 
-  // Update source when timestep changes (no remap needed)
+  // Update flow source when mode or timestep changes
   useEffect(() => {
     const map = mapInst.current;
     if (!map || !map.isStyleLoaded()) return;
     try {
       const src = map.getSource('flow');
-      if (src) src.setData(buildGeoJSON(timestep));
+      if (src) src.setData(mode === 'static' ? staticGeoJSON : buildStepGeoJSON(timestep));
     } catch (_) {}
-  }, [timestep, buildGeoJSON]);
+  }, [mode, timestep, staticGeoJSON, buildStepGeoJSON]);
 
   // Playback timer
   useEffect(() => {
@@ -425,50 +599,98 @@ const TransmissionFlowMap = ({ locations, transmissionFlowData, capacitiesByLoc,
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-      <div ref={mapRef} style={{ width: '100%', height: '100%', overflow: 'hidden' }} />
+      <div ref={mapRef} style={{ position: 'absolute', inset: 0 }} />
+      <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} />
 
       {!hasFlow && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-          <div style={{ background: 'rgba(15,23,42,0.88)', color: '#94a3b8', fontSize: 12, padding: '8px 16px', borderRadius: 8, border: '1px solid #334155', fontFamily: 'system-ui' }}>
+          <div style={{ background: 'rgba(15,23,42,0.88)', color: '#94a3b8', fontSize: 12, padding: '10px 18px', borderRadius: 8, border: '1px solid #334155', fontFamily: 'system-ui' }}>
             No transmission flow timeseries in results
           </div>
         </div>
       )}
 
       {hasFlow && (
-        <div style={{ position: 'absolute', bottom: 10, left: 10, right: 10, background: 'rgba(10,15,28,0.93)', borderRadius: 10, padding: '8px 12px', border: '1px solid rgba(148,163,184,0.18)', backdropFilter: 'blur(8px)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
-            <button onClick={() => setPlaying(p => !p)}
-              style={{ background: '#1e40af', color: '#fff', border: 'none', borderRadius: 6, padding: '3px 10px', fontSize: 11, cursor: 'pointer', flexShrink: 0, fontFamily: 'system-ui' }}>
-              {playing ? '⏸ Pause' : '▶ Play'}
-            </button>
-            <button onClick={() => { setPlaying(false); setTimestep(0); }}
-              style={{ background: '#334155', color: '#94a3b8', border: 'none', borderRadius: 6, padding: '3px 8px', fontSize: 11, cursor: 'pointer', flexShrink: 0, fontFamily: 'system-ui' }}>↩</button>
-            <span style={{ color: '#475569', fontSize: 10, flexShrink: 0, fontFamily: 'system-ui' }}>Speed:</span>
-            <select value={speed} onChange={e => setSpeed(+e.target.value)}
-              style={{ background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: 4, fontSize: 10, padding: '2px 4px', cursor: 'pointer', flexShrink: 0, fontFamily: 'system-ui' }}>
-              <option value={500}>0.5×</option>
-              <option value={200}>1×</option>
-              <option value={80}>2.5×</option>
-              <option value={30}>6×</option>
-            </select>
-            <span style={{ color: '#94a3b8', fontSize: 10, fontFamily: 'monospace', flex: 1, textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
-              {timestep + 1}/{timestamps.length} · {timestamps[timestep]?.slice(0, 16) || ''}
-            </span>
+        <>
+          {/* Top-right: mode toggle + congestion legend */}
+          <div style={{ position: 'absolute', top: 10, right: 10, display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end', zIndex: 2 }}>
+            <div style={{ background: 'rgba(15,23,42,0.92)', borderRadius: 9, padding: 3, border: '1px solid rgba(148,163,184,0.15)', backdropFilter: 'blur(8px)', display: 'flex', gap: 3 }}>
+              {[{ id: 'static', label: 'Peak Congestion' }, { id: 'animate', label: 'Animate Flow' }].map(({ id, label }) => (
+                <button key={id} onClick={() => { setMode(id); if (id === 'static') setPlaying(false); }}
+                  style={{ background: mode === id ? '#1e40af' : 'transparent',
+                           color: mode === id ? '#fff' : '#94a3b8',
+                           border: 'none', borderRadius: 7, padding: '4px 13px', fontSize: 11,
+                           fontWeight: 600, cursor: 'pointer', fontFamily: 'system-ui', transition: 'all 0.15s' }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ background: 'rgba(15,23,42,0.92)', borderRadius: 9, padding: '10px 13px', border: '1px solid rgba(148,163,184,0.15)', backdropFilter: 'blur(8px)', fontFamily: 'system-ui', minWidth: 160 }}>
+              <div style={{ color: '#64748b', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 7 }}>
+                Link Utilisation
+              </div>
+              {CONGESTION_LEVELS.map(({ label, threshold, color }) => (
+                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 5 }}>
+                  <span style={{ width: 22, height: 4, borderRadius: 2, background: color, display: 'block', flexShrink: 0 }} />
+                  <span style={{ color: '#cbd5e1', fontSize: 10, flex: 1 }}>{label}</span>
+                  <span style={{ color: '#475569', fontSize: 9 }}>{threshold}</span>
+                </div>
+              ))}
+              <div style={{ marginTop: 7, paddingTop: 6, borderTop: '1px solid rgba(148,163,184,0.12)', color: '#475569', fontSize: 9 }}>
+                {mode === 'static' ? 'Peak utilisation across run' : `Step ${timestep + 1} / ${timestamps?.length || 1}`}
+              </div>
+            </div>
           </div>
-          <input type="range" min={0} max={maxStep} value={timestep}
-            onChange={e => { setPlaying(false); setTimestep(+e.target.value); }}
-            style={{ width: '100%', accentColor: '#38bdf8', cursor: 'pointer', display: 'block' }} />
-          <div style={{ display: 'flex', gap: 16, marginTop: 4 }}>
-            <span style={{ color: '#7dd3fc', fontSize: 10, fontFamily: 'system-ui' }}>● Forward flow</span>
-            <span style={{ color: '#fdba74', fontSize: 10, fontFamily: 'system-ui' }}>● Reverse flow</span>
-            <span style={{ color: '#475569', fontSize: 10, fontFamily: 'system-ui' }}>╌ No flow</span>
-          </div>
-        </div>
+
+          {/* Bottom timeline -- animate mode only */}
+          {mode === 'animate' && (
+            <div style={{ position: 'absolute', bottom: 10, left: 10, right: 10, zIndex: 2,
+                          background: 'rgba(10,15,28,0.93)', borderRadius: 10, padding: '10px 14px',
+                          border: '1px solid rgba(148,163,184,0.18)', backdropFilter: 'blur(8px)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                <button onClick={() => setPlaying(p => !p)}
+                  style={{ background: playing ? '#475569' : '#1e40af', color: '#fff', border: 'none',
+                           borderRadius: 7, padding: '4px 14px', fontSize: 11,
+                           cursor: 'pointer', fontFamily: 'system-ui', fontWeight: 600 }}>
+                  {playing ? 'Pause' : 'Play'}
+                </button>
+                <button onClick={() => { setPlaying(false); setTimestep(0); }}
+                  style={{ background: 'rgba(51,65,85,0.8)', color: '#94a3b8', border: 'none',
+                           borderRadius: 7, padding: '4px 10px', fontSize: 11,
+                           cursor: 'pointer', fontFamily: 'system-ui' }}>Reset</button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <span style={{ color: '#475569', fontSize: 10, fontFamily: 'system-ui' }}>Speed:</span>
+                  <select value={speed} onChange={e => setSpeed(+e.target.value)}
+                    style={{ background: '#1e293b', color: '#94a3b8', border: '1px solid #334155',
+                             borderRadius: 5, fontSize: 10, padding: '2px 5px', cursor: 'pointer', fontFamily: 'system-ui' }}>
+                    <option value={500}>0.5x</option>
+                    <option value={200}>1x</option>
+                    <option value={80}>2.5x</option>
+                    <option value={30}>6x</option>
+                  </select>
+                </div>
+                <span style={{ color: '#64748b', fontSize: 10, fontFamily: 'monospace', marginLeft: 'auto',
+                               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+                  {timestamps?.[timestep]?.slice(0, 16) || ''}
+                </span>
+              </div>
+              <input type="range" min={0} max={maxStep} value={timestep}
+                onChange={e => { setPlaying(false); setTimestep(+e.target.value); }}
+                style={{ width: '100%', accentColor: '#38bdf8', cursor: 'pointer', display: 'block' }} />
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+                <span style={{ color: '#334155', fontSize: 9, fontFamily: 'monospace' }}>{timestamps?.[0]?.slice(0, 10) || ''}</span>
+                <span style={{ color: '#475569', fontSize: 9, fontFamily: 'system-ui' }}>{timestep + 1} / {timestamps?.length || 0} steps</span>
+                <span style={{ color: '#334155', fontSize: 9, fontFamily: 'monospace' }}>{timestamps?.[timestamps.length - 1]?.slice(0, 10) || ''}</span>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
 };
+
 
 // ── Main component ───────────────────────────────────────────────────────────
 const Results = () => {
@@ -481,12 +703,15 @@ const Results = () => {
   const [techFilter, setTechFilter] = useState(new Set());
   // Collapsed section IDs.
   const [collapsedSections, setCollapsedSections] = useState(new Set());
+  const [filterExpanded, setFilterExpanded] = useState(false);
+  const [filterSearch, setFilterSearch] = useState('');
 
   // Reset per-job UI state when switching runs
   useEffect(() => {
     setMapView('capacity');
     setTechFilter(new Set());
     setCollapsedSections(new Set());
+    setFilterSearch('');
   }, [selectedJobId]);
 
   // When the Run section pushes a specific job to view, open it
@@ -514,7 +739,7 @@ const Results = () => {
     if (!selectedJob) return [];
     const baseName = selectedJob.modelName.replace(/ \(version \d+\)$/, '');
     const m = models.find(m => m.name === baseName || m.name === selectedJob.modelName);
-    return (m?.locations || []).filter(l => l.latitude && l.longitude);
+    return (m?.locations || []).filter(l => l.latitude && l.longitude).map(l => ({ ...l, calliopeName: calliopeLocName(l.name) }));
   }, [selectedJob, models]);
 
   // ── Tech metadata map: tech_name → {parent, carrier_out, display_name} ─────
@@ -686,7 +911,7 @@ const Results = () => {
       // Format 1: tech = "ac_transmission:DestLoc"
       const techParts = entry.tech.split(':');
       const toLoc = techParts.length > 1 ? techParts[techParts.length - 1] : null;
-      if (toLoc && modelLocations.find(l => l.name === toLoc)) {
+      if (toLoc && modelLocations.find(l => l.calliopeName === toLoc || l.name === toLoc)) {
         links.push({ fromLoc: entry.loc, toLoc, cap: entry.value });
         used.add(key);
       } else {
@@ -731,7 +956,6 @@ const Results = () => {
     return next;
   });
   const isTechVisible = (t) => techFilter.size === 0 || techFilter.has(t);
-  const clearTechFilter = () => setTechFilter(new Set());
 
   const toggleSection = (id) => setCollapsedSections(prev => {
     const next = new Set(prev);
@@ -1228,7 +1452,7 @@ const Results = () => {
         </>
       ) : (
         /* ══ Single-run view (padded, scrollable) ═══════════════════════ */
-        <div className="max-w-screen-2xl mx-auto p-6 space-y-5 overflow-y-auto flex-1 min-h-0">
+        <div className="p-6 space-y-5 overflow-y-auto flex-1 min-h-0">
 
           {/* ── Header ── */}
           <div className="flex items-end justify-between gap-4 flex-wrap">
@@ -1263,35 +1487,30 @@ const Results = () => {
             </div>
           </div>
 
-        {/* ── Run selector (compact chip strip) ── */}
+        {/* ── Model selector (dropdown) ── */}
         {!compareMode && (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-3 py-2 flex items-center gap-2 overflow-x-auto">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap flex-shrink-0 border-r border-slate-200 pr-2 mr-1">Runs</span>
-          {completedJobs.length === 0 ? (
-            <span className="text-slate-400 text-xs flex items-center gap-1.5">
-              <FiAlertCircle size={12} className="opacity-50" /> No runs yet
-            </span>
-          ) : completedJobs.map(job => (
-            <div key={job.id} className="flex items-center gap-1 flex-shrink-0">
-              <button onClick={() => { setSelectedJobId(job.id); setTab('overview'); }}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  selectedJobId === job.id
-                    ? 'bg-gray-900 text-white shadow-sm'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}>
-                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${job.status === 'failed' ? 'bg-red-400' : 'bg-green-400'}`} />
-                <span className="max-w-[160px] truncate">{job.modelName}</span>
-                <span className={`text-[10px] ml-0.5 ${selectedJobId === job.id ? 'text-gray-400' : 'text-slate-400'}`}>{job.duration}</span>
-              </button>
-              <button onClick={() => { removeCompletedJob(job.id); if (selectedJobId === job.id) setSelectedJobId(null); }}
-                className="p-0.5 text-slate-300 hover:text-red-500 transition-colors flex-shrink-0">
-                <FiTrash2 size={9} />
-              </button>
+          <div className="border-b border-slate-200 pb-3">
+            <div className="flex items-center gap-3">
+              <select
+                value={selectedJobId || ''}
+                onChange={e => { const id = e.target.value; setSelectedJobId(id || null); if (id) setTab('overview'); }}
+                className="flex-1 max-w-sm px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300">
+                <option value="">{completedJobs.length === 0 ? 'No completed runs' : 'Select a run…'}</option>
+                {completedJobs.map(job => (
+                  <option key={job.id} value={job.id}>
+                    {job.modelName}{job.duration ? ` · ${job.duration}` : ''}{job.status === 'failed' ? ' ⚠ failed' : ''}
+                  </option>
+                ))}
+              </select>
+              {selectedJobId && (
+                <button onClick={() => { removeCompletedJob(selectedJobId); setSelectedJobId(null); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50">
+                  <FiTrash2 size={11} /> Remove
+                </button>
+              )}
             </div>
-          ))}
-        </div>
-
-        )}{/* end run selector */}
+          </div>
+        )}{/* end model selector */}
 
         {/* ── Main content ── */}
         {!compareMode && !selectedJob && (
@@ -1320,134 +1539,87 @@ const Results = () => {
         {!compareMode && selectedJob && selectedJob.status !== 'failed' && (
           <div className="space-y-4">
 
-            {/* ── KPI strip (compact inline bar) ── */}
-            <div className="bg-gray-900 rounded-xl px-5 py-3 flex items-center gap-6 shadow-sm text-white flex-wrap">
-              {[
-                { label: 'System Cost', value: fmtNum(result?.objective),     unit: '€',   icon: FiDollarSign },
-                { label: 'Generation',  value: fmtNum(derivedData?.totalGen), unit: 'MWh', icon: FiZap },
-                { label: 'Capacity',    value: fmtNum(derivedData?.totalCap), unit: 'MW',  icon: FiBarChart2 },
-                { label: 'Solve Time',  value: selectedJob.duration,           unit: '',    icon: FiClock },
-              ].map(({ label, value, unit, icon: Icon }) => (
-                <div key={label} className="flex items-center gap-2 flex-shrink-0">
-                  <Icon size={13} className="opacity-40" />
-                  <div>
-                    <div className="text-[10px] opacity-50 uppercase tracking-wide leading-none mb-0.5">{label}</div>
-                    <div className="text-sm font-bold leading-none">{value}{unit && <span className="text-xs font-normal opacity-60 ml-1">{unit}</span>}</div>
-                  </div>
-                </div>
-              ))}
-              <div className="ml-auto flex items-center gap-1.5 text-xs opacity-50 flex-shrink-0">
-                <FiCheckCircle size={11} className="text-green-400 opacity-100" />
-                <span>{selectedJob.terminationCondition}</span>
-                <span className="ml-1 hidden sm:inline">{new Date(selectedJob.completedAt).toLocaleString()}</span>
-              </div>
-            </div>
-
-            {/* ── Solver badge ── */}
-            <div className="bg-white rounded-xl border border-slate-200 px-5 py-3 flex items-center gap-4 shadow-sm text-sm text-slate-600 flex-wrap">
-              <span className="flex items-center gap-1.5"><FiCheckCircle className="text-green-500" size={15}/> <strong>{selectedJob.modelName}</strong></span>
-              <span className="text-slate-300">|</span>
-              <span>Solver: <strong>{selectedJob.solver?.toUpperCase()}</strong></span>
-              <span className="text-slate-300">|</span>
-              <span>Status: <strong className="text-green-600">{selectedJob.terminationCondition}</strong></span>
-              <span className="text-slate-300">|</span>
-              <span>Objective: <strong>{fmtFull(result?.objective)} €</strong></span>
-              {isLargeModel && (
-                <>
-                  <span className="text-slate-300">|</span>
-                  <span className="flex items-center gap-1.5 text-amber-600 font-medium text-xs">
-                    <FiLayers size={12} />
-                    Large model · {modelLocations.length.toLocaleString()} locations
-                    · {Object.keys(derivedData?.capByTech || {}).length} techs
-                    · {(result?.timestamps?.length || 0).toLocaleString()} timesteps
-                    · per-location charts capped at top {LOC_CHART_LIMIT}
-                  </span>
-                </>
-              )}
-              <span className="text-slate-300">|</span>
-              <span className="text-slate-400 text-xs">{new Date(selectedJob.completedAt).toLocaleString()}</span>
-            </div>
-
-            {/* ── Tabs ── */}
-            <div className="flex gap-1 bg-slate-100 rounded-xl p-1 w-fit overflow-x-auto">
-              {TABS.map(({ id, label, icon: Icon }) => (
-                <button key={id} onClick={() => setTab(id)}
-                  className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
-                    tab === id ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                  }`}>
-                  <Icon size={13} /> {label}
-                  {id === 'dispatch' && !hasDispatch && <span className="text-xs text-slate-300 ml-0.5">(—)</span>}
-                </button>
-              ))}
-            </div>
-
-            {/* ── Tech filter — grouped chips ── */}
-            {allTechs.length > 0 && (
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-3 py-2 space-y-2">
-                {/* Row 1: label + All + group toggles */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  <div className="flex items-center gap-1.5 text-slate-400 text-[10px] font-bold uppercase tracking-widest flex-shrink-0 border-r border-slate-200 pr-2.5 mr-0.5">
-                    <FiFilter size={10} /> Filters
-                  </div>
-                  <button
-                    onClick={clearTechFilter}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all flex-shrink-0 ${
-                      techFilter.size === 0
-                        ? 'bg-gray-900 text-white'
-                        : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+            {/* ── Tabs + filter button ── */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex gap-1 bg-slate-100 rounded-xl p-1 w-fit overflow-x-auto">
+                {TABS.map(({ id, label, icon: Icon }) => (
+                  <button key={id} onClick={() => setTab(id)}
+                    className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+                      tab === id ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                     }`}>
-                    All
+                    <Icon size={13} /> {label}
+                    {id === 'dispatch' && !hasDispatch && <span className="text-xs text-slate-300 ml-0.5">(—)</span>}
                   </button>
-                  {activeGroups.map(grp => {
-                    const state = groupFilterState(grp.id);
-                    const full = state === 'full';
-                    const partial = state === 'partial';
-                    return (
-                      <button key={grp.id} onClick={() => toggleGroup(grp.id)}
-                        title={`Toggle all ${grp.label} techs`}
-                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all flex-shrink-0 border ${
-                          full
-                            ? 'text-white border-transparent'
-                            : partial
-                              ? 'border-dashed'
-                              : 'bg-white border-slate-200 text-slate-400 line-through opacity-60'
-                        }`}
-                        style={full || partial ? {
-                          background: full ? grp.color : grp.color + '22',
-                          borderColor: grp.color + (partial ? 'aa' : ''),
-                          color: full ? '#fff' : grp.color,
-                        } : {}}>
-                        <span className="w-2 h-2 rounded-full flex-shrink-0"
-                          style={{ background: full ? '#fff' : partial ? grp.color : '#cbd5e1' }} />
-                        {grp.label}
-                        <span className={`text-[10px] font-normal ml-0.5 ${full ? 'text-white/70' : 'opacity-60'}`}>
-                          {(techsByGroup[grp.id] || []).length}
-                        </span>
-                      </button>
-                    );
-                  })}
+                ))}
+              </div>
+              {allTechs.length > 0 && (
+                <button onClick={() => setFilterExpanded(v => !v)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap border ${
+                    filterExpanded
+                      ? 'bg-gray-900 text-white border-gray-900'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                  }`}>
+                  <FiFilter size={11} /> Filters
+                  {techFilter.size > 0 && <span className="ml-0.5 text-[10px] font-bold">({allTechs.length - techFilter.size})</span>}
+                </button>
+              )}
+            </div>
+
+            {/* ── Tech filter — categorized redesign ── */}
+            {filterExpanded && allTechs.length > 0 && (
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-3 space-y-4">
+                {/* Search */}
+                <div className="relative">
+                  <FiSearch size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search technologies…"
+                    value={filterSearch}
+                    onChange={e => setFilterSearch(e.target.value)}
+                    className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300"
+                  />
+                  {filterSearch && (
+                    <button onClick={() => setFilterSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                      <FiX size={13} />
+                    </button>
+                  )}
                 </div>
 
-                {/* Row 2: individual tech chips, separated by group */}
-                <div className="flex items-center gap-1.5 flex-wrap border-t border-slate-100 pt-2">
-                  {activeGroups.map((grp, gi) => {
-                    const techs = techsByGroup[grp.id] || [];
-                    if (!techs.length) return null;
+                {/* Category sections */}
+                {activeGroups.map(grp => {
+                  const techs = (techsByGroup[grp.id] || []).filter(t =>
+                    !filterSearch || t.toLowerCase().includes(filterSearch.toLowerCase())
+                  );
+                  if (!techs.length) return null;
 
-                    // For the Links group, collapse many "baseType:destLoc" entries into
-                    // unique base-type chips (e.g. "pFV" covers pFV:CHERCAN, pFV:MADRID…)
-                    // Toggling a base chip selects/deselects all link techs with that base.
-                    if (grp.id === 'tx') {
-                      const bases = [...new Set(techs.map(linkTechBase))].sort();
-                      return (
-                        <span key={grp.id} className="contents">
-                          {gi > 0 && <span className="w-px h-4 bg-slate-200 flex-shrink-0 mx-0.5" />}
-                          {bases.map(base => {
+                  const state = groupFilterState(grp.id);
+                  const full = state === 'full';
+                  const isTx = grp.id === 'tx';
+
+                  return (
+                    <div key={grp.id}>
+                      {/* Category header */}
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: grp.color }} />
+                          <span className="text-xs font-semibold text-slate-700">{grp.label}</span>
+                          <span className="text-[10px] text-slate-400">({techs.length})</span>
+                        </div>
+                        <button onClick={() => toggleGroup(grp.id)}
+                          className="text-[10px] font-medium text-slate-400 hover:text-slate-600 transition-colors">
+                          {full ? 'Deselect all' : 'Select all'}
+                        </button>
+                      </div>
+
+                      {/* Tech chips */}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {(isTx ? [...new Set(techs.map(linkTechBase))].sort() : techs).map(entry => {
+                          if (isTx) {
+                            const base = entry;
                             const baseTechs = techs.filter(t => linkTechBase(t) === base);
                             const anyActive = techFilter.size === 0 || baseTechs.some(t => techFilter.has(t));
                             const allActive = techFilter.size === 0 || baseTechs.every(t => techFilter.has(t));
                             const handleBaseToggle = () => {
-                              // Toggle all techs with this base as a group
                               setTechFilter(prev => {
                                 const expanded = prev.size === 0 ? new Set(allTechs) : new Set(prev);
                                 if (allActive) baseTechs.forEach(t => expanded.delete(t));
@@ -1455,12 +1627,10 @@ const Results = () => {
                                 return expanded.size >= allTechs.length ? new Set() : expanded;
                               });
                             };
-                            const color = grp.color;
-                            // Use friendly display name from model definition if available
                             const baseDisplayName = techMetaMap[base]?.display_name || base.replace(/_/g, ' ');
                             return (
                               <button key={base} onClick={handleBaseToggle}
-                                title={`${baseDisplayName} — ${baseTechs.length} link(s): ${baseTechs.map(t => t.split(':')[1]).join(', ')}`}
+                                title={`${baseDisplayName} — ${baseTechs.length} link(s)`}
                                 className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium transition-all flex-shrink-0 border ${
                                   allActive
                                     ? 'border-transparent'
@@ -1469,52 +1639,41 @@ const Results = () => {
                                       : 'bg-white border-slate-200 text-slate-300 line-through opacity-40'
                                 }`}
                                 style={anyActive ? {
-                                  background: color + (allActive ? '22' : '11'),
-                                  borderColor: color + (allActive ? '55' : 'aa'),
+                                  background: grp.color + (allActive ? '22' : '11'),
+                                  borderColor: grp.color + (allActive ? '55' : 'aa'),
                                   color: '#334155',
                                 } : {}}>
                                 <span className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                                  style={{ background: anyActive ? color : '#cbd5e1' }} />
+                                  style={{ background: anyActive ? grp.color : '#cbd5e1' }} />
                                 {baseDisplayName}
                                 <span className="text-[9px] opacity-50 ml-0.5">×{baseTechs.length}</span>
                               </button>
                             );
-                          })}
-                        </span>
-                      );
-                    }
+                          }
 
-                    // All other groups: one chip per tech
-                    return (
-                      <span key={grp.id} className="contents">
-                        {gi > 0 && <span className="w-px h-4 bg-slate-200 flex-shrink-0 mx-0.5" />}
-                        {techs.map(tech => {
-                          const active = techFilter.size === 0 || techFilter.has(tech);
-                          const displayName = techMetaMap[tech]?.display_name || tech.replace(/_/g, ' ');
-                          const parentLabel = techMetaMap[tech]?.parent || '';
                           return (
-                            <button key={tech} onClick={() => toggleTech(tech)}
-                              title={`${displayName}${parentLabel ? ` (${parentLabel})` : ''}`}
+                            <button key={entry} onClick={() => toggleTech(entry)}
+                              title={techMetaMap[entry]?.display_name || entry.replace(/_/g, ' ')}
                               className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium transition-all flex-shrink-0 border ${
-                                active
+                                techFilter.size === 0 || techFilter.has(entry)
                                   ? 'border-transparent'
                                   : 'bg-white border-slate-200 text-slate-300 line-through opacity-40'
                               }`}
-                              style={active ? {
-                                background: techColorFn(tech) + '22',
-                                borderColor: techColorFn(tech) + '55',
+                              style={techFilter.size === 0 || techFilter.has(entry) ? {
+                                background: grp.color + '22',
+                                borderColor: grp.color + '55',
                                 color: '#334155',
                               } : {}}>
                               <span className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                                style={{ background: active ? techColorFn(tech) : '#cbd5e1' }} />
-                              {tech.replace(/_/g, ' ')}
+                                style={{ background: techFilter.size === 0 || techFilter.has(entry) ? grp.color : '#cbd5e1' }} />
+                              {(techMetaMap[entry]?.display_name || entry).replace(/_/g, ' ')}
                             </button>
                           );
                         })}
-                      </span>
-                    );
-                  })}
-                </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
 

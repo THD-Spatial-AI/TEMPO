@@ -101,6 +101,12 @@ const Run = ({ onNavigate }) => {
   // Guard: track job IDs that have already been completed to prevent StrictMode double-fire
   const completedIdsRef = useRef(new Set());
 
+  // Selected scenarios and overrides for batch runs
+  const [selectedScenarios, setSelectedScenarios] = useState([]);
+  const [selectedOverrides, setSelectedOverrides] = useState([]);
+  const [showScenariosDropdown, setShowScenariosDropdown] = useState(false);
+  const scenariosDropdownRef = useRef(null);
+
   // Active (running) jobs: { id, modelName, solver, startTime, logs: [] }
   const [runningJobs, setRunningJobs] = useState([]);
 
@@ -233,6 +239,18 @@ const Run = ({ onNavigate }) => {
     if (solvers.length > 0) setSelectedSolver(solvers[0]);
   }, [selectedFramework]);
 
+  // Close scenarios dropdown when clicking outside
+  useEffect(() => {
+    if (!showScenariosDropdown) return;
+    const handler = (e) => {
+      if (scenariosDropdownRef.current && !scenariosDropdownRef.current.contains(e.target)) {
+        setShowScenariosDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showScenariosDropdown]);
+
   // Scroll log to bottom whenever logs grow
   useEffect(() => {
     if (logEndRef.current) logEndRef.current.scrollIntoView({ behavior: 'smooth' });
@@ -356,48 +374,86 @@ const Run = ({ onNavigate }) => {
       }
     }
 
-    const jobId = `job_${Date.now()}`;
-    const newJob = {
-      id: jobId,
-      modelName: selectedModel.name,
-      framework: selectedFramework,
-      solver: selectedSolver,
-      startTime: new Date().toISOString(),
-      logs: [],
-      stats: null,
-    };
-
-    setRunningJobs(prev => [...prev, newJob]);
-    setExpandedLog(jobId);
-    showNotification(`Started ${frameworkLabel} run for "${selectedModel.name}"`, 'success');
-
-    const modelData = {
-      ...selectedModel,
-      solver: selectedSolver,
-      modelConfig,
-      timeSeries: timeSeries.filter(ts => ts.modelId === selectedModel.id),
-    };
+    // Determine what to run: selected scenarios/overrides, or fallback to baseline
+    const configs = [];
+    if (hasSelections) {
+      selectedScenarios.forEach(name => configs.push({ type: 'scenario', name }));
+      selectedOverrides.forEach(name => configs.push({ type: 'override', name }));
+    } else {
+      configs.push(null); // baseline run — no scenario/override
+    }
 
     const runFn = isAdoptnet0 ? runAdoptnet0Model : runCalliopeModel;
+    const started = [];
+    const failed = [];
 
-    try {
-      const { cancel } = await runFn({
-        modelData,
-        onLog: (line) =>
-          setRunningJobs(prev =>
-            prev.map(j => j.id === jobId ? { ...j, logs: [...j.logs, line] } : j)
-          ),
-        onStats: (s) =>
-          setRunningJobs(prev =>
-            prev.map(j => j.id === jobId ? { ...j, stats: s } : j)
-          ),
-        onDone: (result) => _handleJobDone(jobId, result),
-        onError: (error) => _handleJobError(jobId, error),
-      });
-      cancelFnsRef.current[jobId] = cancel;
-    } catch (err) {
-      setRunningJobs(prev => prev.filter(j => j.id !== jobId));
-      showNotification(`Failed to start run: ${err.message}`, 'error');
+    for (const config of configs) {
+      const suffix = config ? Math.random().toString(36).slice(2, 8) : '';
+      const jobId = `job_${Date.now()}_${suffix}`;
+      const displayName = config
+        ? `${selectedModel.name} — ${config.name}`
+        : selectedModel.name;
+
+      const newJob = {
+        id: jobId,
+        modelName: displayName,
+        framework: selectedFramework,
+        solver: selectedSolver,
+        startTime: new Date().toISOString(),
+        logs: [],
+        stats: null,
+      };
+
+      setRunningJobs(prev => [...prev, newJob]);
+      // Only expand log for the first job to avoid UI flicker
+      if (started.length === 0) setExpandedLog(jobId);
+
+      const modelData = {
+        ...selectedModel,
+        solver: selectedSolver,
+        modelConfig,
+        timeSeries: timeSeries.filter(ts => ts.modelId === selectedModel.id),
+      };
+
+      if (config) {
+        if (config.type === 'scenario') {
+          modelData.scenario = config.name;
+        } else {
+          modelData.override = config.name;
+        }
+      }
+
+      try {
+        const { cancel } = await runFn({
+          modelData,
+          onLog: (line) =>
+            setRunningJobs(prev =>
+              prev.map(j => j.id === jobId ? { ...j, logs: [...j.logs, line] } : j)
+            ),
+          onStats: (s) =>
+            setRunningJobs(prev =>
+              prev.map(j => j.id === jobId ? { ...j, stats: s } : j)
+            ),
+          onDone: (result) => _handleJobDone(jobId, result),
+          onError: (error) => _handleJobError(jobId, error),
+        });
+        cancelFnsRef.current[jobId] = cancel;
+        started.push(displayName);
+      } catch (err) {
+        setRunningJobs(prev => prev.filter(j => j.id !== jobId));
+        failed.push(displayName);
+        showNotification(`Failed to start "${displayName}": ${err.message}`, 'error');
+      }
+    }
+
+    if (started.length === 1) {
+      showNotification(`Started ${frameworkLabel} run for "${started[0]}"`, 'success');
+    } else if (started.length > 1) {
+      showNotification(`Started ${started.length} ${frameworkLabel} runs`, 'success');
+    }
+    if (failed.length > 0 && started.length === 0) {
+      const setStatus = isAdoptnet0 ? setAdoptnet0Status : setServiceStatus;
+      setStatus(false);
     }
   };
 
@@ -432,6 +488,11 @@ const Run = ({ onNavigate }) => {
   const serviceReady    = activeStatus === true;
   const serviceChecking = activeStatus === null;
   const activeFrameworkLabel = MODELING_FRAMEWORKS.find(f => f.id === selectedFramework)?.name || 'Service';
+
+  // Scenarios and overrides available from the current model
+  const availableScenarios = selectedModel?.scenarios ? Object.keys(selectedModel.scenarios) : [];
+  const availableOverrides = selectedModel?.overrides ? Object.keys(selectedModel.overrides) : [];
+  const hasSelections = selectedScenarios.length + selectedOverrides.length > 0;
 
   return (
     <div className="h-full bg-gradient-to-br from-slate-50 to-slate-100 overflow-y-auto">
@@ -512,7 +573,11 @@ const Run = ({ onNavigate }) => {
                   <label className="block text-xs font-medium text-slate-600 mb-1">Model</label>
                   <select
                     value={selectedModel?.id || ''}
-                    onChange={e => setSelectedModel(models.find(m => m.id === e.target.value))}
+                    onChange={e => {
+                      setSelectedModel(models.find(m => m.id === e.target.value));
+                      setSelectedScenarios([]);
+                      setSelectedOverrides([]);
+                    }}
                     className="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-electric-500 focus:border-transparent bg-white"
                   >
                     <option value="">— Select a model —</option>
@@ -541,6 +606,90 @@ const Run = ({ onNavigate }) => {
                   </select>
                 </div>
               </div>
+
+              {/* Scenarios & Overrides multiselect — full width below grid */}
+              {(availableScenarios.length > 0 || availableOverrides.length > 0) && (
+                <div className="mt-4 border-t border-slate-100 pt-4" ref={scenariosDropdownRef}>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Scenarios / Overrides</label>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setShowScenariosDropdown(v => !v)}
+                      className="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-electric-500 text-left flex items-center justify-between bg-white"
+                    >
+                      <span className={hasSelections ? 'text-slate-700' : 'text-slate-400'}>
+                        {hasSelections
+                          ? `${selectedScenarios.length + selectedOverrides.length} selected`
+                          : 'None (baseline)'}
+                      </span>
+                      <FiChevronDown
+                        size={14}
+                        className={`text-slate-400 transition-transform ${showScenariosDropdown ? 'rotate-180' : ''}`}
+                      />
+                    </button>
+                    {showScenariosDropdown && (
+                      <div className="absolute z-20 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg p-2 max-h-64 overflow-y-auto">
+                        {availableScenarios.length > 0 && (
+                          <div className="pb-1 mb-1 border-b border-slate-100">
+                            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-2 pt-1 pb-0.5">
+                              Scenarios
+                            </p>
+                            {availableScenarios.map(name => {
+                              const on = selectedScenarios.includes(name);
+                              return (
+                                <label
+                                  key={name}
+                                  className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer text-sm ${
+                                    on ? 'bg-electric-50 text-electric-700' : 'text-slate-700 hover:bg-slate-50'
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={on}
+                                    onChange={() => setSelectedScenarios(prev =>
+                                      on ? prev.filter(s => s !== name) : [...prev, name]
+                                    )}
+                                    className="w-4 h-4 text-electric-600 border-slate-300 rounded"
+                                  />
+                                  {name}
+                                </label>
+                              );
+                            })}
+                          </div>
+                        )}
+                        {availableOverrides.length > 0 && (
+                          <div>
+                            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-2 pt-1 pb-0.5">
+                              Overrides
+                            </p>
+                            {availableOverrides.map(name => {
+                              const on = selectedOverrides.includes(name);
+                              return (
+                                <label
+                                  key={name}
+                                  className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer text-sm ${
+                                    on ? 'bg-electric-50 text-electric-700' : 'text-slate-700 hover:bg-slate-50'
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={on}
+                                    onChange={() => setSelectedOverrides(prev =>
+                                      on ? prev.filter(o => o !== name) : [...prev, name]
+                                    )}
+                                    className="w-4 h-4 text-electric-600 border-slate-300 rounded"
+                                  />
+                                  {name}
+                                </label>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Framework */}
@@ -736,11 +885,11 @@ const Run = ({ onNavigate }) => {
             {/* Run button */}
             <button
               onClick={handleRunModel}
-              disabled={!selectedModel || !serviceReady || runningJobs.length > 0}
+              disabled={!selectedModel || !serviceReady}
               className="w-full py-3.5 bg-gradient-to-r from-electric-500 to-electric-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl hover:from-electric-600 hover:to-electric-700 disabled:from-slate-300 disabled:to-slate-400 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2"
             >
               <FiPlay size={18} />
-              {runningJobs.length > 0 ? 'Run in Progress…' : 'Run Model'}
+              {hasSelections ? `Run Selected (${selectedScenarios.length + selectedOverrides.length})` : runningJobs.length > 0 ? 'Run in Progress…' : 'Run Model'}
             </button>
           </div>
 
