@@ -32,7 +32,7 @@ const DOWNLOADS = [
 
 const CONTACTS = [
   { label: 'https://github.com/THD-Spatial-AI/TEMPO', icon: 'github', href: GITHUB, external: true },
-  { label: 'tempo@th-deg.de', icon: 'email', href: 'mailto:tempo@th-deg.de' },
+  { label: 'ricardo.miranda-castillo@th-deg-de', icon: 'email', href: 'mailto:ricardo.miranda-castillo@th-deg-de' },
   { label: 'www.th-deg.de', icon: 'website', href: 'https://www.th-deg.de', external: true },
   { label: 'Deggendorf, Bavaria', icon: 'address', href: 'https://maps.google.com/?q=TH+Deggendorf', external: true },
 ]
@@ -98,8 +98,8 @@ export default function Home() {
           className="min-h-[calc(100vh-4rem)]"
           logo={{ url: logo, alt: 'TEMPO logo', text: 'TEMPO' }}
           slogan="Tool for Energy Model Planning and Optimization"
-          title={<>Bridge GIS and<br /><span className="text-primary">Energy Optimization.</span></>}
-          subtitle="A local-first planning platform powered by Calliope. Design, optimize, and visualize complex regional energy systems through a high-precision no-code interface."
+          title={<>Bridge GIS, Code<br /><span className="text-primary"> and Energy Optimization.</span></>}
+          subtitle="A planning platform to design, optimize, and visualize complex regional energy systems through a high-precision no-code interface."
           downloads={DOWNLOADS}
           contacts={CONTACTS}
           institution={{ logo: LogoTHD, name: 'TH Deggendorf', group: 'BigGeoData & Spatial AI Research Group' }}
@@ -144,8 +144,8 @@ export default function Home() {
                 </h2>
               </div>
               <p className="text-sm text-neutral-500 max-w-sm">
-                Drag the slider to compare the traditional approach — manually parsing raw OSM infrastructure
-                layers — against the structured, actionable energy model produced inside TEMPO.
+                Drag the slider to compare the traditional approach, going from manually parsing raw OSM infrastructure
+                layers to actionable energy model produced inside TEMPO.
               </p>
             </div>
 
@@ -163,7 +163,7 @@ export default function Home() {
                 <div>
                   <p className="font-black text-[10px] uppercase tracking-widest">Before</p>
                   <p className="text-[11px] text-neutral-500 mt-0.5">
-                    Raw OSM power lines, plants &amp; substations — thousands of features to sift through manually.
+                    Raw OSM power lines, plants &amp; substations, as well tech definitions like cost and constraints, having thousands of features to sift through manually.
                   </p>
                 </div>
               </div>
@@ -172,7 +172,7 @@ export default function Home() {
                 <div>
                   <p className="font-black text-[10px] uppercase tracking-widest">After</p>
                   <p className="text-[11px] text-neutral-500 mt-0.5">
-                    Structured TEMPO model — topology, tech catalog, CAPEX/OPEX estimates, ready to optimize.
+                    Structured TEMPO model. Considering the topology, tech catalog, CAPEX/OPEX estimates, and more ready to optimize.
                   </p>
                 </div>
               </div>
@@ -196,8 +196,8 @@ export default function Home() {
                 <p className="text-[0.9375rem] text-neutral-500 leading-relaxed mb-6">
                   TEMPO was created at the <strong className="text-black">Technische Hochschule Deggendorf</strong> (THD)
                   by the <strong className="text-black">Research Group for BigGeoData & Spatial AI</strong> research group. The project bridges
-                  geospatial science and energy systems engineering — combining open geographic data from
-                  OpenStreetMap with the rigorous optimization framework Calliope to support regional energy transition planning.
+                  geospatial science and energy systems engineering, combining open geographic data from
+                  OpenStreetMap with the rigorous optimization frameworks, like <a href="https://callio.pe" target="_blank" rel="noopener noreferrer"><strong className="text-black">Calliope</strong></a>, <a href="https://pypsa.org" target="_blank" rel="noopener noreferrer"><strong className="text-black">PYPSA</strong></a> and <a href="https://github.com/UU-ER/AdOpT-NET0" target="_blank" rel="noopener noreferrer"><strong className="text-black">Adopt-net0</strong></a> to support regional and national energy transition planning.
                 </p>
                 <p className="text-[0.9375rem] text-neutral-500 leading-relaxed mb-10">
                   The tool is designed for researchers, students, and practitioners who need to model
@@ -262,7 +262,7 @@ export default function Home() {
                 Built for Real Projects
               </h2>
               <p className="text-lg text-neutral-500 max-w-3xl">
-                TEMPO was developed at <strong className="text-black">Technische Hochschule Deggendorf</strong> within the <strong className="text-black">Research Group for BigGeoData & Spatial AI</strong>. It is the modelling backbone for several funded research and industry
+                TEMPO is the modelling backbone for several funded research and industry
                 projects focused on regional hydrogen economies and renewable energy planning.
               </p>
             </div>
@@ -462,10 +462,10 @@ export default function Home() {
                   OpenTech-DB
                 </h2>
                 <p className="mt-4 text-[0.9375rem] text-neutral-500 max-w-2xl leading-relaxed">
-                  An <strong className="text-black">OEO-aligned</strong> open database of 55+ energy technologies
-                  with a REST API and framework adapters — the data backbone behind TEMPO's technology catalog.
+                  An <strong className="text-black">OEO-aligned</strong> open database of 100+ energy technologies
+                  with a REST API and framework adapters, that is the data backbone behind TEMPO's technology catalog and more software projects.
                   All CAPEX, OPEX, efficiency, and capacity parameters are sourced from here and exported
-                  directly to Calliope, PyPSA, and OSeMOSYS models.
+                  directly to Calliope, PyPSA, and Adopt-net0 models.
                 </p>
               </div>
               <div className="flex flex-wrap gap-3 flex-shrink-0">

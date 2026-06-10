@@ -105,5 +105,5 @@ GeoServer web UI: `http://localhost:8080/geoserver/web` (admin / geoserver)
 - Documentation: `docs/` (run `mkdocs serve` to browse locally)
 - Architecture: `documentation/` (arc42 LaTeX)
 - Full setup guide for a new machine: [SETUP_NEW_COMPUTER.md](SETUP_NEW_COMPUTER.md)
-- Contact: tempo@th-deg.de
+- Contact: ricardo.miranda-castillo@th-deg-de
 

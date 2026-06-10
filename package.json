@@ -6,7 +6,7 @@
   "homepage": "https://github.com/TH-Deggendorf/TEMPO",
   "author": {
     "name": "TH Deggendorf",
-    "email": "tempo@th-deg.de"
+    "email": "ricardo.miranda-castillo@th-deg-de"
   },
   "type": "module",
   "main": "electron/main.cjs",
@@ -158,7 +158,7 @@
       ],
       "icon": "public/icon.png",
       "category": "Science",
-      "maintainer": "TH Deggendorf <tempo@th-deg.de>"
+      "maintainer": "TH Deggendorf <ricardo.miranda-castillo@th-deg-de>"
     },
     "nsis": {
       "oneClick": false,

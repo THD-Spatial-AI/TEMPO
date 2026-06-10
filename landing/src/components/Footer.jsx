@@ -52,7 +52,7 @@ export default function Footer({ dark = false }) {
             />
           </Link>
           <p className={`text-[11px] font-medium tracking-wide uppercase leading-relaxed ${sub}`}>
-            Academic energy planning software developed by TH Deggendorf.
+            Tool for Energy Model Planning and Optimization. Software developed by TH Deggendorf.
             Open source under the MIT License.
           </p>
         </div>
@@ -71,8 +71,9 @@ export default function Footer({ dark = false }) {
             Technische Hochschule Deggendorf
           </p>
           <p className={`text-[11px] leading-relaxed ${sub}`}>
-            University of Applied Sciences — Deggendorf, Bavaria.<br />
-            BigGeoData & Spatial AI Research Group.
+            University of Applied Sciences.<br />
+            BigGeoData & Spatial AI Research Group.<br />
+            Deggendorf, Bavaria, Germany.
           </p>
           <a
             href="https://www.th-deg.de"
