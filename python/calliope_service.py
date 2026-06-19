@@ -171,7 +171,7 @@ def _run_job_thread(job_id: str, model_data: dict) -> None:
 
     # Keys whose values can be large timeseries arrays — kept server-side, fetched
     # via GET /run/{job_id}/result so the SSE message stays small.
-    _HEAVY_KEYS = ("dispatch", "transmission_flow", "timestamps", "demand_timeseries")
+    _HEAVY_KEYS = ("dispatch", "transmission_flow", "timestamps", "demand_timeseries", "spores_data")
 
     # Start resource monitor
     _stop_stats = threading.Event()

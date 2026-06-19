@@ -1371,6 +1371,7 @@ def _run_model_impl(model_data, work_dir):
     scenario_to_run = model_data.get('scenario')  # name of scenario to activate at runtime
     override_to_run = model_data.get('override')  # name of override to activate at runtime
     model_config_payload = model_data.get('modelConfig') or {}  # from Run.jsx UI
+    log(f"  [CONFIG] mode={model_config_payload.get('mode')!r}  solver={model_data.get('solver')!r}")
 
     # ------------------------------------------------------------------
     # Solver availability check — fall back gracefully when the requested
@@ -1576,6 +1577,31 @@ def _run_model_impl(model_data, work_dir):
     # Auto-define any transmission techs referenced by links but not in technologies list
     _ensure_link_techs_defined(techs, links)
 
+    # SPORES: inject spores_score cost class into every investment tech so the
+    # run_spores() algorithm can use it as its exploration objective.
+    # Must happen before techs.yaml is written to disk (line ~1669).
+    _is_spores_run = model_config_payload.get('mode') == 'spores'
+    log(f"  [CONFIG] _is_spores_run={_is_spores_run}  raw mode value={model_config_payload.get('mode')!r}")
+    if _is_spores_run:
+        n_injected = 0
+        for tech_cfg in techs.values():
+            monetary = (tech_cfg.get('costs') or {}).get('monetary') or {}
+            if not isinstance(monetary, dict):
+                continue
+            # Only inject into investment techs — those with a capital cost on energy_cap
+            # or storage_cap. Demand / curtailment / export techs have om_prod but no
+            # energy_cap capital cost, so they are intentionally skipped here.
+            if 'energy_cap' not in monetary and 'storage_cap' not in monetary:
+                continue
+            tech_cfg.setdefault('costs', {})['spores_score'] = {
+                'energy_cap': 0,
+                'interest_rate': 0,
+            }
+            if 'lifetime' not in (tech_cfg.get('constraints') or {}):
+                tech_cfg.setdefault('constraints', {})['lifetime'] = 1
+            n_injected += 1
+        log(f"  [SPORES] Injected spores_score cost class into {n_injected} investment technologies")
+
     # Ensure at least one demand tech exists
     has_demand = any(
         (t.get('essentials', {}) or {}).get('parent', t.get('parent', '')) == 'demand'
@@ -1745,7 +1771,7 @@ def _run_model_impl(model_data, work_dir):
     }
 
     # Apply modelConfig overrides (from Run UI) — mode, feasibility, cyclic storage
-    if model_config_payload.get('mode') in ('plan', 'operate'):
+    if model_config_payload.get('mode') in ('plan', 'operate', 'spores'):
         run_cfg['mode'] = model_config_payload['mode']
     if model_config_payload.get('ensureFeasibility') is not None:
         run_cfg['ensure_feasibility'] = bool(model_config_payload['ensureFeasibility'])
@@ -1755,7 +1781,7 @@ def _run_model_impl(model_data, work_dir):
     # Also honour mode stored in model metadata.runConfig
     # (populated from Calliope YAML import) — only if UI did not explicitly set it.
     _meta_run = (model_data.get('metadata') or {}).get('runConfig') or {}
-    if not model_config_payload.get('mode') and _meta_run.get('mode') in ('plan', 'operate'):
+    if not model_config_payload.get('mode') and _meta_run.get('mode') in ('plan', 'operate', 'spores'):
         run_cfg['mode'] = _meta_run['mode']
     # NOTE: ensure_feasibility=False is intentionally NOT inherited from templates.
     # Templates for commercial solvers (Gurobi) set it False; free solvers crash
@@ -1792,6 +1818,22 @@ def _run_model_impl(model_data, work_dir):
     elif override_to_run:
         run_cfg['override'] = override_to_run
 
+    # SPORES: build spores_options block for the run: config
+    if run_cfg.get('mode') == 'spores':
+        _spores_opts = model_config_payload.get('sporesOptions') or {}
+        _slack     = float(_spores_opts.get('slack', 10)) / 100.0  # UI sends integer percent
+        _n_spores  = int(_spores_opts.get('sporesNumber', 20))
+        run_cfg['spores_options'] = {
+            'slack':                _slack,
+            'spores_number':        _n_spores,
+            'score_cost_class':     'spores_score',
+            'slack_cost_group':     'systemwide_cost_max',
+            'skip_cost_op':         False,
+            'save_per_spore':       False,
+            'objective_cost_class': {'spores_score': 1},
+        }
+        log(f"  [SPORES] slack={_slack*100:.0f}%, n_spores={_n_spores}")
+
     model_yaml = {
         'import': ['model_config/techs.yaml', 'model_config/locations.yaml'],
         'model': {
@@ -1811,11 +1853,19 @@ def _run_model_impl(model_data, work_dir):
         model_yaml['overrides'] = overrides
     if scenarios:
         model_yaml['scenarios'] = scenarios
+    if run_cfg.get('mode') == 'spores':
+        # group_constraints provides the cost ceiling that SPORES tightens after the
+        # first (cost-optimal) solve to (1+slack)*cost_optimal.
+        model_yaml['group_constraints'] = {
+            'systemwide_cost_max': {
+                'cost_max': {'monetary': float('inf')}
+            }
+        }
 
     model_yaml_path = Path(work_dir) / 'model.yaml'
     with open(model_yaml_path, 'w') as f:
         f.write(dump_yaml(model_yaml))
-    log("  Wrote model.yaml")
+    log(f"  Wrote model.yaml  [run.mode={model_yaml.get('run', {}).get('mode')!r}]")
 
     # ------------------------------------------------------------------
     # Load & run
@@ -1853,6 +1903,17 @@ def _run_model_impl(model_data, work_dir):
             ) from _run_exc
         raise  # unknown error — propagate as-is
     log("Optimisation finished. Extracting results …")
+
+    # Detect whether results carry the extra 'spores' dimension produced by run_spores().
+    # When True, the standard per-variable extractions are redirected to SPORE 0 (the
+    # cost-optimal solution) and the full per-SPORE breakdown goes into 'spores_data'.
+    _ds_check = getattr(model, 'results', None)
+    _spores_dim_present = (
+        _ds_check is not None and
+        'spores' in getattr(_ds_check, 'dims', {})
+    )
+    if _spores_dim_present:
+        log(f"  [SPORES] Results contain {len(_ds_check.spores)} SPORE(s) — extracting per-SPORE data")
 
     # ------------------------------------------------------------------
     # Extract results
@@ -1922,6 +1983,33 @@ def _run_model_impl(model_data, work_dir):
     # Termination condition
     tc = (getattr(ds, 'attrs', {}) or {}).get('termination_condition', 'optimal')
     results['termination_condition'] = str(tc)
+
+    # SPORES: collect per-SPORE capacities, generation, and costs into spores_data.
+    # Also sets ds to SPORE 0 (cost-optimal) so the remainder of extraction works
+    # identically to a normal plan-mode run.
+    if _spores_dim_present:
+        try:
+            spores_list = []
+            for _s in ds.spores.values:
+                _spore_ds = ds.sel(spores=_s)
+                _cap  = _spore_ds['energy_cap'].to_pandas() if 'energy_cap' in _spore_ds else {}
+                _cost = float(_spore_ds['cost'].sel(costs='monetary').sum().values) if 'cost' in _spore_ds else None
+                _gen  = (_spore_ds['carrier_prod'].sum(dim='timesteps').to_pandas()
+                         if 'carrier_prod' in _spore_ds else {})
+                spores_list.append({
+                    'spore_id':   int(_s),
+                    'cost':       _cost,
+                    'capacities': ({str(k): (float(v) if v == v else 0) for k, v in _cap.items()}
+                                   if hasattr(_cap, 'items') else {}),
+                    'generation': ({str(k): (float(v) if v == v else 0) for k, v in _gen.items()}
+                                   if hasattr(_gen, 'items') else {}),
+                })
+            results['spores_data'] = spores_list
+            log(f"  [SPORES] Collected {len(spores_list)} SPORE result(s)")
+            # Slice ds to SPORE 0 so all downstream single-run extractions work normally
+            ds = ds.sel(spores=0)
+        except Exception as e:
+            log(f"  [SPORES] Could not extract per-SPORE data: {e}")
 
     # Total cost (objective)
     if 'cost' in ds:
@@ -2005,6 +2093,9 @@ def _run_model_impl(model_data, work_dir):
         try:
             import numpy as np
             fa = model.get_formatted_array('carrier_prod')
+            # SPORES: get_formatted_array reads model.results (has spores dim); use SPORE 0
+            if 'spores' in fa.dims:
+                fa = fa.sel(spores=0)
             tx_timestamps = results.get('timestamps') or [str(t) for t in fa.timesteps.values]
 
             # raw_tx["to_loc::from_loc"] = summed production arriving at to_loc from from_loc (1D)
