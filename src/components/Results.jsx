@@ -951,6 +951,190 @@ const TransmissionFlowMap = ({ locations, transmissionFlowData, capacitiesByLoc,
 };
 
 
+// ── Grouped Location×Tech Spearman Correlation Matrix ───────────────────────
+// ltGroups: [{loc, displayName, atoms:[{loc,tech,key}]}] (forward loc order for X axis)
+// ltCorrMap: {"loc::tech:::loc::tech" → ρ}
+const GroupedCorrMatrixSVG = ({ ltGroups, ltCorrMap }) => {
+  if (!ltGroups || !ltGroups.length) return null;
+
+  const nAtoms   = ltGroups.reduce((s, g) => s + g.atoms.length, 0);
+  const CELL     = Math.max(8, Math.min(18, Math.floor(560 / nAtoms)));
+  const GAP      = Math.max(2, Math.round(CELL * 0.28));
+  const TOP      = 12;
+  const CBAR_GAP = 14;
+
+  // Font sizes — scale with CELL so both axes grow/shrink together
+  const fSm  = Math.max(7,  CELL * 0.62);
+  const fLoc = Math.max(8,  CELL * 0.75);
+
+  // Longest tech name drives spacing on BOTH axes
+  const maxTechLen = Math.max(
+    ...ltGroups.flatMap(g => g.atoms.map(a => a.tech.replace(/_/g, ' ').length)),
+    8,
+  );
+
+  // Adaptive left margin:
+  //   Y_TECH_W  — space for horizontal Y-axis tech labels (width of text)
+  //   Y_LOC_W   — column for the rotated Y-axis location labels (their screen width ≈ fLoc)
+  const Y_TECH_W = Math.ceil(maxTechLen * fSm * 0.64) + 8;
+  const Y_LOC_W  = Math.ceil(fLoc) + 10;
+  const LEFT     = Y_LOC_W + Y_TECH_W + 6;
+  const Y_LOC_X  = Math.floor(Y_LOC_W / 2) + 2;  // x-centre of location label column
+
+  // Adaptive bottom margin: rotated X-axis tech labels turn into vertical bars
+  const X_LABEL_H = Math.ceil(maxTechLen * fSm * 0.64) + 10;
+
+  // ColorBrewer RdBu: red (+1) → white (0) → blue (−1)
+  const rhoColor = (rho) => {
+    if (rho == null || isNaN(rho)) return null;
+    const t = Math.max(0, Math.min(1, (rho + 1) / 2));
+    const lr = (a, b, s) => Math.round(a + (b - a) * s);
+    if (t >= 0.5) {
+      const s = (t - 0.5) * 2;
+      return `rgb(${lr(247,178,s)},${lr(247,24,s)},${lr(247,43,s)})`;
+    }
+    const s = t * 2;
+    return `rgb(${lr(33,247,s)},${lr(102,247,s)},${lr(172,247,s)})`;
+  };
+
+  // Column layout: forward location order
+  const colLayout = [];
+  let xCur = LEFT;
+  ltGroups.forEach(g => {
+    const x0 = xCur;
+    colLayout.push({
+      group: g, x0,
+      cols: g.atoms.map((atom, ai) => ({ atom, cx: x0 + ai * CELL + CELL / 2 })),
+    });
+    xCur += g.atoms.length * CELL + GAP;
+  });
+  const matW = xCur - GAP - LEFT;
+
+  // Row layout: reverse location order (last location at top)
+  const rowLayout = [];
+  let yCur = TOP;
+  [...ltGroups].reverse().forEach(g => {
+    const y0 = yCur;
+    rowLayout.push({
+      group: g, y0,
+      rows: g.atoms.map((atom, ai) => ({ atom, cy: y0 + ai * CELL + CELL / 2 })),
+    });
+    yCur += g.atoms.length * CELL + GAP;
+  });
+  const matH = yCur - GAP - TOP;
+
+  const svgW = LEFT + matW + CBAR_GAP + 30;
+  const svgH = TOP + matH + X_LABEL_H + fLoc + 18;
+
+  const allCols = colLayout.flatMap(c => c.cols);
+  const allRows = rowLayout.flatMap(r => r.rows);
+
+  // Cells: colored squares sized by |ρ|
+  const cells = [];
+  allRows.forEach(({ atom: rAtom, cy }) => {
+    allCols.forEach(({ atom: cAtom, cx }) => {
+      if (rAtom.key === cAtom.key) return;
+      const rho = ltCorrMap[`${rAtom.key}:::${cAtom.key}`];
+      if (rho == null || isNaN(rho) || Math.abs(rho) < 0.05) return;
+      const sq = Math.max(1.5, Math.abs(rho) * (CELL - 2));
+      const color = rhoColor(rho);
+      cells.push(
+        <rect key={`${rAtom.key}|${cAtom.key}`}
+          x={cx - sq / 2} y={cy - sq / 2} width={sq} height={sq}
+          fill={color} rx={sq * 0.06}>
+          <title>{`${rAtom.loc} ${rAtom.tech.replace(/_/g, ' ')} × ${cAtom.loc} ${cAtom.tech.replace(/_/g, ' ')}\nρ = ${rho.toFixed(2)}`}</title>
+        </rect>
+      );
+    });
+  });
+
+  // Group separator lines
+  const seps = [];
+  colLayout.forEach(({ x0 }, i) => {
+    if (i === 0) return;
+    const x = x0 - GAP / 2;
+    seps.push(<line key={`vc${i}`} x1={x} y1={TOP} x2={x} y2={TOP + matH} stroke="#d1d5db" strokeWidth={0.8} />);
+  });
+  rowLayout.forEach(({ y0 }, i) => {
+    if (i === 0) return;
+    const y = y0 - GAP / 2;
+    seps.push(<line key={`hr${i}`} x1={LEFT} y1={y} x2={LEFT + matW} y2={y} stroke="#d1d5db" strokeWidth={0.8} />);
+  });
+
+  const barX = LEFT + matW + CBAR_GAP;
+  const barH = Math.min(160, matH * 0.7);
+  const barY = TOP + (matH - barH) / 2;
+
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <svg width={svgW} height={svgH} style={{ fontFamily: "'DM Sans', system-ui", display: 'block' }}>
+        {/* Matrix background */}
+        <rect x={LEFT} y={TOP} width={matW} height={matH} fill="#f8fafc" />
+
+        {/* Group separators */}
+        {seps}
+
+        {/* Matrix border */}
+        <rect x={LEFT} y={TOP} width={matW} height={matH}
+          fill="none" stroke="#e2e8f0" strokeWidth={1} />
+
+        {/* Correlation squares */}
+        {cells}
+
+        {/* X axis — tech labels (vertical, below matrix, reading bottom-to-top) */}
+        {allCols.map(({ atom, cx }) => (
+          <text key={`xt-${atom.key}`}
+            transform={`translate(${cx},${TOP + matH + 4}) rotate(-90)`}
+            textAnchor="end" fontSize={fSm} fill="#64748b">
+            {atom.tech.replace(/_/g, ' ')}
+          </text>
+        ))}
+
+        {/* X axis — location labels (below tech labels, gap = X_LABEL_H) */}
+        {colLayout.map(({ group, x0, cols }) => (
+          <text key={`xl-${group.loc}`}
+            x={x0 + cols.length * CELL / 2} y={TOP + matH + 6 + X_LABEL_H + fLoc}
+            textAnchor="middle" fontSize={fLoc} fontWeight="600" fill="#1e293b">
+            {group.displayName}
+          </text>
+        ))}
+
+        {/* Y axis — tech labels */}
+        {allRows.map(({ atom, cy }) => (
+          <text key={`yt-${atom.key}`}
+            x={LEFT - 6} y={cy}
+            textAnchor="end" dominantBaseline="middle"
+            fontSize={fSm} fill="#64748b">
+            {atom.tech.replace(/_/g, ' ')}
+          </text>
+        ))}
+
+        {/* Y axis — location labels (rotated) */}
+        {rowLayout.map(({ group, y0, rows }) => (
+          <text key={`yl-${group.loc}`}
+            textAnchor="middle" dominantBaseline="middle"
+            fontSize={fLoc} fontWeight="700" fill="#1e293b"
+            transform={`translate(${Y_LOC_X},${y0 + rows.length * CELL / 2}) rotate(-90)`}>
+            {group.displayName}
+          </text>
+        ))}
+
+        {/* Color bar — discrete strips to avoid SVG gradient ID conflicts */}
+        {Array.from({ length: 24 }, (_, i) => {
+          const rho = 1 - 2 * i / 23;
+          const stripH = barH / 24;
+          return <rect key={i} x={barX} y={barY + i * stripH} width={10} height={stripH + 0.5} fill={rhoColor(rho)} />;
+        })}
+        {[{ label: '1', y: barY }, { label: '0', y: barY + barH / 2 }, { label: '−1', y: barY + barH }].map(({ label, y }) => (
+          <text key={label} x={barX + 14} y={y} dominantBaseline="middle" fontSize={8} fill="#64748b">{label}</text>
+        ))}
+        <line x1={barX} y1={barY + barH / 2} x2={barX + 10} y2={barY + barH / 2}
+          stroke="#94a3b8" strokeWidth={0.5} />
+      </svg>
+    </div>
+  );
+};
+
 // ── Main component ───────────────────────────────────────────────────────────
 const Results = () => {
   const { completedJobs, removeCompletedJob, showNotification, models, activeResultJobId, setActiveResultJobId } = useData();
@@ -968,6 +1152,8 @@ const Results = () => {
   const [sporeScatterA, setSporeScatterA] = useState(null);
   const [sporeScatterB, setSporeScatterB] = useState(null);
   const [selectedSpore, setSelectedSpore] = useState(0);
+  // empty Set = nothing selected yet; Set<string> = regions to show
+  const [corrLocFilter, setCorrLocFilter] = useState(new Set());
 
   // Reset per-job UI state when switching runs
   useEffect(() => {
@@ -975,6 +1161,7 @@ const Results = () => {
     setTechFilter(new Set());
     setCollapsedSections(new Set());
     setFilterSearch('');
+    setCorrLocFilter(new Set());
   }, [selectedJobId]);
 
   // When the Run section pushes a specific job to view, open it
@@ -2770,7 +2957,7 @@ const Results = () => {
                 }
               });
 
-              // Spearman correlation heatmap
+              // ── Per-location Spearman correlation matrix ─────────────────
               const rankArr = arr => {
                 const idx = [...arr].map((v, i) => [v, i]).sort((a, b) => a[0] - b[0]);
                 const ranks = new Array(arr.length);
@@ -2783,40 +2970,62 @@ const Results = () => {
                 const d2 = ra.reduce((sum, _, i) => sum + (ra[i] - rb[i]) ** 2, 0);
                 return 1 - (6 * d2) / (n * (n * n - 1));
               };
-              const heatData = [];
-              activeTechs.forEach((ta, row) => {
-                activeTechs.forEach((tb, col) => {
-                  const rho = spearman(techTotals[ta], techTotals[tb]);
-                  heatData.push([col, row, Number.isNaN(rho) ? null : +rho.toFixed(3)]);
+
+              // Build per-(loc, tech) capacity series across all SPORES
+              const ltSeriesMap = {};
+              sporesData.forEach((spore, si) => {
+                Object.entries(spore.capacities || {}).forEach(([key, val]) => {
+                  const parts = key.split('::');
+                  if (parts.length < 2) return;
+                  const [sloc, stech] = [parts[0], parts[1]];
+                  if (!isGenTech(stech)) return;
+                  if (!ltSeriesMap[key]) ltSeriesMap[key] = new Array(sporesData.length).fill(0);
+                  ltSeriesMap[key][si] = Number(val) || 0;
                 });
               });
-              const corrLabels = activeTechs.map(t => t.replace(/_/g, ' '));
-              const heatOption = {
-                backgroundColor: 'transparent',
-                tooltip: {
-                  trigger: 'item',
-                  formatter: p => p.data[2] == null ? '' :
-                    `${corrLabels[p.data[1]]} × ${corrLabels[p.data[0]]}<br/>ρ = ${p.data[2].toFixed(2)}`,
-                },
-                grid: { top: 10, right: 80, bottom: 80, left: 90 },
-                xAxis: { type: 'category', data: corrLabels, axisLabel: { rotate: 35, fontSize: 10 } },
-                yAxis: { type: 'category', data: corrLabels, axisLabel: { fontSize: 10 } },
-                visualMap: {
-                  min: -1, max: 1, calculable: true, orient: 'vertical', right: 0, top: 'center',
-                  inRange: { color: ['#EF4444', '#F8FAFC', '#3B82F6'] },
-                  textStyle: { fontSize: 10 },
-                },
-                series: [{
-                  type: 'heatmap',
-                  data: heatData,
-                  label: {
-                    show: activeTechs.length <= 8,
-                    fontSize: 9,
-                    formatter: p => p.data[2] != null ? p.data[2].toFixed(2) : '',
-                  },
-                  emphasis: { itemStyle: { shadowBlur: 10 } },
-                }],
-              };
+
+              // Collect unique locations in model definition order
+              const sporesLocs = [...new Set(Object.keys(ltSeriesMap).map(k => k.split('::')[0]))];
+              const mLocOrder = modelLocations.map(l => l.calliopeName || l.name);
+              sporesLocs.sort((a, b) => {
+                const ia = mLocOrder.indexOf(a), ib = mLocOrder.indexOf(b);
+                return (ia < 0 ? 9999 : ia) - (ib < 0 ? 9999 : ib) || a.localeCompare(b);
+              });
+
+              // Atoms: (loc, tech) pairs present and non-trivial in at least one SPORE
+              const ltAtoms = [];
+              sporesLocs.forEach(loc => {
+                activeTechs.forEach(tech => {
+                  const series = ltSeriesMap[`${loc}::${tech}`];
+                  if (series && series.some(v => v > 0.01)) {
+                    ltAtoms.push({ loc, tech, key: `${loc}::${tech}`, series });
+                  }
+                });
+              });
+
+              // Groups: one per location with its atoms
+              const ltGroups = sporesLocs.map(loc => ({
+                loc,
+                displayName: modelLocations.find(l => (l.calliopeName || l.name) === loc)?.name || loc.replace(/_/g, ' '),
+                atoms: ltAtoms.filter(a => a.loc === loc),
+              })).filter(g => g.atoms.length > 0);
+
+              // Compute Spearman ρ for all atom pairs (upper triangle → mirrored)
+              const ltCorrMap = {};
+              for (let i = 0; i < ltAtoms.length; i++) {
+                for (let j = i + 1; j < ltAtoms.length; j++) {
+                  const rho = spearman(ltAtoms[i].series, ltAtoms[j].series);
+                  if (!isNaN(rho)) {
+                    ltCorrMap[`${ltAtoms[i].key}:::${ltAtoms[j].key}`] = rho;
+                    ltCorrMap[`${ltAtoms[j].key}:::${ltAtoms[i].key}`] = rho;
+                  }
+                }
+              }
+
+              // Apply location filter — empty Set = nothing selected yet
+              const visLtGroups = corrLocFilter.size > 0
+                ? ltGroups.filter(g => corrLocFilter.has(g.loc))
+                : [];
 
               return (
                 <div className="space-y-4">
@@ -2974,20 +3183,68 @@ const Results = () => {
                     </div>
                   )}
 
-                  {/* Spearman correlation heatmap */}
-                  {activeTechs.length >= 3 && sporesData.length >= 3 && (
+                  {/* Technology Deployment Correlation — grouped location×tech matrix */}
+                  {ltAtoms.length >= 3 && sporesData.length >= 3 && (
                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
                       <h3 className="text-sm font-semibold text-slate-700 mb-1 flex items-center gap-2">
                         <FiGrid size={14} /> Technology Deployment Correlation
                       </h3>
                       <p className="text-xs text-slate-400 mb-3">
-                        Spearman ρ across all solutions. <span className="text-blue-600 font-medium">Blue (+1)</span> = always built together.{' '}
-                        <span className="text-red-500 font-medium">Red (−1)</span> = substitutes — when one rises the other falls.
+                        Spearman ρ of capacity utilisation across all {sporesData.length} SPORES, grouped by region.{' '}
+                        <span className="text-red-500 font-medium">Red (+1)</span> = deployed together.{' '}
+                        <span className="text-blue-600 font-medium">Blue (−1)</span> = substitutes.{' '}
+                        Square size ∝ |ρ|. Self-correlation not shown. Hover for values.
                       </p>
-                      <ReactECharts
-                        option={heatOption}
-                        style={{ height: Math.max(260, activeTechs.length * 34 + 100) }}
-                      />
+
+                      {/* Region selector — click to add/remove from the matrix */}
+                      {ltGroups.length > 1 && (
+                        <div className="flex flex-wrap items-center gap-1.5 mb-3">
+                          <span className="text-xs text-slate-400 shrink-0">Select regions:</span>
+                          {ltGroups.map(g => {
+                            const selected = corrLocFilter.has(g.loc);
+                            return (
+                              <button key={g.loc}
+                                onClick={() => {
+                                  const next = new Set(corrLocFilter);
+                                  if (next.has(g.loc)) next.delete(g.loc); else next.add(g.loc);
+                                  setCorrLocFilter(next);
+                                }}
+                                style={{
+                                  fontSize: 11, padding: '2px 9px', borderRadius: 5, border: 'none',
+                                  cursor: 'pointer', fontFamily: "'DM Sans', system-ui", fontWeight: 600,
+                                  background: selected ? '#1e293b' : '#f1f5f9',
+                                  color: selected ? '#fff' : '#94a3b8',
+                                  transition: 'background 0.12s, color 0.12s',
+                                }}>
+                                {g.displayName}
+                              </button>
+                            );
+                          })}
+                          {corrLocFilter.size > 0 && corrLocFilter.size < ltGroups.length && (
+                            <button onClick={() => setCorrLocFilter(new Set(ltGroups.map(g => g.loc)))}
+                              style={{ fontSize: 10, padding: '2px 8px', borderRadius: 5,
+                                       border: '1px solid #e2e8f0', cursor: 'pointer',
+                                       background: 'white', color: '#64748b', fontFamily: "'DM Sans', system-ui" }}>
+                              Select all
+                            </button>
+                          )}
+                          {corrLocFilter.size > 0 && (
+                            <button onClick={() => setCorrLocFilter(new Set())}
+                              style={{ fontSize: 10, padding: '2px 8px', borderRadius: 5,
+                                       border: '1px solid #e2e8f0', cursor: 'pointer',
+                                       background: 'white', color: '#64748b', fontFamily: "'DM Sans', system-ui" }}>
+                              Clear
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {visLtGroups.length >= 1
+                        ? <GroupedCorrMatrixSVG ltGroups={visLtGroups} ltCorrMap={ltCorrMap} />
+                        : <p className="text-xs text-slate-400 py-6 text-center">
+                            Select one or more regions above to display their correlation matrix.
+                          </p>
+                      }
                     </div>
                   )}
 

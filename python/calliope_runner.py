@@ -1192,30 +1192,60 @@ def _run_model_impl(model_data, work_dir):
     #      calliope only strips it when solver in ["glpk","cbc"], missing appsi_highs.
     #      Fix: patch solve_model to drop warmstart from solve_kwargs for APPSI.
     #
-    # Both patches guard against double-application across multiple model runs.
+    #   3. LegacySolver (APPSI) has no .name or .type attributes; calliope 0.6.8
+    #      accesses both directly.  Patch LegacySolverInterface at class level so
+    #      every instance — regardless of how it is created — sees '' for both.
+    #
+    # All patches guard against double-application across multiple model runs.
+    try:
+        from pyomo.contrib.appsi.base import LegacySolverInterface as _LSI
+        if not hasattr(_LSI, 'name'):
+            try:
+                _LSI.name = ''
+            except Exception:
+                pass
+        if not hasattr(_LSI, 'type'):
+            try:
+                _LSI.type = ''
+            except Exception:
+                pass
+    except Exception:
+        pass  # pyomo.contrib.appsi not available — skip
+
     try:
         import calliope.backend.pyomo.model as _cpm
         _APPSI_SOLVERS = frozenset(('appsi_highs', 'highs_direct'))
 
-        # ── Patch 1: SolverFactory — strip solver_io for APPSI solvers ──────
+        # ── Patch 1: SolverFactory — strip solver_io; inject .name/.type ──────
+        # APPSI LegacySolver (Pyomo 6.4+) lacks .name and .type attributes that
+        # calliope 0.6.8 accesses directly.  We inject them at CREATION TIME so
+        # every code path (including inside opt.solve() itself) sees them.
         if not getattr(_cpm.SolverFactory, '_appsi_patched', False):
             _orig_sf = _cpm.SolverFactory
 
             def _appsi_aware_solver_factory(solver_name, **kwargs):
                 if solver_name in _APPSI_SOLVERS:
                     kwargs.pop('solver_io', None)
-                return _orig_sf(solver_name, **kwargs)
+                _s = _orig_sf(solver_name, **kwargs)
+                if solver_name in _APPSI_SOLVERS and _s is not None:
+                    if not hasattr(_s, 'name'):
+                        try:
+                            _s.name = ''
+                        except Exception:
+                            pass
+                    if not hasattr(_s, 'type'):
+                        try:
+                            _s.type = ''
+                        except Exception:
+                            pass
+                return _s
 
             _appsi_aware_solver_factory._appsi_patched = True
             _cpm.SolverFactory = _appsi_aware_solver_factory
 
-        # ── Patch 2: solve_model — strip warmstart for APPSI; fix opt.name ──
-        # solve_model returns (results, opt) — a 2-tuple.
-        # calliope/backend/run.py accesses `opt.name` directly, but
-        # Pyomo 6.4+ APPSI LegacySolver has no .name attribute.
-        # We inject .name into the opt object inside the returned tuple so
-        # run.py never sees a missing attribute — no file writes needed,
-        # works regardless of UAC/AV restrictions on site-packages.
+        # ── Patch 2: solve_model — strip warmstart for APPSI; re-inject attrs ──
+        # Belt-and-suspenders: also inject .name/.type after solve_model returns
+        # in case the opt was re-created internally (e.g. persistent solver path).
         if not getattr(_cpm.solve_model, '_appsi_patched', False):
             _orig_solve_model = _cpm.solve_model
 
@@ -1239,13 +1269,18 @@ def _run_model_impl(model_data, work_dir):
                     opt=opt,
                     **solve_kwargs,
                 )
-                # result is (results, opt) — 2-tuple.  Add .name to opt if
-                # the Pyomo 6.4+ APPSI LegacySolver object is missing it.
+                # result is (results, opt) — 2-tuple.  Re-inject .name/.type on
+                # the returned opt in case it was replaced during the solve.
                 if isinstance(result, tuple) and len(result) >= 2:
                     _opt_out = result[1]
                     if _opt_out is not None and not hasattr(_opt_out, 'name'):
                         try:
                             _opt_out.name = ''
+                        except Exception:
+                            pass
+                    if _opt_out is not None and not hasattr(_opt_out, 'type'):
+                        try:
+                            _opt_out.type = ''
                         except Exception:
                             pass
                 return result
@@ -1830,8 +1865,19 @@ def _run_model_impl(model_data, work_dir):
             'slack_cost_group':     'systemwide_cost_max',
             'skip_cost_op':         False,
             'save_per_spore':       False,
-            'objective_cost_class': {'spores_score': 1},
+            # monetary must be explicitly zeroed or it stays at weight 1 and the
+            # exploration objective keeps minimising cost — every SPORE then
+            # reproduces the cost-optimal design (calliope defaults.yaml uses
+            # {spores_score: 1, monetary: 0} for exactly this reason).
+            'objective_cost_class': {'spores_score': 1, 'monetary': 0},
         }
+        # spores_score must appear in the INITIAL objective (weight 0) — calliope
+        # builds the objective expression once at model construction and only cost
+        # classes present in this dict get a term.  run_spores() later flips the
+        # weights (monetary→0, spores_score→1) via mutable Params; without the
+        # spores_score term here that flip leaves an empty objective and every
+        # SPORE returns an arbitrary (usually identical) solution.
+        run_cfg['objective_options'] = {'cost_class': {'monetary': 1, 'spores_score': 0}}
         log(f"  [SPORES] slack={_slack*100:.0f}%, n_spores={_n_spores}")
 
     model_yaml = {
@@ -1855,10 +1901,12 @@ def _run_model_impl(model_data, work_dir):
         model_yaml['scenarios'] = scenarios
     if run_cfg.get('mode') == 'spores':
         # group_constraints provides the cost ceiling that SPORES tightens after the
-        # first (cost-optimal) solve to (1+slack)*cost_optimal.
+        # first (cost-optimal) solve to (1+slack)*cost_optimal.  Must be a large
+        # FINITE value (calliope's own spores example uses 1e10): an inf bound is
+        # dropped at build time, so the slacked budget could never be applied.
         model_yaml['group_constraints'] = {
             'systemwide_cost_max': {
-                'cost_max': {'monetary': float('inf')}
+                'cost_max': {'monetary': 1e10}
             }
         }
 
@@ -1882,6 +1930,8 @@ def _run_model_impl(model_data, work_dir):
     try:
         model.run()
     except Exception as _run_exc:
+        import traceback as _tb_run
+        log(f"[TRACEBACK]\n{_tb_run.format_exc()}")
         _exc_str = str(_run_exc)
         # Pyomo raises this when CBC (or any subprocess solver) exits without
         # producing a solution file — most common causes on Windows:
