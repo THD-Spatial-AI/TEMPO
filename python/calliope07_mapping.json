@@ -1,0 +1,107 @@
+{
+  "_comment": "Single source of truth for Calliope 0.6.8 <-> 0.7 name mapping. Consumed by python/calliope07_translate.py (run path) and src/services/calliope07Format.js (import/export path). Parameter names verified against calliope v0.7.0.dev7 src/calliope/math/base.yaml.",
+
+  "tech_params": {
+    "energy_cap_max": "flow_cap_max",
+    "energy_cap_min": "flow_cap_min",
+    "energy_cap_max_systemwide": "flow_cap_max_systemwide",
+    "energy_cap_min_systemwide": "flow_cap_min_systemwide",
+    "energy_cap_min_use": "flow_out_min_relative",
+    "energy_cap_per_storage_cap_max": "flow_cap_per_storage_cap_max",
+    "energy_cap_per_storage_cap_min": "flow_cap_per_storage_cap_min",
+    "energy_cap_per_unit": "flow_cap_per_unit",
+    "energy_eff": "flow_out_eff",
+    "energy_eff_per_distance": "flow_out_eff_per_distance",
+    "energy_ramping": "flow_ramping",
+    "parasitic_eff": "flow_out_parasitic_eff",
+    "charge_rate": "flow_cap_per_storage_cap_max",
+    "resource_area_max": "area_use_max",
+    "resource_area_min": "area_use_min",
+    "resource_area_per_energy_cap": "area_use_per_flow_cap",
+    "resource_eff": "source_eff",
+    "resource_cap_max": "source_cap_max",
+    "resource_cap_min": "source_cap_min",
+    "resource_cap_equals_energy_cap": "source_cap_equals_flow_cap",
+    "resource_min_use": "source_use_min",
+    "storage_cap_max": "storage_cap_max",
+    "storage_cap_min": "storage_cap_min",
+    "storage_cap_per_unit": "storage_cap_per_unit",
+    "storage_initial": "storage_initial",
+    "storage_loss": "storage_loss",
+    "storage_discharge_depth": "storage_discharge_depth",
+    "lifetime": "lifetime",
+    "force_asynchronous_prod_con": "force_async_flow",
+    "export_cap": "export_max",
+    "export_carrier": "carrier_export",
+    "units_max": "purchased_units_max",
+    "units_min": "purchased_units_min",
+    "units_max_systemwide": "purchased_units_max_systemwide",
+    "units_min_systemwide": "purchased_units_min_systemwide",
+    "exists": "active",
+    "one_way": "one_way"
+  },
+
+  "equals_params": {
+    "energy_cap_equals": ["flow_cap_min", "flow_cap_max"],
+    "energy_cap_equals_systemwide": ["flow_cap_min_systemwide", "flow_cap_max_systemwide"],
+    "storage_cap_equals": ["storage_cap_min", "storage_cap_max"],
+    "resource_area_equals": ["area_use_min", "area_use_max"],
+    "units_equals": ["purchased_units_min", "purchased_units_max"]
+  },
+
+  "resource_params": {
+    "_comment": "0.6 'resource' is context-dependent: demand techs consume (negative values, 0.7 sink_*, positive), supply techs produce (0.7 source_*). force_resource:true selects the _equals variant.",
+    "demand":  { "forced": "sink_use_equals",   "max": "sink_use_max" },
+    "supply":  { "forced": "source_use_equals", "max": "source_use_max" }
+  },
+
+  "cost_params": {
+    "energy_cap": "cost_flow_cap",
+    "energy_cap_per_distance": "cost_flow_cap_per_distance",
+    "storage_cap": "cost_storage_cap",
+    "resource_cap": "cost_source_cap",
+    "resource_area": "cost_area_use",
+    "om_annual": "cost_om_annual",
+    "om_annual_investment_fraction": "cost_om_annual_investment_fraction",
+    "om_prod": "cost_flow_out",
+    "om_con": "cost_flow_in",
+    "export": "cost_export",
+    "purchase": "cost_purchase",
+    "interest_rate": "cost_interest_rate",
+    "depreciation_rate": "cost_depreciation_rate"
+  },
+
+  "base_tech": {
+    "supply": { "base_tech": "supply" },
+    "supply_plus": { "base_tech": "supply", "extra": { "include_storage": true } },
+    "conversion": { "base_tech": "conversion" },
+    "conversion_plus": { "base_tech": "conversion" },
+    "storage": { "base_tech": "storage" },
+    "transmission": { "base_tech": "transmission" },
+    "demand": { "base_tech": "demand" },
+    "unmet_demand": null
+  },
+
+  "result_vars": {
+    "flow_cap": "energy_cap",
+    "flow_out": "carrier_prod",
+    "flow_in": "carrier_con",
+    "cost": "cost"
+  },
+
+  "dropped_params": [
+    "resource_unit",
+    "energy_ramping_cost",
+    "carrier_ratios",
+    "primary_carrier_in",
+    "primary_carrier_out",
+    "om_prod_per_distance",
+    "om_con_per_distance"
+  ],
+
+  "mode_map": {
+    "plan": "base",
+    "operate": "operate",
+    "spores": "spores"
+  }
+}

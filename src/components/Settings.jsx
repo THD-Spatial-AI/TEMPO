@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { FiDownload, FiRefreshCw, FiTerminal, FiCheckCircle, FiAlertCircle, FiBox, FiCpu, FiZap } from 'react-icons/fi';
+import Calliope07EnginePanel from './Calliope07EnginePanel';
 
 // ── Module catalogue (mirrors SetupScreen) ───────────────────────────────────
 const PYTHON_MODULES = [
@@ -259,6 +260,16 @@ function PythonEnvironmentPanel() {
   );
 }
 
+// Calliope07EnginePanel is defined in its own file (Calliope07EnginePanel.jsx)
+// and wrapped here with the Settings page border/spacing.
+function Calliope07EnginePanelSection() {
+  return (
+    <div className="border-t border-slate-200 pt-6">
+      <Calliope07EnginePanel />
+    </div>
+  );
+}
+
 const Settings = () => {
   const [clearing, setClearing]       = useState(false);
   const [clearResult, setClearResult] = useState(null); // null | { success, deleted? }
@@ -321,6 +332,9 @@ const Settings = () => {
 
         {/* Python Environment */}
         <PythonEnvironmentPanel />
+
+        {/* Calliope 0.7 engine (experimental) */}
+        <Calliope07EnginePanelSection />
 
         {/* Privacy & Data */}
         <div className="border-t border-slate-200 pt-6">

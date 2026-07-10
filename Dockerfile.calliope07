@@ -1,0 +1,55 @@
+# ─── Calliope 0.7 Web Service ─────────────────────────────────────────────────
+# Runs Calliope 0.7.0.dev7 as an HTTP / SSE service on port 5002.
+#
+# Build:   docker build -f Dockerfile.calliope07 -t calliope07-runner .
+# Run:     docker run -p 5002:5002 -e TEMPO_RUNNER_MODULE=calliope07_runner calliope07-runner
+# ─────────────────────────────────────────────────────────────────────────────
+
+FROM python:3.12-slim
+
+LABEL org.opencontainers.image.description="Calliope 0.7.0.dev7 optimisation web service"
+
+WORKDIR /app
+
+# Solvers: HiGHS binary (primary) + CBC (fallback).
+# calliope 0.7 dev7 always passes solver_io= to SolverFactory, which breaks
+# APPSI HiGHS (Highs.__init__ doesn't accept solver_io). The shell-command
+# 'highs' binary works correctly because ASL solvers accept and ignore solver_io.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        highs \
+        coinor-cbc \
+        build-essential \
+        libhdf5-dev \
+        libnetcdf-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Upgrade build toolchain
+RUN pip install --upgrade pip setuptools wheel
+
+# Layer 1 — service deps (fastapi, uvicorn, psutil): rarely change
+COPY python/requirements.service.txt ./requirements.service.txt
+RUN pip install --prefer-binary --no-cache-dir -r requirements.service.txt
+
+# Layer 2 — Calliope 0.7 scientific stack: heavy but rarely change
+# Install the scientific foundation first so pip can reuse resolved packages.
+COPY python/requirements.calliope07.txt ./requirements.calliope07.txt
+RUN pip install --prefer-binary --no-cache-dir -r requirements.calliope07.txt
+
+# Verify Calliope 0.7 imported correctly
+RUN python -c "import calliope; v=calliope.__version__; assert v.startswith('0.7'), f'unexpected {v}'; print('calliope', v)"
+
+# Copy the Python package (runner + service + adapters)
+# requirements.calliope07.txt is already installed — this just ships the source.
+COPY python/ ./python/
+
+EXPOSE 5002
+
+# CBC is on PATH via coinor-cbc — no separate solver dir needed
+ENV CALLIOPE_SOLVER_DIR=""
+# Select the 0.7 runner module (calliope_service.py reads this at startup)
+ENV TEMPO_RUNNER_MODULE=calliope07_runner
+
+HEALTHCHECK --interval=15s --timeout=5s --start-period=60s --retries=4 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5002/health')"
+
+CMD ["uvicorn", "python.calliope_service:app", "--host", "0.0.0.0", "--port", "5002", "--workers", "1"]

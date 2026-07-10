@@ -95,6 +95,30 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   restartCalliopeService: () => ipcRenderer.invoke('calliope:restart-service'),
 
+  // ── Calliope 0.7 engine service (experimental, direct venv mode) ──────────
+
+  /** Get the Calliope 0.7 service URL (used by calliopeClient.js for 0.7 models). */
+  getCalliope07ServiceURL: () => ipcRenderer.invoke('calliope07:service-url'),
+
+  /** Check whether the Calliope 0.7 venv exists and the service is running. */
+  checkCalliope07Env: () => ipcRenderer.invoke('calliope07:check'),
+
+  /**
+   * Install the Calliope 0.7 venv (Python 3.10+, isolated from the 0.6.8 venv)
+   * and start the service. Streams progress via onCalliope07InstallProgress.
+   */
+  installCalliope07Env: () => ipcRenderer.invoke('calliope07:install'),
+
+  /** Subscribe to Calliope 0.7 install progress events. */
+  onCalliope07InstallProgress: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('calliope07:install-progress', handler);
+    return () => ipcRenderer.removeListener('calliope07:install-progress', handler);
+  },
+
+  /** Restart the running Calliope 0.7 uvicorn service. */
+  restartCalliope07Service: () => ipcRenderer.invoke('calliope07:restart-service'),
+
   // ── AdOpT-NET0 Python service (direct venv mode) ──────────────────────────
 
   /** Get the AdOpT-NET0 service URL (used by adoptnet0Client.js). */

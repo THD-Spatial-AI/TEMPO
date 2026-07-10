@@ -1,0 +1,52 @@
+{
+  "_comment": "Reference model for cross-engine verification (scripts/verify_dual_engine.py). 2 nodes, supply + storage + demand + one transmission link, one week hourly. Keep small so both engines solve in seconds. NOTE: every location carries an explicit demandProfile — mixing profiled and scalar-demand locations hits a 0.6.8 runner quirk (non-profiled locations degrade to a 100 kW placeholder) that the 0.7 runner intentionally does not replicate.",
+  "name": "Dual Engine Reference",
+  "solver": "highs",
+  "modelConfig": {
+    "mode": "plan",
+    "startDate": "2005-01-01",
+    "endDate": "2005-01-07",
+    "ensureFeasibility": true
+  },
+  "technologies": [
+    {
+      "name": "solar_pv",
+      "essentials": { "parent": "supply", "carrier_out": "electricity", "name": "Solar PV", "color": "#ffcc00" },
+      "constraints": { "energy_cap_max": 2000, "energy_eff": 1.0, "lifetime": 25 },
+      "costs": { "monetary": { "energy_cap": 900, "om_annual": 10, "interest_rate": 0.05 } }
+    },
+    {
+      "name": "battery",
+      "essentials": { "parent": "storage", "carrier": "electricity", "name": "Battery" },
+      "constraints": { "storage_cap_max": 5000, "energy_cap_max": 1000, "energy_eff": 0.95, "storage_loss": 0.01, "lifetime": 15 },
+      "costs": { "monetary": { "storage_cap": 300, "energy_cap": 100, "interest_rate": 0.05 } }
+    },
+    {
+      "name": "power_demand",
+      "essentials": { "parent": "demand", "carrier_in": "electricity", "name": "Power demand" },
+      "constraints": { "resource": -150, "force_resource": true }
+    },
+    {
+      "name": "grid_link",
+      "essentials": { "parent": "transmission", "carrier": "electricity", "name": "Grid link" },
+      "constraints": { "energy_cap_max": 3000, "energy_eff": 0.97, "lifetime": 40 },
+      "costs": { "monetary": { "energy_cap_per_distance": 0.5, "interest_rate": 0.05 } }
+    }
+  ],
+  "locations": [
+    {
+      "name": "north", "latitude": 52.0, "longitude": 10.0,
+      "techs": { "solar_pv": null, "battery": null, "power_demand": null },
+      "demandProfile": { "timeseries": [100, 90, 80, 80, 90, 110, 140, 160, 170, 165, 160, 155, 150, 150, 155, 165, 180, 200, 210, 200, 180, 150, 120, 105] }
+    },
+    {
+      "name": "south", "latitude": 48.0, "longitude": 11.0,
+      "techs": { "power_demand": null },
+      "demandProfile": { "timeseries": [60, 55, 50, 50, 55, 70, 90, 110, 120, 118, 115, 112, 110, 110, 112, 118, 130, 145, 150, 145, 130, 105, 85, 70] }
+    }
+  ],
+  "links": [
+    { "from": "north", "to": "south", "tech": "grid_link", "distance": 400 }
+  ],
+  "locationTechAssignments": {}
+}

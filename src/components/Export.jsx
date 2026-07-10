@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import { FiDownload, FiFolder, FiFile, FiCheckCircle, FiAlertCircle, FiPackage, FiZap, FiActivity, FiCpu, FiSettings } from 'react-icons/fi';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
+import { dump } from 'js-yaml';
 import { LINK_TYPES } from '../config/linkTypes';
+import { internalTo07Yaml } from '../services/calliope07Format';
 
 const EXPORT_FORMATS = [
   {
@@ -37,6 +39,14 @@ const EXPORT_FORMATS = [
     icon: FiSettings,
     color: 'from-orange-500 to-orange-600',
     supported: false
+  },
+  {
+    id: 'calliope07',
+    name: 'Calliope 0.7',
+    description: 'Calliope 0.7 schema — single model.yaml + CSV files (experimental)',
+    icon: FiZap,
+    color: 'from-amber-500 to-amber-600',
+    supported: true
   }
 ];
 
@@ -46,6 +56,12 @@ const Export = () => {
   const [exporting, setExporting] = useState(false);
   const [exportStatus, setExportStatus] = useState(null);
   const [selectedFormat, setSelectedFormat] = useState('calliope');
+
+  useEffect(() => {
+    if (!currentModel) return;
+    const ver = currentModel.metadata?.modelConfig?.calliopeVersion ?? '';
+    setSelectedFormat(String(ver).startsWith('0.7') ? 'calliope07' : 'calliope');
+  }, [currentModel?.id]);
 
   const generateModelYaml = (model) => {
     // Get date range from timeseries data or use current year
@@ -492,6 +508,47 @@ calliope run model.yaml --scenario=Main
     }
   };
 
+  const exportToCalliope07 = async () => {
+    if (!currentModel) {
+      setExportStatus({ type: 'error', message: 'No model selected' });
+      return;
+    }
+    setExporting(true);
+    setExportStatus({ type: 'info', message: 'Generating Calliope 0.7 model...' });
+    try {
+      const modelTS = timeSeries.filter(ts => ts.modelId === currentModel.id);
+      const modelForExport = {
+        name: currentModel.name,
+        technologies: technologies || [],
+        locations: currentModel.locations || [],
+        links: currentModel.links || [],
+        metadata: {
+          modelConfig: currentModel.metadata?.modelConfig || {},
+          runConfig: currentModel.metadata?.runConfig || {},
+          subsetTime: null,
+        },
+      };
+      const { modelDoc, csvs, log } = internalTo07Yaml(modelForExport, modelTS);
+      log.forEach(l => console.log('[07 export]', l));
+
+      const zip = new JSZip();
+      zip.file('model.yaml', dump(modelDoc, { lineWidth: 120 }));
+      for (const [fname, content] of Object.entries(csvs)) {
+        zip.file(fname, content);
+      }
+
+      const content = await zip.generateAsync({ type: 'blob' });
+      const fileName = `${(currentModel.name || 'model').replace(/\s+/g, '_').toLowerCase()}_calliope07_export.zip`;
+      saveAs(content, fileName);
+      setExportStatus({ type: 'success', message: `Calliope 0.7 model exported as ${fileName}` });
+    } catch (error) {
+      console.error('Export error:', error);
+      setExportStatus({ type: 'error', message: `Export failed: ${error.message}` });
+    } finally {
+      setExporting(false);
+    }
+  };
+
   if (!currentModel) {
     return (
       <div className="flex-1 p-8">
@@ -604,6 +661,15 @@ calliope run model.yaml --scenario=Main
             Export Structure
           </h2>
           <div className="bg-slate-50 rounded-lg p-4 font-mono text-sm">
+            {selectedFormat === 'calliope07' ? (
+              <div className="space-y-1 text-slate-700">
+                <div className="flex items-center gap-2"><FiFile className="text-slate-400" /> model.yaml</div>
+                <div className="flex items-center gap-2 text-slate-500 text-xs ml-4">config + techs + nodes + data_tables</div>
+                <div className="flex items-center gap-2"><FiFile className="text-slate-400" /> demand_profiles.csv</div>
+                <div className="flex items-center gap-2 text-slate-500 text-xs ml-4">positive values (0.7 convention)</div>
+                <div className="flex items-center gap-2 text-slate-500 text-xs">+ any imported timeseries CSVs</div>
+              </div>
+            ) : (
             <div className="space-y-1 text-slate-700">
               <div className="flex items-center gap-2"><FiFile className="text-slate-400" /> model.yaml</div>
               <div className="flex items-center gap-2"><FiFile className="text-slate-400" /> README.md</div>
@@ -640,6 +706,7 @@ calliope run model.yaml --scenario=Main
                 </div>
               </div>
             </div>
+            )}
           </div>
         </div>
 
@@ -647,6 +714,7 @@ calliope run model.yaml --scenario=Main
         <div className="card-refined p-6">
           <button
             onClick={() => {
+              if (selectedFormat === 'calliope07') { exportToCalliope07(); return; }
               const format = EXPORT_FORMATS.find(f => f.id === selectedFormat);
               if (!format.supported) {
                 setExportStatus({ type: 'error', message: `${format.name} export is not yet supported. Coming soon!` });

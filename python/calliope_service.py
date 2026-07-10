@@ -47,7 +47,14 @@ _this_dir = os.path.dirname(os.path.abspath(__file__))
 if _this_dir not in sys.path:
     sys.path.insert(0, _this_dir)
 
-import calliope_runner  # noqa: E402
+# The runner module is selected at process start: the default instance runs
+# the Calliope 0.6.8 runner, while the 0.7 service instance is spawned with
+# TEMPO_RUNNER_MODULE=calliope07_runner (its venv has the 0.7 stack).
+import importlib  # noqa: E402
+
+_RUNNER_MODULE = os.environ.get("TEMPO_RUNNER_MODULE", "calliope_runner")
+calliope_runner = importlib.import_module(_RUNNER_MODULE)
+_ENGINE = getattr(calliope_runner, "ENGINE_NAME", "calliope-0.6.8")
 
 # ---------------------------------------------------------------------------
 # App
@@ -230,7 +237,7 @@ def _run_job_thread(job_id: str, model_data: dict) -> None:
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok", "service": "calliope-web-service"}
+    return {"status": "ok", "service": "calliope-web-service", "engine": _ENGINE}
 
 
 @app.post("/run")

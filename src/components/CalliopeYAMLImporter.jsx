@@ -25,6 +25,7 @@ import JSZip from 'jszip';
 import jsyaml from 'js-yaml';
 import Papa from 'papaparse';
 import { fetchTemplate } from '../utils/templateFetch';
+import { detectCalliopeFormat, from07ToInternal } from '../services/calliope07Format';
 
 // ─── known server-side YAML templates ────────────────────────────────────────
 // Add entries here as more YAML models are placed in public/templates/
@@ -704,7 +705,11 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
     setStatus('parsing');
     try {
       const mergedDoc = await parseFilesMap(filesMap, addLog);
-      const result    = translateCalliopeModel(mergedDoc, filesMap);
+      const format    = detectCalliopeFormat(mergedDoc);
+      addLog('Detected Calliope model format: ' + format);
+      const result    = format === '0.7'
+        ? from07ToInternal(mergedDoc, filesMap, Papa)
+        : translateCalliopeModel(mergedDoc, filesMap);
       result.log.forEach(l => addLog(l));
       setPreview(result);
       setModelName(result.modelName);
@@ -902,7 +907,14 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
       [],
       preview.technologies,
       preview.timeSeries,
-      { source: 'calliope_yaml', runConfig: preview.runConfig, subsetTime: preview.subsetTime, description: 'Imported: ' + name },
+      {
+        source: 'calliope_yaml',
+        runConfig: preview.runConfig,
+        subsetTime: preview.subsetTime,
+        description: 'Imported: ' + name,
+        // 0.7 archives run on the 0.7 engine; absent for 0.6 imports
+        ...(preview.calliopeVersion ? { modelConfig: { calliopeVersion: preview.calliopeVersion } } : {}),
+      },
       preview.overrides,
       preview.scenarios,
     );

@@ -1,15 +1,21 @@
 /**
  * calliopeClient.js
  * -----------------
- * HTTP client for the Calliope Docker web service.
+ * HTTP client for the Calliope web services.
  *
- * The service is expected at VITE_CALLIOPE_SERVICE_URL (default: http://localhost:5000).
- * Set the env variable in a .env file for custom deployments.
+ * TEMPO runs up to two Calliope engines side by side:
+ *   '0.6' — Calliope 0.6.8, the stable default engine  (default: localhost:5000)
+ *   '0.7' — Calliope 0.7 (experimental), opt-in engine (default: localhost:5002)
+ *
+ * The engine is resolved from the model's calliopeVersion — callers don't
+ * need to pass it explicitly. Explicit VITE_CALLIOPE_SERVICE_URL /
+ * VITE_CALLIOPE07_SERVICE_URL env vars override everything.
  *
  * Usage:
  *   import { checkCalliopeService, runCalliopeModel } from './calliopeClient';
  *
- *   const ok = await checkCalliopeService();
+ *   const ok = await checkCalliopeService();        // 0.6 engine
+ *   const ok7 = await checkCalliopeService('0.7');  // 0.7 engine
  *
  *   const { jobId, cancel } = await runCalliopeModel({
  *     modelData: { ...model, solver: 'highs' },
@@ -23,19 +29,51 @@
  */
 
 // ---------------------------------------------------------------------------
-// Service URL resolution
+// Engine + service URL resolution
 // ---------------------------------------------------------------------------
+
+/**
+ * Map a model's calliopeVersion string to an engine id.
+ * @param {string|undefined} calliopeVersion  e.g. '0.6.8', '0.7.0'
+ * @returns {'0.6'|'0.7'}
+ */
+export function engineForVersion(calliopeVersion) {
+  return String(calliopeVersion || '').startsWith('0.7') ? '0.7' : '0.6';
+}
+
+/**
+ * Resolve the engine for a run payload from the calliopeVersion stored in
+ * modelConfig (Run UI) or metadata.modelConfig (model creation).
+ */
+export function engineForModelData(modelData) {
+  const version =
+    modelData?.modelConfig?.calliopeVersion ??
+    modelData?.metadata?.modelConfig?.calliopeVersion;
+  return engineForVersion(version);
+}
 
 // In Electron (packaged), the renderer has no dev proxy – ask the main process
 // for the direct URL via IPC.  In the browser (both dev and prod), we call
-// http://localhost:5000 directly; since the service uses allow_origins=["*"]
+// the localhost port directly; since the service uses allow_origins=["*"]
 // this works from any origin including the Vite dev server.
-// An explicit VITE_CALLIOPE_SERVICE_URL env var overrides everything.
 //
 // NOTE: URL is NOT cached — it is resolved fresh each call so that hot-module
 // replacement never leaves a stale value behind.
 
-async function getServiceURL() {
+async function getServiceURL(engine = '0.6') {
+  if (engine === '0.7') {
+    if (typeof window !== 'undefined' && window.electronAPI?.getCalliope07ServiceURL) {
+      try {
+        const { url } = await window.electronAPI.getCalliope07ServiceURL();
+        if (url) return url;
+      } catch { /* fall through */ }
+    }
+    if (import.meta.env?.VITE_CALLIOPE07_SERVICE_URL) {
+      return import.meta.env.VITE_CALLIOPE07_SERVICE_URL;
+    }
+    return 'http://localhost:5002';
+  }
+
   // Electron packaged build: get the authoritative URL from the main process
   if (typeof window !== 'undefined' && window.electronAPI?.getCalliopeServiceURL) {
     try {
@@ -55,10 +93,11 @@ async function getServiceURL() {
 
 
 /**
- * Returns true if the Calliope Docker service is reachable and healthy.
+ * Returns true if the requested Calliope engine service is reachable and healthy.
+ * @param {'0.6'|'0.7'} [engine]
  */
-export async function checkCalliopeService() {
-  const SERVICE_URL = await getServiceURL();
+export async function checkCalliopeService(engine = '0.6') {
+  const SERVICE_URL = await getServiceURL(engine);
   console.debug('[calliopeClient] health-check →', SERVICE_URL + '/health');
   try {
     const res = await fetch(`${SERVICE_URL}/health`, {
@@ -85,6 +124,8 @@ export async function checkCalliopeService() {
 
 /**
  * Submit a model to the Calliope service and stream results via SSE.
+ * The target engine (0.6.8 or 0.7) is resolved from the payload's
+ * calliopeVersion — see engineForModelData().
  *
  * @param {object} options
  * @param {object}   options.modelData  - Full model payload (locations, links, techs, solver, …)
@@ -98,7 +139,11 @@ export async function checkCalliopeService() {
  *   cancel – closes the SSE connection and asks the server to mark the job cancelled
  */
 export async function runCalliopeModel({ modelData, onLog, onStats, onDone, onError }) {
-  const SERVICE_URL = await getServiceURL();
+  const engine = engineForModelData(modelData);
+  const SERVICE_URL = await getServiceURL(engine);
+  if (engine === '0.7') {
+    onLog?.('[TEMPO] Using the Calliope 0.7 (experimental) engine');
+  }
   // ── 1. Submit the model ──────────────────────────────────────────────────
   let response;
   try {
@@ -108,7 +153,7 @@ export async function runCalliopeModel({ modelData, onLog, onStats, onDone, onEr
       body: JSON.stringify(modelData),
     });
   } catch (err) {
-    throw new Error(`Cannot reach Calliope service at ${SERVICE_URL}: ${err.message}`);
+    throw new Error(`Cannot reach Calliope ${engine} service at ${SERVICE_URL}: ${err.message}`);
   }
 
   if (!response.ok) {

@@ -74,19 +74,23 @@ export default function Home() {
 
   const features = [
     { icon: 'account_tree', title: 'Model Builder', desc: 'Node-based canvas for architecting energy networks with direct, lossless translation to Calliope YAML schemas.' },
-    { icon: 'map', title: 'GIS Integration', desc: 'Native Shapefile and GeoJSON support. Locations and links are geographically anchored via live OSM data.' },
+    { icon: 'map', title: 'GIS Integration', desc: 'Native Shapefile and GeoJSON support. Locations and links are geographically anchored via live OSM data. Transmission links render directly on the results map.' },
     { icon: 'library_books', title: 'Tech Catalog', desc: 'OEO-aligned library of 55+ energy technologies backed by OpenTech-DB.' },
     { icon: 'ssid_chart', title: 'Timeseries Editor', desc: 'Interactive per-column CSV editor with drag-to-edit data points, charts, and seasonal windowed views.' },
-    { icon: 'output', title: 'Multi-Format Export', desc: 'Export to Calliope ZIP folder. Planned adapters for PyPSA, OSeMOSYS, and AdoptNET.' },
-    { icon: 'data_exploration', title: 'Result Analysis', desc: 'Charts for energy dispatch, installed capacity, carbon intensity, and levelized costs.' },
+    { icon: 'output', title: 'Multi-Framework Export', desc: 'Export to Calliope ZIP folder. AdOpT-NET0 adapter now live. PyPSA and OSeMOSYS adapters in progress.' },
+    { icon: 'data_exploration', title: 'Result Analysis', desc: 'Dispatch charts, capacity maps, carbon timelines, LCOE tables, SPORES comparison grids, and side-by-side scenario comparison.' },
+    { icon: 'schema', title: 'Dual Calliope Engine', desc: 'Run models on Calliope 0.6.8 (stable) or 0.7 (dev7) from the same UI. Engine is selected per model; dependency stacks are fully isolated.' },
+    { icon: 'difference', title: 'SPORES Mode', desc: 'Generate N spatially diverse near-optimal energy plans within a configurable cost slack. Each alternative reveals hidden siting trade-offs.' },
+    { icon: 'compare', title: 'Scenario Comparison', desc: 'Select multiple completed runs and compare KPIs, capacity mixes, and dispatch profiles side-by-side in a dedicated dashboard.' },
   ]
 
   const techStack = [
-    { label: 'Core Engine', value: 'Calliope 0.6.8' },
+    { label: 'Core Engine', value: 'Calliope 0.6.8 / 0.7' },
     { label: 'Desktop', value: 'Electron / Vite' },
     { label: 'Backend', value: 'Go + FastAPI' },
     { label: 'Frontend', value: 'React 19 / Tailwind' },
     { label: 'Database', value: 'SQLite / PostGIS' },
+    { label: 'Alt Engine', value: 'AdOpT-NET0' },
   ]
 
   return (
@@ -123,6 +127,82 @@ export default function Home() {
                   </div>
                   <h3 className="font-bold uppercase text-[10px] tracking-[0.3em] mb-3">{item.step}</h3>
                   <p className="text-[11px] text-neutral-400 uppercase tracking-widest leading-relaxed">{item.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* What's New */}
+        <section className="py-24 px-8 bg-neutral-50 border-y border-neutral-200" id="changelog">
+          <div className="max-w-7xl mx-auto">
+            <div className="mb-12">
+              <span className="font-bold text-[10px] tracking-[0.4em] uppercase text-neutral-400 mb-2 block">
+                Recent Development
+              </span>
+              <h2 className="text-4xl font-black tracking-tighter uppercase leading-none">
+                What's New
+              </h2>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-px bg-neutral-200 border border-neutral-200">
+
+              {/* Added */}
+              {[
+                {
+                  tag: 'Added',
+                  tagColor: 'bg-emerald-100 text-emerald-700',
+                  icon: 'difference',
+                  title: 'SPORES Mode',
+                  desc: 'Generate N spatially diverse, near-optimal energy plans within a configurable cost slack. Reveals hidden siting and transmission trade-offs that a single optimal solution conceals.',
+                },
+                {
+                  tag: 'Added',
+                  tagColor: 'bg-emerald-100 text-emerald-700',
+                  icon: 'compare',
+                  title: 'Scenario Comparison',
+                  desc: 'Select any number of completed runs and compare their KPIs, installed capacity mixes, and dispatch profiles side-by-side in a dedicated Results dashboard.',
+                },
+                {
+                  tag: 'Added',
+                  tagColor: 'bg-emerald-100 text-emerald-700',
+                  icon: 'schema',
+                  title: 'Calliope 0.7 Dual Engine',
+                  desc: 'Opt any model into Calliope 0.7 (dev7). Both engines run in isolated Python venvs and return the same result contract — no UI changes required between versions.',
+                },
+                {
+                  tag: 'Added',
+                  tagColor: 'bg-emerald-100 text-emerald-700',
+                  icon: 'hub',
+                  title: 'AdOpT-NET0 Integration',
+                  desc: 'Full FastAPI service and JS client for AdOpT-NET0 model execution. Runs via Docker with live log streaming — previously listed as a planned adapter, now shipped.',
+                },
+                {
+                  tag: 'Improved',
+                  tagColor: 'bg-sky-100 text-sky-700',
+                  icon: 'map',
+                  title: 'Results Map Overhaul',
+                  desc: 'Transmission links now render on the capacity and generation maps. Node markers show location name and formatted capacity inline. Unit-aware formatters (MW/GW/TW) applied throughout.',
+                },
+                {
+                  tag: 'Refactored',
+                  tagColor: 'bg-amber-100 text-amber-700',
+                  icon: 'construction',
+                  title: 'Creation Module Split',
+                  desc: 'The monolithic Creation component was broken into focused sub-components: LayerSelector, MapZoomControls, SearchBar, and supporting map utilities — removing ~600 lines from a single file.',
+                },
+              ].map((item) => (
+                <div key={item.title} className="bg-white p-8 flex flex-col gap-4">
+                  <div className="flex items-start justify-between">
+                    <span className="material-symbols-outlined text-xl text-black">{item.icon}</span>
+                    <span className={`text-[9px] font-bold tracking-widest uppercase px-2 py-1 ${item.tagColor}`}>
+                      {item.tag}
+                    </span>
+                  </div>
+                  <div>
+                    <h4 className="font-black text-[0.875rem] uppercase tracking-tight mb-2">{item.title}</h4>
+                    <p className="text-[12px] text-neutral-500 leading-relaxed">{item.desc}</p>
+                  </div>
                 </div>
               ))}
             </div>
@@ -232,7 +312,7 @@ export default function Home() {
 
               <div className="grid grid-cols-2 gap-px bg-neutral-200 border border-neutral-200 self-start">
                 {[
-                  { icon: 'bolt', label: 'Optimization Engine', value: 'Calliope 0.6.8', sub: 'CBC MILP solver' },
+                  { icon: 'bolt', label: 'Optimization Engine', value: 'Calliope 0.6.8 + 0.7', sub: 'CBC / HiGHS MILP solver' },
                   { icon: 'map', label: 'GIS Backend', value: 'PostGIS + GeoServer', sub: 'OSM power infrastructure' },
                   { icon: 'desktop_windows', label: 'Platforms', value: 'Windows + Linux', sub: 'Electron desktop app' },
                   { icon: 'code', label: 'Tech Stack', value: 'React + Go + Python', sub: 'Vite + FastAPI + SQLite' },

@@ -26,12 +26,12 @@ export default function Features() {
     {
       num: '04',
       title: 'Solve',
-      desc: 'Execute the Calliope + CBC solver locally or in Docker. Logs stream live via SSE.',
+      desc: 'Execute the Calliope (0.6.8 or 0.7) or AdOpT-NET0 solver locally. Choose Plan, Operate, or SPORES mode. Logs stream live via SSE.',
     },
     {
       num: '05',
       title: 'Analyze',
-      desc: 'Interactive dispatch charts, capacity breakdowns, carbon intensity timelines, and LCOE tables. Export any chart or the full result set as CSV.',
+      desc: 'Interactive dispatch charts, capacity maps with transmission lines, carbon intensity timelines, LCOE tables, SPORES grids, and multi-scenario comparison dashboards.',
     },
   ]
 
@@ -61,7 +61,7 @@ export default function Features() {
                   Architecture: x64 / ARM64
                 </span>
                 <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-outline">
-                  Engine: Calliope 0.6.8 + CBC Solver
+                  Engine: Calliope 0.6.8 / 0.7 + AdOpT-NET0
                 </span>
               </div>
             </div>
@@ -208,7 +208,7 @@ export default function Features() {
                   with interactive ECharts visualizations.
                 </p>
                 <ul className="space-y-4">
-                  {['Energy dispatch by technology', 'Installed capacity breakdown', 'Carbon intensity timeline', 'Levelized cost of electricity (LCOE)', 'Filterable by tech group & time window'].map(
+                  {['Energy dispatch by technology', 'Installed capacity breakdown', 'Carbon intensity timeline', 'Levelized cost of electricity (LCOE)', 'Filterable by tech group & time window', 'SPORES alternative plans grid', 'Multi-scenario comparison dashboard', 'Transmission links on the results map'].map(
                     (item) => (
                       <li
                         key={item}
@@ -344,11 +344,10 @@ export default function Features() {
               <div className="md:col-span-8 bg-black p-10 flex flex-col justify-between text-white">
                 <span className="material-symbols-outlined text-3xl">output</span>
                 <div>
-                  <h3 className="text-2xl font-bold uppercase">Multi-Format Export</h3>
+                  <h3 className="text-2xl font-bold uppercase">Multi-Framework Export</h3>
                   <p className="text-neutral-300 mt-3 max-w-md">
-                    Export the full model as a structured ZIP folder ready to run with Calliope.
-                    Planned adapters for PyPSA, OSeMOSYS, and AdoptNET let you run externally
-                    with any solver or integration.
+                    Export the full model as a Calliope ZIP archive or run it via the integrated
+                    AdOpT-NET0 service. PyPSA and OSeMOSYS adapters in progress.
                   </p>
                 </div>
               </div>
@@ -358,8 +357,38 @@ export default function Features() {
                 <span className="material-symbols-outlined text-4xl mb-4">upload_file</span>
                 <h3 className="text-lg font-bold uppercase">YAML Import</h3>
                 <p className="text-[0.75rem] mt-2 text-on-surface-variant">
-                  Import any Calliope 0.6.x model from a ZIP archive, folder drop, or individual
-                  YAML + CSV files with full recursive import resolution.
+                  Import any Calliope 0.6.x or 0.7 model from a ZIP archive, folder drop, or
+                  individual YAML + CSV files with full recursive import resolution.
+                </p>
+              </div>
+
+              {/* SPORES — wide */}
+              <div className="md:col-span-8 bg-surface p-10 flex flex-col justify-between">
+                <div>
+                  <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-outline">Near-optimal Diversity</span>
+                  <h3 className="text-2xl font-bold uppercase mt-2">SPORES Mode</h3>
+                </div>
+                <div>
+                  <p className="text-on-surface-variant mb-6">
+                    Generate N spatially diverse, near-optimal energy configurations within a
+                    configurable cost slack. Each SPORES run is a full solver execution; results
+                    show hidden siting trade-offs that a single optimal solution conceals.
+                  </p>
+                  <div className="flex gap-3 flex-wrap">
+                    <span className="text-[0.6875rem] font-bold uppercase tracking-widest border border-black px-3 py-1">Cost Slack %</span>
+                    <span className="text-[0.6875rem] font-bold uppercase tracking-widest border border-black px-3 py-1">N Alternatives</span>
+                    <span className="text-[0.6875rem] font-bold uppercase tracking-widest border border-black px-3 py-1">Calliope 0.6.8 Only</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Scenario Comparison — narrow */}
+              <div className="md:col-span-4 bg-surface p-10 flex flex-col justify-center items-start">
+                <span className="material-symbols-outlined text-4xl mb-4">compare</span>
+                <h3 className="text-lg font-bold uppercase">Scenario Comparison</h3>
+                <p className="text-[0.75rem] mt-2 text-on-surface-variant">
+                  Select multiple completed runs and compare KPIs, capacity mixes, and dispatch
+                  profiles side-by-side in a dedicated Results dashboard.
                 </p>
               </div>
 
@@ -433,7 +462,8 @@ export default function Features() {
                   <div className="text-[0.6875rem] font-bold tracking-[0.3em] uppercase opacity-50 mb-2">
                     Optimization Engine
                   </div>
-                  <div className="text-2xl font-bold">CALLIOPE + CBC</div>
+                  <div className="text-2xl font-bold">CALLIOPE 0.6 / 0.7</div>
+                  <div className="text-xs text-white/40 mt-1 font-medium tracking-widest uppercase">CBC · HiGHS · AdOpT-NET0</div>
                 </div>
               </div>
             </div>
@@ -464,7 +494,7 @@ export default function Features() {
                 <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
                 <div className="w-3 h-3 rounded-full bg-green-500"></div>
                 <span className="ml-4 text-[0.625rem] font-mono text-white/40">
-                  calliope_service.py — 0.0.0.0:5000
+                  calliope_service.py — 0.0.0.0:5000 · 0.7 engine — 0.0.0.0:5002
                 </span>
               </div>
               <div className="font-mono text-[0.75rem] text-green-400 p-4 space-y-1">

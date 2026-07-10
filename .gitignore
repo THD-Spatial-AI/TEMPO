@@ -50,7 +50,7 @@ public/data/osm_extracts/
 backend-go/calliope_backend
 backend-go/*.exe
 backend-go/tmp/
-
+docs/issues-drafts
 # Go runtime / database files
 backend-go/*.db
 backend-go/*.db-shm

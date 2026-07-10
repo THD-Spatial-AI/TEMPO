@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
-import { checkCalliopeService, runCalliopeModel } from '../services/calliopeClient';
+import { checkCalliopeService, runCalliopeModel, engineForVersion } from '../services/calliopeClient';
+import Calliope07EnginePanel from './Calliope07EnginePanel';
 import { checkAdoptnet0Service, runAdoptnet0Model } from '../services/adoptnet0Client';
 import {
   FiPlay, FiStopCircle, FiCheckCircle, FiAlertCircle,
@@ -61,6 +62,7 @@ const Run = ({ onNavigate }) => {
   const [modelConfig, setModelConfig] = useState({
     startDate: '2024-01-01',
     endDate: '2024-12-31',
+    calliopeVersion: '0.6.8',
     mode: 'plan',
     ensureFeasibility: true,
     cyclicStorage: false,
@@ -95,8 +97,12 @@ const Run = ({ onNavigate }) => {
   };
 
   // Service status per framework: null = checking, true = reachable, false = unavailable
-  const [serviceStatus,    setServiceStatus]    = useState(null); // calliope
+  const [serviceStatus,    setServiceStatus]    = useState(null); // calliope 0.6.8
+  const [calliope07Status, setCalliope07Status] = useState(null); // calliope 0.7 (experimental)
   const [adoptnet0Status,  setAdoptnet0Status]  = useState(null); // adoptnet0
+
+  // Which Calliope engine the selected model targets ('0.6' | '0.7')
+  const calliopeEngine = engineForVersion(modelConfig.calliopeVersion);
   // Ref so the health-check interval can read current job count without a stale closure
   const runningJobsRef = useRef([]);
 
@@ -197,6 +203,21 @@ const Run = ({ onNavigate }) => {
     const id = setInterval(check, 30_000);
     return () => { cancelled = true; clearInterval(id); };
   }, []);
+
+  // Check Calliope 0.7 service health — only while a 0.7 model is selected
+  // (polling a never-installed optional engine would just log fetch noise).
+  useEffect(() => {
+    if (calliopeEngine !== '0.7') return undefined;
+    let cancelled = false;
+    const check = () => {
+      if (runningJobsRef.current.length > 0) return;
+      checkCalliopeService('0.7').then(ok => { if (!cancelled) setCalliope07Status(ok); });
+    };
+    setCalliope07Status(null);
+    check();
+    const id = setInterval(check, 30_000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [calliopeEngine]);
 
   // Check AdOpT-NET0 service health on mount and every 30 s.
   useEffect(() => {
@@ -361,19 +382,36 @@ const Run = ({ onNavigate }) => {
       return;
     }
 
-    // Framework-aware service check
+    // Framework/engine-aware service check
     const isAdoptnet0 = selectedFramework === 'adoptnet0';
-    const currentStatus = isAdoptnet0 ? adoptnet0Status : serviceStatus;
-    const checkFn = isAdoptnet0 ? checkAdoptnet0Service : checkCalliopeService;
-    const setStatus = isAdoptnet0 ? setAdoptnet0Status : setServiceStatus;
-    const frameworkLabel = framework.name;
+    const isCalliope07 = !isAdoptnet0 && calliopeEngine === '0.7';
+
+    // SPORES is gated on the experimental 0.7 engine until upstream support is verified
+    if (isCalliope07 && modelConfig.mode === 'spores') {
+      showNotification(
+        'SPORES mode is not supported on the Calliope 0.7 (experimental) engine yet. ' +
+        'Switch the engine to Calliope 0.6.8 to run SPORES.',
+        'error'
+      );
+      return;
+    }
+
+    const currentStatus = isAdoptnet0 ? adoptnet0Status
+      : isCalliope07 ? calliope07Status : serviceStatus;
+    const checkFn = isAdoptnet0 ? checkAdoptnet0Service
+      : isCalliope07 ? (() => checkCalliopeService('0.7')) : checkCalliopeService;
+    const setStatus = isAdoptnet0 ? setAdoptnet0Status
+      : isCalliope07 ? setCalliope07Status : setServiceStatus;
+    const frameworkLabel = isCalliope07 ? 'Calliope 0.7 (experimental)' : framework.name;
 
     if (!currentStatus) {
       const isUp = await checkFn();
       setStatus(isUp);
       if (!isUp) {
         showNotification(
-          `${frameworkLabel} service is not running. Install it from the Setup screen.`,
+          isCalliope07
+            ? 'The Calliope 0.7 engine is not running. Install it from Settings → Calliope 0.7 Engine.'
+            : `${frameworkLabel} service is not running. Install it from the Setup screen.`,
           'error'
         );
         return;
@@ -459,7 +497,6 @@ const Run = ({ onNavigate }) => {
       showNotification(`Started ${started.length} ${frameworkLabel} runs`, 'success');
     }
     if (failed.length > 0 && started.length === 0) {
-      const setStatus = isAdoptnet0 ? setAdoptnet0Status : setServiceStatus;
       setStatus(false);
     }
   };
@@ -491,10 +528,14 @@ const Run = ({ onNavigate }) => {
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
-  const activeStatus    = selectedFramework === 'adoptnet0' ? adoptnet0Status : serviceStatus;
+  const isCalliope07Selected = selectedFramework === 'calliope' && calliopeEngine === '0.7';
+  const activeStatus    = selectedFramework === 'adoptnet0' ? adoptnet0Status
+    : isCalliope07Selected ? calliope07Status : serviceStatus;
   const serviceReady    = activeStatus === true;
   const serviceChecking = activeStatus === null;
-  const activeFrameworkLabel = MODELING_FRAMEWORKS.find(f => f.id === selectedFramework)?.name || 'Service';
+  const activeFrameworkLabel = isCalliope07Selected
+    ? 'Calliope 0.7'
+    : (MODELING_FRAMEWORKS.find(f => f.id === selectedFramework)?.name || 'Service');
 
   // Scenarios and overrides available from the current model
   const availableScenarios = selectedModel?.scenarios ? Object.keys(selectedModel.scenarios) : [];
@@ -513,19 +554,31 @@ const Run = ({ onNavigate }) => {
             </h1>
             <p className="text-sm text-slate-500 mt-0.5">Execute your energy model locally using {activeFrameworkLabel}</p>
           </div>
-          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border ${
-            serviceChecking ? 'bg-slate-100 border-slate-200 text-slate-500'
-            : serviceReady  ? 'bg-green-50 border-green-200 text-green-700'
-            : 'bg-amber-50 border-amber-200 text-amber-700'
-          }`}>
-            <span className="relative flex h-2 w-2 flex-shrink-0">
-              {serviceReady && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />}
-              <span className={`relative inline-flex rounded-full h-2 w-2 ${
-                serviceChecking ? 'bg-slate-400' : serviceReady ? 'bg-green-500' : 'bg-amber-500'
-              }`} />
-            </span>
-            <FiBox size={12} />
-            {serviceChecking ? 'Connecting…' : serviceReady ? `${activeFrameworkLabel} online` : `${activeFrameworkLabel} offline`}
+          <div className="flex items-center gap-2 flex-wrap">
+            {selectedFramework === 'calliope' && selectedModel && (
+              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border ${
+                isCalliope07Selected
+                  ? 'bg-amber-50 border-amber-200 text-amber-700'
+                  : 'bg-blue-50 border-blue-200 text-blue-700'
+              }`} title="Engine version from the model's configuration">
+                <FiZap size={12} />
+                {isCalliope07Selected ? 'Engine: Calliope 0.7 (experimental)' : 'Engine: Calliope 0.6.8'}
+              </div>
+            )}
+            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border ${
+              serviceChecking ? 'bg-slate-100 border-slate-200 text-slate-500'
+              : serviceReady  ? 'bg-green-50 border-green-200 text-green-700'
+              : 'bg-amber-50 border-amber-200 text-amber-700'
+            }`}>
+              <span className="relative flex h-2 w-2 flex-shrink-0">
+                {serviceReady && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />}
+                <span className={`relative inline-flex rounded-full h-2 w-2 ${
+                  serviceChecking ? 'bg-slate-400' : serviceReady ? 'bg-green-500' : 'bg-amber-500'
+                }`} />
+              </span>
+              <FiBox size={12} />
+              {serviceChecking ? 'Connecting…' : serviceReady ? `${activeFrameworkLabel} online` : `${activeFrameworkLabel} offline`}
+            </div>
           </div>
         </div>
 
@@ -536,6 +589,8 @@ const Run = ({ onNavigate }) => {
               <strong>{activeFrameworkLabel} service offline.</strong>{' '}
               {selectedFramework === 'adoptnet0'
                 ? 'Install the AdOpT-NET0 environment from the Setup screen, or restart the service.'
+                : isCalliope07Selected
+                ? 'This model targets the experimental Calliope 0.7 engine. Install it from Settings → Calliope 0.7 Engine.'
                 : <>Start it with:{' '}
                     <code className="bg-amber-100 px-1.5 py-0.5 rounded font-mono text-xs">
                       .\scripts\start_calliope_service.ps1
@@ -552,6 +607,9 @@ const Run = ({ onNavigate }) => {
                 if (selectedFramework === 'adoptnet0') {
                   setAdoptnet0Status(null);
                   checkAdoptnet0Service().then(ok => setAdoptnet0Status(ok));
+                } else if (isCalliope07Selected) {
+                  setCalliope07Status(null);
+                  checkCalliopeService('0.7').then(ok => setCalliope07Status(ok));
                 } else {
                   setServiceStatus(null);
                   checkCalliopeService().then(ok => setServiceStatus(ok));
@@ -561,6 +619,18 @@ const Run = ({ onNavigate }) => {
             >
               Retry
             </button>
+          </div>
+        )}
+
+        {/* INLINE 0.7 INSTALL PANEL — shown when 0.7 is selected but not yet installed */}
+        {isCalliope07Selected && calliope07Status === false && (
+          <div className="bg-white rounded-2xl shadow-sm border border-amber-200 p-6">
+            <Calliope07EnginePanel
+              onInstallSuccess={() => {
+                setCalliope07Status(null);
+                checkCalliopeService('0.7').then(ok => setCalliope07Status(ok));
+              }}
+            />
           </div>
         )}
 
@@ -596,10 +666,30 @@ const Run = ({ onNavigate }) => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Solver</label>
-                  <div className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg bg-slate-50 text-slate-700">
-                    HiGHS
-                  </div>
+                  {selectedFramework === 'calliope' ? (
+                    <>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Engine</label>
+                      <select
+                        value={calliopeEngine === '0.7' ? '0.7' : '0.6.8'}
+                        onChange={e => setModelConfig(p => ({
+                          ...p,
+                          calliopeVersion: e.target.value === '0.7' ? '0.7.0' : '0.6.8',
+                        }))}
+                        className="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-electric-500 focus:border-transparent bg-white"
+                      >
+                        <option value="0.6.8">0.6.8 (stable)</option>
+                        <option value="0.7">0.7.0.dev7 (experimental)</option>
+                      </select>
+                      <p className="mt-1 text-xs text-slate-400">Solver: {calliopeEngine === '0.7' ? 'CBC' : 'HiGHS'}</p>
+                    </>
+                  ) : (
+                    <>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Solver</label>
+                      <div className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg bg-slate-50 text-slate-700">
+                        HiGHS
+                      </div>
+                    </>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Mode</label>
@@ -610,8 +700,17 @@ const Run = ({ onNavigate }) => {
                   >
                     <option value="plan">Plan — capacity planning</option>
                     <option value="operate">Operate — operational</option>
-                    <option value="spores">SPORES — near-optimal alternatives</option>
+                    <option value="spores" disabled={isCalliope07Selected}>
+                      {isCalliope07Selected
+                        ? 'SPORES — requires the 0.6.8 engine'
+                        : 'SPORES — near-optimal alternatives'}
+                    </option>
                   </select>
+                  {isCalliope07Selected && modelConfig.mode === 'spores' && (
+                    <p className="mt-1 text-xs text-amber-600">
+                      SPORES is not supported on the experimental Calliope 0.7 engine yet.
+                    </p>
+                  )}
                 </div>
               </div>
 

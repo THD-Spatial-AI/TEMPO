@@ -26,3 +26,25 @@ services:
       timeout: 5s
       retries: 3
       start_period: 20s
+
+  calliope07-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.calliope07
+    image: calliope07-runner:latest
+    container_name: calliope07-runner
+    ports:
+      - "5002:5002"
+    restart: unless-stopped
+    volumes:
+      - ./python:/app/python:ro
+      - ./public/templates:/app/public/templates:ro
+    environment:
+      - TEMPO_RUNNER_MODULE=calliope07_runner
+      - CALLIOPE_SOLVER_DIR=
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5002/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 60s

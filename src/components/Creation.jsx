@@ -2225,9 +2225,8 @@ const Creation = () => {
                       onChange={(e) => setModelConfig(c => ({ ...c, calliopeVersion: e.target.value }))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white"
                     >
-                      <option value="0.6.8">0.6.8</option>
-                      <option value="0.6.7">0.6.7</option>
-                      <option value="0.7.0">0.7.0 (beta)</option>
+                      <option value="0.6.8">0.6.8 (stable, default)</option>
+                      <option value="0.7.0">0.7.0.dev7 (experimental)</option>
                     </select>
                   </div>
                   <div>
