@@ -72,8 +72,8 @@ export default function Calliope07EnginePanel({ onInstallSuccess }) {
   return (
     <div>
       <h3 className="text-lg font-semibold text-slate-800 mb-1 flex items-center gap-2">
-        <FiZap className="w-5 h-5 text-amber-500" /> Calliope 0.7 Engine
-        <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-700">Experimental</span>
+        <FiZap className="w-5 h-5 text-gray-500" /> Calliope 0.7 Engine
+        <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-700">Experimental</span>
       </h3>
       <p className="text-sm text-slate-500 mb-4">
         Optional second optimisation engine (Calliope 0.7.0.dev7, pre-release) in its own
@@ -85,13 +85,13 @@ export default function Calliope07EnginePanel({ onInstallSuccess }) {
       {/* Status */}
       <div className={`flex items-center gap-3 p-3 rounded-xl border mb-4 ${
         statusLoading         ? 'bg-slate-50 border-slate-200'
-        : envStatus?.envExists ? 'bg-emerald-50 border-emerald-200'
+        : envStatus?.envExists ? 'bg-gray-50 border-gray-200'
         : 'bg-slate-50 border-slate-200'
       }`}>
         {statusLoading ? (
           <span className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
         ) : envStatus?.envExists ? (
-          <FiCheckCircle className="w-5 h-5 text-emerald-500 flex-shrink-0" />
+          <FiCheckCircle className="w-5 h-5 text-gray-500 flex-shrink-0" />
         ) : (
           <FiAlertCircle className="w-5 h-5 text-slate-400 flex-shrink-0" />
         )}
@@ -105,7 +105,7 @@ export default function Calliope07EnginePanel({ onInstallSuccess }) {
           {!statusLoading && (
             <p className="text-xs mt-0.5">
               Service:{' '}
-              <span className={envStatus?.serviceRunning ? 'text-emerald-600 font-medium' : 'text-slate-400'}>
+              <span className={envStatus?.serviceRunning ? 'text-gray-600 font-medium' : 'text-slate-400'}>
                 {envStatus?.serviceRunning ? 'running' : 'stopped'}
               </span>
             </p>
@@ -121,10 +121,10 @@ export default function Calliope07EnginePanel({ onInstallSuccess }) {
         <button
           onClick={handleInstall}
           disabled={installing}
-          className="flex items-center gap-2 px-5 py-2.5 border-2 border-amber-300 text-amber-800 bg-amber-50 rounded-xl font-semibold hover:bg-amber-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm"
+          className="flex items-center gap-2 px-5 py-2.5 border-2 border-gray-300 text-gray-800 bg-gray-50 rounded-xl font-semibold hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm"
         >
           {installing ? (
-            <><span className="w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" /> Installing…</>
+            <><span className="w-4 h-4 border-2 border-gray-500 border-t-transparent rounded-full animate-spin" /> Installing…</>
           ) : (
             <><FiDownload className="w-4 h-4" /> {envStatus?.envExists ? 'Reinstall from scratch' : 'Install Calliope 0.7 engine'}</>
           )}
@@ -168,15 +168,15 @@ export default function Calliope07EnginePanel({ onInstallSuccess }) {
       )}
 
       {success && (
-        <div className="mt-3 flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700">
+        <div className="mt-3 flex items-center gap-2 p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-700">
           <FiCheckCircle className="w-4 h-4 flex-shrink-0" />
           Calliope 0.7 engine installed and service started.
         </div>
       )}
       {error && (
-        <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+        <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-700">
           <p className="font-semibold mb-1">Installation failed:</p>
-          <pre className="whitespace-pre-wrap break-all text-xs bg-red-100 rounded p-2 max-h-24 overflow-y-auto">{error}</pre>
+          <pre className="whitespace-pre-wrap break-all text-xs bg-gray-100 rounded p-2 max-h-24 overflow-y-auto">{error}</pre>
         </div>
       )}
     </div>

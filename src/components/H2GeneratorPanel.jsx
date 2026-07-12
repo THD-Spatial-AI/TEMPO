@@ -111,15 +111,15 @@ function formatCapacityKw(kw) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Per-tech metadata: colour scheme, icon, CO₂, capacity-factor range, tagline
 const TECH_META = {
-  solar:      { label: "Solar PV",       icon: FiSun,      hue: "#f59e0b", bg: "bg-amber-50",   border: "border-amber-200",  cf: [15, 28],  co2: 30,   tagline: "Daylight-driven variable generation" },
-  wind:       { label: "Wind",           icon: FiWind,     hue: "#60a5fa", bg: "bg-blue-50",    border: "border-blue-200",   cf: [28, 50],  co2: 11,   tagline: "Variable — follows weather patterns" },
-  nuclear:    { label: "Nuclear",        icon: FiZap,      hue: "#8b5cf6", bg: "bg-violet-50",  border: "border-violet-200", cf: [85, 95],  co2: 15,   tagline: "Firm baseload — very high availability" },
-  hydro:      { label: "Hydropower",     icon: FiDroplet,  hue: "#06b6d4", bg: "bg-cyan-50",    border: "border-cyan-200",   cf: [40, 55],  co2: 8,    tagline: "Dispatchable — daily peaking profile" },
-  geothermal: { label: "Geothermal",     icon: FiActivity, hue: "#dc2626", bg: "bg-red-50",     border: "border-red-200",    cf: [80, 95],  co2: 35,   tagline: "Near-constant baseload resource" },
-  biomass:    { label: "Biomass CHP",    icon: FiZap,      hue: "#22c55e", bg: "bg-green-50",   border: "border-green-200",  cf: [60, 80],  co2: 120,  tagline: "Dispatchable — follows heat/power demand" },
-  coal:       { label: "Coal",           icon: FiZap,      hue: "#374151", bg: "bg-slate-50",   border: "border-slate-300",  cf: [50, 80],  co2: 900,  tagline: "High-capacity baseload — high CO₂" },
-  gas:        { label: "Natural Gas",    icon: FiZap,      hue: "#f97316", bg: "bg-orange-50",  border: "border-orange-200", cf: [40, 70],  co2: 430,  tagline: "Flexible mid-merit dispatchable" },
-  generic:    { label: "Power Source",   icon: FiZap,      hue: "#6366f1", bg: "bg-indigo-50",  border: "border-indigo-200", cf: [40, 70],  co2: null, tagline: "Selected generation technology" },
+  solar:      { label: "Solar PV",       icon: FiSun,      hue: "#6b7280", bg: "bg-gray-50",   border: "border-gray-200",  cf: [15, 28],  co2: 30,   tagline: "Daylight-driven variable generation" },
+  wind:       { label: "Wind",           icon: FiWind,     hue: "#6b7280", bg: "bg-gray-50",   border: "border-gray-200",  cf: [28, 50],  co2: 11,   tagline: "Variable — follows weather patterns" },
+  nuclear:    { label: "Nuclear",        icon: FiZap,      hue: "#6b7280", bg: "bg-gray-50",   border: "border-gray-200",  cf: [85, 95],  co2: 15,   tagline: "Firm baseload — very high availability" },
+  hydro:      { label: "Hydropower",     icon: FiDroplet,  hue: "#6b7280", bg: "bg-gray-50",   border: "border-gray-200",  cf: [40, 55],  co2: 8,    tagline: "Dispatchable — daily peaking profile" },
+  geothermal: { label: "Geothermal",     icon: FiActivity, hue: "#6b7280", bg: "bg-gray-50",   border: "border-gray-200",  cf: [80, 95],  co2: 35,   tagline: "Near-constant baseload resource" },
+  biomass:    { label: "Biomass CHP",    icon: FiZap,      hue: "#6b7280", bg: "bg-gray-50",   border: "border-gray-200",  cf: [60, 80],  co2: 120,  tagline: "Dispatchable — follows heat/power demand" },
+  coal:       { label: "Coal",           icon: FiZap,      hue: "#374151", bg: "bg-slate-50",  border: "border-slate-300",  cf: [50, 80],  co2: 900,  tagline: "High-capacity baseload — high CO₂" },
+  gas:        { label: "Natural Gas",    icon: FiZap,      hue: "#6b7280", bg: "bg-gray-50",   border: "border-gray-200",  cf: [40, 70],  co2: 430,  tagline: "Flexible mid-merit dispatchable" },
+  generic:    { label: "Power Source",   icon: FiZap,      hue: "#6b7280", bg: "bg-gray-50",   border: "border-gray-200",  cf: [40, 70],  co2: null, tagline: "Selected generation technology" },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -381,8 +381,8 @@ function ConstraintRow({ label, unit, value, defaultValue, min, max, step = 1, o
           placeholder={defaultValue != null ? String(defaultValue) : "—"}
           onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) onChange(v); }}
           className="w-[72px] text-right text-[11px] font-semibold bg-slate-50 border border-slate-200
-            rounded-md px-1.5 py-[3px] focus:outline-none focus:ring-1 focus:ring-indigo-400
-            hover:border-indigo-300 transition-colors"
+            rounded-md px-1.5 py-[3px] focus:outline-none focus:ring-1 focus:ring-gray-400
+            hover:border-gray-400 transition-colors"
           style={{ fontVariantNumeric: "tabular-nums", color: isOverridden ? "#4f46e5" : "#475569" }}
         />
         <span className="text-[10px] text-slate-400 w-[38px] shrink-0 leading-none">{unit}</span>
@@ -390,7 +390,7 @@ function ConstraintRow({ label, unit, value, defaultValue, min, max, step = 1, o
           onClick={onReset}
           className={`w-4 text-[10px] leading-none transition-all
             ${isOverridden
-              ? "text-red-400 hover:text-red-600 opacity-100"
+              ? "text-gray-400 hover:text-gray-600 opacity-100"
               : "text-slate-200 cursor-default opacity-0 group-hover:opacity-40"}`}
           title="Reset to default"
           disabled={!isOverridden}
@@ -405,12 +405,12 @@ function ConstraintRow({ label, unit, value, defaultValue, min, max, step = 1, o
 // ─────────────────────────────────────────────────────────────────────────────
 function MetricBadge({ label, value, unit, color = "slate", wide = false }) {
   const palettes = {
-    amber:  "bg-amber-50  border-amber-200  text-amber-700",
-    green:  "bg-emerald-50 border-emerald-200 text-emerald-700",
-    violet: "bg-violet-50 border-violet-200 text-violet-700",
-    blue:   "bg-blue-50   border-blue-200   text-blue-700",
-    slate:  "bg-slate-50  border-slate-200  text-slate-700",
-    red:    "bg-red-50    border-red-200    text-red-700",
+    amber:  "bg-gray-50  border-gray-200  text-gray-700",
+    green:  "bg-gray-50  border-gray-200  text-gray-700",
+    violet: "bg-gray-50  border-gray-200  text-gray-700",
+    blue:   "bg-gray-50  border-gray-200  text-gray-700",
+    slate:  "bg-slate-50 border-slate-200 text-slate-700",
+    red:    "bg-gray-50  border-gray-200  text-gray-700",
   };
   return (
     <div className={`rounded-xl border px-3 py-2 ${palettes[color] ?? palettes.slate} ${wide ? "col-span-2" : ""}`}>
@@ -544,7 +544,7 @@ export default function H2GeneratorPanel({ selectedModel, elzModel, elzParams, r
   if (!selectedModel) {
     return (
       <div className="bg-white rounded-2xl border border-dashed border-slate-200 p-8 flex flex-col items-center justify-center text-center gap-3">
-        <span className="p-4 rounded-full bg-amber-50 border border-amber-100 text-amber-400">
+        <span className="p-4 rounded-full bg-gray-50 border border-gray-200 text-gray-400">
           <FiZap size={24} />
         </span>
         <p className="font-medium text-slate-600">Select a power source technology in the flow diagram above</p>
@@ -588,14 +588,11 @@ export default function H2GeneratorPanel({ selectedModel, elzModel, elzParams, r
             <div>
               <div className="flex flex-wrap items-center gap-1.5">
                 <h3 className="text-sm font-bold text-slate-800">{effectiveModel.name}</h3>
-                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full
-                  ${effectiveModel.lifecycle === "commercial"    ? "bg-emerald-100 text-emerald-700"
-                  : effectiveModel.lifecycle === "demonstration" ? "bg-amber-100   text-amber-700"
-                                                                  : "bg-blue-100    text-blue-700"}`}>
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">
                   {effectiveModel.lifecycle ?? "commercial"}
                 </span>
                 {hasOverrides && (
-                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-600">✏ edited</span>
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">✏ edited</span>
                 )}
               </div>
               <p className="text-[11px] text-slate-500 mt-0.5">{meta.tagline}</p>
@@ -708,18 +705,18 @@ export default function H2GeneratorPanel({ selectedModel, elzModel, elzParams, r
 
         return (
           <div className={`bg-white rounded-xl border shadow-sm px-4 py-3 flex flex-wrap items-start gap-3
-            ${isPending ? "border-amber-300" : appliedVariantObj ? "border-emerald-300" : "border-slate-200"}`}>
+            ${isPending ? "border-gray-400" : appliedVariantObj ? "border-gray-500" : "border-slate-200"}`}>
             <FiLayers size={12} style={{ color: hue }} className="mt-1" />
             <div className="flex-1 min-w-[220px] space-y-1.5">
               <div className="flex items-center gap-2">
                 <span className="text-[11px] font-semibold text-slate-600">Technology Variant</span>
                 {appliedVariantObj && !isPending && (
-                  <span className="text-[10px] bg-emerald-100 text-emerald-700 font-semibold px-2 py-0.5 rounded-full">
+                  <span className="text-[10px] bg-gray-100 text-gray-700 font-semibold px-2 py-0.5 rounded-full">
                     ✓ Applied
                   </span>
                 )}
                 {isPending && (
-                  <span className="text-[10px] bg-amber-100 text-amber-700 font-semibold px-2 py-0.5 rounded-full">
+                  <span className="text-[10px] bg-gray-200 text-gray-700 font-semibold px-2 py-0.5 rounded-full">
                     ● Pending — click Apply
                   </span>
                 )}
@@ -729,7 +726,7 @@ export default function H2GeneratorPanel({ selectedModel, elzModel, elzParams, r
                 onChange={handleStage}
                 className="w-full text-[12px] border border-slate-200 rounded-lg px-2.5 py-1.5
                   bg-slate-50 text-slate-700 focus:outline-none focus:ring-2
-                  focus:ring-indigo-400 focus:border-transparent cursor-pointer"
+                  focus:ring-gray-400 focus:border-transparent cursor-pointer"
               >
                 <option value="">— opentech-db default —</option>
                 {variants.map((v) => (
@@ -759,7 +756,7 @@ export default function H2GeneratorPanel({ selectedModel, elzModel, elzParams, r
                 className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-bold
                   transition-all
                   ${isPending
-                    ? "bg-emerald-500 text-white hover:bg-emerald-600 shadow-sm"
+                    ? "bg-gray-700 text-white hover:bg-gray-800 shadow-sm"
                     : appliedVariantId
                       ? "bg-slate-100 text-slate-500 hover:bg-slate-200 cursor-default"
                       : "bg-slate-100 text-slate-300 cursor-not-allowed"
@@ -770,8 +767,8 @@ export default function H2GeneratorPanel({ selectedModel, elzModel, elzParams, r
               {(appliedVariantId || isPending) && (
                 <button
                   onClick={() => { setLocalParams({}); onParamsChange?.({}); }}
-                  className="px-3 py-1 rounded-lg text-[10px] text-red-400 hover:text-red-600
-                    hover:bg-red-50 border border-transparent hover:border-red-200 transition-all"
+                  className="px-3 py-1 rounded-lg text-[10px] text-gray-400 hover:text-gray-600
+                    hover:bg-gray-100 border border-transparent hover:border-gray-200 transition-all"
                 >
                   ✕ Reset
                 </button>
@@ -806,7 +803,7 @@ export default function H2GeneratorPanel({ selectedModel, elzModel, elzParams, r
               <select
                 value={activeChart}
                 onChange={(e) => setSelectedGenChart(e.target.value)}
-                className="ml-auto text-xs bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                className="ml-auto text-xs bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 text-slate-600 focus:outline-none focus:ring-2 focus:ring-gray-400"
               >
                 {genChartOptions.map((o) => (
                   <option key={o.id} value={o.id}>{o.label}</option>
@@ -893,20 +890,10 @@ export default function H2GeneratorPanel({ selectedModel, elzModel, elzParams, r
         const arrow = <span className="text-slate-300 font-light text-base px-1">→</span>;
         const box = (label, value, unit, color) => (
           <div className={`flex flex-col items-center justify-center rounded-xl border px-3 py-2 min-w-[90px]
-            ${color === "amber"  ? "bg-amber-50 border-amber-200" : ""}
-            ${color === "indigo" ? "bg-indigo-50 border-indigo-200" : ""}
-            ${color === "cyan"   ? "bg-cyan-50 border-cyan-200" : ""}
-            ${color === "violet" ? "bg-violet-50 border-violet-200" : ""}
-            ${color === "green"  ? "bg-emerald-50 border-emerald-200" : ""}
+            bg-gray-50 border-gray-200
           `}>
             <p className="text-[9px] font-semibold uppercase tracking-wide text-slate-400 mb-1 whitespace-nowrap">{label}</p>
-            <p className={`text-sm font-bold leading-tight
-              ${color === "amber"  ? "text-amber-700" : ""}
-              ${color === "indigo" ? "text-indigo-700" : ""}
-              ${color === "cyan"   ? "text-cyan-700" : ""}
-              ${color === "violet" ? "text-violet-700" : ""}
-              ${color === "green"  ? "text-emerald-700" : ""}
-            `}>{value}</p>
+            <p className="text-sm font-bold leading-tight text-gray-700">{value}</p>
             <p className="text-[9px] text-slate-400 mt-0.5 whitespace-nowrap">{unit}</p>
           </div>
         );
@@ -936,25 +923,25 @@ export default function H2GeneratorPanel({ selectedModel, elzModel, elzParams, r
 
             {/* Daily / annual H₂ summary */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-2">
-                <p className="text-[9px] text-amber-500 uppercase tracking-wide font-semibold">Avg Supply</p>
-                <p className="text-sm font-bold text-amber-800">{formatCapacityKw(avgPowerKw)}</p>
-                <p className="text-[9px] text-amber-400">avg AC power to ELZ</p>
+              <div className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-2">
+                <p className="text-[9px] text-gray-500 uppercase tracking-wide font-semibold">Avg Supply</p>
+                <p className="text-sm font-bold text-gray-800">{formatCapacityKw(avgPowerKw)}</p>
+                <p className="text-[9px] text-gray-400">avg AC power to ELZ</p>
               </div>
-              <div className="rounded-xl border border-cyan-100 bg-cyan-50 px-3 py-2">
-                <p className="text-[9px] text-cyan-500 uppercase tracking-wide font-semibold">H₂ Production</p>
-                <p className="text-sm font-bold text-cyan-800">{h2RateKgH_avg} kg/h</p>
-                <p className="text-[9px] text-cyan-400">{h2RateNm3H_avg} Nm³/h avg · {h2RateNm3H_peak} Nm³/h peak</p>
+              <div className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-2">
+                <p className="text-[9px] text-gray-500 uppercase tracking-wide font-semibold">H₂ Production</p>
+                <p className="text-sm font-bold text-gray-800">{h2RateKgH_avg} kg/h</p>
+                <p className="text-[9px] text-gray-400">{h2RateNm3H_avg} Nm³/h avg · {h2RateNm3H_peak} Nm³/h peak</p>
               </div>
-              <div className="rounded-xl border border-violet-100 bg-violet-50 px-3 py-2">
-                <p className="text-[9px] text-violet-500 uppercase tracking-wide font-semibold">Daily H₂</p>
-                <p className="text-sm font-bold text-violet-800">{h2DailyKg.toLocaleString()} kg</p>
-                <p className="text-[9px] text-violet-400">per day at avg CF</p>
+              <div className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-2">
+                <p className="text-[9px] text-gray-500 uppercase tracking-wide font-semibold">Daily H₂</p>
+                <p className="text-sm font-bold text-gray-800">{h2DailyKg.toLocaleString()} kg</p>
+                <p className="text-[9px] text-gray-400">per day at avg CF</p>
               </div>
-              <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2">
-                <p className="text-[9px] text-emerald-500 uppercase tracking-wide font-semibold">Annual H₂</p>
-                <p className="text-sm font-bold text-emerald-800">{h2AnnualT.toLocaleString()} t/yr</p>
-                <p className="text-[9px] text-emerald-400">metric tonnes per year</p>
+              <div className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-2">
+                <p className="text-[9px] text-gray-500 uppercase tracking-wide font-semibold">Annual H₂</p>
+                <p className="text-sm font-bold text-gray-800">{h2AnnualT.toLocaleString()} t/yr</p>
+                <p className="text-[9px] text-gray-400">metric tonnes per year</p>
               </div>
             </div>
 
@@ -990,12 +977,12 @@ export default function H2GeneratorPanel({ selectedModel, elzModel, elzParams, r
           </p>
           <p className="text-[10px] text-slate-400">Typical range for {meta.label}</p>
         </div>
-        <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
-          <p className="text-[10px] text-emerald-500 uppercase tracking-wide font-medium">Daily Energy</p>
-          <p className="text-lg font-bold text-emerald-800 leading-tight">
+        <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">
+          <p className="text-[10px] text-gray-500 uppercase tracking-wide font-medium">Daily Energy</p>
+          <p className="text-lg font-bold text-gray-800 leading-tight">
             {genStats.summary.dailyMwh} <span className="text-sm font-normal">MWh/day</span>
           </p>
-          <p className="text-[10px] text-emerald-400">
+          <p className="text-[10px] text-gray-400">
             {isDone && actualChart?.summary.avgPower
               ? `Simulated avg: ${actualChart.summary.avgPower} kW`
               : _modelHasCap
@@ -1003,16 +990,16 @@ export default function H2GeneratorPanel({ selectedModel, elzModel, elzParams, r
                 : "Avg CF · select model for capacity"}
           </p>
         </div>
-        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-          <p className="text-[10px] text-amber-500 uppercase tracking-wide font-medium">
+        <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">
+          <p className="text-[10px] text-gray-500 uppercase tracking-wide font-medium">
             {meta.co2 != null ? "CO₂ Intensity" : "Annual yield"}
           </p>
-          <p className="text-lg font-bold text-amber-800 leading-tight">
+          <p className="text-lg font-bold text-gray-800 leading-tight">
             {meta.co2 != null
               ? <>{meta.co2} <span className="text-sm font-normal">g CO₂/kWh</span></>
               : <>{genStats.summary.annualMwh.toLocaleString()} <span className="text-sm font-normal">MWh/yr</span></>}
           </p>
-          <p className="text-[10px] text-amber-400">
+          <p className="text-[10px] text-gray-400">
             {meta.co2 != null ? "Lifecycle emissions" : "Estimated annual generation"}
           </p>
         </div>
@@ -1031,7 +1018,7 @@ export default function H2GeneratorPanel({ selectedModel, elzModel, elzParams, r
             {activeVariant ? `– ${activeVariant.name}` : "– opentech-db defaults"}
           </span>
           {hasOverrides && (
-            <span className="ml-1 px-1.5 py-0.5 text-[10px] bg-indigo-100 text-indigo-600 rounded-full font-medium">
+            <span className="ml-1 px-1.5 py-0.5 text-[10px] bg-gray-100 text-gray-600 rounded-full font-medium">
               {Object.keys(localParams).filter((k) => k !== "_variantId").length} edited
             </span>
           )}
@@ -1042,8 +1029,8 @@ export default function H2GeneratorPanel({ selectedModel, elzModel, elzParams, r
           {hasOverrides && (
             <button
               onClick={(e) => { e.preventDefault(); resetAllParams(); }}
-              className="ml-2 text-[10px] text-red-400 hover:text-red-600 font-medium px-2 py-0.5
-                rounded hover:bg-red-50 transition-colors shrink-0"
+              className="ml-2 text-[10px] text-gray-400 hover:text-gray-600 font-medium px-2 py-0.5
+                rounded hover:bg-gray-100 transition-colors shrink-0"
             >Reset all</button>
           )}
         </summary>

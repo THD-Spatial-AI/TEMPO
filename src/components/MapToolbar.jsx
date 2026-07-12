@@ -204,7 +204,7 @@ const MapToolbar = ({
                         type="checkbox"
                         checked={visibleLayers?.[layer.id] !== false}
                         onChange={(e) => onVisibleLayersChange?.({ ...visibleLayers, [layer.id]: e.target.checked })}
-                        className="w-4 h-4 rounded text-blue-600"
+                        className="w-4 h-4 rounded text-gray-600"
                       />
                       <span className="text-sm text-slate-700">{layer.label}</span>
                     </label>
@@ -218,7 +218,7 @@ const MapToolbar = ({
                         type="checkbox"
                         checked={visibleLayers?.[layer.id] !== false}
                         onChange={(e) => onVisibleLayersChange?.({ ...visibleLayers, [layer.id]: e.target.checked })}
-                        className="w-4 h-4 rounded text-blue-600"
+                        className="w-4 h-4 rounded text-gray-600"
                       />
                       <span className="text-sm text-slate-700">{layer.label}</span>
                     </label>

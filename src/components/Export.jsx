@@ -13,7 +13,7 @@ const EXPORT_FORMATS = [
     name: 'Calliope',
     description: 'Multi-scale energy system modeling framework',
     icon: FiZap,
-    color: 'from-blue-500 to-blue-600',
+    color: 'from-gray-600 to-gray-700',
     supported: true
   },
   {
@@ -21,7 +21,7 @@ const EXPORT_FORMATS = [
     name: 'PyPSA',
     description: 'Python for Power System Analysis',
     icon: FiActivity,
-    color: 'from-green-500 to-green-600',
+    color: 'from-gray-500 to-gray-600',
     supported: false
   },
   {
@@ -29,7 +29,7 @@ const EXPORT_FORMATS = [
     name: 'OSeMOSYS',
     description: 'Open Source Energy Modelling System',
     icon: FiCpu,
-    color: 'from-purple-500 to-purple-600',
+    color: 'from-gray-500 to-gray-600',
     supported: false
   },
   {
@@ -37,7 +37,7 @@ const EXPORT_FORMATS = [
     name: 'AdoptNET',
     description: 'Adoption Network Energy Transition',
     icon: FiSettings,
-    color: 'from-orange-500 to-orange-600',
+    color: 'from-gray-500 to-gray-600',
     supported: false
   },
   {
@@ -45,7 +45,7 @@ const EXPORT_FORMATS = [
     name: 'Calliope 0.7',
     description: 'Calliope 0.7 schema — single model.yaml + CSV files (experimental)',
     icon: FiZap,
-    color: 'from-amber-500 to-amber-600',
+    color: 'from-gray-500 to-gray-600',
     supported: true
   }
 ];
@@ -551,70 +551,105 @@ calliope run model.yaml --scenario=Main
 
   if (!currentModel) {
     return (
-      <div className="flex-1 p-8">
-        <div className="max-w-4xl mx-auto">
-          <div className="bg-white rounded-2xl shadow-md border border-slate-200 p-8 text-center">
-            <FiAlertCircle className="mx-auto text-4xl text-slate-400 mb-4" />
-            <h2 className="text-xl font-semibold text-slate-800 mb-2">No Model Selected</h2>
-            <p className="text-slate-600">Please select or create a model to export to Calliope format.</p>
-          </div>
+      <div className="flex-1 p-6 overflow-y-auto">
+        <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
+          <FiPackage size={36} className="mx-auto text-gray-300 mb-3" />
+          <p className="font-semibold text-gray-700 mb-1">No model selected</p>
+          <p className="text-sm text-gray-400">Select a model from the Models section to export it.</p>
         </div>
       </div>
     );
   }
 
+  const modelTs = timeSeries.filter(ts => ts.modelId === currentModel.id);
+  const locs = currentModel.locations || [];
+  const lnks = currentModel.links || [];
+  const techs = technologies || [];
+  const modelOverrides = Object.keys(overrides || {});
+  const modelScenarios = Object.keys(scenarios || {});
+  const supplyTechs = techs.filter(t => t.parent === 'supply' || t.parent === 'supply_plus' || t.techType === 'supply');
+  const demandTechs = techs.filter(t => t.parent === 'demand' || t.techType === 'demand');
+  const storageTechs = techs.filter(t => t.parent === 'storage' || t.techType === 'storage');
+  const transmTechs = techs.filter(t => t.parent === 'transmission' || t.techType === 'transmission');
+
+  const TreeRow = ({ indent = 0, icon: Icon, name, note, isDir, dim }) => (
+    <div className={`flex items-center gap-1.5 py-0.5 ${dim ? 'text-gray-400' : 'text-gray-700'}`}
+         style={{ paddingLeft: `${indent * 16}px` }}>
+      {indent > 0 && <span className="text-gray-300 select-none flex-shrink-0">{'└─'}</span>}
+      <Icon size={11} className={`flex-shrink-0 ${isDir ? 'text-amber-400' : 'text-blue-400'}`} />
+      <span className="font-mono text-xs">{name}</span>
+      {note && <span className="font-sans text-[10px] text-gray-400 ml-1">{note}</span>}
+    </div>
+  );
+
   return (
-    <div className="flex-1 p-8 overflow-y-auto">
-      <div className="max-w-4xl mx-auto space-y-6 animate-fadeIn">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-electric-600 to-electric-900 rounded-2xl p-8 text-white shadow-lg">
-          <div className="flex items-center gap-3 mb-3">
-            <FiPackage className="text-3xl" />
-            <h1 className="text-3xl font-bold">Export Model</h1>
+    <div className="flex-1 p-6 overflow-y-auto">
+      <div className="space-y-5">
+
+        {/* Page header */}
+        <div className="flex items-center gap-3">
+          <FiDownload size={18} className="text-gray-500" />
+          <div>
+            <h1 className="text-xl font-semibold text-slate-800">Export Model</h1>
+            <p className="text-xs text-slate-500">Export your active model as a framework-ready ZIP archive</p>
           </div>
-          <p className="text-electric-50">
-            Export your energy system model in various modeling framework formats with proper folder structure and configuration files.
-          </p>
         </div>
 
-        {/* Format Selection */}
-        <div className="card-refined p-6">
-          <h2 className="text-xl font-semibold text-slate-800 mb-4 flex items-center gap-2">
-            <FiSettings className="text-electric-500" />
-            Select Export Format
-          </h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {EXPORT_FORMATS.map(format => {
-              const Icon = format.icon;
-              const isSelected = selectedFormat === format.id;
-              
+        {/* Active model card */}
+        <div className="bg-white rounded-xl shadow-lg p-5">
+          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Active Model</h2>
+          <div className="px-4 py-3 border border-gray-200 rounded-lg bg-gray-50 flex items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                <span className="font-semibold text-slate-800 text-sm">{currentModel.name}</span>
+                <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-[10px] rounded-full font-medium">
+                  {currentModel.metadata?.modelConfig?.calliopeVersion
+                    ? `Calliope ${currentModel.metadata.modelConfig.calliopeVersion}`
+                    : 'Calliope 0.6.8'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500">
+                {locs.length} locations · {lnks.length} links · {techs.length} techs · {modelTs.length} time series · {modelOverrides.length} overrides · {modelScenarios.length} scenarios
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Format selection — lateral grid */}
+        <div className="bg-white rounded-xl shadow-lg p-5">
+          <h2 className="text-xl font-semibold text-slate-800 mb-3">Export Format</h2>
+          <div className="grid grid-cols-5 gap-3">
+            {EXPORT_FORMATS.map(fmt => {
+              const Icon = fmt.icon;
+              const isSelected = selectedFormat === fmt.id;
               return (
                 <button
-                  key={format.id}
-                  onClick={() => setSelectedFormat(format.id)}
-                  disabled={!format.supported}
-                  className={`relative p-4 rounded-xl border-2 transition-all duration-200 text-left ${
+                  key={fmt.id}
+                  onClick={() => fmt.supported && setSelectedFormat(fmt.id)}
+                  disabled={!fmt.supported}
+                  className={`relative flex flex-col items-center gap-2 px-3 py-4 rounded-xl border-2 text-center transition-all ${
                     isSelected
-                      ? `border-transparent bg-gradient-to-r ${format.color} text-white shadow-lg`
-                      : format.supported
-                      ? 'border-slate-200 hover:border-slate-300 bg-white hover:shadow-md'
-                      : 'border-slate-200 bg-slate-50 opacity-50 cursor-not-allowed'
+                      ? 'border-gray-700 bg-gray-50'
+                      : fmt.supported
+                      ? 'border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50'
+                      : 'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed'
                   }`}
                 >
-                  <div className="flex items-start gap-3">
-                    <Icon size={24} className={isSelected ? 'text-white' : 'text-slate-400'} />
-                    <div className="flex-1">
-                      <div className="font-semibold mb-1">{format.name}</div>
-                      <div className={`text-xs ${isSelected ? 'text-white/90' : 'text-slate-500'}`}>
-                        {format.description}
-                      </div>
-                    </div>
+                  <Icon size={20} className={isSelected ? 'text-gray-700' : 'text-gray-400'} />
+                  <div>
+                    <p className={`text-xs font-semibold leading-tight ${isSelected ? 'text-gray-800' : 'text-gray-600'}`}>
+                      {fmt.name}
+                    </p>
+                    <p className="text-[10px] text-gray-400 mt-0.5 leading-tight line-clamp-2">{fmt.description}</p>
                   </div>
-                  
-                  {!format.supported && (
-                    <div className="absolute top-2 right-2 bg-slate-200 text-slate-700 text-xs px-2 py-1 rounded">
-                      Coming Soon
+                  {!fmt.supported && (
+                    <span className="absolute top-1.5 right-1.5 text-[9px] bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded-full">
+                      Soon
+                    </span>
+                  )}
+                  {isSelected && (
+                    <div className="absolute top-1.5 left-1.5 w-2.5 h-2.5 rounded-full bg-gray-700 flex items-center justify-center">
+                      <div className="w-1 h-1 rounded-full bg-white" />
                     </div>
                   )}
                 </button>
@@ -623,124 +658,103 @@ calliope run model.yaml --scenario=Main
           </div>
         </div>
 
-        {/* Model Info */}
-        <div className="card-refined p-6">
-          <h2 className="text-xl font-semibold text-slate-800 mb-4">Model Information</h2>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <span className="text-sm text-slate-500">Model Name</span>
-              <p className="font-mono font-semibold text-slate-900">{currentModel.name}</p>
-            </div>
-            <div>
-              <span className="text-sm text-slate-500">Created</span>
-              <p className="font-medium text-slate-700">{new Date(currentModel.createdAt).toLocaleDateString()}</p>
-            </div>
-            <div>
-              <span className="text-sm text-slate-500">Locations</span>
-              <p className="font-semibold text-slate-900">{(currentModel.locations || []).length}</p>
-            </div>
-            <div>
-              <span className="text-sm text-slate-500">Transmission Links</span>
-              <p className="font-semibold text-slate-900">{(currentModel.links || []).length}</p>
-            </div>
-            <div>
-              <span className="text-sm text-slate-500">Technologies</span>
-              <p className="font-semibold text-slate-900">{(technologies || []).length}</p>
-            </div>
-            <div>
-              <span className="text-sm text-slate-500">Timeseries Files</span>
-              <p className="font-semibold text-slate-900">{timeSeries.filter(ts => ts.modelId === currentModel.id).length}</p>
+        {/* Structure + Action — side by side */}
+        <div className="grid grid-cols-2 gap-5 items-start">
+
+          {/* Output structure — detailed */}
+          <div className="bg-white rounded-xl shadow-lg p-5">
+            <h2 className="text-xl font-semibold text-slate-800 mb-3">Output Structure</h2>
+            <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-3 leading-5">
+              {selectedFormat === 'calliope07' ? (
+                <>
+                  <TreeRow icon={FiFolder} name={`${currentModel.name || 'model'}/`} isDir note="ZIP root" />
+                  <TreeRow indent={1} icon={FiFile} name="model.yaml" note="config + techs + nodes + data_tables" />
+                  <TreeRow indent={1} icon={FiFile} name="demand_profiles.csv" note="positive values (0.7 convention)" />
+                  {modelTs.map((ts, i) => (
+                    <TreeRow key={i} indent={1} icon={FiFile} name={`${ts.name || `timeseries_${i+1}`}.csv`} dim />
+                  ))}
+                  {modelTs.length === 0 && (
+                    <TreeRow indent={1} icon={FiFile} name="(no additional time series)" dim />
+                  )}
+                </>
+              ) : (
+                <>
+                  <TreeRow icon={FiFolder} name={`${currentModel.name || 'model'}/`} isDir note="ZIP root" />
+                  <TreeRow indent={1} icon={FiFile} name="model.yaml" note="root import manifest" />
+                  <TreeRow indent={1} icon={FiFile} name="README.md" />
+                  <TreeRow indent={1} icon={FiFolder} name="model_config/" isDir />
+                  <TreeRow indent={2} icon={FiFolder} name="locations/" isDir />
+                  <TreeRow indent={3} icon={FiFile} name="locations.yaml" note={`${locs.length} location${locs.length !== 1 ? 's' : ''}`} />
+                  <TreeRow indent={2} icon={FiFolder} name="links/" isDir />
+                  <TreeRow indent={3} icon={FiFile} name="transmission_links.yaml" note={`${lnks.length} link${lnks.length !== 1 ? 's' : ''}`} />
+                  <TreeRow indent={3} icon={FiFile} name="power_links.yaml" />
+                  <TreeRow indent={2} icon={FiFolder} name="techs/" isDir />
+                  <TreeRow indent={3} icon={FiFile} name="techs_supply.yaml" note={supplyTechs.length > 0 ? `${supplyTechs.length} techs` : undefined} />
+                  <TreeRow indent={3} icon={FiFile} name="techs_demand.yaml" note={demandTechs.length > 0 ? `${demandTechs.length} techs` : undefined} />
+                  <TreeRow indent={3} icon={FiFile} name="techs_storage.yaml" note={storageTechs.length > 0 ? `${storageTechs.length} techs` : undefined} />
+                  <TreeRow indent={3} icon={FiFile} name="techs_transmission.yaml" note={transmTechs.length > 0 ? `${transmTechs.length} techs` : undefined} />
+                  <TreeRow indent={3} icon={FiFile} name="techs_conversion.yaml" />
+                  <TreeRow indent={1} icon={FiFolder} name="scenarios/" isDir />
+                  <TreeRow indent={2} icon={FiFile} name="overrides.yaml" note={`${modelOverrides.length} override${modelOverrides.length !== 1 ? 's' : ''}`} />
+                  <TreeRow indent={2} icon={FiFile} name="scenarios.yaml" note={`${modelScenarios.length} scenario${modelScenarios.length !== 1 ? 's' : ''}`} />
+                  <TreeRow indent={1} icon={FiFolder} name="timeseries_data/" isDir />
+                  {modelTs.length > 0
+                    ? modelTs.map((ts, i) => (
+                        <TreeRow key={i} indent={2} icon={FiFile} name={`${ts.name || `timeseries_${i+1}`}.csv`} dim />
+                      ))
+                    : <TreeRow indent={2} icon={FiFile} name="(no time series files)" dim />
+                  }
+                </>
+              )}
             </div>
           </div>
-        </div>
 
-        {/* Export Structure Preview */}
-        <div className="card-refined p-6">
-          <h2 className="text-xl font-semibold text-slate-800 mb-4 flex items-center gap-2">
-            <FiFolder className="text-electric-500" />
-            Export Structure
-          </h2>
-          <div className="bg-slate-50 rounded-lg p-4 font-mono text-sm">
-            {selectedFormat === 'calliope07' ? (
-              <div className="space-y-1 text-slate-700">
-                <div className="flex items-center gap-2"><FiFile className="text-slate-400" /> model.yaml</div>
-                <div className="flex items-center gap-2 text-slate-500 text-xs ml-4">config + techs + nodes + data_tables</div>
-                <div className="flex items-center gap-2"><FiFile className="text-slate-400" /> demand_profiles.csv</div>
-                <div className="flex items-center gap-2 text-slate-500 text-xs ml-4">positive values (0.7 convention)</div>
-                <div className="flex items-center gap-2 text-slate-500 text-xs">+ any imported timeseries CSVs</div>
+          {/* Export action */}
+          <div className="bg-white rounded-xl shadow-lg p-5">
+            <h2 className="text-xl font-semibold text-slate-800 mb-3">Export</h2>
+            <p className="text-xs text-gray-500 mb-4">
+              The model will be packaged as a ZIP archive ready to use with{' '}
+              <span className="font-medium text-gray-700">
+                {EXPORT_FORMATS.find(f => f.id === selectedFormat)?.name || 'Calliope'}
+              </span>.
+              {selectedFormat === 'calliope07' && ' Uses single flat YAML + CSV layout (0.7 convention).'}
+              {selectedFormat === 'calliope' && ' Uses nested folder structure compatible with Calliope 0.6.8.'}
+            </p>
+            <button
+              onClick={() => {
+                if (selectedFormat === 'calliope07') { exportToCalliope07(); return; }
+                const fmt = EXPORT_FORMATS.find(f => f.id === selectedFormat);
+                if (!fmt.supported) {
+                  setExportStatus({ type: 'error', message: `${fmt.name} export is not yet supported.` });
+                  return;
+                }
+                exportToCalliope();
+              }}
+              disabled={exporting}
+              className="w-full py-2.5 bg-gray-700 text-white rounded-lg font-semibold text-sm hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
+            >
+              <FiDownload size={15} />
+              {exporting
+                ? 'Exporting…'
+                : `Export as ${EXPORT_FORMATS.find(f => f.id === selectedFormat)?.name || 'Calliope'} ZIP`}
+            </button>
+
+            {exportStatus && (
+              <div className={`mt-3 px-4 py-2.5 rounded-lg flex items-center gap-2 text-sm ${
+                exportStatus.type === 'success'
+                  ? 'bg-gray-50 text-gray-700 border border-gray-200'
+                  : exportStatus.type === 'error'
+                  ? 'bg-red-50 text-red-700 border border-red-100'
+                  : 'bg-gray-50 text-gray-600 border border-gray-200'
+              }`}>
+                {exportStatus.type === 'success'
+                  ? <FiCheckCircle size={14} className="flex-shrink-0" />
+                  : <FiAlertCircle size={14} className="flex-shrink-0" />}
+                <span>{exportStatus.message}</span>
               </div>
-            ) : (
-            <div className="space-y-1 text-slate-700">
-              <div className="flex items-center gap-2"><FiFile className="text-slate-400" /> model.yaml</div>
-              <div className="flex items-center gap-2"><FiFile className="text-slate-400" /> README.md</div>
-              <div className="ml-4">
-                <div className="flex items-center gap-2"><FiFolder className="text-amber-500" /> model_config/</div>
-                <div className="ml-4">
-                  <div className="flex items-center gap-2"><FiFolder className="text-amber-500" /> locations/</div>
-                  <div className="ml-4"><FiFile className="text-slate-400" /> locations.yaml</div>
-                  <div className="flex items-center gap-2"><FiFolder className="text-amber-500" /> links/</div>
-                  <div className="ml-4">
-                    <div><FiFile className="text-slate-400" /> transmission_links.yaml</div>
-                    <div><FiFile className="text-slate-400" /> power_links.yaml</div>
-                  </div>
-                  <div className="flex items-center gap-2"><FiFolder className="text-amber-500" /> techs/</div>
-                  <div className="ml-4">
-                    <div><FiFile className="text-slate-400" /> techs_supply.yaml</div>
-                    <div><FiFile className="text-slate-400" /> techs_demand.yaml</div>
-                    <div><FiFile className="text-slate-400" /> techs_storage.yaml</div>
-                    <div><FiFile className="text-slate-400" /> techs_transmission.yaml</div>
-                  </div>
-                </div>
-              </div>
-              <div className="ml-4">
-                <div className="flex items-center gap-2"><FiFolder className="text-amber-500" /> scenarios/</div>
-                <div className="ml-4">
-                  <div><FiFile className="text-slate-400" /> overrides.yaml</div>
-                  <div><FiFile className="text-slate-400" /> scenarios.yaml</div>
-                </div>
-              </div>
-              <div className="ml-4">
-                <div className="flex items-center gap-2"><FiFolder className="text-amber-500" /> timeseries_data/</div>
-                <div className="ml-4 text-slate-500">
-                  {timeSeries.filter(ts => ts.modelId === currentModel.id).length} CSV files
-                </div>
-              </div>
-            </div>
             )}
           </div>
-        </div>
 
-        {/* Export Button */}
-        <div className="card-refined p-6">
-          <button
-            onClick={() => {
-              if (selectedFormat === 'calliope07') { exportToCalliope07(); return; }
-              const format = EXPORT_FORMATS.find(f => f.id === selectedFormat);
-              if (!format.supported) {
-                setExportStatus({ type: 'error', message: `${format.name} export is not yet supported. Coming soon!` });
-                return;
-              }
-              exportToCalliope();
-            }}
-            disabled={exporting}
-            className={`w-full btn-primary flex items-center justify-center gap-3 py-4 text-lg ${
-              exporting ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
-          >
-            <FiDownload size={24} />
-            {exporting ? 'Exporting...' : `Export Model to ${EXPORT_FORMATS.find(f => f.id === selectedFormat)?.name || 'Calliope'} Format`}
-          </button>
-
-          {exportStatus && (
-            <div className={`mt-4 p-4 rounded-lg flex items-center gap-3 animate-slideUp ${
-              exportStatus.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' :
-              exportStatus.type === 'error' ? 'bg-red-50 text-red-800 border border-red-200' :
-              'bg-blue-50 text-blue-800 border border-blue-200'
-            }`}>
-              {exportStatus.type === 'success' ? <FiCheckCircle size={20} /> : <FiAlertCircle size={20} />}
-              <span className="font-medium">{exportStatus.message}</span>
-            </div>
-          )}
         </div>
       </div>
     </div>

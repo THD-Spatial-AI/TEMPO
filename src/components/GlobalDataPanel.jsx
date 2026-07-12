@@ -194,7 +194,7 @@ const GlobalDataPanel = ({
         <select
           value={selectedCountry}
           onChange={(e) => handleCountryChange(e.target.value)}
-          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400"
           disabled={loading}
         >
           <option value="">Choose a country...</option>
@@ -217,7 +217,7 @@ const GlobalDataPanel = ({
                 onClick={() => handleAdminLevelChange('country')}
                 className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                   adminLevel === 'country'
-                    ? 'bg-blue-500 text-white'
+                    ? 'bg-gray-700 text-white'
                     : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                 }`}
               >
@@ -227,7 +227,7 @@ const GlobalDataPanel = ({
                 onClick={() => handleAdminLevelChange('state')}
                 className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                   adminLevel === 'state'
-                    ? 'bg-blue-500 text-white'
+                    ? 'bg-gray-700 text-white'
                     : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                 }`}
               >
@@ -237,7 +237,7 @@ const GlobalDataPanel = ({
                 onClick={() => handleAdminLevelChange('commune')}
                 className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                   adminLevel === 'commune'
-                    ? 'bg-blue-500 text-white'
+                    ? 'bg-gray-700 text-white'
                     : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                 }`}
               >
@@ -251,7 +251,7 @@ const GlobalDataPanel = ({
                   type="checkbox"
                   checked={showBoundaries}
                   onChange={loadBoundaryData}
-                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                  className="w-4 h-4 text-gray-600 rounded focus:ring-gray-400"
                 />
                 <span className="text-sm text-slate-700">Show boundaries on map</span>
               </label>
@@ -274,7 +274,7 @@ const GlobalDataPanel = ({
                   placeholder="Search by name..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400"
                 />
               </div>
             </div>
@@ -285,7 +285,7 @@ const GlobalDataPanel = ({
               <select
                 value={fuelTypeFilter}
                 onChange={(e) => setFuelTypeFilter(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm"
               >
                 {fuelTypes.map(fuel => (
                   <option key={fuel} value={fuel}>{fuel === 'all' ? 'All Types' : fuel}</option>
@@ -341,7 +341,7 @@ const GlobalDataPanel = ({
               <button
                 onClick={exportFilteredData}
                 disabled={filteredPlants.length === 0}
-                className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-slate-300 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium"
+                className="w-full px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 disabled:bg-slate-300 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium"
               >
                 <FiDownload />
                 Export Filtered Data ({filteredPlants.length})
@@ -397,7 +397,7 @@ const GlobalDataPanel = ({
                     step="0.1"
                     value={infrastructureSizes?.powerPlants || 1}
                     onChange={(e) => onInfrastructureSizesChange?.({ ...infrastructureSizes, powerPlants: parseFloat(e.target.value) })}
-                    className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                    className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-gray-500"
                   />
                 </div>
                 <div>
@@ -412,7 +412,7 @@ const GlobalDataPanel = ({
                     step="0.1"
                     value={infrastructureSizes?.substations || 1}
                     onChange={(e) => onInfrastructureSizesChange?.({ ...infrastructureSizes, substations: parseFloat(e.target.value) })}
-                    className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                    className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-gray-500"
                   />
                 </div>
               </div>
@@ -433,7 +433,7 @@ const GlobalDataPanel = ({
       {loading && (
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-500 mx-auto mb-4"></div>
             <p className="text-sm text-slate-600">Loading power plant database...</p>
           </div>
         </div>

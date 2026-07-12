@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { AnimatePresence } from 'framer-motion';
+import Papa from 'papaparse';
 import Notification from '../components/Notification';
 import { TECH_TEMPLATES } from '../components/TechnologiesData';
 import { api } from '../services/api';
@@ -30,7 +31,7 @@ const LS_KEY = 'calliopeModels';
 
 function saveToLocalStorage(models) {
   try {
-    const toSave = models.map(prepareModelForBackend);
+    const toSave = models.map(prepareModelForLocalStorage);
     localStorage.setItem(LS_KEY, JSON.stringify(toSave));
   } catch (e) {
     if (e.name === 'QuotaExceededError') {
@@ -63,12 +64,57 @@ function stripHeavyLocationFields(loc) {
   return rest;
 }
 
-function prepareModelForBackend(model) {
+// For localStorage (quota ~5-10 MB): strip timeSeries CSV data to avoid QuotaExceededError.
+function prepareModelForLocalStorage(model) {
   return {
     ...model,
     timeSeries: [],
     locations: (model.locations || []).map(stripHeavyLocationFields),
   };
+}
+
+// For the Go backend (local SQLite, no quota): keep timeSeries so they survive a page refresh.
+// Only strip the per-location demand/resource arrays that can reach 88 MB, and strip
+// timeSeries[].data (parsed row objects) — csvContent (raw string) is kept instead and
+// is ~3-4× smaller. data is re-parsed from csvContent on load via restoreTimeSeries().
+function prepareModelForBackend(model) {
+  return {
+    ...model,
+    locations: (model.locations || []).map(stripHeavyLocationFields),
+    timeSeries: (model.timeSeries || []).map(({ data: _data, ...ts }) => ts),
+  };
+}
+
+// Re-parse csvContent back into the derived fields (data, columns, etc.) that were
+// stripped before saving. Called by normaliseModel when loading from the backend.
+function restoreTimeSeries(ts) {
+  if (!ts.csvContent || ts.data) return ts;
+  try {
+    const parsed   = Papa.parse(ts.csvContent, { header: true, skipEmptyLines: true, dynamicTyping: true });
+    const rawCols  = parsed.meta.fields || [];
+    const allCols  = rawCols.map((c, i) => (i === 0 && c === '') ? 'time' : c);
+    const rowData  = (rawCols[0] === '')
+      ? parsed.data.map(row => { const { '': dateVal, ...rest } = row; return { time: dateVal, ...rest }; })
+      : parsed.data;
+    const dateCol  = allCols[0] || 'time';
+    const dataCols = allCols.slice(1);
+    const statistics = {};
+    dataCols.forEach(col => {
+      const vals = rowData.map(r => parseFloat(r[col])).filter(v => !isNaN(v));
+      if (vals.length > 0) {
+        statistics[col] = {
+          min:  vals.reduce((a, b) => a < b ? a : b),
+          max:  vals.reduce((a, b) => a > b ? a : b),
+          mean: vals.reduce((a, b) => a + b, 0) / vals.length,
+          sum:  vals.reduce((a, b) => a + b, 0),
+        };
+      }
+    });
+    return { ...ts, data: rowData, columns: allCols, dateColumn: dateCol, dataColumns: dataCols, rowCount: rowData.length, statistics };
+  } catch (e) {
+    console.warn('[restoreTimeSeries] Failed to re-parse csvContent for', ts.fileName, '—', e?.message);
+    return ts; // return without data rather than crashing model load
+  }
 }
 
 // ─── Provider ──────────────────────────────────────────────────────────────
@@ -142,6 +188,9 @@ export const DataProvider = ({ children }) => {
   // Tracks model IDs for which a PUT is currently in-flight.
   // Prevents overlapping PUTs for the same model when debounce fires quickly.
   const activePutIds = useRef(new Set());
+  // Set synchronously (pre-render) in createModel so the mount effect's
+  // applyModelToState guard works even before React has flushed the batch.
+  const userCreatedModelRef = useRef(false);
 
   // Ref keeps latest state accessible inside debounced / async callbacks
   // without causing extra re-renders or stale closure issues.
@@ -170,7 +219,13 @@ export const DataProvider = ({ children }) => {
     setLinks(model.links || []);
     setParameters(model.parameters || []);
     setTechnologies(model.technologies?.length ? model.technologies : getDefaultTechnologies());
-    setTimeSeries(model.timeSeries || []);
+    // Restore csvContent → data for the active model only (normaliseModel skips this
+    // to avoid blocking the renderer while processing the full model list).
+    // Also backfill modelId for legacy entries that were saved without it.
+    setTimeSeries((model.timeSeries || []).map(ts => {
+      const restored = restoreTimeSeries(ts);
+      return restored.modelId ? restored : { ...restored, modelId: model.id };
+    }));
     setOverrides(model.overrides || {});
     setScenarios(model.scenarios || {});
     setIsDirty(false);
@@ -178,11 +233,12 @@ export const DataProvider = ({ children }) => {
 
   const normaliseModel = (m) => ({
     ...m,
+    modelType: m.modelType || 'calliope',
     locations: m.locations || [],
     links: m.links || [],
     parameters: m.parameters || [],
     technologies: m.technologies || [],
-    timeSeries: [],                        // never load large TS from storage
+    timeSeries: m.timeSeries || [],
     overrides: m.overrides || {},
     scenarios: m.scenarios || {},
     locationTechAssignments: m.locationTechAssignments || {},
@@ -204,8 +260,57 @@ export const DataProvider = ({ children }) => {
           const normalised = (remoteModels || []).map(normaliseModel);
           // All models fetched from the DB are already confirmed
           normalised.forEach(m => confirmedBackendIds.current.add(m.id));
-          setModels(normalised);
-          if (normalised.length > 0) applyModelToState(normalised[0]);
+
+          // Guard: if createModel fired while we were awaiting getModels(),
+          // don't overwrite the user's active session. We use a plain ref
+          // (not stateRef) because stateRef is only updated at render time —
+          // the batch from createModel may not have flushed yet.
+          const userAlreadyActive = userCreatedModelRef.current;
+
+          if (normalised.length > 0) {
+            // Recover models whose POST failed and were only saved to localStorage.
+            // tempIds are 13-digit timestamps; real backend IDs are small integers.
+            const local = loadFromLocalStorage();
+            const backendIdSet = new Set(normalised.map(m => String(m.id)));
+            const orphans = local.filter(
+              m => !backendIdSet.has(String(m.id)) && String(m.id).length >= 13
+            );
+            const allModels = orphans.length > 0 ? [...normalised, ...orphans] : normalised;
+
+            if (userAlreadyActive) {
+              // Merge backend models into state without disturbing the active model
+              setModels(prev => {
+                const existingIds = new Set(prev.map(m => String(m.id)));
+                const toAdd = allModels.filter(m => !existingIds.has(String(m.id)));
+                return toAdd.length > 0 ? [...prev, ...toAdd] : prev;
+              });
+            } else {
+              setModels(allModels);
+              applyModelToState(allModels[0]);
+            }
+
+            // Try to re-save orphans to backend now that it's available
+            orphans.forEach(orphan => {
+              api.saveModel(prepareModelForBackend(orphan))
+                .then(result => {
+                  const finalId = result?.id ?? orphan.id;
+                  if (finalId && String(finalId) !== String(orphan.id) && mounted) {
+                    confirmedBackendIds.current.add(finalId);
+                    setModels(prev => prev.map(m => m.id === orphan.id ? { ...m, id: finalId } : m));
+                    setCurrentModelId(prev => prev === orphan.id ? finalId : prev);
+                  }
+                })
+                .catch(() => {});
+            });
+          } else {
+            // Backend is healthy but has no models — a previous save may have failed.
+            // Fall back to localStorage so the user doesn't lose their work.
+            const local = loadFromLocalStorage();
+            if (mounted && local.length > 0 && !userAlreadyActive) {
+              setModels(local);
+              applyModelToState(local[0]);
+            }
+          }
           // Load completed runs from backend (once)
           if (!completedJobsLoadedRef.current) {
             completedJobsLoadedRef.current = true;
@@ -221,6 +326,12 @@ export const DataProvider = ({ children }) => {
         } catch (e) {
           console.error('Failed to load models from backend:', e);
           showNotification('Could not load models from database.', 'error');
+          // Try localStorage as a last resort
+          const local = loadFromLocalStorage();
+          if (mounted && local.length > 0) {
+            setModels(local);
+            applyModelToState(local[0]);
+          }
         }
       } else {
         // Fallback: localStorage
@@ -234,12 +345,14 @@ export const DataProvider = ({ children }) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Sync to localStorage when backend is unavailable ──────────────────────
+  // ── Always mirror models to localStorage as a safety net ─────────────────
+  // This ensures models survive a page refresh even when the backend save fails.
+  // prepareModelForLocalStorage strips timeSeries so quota is never exceeded.
   useEffect(() => {
-    if (!backendAvailable && models.length > 0) {
+    if (models.length > 0) {
       saveToLocalStorage(models);
     }
-  }, [models, backendAvailable]);
+  }, [models]);
 
   // ── createModel ───────────────────────────────────────────────────────────
   // Synchronous (optimistic): model is added to state immediately with a
@@ -263,9 +376,14 @@ export const DataProvider = ({ children }) => {
       technologiesCount: technologiesData?.length,
     });
 
+    // Mark synchronously (pre-render) so the mount effect guard works even
+    // before React has flushed this batch to stateRef.
+    userCreatedModelRef.current = true;
+
     const tempId = Date.now().toString();
     const newModel = {
       id: tempId,
+      modelType: templateMetadata.modelType || 'calliope',
       name: name || `Model ${stateRef.current.models.length + 1}`,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -300,7 +418,7 @@ export const DataProvider = ({ children }) => {
     setOverrides(newModel.overrides);
     setScenarios(newModel.scenarios);
 
-    import.meta.env.DEV && console.log('Model created (optimistic):', { id: tempId, locationsSet: newModel.locations.length });
+    import.meta.env.DEV && console.log('[TEMPO] createModel: timeSeries count=', newModel.timeSeries.length, newModel.timeSeries.map(ts => ({id: ts.id, hasCsvContent: !!ts.csvContent, csvLen: ts.csvContent?.length})));
 
     // ── Async backend persist ────────────────────────────────────────────────
     if (stateRef.current.backendAvailable) {
@@ -339,7 +457,10 @@ export const DataProvider = ({ children }) => {
         .catch(e => {
           pendingSaveIds.current.delete(tempId);
           console.error('Failed to save model to backend, using local fallback:', e);
-          showNotification('Model saved locally (backend unavailable).', 'warning');
+          showNotification('Model saved locally (backend save failed).', 'warning');
+          // Actually persist to localStorage so the model survives a page refresh.
+          // stateRef.current.models already has the optimistic model entry.
+          saveToLocalStorage(stateRef.current.models);
         });
     }
 
@@ -384,7 +505,10 @@ export const DataProvider = ({ children }) => {
         if (updatedModel) {
           activePutIds.current.add(currentModelId);
           api.updateModel(currentModelId, prepareModelForBackend(updatedModel))
-            .catch(e => console.error('Failed to sync model to backend:', e))
+            .catch(e => {
+              console.error('Failed to sync model to backend:', e);
+              saveToLocalStorage(stateRef.current.models);
+            })
             .finally(() => activePutIds.current.delete(currentModelId));
         }
       }

@@ -46,54 +46,54 @@ const SOURCE_META = {
   },
   gas: {
     label:   "Natural Gas CCGT",
-    hue:     "#f97316",
-    bg:      "bg-orange-50",
-    border:  "border-orange-200",
+    hue:     "#6b7280",
+    bg:      "bg-gray-50",
+    border:  "border-gray-200",
     tagline: "Medium CO₂ concentration · 0.35-0.45 kg CO₂/kWh",
     co2Range: [0.35, 0.45],
     capacity: [400, 800],
   },
   cement: {
     label:   "Cement Plant",
-    hue:     "#78716c",
-    bg:      "bg-stone-50",
-    border:  "border-stone-300",
+    hue:     "#6b7280",
+    bg:      "bg-gray-50",
+    border:  "border-gray-200",
     tagline: "Process + combustion CO₂ · 0.7-0.9 kg CO₂/kWh",
     co2Range: [0.75, 0.85],
     capacity: [50, 200],
   },
   steel: {
     label:   "Steel Blast Furnace",
-    hue:     "#dc2626",
-    bg:      "bg-red-50",
-    border:  "border-red-200",
+    hue:     "#6b7280",
+    bg:      "bg-gray-50",
+    border:  "border-gray-200",
     tagline: "Very high CO₂ from coke · 1.5-2.0 kg CO₂/kWh",
     co2Range: [1.6, 1.9],
     capacity: [100, 300],
   },
   refinery: {
     label:   "Oil Refinery",
-    hue:     "#a16207",
-    bg:      "bg-yellow-50",
-    border:  "border-yellow-300",
+    hue:     "#6b7280",
+    bg:      "bg-gray-50",
+    border:  "border-gray-200",
     tagline: "Mixed process emissions · 0.4-0.5 kg CO₂/kWh",
     co2Range: [0.42, 0.48],
     capacity: [150, 400],
   },
   biomass: {
     label:   "Biomass Power (BECCS)",
-    hue:     "#22c55e",
-    bg:      "bg-green-50",
-    border:  "border-green-200",
+    hue:     "#6b7280",
+    bg:      "bg-gray-50",
+    border:  "border-gray-200",
     tagline: "Carbon-negative potential · 0.02-0.08 kg CO₂/kWh",
     co2Range: [0.03, 0.06],
     capacity: [20, 100],
   },
   igcc: {
     label:   "IGCC Coal",
-    hue:     "#6366f1",
-    bg:      "bg-indigo-50",
-    border:  "border-indigo-200",
+    hue:     "#6b7280",
+    bg:      "bg-gray-50",
+    border:  "border-gray-200",
     tagline: "Pre-combustion capture · 0.7-0.9 kg CO₂/kWh",
     co2Range: [0.75, 0.88],
     capacity: [400, 600],
@@ -170,9 +170,9 @@ export default function CCSSourcePanel({
           data: flueGasCO2,
           smooth: true,
           symbol: "none",
-          color: "#ef4444",
-          lineStyle: { color: "#ef4444", width: 2 },
-          areaStyle: { color: "#ef444433" },
+          color: "#6b7280",
+          lineStyle: { color: "#6b7280", width: 2 },
+          areaStyle: { color: "#6b728033" },
           yAxisIndex: 1,
         },
       ],
@@ -189,19 +189,19 @@ export default function CCSSourcePanel({
       grid: { top: 24, bottom: 48, left: 54, right: 16 },
       xAxis: { type: "category", data: pcts.map(p => `${p}%`), name: "Plant Load", nameLocation: "middle", nameGap: 30, axisLabel: { fontSize: 9, interval: 1 }, axisTick: { show: false } },
       yAxis: { type: "value", name: "t CO₂/h", nameTextStyle: { fontSize: 9 }, axisLabel: { fontSize: 9 } },
-      series: [{ type: "line", data: co2s, smooth: false, symbol: "none", color: "#ef4444", lineStyle: { color: "#ef4444", width: 2 }, areaStyle: { color: "#ef444428" } }],
+      series: [{ type: "line", data: co2s, smooth: false, symbol: "none", color: "#6b7280", lineStyle: { color: "#6b7280", width: 2 }, areaStyle: { color: "#6b728028" } }],
     };
   }, [localParams.capacity_kw, localParams.co2_emission_kg_kwh]);
 
   // Fuel type emission factor benchmark (horizontal bar)
   const benchmarkChart = useMemo(() => {
     const items = [
-      { name: "Biomass BECCS", v: 0.04, c: "#22c55e" },
-      { name: "Gas CCGT",      v: 0.38, c: "#f97316" },
-      { name: "Oil Refinery",  v: 0.44, c: "#a16207" },
-      { name: "Cement",        v: 0.82, c: "#78716c" },
+      { name: "Biomass BECCS", v: 0.04, c: "#d1d5db" },
+      { name: "Gas CCGT",      v: 0.38, c: "#9ca3af" },
+      { name: "Oil Refinery",  v: 0.44, c: "#6b7280" },
+      { name: "Cement",        v: 0.82, c: "#4b5563" },
       { name: "Coal PC",       v: 0.92, c: "#374151" },
-      { name: "Steel BF",      v: 1.70, c: "#dc2626" },
+      { name: "Steel BF",      v: 1.70, c: "#1f2937" },
     ];
     const cur = localParams.co2_emission_kg_kwh;
     return {
@@ -269,16 +269,16 @@ export default function CCSSourcePanel({
         const appliedV = variants.find((v) => v.id === appliedId) ?? null;
         return (
           <div className={`bg-white rounded-xl border shadow-sm px-4 py-3 flex flex-wrap items-start gap-3
-            ${isPending ? "border-amber-300" : appliedV ? "border-emerald-300" : "border-slate-200"}`}>
+            ${isPending ? "border-gray-400" : appliedV ? "border-gray-300" : "border-slate-200"}`}>
             <FiLayers size={12} style={{ color: meta.hue }} className="mt-1" />
             <div className="flex-1 min-w-[220px] space-y-1.5">
               <div className="flex items-center gap-2">
                 <span className="text-[11px] font-semibold text-slate-600">Technology Variant</span>
-                {appliedV && !isPending && <span className="text-[10px] bg-emerald-100 text-emerald-700 font-semibold px-2 py-0.5 rounded-full">✓ Applied</span>}
-                {isPending && <span className="text-[10px] bg-amber-100 text-amber-700 font-semibold px-2 py-0.5 rounded-full">● Pending — click Apply</span>}
+                {appliedV && !isPending && <span className="text-[10px] bg-gray-100 text-gray-700 font-semibold px-2 py-0.5 rounded-full">✓ Applied</span>}
+                {isPending && <span className="text-[10px] bg-gray-100 text-gray-700 font-semibold px-2 py-0.5 rounded-full">● Pending — click Apply</span>}
               </div>
               <select value={stagedId} onChange={handleStage}
-                className="w-full text-[12px] border border-slate-200 rounded-lg px-2.5 py-1.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer">
+                className="w-full text-[12px] border border-slate-200 rounded-lg px-2.5 py-1.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-gray-400 cursor-pointer">
                 <option value="">— default —</option>
                 {variants.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
               </select>
@@ -287,12 +287,12 @@ export default function CCSSourcePanel({
             <div className="flex flex-col gap-1.5 shrink-0">
               <button onClick={handleApply} disabled={!isPending && !appliedId}
                 className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all
-                  ${isPending ? "bg-emerald-500 text-white hover:bg-emerald-600 shadow-sm" : appliedId ? "bg-slate-100 text-slate-500 hover:bg-slate-200" : "bg-slate-100 text-slate-300 cursor-not-allowed"}`}>
+                  ${isPending ? "bg-gray-700 text-white hover:bg-gray-800 shadow-sm" : appliedId ? "bg-slate-100 text-slate-500 hover:bg-slate-200" : "bg-slate-100 text-slate-300 cursor-not-allowed"}`}>
                 {isPending ? "✓ Apply variant" : appliedId ? "✓ Applied" : "Apply"}
               </button>
               {(appliedId || isPending) && (
                 <button onClick={() => { setLocalParams({}); onParamsChange?.({}); }}
-                  className="px-3 py-1 rounded-lg text-[10px] text-red-400 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200 transition-all">
+                  className="px-3 py-1 rounded-lg text-[10px] text-gray-500 hover:text-gray-700 hover:bg-gray-50 border border-transparent hover:border-gray-200 transition-all">
                   ✕ Reset
                 </button>
               )}
@@ -309,7 +309,7 @@ export default function CCSSourcePanel({
           <select
             value={selectedChart}
             onChange={(e) => setSelectedChart(e.target.value)}
-            className="ml-auto text-xs bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            className="ml-auto text-xs bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 text-slate-600 focus:outline-none focus:ring-2 focus:ring-gray-300"
           >
             <option value="profile">24-Hour Operation Profile</option>
             <option value="co2">CO₂ Output vs Plant Load</option>
@@ -352,7 +352,7 @@ export default function CCSSourcePanel({
       </div>
 
       {/* ── Info Banner ────────────────────────────────────────────────────── */}
-      <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-2xl text-xs text-blue-700">
+      <div className="flex items-start gap-2 p-3 bg-gray-50 border border-gray-200 rounded-2xl text-xs text-gray-700">
         <FiInfo className="shrink-0 mt-0.5" size={14} />
         <p>
           <b>Flue gas properties:</b> Temperature and CO₂ concentration affect absorber performance.
@@ -429,11 +429,11 @@ function ParamSlider({ label, unit, value, min, max, step = 1, onChange }) {
 
 function MetricBadge({ label, value, unit, color = "slate" }) {
   const palettes = {
-    amber:  "bg-amber-50  border-amber-200  text-amber-700",
-    green:  "bg-emerald-50 border-emerald-200 text-emerald-700",
-    violet: "bg-violet-50 border-violet-200 text-violet-700",
-    blue:   "bg-blue-50   border-blue-200   text-blue-700",
-    red:    "bg-red-50    border-red-200    text-red-700",
+    amber:  "bg-gray-50 border-gray-200 text-gray-700",
+    green:  "bg-gray-50 border-gray-200 text-gray-700",
+    violet: "bg-gray-50 border-gray-200 text-gray-700",
+    blue:   "bg-gray-50 border-gray-200 text-gray-700",
+    red:    "bg-gray-50 border-gray-200 text-gray-700",
     slate:  "bg-slate-50  border-slate-200  text-slate-700",
   };
   return (
@@ -450,16 +450,16 @@ function MetricBadge({ label, value, unit, color = "slate" }) {
 function KpiCard({ label, value, unit, color = "slate" }) {
   const ring = {
     electric: "border-electric-200 bg-electric-50",
-    emerald:  "border-emerald-200 bg-emerald-50",
-    amber:    "border-amber-200 bg-amber-50",
-    red:      "border-red-200 bg-red-50",
+    emerald:  "border-gray-200 bg-gray-50",
+    amber:    "border-gray-200 bg-gray-50",
+    red:      "border-gray-200 bg-gray-50",
     slate:    "border-slate-200 bg-slate-50",
   };
   const text = {
     electric: "text-electric-700",
-    emerald:  "text-emerald-700",
-    amber:    "text-amber-700",
-    red:      "text-red-700",
+    emerald:  "text-gray-700",
+    amber:    "text-gray-700",
+    red:      "text-gray-700",
     slate:    "text-slate-700",
   };
   return (

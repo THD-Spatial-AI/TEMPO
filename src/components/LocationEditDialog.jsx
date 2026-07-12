@@ -590,7 +590,7 @@ const LocationEditDialog = ({
                                           delete e[key];
                                           setEditingEssentials({ ...editingEssentials, [techName]: e });
                                         }}
-                                        className="text-slate-400 hover:text-red-500"
+                                        className="text-slate-400 hover:text-gray-600"
                                       >
                                         <FiX size={12} />
                                       </button>
@@ -643,7 +643,7 @@ const LocationEditDialog = ({
                                           delete c[key];
                                           setEditingConstraints({ ...editingConstraints, [techName]: c });
                                         }}
-                                        className="text-slate-400 hover:text-red-500"
+                                        className="text-slate-400 hover:text-gray-600"
                                       >
                                         <FiX size={12} />
                                       </button>
@@ -679,7 +679,7 @@ const LocationEditDialog = ({
                                           delete c[key];
                                           setEditingCosts({ ...editingCosts, [techName]: c });
                                         }}
-                                        className="text-slate-400 hover:text-red-500"
+                                        className="text-slate-400 hover:text-gray-600"
                                       >
                                         <FiX size={12} />
                                       </button>

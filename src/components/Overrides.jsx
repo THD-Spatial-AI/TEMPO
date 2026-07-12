@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
   FiEdit3, FiTrash2, FiPlus, FiCopy, FiChevronDown, FiChevronRight,
-  FiEdit2, FiSearch, FiZap, FiBookOpen, FiList, FiX, FiCheck, FiInfo,
+  FiEdit2, FiSearch, FiZap, FiX, FiCheck, FiInfo,
 } from 'react-icons/fi';
 import { useData } from '../context/DataContext';
 import SaveBar from './ui/SaveBar';
@@ -17,33 +17,24 @@ const TemplateCard = ({ template, onImport, alreadyAdded }) => {
     <div
       className={`rounded-xl border transition-all ${
         alreadyAdded
-          ? 'border-green-200 bg-green-50'
+          ? 'border-gray-200 bg-gray-50'
           : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
       }`}
     >
       <div className="p-4">
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-start gap-3 flex-1 min-w-0">
-            <span className="text-2xl shrink-0 mt-0.5">{template.icon}</span>
+            <span className="text-base shrink-0 mt-0.5">{template.icon}</span>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="text-sm font-semibold text-slate-800">{template.name}</h3>
                 {alreadyAdded && (
-                  <span className="text-xs bg-green-200 text-green-700 px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <span className="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full flex items-center gap-1">
                     <FiCheck size={10} /> Added
                   </span>
                 )}
               </div>
               <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{template.description}</p>
-              {template.tags.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {template.tags.slice(0, 4).map((tag) => (
-                    <span key={tag} className="text-xs bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
           <div className="flex gap-1 shrink-0">
@@ -58,7 +49,7 @@ const TemplateCard = ({ template, onImport, alreadyAdded }) => {
               onClick={() => onImport(template)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                 alreadyAdded
-                  ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                  ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   : 'bg-slate-800 text-white hover:bg-slate-700'
               }`}
             >
@@ -118,7 +109,7 @@ const ImportModal = ({ template, onConfirm, onClose }) => {
           {/* Override name */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">
-              Override name <span className="text-red-500">*</span>
+              Override name <span className="text-gray-500">*</span>
             </label>
             <input
               type="text"
@@ -165,8 +156,8 @@ const ImportModal = ({ template, onConfirm, onClose }) => {
 
           {/* Detail text */}
           {template.detail && (
-            <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
-              <p className="text-xs text-blue-700 leading-relaxed">{template.detail}</p>
+            <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
+              <p className="text-xs text-gray-700 leading-relaxed">{template.detail}</p>
             </div>
           )}
 
@@ -502,9 +493,9 @@ const Overrides = () => {
     return (
       <div className="flex-1 flex items-center justify-center bg-slate-50">
         <div className="text-center">
-          <FiEdit3 className="mx-auto text-slate-300 mb-4" size={64} />
-          <h2 className="text-xl font-semibold text-slate-600 mb-2">No Model Selected</h2>
-          <p className="text-slate-500">Please select or create a model to manage overrides</p>
+          <FiEdit3 className="mx-auto text-slate-300 mb-3" size={32} />
+          <p className="font-semibold text-slate-600 mb-1">No model selected</p>
+          <p className="text-sm text-slate-400">Select a model to manage overrides</p>
         </div>
       </div>
     );
@@ -516,52 +507,40 @@ const Overrides = () => {
     <div className="flex-1 h-screen overflow-hidden flex flex-col bg-slate-50">
       <SaveBar label="Overrides" />
       {/* ── Page Header ── */}
-      <div className="bg-white border-b border-slate-200 px-6 py-4 shrink-0">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-              <FiEdit3 />
-              Overrides
-            </h1>
-            <p className="text-sm text-slate-500 mt-0.5">
-              Model variations for{' '}
-              <span className="font-medium text-slate-700">{currentModel?.name}</span>
-              {overrideCount > 0 && (
-                <span className="ml-2 text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">
-                  {overrideCount} defined
-                </span>
-              )}
-            </p>
-          </div>
-          <button
-            onClick={() => setCustomModal({})}
-            className="px-4 py-2 bg-slate-800 text-white rounded-xl hover:bg-slate-700 transition-colors flex items-center gap-2 text-sm font-medium"
-          >
-            <FiPlus size={16} />
-            Custom Override
-          </button>
+      <div className="bg-white border-b border-slate-200 px-5 py-2.5 shrink-0 flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <FiEdit3 size={14} className="text-slate-500 shrink-0" />
+          <h1 className="text-sm font-semibold text-slate-800">Overrides</h1>
+          <span className="text-xs text-slate-400 truncate">{currentModel?.name}</span>
+          {overrideCount > 0 && (
+            <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs font-medium shrink-0">
+              {overrideCount}
+            </span>
+          )}
         </div>
-
-        {/* Tab bar */}
-        <div className="flex gap-1 mt-4">
+        <div className="flex gap-1 shrink-0">
           {[
-            { id: 'library', icon: FiBookOpen, label: 'Template Library' },
-            { id: 'yours',   icon: FiList,    label: `Your Overrides${overrideCount > 0 ? ` (${overrideCount})` : ''}` },
-          ].map(({ id, icon: Icon, label }) => (
+            { id: 'library', label: 'Template Library' },
+            { id: 'yours',   label: `My Overrides${overrideCount > 0 ? ` (${overrideCount})` : ''}` },
+          ].map(({ id, label }) => (
             <button
               key={id}
               onClick={() => setActiveTab(id)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                activeTab === id
-                  ? 'bg-slate-800 text-white'
-                  : 'text-slate-600 hover:bg-slate-100'
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                activeTab === id ? 'bg-slate-800 text-white' : 'text-slate-600 hover:bg-slate-100'
               }`}
             >
-              <Icon size={15} />
               {label}
             </button>
           ))}
         </div>
+        <button
+          onClick={() => setCustomModal({})}
+          className="px-3 py-1.5 bg-gray-700 text-white rounded-lg text-xs font-medium hover:bg-gray-800 transition-colors flex items-center gap-1.5 shrink-0"
+        >
+          <FiPlus size={12} />
+          Custom
+        </button>
       </div>
 
       {/* ── TEMPLATE LIBRARY TAB ── */}
@@ -663,10 +642,10 @@ const Overrides = () => {
       {/* ── YOUR OVERRIDES TAB ── */}
       {activeTab === 'yours' && (
         <div className="flex-1 overflow-y-auto p-6">
-          <div className="max-w-4xl mx-auto">
+          <div>
             {overrideCount === 0 ? (
               <div className="text-center py-20">
-                <FiZap className="mx-auto text-slate-200 mb-4" size={52} />
+                <FiZap className="mx-auto text-slate-200 mb-3" size={32} />
                 <h3 className="text-lg font-medium text-slate-500 mb-1">No overrides yet</h3>
                 <p className="text-sm text-slate-400 mb-5">
                   Browse the template library or create a custom override
@@ -715,7 +694,7 @@ const Overrides = () => {
                               }}
                               className="flex-1 px-2 py-1 text-sm border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-slate-400"
                             />
-                            <button onClick={() => commitRename(name)} className="p-1 text-green-600 hover:bg-green-50 rounded">
+                            <button onClick={() => commitRename(name)} className="p-1 text-gray-600 hover:bg-gray-50 rounded">
                               <FiCheck size={15} />
                             </button>
                             <button onClick={() => setRenamingId(null)} className="p-1 text-slate-400 hover:bg-slate-100 rounded">
@@ -743,7 +722,7 @@ const Overrides = () => {
                           </button>
                           <button
                             onClick={() => handleDeleteOverride(name)}
-                            className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg"
+                            className="p-1.5 text-slate-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
                             title="Delete"
                           >
                             <FiTrash2 size={14} />
@@ -762,7 +741,7 @@ const Overrides = () => {
                               {isJsonOpen && (
                                 <button
                                   onClick={() => saveJsonEdit(name)}
-                                  className="px-3 py-1 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700"
+                                  className="px-3 py-1 text-xs bg-gray-700 text-white rounded-lg hover:bg-gray-800"
                                 >
                                   Save JSON
                                 </button>

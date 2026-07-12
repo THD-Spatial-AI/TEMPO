@@ -40,7 +40,7 @@ const Step = ({ n, title, children }) => (
 
 // Inline tip box
 const Tip = ({ children }) => (
-  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800 mt-3">
+  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm text-gray-800 mt-3">
     <span className="font-semibold">Tip: </span>{children}
   </div>
 );
@@ -93,7 +93,7 @@ const Tutorial = () => {
               <div className="flex items-center justify-center gap-4 text-sm font-medium text-slate-500 flex-wrap">
                 {['Calliope-based', 'Visual Interface', 'Real GIS Data', 'No Coding'].map(l => (
                   <div key={l} className="flex items-center gap-1.5">
-                    <FiCheckCircle className="text-emerald-500" />
+                    <FiCheckCircle className="text-gray-500" />
                     <span>{l}</span>
                   </div>
                 ))}
@@ -355,7 +355,7 @@ const Tutorial = () => {
 
                   <Step n={5} title="Save & Validate">
                     <p className="text-slate-600 text-sm">TEMPO saves automatically. Switch to <strong>Dashboard</strong> to see the system KPIs update in real time — locations count, link count, installed capacity, and estimated CAPEX.</p>
-                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 mt-3 text-sm text-emerald-800">
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mt-3 text-sm text-gray-800">
                       <FiCheckCircle className="inline mr-2" />
                       <strong>Model ready to run</strong> — head to <strong>Run</strong> in the sidebar, configure the time horizon and solver, and start the optimisation.
                     </div>
@@ -419,9 +419,9 @@ Node_North,Node_South,450,4000,380,hvdc_transmission`}</CodeBlock>
                     <div className="bg-slate-100 rounded-lg p-3 mt-2 text-sm text-slate-700">
                       <p className="font-semibold mb-1">Validation checks run automatically:</p>
                       <ul className="space-y-1 text-xs">
-                        <li><FiCheckCircle className="inline text-emerald-500 mr-1" />Coordinate range (−90 to 90 lat, −180 to 180 lon)</li>
-                        <li><FiCheckCircle className="inline text-emerald-500 mr-1" />Link references — every <code>from</code>/<code>to</code> name must exist in Locations</li>
-                        <li><FiCheckCircle className="inline text-emerald-500 mr-1" />Entity type is one of: substation, renewable_site, power_plant, demand_center, storage_facility, network_node</li>
+                        <li><FiCheckCircle className="inline text-gray-500 mr-1" />Coordinate range (−90 to 90 lat, −180 to 180 lon)</li>
+                        <li><FiCheckCircle className="inline text-gray-500 mr-1" />Link references — every <code>from</code>/<code>to</code> name must exist in Locations</li>
+                        <li><FiCheckCircle className="inline text-gray-500 mr-1" />Entity type is one of: substation, renewable_site, power_plant, demand_center, storage_facility, network_node</li>
                       </ul>
                     </div>
                   </Step>
@@ -774,7 +774,7 @@ Gas_Plant_Berlin,gas_ccgt,monetary,fuel_cost,35,EUR/MWh`}</CodeBlock>
                       {cols.map(({ col, req, desc }) => (
                         <div key={col} className="flex gap-2 text-xs">
                           <code className="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded font-mono flex-shrink-0">{col}</code>
-                          {req && <span className="text-red-500 font-bold flex-shrink-0">*</span>}
+                          {req && <span className="text-gray-500 font-bold flex-shrink-0">*</span>}
                           <span className="text-slate-500">{desc}</span>
                         </div>
                       ))}
@@ -782,7 +782,7 @@ Gas_Plant_Berlin,gas_ccgt,monetary,fuel_cost,35,EUR/MWh`}</CodeBlock>
                   </div>
                 ))}
               </div>
-              <p className="text-xs text-slate-400 mt-2"><span className="text-red-500">*</span> Required column</p>
+              <p className="text-xs text-slate-400 mt-2"><span className="text-gray-500">*</span> Required column</p>
             </div>
           </div>
         );

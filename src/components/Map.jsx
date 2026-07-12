@@ -1446,11 +1446,7 @@ const Map = ({ center = [51.505, -0.09], zoom = 13 }) => {
                       >
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
-                            <FiActivity size={14} className={`${
-                              ts.type === 'demand' ? 'text-orange-600' :
-                              ts.type?.includes('resource') ? 'text-green-600' :
-                              'text-blue-600'
-                            }`} />
+                            <FiActivity size={14} className="text-gray-600" />
                             <span className="font-medium text-sm text-slate-800">{ts.name || ts.fileName}</span>
                           </div>
                           <button
@@ -1459,7 +1455,7 @@ const Map = ({ center = [51.505, -0.09], zoom = 13 }) => {
                               setTimeSeries(newTimeSeries);
                               showNotification('Timeseries deleted', 'success');
                             }}
-                            className="text-gray-400 hover:text-red-600 transition-colors"
+                            className="text-gray-400 hover:text-gray-600 transition-colors"
                           >
                             <FiTrash2 size={14} />
                           </button>
@@ -1473,11 +1469,7 @@ const Map = ({ center = [51.505, -0.09], zoom = 13 }) => {
                               return (
                                 <div
                                   key={i}
-                                  className={`flex-1 rounded-t ${
-                                    ts.type === 'demand' ? 'bg-orange-400' :
-                                    ts.type?.includes('resource') ? 'bg-green-400' :
-                                    'bg-blue-400'
-                                  } opacity-70`}
+                                  className="flex-1 rounded-t bg-gray-400 opacity-70"
                                   style={{ height: `${height}%`, minHeight: '2px' }}
                                 />
                               );
@@ -1502,11 +1494,7 @@ const Map = ({ center = [51.505, -0.09], zoom = 13 }) => {
                           )}
                           <div className="flex justify-between">
                             <span>Type:</span>
-                            <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
-                              ts.type === 'demand' ? 'bg-orange-100 text-orange-800' :
-                              ts.type?.includes('resource') ? 'bg-green-100 text-green-800' :
-                              'bg-blue-100 text-blue-800'
-                            }`}>
+                            <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
                               {ts.type || 'CSV'}
                             </span>
                           </div>
@@ -1627,7 +1615,7 @@ const Map = ({ center = [51.505, -0.09], zoom = 13 }) => {
               href="https://www.openstreetmap.org/copyright"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-600 hover:underline font-medium"
+              className="text-gray-600 hover:underline font-medium"
               onClick={e => e.stopPropagation()}
             >
               © OpenStreetMap contributors
@@ -1637,7 +1625,7 @@ const Map = ({ center = [51.505, -0.09], zoom = 13 }) => {
               href="https://operations.osmfoundation.org/policies/nominatim/"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-600 hover:underline"
+              className="text-gray-600 hover:underline"
               onClick={e => e.stopPropagation()}
             >
               Usage policy

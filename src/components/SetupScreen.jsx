@@ -3,14 +3,14 @@ import { FiCheckCircle, FiAlertCircle, FiLoader, FiTerminal, FiRefreshCw, FiCloc
 
 // ── Status icon ───────────────────────────────────────────────────────────────
 function ServiceIcon({ running, healthy }) {
-  if (running && healthy !== false) return <FiCheckCircle className="w-5 h-5 text-emerald-500 flex-shrink-0" />;
-  if (running && healthy === false)  return <FiAlertCircle  className="w-5 h-5 text-yellow-500 flex-shrink-0" />;
+  if (running && healthy !== false) return <FiCheckCircle className="w-5 h-5 text-gray-500 flex-shrink-0" />;
+  if (running && healthy === false)  return <FiAlertCircle  className="w-5 h-5 text-gray-400 flex-shrink-0" />;
   return <FiClock className="w-5 h-5 text-slate-300 flex-shrink-0" />;
 }
 
 function ServiceRow({ svc }) {
   const bg = svc.running
-    ? svc.healthy === false ? 'border-yellow-200 bg-yellow-50' : 'border-emerald-200 bg-emerald-50'
+    ? svc.healthy === false ? 'border-gray-200 bg-gray-50' : 'border-gray-200 bg-gray-50'
     : 'border-slate-100 bg-slate-50';
 
   return (
@@ -22,7 +22,7 @@ function ServiceRow({ svc }) {
         </p>
         <p className="text-xs text-slate-400 font-mono">
           localhost:{svc.port}
-          {svc.required && <span className="ml-2 text-blue-400">required</span>}
+          {svc.required && <span className="ml-2 text-gray-400">required</span>}
         </p>
       </div>
       <ServiceIcon running={svc.running} healthy={svc.healthy} />
@@ -325,8 +325,8 @@ export default function SetupScreen({ onComplete, freshInstall = false }) {
                   <div key={i} className="flex gap-2">
                     <span className="text-slate-600 select-none flex-shrink-0">{l.ts}</span>
                     <span className={
-                      l.text.startsWith('▶') ? 'text-yellow-400' :
-                      l.text.startsWith('✗') ? 'text-red-400' :
+                      l.text.startsWith('▶') ? 'text-gray-300' :
+                      l.text.startsWith('✗') ? 'text-gray-400' :
                       'text-slate-300'
                     }>{l.text}</span>
                   </div>
@@ -342,8 +342,8 @@ export default function SetupScreen({ onComplete, freshInstall = false }) {
   if (phase === 'done') {
     return (
       <FullScreenCard>
-        <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center">
-          <FiCheckCircle className="w-8 h-8 text-emerald-500" />
+        <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center">
+          <FiCheckCircle className="w-8 h-8 text-gray-700" />
         </div>
         <h2 className="mt-6 text-2xl font-semibold text-slate-800">All services running</h2>
         <p className="mt-2 text-slate-500 text-sm">Opening TEMPO…</p>
@@ -354,15 +354,15 @@ export default function SetupScreen({ onComplete, freshInstall = false }) {
   if (phase === 'error') {
     return (
       <FullScreenCard>
-        <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center">
-          <FiAlertCircle className="w-8 h-8 text-red-500" />
+        <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center">
+          <FiAlertCircle className="w-8 h-8 text-gray-500" />
         </div>
         <h2 className="mt-6 text-2xl font-semibold text-slate-800">Cannot start services</h2>
         <p className="mt-3 text-slate-500 text-sm text-center max-w-sm">{errorMsg}</p>
         <div className="flex gap-3 mt-6">
           <button
             onClick={checkStatus}
-            className="flex items-center gap-2 px-6 py-3 bg-blue-500 text-white rounded-xl font-semibold shadow hover:bg-blue-600 transition-colors"
+            className="flex items-center gap-2 px-6 py-3 bg-gray-700 text-white rounded-xl font-semibold shadow hover:bg-gray-800 transition-colors"
           >
             <FiRefreshCw className="w-4 h-4" /> Retry
           </button>
@@ -383,8 +383,8 @@ export default function SetupScreen({ onComplete, freshInstall = false }) {
       <div className="w-full flex flex-col items-center">
         <div className="mb-6 text-center">
           {phase === 'starting' ? <SpinnerIcon /> : (
-            <div className="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center">
-              <FiPlay className="w-8 h-8 text-blue-500" />
+            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center">
+              <FiPlay className="w-8 h-8 text-gray-700" />
             </div>
           )}
           <h2 className="mt-4 text-2xl font-semibold text-slate-800">
@@ -396,7 +396,7 @@ export default function SetupScreen({ onComplete, freshInstall = false }) {
               : 'Some required TEMPO services need to be started'}
           </p>
           {errorMsg && (
-            <p className="mt-2 text-sm text-red-500">{errorMsg}</p>
+            <p className="mt-2 text-sm text-gray-500">{errorMsg}</p>
           )}
         </div>
 
@@ -419,9 +419,9 @@ export default function SetupScreen({ onComplete, freshInstall = false }) {
                     <div key={i} className="flex gap-2">
                       <span className="text-slate-600 select-none flex-shrink-0">{l.ts}</span>
                       <span className={
-                        l.text.startsWith('▶') ? 'text-yellow-400' :
-                        l.text.startsWith('✓') ? 'text-emerald-400' :
-                        l.text.startsWith('✗') ? 'text-red-400' :
+                        l.text.startsWith('▶') ? 'text-gray-300' :
+                        l.text.startsWith('✓') ? 'text-gray-400' :
+                        l.text.startsWith('✗') ? 'text-gray-500' :
                         'text-slate-300'
                       }>{l.text}</span>
                     </div>
@@ -438,7 +438,7 @@ export default function SetupScreen({ onComplete, freshInstall = false }) {
             <>
               <button
                 onClick={startServices}
-                className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl font-semibold shadow-md hover:from-blue-600 hover:to-blue-700 transition-all duration-200"
+                className="flex items-center gap-2 px-6 py-3 bg-gray-700 text-white rounded-xl font-semibold shadow-md hover:bg-gray-800 transition-all duration-200"
               >
                 <FiPlay className="w-4 h-4" /> Start Services
               </button>
@@ -474,12 +474,12 @@ function FullScreenCard({ children, wide }) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-8">
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-violet-500/5 rounded-full blur-3xl" />
+        <div className="absolute top-0 right-0 w-96 h-96 bg-gray-500/5 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-gray-500/5 rounded-full blur-3xl" />
       </div>
       <div className={`relative bg-white rounded-2xl shadow-2xl border border-slate-100 p-10 flex flex-col items-center ${wide ? 'max-w-2xl w-full' : 'max-w-md w-full'}`}>
         <div className="mb-6 text-center">
-          <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 rounded-full text-blue-600 text-xs font-semibold tracking-wide mb-2">
+          <div className="inline-flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-full text-gray-600 text-xs font-semibold tracking-wide mb-2">
             TEMPO · FIRST-TIME SETUP
           </div>
         </div>
@@ -491,8 +491,8 @@ function FullScreenCard({ children, wide }) {
 
 function SpinnerIcon() {
   return (
-    <div className="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center">
-      <FiLoader className="w-8 h-8 text-blue-500 animate-spin" />
+    <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center">
+      <FiLoader className="w-8 h-8 text-gray-500 animate-spin" />
     </div>
   );
 }

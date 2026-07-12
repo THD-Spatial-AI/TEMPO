@@ -17,7 +17,7 @@ const MODELING_FRAMEWORKS = [
     name: 'Calliope',
     description: 'Multi-scale energy system modeling framework',
     icon: FiZap,
-    color: 'from-blue-500 to-blue-600',
+    color: 'from-gray-600 to-gray-700',
     supported: true,
   },
   {
@@ -25,7 +25,7 @@ const MODELING_FRAMEWORKS = [
     name: 'AdOpT-NET0',
     description: 'Adaptive Optimisation Tool for Net-Zero Energy Systems',
     icon: FiActivity,
-    color: 'from-emerald-500 to-teal-600',
+    color: 'from-gray-500 to-gray-600',
     supported: true,
   },
   {
@@ -33,7 +33,7 @@ const MODELING_FRAMEWORKS = [
     name: 'PyPSA',
     description: 'Python for Power System Analysis',
     icon: FiCpu,
-    color: 'from-green-500 to-green-600',
+    color: 'from-gray-500 to-gray-600',
     supported: false,
   },
   {
@@ -41,7 +41,7 @@ const MODELING_FRAMEWORKS = [
     name: 'OSeMOSYS',
     description: 'Open Source Energy Modelling System',
     icon: FiBarChart2,
-    color: 'from-purple-500 to-purple-600',
+    color: 'from-gray-500 to-gray-600',
     supported: false,
   },
 ];
@@ -549,7 +549,7 @@ const Run = ({ onNavigate }) => {
         {/* PAGE HEADER */}
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-electric-600 to-violet-600 bg-clip-text text-transparent">
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-electric-600 to-electric-700 bg-clip-text text-transparent">
               Run Model
             </h1>
             <p className="text-sm text-slate-500 mt-0.5">Execute your energy model locally using {activeFrameworkLabel}</p>
@@ -558,8 +558,8 @@ const Run = ({ onNavigate }) => {
             {selectedFramework === 'calliope' && selectedModel && (
               <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border ${
                 isCalliope07Selected
-                  ? 'bg-amber-50 border-amber-200 text-amber-700'
-                  : 'bg-blue-50 border-blue-200 text-blue-700'
+                  ? 'bg-gray-50 border-gray-200 text-gray-700'
+                  : 'bg-gray-50 border-gray-200 text-gray-700'
               }`} title="Engine version from the model's configuration">
                 <FiZap size={12} />
                 {isCalliope07Selected ? 'Engine: Calliope 0.7 (experimental)' : 'Engine: Calliope 0.6.8'}
@@ -567,13 +567,13 @@ const Run = ({ onNavigate }) => {
             )}
             <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border ${
               serviceChecking ? 'bg-slate-100 border-slate-200 text-slate-500'
-              : serviceReady  ? 'bg-green-50 border-green-200 text-green-700'
-              : 'bg-amber-50 border-amber-200 text-amber-700'
+              : serviceReady  ? 'bg-gray-50 border-gray-200 text-gray-700'
+              : 'bg-gray-50 border-gray-200 text-gray-700'
             }`}>
               <span className="relative flex h-2 w-2 flex-shrink-0">
-                {serviceReady && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />}
+                {serviceReady && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-gray-400 opacity-75" />}
                 <span className={`relative inline-flex rounded-full h-2 w-2 ${
-                  serviceChecking ? 'bg-slate-400' : serviceReady ? 'bg-green-500' : 'bg-amber-500'
+                  serviceChecking ? 'bg-slate-400' : serviceReady ? 'bg-gray-500' : 'bg-gray-500'
                 }`} />
               </span>
               <FiBox size={12} />
@@ -584,7 +584,7 @@ const Run = ({ onNavigate }) => {
 
         {/* OFFLINE BANNER */}
         {!serviceChecking && !serviceReady && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800 flex items-start justify-between gap-4">
+          <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 flex items-start justify-between gap-4">
             <div>
               <strong>{activeFrameworkLabel} service offline.</strong>{' '}
               {selectedFramework === 'adoptnet0'
@@ -592,11 +592,11 @@ const Run = ({ onNavigate }) => {
                 : isCalliope07Selected
                 ? 'This model targets the experimental Calliope 0.7 engine. Install it from Settings → Calliope 0.7 Engine.'
                 : <>Start it with:{' '}
-                    <code className="bg-amber-100 px-1.5 py-0.5 rounded font-mono text-xs">
+                    <code className="bg-gray-100 px-1.5 py-0.5 rounded font-mono text-xs">
                       .\scripts\start_calliope_service.ps1
                     </code>
                     {' '}or{' '}
-                    <code className="bg-amber-100 px-1.5 py-0.5 rounded font-mono text-xs">
+                    <code className="bg-gray-100 px-1.5 py-0.5 rounded font-mono text-xs">
                       docker compose up calliope-runner
                     </code>
                   </>
@@ -615,7 +615,7 @@ const Run = ({ onNavigate }) => {
                   checkCalliopeService().then(ok => setServiceStatus(ok));
                 }
               }}
-              className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-200 hover:bg-amber-300 text-amber-900 transition-colors"
+              className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-200 hover:bg-gray-300 text-gray-900 transition-colors"
             >
               Retry
             </button>
@@ -624,7 +624,7 @@ const Run = ({ onNavigate }) => {
 
         {/* INLINE 0.7 INSTALL PANEL — shown when 0.7 is selected but not yet installed */}
         {isCalliope07Selected && calliope07Status === false && (
-          <div className="bg-white rounded-2xl shadow-sm border border-amber-200 p-6">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
             <Calliope07EnginePanel
               onInstallSuccess={() => {
                 setCalliope07Status(null);
@@ -707,7 +707,7 @@ const Run = ({ onNavigate }) => {
                     </option>
                   </select>
                   {isCalliope07Selected && modelConfig.mode === 'spores' && (
-                    <p className="mt-1 text-xs text-amber-600">
+                    <p className="mt-1 text-xs text-gray-600">
                       SPORES is not supported on the experimental Calliope 0.7 engine yet.
                     </p>
                   )}
@@ -912,9 +912,9 @@ const Run = ({ onNavigate }) => {
                       <Icon size={18} className={sel ? 'text-white mb-1' : 'text-slate-400 mb-1'} />
                       <div className={`text-xs font-semibold ${sel ? 'text-white' : 'text-slate-700'}`}>{fw.name}</div>
                       {fw.id === 'calliope' && (
-                        <div className={`mt-1 flex items-center gap-1 text-[10px] ${sel ? 'text-white/80' : serviceReady ? 'text-green-600' : 'text-slate-400'}`}>
+                        <div className={`mt-1 flex items-center gap-1 text-[10px] ${sel ? 'text-white/80' : serviceReady ? 'text-gray-600' : 'text-slate-400'}`}>
                           <span className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                            serviceReady ? (sel ? 'bg-white' : 'bg-green-500') : 'bg-slate-300'
+                            serviceReady ? (sel ? 'bg-white' : 'bg-gray-500') : 'bg-slate-300'
                           }`} />
                           {serviceReady ? 'Docker online' : 'Docker offline'}
                         </div>
@@ -1092,7 +1092,7 @@ const Run = ({ onNavigate }) => {
           <div className="xl:col-span-2">
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 h-full">
               <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-4 flex items-center gap-2">
-                <FiActivity size={13} className="text-orange-500" />
+                <FiActivity size={13} className="text-gray-500" />
                 Active runs ({runningJobs.length})
               </h2>
 
@@ -1104,20 +1104,20 @@ const Run = ({ onNavigate }) => {
               ) : (
                 <div className="space-y-4">
                   {runningJobs.map(job => (
-                    <div key={job.id} className="p-4 bg-orange-50 border border-orange-100 rounded-xl">
+                    <div key={job.id} className="p-4 bg-gray-50 border border-gray-100 rounded-xl">
                       {/* header */}
                       <div className="flex justify-between items-center mb-2">
                         <div>
                           <div className="font-semibold text-sm text-slate-800">{job.modelName}</div>
                           <div className="text-xs text-slate-500">Calliope · {job.solver.toUpperCase()}</div>
                         </div>
-                        <button onClick={() => handleStopJob(job.id)} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg" title="Stop">
+                        <button onClick={() => handleStopJob(job.id)} className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg" title="Stop">
                           <FiStopCircle size={16} />
                         </button>
                       </div>
                       {/* progress bar */}
-                      <div className="w-full bg-orange-100 rounded-full h-1 mb-3 overflow-hidden">
-                        <div className="h-1 bg-orange-400 rounded-full animate-pulse" style={{ width: '60%' }} />
+                      <div className="w-full bg-gray-100 rounded-full h-1 mb-3 overflow-hidden">
+                        <div className="h-1 bg-gray-400 rounded-full animate-pulse" style={{ width: '60%' }} />
                       </div>
                       {/* resource stats panel */}
                       {(() => {
@@ -1125,25 +1125,25 @@ const Run = ({ onNavigate }) => {
                         return (
                           <div className="mb-3 grid grid-cols-4 gap-2">
                             {/* elapsed */}
-                            <div className="bg-white border border-orange-100 rounded-lg p-2 text-center">
+                            <div className="bg-white border border-gray-100 rounded-lg p-2 text-center">
                               <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Elapsed</div>
                               <div className="text-xs font-bold text-slate-700">{s?.elapsed ?? '—'}</div>
                             </div>
                             {/* CPU */}
-                            <div className="bg-white border border-orange-100 rounded-lg p-2 text-center">
+                            <div className="bg-white border border-gray-100 rounded-lg p-2 text-center">
                               <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">CPU</div>
                               <div className="text-xs font-bold text-slate-700">
                                 {s?.cpu_pct != null ? `${s.cpu_pct}%` : '—'}
                               </div>
                               {s?.cpu_pct != null && (
                                 <div className="mt-1 w-full bg-slate-100 rounded-full h-1 overflow-hidden">
-                                  <div className="h-1 rounded-full bg-blue-400 transition-all duration-500"
+                                  <div className="h-1 rounded-full bg-gray-400 transition-all duration-500"
                                     style={{ width: `${Math.min(s.cpu_pct, 100)}%` }} />
                                 </div>
                               )}
                             </div>
                             {/* process RAM */}
-                            <div className="bg-white border border-orange-100 rounded-lg p-2 text-center">
+                            <div className="bg-white border border-gray-100 rounded-lg p-2 text-center">
                               <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Proc RAM</div>
                               <div className="text-xs font-bold text-slate-700">
                                 {s?.proc_ram_mb != null
@@ -1155,7 +1155,7 @@ const Run = ({ onNavigate }) => {
                               </div>
                             </div>
                             {/* system RAM */}
-                            <div className="bg-white border border-orange-100 rounded-lg p-2 text-center">
+                            <div className="bg-white border border-gray-100 rounded-lg p-2 text-center">
                               <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Sys RAM</div>
                               <div className="text-xs font-bold text-slate-700">
                                 {s?.sys_ram_pct != null
@@ -1166,11 +1166,7 @@ const Run = ({ onNavigate }) => {
                               {s?.sys_ram_pct != null && (
                                 <div className="mt-1 w-full bg-slate-100 rounded-full h-1 overflow-hidden">
                                   <div
-                                    className={`h-1 rounded-full transition-all duration-500 ${
-                                      s.sys_ram_pct > 90 ? 'bg-red-400'
-                                      : s.sys_ram_pct > 70 ? 'bg-amber-400'
-                                      : 'bg-emerald-400'
-                                    }`}
+                                    className="h-1 rounded-full transition-all duration-500 bg-gray-400"
                                     style={{ width: `${Math.min(s.sys_ram_pct, 100)}%` }}
                                   />
                                 </div>
@@ -1248,12 +1244,10 @@ const Run = ({ onNavigate }) => {
                     <div className="flex items-center gap-4 flex-wrap">
 
                       {/* Status icon */}
-                      <div className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center ${
-                        failed ? 'bg-red-100' : 'bg-green-100'
-                      }`}>
+                      <div className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center bg-gray-100">
                         {failed
-                          ? <FiAlertTriangle size={16} className="text-red-500" />
-                          : <FiCheckCircle size={16} className="text-green-600" />
+                          ? <FiAlertTriangle size={16} className="text-gray-500" />
+                          : <FiCheckCircle size={16} className="text-gray-600" />
                         }
                       </div>
 
@@ -1261,9 +1255,7 @@ const Run = ({ onNavigate }) => {
                       <div className="flex-1 min-w-[160px]">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-semibold text-slate-800 text-sm">{job.modelName}</span>
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                            failed ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'
-                          }`}>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
                             {failed ? 'FAILED' : 'DONE'}
                           </span>
                         </div>
@@ -1301,7 +1293,7 @@ const Run = ({ onNavigate }) => {
                           </div>
                         )}
                         {failed && job.result?.error && (
-                          <div className="text-xs text-red-500 bg-red-50 border border-red-100 px-2.5 py-1.5 rounded-lg max-w-xs truncate" title={job.result.error}>
+                          <div className="text-xs text-gray-600 bg-gray-50 border border-gray-100 px-2.5 py-1.5 rounded-lg max-w-xs truncate" title={job.result.error}>
                             {job.result.error.slice(0, 60)}
                           </div>
                         )}
@@ -1342,7 +1334,7 @@ const Run = ({ onNavigate }) => {
                         <button
                           onClick={() => removeCompletedJob(job.id)}
                           title="Delete run"
-                          className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                          className="p-1.5 text-slate-300 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
                         >
                           <FiTrash2 size={14} />
                         </button>

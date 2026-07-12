@@ -40,9 +40,10 @@ var allowedCORSOrigins = map[string]bool{
 	"http://127.0.0.1:5174": true,
 }
 
-// maxModelBodyBytes caps incoming model payloads at 4 MB — far above any
-// realistic Calliope YAML/JSON config while preventing DoS via huge bodies.
-const maxModelBodyBytes = 4 << 20 // 4 MB
+// maxModelBodyBytes caps incoming model payloads at 256 MB.
+// Models with many inline CSV timeSeries (Calliope YAML imports) can exceed 32 MB
+// when the raw CSV strings are stored for reload persistence.
+const maxModelBodyBytes = 256 << 20 // 256 MB
 
 const geoServerURL = "http://localhost:8081/geoserver"
 const techAPIURL = "http://localhost:8000"
@@ -158,7 +159,7 @@ func (s *Server) Start() error {
 }
 
 // readJSONBody reads the raw request body and unmarshals it into a map.
-// Capped at maxModelBodyBytes (4 MB) to prevent DoS via oversized payloads.
+// Capped at maxModelBodyBytes to prevent DoS via oversized payloads.
 func readJSONBody(c *gin.Context) (map[string]interface{}, error) {
 	body, err := io.ReadAll(io.LimitReader(c.Request.Body, maxModelBodyBytes))
 	if err != nil {
@@ -174,11 +175,30 @@ func readJSONBody(c *gin.Context) (map[string]interface{}, error) {
 	return result, nil
 }
 
-// saveModel saves a full frontend model as JSON
+// saveModel saves a full frontend model as JSON.
+// timeSeries entries (csvContent strings, data arrays already stripped by the
+// frontend's prepareModelForBackend) are stored inline in the config blob.
 func (s *Server) saveModel(c *gin.Context) {
-	rawModel, err := readJSONBody(c)
+	body, err := io.ReadAll(io.LimitReader(c.Request.Body, maxModelBodyBytes))
 	if err != nil {
+		log.Printf("[saveModel] body read error: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if len(body) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "empty body"})
+		return
+	}
+	log.Printf("[saveModel] received body: %d bytes", len(body))
+
+	var rawModel map[string]interface{}
+	if err := json.Unmarshal(body, &rawModel); err != nil {
+		log.Printf("[saveModel] unmarshal error: %v (first 200 bytes: %q)", err, body[:min(200, len(body))])
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if rawModel == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "body must be a JSON object"})
 		return
 	}
 
@@ -189,20 +209,44 @@ func (s *Server) saveModel(c *gin.Context) {
 
 	modelJSON, err := json.Marshal(rawModel)
 	if err != nil {
+		log.Printf("[saveModel] re-marshal error: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	log.Printf("[saveModel] re-marshaled: %d bytes, saving as %q", len(modelJSON), name)
 
 	id, err := s.db.SaveFullModel(name, string(modelJSON))
 	if err != nil {
+		log.Printf("[saveModel] db error: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
+	log.Printf("[saveModel] saved model id=%d name=%q", id, name)
 	c.JSON(http.StatusCreated, gin.H{"id": fmt.Sprintf("%d", id), "name": name})
 }
 
-// listModels returns all saved models with parsed config
+// hasInlineTimeSeries returns true when the parsed model config already contains
+// a non-empty timeSeries array stored inline (the current approach). Returns false
+// for models saved with the legacy approach (timeSeries stripped from blob, stored
+// in the separate timeseries_data table) so those fall back to the legacy table.
+func hasInlineTimeSeries(modelData map[string]interface{}) bool {
+	v, ok := modelData["timeSeries"]
+	if !ok || v == nil {
+		return false
+	}
+	switch ts := v.(type) {
+	case []interface{}:
+		return len(ts) > 0
+	case []map[string]interface{}:
+		return len(ts) > 0
+	default:
+		return false
+	}
+}
+
+// listModels returns all saved models with parsed config.
+// timeSeries entries are fetched from the dedicated table and merged in.
 func (s *Server) listModels(c *gin.Context) {
 	modelsList, err := s.db.ListModels()
 	if err != nil {
@@ -213,26 +257,34 @@ func (s *Server) listModels(c *gin.Context) {
 	result := make([]map[string]interface{}, 0, len(modelsList))
 	for _, m := range modelsList {
 		var modelData map[string]interface{}
-		if err := json.Unmarshal([]byte(m.Config), &modelData); err != nil {
-			// Return minimal info if config can't be parsed
-			result = append(result, map[string]interface{}{
-				"id":        fmt.Sprintf("%d", m.ID),
-				"name":      m.Name,
-				"createdAt": m.CreatedAt,
-				"updatedAt": m.UpdatedAt,
-			})
+		if err := json.Unmarshal([]byte(m.Config), &modelData); err != nil || modelData == nil {
+			// Skip models with corrupt or null config rather than panicking.
+			log.Printf("[listModels] skipping model id=%d: unmarshal err=%v modelData=nil=%v", m.ID, err, modelData == nil)
 			continue
 		}
 		modelData["id"] = fmt.Sprintf("%d", m.ID)
 		modelData["createdAt"] = m.CreatedAt
 		modelData["updatedAt"] = m.UpdatedAt
+
+		// Prefer inline timeSeries from config blob (current approach).
+		// Fall back to legacy timeseries_data table for models saved with old code
+		// (old code stripped timeSeries from the blob and saved them separately).
+		if !hasInlineTimeSeries(modelData) {
+			tsList, _ := s.db.GetModelTimeSeries(m.ID)
+			if len(tsList) > 0 {
+				modelData["timeSeries"] = tsList
+			} else {
+				modelData["timeSeries"] = []json.RawMessage{}
+			}
+		}
+
 		result = append(result, modelData)
 	}
 
 	c.JSON(http.StatusOK, result)
 }
 
-// getModel retrieves a specific model with parsed config
+// getModel retrieves a specific model with parsed config and attached timeSeries.
 func (s *Server) getModel(c *gin.Context) {
 	modelID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil || modelID <= 0 {
@@ -247,7 +299,7 @@ func (s *Server) getModel(c *gin.Context) {
 	}
 
 	var modelData map[string]interface{}
-	if err := json.Unmarshal([]byte(m.Config), &modelData); err != nil {
+	if err := json.Unmarshal([]byte(m.Config), &modelData); err != nil || modelData == nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid model config"})
 		return
 	}
@@ -255,10 +307,21 @@ func (s *Server) getModel(c *gin.Context) {
 	modelData["createdAt"] = m.CreatedAt
 	modelData["updatedAt"] = m.UpdatedAt
 
+	// Prefer inline timeSeries from config blob; fall back to legacy table.
+	if !hasInlineTimeSeries(modelData) {
+		tsList, _ := s.db.GetModelTimeSeries(modelID)
+		if len(tsList) > 0 {
+			modelData["timeSeries"] = tsList
+		} else {
+			modelData["timeSeries"] = []json.RawMessage{}
+		}
+	}
+
 	c.JSON(http.StatusOK, modelData)
 }
 
-// updateModel updates an existing model
+// updateModel updates an existing model.
+// timeSeries are replaced atomically in the dedicated table.
 func (s *Server) updateModel(c *gin.Context) {
 	modelID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil || modelID <= 0 {
@@ -269,6 +332,10 @@ func (s *Server) updateModel(c *gin.Context) {
 	rawModel, err := readJSONBody(c)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if rawModel == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "body must be a JSON object"})
 		return
 	}
 

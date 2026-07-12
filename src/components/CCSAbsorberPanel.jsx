@@ -36,45 +36,45 @@ function detectAbsorberType(model) {
 const ABSORBER_META = {
   mea: {
     label:   "MEA Absorption (30%)",
-    hue:     "#3b82f6",
-    bg:      "bg-blue-50",
-    border:  "border-blue-200",
+    hue:     "#6b7280",
+    bg:      "bg-gray-50",
+    border:  "border-gray-200",
     tagline: "Standard amine solvent · 85-92% capture · 3.5-4.0 GJ/tCO₂",
     captureRange: [85, 92],
     energyRange: [3.5, 4.0],
   },
   advanced: {
     label:   "Advanced Amine Blend",
-    hue:     "#6366f1",
-    bg:      "bg-indigo-50",
-    border:  "border-indigo-200",
+    hue:     "#6b7280",
+    bg:      "bg-gray-50",
+    border:  "border-gray-200",
     tagline: "Next-gen solvent · 88-95% capture · 2.8-3.2 GJ/tCO₂",
     captureRange: [88, 95],
     energyRange: [2.8, 3.2],
   },
   carbonate: {
     label:   "Hot Potassium Carbonate",
-    hue:     "#8b5cf6",
-    bg:      "bg-violet-50",
-    border:  "border-violet-200",
+    hue:     "#6b7280",
+    bg:      "bg-gray-50",
+    border:  "border-gray-200",
     tagline: "High-temp process · 80-88% capture · 3.8-4.5 GJ/tCO₂",
     captureRange: [80, 88],
     energyRange: [3.8, 4.5],
   },
   membrane: {
     label:   "Membrane Separation",
-    hue:     "#06b6d4",
-    bg:      "bg-cyan-50",
-    border:  "border-cyan-200",
+    hue:     "#6b7280",
+    bg:      "bg-gray-50",
+    border:  "border-gray-200",
     tagline: "No solvent · 70-80% capture · 2.2-2.8 GJ/tCO₂",
     captureRange: [70, 80],
     energyRange: [2.2, 2.8],
   },
   calcium: {
     label:   "Calcium Looping",
-    hue:     "#f59e0b",
-    bg:      "bg-amber-50",
-    border:  "border-amber-200",
+    hue:     "#6b7280",
+    bg:      "bg-gray-50",
+    border:  "border-gray-200",
     tagline: "Solid sorbent · 85-92% capture · 3.0-3.6 GJ/tCO₂",
     captureRange: [85, 92],
     energyRange: [3.0, 3.6],
@@ -187,8 +187,8 @@ export default function CCSAbsorberPanel({
           data: energyReq,
           smooth: true,
           symbol: "none",
-          color: "#ef4444",
-          lineStyle: { color: "#ef4444", width: 2 },
+          color: "#6b7280",
+          lineStyle: { color: "#6b7280", width: 2 },
           yAxisIndex: 1,
         },
       ],
@@ -234,7 +234,7 @@ export default function CCSAbsorberPanel({
       ],
       series: [
         { name: "Capture Rate", type: "line", data: capture, smooth: true, symbol: "none", color: meta.hue, lineStyle: { color: meta.hue, width: 2 }, areaStyle: { color: `${meta.hue}22` }, yAxisIndex: 0 },
-        { name: "Column ΔP",    type: "line", data: deltaP,  smooth: true, symbol: "none", color: "#f59e0b", lineStyle: { color: "#f59e0b", width: 2 }, yAxisIndex: 1 },
+        { name: "Column ΔP",    type: "line", data: deltaP,  smooth: true, symbol: "none", color: "#9ca3af", lineStyle: { color: "#9ca3af", width: 2 }, yAxisIndex: 1 },
       ],
     };
   }, [localParams.capture_rate_pct, localParams.l_g_ratio, meta.hue]);
@@ -289,16 +289,16 @@ export default function CCSAbsorberPanel({
         const appliedV = variants.find((v) => v.id === appliedId) ?? null;
         return (
           <div className={`bg-white rounded-xl border shadow-sm px-4 py-3 flex flex-wrap items-start gap-3
-            ${isPending ? "border-amber-300" : appliedV ? "border-emerald-300" : "border-slate-200"}`}>
+            ${isPending ? "border-gray-300" : appliedV ? "border-gray-300" : "border-slate-200"}`}>
             <FiLayers size={12} style={{ color: meta.hue }} className="mt-1" />
             <div className="flex-1 min-w-[220px] space-y-1.5">
               <div className="flex items-center gap-2">
                 <span className="text-[11px] font-semibold text-slate-600">Technology Variant</span>
-                {appliedV && !isPending && <span className="text-[10px] bg-emerald-100 text-emerald-700 font-semibold px-2 py-0.5 rounded-full">✓ Applied</span>}
-                {isPending && <span className="text-[10px] bg-amber-100 text-amber-700 font-semibold px-2 py-0.5 rounded-full">● Pending — click Apply</span>}
+                {appliedV && !isPending && <span className="text-[10px] bg-gray-100 text-gray-700 font-semibold px-2 py-0.5 rounded-full">✓ Applied</span>}
+                {isPending && <span className="text-[10px] bg-gray-100 text-gray-700 font-semibold px-2 py-0.5 rounded-full">● Pending — click Apply</span>}
               </div>
               <select value={stagedId} onChange={handleStage}
-                className="w-full text-[12px] border border-slate-200 rounded-lg px-2.5 py-1.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer">
+                className="w-full text-[12px] border border-slate-200 rounded-lg px-2.5 py-1.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-gray-400 cursor-pointer">
                 <option value="">— default —</option>
                 {variants.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
               </select>
@@ -307,12 +307,12 @@ export default function CCSAbsorberPanel({
             <div className="flex flex-col gap-1.5 shrink-0">
               <button onClick={handleApply} disabled={!isPending && !appliedId}
                 className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all
-                  ${isPending ? "bg-emerald-500 text-white hover:bg-emerald-600 shadow-sm" : appliedId ? "bg-slate-100 text-slate-500 hover:bg-slate-200" : "bg-slate-100 text-slate-300 cursor-not-allowed"}`}>
+                  ${isPending ? "bg-gray-700 text-white hover:bg-gray-800 shadow-sm" : appliedId ? "bg-slate-100 text-slate-500 hover:bg-slate-200" : "bg-slate-100 text-slate-300 cursor-not-allowed"}`}>
                 {isPending ? "✓ Apply variant" : appliedId ? "✓ Applied" : "Apply"}
               </button>
               {(appliedId || isPending) && (
                 <button onClick={() => { setLocalParams({}); onParamsChange?.({}); }}
-                  className="px-3 py-1 rounded-lg text-[10px] text-red-400 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200 transition-all">
+                  className="px-3 py-1 rounded-lg text-[10px] text-gray-500 hover:text-gray-700 hover:bg-gray-50 border border-transparent hover:border-gray-200 transition-all">
                   ✕ Reset
                 </button>
               )}
@@ -329,7 +329,7 @@ export default function CCSAbsorberPanel({
           <select
             value={selectedChart}
             onChange={(e) => setSelectedChart(e.target.value)}
-            className="ml-auto text-xs bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            className="ml-auto text-xs bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 text-slate-600 focus:outline-none focus:ring-2 focus:ring-gray-300"
           >
             <option value="efficiency">Partial-Load Capture Efficiency</option>
             <option value="concentration">CO₂ Concentration Effect</option>
@@ -376,7 +376,7 @@ export default function CCSAbsorberPanel({
       </div>
 
       {/* ── Info Banner ────────────────────────────────────────────────────── */}
-      <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-2xl text-xs text-blue-700">
+      <div className="flex items-start gap-2 p-3 bg-gray-50 border border-gray-200 rounded-2xl text-xs text-gray-700">
         <FiInfo className="shrink-0 mt-0.5" size={14} />
         <p>
           <b>Absorption process:</b> CO₂ reacts with liquid solvent (typically amine) in a packed column.
@@ -453,11 +453,11 @@ function ParamSlider({ label, unit, value, min, max, step = 1, onChange }) {
 
 function MetricBadge({ label, value, unit, color = "slate" }) {
   const palettes = {
-    amber:  "bg-amber-50  border-amber-200  text-amber-700",
-    green:  "bg-emerald-50 border-emerald-200 text-emerald-700",
-    violet: "bg-violet-50 border-violet-200 text-violet-700",
-    blue:   "bg-blue-50   border-blue-200   text-blue-700",
-    red:    "bg-red-50    border-red-200    text-red-700",
+    amber:  "bg-gray-50  border-gray-200  text-gray-700",
+    green:  "bg-gray-50  border-gray-200  text-gray-700",
+    violet: "bg-gray-50  border-gray-200  text-gray-700",
+    blue:   "bg-gray-50  border-gray-200  text-gray-700",
+    red:    "bg-gray-50  border-gray-200  text-gray-700",
     slate:  "bg-slate-50  border-slate-200  text-slate-700",
   };
   return (
@@ -474,16 +474,16 @@ function MetricBadge({ label, value, unit, color = "slate" }) {
 function KpiCard({ label, value, unit, color = "slate" }) {
   const ring = {
     electric: "border-electric-200 bg-electric-50",
-    emerald:  "border-emerald-200 bg-emerald-50",
-    amber:    "border-amber-200 bg-amber-50",
-    blue:     "border-blue-200 bg-blue-50",
+    emerald:  "border-gray-200 bg-gray-50",
+    amber:    "border-gray-200 bg-gray-50",
+    blue:     "border-gray-200 bg-gray-50",
     slate:    "border-slate-200 bg-slate-50",
   };
   const text = {
     electric: "text-electric-700",
-    emerald:  "text-emerald-700",
-    amber:    "text-amber-700",
-    blue:     "text-blue-700",
+    emerald:  "text-gray-700",
+    amber:    "text-gray-700",
+    blue:     "text-gray-700",
     slate:    "text-slate-700",
   };
   return (

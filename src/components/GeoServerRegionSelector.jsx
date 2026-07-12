@@ -44,7 +44,7 @@ function isValidBbox(b) {
 function CountBadge({ n }) {
   if (!n) return null;
   return (
-    <span className="ml-1 px-1.5 py-0.5 text-xs bg-blue-100 text-blue-700 rounded-full font-mono">
+    <span className="ml-1 px-1.5 py-0.5 text-xs bg-gray-100 text-gray-700 rounded-full font-mono">
       {n}
     </span>
   );
@@ -63,9 +63,9 @@ function TreeNode({ label, badge, isSelected, isActive, depth = 0, children, onS
         style={{ paddingLeft: indent }}
         className={`flex items-center gap-1 px-2 py-1.5 rounded cursor-pointer text-sm transition-colors
           ${isSelected
-            ? 'bg-blue-600 text-white font-medium'
+            ? 'bg-gray-700 text-white font-medium'
             : isActive
-              ? 'bg-blue-50 text-blue-800'
+              ? 'bg-gray-100 text-gray-800'
               : 'text-gray-700 hover:bg-gray-50'}`}
         onClick={() => {
           if (hasChildren) setOpen(o => !o);
@@ -148,10 +148,10 @@ const GeoServerRegionSelector = ({
         onClick={onToggleCollapse}
       >
         <div className="flex items-center gap-2">
-          <FiGlobe className="text-blue-600" size={20} />
+          <FiGlobe className="text-gray-600" size={20} />
           <h3 className="font-semibold text-gray-800">OSM Infrastructure</h3>
           {totalLoaded > 0 && (
-            <span className="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full font-medium">
+            <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-700 rounded-full font-medium">
               {totalLoaded} region{totalLoaded !== 1 ? 's' : ''} loaded
             </span>
           )}
@@ -189,7 +189,7 @@ const GeoServerRegionSelector = ({
 
             {/* Error state */}
             {!regionsLoading && regionsError && (
-              <div className="flex items-center gap-2 text-red-600 bg-red-50 rounded p-2 text-xs">
+              <div className="flex items-center gap-2 text-gray-600 bg-gray-50 rounded p-2 text-xs">
                 <FiAlertCircle size={14} />
                 <span>Cannot reach backend. Is it running on port 8082?</span>
               </div>
@@ -268,10 +268,10 @@ const GeoServerRegionSelector = ({
 
             {/* Selected region indicator */}
             {selectedPath && (
-              <div className="mt-2 flex items-center justify-between text-xs bg-blue-50 border border-blue-200 rounded px-2 py-1.5">
-                <span className="text-blue-700 font-medium truncate">{selectedPath.replace(/\//g, ' › ')}</span>
+              <div className="mt-2 flex items-center justify-between text-xs bg-gray-50 border border-gray-200 rounded px-2 py-1.5">
+                <span className="text-gray-700 font-medium truncate">{selectedPath.replace(/\//g, ' › ')}</span>
                 <button
-                  className="ml-2 text-blue-400 hover:text-blue-600 flex-shrink-0"
+                  className="ml-2 text-gray-400 hover:text-gray-600 flex-shrink-0"
                   onClick={() => {
                     setSelectedPath(null);
                     if (onRegionChange) onRegionChange({ regionPath: null, bbox: null });
@@ -290,7 +290,7 @@ const GeoServerRegionSelector = ({
 
             <button
               onClick={handleCurrentViewport}
-              className="w-full px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-300 flex items-center justify-center gap-2 text-sm transition-colors"
+              className="w-full px-3 py-2 bg-gray-700 text-white rounded hover:bg-gray-800 disabled:bg-gray-300 flex items-center justify-center gap-2 text-sm transition-colors"
               disabled={loading || !viewport}
               title="Load data for the current map view"
             >
@@ -310,14 +310,14 @@ const GeoServerRegionSelector = ({
                   placeholder={ph}
                   value={customBbox[field]}
                   onChange={e => setCustomBbox(prev => ({ ...prev, [field]: e.target.value }))}
-                  className="px-2 py-1 text-xs border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                  className="px-2 py-1 text-xs border border-gray-300 rounded focus:ring-2 focus:ring-gray-400"
                   disabled={loading}
                 />
               ))}
             </div>
             <button
               onClick={handleCustomBboxSubmit}
-              className="w-full px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-300 text-sm transition-colors"
+              className="w-full px-3 py-1.5 bg-gray-700 text-white rounded hover:bg-gray-800 disabled:bg-gray-300 text-sm transition-colors"
               disabled={loading || !parseBboxFloats(customBbox)}
             >
               Load Custom Bbox
@@ -343,7 +343,7 @@ const GeoServerRegionSelector = ({
                     type="checkbox"
                     checked={showOsmLayers?.[key] ?? true}
                     onChange={e => onOsmLayersChange?.({ ...showOsmLayers, [key]: e.target.checked })}
-                    className="rounded accent-blue-600"
+                    className="rounded accent-gray-600"
                   />
                   <span className="text-sm text-gray-700">{icon} {label}</span>
                 </label>
@@ -353,8 +353,8 @@ const GeoServerRegionSelector = ({
 
           {/* ── Loading / status bar ───────────────────────────────────── */}
           {parentLoading && (
-            <div className="px-4 py-2 flex items-center gap-2 text-blue-600 bg-blue-50">
-              <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-blue-600 border-t-transparent flex-shrink-0" />
+            <div className="px-4 py-2 flex items-center gap-2 text-gray-600 bg-gray-50">
+              <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-gray-600 border-t-transparent flex-shrink-0" />
               <span className="text-xs">Loading layer data…</span>
             </div>
           )}

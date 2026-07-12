@@ -1,8 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
   FiLayers, FiTrash2, FiPlus, FiCopy, FiChevronDown, FiChevronRight,
-  FiPlay, FiEdit2, FiSliders, FiZap, FiX, FiCheck, FiArrowUp, FiArrowDown,
-  FiBookOpen, FiList,
+  FiPlay, FiEdit2, FiEdit3, FiSliders, FiZap, FiX, FiCheck, FiArrowUp, FiArrowDown,
 } from 'react-icons/fi';
 import { useData } from '../context/DataContext';
 import SaveBar from './ui/SaveBar';
@@ -21,7 +20,7 @@ const ScenarioTemplateCard = ({ template, overrides, onImport }) => {
       <div className="p-4">
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-start gap-3 flex-1 min-w-0">
-            <span className="text-2xl shrink-0 mt-0.5">{template.icon}</span>
+            <span className="text-base shrink-0 mt-0.5">{template.icon}</span>
             <div className="min-w-0">
               <h3 className="text-sm font-semibold text-slate-800">{template.name}</h3>
               <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{template.description}</p>
@@ -30,7 +29,7 @@ const ScenarioTemplateCard = ({ template, overrides, onImport }) => {
                   {template.suggestedOverrides.length} override{template.suggestedOverrides.length !== 1 ? 's' : ''}
                 </span>
                 {!allPresent && (
-                  <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
+                  <span className="text-xs bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded">
                     {missingOverrides.length} missing
                   </span>
                 )}
@@ -64,7 +63,7 @@ const ScenarioTemplateCard = ({ template, overrides, onImport }) => {
                     key={id}
                     className={`text-xs px-2 py-0.5 rounded font-mono ${
                       overrides[id]
-                        ? 'bg-green-100 text-green-700'
+                        ? 'bg-gray-100 text-gray-700'
                         : 'bg-slate-100 text-slate-500'
                     }`}
                   >
@@ -115,19 +114,19 @@ const SweepGenerator = ({ overrides, onGenerate }) => {
   const preview = stepValues.slice(0, 4).map((v) => `${baseName}_${v}`);
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-5">
+    <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-4">
       <div className="flex items-center gap-2">
-        <FiSliders className="text-slate-600" size={18} />
-        <h3 className="text-base font-semibold text-slate-800">Parameter Sweep Generator</h3>
-        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
-          auto-generate {steps} scenarios
+        <FiSliders className="text-slate-600" size={15} />
+        <h3 className="text-sm font-semibold text-slate-800">Parameter Sweep Generator</h3>
+        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+          {steps} steps
         </span>
       </div>
 
-      {/* Step 1: path */}
+      {/* Parameter to sweep */}
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-slate-700">
-          1. Parameter to sweep
+        <label className="block text-xs font-medium text-slate-600 uppercase tracking-wide">
+          Parameter
         </label>
         <div className="flex items-center gap-2 mb-2">
           <button
@@ -174,10 +173,10 @@ const SweepGenerator = ({ overrides, onGenerate }) => {
         )}
       </div>
 
-      {/* Step 2: range */}
+      {/* Value range */}
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-2">
-          2. Value range {effectiveUnit && <span className="text-slate-400 font-normal">({effectiveUnit})</span>}
+        <label className="block text-xs font-medium text-slate-600 uppercase tracking-wide mb-2">
+          Range {effectiveUnit && <span className="text-slate-400 normal-case font-normal">({effectiveUnit})</span>}
         </label>
         <div className="grid grid-cols-3 gap-3">
           <div>
@@ -207,9 +206,9 @@ const SweepGenerator = ({ overrides, onGenerate }) => {
         </p>
       </div>
 
-      {/* Step 3: base name */}
+      {/* Base name */}
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1.5">3. Base name for generated items</label>
+        <label className="block text-xs font-medium text-slate-600 uppercase tracking-wide mb-1.5">Base name</label>
         <input
           value={baseName}
           onChange={(e) => setBaseName(e.target.value.replace(/\s/g, '_'))}
@@ -221,11 +220,11 @@ const SweepGenerator = ({ overrides, onGenerate }) => {
         </p>
       </div>
 
-      {/* Step 4: base overrides */}
+      {/* Base overrides */}
       {Object.keys(overrides).length > 0 && (
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1.5">
-            4. Combine with (optional base overrides)
+          <label className="block text-xs font-medium text-slate-600 uppercase tracking-wide mb-1.5">
+            Combine with (optional)
           </label>
           <div className="flex flex-wrap gap-2">
             {Object.keys(overrides).map((name) => (
@@ -256,9 +255,9 @@ const SweepGenerator = ({ overrides, onGenerate }) => {
       <button
         onClick={() => onGenerate({ effectivePath, stepValues, baseName, baseOverrides, createScenarios })}
         disabled={!effectivePath.trim() || !baseName.trim() || stepValues.length < 2}
-        className="w-full px-4 py-3 bg-slate-800 text-white rounded-xl font-medium hover:bg-slate-700 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+        className="w-full py-2.5 bg-gray-700 text-white rounded-lg text-sm font-semibold hover:bg-gray-800 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
       >
-        <FiPlay size={16} />
+        <FiPlay size={14} />
         Generate {steps} Overrides{createScenarios ? ` + ${steps} Scenarios` : ''}
       </button>
     </div>
@@ -342,7 +341,7 @@ const ScenarioModal = ({ initial, overrides, onConfirm, onClose }) => {
                     <button onClick={() => moveDown(i)} disabled={i===selected.length-1} className="p-1 text-slate-400 hover:text-slate-600 disabled:opacity-20">
                       <FiArrowDown size={13} />
                     </button>
-                    <button onClick={() => toggle(n)} className="p-1 text-red-400 hover:text-red-600">
+                    <button onClick={() => toggle(n)} className="p-1 text-gray-400 hover:text-gray-600">
                       <FiX size={13} />
                     </button>
                   </div>
@@ -480,9 +479,9 @@ const Scenarios = () => {
     return (
       <div className="flex-1 flex items-center justify-center bg-slate-50">
         <div className="text-center">
-          <FiLayers className="mx-auto text-slate-300 mb-4" size={64} />
-          <h2 className="text-xl font-semibold text-slate-600 mb-2">No Model Selected</h2>
-          <p className="text-slate-500">Please select or create a model to manage scenarios</p>
+          <FiLayers className="mx-auto text-slate-300 mb-3" size={32} />
+          <p className="font-semibold text-slate-600 mb-1">No model selected</p>
+          <p className="text-sm text-slate-400">Select a model to manage scenarios</p>
         </div>
       </div>
     );
@@ -492,60 +491,48 @@ const Scenarios = () => {
     <div className="flex-1 h-screen overflow-hidden flex flex-col bg-slate-50">
       <SaveBar label="Scenarios" />
       {/* ── Header ── */}
-      <div className="bg-white border-b border-slate-200 px-6 py-4 shrink-0">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-              <FiLayers />
-              Scenarios
-            </h1>
-            <p className="text-sm text-slate-500 mt-0.5">
-              Override combinations for{' '}
-              <span className="font-medium text-slate-700">{currentModel?.name}</span>
-              {scenarioCount > 0 && (
-                <span className="ml-2 text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">
-                  {scenarioCount} defined
-                </span>
-              )}
-            </p>
-          </div>
-          <button
-            onClick={() => setScenarioModal({})}
-            className="px-4 py-2 bg-slate-800 text-white rounded-xl hover:bg-slate-700 transition-colors flex items-center gap-2 text-sm font-medium"
-          >
-            <FiPlus size={16} />
-            New Scenario
-          </button>
+      <div className="bg-white border-b border-slate-200 px-5 py-2.5 shrink-0 flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <FiLayers size={14} className="text-slate-500 shrink-0" />
+          <h1 className="text-sm font-semibold text-slate-800">Scenarios</h1>
+          <span className="text-xs text-slate-400 truncate">{currentModel?.name}</span>
+          {scenarioCount > 0 && (
+            <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs font-medium shrink-0">
+              {scenarioCount}
+            </span>
+          )}
         </div>
-
-        {/* Tab bar */}
-        <div className="flex gap-1 mt-4">
+        <div className="flex gap-1 shrink-0">
           {[
-            { id: 'templates', icon: FiBookOpen, label: 'Template Scenarios' },
-            { id: 'sweep',     icon: FiSliders,  label: 'Parameter Sweep' },
-            { id: 'yours',     icon: FiList,     label: `Your Scenarios${scenarioCount > 0 ? ` (${scenarioCount})` : ''}` },
-          ].map(({ id, icon: Icon, label }) => (
+            { id: 'templates', label: 'Templates' },
+            { id: 'sweep',     label: 'Sweep' },
+            { id: 'yours',     label: `My Scenarios${scenarioCount > 0 ? ` (${scenarioCount})` : ''}` },
+          ].map(({ id, label }) => (
             <button
               key={id}
               onClick={() => setActiveTab(id)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                activeTab === id
-                  ? 'bg-slate-800 text-white'
-                  : 'text-slate-600 hover:bg-slate-100'
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                activeTab === id ? 'bg-slate-800 text-white' : 'text-slate-600 hover:bg-slate-100'
               }`}
             >
-              <Icon size={15} />
               {label}
             </button>
           ))}
         </div>
+        <button
+          onClick={() => setScenarioModal({})}
+          className="px-3 py-1.5 bg-gray-700 text-white rounded-lg text-xs font-medium hover:bg-gray-800 transition-colors flex items-center gap-1.5 shrink-0"
+        >
+          <FiPlus size={12} />
+          New Scenario
+        </button>
       </div>
 
       {/* ── TEMPLATE SCENARIOS TAB ── */}
       {activeTab === 'templates' && (
         <div className="flex-1 overflow-y-auto p-6">
-          <div className="max-w-5xl mx-auto">
-            <div className="mb-5">
+          <div>
+            <div className="mb-4">
               <h2 className="text-base font-semibold text-slate-700">Predefined Scenario Blueprints</h2>
               <p className="text-sm text-slate-500">
                 One-click import. Missing overrides are created automatically from their templates.
@@ -568,8 +555,8 @@ const Scenarios = () => {
       {/* ── PARAMETER SWEEP TAB ── */}
       {activeTab === 'sweep' && (
         <div className="flex-1 overflow-y-auto p-6">
-          <div className="max-w-3xl mx-auto">
-            <div className="mb-5">
+          <div className="max-w-2xl">
+            <div className="mb-4">
               <h2 className="text-base font-semibold text-slate-700">Parameter Sweep / Sensitivity Analysis</h2>
               <p className="text-sm text-slate-500">
                 Automatically generate overrides and scenarios by iterating a parameter over a range of values.
@@ -584,10 +571,10 @@ const Scenarios = () => {
       {/* ── YOUR SCENARIOS TAB ── */}
       {activeTab === 'yours' && (
         <div className="flex-1 overflow-y-auto p-6">
-          <div className="max-w-4xl mx-auto">
+          <div>
             {scenarioCount === 0 ? (
               <div className="text-center py-20">
-                <FiZap className="mx-auto text-slate-200 mb-4" size={52} />
+                <FiZap className="mx-auto text-slate-200 mb-3" size={32} />
                 <h3 className="text-lg font-medium text-slate-500 mb-1">No scenarios yet</h3>
                 <p className="text-sm text-slate-400 mb-5">
                   Import a template, generate a sweep, or create a custom scenario
@@ -628,7 +615,7 @@ const Scenarios = () => {
                             <input autoFocus value={renameValue} onChange={(e) => setRenameValue(e.target.value)}
                               onKeyDown={(e) => { if (e.key==='Enter') commitRename(name); if (e.key==='Escape') setRenamingId(null); }}
                               className="flex-1 px-2 py-1 text-sm border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-slate-400" />
-                            <button onClick={() => commitRename(name)} className="p-1 text-green-600 hover:bg-green-50 rounded"><FiCheck size={15} /></button>
+                            <button onClick={() => commitRename(name)} className="p-1 text-gray-600 hover:bg-gray-50 rounded"><FiCheck size={15} /></button>
                             <button onClick={() => setRenamingId(null)} className="p-1 text-slate-400 hover:bg-slate-100 rounded"><FiX size={15} /></button>
                           </div>
                         ) : (
@@ -636,7 +623,7 @@ const Scenarios = () => {
                             <span className="font-medium text-slate-800 text-sm truncate">{name}</span>
                             <span className="text-xs text-slate-400 shrink-0">{overrideList.length} override{overrideList.length!==1?'s':''}</span>
                             {missingCount > 0 && (
-                              <span className="text-xs bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded shrink-0">
+                              <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded shrink-0">
                                 {missingCount} missing
                               </span>
                             )}
@@ -645,19 +632,19 @@ const Scenarios = () => {
 
                         <div className="flex items-center gap-1 shrink-0">
                           <button onClick={() => setScenarioModal({ existing: true, name, overrideList })}
-                            className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg" title="Edit">
+                            className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg" title="Edit overrides">
                             <FiEdit2 size={14} />
                           </button>
                           <button onClick={() => { setRenamingId(name); setRenameValue(name); }}
                             className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg" title="Rename">
-                            <FiEdit2 size={14} />
+                            <FiEdit3 size={14} />
                           </button>
                           <button onClick={() => handleDuplicate(name)}
                             className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg" title="Duplicate">
                             <FiCopy size={14} />
                           </button>
                           <button onClick={() => handleDeleteScenario(name)}
-                            className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg" title="Delete">
+                            className="p-1.5 text-slate-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg" title="Delete">
                             <FiTrash2 size={14} />
                           </button>
                         </div>
@@ -671,7 +658,7 @@ const Scenarios = () => {
                                 className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm ${
                                   overrides[o]
                                     ? 'bg-white border-slate-200 text-slate-800'
-                                    : 'bg-amber-50 border-amber-200 text-amber-700'
+                                    : 'bg-gray-50 border-gray-200 text-gray-700'
                                 }`}
                               >
                                 <span className="text-xs text-slate-400 w-4">{i+1}.</span>

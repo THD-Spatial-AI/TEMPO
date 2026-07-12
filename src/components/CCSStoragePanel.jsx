@@ -37,9 +37,9 @@ function detectStorageType(model) {
 const STORAGE_META = {
   saline: {
     label:   "Saline Aquifer (Onshore)",
-    hue:     "#10b981",
-    bg:      "bg-emerald-50",
-    border:  "border-emerald-200",
+    hue:     "#6b7280",
+    bg:      "bg-gray-50",
+    border:  "border-gray-200",
     tagline: "Deep saline formations · 500-2000 MtCO₂ capacity · €8-12/tCO₂",
     capacityRange: [500, 2000],
     depthRange: [800, 2500],
@@ -47,9 +47,9 @@ const STORAGE_META = {
   },
   offshore: {
     label:   "Saline Aquifer (Offshore)",
-    hue:     "#06b6d4",
-    bg:      "bg-cyan-50",
-    border:  "border-cyan-200",
+    hue:     "#6b7280",
+    bg:      "bg-gray-50",
+    border:  "border-gray-200",
     tagline: "Offshore reservoirs · 1000-5000 MtCO₂ capacity · €12-18/tCO₂",
     capacityRange: [1000, 5000],
     depthRange: [1000, 3000],
@@ -57,9 +57,9 @@ const STORAGE_META = {
   },
   gas: {
     label:   "Depleted Gas Field",
-    hue:     "#6366f1",
-    bg:      "bg-indigo-50",
-    border:  "border-indigo-200",
+    hue:     "#6b7280",
+    bg:      "bg-gray-50",
+    border:  "border-gray-200",
     tagline: "Proven integrity · 300-1000 MtCO₂ capacity · €6-10/tCO₂",
     capacityRange: [300, 1000],
     depthRange: [1500, 3500],
@@ -67,9 +67,9 @@ const STORAGE_META = {
   },
   oil: {
     label:   "Depleted Oil Field (EOR)",
-    hue:     "#f59e0b",
-    bg:      "bg-amber-50",
-    border:  "border-amber-200",
+    hue:     "#6b7280",
+    bg:      "bg-gray-50",
+    border:  "border-gray-200",
     tagline: "Enhanced recovery · 200-800 MtCO₂ capacity · €4-8/tCO₂ (revenue offset)",
     capacityRange: [200, 800],
     depthRange: [1000, 3000],
@@ -77,9 +77,9 @@ const STORAGE_META = {
   },
   basalt: {
     label:   "Basalt Mineralization",
-    hue:     "#dc2626",
-    bg:      "bg-red-50",
-    border:  "border-red-200",
+    hue:     "#6b7280",
+    bg:      "bg-gray-50",
+    border:  "border-gray-200",
     tagline: "Permanent chemical bonding · 1000+ MtCO₂ capacity · €15-25/tCO₂",
     capacityRange: [1000, 10000],
     depthRange: [400, 1500],
@@ -87,9 +87,9 @@ const STORAGE_META = {
   },
   pipeline: {
     label:   "CO₂ Pipeline Transport",
-    hue:     "#8b5cf6",
-    bg:      "bg-violet-50",
-    border:  "border-violet-200",
+    hue:     "#6b7280",
+    bg:      "bg-gray-50",
+    border:  "border-gray-200",
     tagline: "Trunk line to offshore hub · 200-500 km · €10-20/tCO₂",
     capacityRange: [1, 20], // MtCO₂/year
     depthRange: [0, 0], // N/A
@@ -166,8 +166,8 @@ export default function CCSStoragePanel({
           data: hydrostaticPressure,
           smooth: true,
           symbol: "none",
-          color: "#3b82f6",
-          lineStyle: { color: "#3b82f6", width: 2 },
+          color: "#9ca3af",
+          lineStyle: { color: "#9ca3af", width: 2 },
         },
         {
           name: "Injection",
@@ -190,8 +190,8 @@ export default function CCSStoragePanel({
           data: fracturePressure,
           smooth: true,
           symbol: "none",
-          color: "#ef4444",
-          lineStyle: { color: "#ef4444", width: 2, type: "dashed" },
+          color: "#374151",
+          lineStyle: { color: "#374151", width: 2, type: "dashed" },
         },
       ],
     };
@@ -222,7 +222,7 @@ export default function CCSStoragePanel({
       ],
       series: [
         { name: "Plume Radius (km)",   type: "line", data: radius,     smooth: true, symbol: "none", color: meta.hue, lineStyle: { color: meta.hue, width: 2 }, areaStyle: { color: `${meta.hue}22` }, yAxisIndex: 0 },
-        { name: "Cumulative (MtCO₂)", type: "line", data: cumulative, smooth: true, symbol: "none", color: "#3b82f6", lineStyle: { color: "#3b82f6", width: 2 }, yAxisIndex: 1 },
+        { name: "Cumulative (MtCO₂)", type: "line", data: cumulative, smooth: true, symbol: "none", color: "#9ca3af", lineStyle: { color: "#9ca3af", width: 2 }, yAxisIndex: 1 },
       ],
     };
   }, [localParams.injection_rate_mtco2_yr, localParams.porosity_pct, meta.hue]);
@@ -245,7 +245,7 @@ export default function CCSStoragePanel({
       ],
       series: [
         { name: "Injectivity (Mt/yr)", type: "bar",  data: rates, itemStyle: { color: meta.hue, opacity: 0.8 }, yAxisIndex: 0 },
-        { name: "Wells Needed",        type: "line", data: wells, symbol: "none", color: "#ef4444", lineStyle: { color: "#ef4444", width: 2 }, yAxisIndex: 1 },
+        { name: "Wells Needed",        type: "line", data: wells, symbol: "none", color: "#374151", lineStyle: { color: "#374151", width: 2 }, yAxisIndex: 1 },
       ],
     };
   }, [localParams.injection_rate_mtco2_yr, localParams.permeability_md, meta.hue]);
@@ -301,16 +301,16 @@ export default function CCSStoragePanel({
         const appliedV = variants.find((v) => v.id === appliedId) ?? null;
         return (
           <div className={`bg-white rounded-xl border shadow-sm px-4 py-3 flex flex-wrap items-start gap-3
-            ${isPending ? "border-amber-300" : appliedV ? "border-emerald-300" : "border-slate-200"}`}>
+            ${isPending ? "border-gray-400" : appliedV ? "border-gray-300" : "border-slate-200"}`}>
             <FiLayers size={12} style={{ color: meta.hue }} className="mt-1" />
             <div className="flex-1 min-w-[220px] space-y-1.5">
               <div className="flex items-center gap-2">
                 <span className="text-[11px] font-semibold text-slate-600">Technology Variant</span>
-                {appliedV && !isPending && <span className="text-[10px] bg-emerald-100 text-emerald-700 font-semibold px-2 py-0.5 rounded-full">✓ Applied</span>}
-                {isPending && <span className="text-[10px] bg-amber-100 text-amber-700 font-semibold px-2 py-0.5 rounded-full">● Pending — click Apply</span>}
+                {appliedV && !isPending && <span className="text-[10px] bg-gray-100 text-gray-700 font-semibold px-2 py-0.5 rounded-full">✓ Applied</span>}
+                {isPending && <span className="text-[10px] bg-gray-100 text-gray-700 font-semibold px-2 py-0.5 rounded-full">● Pending — click Apply</span>}
               </div>
               <select value={stagedId} onChange={handleStage}
-                className="w-full text-[12px] border border-slate-200 rounded-lg px-2.5 py-1.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer">
+                className="w-full text-[12px] border border-slate-200 rounded-lg px-2.5 py-1.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-gray-400 cursor-pointer">
                 <option value="">— default —</option>
                 {variants.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
               </select>
@@ -319,12 +319,12 @@ export default function CCSStoragePanel({
             <div className="flex flex-col gap-1.5 shrink-0">
               <button onClick={handleApply} disabled={!isPending && !appliedId}
                 className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all
-                  ${isPending ? "bg-emerald-500 text-white hover:bg-emerald-600 shadow-sm" : appliedId ? "bg-slate-100 text-slate-500 hover:bg-slate-200" : "bg-slate-100 text-slate-300 cursor-not-allowed"}`}>
+                  ${isPending ? "bg-gray-700 text-white hover:bg-gray-800 shadow-sm" : appliedId ? "bg-slate-100 text-slate-500 hover:bg-slate-200" : "bg-slate-100 text-slate-300 cursor-not-allowed"}`}>
                 {isPending ? "✓ Apply variant" : appliedId ? "✓ Applied" : "Apply"}
               </button>
               {(appliedId || isPending) && (
                 <button onClick={() => { setLocalParams({}); onParamsChange?.({}); }}
-                  className="px-3 py-1 rounded-lg text-[10px] text-red-400 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200 transition-all">
+                  className="px-3 py-1 rounded-lg text-[10px] text-gray-500 hover:text-gray-700 hover:bg-gray-50 border border-transparent hover:border-gray-200 transition-all">
                   ✕ Reset
                 </button>
               )}
@@ -341,7 +341,7 @@ export default function CCSStoragePanel({
           <select
             value={selectedChart}
             onChange={(e) => setSelectedChart(e.target.value)}
-            className="ml-auto text-xs bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            className="ml-auto text-xs bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 text-slate-600 focus:outline-none focus:ring-2 focus:ring-gray-300"
           >
             <option value="pressure">Pressure–Depth Profile</option>
             <option value="plume">CO₂ Plume Growth</option>
@@ -384,7 +384,7 @@ export default function CCSStoragePanel({
       </div>
 
       {/* ── Info Banner ────────────────────────────────────────────────────── */}
-      <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-2xl text-xs text-blue-700">
+      <div className="flex items-start gap-2 p-3 bg-gray-50 border border-gray-200 rounded-2xl text-xs text-gray-700">
         <FiInfo className="shrink-0 mt-0.5" size={14} />
         <p>
           <b>Geological storage:</b> CO₂ must be injected below ~800m depth to ensure supercritical state (density 500-800 kg/m³).
@@ -464,11 +464,11 @@ function ParamSlider({ label, unit, value, min, max, step = 1, onChange }) {
 
 function MetricBadge({ label, value, unit, color = "slate" }) {
   const palettes = {
-    amber:  "bg-amber-50  border-amber-200  text-amber-700",
-    green:  "bg-emerald-50 border-emerald-200 text-emerald-700",
-    violet: "bg-violet-50 border-violet-200 text-violet-700",
-    blue:   "bg-blue-50   border-blue-200   text-blue-700",
-    red:    "bg-red-50    border-red-200    text-red-700",
+    amber:  "bg-gray-50 border-gray-200 text-gray-700",
+    green:  "bg-gray-50 border-gray-200 text-gray-700",
+    violet: "bg-gray-50 border-gray-200 text-gray-700",
+    blue:   "bg-gray-50 border-gray-200 text-gray-700",
+    red:    "bg-gray-50 border-gray-200 text-gray-700",
     slate:  "bg-slate-50  border-slate-200  text-slate-700",
   };
   return (
@@ -485,18 +485,18 @@ function MetricBadge({ label, value, unit, color = "slate" }) {
 function KpiCard({ label, value, unit, color = "slate" }) {
   const ring = {
     electric: "border-electric-200 bg-electric-50",
-    emerald:  "border-emerald-200 bg-emerald-50",
-    amber:    "border-amber-200 bg-amber-50",
-    blue:     "border-blue-200 bg-blue-50",
-    violet:   "border-violet-200 bg-violet-50",
+    emerald:  "border-gray-200 bg-gray-50",
+    amber:    "border-gray-200 bg-gray-50",
+    blue:     "border-gray-200 bg-gray-50",
+    violet:   "border-gray-200 bg-gray-50",
     slate:    "border-slate-200 bg-slate-50",
   };
   const text = {
     electric: "text-electric-700",
-    emerald:  "text-emerald-700",
-    amber:    "text-amber-700",
-    blue:     "text-blue-700",
-    violet:   "text-violet-700",
+    emerald:  "text-gray-700",
+    amber:    "text-gray-700",
+    blue:     "text-gray-700",
+    violet:   "text-gray-700",
     slate:    "text-slate-700",
   };
   return (

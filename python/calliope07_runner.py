@@ -313,6 +313,9 @@ def _install_highs_lp_patch():
     _orig = PyomoBackendModel._solve
 
     def _patched_solve(self, solve_config, warmstart=False):
+        import xarray as xr
+        import pyomo.environ as pe
+
         if solve_config.solver != 'highs':
             return _orig(self, solve_config, warmstart=warmstart)
 
@@ -340,62 +343,59 @@ def _install_highs_lp_patch():
                 for line in proc.stderr.splitlines():
                     log(f"[HiGHS stderr] {line}")
 
-            results = SolverResults()
-            s = results.solver.add()
-            soln = results.solution.add()
+            # Build pyomo SolverResults that load_solution expects
+            pyomo_results = SolverResults()
+            s = pyomo_results.solver.add()
+            soln = pyomo_results.solution.add()
             soln.symbol_map = symbol_map
             soln.default_variable_value = 0.0
 
+            tc = TerminationCondition.unknown
+
             if not os.path.exists(sol_path):
                 log("[HiGHS] ERROR: solver produced no solution file")
-                s.termination_condition = TerminationCondition.error
-                s.status = SolverStatus.error
-                soln.status = SolutionStatus.error
-                return results
+                tc = TerminationCondition.error
+            else:
+                sol_text = open(sol_path).read()
+                MAJOR = {'# Primal solution values', '# Dual solution values',
+                         '# Basis'}
+                in_primal = False
+                in_cols = False
 
-            sol_text = open(sol_path).read()
-            MAJOR = {'# Primal solution values', '# Dual solution values', '# Basis'}
-            tc = TerminationCondition.unknown
-            in_primal = False
-            in_cols = False
+                for line in sol_text.splitlines():
+                    ls = line.strip()
 
-            for line in sol_text.splitlines():
-                ls = line.strip()
+                    if ls in MAJOR:
+                        in_primal = (ls == '# Primal solution values')
+                        in_cols = False
+                        continue
+                    if ls.startswith('# Columns') and in_primal:
+                        in_cols = True; continue
+                    if ls.startswith('#') and in_primal:
+                        in_cols = False; continue
 
-                # Track major sections — only parse primal column values
-                if ls in MAJOR:
-                    in_primal = (ls == '# Primal solution values')
-                    in_cols = False
-                    continue
-                if ls.startswith('# Columns') and in_primal:
-                    in_cols = True; continue
-                if ls.startswith('#') and in_primal:
-                    in_cols = False; continue
+                    if ls == 'Optimal':
+                        tc = TerminationCondition.optimal
+                    elif ls == 'Infeasible':
+                        tc = TerminationCondition.infeasible
 
-                # Termination condition
-                if ls == 'Optimal':
-                    tc = TerminationCondition.optimal
-                elif ls == 'Infeasible':
-                    tc = TerminationCondition.infeasible
+                    if in_primal and in_cols and ls and ls not in ('Feasible',
+                                                                    'Infeasible'):
+                        parts = ls.split()
+                        if len(parts) == 2:
+                            try:
+                                soln.variable[parts[0]] = {'Value': float(parts[1])}
+                            except ValueError:
+                                pass
 
-                # Primal variable values
-                if in_primal and in_cols and ls and ls not in ('Feasible', 'Infeasible'):
-                    parts = ls.split()
-                    if len(parts) == 2:
-                        try:
-                            soln.variable[parts[0]] = {'Value': float(parts[1])}
-                        except ValueError:
-                            pass
-
-                # Objective value
-                if in_primal and ls.startswith('Objective'):
-                    parts = ls.split()
-                    if len(parts) == 2:
-                        try:
-                            soln.objective['__default_objective__'] = {
-                                'Value': float(parts[1])}
-                        except ValueError:
-                            pass
+                    if in_primal and ls.startswith('Objective'):
+                        parts = ls.split()
+                        if len(parts) == 2:
+                            try:
+                                soln.objective['__default_objective__'] = {
+                                    'Value': float(parts[1])}
+                            except ValueError:
+                                pass
 
             is_ok = tc == TerminationCondition.optimal
             s.termination_condition = tc
@@ -403,7 +403,21 @@ def _install_highs_lp_patch():
             soln.status = (SolutionStatus.optimal if is_ok
                            else SolutionStatus.infeasible)
             log(f"[HiGHS] termination_condition={tc}")
-            return results
+
+            # Mirror calliope's _solve return contract: xr.Dataset, not SolverResults.
+            # load_solution sets variable values on the kernel model; load_results
+            # extracts them into the xarray Dataset calliope's model.solve() expects.
+            if is_ok:
+                instance.load_solution(pyomo_results.solution[0])
+                xr_results = self.load_results()
+            else:
+                from calliope.backend.backend_model import BackendWarning
+                from calliope.exceptions import warn as model_warn
+                model_warn("Model solution was non-optimal.", _class=BackendWarning)
+                xr_results = xr.Dataset()
+
+            xr_results.attrs["termination_condition"] = str(tc)
+            return xr_results
 
     _patched_solve._tempo_highs_lp_patch = True
     PyomoBackendModel._solve = _patched_solve

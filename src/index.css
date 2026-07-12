@@ -24,13 +24,13 @@
   /* Energy-Themed Color Palette */
   --color-electric: #6b7280;
   --color-electric-dark: #1f2937;
-  --color-solar: #f59e0b;
-  --color-solar-light: #fbbf24;
-  --color-wind: #06b6d4;
-  --color-wind-dark: #0891b2;
-  --color-grid: #8b5cf6;
-  --color-demand: #ef4444;
-  --color-storage: #10b981;
+  --color-solar: #6b7280;
+  --color-solar-light: #9ca3af;
+  --color-wind: #6b7280;
+  --color-wind-dark: #4b5563;
+  --color-grid: #6b7280;
+  --color-demand: #6b7280;
+  --color-storage: #6b7280;
   
   /* Refined Neutrals */
   --color-slate-50: #f8fafc;
@@ -43,7 +43,7 @@
   
   /* Gradients */
   --gradient-energy: linear-gradient(135deg, #6b7280 0%, #030712 100%);
-  --gradient-solar: linear-gradient(135deg, var(--color-solar) 0%, var(--color-solar-light) 100%);
+  --gradient-solar: linear-gradient(135deg, #6b7280 0%, #9ca3af 100%);
   --gradient-mesh: radial-gradient(at 0% 0%, rgba(107, 114, 128, 0.08) 0px, transparent 50%),
                    radial-gradient(at 100% 0%, rgba(55, 65, 81, 0.06) 0px, transparent 50%),
                    radial-gradient(at 100% 100%, rgba(31, 41, 55, 0.06) 0px, transparent 50%),
@@ -236,7 +236,7 @@ code, pre {
 .marker-cluster {
   background-clip: padding-box;
   border-radius: 50%;
-  background-color: rgba(79, 70, 229, 0.6);
+  background-color: rgba(107, 114, 128, 0.6);
 }
 
 .marker-cluster div {
@@ -246,7 +246,7 @@ code, pre {
   margin-top: 3px;
   text-align: center;
   border-radius: 50%;
-  background-color: rgba(79, 70, 229, 0.9);
+  background-color: rgba(107, 114, 128, 0.9);
   color: white;
   font-weight: 600;
   font-size: 13px;
@@ -254,27 +254,27 @@ code, pre {
 }
 
 .marker-cluster-small {
-  background-color: rgba(79, 70, 229, 0.5);
+  background-color: rgba(107, 114, 128, 0.5);
 }
 
 .marker-cluster-small div {
-  background-color: rgba(79, 70, 229, 0.8);
+  background-color: rgba(107, 114, 128, 0.8);
 }
 
 .marker-cluster-medium {
-  background-color: rgba(99, 102, 241, 0.5);
+  background-color: rgba(107, 114, 128, 0.5);
 }
 
 .marker-cluster-medium div {
-  background-color: rgba(99, 102, 241, 0.9);
+  background-color: rgba(107, 114, 128, 0.9);
 }
 
 .marker-cluster-large {
-  background-color: rgba(129, 140, 248, 0.5);
+  background-color: rgba(156, 163, 175, 0.5);
 }
 
 .marker-cluster-large div {
-  background-color: rgba(129, 140, 248, 0.9);
+  background-color: rgba(156, 163, 175, 0.9);
 }
 
 /* Respect user reduced-motion preference (WCAG 2.3 / best-practices) */

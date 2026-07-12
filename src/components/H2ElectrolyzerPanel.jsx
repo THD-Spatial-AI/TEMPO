@@ -43,21 +43,21 @@ function detectElzType(model) {
 const ELZ_META = {
   pem: {
     label:     "PEM Electrolyzer",
-    hue:       "#6366f1",
-    bg:        "bg-indigo-50",
-    border:    "border-indigo-200",
+    hue:       "#6b7280",
+    bg:        "bg-gray-50",
+    border:    "border-gray-200",
     tagline:   "Fast-response · wide partial-load range (5–100 %)",
     minLoad:   5,
     peakLoadPct: 55,
-    effPeak:   74,          // % (LHV basis, typical commercial unit)
-    h2hhv:     39.4,        // kWh/kg H₂  (HHV)
-    h2lhv:     33.3,        // kWh/kg H₂  (LHV)
+    effPeak:   74,
+    h2hhv:     39.4,
+    h2lhv:     33.3,
   },
   alkaline: {
     label:     "Alkaline Electrolyzer",
-    hue:       "#22c55e",
-    bg:        "bg-green-50",
-    border:    "border-green-200",
+    hue:       "#6b7280",
+    bg:        "bg-gray-50",
+    border:    "border-gray-200",
     tagline:   "Mature technology · high capacity stacks (20–100 %)",
     minLoad:   20,
     peakLoadPct: 68,
@@ -67,9 +67,9 @@ const ELZ_META = {
   },
   soec: {
     label:     "SOEC (High-Temp)",
-    hue:       "#dc2626",
-    bg:        "bg-red-50",
-    border:    "border-red-200",
+    hue:       "#6b7280",
+    bg:        "bg-gray-50",
+    border:    "border-gray-200",
     tagline:   "Steam electrolysis · thermally-assisted (30–100 %)",
     minLoad:   30,
     peakLoadPct: 58,
@@ -79,9 +79,9 @@ const ELZ_META = {
   },
   aem: {
     label:     "AEM Electrolyzer",
-    hue:       "#8b5cf6",
-    bg:        "bg-violet-50",
-    border:    "border-violet-200",
+    hue:       "#6b7280",
+    bg:        "bg-gray-50",
+    border:    "border-gray-200",
     tagline:   "Next-gen · PEM-like with lower-cost materials (5–100 %)",
     minLoad:   5,
     peakLoadPct: 50,
@@ -243,8 +243,8 @@ function buildEfficiencyCurveChart(elzType, effPct, hue) {
           smooth: true,
           symbol: "none",
           connectNulls: false,
-          color: "#f59e0b",
-          lineStyle: { color: "#f59e0b", width: 2, type: "dashed" },
+          color: "#9ca3af",
+          lineStyle: { color: "#9ca3af", width: 2, type: "dashed" },
           yAxisIndex: 1,
         },
       ],
@@ -378,7 +378,7 @@ function buildH2ProductionChart(elzType, effPct, capacityKw, genTechType, hue) {
           return (
             `<b>${lbl}</b><br/>` +
             (h2p ? `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${hue};margin-right:4px;"></span>H₂ rate: <b>${Number(h2p.value ?? 0).toFixed(2)} kg/h</b><br/>` : "") +
-            (effp && effp.value != null ? `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#f59e0b;margin-right:4px;"></span>η: <b>${Number(effp.value).toFixed(1)} %</b>` : "")
+            (effp && effp.value != null ? `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#9ca3af;margin-right:4px;"></span>η: <b>${Number(effp.value).toFixed(1)} %</b>` : "")
           );
         },
       },
@@ -432,8 +432,8 @@ function buildH2ProductionChart(elzType, effPct, capacityKw, genTechType, hue) {
           smooth: true,
           symbol: "none",
           connectNulls: false,
-          color: "#f59e0b",
-          lineStyle: { color: "#f59e0b", width: 1.5, type: "dashed" },
+          color: "#9ca3af",
+          lineStyle: { color: "#9ca3af", width: 1.5, type: "dashed" },
           yAxisIndex: 1,
         },
       ],
@@ -603,16 +603,16 @@ function ConstraintRow({ label, unit, value, defaultValue, min, max, step = 1, o
           placeholder={defaultValue != null ? String(defaultValue) : "—"}
           onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) onChange(v); }}
           className="w-[72px] text-right text-[11px] font-semibold bg-slate-50 border border-slate-200
-            rounded-md px-1.5 py-[3px] focus:outline-none focus:ring-1 focus:ring-indigo-400
-            hover:border-indigo-300 transition-colors"
-          style={{ fontVariantNumeric: "tabular-nums", color: isOverridden ? "#4f46e5" : "#475569" }}
+            rounded-md px-1.5 py-[3px] focus:outline-none focus:ring-1 focus:ring-gray-400
+            hover:border-gray-300 transition-colors"
+          style={{ fontVariantNumeric: "tabular-nums", color: isOverridden ? "#374151" : "#475569" }}
         />
         <span className="text-[10px] text-slate-400 w-[42px] shrink-0 leading-none">{unit}</span>
         <button
           onClick={onReset}
           className={`w-4 text-[10px] leading-none transition-all
             ${isOverridden
-              ? "text-red-400 hover:text-red-600 opacity-100"
+              ? "text-gray-500 hover:text-gray-700 opacity-100"
               : "text-slate-200 cursor-default opacity-0 group-hover:opacity-40"}`}
           title="Reset to default"
           disabled={!isOverridden}
@@ -624,12 +624,12 @@ function ConstraintRow({ label, unit, value, defaultValue, min, max, step = 1, o
 
 function MetricBadge({ label, value, unit, color = "slate", wide = false }) {
   const palettes = {
-    amber:   "bg-amber-50  border-amber-200  text-amber-700",
-    green:   "bg-emerald-50 border-emerald-200 text-emerald-700",
-    violet:  "bg-violet-50 border-violet-200 text-violet-700",
-    blue:    "bg-blue-50   border-blue-200   text-blue-700",
+    amber:   "bg-gray-50 border-gray-200 text-gray-700",
+    green:   "bg-gray-50 border-gray-200 text-gray-700",
+    violet:  "bg-gray-50 border-gray-200 text-gray-700",
+    blue:    "bg-gray-50 border-gray-200 text-gray-700",
     slate:   "bg-slate-50  border-slate-200  text-slate-700",
-    red:     "bg-red-50    border-red-200    text-red-700",
+    red:     "bg-gray-50 border-gray-200 text-gray-700",
     indigo:  "bg-gray-50 border-gray-200 text-gray-700",
   };
   return (
@@ -795,10 +795,7 @@ export default function H2ElectrolyzerPanel({
             <div>
               <div className="flex flex-wrap items-center gap-1.5">
                 <h3 className="text-sm font-bold text-slate-800">{effectiveModel.name}</h3>
-                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full
-                  ${effectiveModel.lifecycle === "commercial"    ? "bg-emerald-100 text-emerald-700"
-                  : effectiveModel.lifecycle === "demonstration" ? "bg-amber-100   text-amber-700"
-                                                                  : "bg-blue-100    text-blue-700"}`}>
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">
                   {effectiveModel.lifecycle ?? "commercial"}
                 </span>
                 {hasOverrides && (
@@ -904,7 +901,7 @@ export default function H2ElectrolyzerPanel({
             }}
             className="flex-1 min-w-[200px] max-w-xs text-[12px] border border-slate-200 rounded-lg
               px-2.5 py-1.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2
-              focus:ring-indigo-400 focus:border-transparent cursor-pointer"
+              focus:ring-gray-400 focus:border-transparent cursor-pointer"
           >
             <option value="">— opentech-db default —</option>
             {variants.map((v) => (
@@ -926,7 +923,7 @@ export default function H2ElectrolyzerPanel({
               </span>
               <button
                 onClick={() => { setLocalParams({}); onParamsChange?.({}); }}
-                className="ml-auto text-[10px] text-red-400 hover:text-red-600 font-medium whitespace-nowrap"
+                className="ml-auto text-[10px] text-gray-500 hover:text-gray-700 font-medium whitespace-nowrap"
               >✕ Reset</button>
             </>
           )}
@@ -961,7 +958,7 @@ export default function H2ElectrolyzerPanel({
               <select
                 value={activeElz}
                 onChange={(e) => setSelectedElzChart(e.target.value)}
-                className="ml-auto text-xs bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                className="ml-auto text-xs bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 text-slate-600 focus:outline-none focus:ring-2 focus:ring-gray-300"
               >
                 {elzChartOptions.map((o) => (
                   <option key={o.id} value={o.id}>{o.label}</option>
@@ -1028,28 +1025,28 @@ export default function H2ElectrolyzerPanel({
           </p>
           <p className="text-[10px] text-slate-400">H₂ HHV = 39.4 kWh/kg</p>
         </div>
-        <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
-          <p className="text-[10px] text-emerald-500 uppercase tracking-wide font-medium">Daily H₂</p>
-          <p className="text-lg font-bold text-emerald-800 leading-tight">
+        <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">
+          <p className="text-[10px] text-gray-500 uppercase tracking-wide font-medium">Daily H₂</p>
+          <p className="text-lg font-bold text-gray-800 leading-tight">
             {h2StatsChart.summary.daily_kg >= 1000
               ? `${(h2StatsChart.summary.daily_kg / 1000).toFixed(2)} t`
               : `${h2StatsChart.summary.daily_kg} kg`}
             <span className="text-sm font-normal ml-1">H₂/day</span>
           </p>
-          <p className="text-[10px] text-emerald-400">
+          <p className="text-[10px] text-gray-400">
             {isDone && actualChart?.summary.avgKg
               ? `Simulated avg: ${actualChart.summary.avgKg} kg/h`
               : `Avg generator CF · plant ${capacityKw >= 1000 ? `${(capacityKw / 1000).toFixed(1)} MW` : `${capacityKw} kW`}`}
           </p>
         </div>
-        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-          <p className="text-[10px] text-amber-500 uppercase tracking-wide font-medium">Annual H₂</p>
-          <p className="text-lg font-bold text-amber-800 leading-tight">
+        <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">
+          <p className="text-[10px] text-gray-500 uppercase tracking-wide font-medium">Annual H₂</p>
+          <p className="text-lg font-bold text-gray-800 leading-tight">
             {h2StatsChart.summary.annual_kg >= 1000
               ? <>{(h2StatsChart.summary.annual_kg / 1000).toFixed(1)} <span className="text-sm font-normal">t H₂/yr</span></>
               : <>{h2StatsChart.summary.annual_kg} <span className="text-sm font-normal">kg H₂/yr</span></>}
           </p>
-          <p className="text-[10px] text-amber-400">Estimated annual output</p>
+          <p className="text-[10px] text-gray-400">Estimated annual output</p>
         </div>
       </div>
 
@@ -1076,8 +1073,8 @@ export default function H2ElectrolyzerPanel({
           {hasOverrides && (
             <button
               onClick={(e) => { e.preventDefault(); resetAllParams(); }}
-              className="ml-2 text-[10px] text-red-400 hover:text-red-600 font-medium px-2 py-0.5
-                rounded hover:bg-red-50 transition-colors shrink-0"
+              className="ml-2 text-[10px] text-gray-500 hover:text-gray-700 font-medium px-2 py-0.5
+                rounded hover:bg-gray-50 transition-colors shrink-0"
             >Reset all</button>
           )}
         </summary>

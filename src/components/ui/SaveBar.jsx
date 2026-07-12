@@ -38,8 +38,8 @@ const SaveBar = ({ label = 'Model' }) => {
 
   /* ── colour theme ── */
   const dirty = isDirty && !saving;
-  const bg    = dirty ? 'bg-amber-50  border-amber-200' : 'bg-slate-50 border-slate-200';
-  const text  = dirty ? 'text-amber-800' : 'text-slate-500';
+  const bg    = dirty ? 'bg-gray-50 border-gray-200' : 'bg-slate-50 border-slate-200';
+  const text  = dirty ? 'text-gray-800' : 'text-slate-500';
 
   return (
     <div className={`flex items-center gap-3 px-5 py-2 border-b shrink-0 ${bg}`}>
@@ -47,11 +47,11 @@ const SaveBar = ({ label = 'Model' }) => {
       {/* ── Status indicator ── */}
       {dirty ? (
         <span className="relative flex h-2 w-2 shrink-0">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-          <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-gray-400 opacity-75" />
+          <span className="relative inline-flex rounded-full h-2 w-2 bg-gray-500" />
         </span>
       ) : (
-        <FiCheck size={13} className={justSaved ? 'text-emerald-500' : 'text-slate-400'} />
+        <FiCheck size={13} className={justSaved ? 'text-gray-700' : 'text-slate-400'} />
       )}
 
       {/* ── Label ── */}
@@ -80,7 +80,7 @@ const SaveBar = ({ label = 'Model' }) => {
         className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
                    transition-all disabled:opacity-60 shrink-0
                    ${dirty
-                     ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-sm'
+                     ? 'bg-gray-700 hover:bg-gray-800 text-white shadow-sm'
                      : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
                    }`}
       >

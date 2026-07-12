@@ -221,7 +221,7 @@ const Option = ({ Icon, title, selected, setSelected, open, notifs, isNested = f
           }}
           style={{ y: "-50%" }}
           transition={{ delay: 0.5, type: "spring" }}
-          className="absolute right-3 top-1/2 flex h-5 w-5 items-center justify-center rounded-full bg-solar-500 text-[10px] font-bold text-white shadow-sm"
+          className="absolute right-3 top-1/2 flex h-5 w-5 items-center justify-center rounded-full bg-gray-500 text-[10px] font-bold text-white shadow-sm"
         >
           {notifs}
         </motion.span>

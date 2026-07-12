@@ -41,10 +41,7 @@ const DiagramCtx = createContext(null);
 // Lifecycle badge colour helper
 // ─────────────────────────────────────────────────────────────────────────────
 function lifecycleDot(lifecycle) {
-  if (lifecycle === "commercial")    return "bg-emerald-400";
-  if (lifecycle === "projection")    return "bg-blue-400";
-  if (lifecycle === "demonstration") return "bg-amber-400";
-  return "bg-slate-300";
+  return "bg-gray-400";
 }
 
 function parseCapacityToKw(value, unitHint = null) {
@@ -171,11 +168,11 @@ const ModelPicker = memo(function ModelPicker({ slotKey, models, selected, onSel
           className={`nodrag flex-1 flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-left
             border transition-all text-[11px]
             ${ hasPending
-                ? "border-amber-300 bg-amber-50 text-amber-800"
+                ? "border-gray-400 bg-gray-50 text-gray-800"
                 : open
-                  ? "border-blue-400 bg-blue-50 text-blue-700"
+                  ? "border-gray-400 bg-gray-50 text-gray-700"
                   : selected
-                    ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+                    ? "border-gray-300 bg-gray-50 text-gray-800"
                     : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-white hover:border-slate-300"
               }
             disabled:opacity-40 disabled:cursor-not-allowed`}
@@ -188,7 +185,7 @@ const ModelPicker = memo(function ModelPicker({ slotKey, models, selected, onSel
                 <span className="shrink-0 text-[10px] opacity-70">η {Number(displayModel.efficiency_pct).toFixed(0)}%</span>
               )}
               {/* Lock badge — green = applied, amber = pending */}
-              <span className={`shrink-0 text-[9px] font-bold ${hasPending ? "text-amber-500" : "text-emerald-500"}`}>
+              <span className={`shrink-0 text-[9px] font-bold ${hasPending ? "text-gray-500" : "text-gray-500"}`}>
                 {hasPending ? "●" : "✓"}
               </span>
             </>
@@ -209,7 +206,7 @@ const ModelPicker = memo(function ModelPicker({ slotKey, models, selected, onSel
           className={`nodrag shrink-0 flex items-center justify-center w-7 h-7 rounded-lg border text-[11px] font-bold
             transition-all
             ${ hasPending
-                ? "border-emerald-400 bg-emerald-500 text-white hover:bg-emerald-600 shadow-sm"
+                ? "border-gray-600 bg-gray-700 text-white hover:bg-gray-800 shadow-sm"
                 : "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed"
               }`}
         >
@@ -219,7 +216,7 @@ const ModelPicker = memo(function ModelPicker({ slotKey, models, selected, onSel
 
       {/* Pending label */}
       {hasPending && (
-        <p className="text-[9px] text-amber-600 font-medium mt-0.5 ml-0.5">
+        <p className="text-[9px] text-gray-600 font-medium mt-0.5 ml-0.5">
           Staged — click ✓ to apply
         </p>
       )}
@@ -247,9 +244,9 @@ const ModelPicker = memo(function ModelPicker({ slotKey, models, selected, onSel
                   onClick={(e) => { stage(e, m); }}
                   className={`px-3 py-2 cursor-pointer transition-colors
                     ${ isStaged
-                        ? "bg-amber-50 border-l-2 border-amber-400"
+                        ? "bg-gray-50 border-l-2 border-gray-400"
                         : isApplied
-                          ? "bg-emerald-50 border-l-2 border-emerald-400"
+                          ? "bg-gray-50 border-l-2 border-gray-300"
                           : "hover:bg-slate-50 border-l-2 border-transparent"
                       }`}
                 >
@@ -257,12 +254,12 @@ const ModelPicker = memo(function ModelPicker({ slotKey, models, selected, onSel
                     <span className={`w-2 h-2 rounded-full shrink-0 ${lifecycleDot(m.lifecycle)}`} />
                     <span className="text-[11px] font-semibold text-slate-800 flex-1 truncate">{m.name}</span>
                     {m.efficiency_pct != null && (
-                      <span className={`text-[10px] font-medium ${isStaged ? "text-amber-600" : isApplied ? "text-emerald-600" : "text-slate-400"}`}>
+                      <span className={`text-[10px] font-medium ${isStaged ? "text-gray-600" : isApplied ? "text-gray-600" : "text-slate-400"}`}>
                         η {Number(m.efficiency_pct).toFixed(0)}%
                       </span>
                     )}
-                    {isApplied && !isStaged && <span className="text-[9px] text-emerald-500 font-bold">✓ active</span>}
-                    {isStaged  && <span className="text-[9px] text-amber-500 font-bold">● staged</span>}
+                    {isApplied && !isStaged && <span className="text-[9px] text-gray-500 font-bold">✓ active</span>}
+                    {isStaged  && <span className="text-[9px] text-gray-500 font-bold">● staged</span>}
                   </div>
                   {m.capacity_kw != null && (
                     <p className="text-[10px] text-slate-400 mt-0.5 ml-3.5">
@@ -279,7 +276,7 @@ const ModelPicker = memo(function ModelPicker({ slotKey, models, selected, onSel
                   {isStaged && (
                     <button
                       onClick={(e) => apply(e, m)}
-                      className="nodrag mt-1.5 ml-3.5 px-2 py-0.5 rounded-md bg-emerald-500 text-white text-[10px] font-bold hover:bg-emerald-600 transition-colors"
+                      className="nodrag mt-1.5 ml-3.5 px-2 py-0.5 rounded-md bg-gray-700 text-white text-[10px] font-bold hover:bg-gray-800 transition-colors"
                     >
                       Apply this model
                     </button>
@@ -374,17 +371,17 @@ const CsvUploader = memo(function CsvUploader({ customProfile, onSetCustomProfil
         onChange={handleChange}
       />
       {customProfile ? (
-        <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 rounded-lg px-2 py-1.5">
-          <svg width="10" height="10" viewBox="0 0 20 20" fill="none" stroke="#059669" strokeWidth="2.5">
+        <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5">
+          <svg width="10" height="10" viewBox="0 0 20 20" fill="none" stroke="#6b7280" strokeWidth="2.5">
             <path d="M3 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          <span className="flex-1 text-[10px] font-semibold text-emerald-700 truncate">
+          <span className="flex-1 text-[10px] font-semibold text-gray-700 truncate">
             {customProfile.filename}
           </span>
-          <span className="shrink-0 text-[9px] text-emerald-500">{customProfile.rows} pts</span>
+          <span className="shrink-0 text-[9px] text-gray-500">{customProfile.rows} pts</span>
           <button
             onClick={(e) => { stop(e); onSetCustomProfile(null); }}
-            className="shrink-0 text-[10px] text-red-400 hover:text-red-600 leading-none ml-1"
+            className="shrink-0 text-[10px] text-gray-500 hover:text-gray-700 leading-none ml-1"
             title="Remove custom profile"
           >✕</button>
         </div>
@@ -396,7 +393,7 @@ const CsvUploader = memo(function CsvUploader({ customProfile, onSetCustomProfil
             border border-dashed rounded-lg text-[10px] font-medium transition-all
             ${ disabled
                 ? "border-slate-100 text-slate-300 cursor-not-allowed"
-                : "border-slate-300 text-slate-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50"
+                : "border-slate-300 text-slate-500 hover:border-gray-400 hover:text-gray-600 hover:bg-gray-50"
               }`}
         >
           <svg width="10" height="10" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -438,7 +435,7 @@ const NodeField = memo(function NodeField({ label, unit, value, min, max, step =
           onClick={(e) => e.stopPropagation()}
           className="nodrag w-16 text-right text-[11px] font-semibold text-slate-700 bg-slate-50
             border border-slate-200 rounded-md px-1.5 py-0.5
-            focus:outline-none focus:ring-1 focus:ring-blue-400
+            focus:outline-none focus:ring-1 focus:ring-gray-400
             disabled:opacity-40 disabled:cursor-not-allowed"
           style={{ fontVariantNumeric: "tabular-nums" }}
         />
@@ -456,7 +453,7 @@ const StatusDot = memo(function StatusDot({ simState, color = "bg-slate-300" }) 
     return <span className={`ml-auto w-2 h-2 rounded-full ${color} animate-pulse`} />;
   }
   if (simState === "done") {
-    return <span className={`ml-auto w-2 h-2 rounded-full bg-emerald-400`} />;
+    return <span className={`ml-auto w-2 h-2 rounded-full bg-gray-400`} />;
   }
   return <span className={`ml-auto w-2 h-2 rounded-full bg-slate-200`} />;
 });
@@ -482,29 +479,29 @@ const GridNode = memo(function GridNode({ selected }) {
         ${ isActive
             ? "border-gray-700 shadow-gray-200 shadow-lg ring-2 ring-gray-400 ring-offset-1"
             : selected
-              ? "border-amber-600 shadow-amber-100 shadow-lg ring-2 ring-amber-300 ring-offset-1"
-              : "border-amber-400 hover:border-amber-500 hover:shadow-amber-100 hover:shadow-xl"
+              ? "border-gray-600 shadow-gray-100 shadow-lg ring-2 ring-gray-300 ring-offset-1"
+              : "border-gray-400 hover:border-gray-500 hover:shadow-gray-100 hover:shadow-xl"
           }
       `}
     >
       <div className="flex items-center gap-1.5 mb-1">
-        <span className="p-1 rounded-lg bg-amber-50 text-amber-500"><FiZap size={12} /></span>
+        <span className="p-1 rounded-lg bg-gray-100 text-gray-500"><FiZap size={12} /></span>
         <span className="text-xs font-bold text-slate-700 truncate max-w-[100px]">{sel?.name ?? "Power Source"}</span>
-        <StatusDot simState={simState} color="bg-amber-400" />
+        <StatusDot simState={simState} color="bg-gray-400" />
       </div>
       {sel && !customProfile && (
-        <p className="text-[10px] text-amber-600 font-semibold mb-1">
+        <p className="text-[10px] text-gray-600 font-semibold mb-1">
           {sel.efficiency_pct != null ? `η ${Number(sel.efficiency_pct).toFixed(0)}%` : "Generator"}
           {sourceCapKw != null ? ` · ${formatCapacityKw(sourceCapKw)}` : ""}
         </p>
       )}
       {customProfile && (
-        <p className="text-[10px] text-emerald-600 font-semibold mb-1">CSV profile active</p>
+        <p className="text-[10px] text-gray-600 font-semibold mb-1">CSV profile active</p>
       )}
       {/* Read-only plant capacity from the selected model */}
       <div className="flex items-center justify-between mt-1 mb-0.5" onClick={(e) => e.stopPropagation()}>
         <span className="text-[10px] text-slate-400 whitespace-nowrap leading-none">Plant Capacity</span>
-        <span className="text-[11px] font-semibold text-amber-600">
+        <span className="text-[11px] font-semibold text-gray-600">
           {formatCapacityKw(sourceCapKw)}
         </span>
       </div>
@@ -524,13 +521,13 @@ const GridNode = memo(function GridNode({ selected }) {
       <div className={`mt-2 pt-1.5 border-t flex items-center justify-center gap-1 text-[10px] font-medium rounded-b transition-colors
         ${ isActive
             ? "border-gray-400 text-gray-600"
-            : "border-slate-100 text-slate-400 hover:text-amber-500"
+            : "border-slate-100 text-slate-400 hover:text-gray-500"
           }
       `}>
         <span>{isActive ? "▴ Close analysis" : "▾ Analyze generator"}</span>
       </div>
       <Handle type="source" position={Position.Right} id="elec-out"
-        className="!bg-amber-400 !w-3 !h-3 !border-2 !border-white" />
+        className="!bg-gray-400 !w-3 !h-3 !border-2 !border-white" />
     </div>
   );
 }, (p, n) => p.selected === n.selected);
@@ -545,35 +542,35 @@ const ElzNode = memo(function ElzNode({ selected }) {
   const disabled = simState === "running" || simState === "queued";
   return (
     <div className={`bg-white rounded-xl border-2 shadow-md px-3 py-2.5 w-56 transition-colors duration-150
-      ${selected ? "border-indigo-600 shadow-indigo-100 shadow-lg ring-2 ring-indigo-300 ring-offset-1" : "border-indigo-400 hover:border-indigo-500 hover:shadow-indigo-100 hover:shadow-xl"}
-      ${simState === "running" && !selected ? "shadow-lg shadow-indigo-100" : ""}
+      ${selected ? "border-gray-600 shadow-gray-100 shadow-lg ring-2 ring-gray-400 ring-offset-1" : "border-gray-400 hover:border-gray-500 hover:shadow-gray-100 hover:shadow-xl"}
+      ${simState === "running" && !selected ? "shadow-lg shadow-gray-100" : ""}
     `}>
       <Handle type="target" position={Position.Left}   id="elec-in"
-        className="!bg-amber-400 !w-3 !h-3 !border-2 !border-white" />
+        className="!bg-gray-400 !w-3 !h-3 !border-2 !border-white" />
       <Handle type="target" position={Position.Bottom} id="water-in"
-        className="!bg-blue-400 !w-3 !h-3 !border-2 !border-white" style={{ left: "28%" }} />
+        className="!bg-gray-300 !w-3 !h-3 !border-2 !border-white" style={{ left: "28%" }} />
 
       <div className="flex items-center gap-1.5 mb-1">
-        <span className="p-1 rounded-lg bg-indigo-50 text-indigo-500"><FiZap size={12} /></span>
+        <span className="p-1 rounded-lg bg-gray-100 text-gray-500"><FiZap size={12} /></span>
         <span className="text-xs font-bold text-slate-700 truncate max-w-[110px]">{sel?.name ?? "Electrolyzer"}</span>
-        <StatusDot simState={simState} color="bg-indigo-400" />
+        <StatusDot simState={simState} color="bg-gray-400" />
       </div>
       {sel?.efficiency_pct != null && (
-        <p className="text-[10px] text-indigo-600 font-semibold mb-1">η {Number(sel.efficiency_pct).toFixed(0)}%</p>
+        <p className="text-[10px] text-gray-600 font-semibold mb-1">η {Number(sel.efficiency_pct).toFixed(0)}%</p>
       )}
 
       <p className="text-[10px] text-slate-400 mb-1">Parameters edited in right sidebar</p>
 
       {kpi?.avg_h2_production_nm3h != null && (
         <div className="mt-2 pt-1 border-t border-slate-100 animate-in fade-in duration-500">
-          <p className="text-[10px] font-semibold text-emerald-600">
+          <p className="text-[10px] font-semibold text-gray-600">
             Avg H₂: {Number(kpi.avg_h2_production_nm3h).toFixed(1)} Nm³/h
           </p>
         </div>
       )}
       <ModelPicker slotKey={slotKey} models={models?.[slotKey]} selected={sel} onSelect={onSelectModel} disabled={disabled} />
       <Handle type="source" position={Position.Right} id="h2-out"
-        className="!bg-emerald-500 !w-3 !h-3 !border-2 !border-white" />
+        className="!bg-gray-500 !w-3 !h-3 !border-2 !border-white" />
     </div>
   );
 }, (p, n) => p.selected === n.selected);
@@ -588,23 +585,23 @@ const CompressorNode = memo(function CompressorNode({ selected }) {
   const disabled = simState === "running" || simState === "queued";
   return (
     <div className={`bg-white rounded-xl border-2 shadow-md px-3 py-2.5 w-48 transition-colors duration-150
-      ${selected ? "border-amber-600 shadow-amber-100 shadow-lg ring-2 ring-amber-300 ring-offset-1" : "border-amber-500 hover:border-amber-600 hover:shadow-amber-100 hover:shadow-xl"}
+      ${selected ? "border-gray-600 shadow-gray-100 shadow-lg ring-2 ring-gray-400 ring-offset-1" : "border-gray-500 hover:border-gray-600 hover:shadow-gray-100 hover:shadow-xl"}
     `}>
       <Handle type="target" position={Position.Left}  id="h2-in"
-        className="!bg-emerald-500 !w-3 !h-3 !border-2 !border-white" />
+        className="!bg-gray-500 !w-3 !h-3 !border-2 !border-white" />
 
       <div className="flex items-center gap-1.5 mb-1">
-        <span className="p-1 rounded-lg bg-amber-50 text-amber-500">
+        <span className="p-1 rounded-lg bg-gray-100 text-gray-500">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <circle cx="12" cy="12" r="9" />
             <path d="M12 7v5l3 3" />
           </svg>
         </span>
         <span className="text-xs font-bold text-slate-700 truncate max-w-[90px]">{sel?.name ?? "Compressor"}</span>
-        <StatusDot simState={simState} color="bg-amber-400" />
+        <StatusDot simState={simState} color="bg-gray-400" />
       </div>
       {sel?.efficiency_pct != null && (
-        <p className="text-[10px] text-amber-600 font-semibold mb-1">η {Number(sel.efficiency_pct).toFixed(0)}%</p>
+        <p className="text-[10px] text-gray-600 font-semibold mb-1">η {Number(sel.efficiency_pct).toFixed(0)}%</p>
       )}
 
       <p className="text-[10px] text-slate-400 mb-1">Parameters edited in right sidebar</p>
@@ -612,7 +609,7 @@ const CompressorNode = memo(function CompressorNode({ selected }) {
       <ModelPicker slotKey={slotKey} models={models?.[slotKey]} selected={sel} onSelect={onSelectModel} disabled={disabled} />
 
       <Handle type="source" position={Position.Right} id="h2-out"
-        className="!bg-emerald-500 !w-3 !h-3 !border-2 !border-white" />
+        className="!bg-gray-500 !w-3 !h-3 !border-2 !border-white" />
     </div>
   );
 }, (p, n) => p.selected === n.selected);
@@ -631,21 +628,21 @@ const TankNode = memo(function TankNode({ selected }) {
 
   return (
     <div className={`bg-white rounded-xl border-2 shadow-md px-3 py-2.5 w-52 transition-colors duration-150
-      ${selected ? "border-amber-700 shadow-amber-100 shadow-lg ring-2 ring-amber-400 ring-offset-1" : "border-amber-600 hover:border-amber-700 hover:shadow-amber-100 hover:shadow-xl"}
-      ${simState === "running" && !selected ? "shadow-lg shadow-amber-100" : ""}
+      ${selected ? "border-gray-700 shadow-gray-100 shadow-lg ring-2 ring-gray-400 ring-offset-1" : "border-gray-600 hover:border-gray-700 hover:shadow-gray-100 hover:shadow-xl"}
+      ${simState === "running" && !selected ? "shadow-lg shadow-gray-100" : ""}
     `}>
       <Handle type="target" position={Position.Left}  id="h2-in"
-        className="!bg-emerald-500 !w-3 !h-3 !border-2 !border-white" />
+        className="!bg-gray-500 !w-3 !h-3 !border-2 !border-white" />
 
       <div className="flex items-center gap-1.5 mb-1">
-        <span className="p-1 rounded-lg bg-amber-50 text-amber-600">
+        <span className="p-1 rounded-lg bg-gray-100 text-gray-600">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <rect x="4" y="6" width="16" height="12" rx="6" />
             <line x1="4" y1="12" x2="20" y2="12" />
           </svg>
         </span>
         <span className="text-xs font-bold text-slate-700 truncate max-w-[100px]">{sel?.name ?? "H₂ Storage"}</span>
-        <StatusDot simState={simState} color="bg-amber-500" />
+        <StatusDot simState={simState} color="bg-gray-500" />
       </div>
 
       <p className="text-[10px] text-slate-400 mb-1">Parameters edited in right sidebar</p>
@@ -654,10 +651,10 @@ const TankNode = memo(function TankNode({ selected }) {
         <div className="mt-2 pt-1 border-t border-slate-100 animate-in fade-in duration-500">
           <div className="flex justify-between text-[10px] mb-1">
             <span className="text-slate-400">Peak pressure</span>
-            <span className="font-semibold text-amber-600">{Number(peakP).toFixed(1)} bar</span>
+            <span className="font-semibold text-gray-600">{Number(peakP).toFixed(1)} bar</span>
           </div>
           <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-            <div className="h-2 rounded-full bg-gradient-to-r from-amber-400 to-amber-600 transition-all duration-1000"
+            <div className="h-2 rounded-full bg-gradient-to-r from-gray-400 to-gray-600 transition-all duration-1000"
               style={{ width: `${fillPct}%` }} />
           </div>
         </div>
@@ -665,7 +662,7 @@ const TankNode = memo(function TankNode({ selected }) {
 
       <ModelPicker slotKey={slotKey} models={models?.[slotKey]} selected={sel} onSelect={onSelectModel} disabled={disabled} />
       <Handle type="source" position={Position.Right} id="h2-out"
-        className="!bg-emerald-500 !w-3 !h-3 !border-2 !border-white" />
+        className="!bg-gray-500 !w-3 !h-3 !border-2 !border-white" />
     </div>
   );
 }, (p, n) => p.selected === n.selected);
@@ -680,37 +677,37 @@ const FuelCellNode = memo(function FuelCellNode({ selected }) {
   const disabled = simState === "running" || simState === "queued";
   return (
     <div className={`bg-white rounded-xl border-2 shadow-md px-3 py-2.5 w-56 transition-colors duration-150
-      ${selected ? "border-violet-600 shadow-violet-100 shadow-lg ring-2 ring-violet-300 ring-offset-1" : "border-violet-500 hover:border-violet-600 hover:shadow-violet-100 hover:shadow-xl"}
-      ${simState === "running" && !selected ? "shadow-lg shadow-violet-100" : ""}
+      ${selected ? "border-gray-600 shadow-gray-100 shadow-lg ring-2 ring-gray-300 ring-offset-1" : "border-gray-500 hover:border-gray-600 hover:shadow-gray-100 hover:shadow-xl"}
+      ${simState === "running" && !selected ? "shadow-lg shadow-gray-100" : ""}
     `}>
       <Handle type="target" position={Position.Left}  id="h2-in"
-        className="!bg-emerald-500 !w-3 !h-3 !border-2 !border-white" />
+        className="!bg-gray-500 !w-3 !h-3 !border-2 !border-white" />
 
       <div className="flex items-center gap-1.5 mb-1">
-        <span className="p-1 rounded-lg bg-violet-50 text-violet-500"><FiCpu size={12} /></span>
+        <span className="p-1 rounded-lg bg-gray-100 text-gray-500"><FiCpu size={12} /></span>
         <span className="text-xs font-bold text-slate-700 truncate max-w-[110px]">{sel?.name ?? "Fuel Cell"}</span>
-        <StatusDot simState={simState} color="bg-violet-500" />
+        <StatusDot simState={simState} color="bg-gray-500" />
       </div>
       {sel?.efficiency_pct != null && (
-        <p className="text-[10px] text-violet-600 font-semibold mb-1">η {Number(sel.efficiency_pct).toFixed(0)}%</p>
+        <p className="text-[10px] text-gray-600 font-semibold mb-1">η {Number(sel.efficiency_pct).toFixed(0)}%</p>
       )}
 
       <p className="text-[10px] text-slate-400 mb-1">Parameters edited in right sidebar</p>
 
       {kpi && (
         <div className="mt-2 pt-1 border-t border-slate-100 animate-in fade-in duration-500 space-y-0.5">
-          <p className="text-[10px] font-semibold text-violet-600">
+          <p className="text-[10px] font-semibold text-gray-600">
             Avg output: {Number(kpi.avg_fc_power_kw).toFixed(1)} kW
           </p>
           <p className="text-[10px] text-slate-400">
-            η sys <span className="font-medium text-emerald-600">{Number(kpi.system_efficiency_pct).toFixed(1)} %</span>
+            η sys <span className="font-medium text-gray-600">{Number(kpi.system_efficiency_pct).toFixed(1)} %</span>
           </p>
         </div>
       )}
 
       <ModelPicker slotKey={slotKey} models={models?.[slotKey]} selected={sel} onSelect={onSelectModel} disabled={disabled} />
       <Handle type="source" position={Position.Right} id="elec-out"
-        className="!bg-amber-400 !w-3 !h-3 !border-2 !border-white" />
+        className="!bg-gray-400 !w-3 !h-3 !border-2 !border-white" />
     </div>
   );
 }, (p, n) => p.selected === n.selected);
@@ -722,18 +719,18 @@ const LoadNode = memo(function LoadNode({ selected }) {
   const { simState, kpi } = useContext(DiagramCtx);
   return (
     <div className={`bg-white rounded-xl border-2 shadow-md px-3 py-2.5 w-36 transition-colors duration-150
-      ${selected ? "border-emerald-600 shadow-emerald-100 shadow-lg ring-2 ring-emerald-300 ring-offset-1" : "border-emerald-500 hover:border-emerald-600 hover:shadow-emerald-100 hover:shadow-xl"}
+      ${selected ? "border-gray-600 shadow-gray-100 shadow-lg ring-2 ring-gray-300 ring-offset-1" : "border-gray-500 hover:border-gray-600 hover:shadow-gray-100 hover:shadow-xl"}
     `}>
-      <Handle type="target" position={Position.Left} id="elec-in" className="!bg-amber-400 !w-3 !h-3 !border-2 !border-white" />
+      <Handle type="target" position={Position.Left} id="elec-in" className="!bg-gray-400 !w-3 !h-3 !border-2 !border-white" />
 
       <div className="flex items-center gap-1.5 mb-1">
-        <span className="p-1 rounded-lg bg-emerald-50 text-emerald-500"><FiZap size={12} /></span>
+        <span className="p-1 rounded-lg bg-gray-100 text-gray-500"><FiZap size={12} /></span>
         <span className="text-xs font-bold text-slate-700">AC Output</span>
-        <StatusDot simState={simState} color="bg-emerald-400" />
+        <StatusDot simState={simState} color="bg-gray-400" />
       </div>
       <p className="text-[10px] text-slate-400 mb-1">Power to grid</p>
       {kpi ? (
-        <p className="text-lg font-bold text-emerald-600 leading-none animate-in fade-in duration-500">
+        <p className="text-lg font-bold text-gray-600 leading-none animate-in fade-in duration-500">
           {Number(kpi.avg_fc_power_kw).toFixed(1)}
           <span className="text-xs font-normal text-slate-400 ml-1">kW</span>
         </p>
@@ -750,10 +747,10 @@ const LoadNode = memo(function LoadNode({ selected }) {
 const WaterNode = memo(function WaterNode({ selected }) {
   return (
     <div className={`bg-white rounded-xl border-2 shadow-sm px-3 py-2 w-32 transition-colors duration-150
-      ${selected ? "border-blue-500 ring-2 ring-blue-200 ring-offset-1 shadow-md" : "border-blue-300 hover:border-blue-400 hover:shadow-md"}
+      ${selected ? "border-gray-500 ring-2 ring-gray-200 ring-offset-1 shadow-md" : "border-gray-300 hover:border-gray-400 hover:shadow-md"}
     `}>
       <div className="flex items-center gap-1.5">
-        <span className="text-blue-400">
+        <span className="text-gray-400">
           {/* Droplet SVG */}
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <path d="M12 2C12 2 5 10 5 15a7 7 0 0014 0C19 10 12 2 12 2z" />
@@ -762,7 +759,7 @@ const WaterNode = memo(function WaterNode({ selected }) {
         <span className="text-xs font-bold text-slate-600">H₂O Supply</span>
       </div>
       <p className="text-[10px] text-slate-400">Deionised water</p>
-      <Handle type="source" position={Position.Top} id="water-out" className="!bg-blue-400 !w-3 !h-3 !border-2 !border-white" />
+      <Handle type="source" position={Position.Top} id="water-out" className="!bg-gray-300 !w-3 !h-3 !border-2 !border-white" />
     </div>
   );
 }, (p, n) => p.selected === n.selected);
@@ -797,28 +794,28 @@ const INITIAL_POSITIONS = {
 const elecEdge  = (id, src, tgt, srcH, tgtH, lbl) => ({
   id, source: src, target: tgt, sourceHandle: srcH, targetHandle: tgtH,
   type: "smoothstep", animated: true,
-  style: { stroke: "#f59e0b", strokeWidth: 2.5 },
-  label: lbl, labelStyle: { fontSize: 10, fill: "#92400e", fontWeight: 600 },
-  labelBgStyle: { fill: "#fef3c7", fillOpacity: 0.9 }, labelBgPadding: [4, 3], labelBgBorderRadius: 4,
-  markerEnd: { type: MarkerType.ArrowClosed, color: "#f59e0b", width: 16, height: 16 },
+  style: { stroke: "#6b7280", strokeWidth: 2.5 },
+  label: lbl, labelStyle: { fontSize: 10, fill: "#374151", fontWeight: 600 },
+  labelBgStyle: { fill: "#f3f4f6", fillOpacity: 0.9 }, labelBgPadding: [4, 3], labelBgBorderRadius: 4,
+  markerEnd: { type: MarkerType.ArrowClosed, color: "#6b7280", width: 16, height: 16 },
 });
 
 const h2Edge = (id, src, tgt, srcH, tgtH, lbl) => ({
   id, source: src, target: tgt, sourceHandle: srcH, targetHandle: tgtH,
   type: "smoothstep", animated: true,
-  style: { stroke: "#10b981", strokeWidth: 2.5 },
-  label: lbl, labelStyle: { fontSize: 10, fill: "#065f46", fontWeight: 600 },
-  labelBgStyle: { fill: "#d1fae5", fillOpacity: 0.9 }, labelBgPadding: [4, 3], labelBgBorderRadius: 4,
-  markerEnd: { type: MarkerType.ArrowClosed, color: "#10b981", width: 16, height: 16 },
+  style: { stroke: "#9ca3af", strokeWidth: 2.5 },
+  label: lbl, labelStyle: { fontSize: 10, fill: "#374151", fontWeight: 600 },
+  labelBgStyle: { fill: "#f3f4f6", fillOpacity: 0.9 }, labelBgPadding: [4, 3], labelBgBorderRadius: 4,
+  markerEnd: { type: MarkerType.ArrowClosed, color: "#9ca3af", width: 16, height: 16 },
 });
 
 const waterEdge = (id, src, tgt, srcH, tgtH, lbl) => ({
   id, source: src, target: tgt, sourceHandle: srcH, targetHandle: tgtH,
   type: "smoothstep", animated: true,
-  style: { stroke: "#60a5fa", strokeWidth: 2 },
-  label: lbl, labelStyle: { fontSize: 10, fill: "#1d4ed8", fontWeight: 600 },
-  labelBgStyle: { fill: "#dbeafe", fillOpacity: 0.9 }, labelBgPadding: [4, 3], labelBgBorderRadius: 4,
-  markerEnd: { type: MarkerType.ArrowClosed, color: "#60a5fa", width: 14, height: 14 },
+  style: { stroke: "#d1d5db", strokeWidth: 2 },
+  label: lbl, labelStyle: { fontSize: 10, fill: "#374151", fontWeight: 600 },
+  labelBgStyle: { fill: "#f3f4f6", fillOpacity: 0.9 }, labelBgPadding: [4, 3], labelBgBorderRadius: 4,
+  markerEnd: { type: MarkerType.ArrowClosed, color: "#d1d5db", width: 14, height: 14 },
 });
 
 const INITIAL_EDGES = [
@@ -874,24 +871,24 @@ export default function H2PlantFlowDiagram({
       {/* Legend */}
       <div className="flex flex-wrap items-center gap-4 px-4 py-2 bg-slate-900 border-b border-slate-700 text-[11px]">
         <span className="font-semibold text-slate-300 mr-1">Legend:</span>
-        <span className="flex items-center gap-1.5 text-amber-300">
-          <span className="inline-block w-5 h-0.5 bg-amber-400 rounded" />
+        <span className="flex items-center gap-1.5 text-gray-300">
+          <span className="inline-block w-5 h-0.5 bg-gray-400 rounded" />
           Electrical
         </span>
-        <span className="flex items-center gap-1.5 text-emerald-300">
-          <span className="inline-block w-5 h-0.5 border-t-2 border-emerald-400" style={{ borderStyle: "dashed" }} />
+        <span className="flex items-center gap-1.5 text-gray-300">
+          <span className="inline-block w-5 h-0.5 border-t-2 border-gray-400" style={{ borderStyle: "dashed" }} />
           H₂ gas
         </span>
-        <span className="flex items-center gap-1.5 text-blue-300">
-          <span className="inline-block w-5 h-0.5 border-t-2 border-blue-400" style={{ borderStyle: "dashed" }} />
+        <span className="flex items-center gap-1.5 text-gray-400">
+          <span className="inline-block w-5 h-0.5 border-t-2 border-gray-500" style={{ borderStyle: "dashed" }} />
           Water
         </span>
         <span className="flex items-center gap-2 text-slate-400">
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-400" />Commercial</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400" />Demo</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-400" />Projection</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-400" />Commercial</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-400" />Demo</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-400" />Projection</span>
         </span>
-        <span className="ml-auto text-slate-500 italic">Drag · zoom · <span className="text-amber-400">click a node</span> to open analysis</span>
+        <span className="ml-auto text-slate-500 italic">Drag · zoom · click a node to open analysis</span>
       </div>
 
       <ReactFlow

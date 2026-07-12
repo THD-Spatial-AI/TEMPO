@@ -18,7 +18,7 @@
 import React, { useEffect, useCallback } from "react";
 import ReactDOM from "react-dom";
 
-export default function H2NodeModal({ open, onClose, title, subtitle, icon, accentColor = "bg-amber-500", children }) {
+export default function H2NodeModal({ open, onClose, title, subtitle, icon, accentColor = "bg-gray-700", children }) {
   // ── Close on Escape key ──────────────────────────────────────────────────
   const handleKey = useCallback(
     (e) => { if (e.key === "Escape") onClose(); },

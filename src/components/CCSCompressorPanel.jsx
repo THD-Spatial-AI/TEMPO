@@ -35,9 +35,9 @@ function detectCompressorType(model) {
 const COMPRESSOR_META = {
   multistage_110: {
     label:   "Multistage 110 bar (Pipeline)",
-    hue:     "#f59e0b",
-    bg:      "bg-amber-50",
-    border:  "border-amber-200",
+    hue:     "#6b7280",
+    bg:      "bg-gray-50",
+    border:  "border-gray-200",
     tagline: "Pipeline transport · 110 bar · 90-110 kWh/tCO₂",
     pressureRange: [100, 120],
     workRange: [90, 110],
@@ -45,9 +45,9 @@ const COMPRESSOR_META = {
   },
   multistage_150: {
     label:   "Multistage 150 bar (Injection)",
-    hue:     "#d97706",
-    bg:      "bg-amber-100",
-    border:  "border-amber-300",
+    hue:     "#6b7280",
+    bg:      "bg-gray-100",
+    border:  "border-gray-300",
     tagline: "Geological storage · 150 bar · 110-130 kWh/tCO₂",
     pressureRange: [140, 160],
     workRange: [110, 130],
@@ -55,9 +55,9 @@ const COMPRESSOR_META = {
   },
   supercritical_200: {
     label:   "Supercritical 200 bar",
-    hue:     "#b45309",
-    bg:      "bg-orange-50",
-    border:  "border-orange-300",
+    hue:     "#6b7280",
+    bg:      "bg-gray-50",
+    border:  "border-gray-300",
     tagline: "Deep injection · 200 bar · 130-150 kWh/tCO₂",
     pressureRange: [180, 220],
     workRange: [130, 150],
@@ -65,9 +65,9 @@ const COMPRESSOR_META = {
   },
   near_isothermal: {
     label:   "Near-Isothermal Compression",
-    hue:     "#92400e",
-    bg:      "bg-yellow-50",
-    border:  "border-yellow-300",
+    hue:     "#6b7280",
+    bg:      "bg-gray-50",
+    border:  "border-gray-300",
     tagline: "Advanced cooling · Variable pressure · 70-90 kWh/tCO₂",
     pressureRange: [100, 180],
     workRange: [70, 90],
@@ -187,8 +187,8 @@ export default function CCSCompressorPanel({
           data: outletTemp,
           smooth: true,
           symbol: "none",
-          color: "#ef4444",
-          lineStyle: { color: "#ef4444", width: 2 },
+          color: "#9ca3af",
+          lineStyle: { color: "#9ca3af", width: 2 },
           yAxisIndex: 1,
         },
       ],
@@ -219,7 +219,7 @@ export default function CCSCompressorPanel({
       ],
       series: [
         { name: "Pressure",    type: "bar",  data: pressures, itemStyle: { color: meta.hue, opacity: 0.8 }, yAxisIndex: 0 },
-        { name: "Outlet Temp", type: "line", data: temps, symbol: "none", color: "#ef4444", lineStyle: { color: "#ef4444", width: 2 }, yAxisIndex: 1 },
+        { name: "Outlet Temp", type: "line", data: temps, symbol: "none", color: "#9ca3af", lineStyle: { color: "#9ca3af", width: 2 }, yAxisIndex: 1 },
       ],
     };
   }, [localParams.number_stages, localParams.target_pressure_bar, localParams.intercooling_temp_c, meta.hue]);
@@ -242,7 +242,7 @@ export default function CCSCompressorPanel({
         type: "line", data: works, smooth: true, symbol: "none",
         color: meta.hue,
         lineStyle: { color: meta.hue, width: 2 }, areaStyle: { color: `${meta.hue}22` },
-        markLine: { symbol: ["none", "none"], data: [{ xAxis: `${localParams.isentropic_efficiency_pct}%` }], lineStyle: { color: "#6366f1", type: "dashed", width: 2 }, label: { formatter: "Current", fontSize: 9, position: "insideEndTop" } },
+        markLine: { symbol: ["none", "none"], data: [{ xAxis: `${localParams.isentropic_efficiency_pct}%` }], lineStyle: { color: "#6b7280", type: "dashed", width: 2 }, label: { formatter: "Current", fontSize: 9, position: "insideEndTop" } },
       }],
     };
   }, [localParams.target_pressure_bar, localParams.number_stages, localParams.isentropic_efficiency_pct, meta.hue]);
@@ -296,16 +296,16 @@ export default function CCSCompressorPanel({
         const appliedV = variants.find((v) => v.id === appliedId) ?? null;
         return (
           <div className={`bg-white rounded-xl border shadow-sm px-4 py-3 flex flex-wrap items-start gap-3
-            ${isPending ? "border-amber-300" : appliedV ? "border-emerald-300" : "border-slate-200"}`}>
+            ${isPending ? "border-gray-300" : appliedV ? "border-gray-300" : "border-slate-200"}`}>
             <FiLayers size={12} style={{ color: meta.hue }} className="mt-1" />
             <div className="flex-1 min-w-[220px] space-y-1.5">
               <div className="flex items-center gap-2">
                 <span className="text-[11px] font-semibold text-slate-600">Technology Variant</span>
-                {appliedV && !isPending && <span className="text-[10px] bg-emerald-100 text-emerald-700 font-semibold px-2 py-0.5 rounded-full">✓ Applied</span>}
-                {isPending && <span className="text-[10px] bg-amber-100 text-amber-700 font-semibold px-2 py-0.5 rounded-full">● Pending — click Apply</span>}
+                {appliedV && !isPending && <span className="text-[10px] bg-gray-100 text-gray-700 font-semibold px-2 py-0.5 rounded-full">✓ Applied</span>}
+                {isPending && <span className="text-[10px] bg-gray-100 text-gray-700 font-semibold px-2 py-0.5 rounded-full">● Pending — click Apply</span>}
               </div>
               <select value={stagedId} onChange={handleStage}
-                className="w-full text-[12px] border border-slate-200 rounded-lg px-2.5 py-1.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer">
+                className="w-full text-[12px] border border-slate-200 rounded-lg px-2.5 py-1.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-gray-400 cursor-pointer">
                 <option value="">— default —</option>
                 {variants.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
               </select>
@@ -314,12 +314,12 @@ export default function CCSCompressorPanel({
             <div className="flex flex-col gap-1.5 shrink-0">
               <button onClick={handleApply} disabled={!isPending && !appliedId}
                 className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all
-                  ${isPending ? "bg-emerald-500 text-white hover:bg-emerald-600 shadow-sm" : appliedId ? "bg-slate-100 text-slate-500 hover:bg-slate-200" : "bg-slate-100 text-slate-300 cursor-not-allowed"}`}>
+                  ${isPending ? "bg-gray-700 text-white hover:bg-gray-800 shadow-sm" : appliedId ? "bg-slate-100 text-slate-500 hover:bg-slate-200" : "bg-slate-100 text-slate-300 cursor-not-allowed"}`}>
                 {isPending ? "✓ Apply variant" : appliedId ? "✓ Applied" : "Apply"}
               </button>
               {(appliedId || isPending) && (
                 <button onClick={() => { setLocalParams({}); onParamsChange?.({}); }}
-                  className="px-3 py-1 rounded-lg text-[10px] text-red-400 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200 transition-all">
+                  className="px-3 py-1 rounded-lg text-[10px] text-gray-500 hover:text-gray-700 hover:bg-gray-50 border border-transparent hover:border-gray-200 transition-all">
                   ✕ Reset
                 </button>
               )}
@@ -336,7 +336,7 @@ export default function CCSCompressorPanel({
           <select
             value={selectedChart}
             onChange={(e) => setSelectedChart(e.target.value)}
-            className="ml-auto text-xs bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            className="ml-auto text-xs bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 text-slate-600 focus:outline-none focus:ring-2 focus:ring-gray-300"
           >
             <option value="work">Compression Work vs Pressure</option>
             <option value="stages">Stage Pressure &amp; Temperature</option>
@@ -403,7 +403,7 @@ export default function CCSCompressorPanel({
       </div>
 
       {/* ── Info Banner ────────────────────────────────────────────────────── */}
-      <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-2xl text-xs text-blue-700">
+      <div className="flex items-start gap-2 p-3 bg-gray-50 border border-gray-200 rounded-2xl text-xs text-gray-700">
         <FiInfo className="shrink-0 mt-0.5" size={14} />
         <p>
           <b>Multi-stage compression with intercooling:</b> minimizes power consumption. Pipeline transport requires 110 bar,
@@ -480,11 +480,11 @@ function ParamSlider({ label, unit, value, min, max, step = 1, onChange }) {
 
 function MetricBadge({ label, value, unit, color = "slate" }) {
   const palettes = {
-    amber:  "bg-amber-50  border-amber-200  text-amber-700",
-    green:  "bg-emerald-50 border-emerald-200 text-emerald-700",
-    violet: "bg-violet-50 border-violet-200 text-violet-700",
-    blue:   "bg-blue-50   border-blue-200   text-blue-700",
-    red:    "bg-red-50    border-red-200    text-red-700",
+    amber:  "bg-gray-50 border-gray-200 text-gray-700",
+    green:  "bg-gray-50 border-gray-200 text-gray-700",
+    violet: "bg-gray-50 border-gray-200 text-gray-700",
+    blue:   "bg-gray-50 border-gray-200 text-gray-700",
+    red:    "bg-gray-50 border-gray-200 text-gray-700",
     slate:  "bg-slate-50  border-slate-200  text-slate-700",
   };
   return (
@@ -501,16 +501,16 @@ function MetricBadge({ label, value, unit, color = "slate" }) {
 function KpiCard({ label, value, unit, color = "slate" }) {
   const ring = {
     electric: "border-electric-200 bg-electric-50",
-    emerald:  "border-emerald-200 bg-emerald-50",
-    amber:    "border-amber-200 bg-amber-50",
-    red:      "border-red-200 bg-red-50",
+    emerald:  "border-gray-200 bg-gray-50",
+    amber:    "border-gray-200 bg-gray-50",
+    red:      "border-gray-200 bg-gray-50",
     slate:    "border-slate-200 bg-slate-50",
   };
   const text = {
     electric: "text-electric-700",
-    emerald:  "text-emerald-700",
-    amber:    "text-amber-700",
-    red:      "text-red-700",
+    emerald:  "text-gray-700",
+    amber:    "text-gray-700",
+    red:      "text-gray-700",
     slate:    "text-slate-700",
   };
   return (

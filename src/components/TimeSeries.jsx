@@ -674,10 +674,10 @@ const TimeSeries = () => {
                   >
                     <span className="truncate max-w-[150px]">{ts.name}</span>
                     {ts.source === 'template' && (
-                      <span className="px-1.5 py-0.5 text-[9px] font-semibold bg-blue-100 text-blue-700 rounded">T</span>
+                      <span className="px-1.5 py-0.5 text-[9px] font-semibold bg-gray-100 text-gray-700 rounded">T</span>
                     )}
                     {ts.modified && (
-                      <span className="px-1.5 py-0.5 text-[9px] font-semibold bg-yellow-100 text-yellow-800 rounded">M</span>
+                      <span className="px-1.5 py-0.5 text-[9px] font-semibold bg-gray-100 text-gray-800 rounded">M</span>
                     )}
                     <div className="flex gap-1">
                       <button
@@ -685,7 +685,7 @@ const TimeSeries = () => {
                           e.stopPropagation();
                           handleDownload(ts);
                         }}
-                        className="p-0.5 hover:text-blue-400"
+                        className="p-0.5 hover:text-gray-500"
                         title="Download"
                       >
                         <FiDownload size={12} />
@@ -695,7 +695,7 @@ const TimeSeries = () => {
                           e.stopPropagation();
                           handleDelete(ts.id);
                         }}
-                        className="p-0.5 hover:text-red-400"
+                        className="p-0.5 hover:text-gray-500"
                         title="Delete"
                       >
                         <FiTrash2 size={12} />
@@ -727,7 +727,7 @@ const TimeSeries = () => {
                     <FiFileText size={12} />
                     <span className="font-semibold text-slate-800">{selectedTimeSeries.name}</span>
                     {selectedTimeSeries.modified && (
-                      <span className="px-1.5 py-0.5 text-[9px] bg-yellow-100 text-yellow-800 rounded">Modified</span>
+                      <span className="px-1.5 py-0.5 text-[9px] bg-gray-100 text-gray-800 rounded">Modified</span>
                     )}
                     <span className="text-slate-500">•</span>
                     <span className="text-slate-600">{getDateColumn(selectedTimeSeries)}</span>
@@ -739,7 +739,7 @@ const TimeSeries = () => {
                   <div className="flex gap-1.5">
                     <button
                       onClick={exportModifiedData}
-                      className="px-2 py-1 text-[11px] bg-green-600 text-white rounded hover:bg-green-700 transition-colors flex items-center gap-1"
+                      className="px-2 py-1 text-[11px] bg-gray-700 text-white rounded hover:bg-gray-800 transition-colors flex items-center gap-1"
                     >
                       <FiDownload size={10} />
                       Export
@@ -1063,7 +1063,7 @@ const TimeSeries = () => {
                         Columns <span className="font-normal text-slate-300">({selectedColumns.length}/{getDataColumns(selectedTimeSeries).length})</span>
                       </p>
                       <div className="flex gap-2 mb-1.5">
-                        <button onClick={() => setSelectedColumns(getDataColumns(selectedTimeSeries))} className="text-[10px] text-indigo-500 hover:underline">All</button>
+                        <button onClick={() => setSelectedColumns(getDataColumns(selectedTimeSeries))} className="text-[10px] text-gray-500 hover:underline">All</button>
                         <button onClick={() => setSelectedColumns([])} className="text-[10px] text-slate-400 hover:underline">None</button>
                       </div>
                       <input type="text" placeholder="Search columns…" value={colSearch} onChange={e => setColSearch(e.target.value)}

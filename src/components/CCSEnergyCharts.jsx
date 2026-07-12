@@ -40,7 +40,7 @@ export default function CCSEnergyCharts({ result }) {
         <select
           value={selectedChart}
           onChange={(e) => setSelectedChart(e.target.value)}
-          className="text-xs border border-slate-200 rounded-lg px-3 py-1.5 bg-slate-50 text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-400 cursor-pointer"
+          className="text-xs border border-slate-200 rounded-lg px-3 py-1.5 bg-slate-50 text-slate-600 focus:outline-none focus:ring-2 focus:ring-gray-400 cursor-pointer"
         >
           {CHART_OPTIONS.map((opt) => (
             <option key={opt.id} value={opt.id}>{opt.label}</option>
@@ -87,9 +87,9 @@ function buildCaptureChart(result) {
         data: result.absorber?.co2_captured_tph ?? [],
         smooth: true,
         symbol: "none",
-        color: "#3b82f6",
-        lineStyle: { color: "#3b82f6", width: 2 },
-        areaStyle: { color: "rgba(59,130,246,0.1)" },
+        color: "#6b7280",
+        lineStyle: { color: "#6b7280", width: 2 },
+        areaStyle: { color: "rgba(107,114,128,0.1)" },
       },
       {
         name: "CO₂ Injected (t/h)",
@@ -97,9 +97,9 @@ function buildCaptureChart(result) {
         data: result.storage?.injection_rate_tph ?? [],
         smooth: true,
         symbol: "none",
-        color: "#10b981",
-        lineStyle: { color: "#10b981", width: 2 },
-        areaStyle: { color: "rgba(16,185,129,0.08)" },
+        color: "#9ca3af",
+        lineStyle: { color: "#9ca3af", width: 2 },
+        areaStyle: { color: "rgba(156,163,175,0.08)" },
       },
     ],
   };
@@ -132,9 +132,9 @@ function buildEnergyChart(result) {
         data: result.stripper?.heat_demand_kw ?? [],
         smooth: true,
         symbol: "none",
-        color: "#ef4444",
-        lineStyle: { color: "#ef4444", width: 2 },
-        areaStyle: { color: "rgba(239,68,68,0.1)" },
+        color: "#4b5563",
+        lineStyle: { color: "#4b5563", width: 2 },
+        areaStyle: { color: "rgba(75,85,99,0.1)" },
       },
       {
         name: "Compressor Power (kW)",
@@ -142,9 +142,9 @@ function buildEnergyChart(result) {
         data: result.compressor?.power_kw ?? [],
         smooth: true,
         symbol: "none",
-        color: "#f59e0b",
-        lineStyle: { color: "#f59e0b", width: 2 },
-        areaStyle: { color: "rgba(245,158,11,0.08)" },
+        color: "#9ca3af",
+        lineStyle: { color: "#9ca3af", width: 2 },
+        areaStyle: { color: "rgba(156,163,175,0.08)" },
       },
     ],
   };
@@ -186,8 +186,8 @@ function buildCompressorChart(result) {
         data: result.compressor?.outlet_pressure_bar ?? [],
         smooth: true,
         symbol: "none",
-        color: "#8b5cf6",
-        lineStyle: { color: "#8b5cf6", width: 2 },
+        color: "#6b7280",
+        lineStyle: { color: "#6b7280", width: 2 },
         yAxisIndex: 0,
       },
       {
@@ -196,8 +196,8 @@ function buildCompressorChart(result) {
         data: result.compressor?.temperature_c ?? [],
         smooth: true,
         symbol: "none",
-        color: "#ec4899",
-        lineStyle: { color: "#ec4899", width: 2, type: "dashed" },
+        color: "#374151",
+        lineStyle: { color: "#374151", width: 2, type: "dashed" },
         yAxisIndex: 1,
       },
     ],
@@ -231,8 +231,8 @@ function buildStorageChart(result) {
         data: result.storage?.co2_mass_tonnes ?? [],
         smooth: true,
         symbol: "none",
-        color: "#14b8a6",
-        lineStyle: { color: "#14b8a6", width: 2.5 },
+        color: "#4b5563",
+        lineStyle: { color: "#4b5563", width: 2.5 },
         areaStyle: {
           color: {
             type: "linear",
@@ -241,8 +241,8 @@ function buildStorageChart(result) {
             x2: 0,
             y2: 1,
             colorStops: [
-              { offset: 0, color: "rgba(20,184,166,0.3)" },
-              { offset: 1, color: "rgba(20,184,166,0.05)" },
+              { offset: 0, color: "rgba(75,85,99,0.3)" },
+              { offset: 1, color: "rgba(75,85,99,0.05)" },
             ],
           },
         },

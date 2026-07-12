@@ -64,8 +64,8 @@ const osmTransformRequest = (url) => {
 };
 
 const PARENT_COLORS = {
-  supply: '#f59e0b', storage: '#8b5cf6', conversion: '#10b981',
-  demand: '#ef4444', transmission: '#0ea5e9', other: '#94a3b8',
+  supply: '#374151', storage: '#6b7280', conversion: '#9ca3af',
+  demand: '#1f2937', transmission: '#d1d5db', other: '#e5e7eb',
 };
 
 // Template folder mapping (same as TimeSeries.jsx)
@@ -85,7 +85,7 @@ const MONTH_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct
 const DAY_MONTH_START = [0,31,59,90,120,151,181,212,243,273,304,334];
 
 // ── Build TS charts for any time-series object ────────────────────────────
-function buildTsCharts(ts, lineColor = '#0ea5e9', heatColors = ['#e0f2fe','#38bdf8','#0284c7','#075985','#082f49'], locs = null) {
+function buildTsCharts(ts, lineColor = '#6b7280', heatColors = ['#f3f4f6','#d1d5db','#6b7280','#374151','#111827'], locs = null) {
   if (!ts?.data?.length || !ts.dataColumns?.length) return null;
   const activeCols = locs?.length > 0 ? ts.dataColumns.filter(c => locs.includes(c)) : ts.dataColumns;
   if (!activeCols.length) return null;
@@ -127,7 +127,7 @@ function buildTsCharts(ts, lineColor = '#0ea5e9', heatColors = ['#e0f2fe','#38bd
 }
 
 // ── Interactive filtered chart builder ───────────────────────────────────────
-function buildFilteredChart(ts, opts, lineColor = '#0ea5e9') {
+function buildFilteredChart(ts, opts, lineColor = '#6b7280') {
   if (!ts?.data?.length || !ts.dataColumns?.length) return null;
   const cols = opts?.locs?.length > 0 ? ts.dataColumns.filter(c => opts.locs.includes(c)) : ts.dataColumns;
   if (!cols.length) return null;
@@ -184,7 +184,7 @@ function buildFilteredChart(ts, opts, lineColor = '#0ea5e9') {
 }
 
 // ── Time-range + location filter controls (vertical right-sidebar) ───────────
-const TsViewControls = ({ opts, onChange, ts, locSearch, onLocSearch, accentColor = '#ef4444' }) => {
+const TsViewControls = ({ opts, onChange, ts, locSearch, onLocSearch, accentColor = '#6b7280' }) => {
   const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const SEASONS = [{ id: 'DJF', label: 'Winter' }, { id: 'MAM', label: 'Spring' }, { id: 'JJA', label: 'Summer' }, { id: 'SON', label: 'Autumn' }];
   const RESOLUTIONS = [{ id: 'hourly', label: 'Hourly' }, { id: 'daily', label: 'Daily' }, { id: 'weekly', label: 'Weekly' }];
@@ -229,7 +229,7 @@ const TsViewControls = ({ opts, onChange, ts, locSearch, onLocSearch, accentColo
             {SEASONS.map(s => (
               <button key={s.id} onClick={() => onChange({ ...opts, season: s.id })}
                 className="px-2 py-1 rounded text-[11px] font-medium border transition-all"
-                style={opts.season === s.id ? { background: '#6366f1', color: 'white', borderColor: '#6366f1' } : { background: 'white', color: '#475569', borderColor: '#e2e8f0' }}>
+                style={opts.season === s.id ? { background: '#4b5563', color: 'white', borderColor: '#4b5563' } : { background: 'white', color: '#475569', borderColor: '#e2e8f0' }}>
                 {s.label} <span className="opacity-60 text-[9px]">({s.id})</span>
               </button>
             ))}
@@ -272,7 +272,7 @@ const TsViewControls = ({ opts, onChange, ts, locSearch, onLocSearch, accentColo
             <span className="text-[10px] text-slate-400 flex-1">
               {isAll ? `All ${allCols.length}` : `${opts.locs.length}/${allCols.length}`}
             </span>
-            <button onClick={() => onChange({ ...opts, locs: [] })} className="text-[10px] text-indigo-500 hover:underline">All</button>
+            <button onClick={() => onChange({ ...opts, locs: [] })} className="text-[10px] text-gray-500 hover:underline">All</button>
             <button onClick={() => onChange({ ...opts, locs: [...allCols] })} className="text-[10px] text-slate-400 hover:underline">None</button>
           </div>
           <div className="relative">
@@ -697,7 +697,7 @@ const Dashboard = () => {
       grid: { left: 120, right: 36, top: 10, bottom: 10 },
       xAxis: { type: 'value', axisLabel: { fontSize: 10, color: '#64748b' }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
       yAxis: { type: 'category', data: entries.map(([k]) => k), axisLabel: { fontSize: 10, color: '#475569' }, inverse: true },
-      series: [{ type: 'bar', barMaxWidth: 18, data: entries.map(([,v]) => ({ value: v.length, itemStyle: { color: '#0ea5e9', borderRadius: [0,4,4,0] } })), label: { show: true, position: 'right', fontSize: 9, color: '#64748b' } }],
+      series: [{ type: 'bar', barMaxWidth: 18, data: entries.map(([,v]) => ({ value: v.length, itemStyle: { color: '#6b7280', borderRadius: [0,4,4,0] } })), label: { show: true, position: 'right', fontSize: 9, color: '#64748b' } }],
       tooltip: { trigger: 'axis', formatter: p => `${p[0].name}: <b>${p[0].value} techs</b>` },
     };
   }, [d.techsPerLoc]);
@@ -728,8 +728,8 @@ const Dashboard = () => {
       legend: { bottom: 4, textStyle: { fontSize: 10, color: '#475569' } },
       series: [{ type: 'pie', radius: ['44%','72%'], center: ['50%','44%'], label: { show: false },
         data: [
-          { name: 'CAPEX', value: capex, itemStyle: { color: '#f59e0b' } },
-          { name: 'OPEX/yr', value: opex, itemStyle: { color: '#8b5cf6' } },
+          { name: 'CAPEX', value: capex, itemStyle: { color: '#374151' } },
+          { name: 'OPEX/yr', value: opex, itemStyle: { color: '#9ca3af' } },
         ] }],
     };
   }, [d.totalCapex, d.totalOpex]);
@@ -758,9 +758,9 @@ const Dashboard = () => {
           {TABS.map(({ id, label, icon: Icon }) => (
             <button key={id} onClick={() => setActiveTab(id)}
               className={`flex items-center gap-1.5 px-4 py-3 border-b-2 text-sm font-medium transition-colors
-                ${activeTab === id ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}>
+                ${activeTab === id ? 'border-gray-900 text-gray-900' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}>
               <Icon size={14} />{label}
-              {id === 'timeseries' && tsCount > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-indigo-100 text-indigo-600">{tsCount}</span>}
+              {id === 'timeseries' && tsCount > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-gray-100 text-gray-700">{tsCount}</span>}
             </button>
           ))}
         </div>
@@ -776,7 +776,7 @@ const Dashboard = () => {
                 <KpiCard icon={FiMapPin}    label="Locations"       value={(locations||[]).length}               sub="nodes" />
                 <KpiCard icon={FiLink}      label="Links"           value={(links||[]).length}                   sub="connections" />
                 <KpiCard icon={FiZap}       label="Gen Technologies" value={genTechCount}                        sub="supply types" />
-                <KpiCard icon={FiActivity}  label="Max Capacity"    value={(d.totalCap/capDiv).toFixed(1)}       sub={`${capUnit} total`} accent="bg-amber-500" />
+                <KpiCard icon={FiActivity}  label="Max Capacity"    value={(d.totalCap/capDiv).toFixed(1)}       sub={`${capUnit} total`} accent="bg-gray-700" />
                 <KpiCard icon={FiDollarSign} label="Est. CAPEX"     value={(d.totalCapex/costDiv).toFixed(1)}    sub={costUnit} />
                 <KpiCard icon={FiDollarSign} label="Est. OPEX/yr"   value={fmtNum(d.totalOpex)}                  sub="€/yr O&M" />
                 <KpiCard icon={FiCpu}       label="Tech Categories" value={Object.keys(d.byParent).length}       sub="parent groups" />
@@ -806,8 +806,8 @@ const Dashboard = () => {
           {/* ── GENERATION ────────────────────────────────────────────── */}
           {activeTab === 'generation' && (<>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <KpiCard icon={FiZap}      label="Supply Techs"    value={d.byParent.supply?.length || 0}       sub="generation types" accent="bg-amber-500" />
-              <KpiCard icon={FiLayers}   label="Storage Techs"   value={d.byParent.storage?.length || 0}      sub="storage types" accent="bg-violet-500" />
+              <KpiCard icon={FiZap}      label="Supply Techs"    value={d.byParent.supply?.length || 0}       sub="generation types" accent="bg-gray-700" />
+              <KpiCard icon={FiLayers}   label="Storage Techs"   value={d.byParent.storage?.length || 0}      sub="storage types" accent="bg-gray-500" />
               <KpiCard icon={FiActivity} label="Total Max Cap"   value={(d.totalCap/capDiv).toFixed(1)}       sub={capUnit} />
               <KpiCard icon={FiMapPin}   label="Locations"       value={Object.values(d.capByLoc).filter(v=>v>0).length} sub="with capacity" />
             </div>
@@ -867,28 +867,28 @@ const Dashboard = () => {
               const genFiles = modelTimeSeries.filter(ts => !/demand/i.test(ts.name));
               if (!genFiles.length && !tsLoading) return null;
               const activeGenTs = genFiles[Math.min(genTsActiveIdx, Math.max(0, genFiles.length - 1))] || null;
-              const filteredGenChart = activeGenTs ? buildFilteredChart(activeGenTs, genViewOpts, '#16a34a') : null;
+              const filteredGenChart = activeGenTs ? buildFilteredChart(activeGenTs, genViewOpts, '#6b7280') : null;
               const genHeatCharts = activeGenTs
-                ? buildTsCharts(activeGenTs, '#16a34a', ['#dcfce7','#86efac','#22c55e','#15803d','#14532d'],
+                ? buildTsCharts(activeGenTs, '#6b7280', ['#f3f4f6','#d1d5db','#9ca3af','#4b5563','#1f2937'],
                     genViewOpts.locs?.length > 0 ? genViewOpts.locs : null)
                 : null;
               return (
                 <div className="border-t border-slate-200 pt-4">
                   <h3 className="text-sm font-semibold text-slate-600 mb-3 flex items-center gap-2">
-                    <FiSun size={14} className="text-green-500" />
+                    <FiSun size={14} className="text-gray-500" />
                     Generation Resource Profiles
                     {activeGenTs && <span className="font-normal text-[10px] text-slate-400">({activeGenTs.dataColumns.length} locations · {activeGenTs.rowCount} steps)</span>}
                   </h3>
                   {tsLoading && !activeGenTs && (
                     <div className="bg-white rounded-xl border border-slate-200 p-6 text-center">
-                      <div className="animate-spin w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full mx-auto mb-2" />
+                      <div className="animate-spin w-6 h-6 border-2 border-gray-500 border-t-transparent rounded-full mx-auto mb-2" />
                       <p className="text-xs text-slate-400">Loading generation profiles…</p>
                     </div>
                   )}
                   {!tsLoading && !activeGenTs && (
                     <div className="bg-white rounded-xl border border-slate-200 p-6 text-center text-slate-400 text-sm">
                       No generation resource files loaded. Visit the{' '}
-                      <button onClick={() => setActiveTab('timeseries')} className="text-indigo-500 underline">Time Series tab</button>
+                      <button onClick={() => setActiveTab('timeseries')} className="text-gray-700 underline">Time Series tab</button>
                       {' '}to load.
                     </div>
                   )}
@@ -899,7 +899,7 @@ const Dashboard = () => {
                           <button key={ts.id} onClick={() => setGenTsActiveIdx(idx)}
                             className="px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors"
                             style={genTsActiveIdx === idx
-                              ? { background: '#16a34a', color: 'white', borderColor: '#16a34a' }
+                              ? { background: '#374151', color: 'white', borderColor: '#374151' }
                               : { background: 'white', color: '#475569', borderColor: '#e2e8f0' }}>
                             {ts.name} <span className="opacity-60 ml-1">{ts.dataColumns.length} locs</span>
                           </button>
@@ -930,7 +930,7 @@ const Dashboard = () => {
                       <TsViewControls
                         opts={genViewOpts} onChange={setGenViewOpts}
                         ts={activeGenTs} locSearch={genLocSearch} onLocSearch={setGenLocSearch}
-                        accentColor="#16a34a" />
+                        accentColor="#6b7280" />
                     </div>
                   </>)}
                 </div>
@@ -954,10 +954,10 @@ const Dashboard = () => {
             });
 
             const charts = demandTs
-              ? buildTsCharts(demandTs, '#ef4444', ['#fef3c7','#fcd34d','#f59e0b','#b45309','#78350f'],
+              ? buildTsCharts(demandTs, '#6b7280', ['#f3f4f6','#d1d5db','#9ca3af','#4b5563','#1f2937'],
                   demandViewOpts.locs?.length > 0 ? demandViewOpts.locs : null)
               : null;
-            const filteredDemandChart = demandTs ? buildFilteredChart(demandTs, demandViewOpts, '#ef4444') : null;
+            const filteredDemandChart = demandTs ? buildFilteredChart(demandTs, demandViewOpts, '#6b7280') : null;
 
             const totalMWh = demandTs
               ? Object.values(demandTs.statistics || {}).reduce((s, st) => s + Math.abs(st?.sum || 0), 0)
@@ -975,15 +975,15 @@ const Dashboard = () => {
             return (<>
               {/* Loading indicator while TS auto-loads */}
               {tsLoading && (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-3 text-sm text-amber-700">
-                  <div className="animate-spin w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full flex-shrink-0" />
+                <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 flex items-center gap-3 text-sm text-gray-700">
+                  <div className="animate-spin w-4 h-4 border-2 border-gray-500 border-t-transparent rounded-full flex-shrink-0" />
                   Loading demand time series… charts will appear shortly.
                 </div>
               )}
 
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <KpiCard icon={FiActivity}  label="Demand Locations"  value={displayCount || '—'}
-                  sub={tsLocSet ? 'from demand file' : 'from locations CSV'} accent="bg-red-500" />
+                  sub={tsLocSet ? 'from demand file' : 'from locations CSV'} accent="bg-gray-700" />
                 <KpiCard icon={FiClock}     label="Time Steps"
                   value={demandTs ? demandTs.rowCount : (tsLoading ? '…' : 'not loaded')}
                   sub={demandTs?.name || (tsLoading ? 'loading…' : 'open Time Series tab')} />
@@ -998,8 +998,8 @@ const Dashboard = () => {
                 {gridLocs.length > 0 ? (
                   <div className="p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1.5">
                     {gridLocs.slice(0, 150).map(loc => (
-                      <div key={loc.name} className="rounded border border-red-100 bg-red-50 px-2 py-1.5 flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-red-400 flex-shrink-0" />
+                      <div key={loc.name} className="rounded border border-gray-100 bg-gray-50 px-2 py-1.5 flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-gray-400 flex-shrink-0" />
                         <p className="text-[10px] text-slate-700 truncate" title={loc.name}>{loc.name}</p>
                       </div>
                     ))}
@@ -1040,7 +1040,7 @@ const Dashboard = () => {
                   <TsViewControls
                     opts={demandViewOpts} onChange={setDemandViewOpts}
                     ts={demandTs} locSearch={demandLocSearch} onLocSearch={setDemandLocSearch}
-                    accentColor="#ef4444" />
+                    accentColor="#6b7280" />
                 </div>
               ) : !tsLoading && (
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-8 text-center text-slate-400">
@@ -1048,7 +1048,7 @@ const Dashboard = () => {
                   <p className="text-sm">Demand time series not yet loaded.</p>
                   <p className="text-[11px] mt-1">
                     Visit the{' '}
-                    <button onClick={() => setActiveTab('timeseries')} className="text-indigo-500 underline text-[11px]">
+                    <button onClick={() => setActiveTab('timeseries')} className="text-gray-700 underline text-[11px]">
                       Time Series tab
                     </button>{' '}
                     — data loads automatically for template models.
@@ -1061,7 +1061,7 @@ const Dashboard = () => {
           {/* ── NETWORK ───────────────────────────────────────────────── */}
           {activeTab === 'network' && (<>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <KpiCard icon={FiLink}     label="Transmission Links" value={(links||[]).length}                  sub="connections" accent="bg-sky-500" />
+              <KpiCard icon={FiLink}     label="Transmission Links" value={(links||[]).length}                  sub="connections" accent="bg-gray-700" />
               <KpiCard icon={FiMapPin}   label="Locations"         value={(locations||[]).length}               sub="nodes" />
               <KpiCard icon={FiZap}      label="Transmission Techs" value={d.byParent.transmission?.length || 0} sub="link technologies" />
               <KpiCard icon={FiActivity} label="Avg Techs / Node"  value={((d.allTechIds.length / Math.max(1,(locations||[]).length))).toFixed(1)} sub="technologies per node" />
@@ -1111,7 +1111,7 @@ const Dashboard = () => {
           {/* ── COST ──────────────────────────────────────────────────── */}
           {activeTab === 'cost' && (<>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <KpiCard icon={FiDollarSign} label="Total CAPEX Est." value={(d.totalCapex/costDiv).toFixed(1)} sub={costUnit} accent="bg-amber-500" />
+              <KpiCard icon={FiDollarSign} label="Total CAPEX Est." value={(d.totalCapex/costDiv).toFixed(1)} sub={costUnit} accent="bg-gray-700" />
               <KpiCard icon={FiDollarSign} label="Total OPEX/yr"    value={fmtNum(d.totalOpex)}              sub="€/yr O&M" />
               <KpiCard icon={FiZap}        label="Paid Capacity"    value={(d.totalCap/capDiv).toFixed(1)}    sub={`${capUnit} with cost >0`} />
               <KpiCard icon={FiCpu}        label="Cost Tech Count"  value={Object.keys(d.costByTech).length}  sub="technologies" />
@@ -1167,7 +1167,7 @@ const Dashboard = () => {
             return (<>
               {tsLoading && (
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-8 text-center">
-                  <div className="animate-spin w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full mx-auto mb-3" />
+                  <div className="animate-spin w-8 h-8 border-2 border-gray-500 border-t-transparent rounded-full mx-auto mb-3" />
                   <p className="text-sm text-slate-500">Loading time series data…</p>
                 </div>
               )}
@@ -1182,10 +1182,8 @@ const Dashboard = () => {
                 const safeIdx = Math.min(tsActiveIdx, Math.max(0, modelTimeSeries.length - 1));
                 const activeTsFile = modelTimeSeries[safeIdx];
                 const isDemandActive = activeTsFile && /demand/i.test(activeTsFile.name);
-                const tsAccent = isDemandActive ? '#ef4444' : '#16a34a';
-                const tsHeatColors = isDemandActive
-                  ? ['#fef2f2','#fca5a5','#f87171','#dc2626','#991b1b']
-                  : ['#dcfce7','#86efac','#22c55e','#15803d','#14532d'];
+                const tsAccent = '#6b7280';
+                const tsHeatColors = ['#f3f4f6','#d1d5db','#9ca3af','#4b5563','#1f2937'];
                 const filteredTsChart = activeTsFile ? buildFilteredChart(activeTsFile, tsViewOpts, tsAccent) : null;
                 const tsHeatCharts = activeTsFile
                   ? buildTsCharts(activeTsFile, tsAccent, tsHeatColors, tsViewOpts.locs?.length > 0 ? tsViewOpts.locs : null)
@@ -1193,7 +1191,7 @@ const Dashboard = () => {
                 return (<>
                   {/* KPI summary */}
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    <KpiCard icon={FiClock}     label="Files Loaded"   value={modelTimeSeries.length}                                      sub="time series" accent="bg-indigo-500" />
+                    <KpiCard icon={FiClock}     label="Files Loaded"   value={modelTimeSeries.length}                                      sub="time series" accent="bg-gray-700" />
                     <KpiCard icon={FiActivity}  label="Demand Files"   value={modelTimeSeries.filter(ts => /demand/i.test(ts.name)).length}  sub="matched by name" />
                     <KpiCard icon={FiSun}       label="Resource Files" value={modelTimeSeries.filter(ts => !/demand/i.test(ts.name)).length} sub="PV / wind" />
                     <KpiCard icon={FiBarChart2} label="Total Rows"     value={fmtNum(modelTimeSeries.reduce((s, ts) => s + (ts.rowCount || 0), 0), 0)} sub="timesteps across files" />
@@ -1210,7 +1208,7 @@ const Dashboard = () => {
                             onClick={() => { setTsActiveIdx(idx); setTsViewOpts({ mode: 'weeks2', month: 0, season: 'DJF', customStart: '', customEnd: '', locs: [], resolution: 'hourly' }); setTsLocSearch(''); }}
                             className="px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors"
                             style={active
-                              ? { background: isd ? '#ef4444' : '#16a34a', color: 'white', borderColor: isd ? '#ef4444' : '#16a34a' }
+                              ? { background: '#374151', color: 'white', borderColor: '#374151' }
                               : { background: 'white', color: '#475569', borderColor: '#e2e8f0' }}>
                             {ts.name}
                             <span className="ml-1.5 opacity-60">{ts.dataColumns?.length ?? 0} cols</span>

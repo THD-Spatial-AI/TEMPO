@@ -8,7 +8,7 @@ const PYTHON_MODULES = [
     id: 'calliope',
     label: 'Calliope 0.6.8',
     badge: 'Recommended',
-    badgeColor: 'bg-blue-100 text-blue-700',
+    badgeColor: 'bg-gray-100 text-gray-700',
     description: 'Full energy system modelling & optimisation.',
   },
   {
@@ -22,7 +22,7 @@ const PYTHON_MODULES = [
     id: 'adopt',
     label: 'ADOPT (latest)',
     badge: 'Experimental',
-    badgeColor: 'bg-amber-100 text-amber-700',
+    badgeColor: 'bg-gray-100 text-gray-500',
     description: 'Agent-based power system optimisation framework.',
   },
 ];
@@ -109,14 +109,14 @@ function PythonEnvironmentPanel() {
       {/* Status badge */}
       <div className={`flex items-center gap-3 p-3 rounded-xl border mb-4 ${
         statusLoading ? 'bg-slate-50 border-slate-200' :
-        envStatus?.envExists ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'
+        envStatus?.envExists ? 'bg-gray-50 border-gray-200' : 'bg-gray-50 border-gray-200'
       }`}>
         {statusLoading ? (
           <span className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
         ) : envStatus?.envExists ? (
-          <FiCheckCircle className="w-5 h-5 text-emerald-500 flex-shrink-0" />
+          <FiCheckCircle className="w-5 h-5 text-gray-500 flex-shrink-0" />
         ) : (
-          <FiAlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0" />
+          <FiAlertCircle className="w-5 h-5 text-gray-400 flex-shrink-0" />
         )}
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-slate-800">
@@ -127,7 +127,7 @@ function PythonEnvironmentPanel() {
           )}
           {!statusLoading && (
             <p className="text-xs mt-0.5">
-              Service: <span className={envStatus?.serviceRunning ? 'text-emerald-600 font-medium' : 'text-slate-400'}>
+              Service: <span className={envStatus?.serviceRunning ? 'text-gray-700 font-medium' : 'text-slate-400'}>
                 {envStatus?.serviceRunning ? 'running' : 'stopped'}
               </span>
             </p>
@@ -151,11 +151,11 @@ function PythonEnvironmentPanel() {
               onClick={() => toggleModule(mod.id)}
               disabled={installing}
               className={`w-full flex items-start gap-3 p-3 rounded-xl border-2 text-left transition-all
-                ${checked ? 'border-blue-400 bg-blue-50' : 'border-slate-100 bg-slate-50 hover:border-slate-200'}
+                ${checked ? 'border-gray-400 bg-gray-50' : 'border-slate-100 bg-slate-50 hover:border-slate-200'}
                 disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               <div className={`mt-0.5 w-5 h-5 flex-shrink-0 rounded border-2 flex items-center justify-center transition-colors
-                ${checked ? 'bg-blue-500 border-blue-500' : 'bg-white border-slate-300'}`}>
+                ${checked ? 'bg-gray-600 border-gray-600' : 'bg-white border-slate-300'}`}>
                 {checked && (
                   <svg className="w-3 h-3 text-white" viewBox="0 0 12 12" fill="none">
                     <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -164,7 +164,7 @@ function PythonEnvironmentPanel() {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className={`text-sm font-semibold ${checked ? 'text-blue-700' : 'text-slate-700'}`}>{mod.label}</span>
+                  <span className={`text-sm font-semibold ${checked ? 'text-gray-800' : 'text-slate-700'}`}>{mod.label}</span>
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${mod.badgeColor}`}>{mod.badge}</span>
                 </div>
                 <p className="text-xs text-slate-500 mt-0.5">{mod.description}</p>
@@ -184,11 +184,11 @@ function PythonEnvironmentPanel() {
             onClick={() => setDownloadCbc(v => !v)}
             disabled={installing}
             className={`w-full flex items-start gap-3 p-3 rounded-xl border-2 text-left transition-all mb-4
-              ${downloadCbc ? 'border-blue-400 bg-blue-50' : 'border-slate-100 bg-slate-50 hover:border-slate-200'}
+              ${downloadCbc ? 'border-gray-400 bg-gray-50' : 'border-slate-100 bg-slate-50 hover:border-slate-200'}
               disabled:opacity-50 disabled:cursor-not-allowed`}
           >
             <div className={`mt-0.5 w-5 h-5 flex-shrink-0 rounded border-2 flex items-center justify-center transition-colors
-              ${downloadCbc ? 'bg-blue-500 border-blue-500' : 'bg-white border-slate-300'}`}>
+              ${downloadCbc ? 'bg-gray-600 border-gray-600' : 'bg-white border-slate-300'}`}>
               {downloadCbc && (
                 <svg className="w-3 h-3 text-white" viewBox="0 0 12 12" fill="none">
                   <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -197,7 +197,7 @@ function PythonEnvironmentPanel() {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className={`text-sm font-semibold ${downloadCbc ? 'text-blue-700' : 'text-slate-700'}`}>
+                <span className={`text-sm font-semibold ${downloadCbc ? 'text-gray-800' : 'text-slate-700'}`}>
                   Download CBC solver binary (~7 MB)
                 </span>
               </div>
@@ -211,7 +211,7 @@ function PythonEnvironmentPanel() {
       <button
         onClick={handleInstall}
         disabled={installing || selectedModules.length === 0 || !window.electronAPI}
-        className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl font-semibold shadow hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm"
+        className="flex items-center gap-2 px-5 py-2.5 bg-gray-700 text-white rounded-xl font-semibold shadow hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm"
       >
         {installing ? (
           <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Installing…</>
@@ -232,8 +232,8 @@ function PythonEnvironmentPanel() {
               <div key={i} className="flex gap-2">
                 <span className="text-slate-600 select-none flex-shrink-0">{l.ts}</span>
                 <span className={
-                  l.text.startsWith('▶') ? 'text-yellow-400' :
-                  l.text.startsWith('✗') ? 'text-red-400' :
+                  l.text.startsWith('▶') ? 'text-gray-300' :
+                  l.text.startsWith('✗') ? 'text-gray-400' :
                   'text-slate-300'
                 }>{l.text}</span>
               </div>
@@ -245,15 +245,15 @@ function PythonEnvironmentPanel() {
 
       {/* Result messages */}
       {success && (
-        <div className="mt-3 flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700">
+        <div className="mt-3 flex items-center gap-2 p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-700">
           <FiCheckCircle className="w-4 h-4 flex-shrink-0" />
           Installation complete. TEMPO services restarted.
         </div>
       )}
       {error && (
-        <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+        <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-700">
           <p className="font-semibold mb-1">Installation failed:</p>
-          <pre className="whitespace-pre-wrap break-all text-xs bg-red-100 rounded p-2 max-h-24 overflow-y-auto">{error}</pre>
+          <pre className="whitespace-pre-wrap break-all text-xs bg-gray-100 rounded p-2 max-h-24 overflow-y-auto">{error}</pre>
         </div>
       )}
     </div>
@@ -348,7 +348,7 @@ const Settings = () => {
           <button
             onClick={() => setConfirmOpen(true)}
             disabled={clearing}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white bg-gray-700 hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {clearing ? (
               <>
@@ -361,7 +361,7 @@ const Settings = () => {
           </button>
 
           {clearResult && (
-            <div className={`mt-3 rounded-lg p-3 text-sm ${clearResult.success ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
+            <div className={`mt-3 rounded-lg p-3 text-sm ${clearResult.success ? 'bg-gray-50 text-gray-800' : 'bg-gray-50 text-gray-800'}`}>
               {clearResult.success
                 ? `Data cleared successfully. Removed: ${(clearResult.deleted || []).join(', ') || 'nothing to remove'}.`
                 : `Error: ${clearResult.error || 'Unknown error'}`}
@@ -375,8 +375,8 @@ const Settings = () => {
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[10000]">
           <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full mx-4 border border-slate-200">
             <div className="flex items-center gap-3 p-6 border-b border-slate-100">
-              <span className="w-9 h-9 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-red-600">
+              <span className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-600">
                   <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
                   <path d="M10 11v6"/><path d="M14 11v6"/>
                   <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
@@ -402,7 +402,7 @@ const Settings = () => {
               </button>
               <button
                 onClick={handleClearAll}
-                className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-red-600 hover:bg-red-700 shadow-sm transition-colors"
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-gray-700 hover:bg-gray-800 shadow-sm transition-colors"
               >
                 Yes, delete everything
               </button>

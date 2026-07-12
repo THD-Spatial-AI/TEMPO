@@ -30,9 +30,9 @@ function groupByContinent(countries) {
 const StatusBadge = ({ status }) => {
   if (!status) return null;
   const styles = {
-    running:  'bg-blue-100 text-blue-700',
-    done:     'bg-green-100 text-green-700',
-    error:    'bg-red-100 text-red-700',
+    running:  'bg-gray-100 text-gray-700',
+    done:     'bg-gray-100 text-gray-700',
+    error:    'bg-gray-100 text-gray-700',
   };
   const icons = {
     running: <FiLoader className="animate-spin" size={13} />,
@@ -192,7 +192,7 @@ const OSMDownloader = () => {
   if (loadError) {
     return (
       <div className="p-6 text-center">
-        <FiAlertCircle size={32} className="mx-auto text-red-400 mb-3" />
+        <FiAlertCircle size={32} className="mx-auto text-gray-400 mb-3" />
         <p className="text-sm text-slate-600">{loadError}</p>
         <p className="text-xs text-slate-400 mt-1">Make sure the Go backend is running.</p>
       </div>
@@ -256,7 +256,7 @@ const OSMDownloader = () => {
                           }}
                         >
                           <span className="flex-1">{c.name}</span>
-                          {loaded && <FiCheckCircle size={13} className="text-green-500 flex-shrink-0" />}
+                          {loaded && <FiCheckCircle size={13} className="text-gray-500 flex-shrink-0" />}
                         </button>
                       );
                     })}
@@ -270,12 +270,12 @@ const OSMDownloader = () => {
           {loadedRegions.length > 0 && (
             <div className="border-t border-slate-100 px-4 py-3">
               <div className="flex items-center gap-1.5 mb-2">
-                <FiDatabase size={13} className="text-green-500" />
+                <FiDatabase size={13} className="text-gray-500" />
                 <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Loaded</p>
               </div>
               <div className="space-y-1 max-h-28 overflow-y-auto">
                 {loadedRegions.map(r => (
-                  <p key={r} className="text-xs text-green-700 bg-green-50 rounded px-2 py-0.5">{r}</p>
+                  <p key={r} className="text-xs text-gray-700 bg-gray-50 rounded px-2 py-0.5">{r}</p>
                 ))}
               </div>
             </div>
@@ -298,7 +298,7 @@ const OSMDownloader = () => {
                   <h2 className="text-xl font-bold text-slate-900">{selectedCountry}</h2>
                   <p className="text-sm text-slate-500">{selectedContinent}</p>
                   {isLoaded(selectedContinent, selectedCountry) && (
-                    <span className="inline-flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full mt-1">
+                    <span className="inline-flex items-center gap-1 text-xs text-gray-600 bg-gray-50 px-2 py-0.5 rounded-full mt-1">
                       <FiCheckCircle size={11} /> In database
                     </span>
                   )}
@@ -334,11 +334,11 @@ const OSMDownloader = () => {
               )}
 
               {/* info box */}
-              <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-xs text-blue-700 space-y-1">
+              <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 text-xs text-gray-700 space-y-1">
                 <p className="font-semibold">What will be downloaded?</p>
                 <p>Power substations, plants, transmission lines, and admin boundaries from OpenStreetMap via Geofabrik.</p>
                 <p>Data is automatically uploaded to PostGIS and made available in GeoServer for map layers and model creation.</p>
-                <p className="text-blue-500">Large countries (e.g. Germany full) can take 5–15 minutes.</p>
+                <p className="text-gray-500">Large countries (e.g. Germany full) can take 5–15 minutes.</p>
               </div>
 
               {/* action button */}
@@ -358,7 +358,7 @@ const OSMDownloader = () => {
               ) : (
                 <button
                   onClick={cancelDownload}
-                  className="flex items-center justify-center gap-2 px-6 py-3 border-2 border-red-200 text-red-600 font-semibold rounded-xl hover:bg-red-50 transition-all"
+                  className="flex items-center justify-center gap-2 px-6 py-3 border-2 border-gray-200 text-gray-600 font-semibold rounded-xl hover:bg-gray-50 transition-all"
                 >
                   <FiX size={16} /> Cancel
                 </button>

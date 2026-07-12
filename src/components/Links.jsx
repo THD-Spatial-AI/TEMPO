@@ -276,7 +276,7 @@ const Links = () => {
                           </td>
                           <td className="px-4 py-3 text-sm">
                             <div className="flex gap-2">
-                              <button onClick={saveEdit} className="text-emerald-600 hover:text-emerald-800"><FiCheck size={18}/></button>
+                              <button onClick={saveEdit} className="text-gray-600 hover:text-gray-800"><FiCheck size={18}/></button>
                               <button onClick={cancelEdit} className="text-slate-400 hover:text-slate-700"><FiX size={18}/></button>
                             </div>
                           </td>
@@ -327,7 +327,7 @@ const Links = () => {
                   <span className="ml-1 text-xs font-normal text-slate-400">(determines carrier &amp; default costs)</span>
                 </label>
                 <LinkTypeSelect value={newLink.linkType} onChange={handleNewLinkTypeChange}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm" />
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm" />
                 {newLink.linkType && LINK_TYPES[newLink.linkType] && (
                   <p className="mt-1 text-xs text-slate-400 italic">{LINK_TYPES[newLink.linkType].description}</p>
                 )}
@@ -341,7 +341,7 @@ const Links = () => {
                 </label>
                 <div className="flex items-center gap-2">
                   <select value={newLink.carrier} onChange={e => setNewLink({ ...newLink, carrier: e.target.value })}
-                    className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm">
+                    className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm">
                     {Object.values(CARRIERS).map(c => (
                       <option key={c.id} value={c.id}>{c.icon}  {c.label}</option>
                     ))}
@@ -358,7 +358,7 @@ const Links = () => {
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">From</label>
                   <select value={newLink.from} onChange={e => setNewLink({ ...newLink, from: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm">
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm">
                     <option value="">Select…</option>
                     {locations.map((loc, i) => <option key={i} value={loc.name}>{loc.name}</option>)}
                   </select>
@@ -366,7 +366,7 @@ const Links = () => {
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">To</label>
                   <select value={newLink.to} onChange={e => setNewLink({ ...newLink, to: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm">
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm">
                     <option value="">Select…</option>
                     {locations.map((loc, i) => <option key={i} value={loc.name}>{loc.name}</option>)}
                   </select>

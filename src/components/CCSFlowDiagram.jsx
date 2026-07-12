@@ -46,9 +46,9 @@ const DiagramCtx = createContext(null);
 // Helper: Lifecycle badge color
 // ─────────────────────────────────────────────────────────────────────────────
 function lifecycleDot(lifecycle) {
-  if (lifecycle === "commercial") return "bg-emerald-400";
-  if (lifecycle === "projection") return "bg-blue-400";
-  if (lifecycle === "demonstration") return "bg-amber-400";
+  if (lifecycle === "commercial") return "bg-gray-400";
+  if (lifecycle === "projection") return "bg-gray-400";
+  if (lifecycle === "demonstration") return "bg-gray-400";
   return "bg-slate-300";
 }
 
@@ -115,11 +115,11 @@ function ModelPicker({ slotKey, models, selected, onSelect, disabled }) {
           className={`nodrag flex-1 flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-left
             border transition-all text-[11px]
             ${ hasPending
-                ? "border-amber-300 bg-amber-50 text-amber-800"
+                ? "border-gray-300 bg-gray-50 text-gray-800"
                 : open
-                  ? "border-blue-400 bg-blue-50 text-blue-700"
+                  ? "border-gray-400 bg-gray-50 text-gray-700"
                   : selected
-                    ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+                    ? "border-gray-300 bg-gray-50 text-gray-800"
                     : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-white hover:border-slate-300"
               }
             disabled:opacity-40 disabled:cursor-not-allowed`}
@@ -131,7 +131,7 @@ function ModelPicker({ slotKey, models, selected, onSelect, disabled }) {
               {displayModel.efficiency_pct != null && (
                 <span className="shrink-0 text-[10px] opacity-70">η {Number(displayModel.efficiency_pct).toFixed(0)}%</span>
               )}
-              <span className={`shrink-0 text-[9px] font-bold ${hasPending ? "text-amber-500" : "text-emerald-500"}`}>
+              <span className={`shrink-0 text-[9px] font-bold ${hasPending ? "text-gray-500" : "text-gray-500"}`}>
                 {hasPending ? "●" : "✓"}
               </span>
             </>
@@ -151,7 +151,7 @@ function ModelPicker({ slotKey, models, selected, onSelect, disabled }) {
           className={`nodrag shrink-0 flex items-center justify-center w-7 h-7 rounded-lg border text-[11px] font-bold
             transition-all
             ${ hasPending
-                ? "border-emerald-400 bg-emerald-500 text-white hover:bg-emerald-600 shadow-sm"
+                ? "border-gray-600 bg-gray-700 text-white hover:bg-gray-800 shadow-sm"
                 : "border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed"
               }`}
         >
@@ -160,7 +160,7 @@ function ModelPicker({ slotKey, models, selected, onSelect, disabled }) {
       </div>
 
       {hasPending && (
-        <p className="text-[9px] text-amber-600 font-medium mt-0.5 ml-0.5">
+        <p className="text-[9px] text-gray-600 font-medium mt-0.5 ml-0.5">
           Staged — click ✓ to apply
         </p>
       )}
@@ -187,9 +187,9 @@ function ModelPicker({ slotKey, models, selected, onSelect, disabled }) {
                   onClick={(e) => { stage(e, m); }}
                   className={`px-3 py-2 cursor-pointer transition-colors
                     ${ isStaged
-                        ? "bg-amber-50 border-l-2 border-amber-400"
+                        ? "bg-gray-50 border-l-2 border-gray-400"
                         : isApplied
-                          ? "bg-emerald-50 border-l-2 border-emerald-400"
+                          ? "bg-gray-50 border-l-2 border-gray-400"
                           : "hover:bg-slate-50 border-l-2 border-transparent"
                       }`}
                 >
@@ -197,11 +197,11 @@ function ModelPicker({ slotKey, models, selected, onSelect, disabled }) {
                     <span className={`w-2 h-2 rounded-full shrink-0 ${lifecycleDot(m.lifecycle)}`} />
                     <span className="text-[11px] font-semibold text-slate-800 flex-1 truncate">{m.name}</span>
                     {m.efficiency_pct != null && (
-                      <span className={`text-[10px] font-medium ${isStaged ? "text-amber-600" : isApplied ? "text-emerald-600" : "text-slate-400"}`}>
+                      <span className={`text-[10px] font-medium ${isStaged ? "text-gray-600" : isApplied ? "text-gray-600" : "text-slate-400"}`}>
                         η {Number(m.efficiency_pct).toFixed(0)}%
                       </span>
                     )}
-                    {isApplied && !isStaged && <span className="text-[9px] text-emerald-500 font-bold">✓ active</span>}
+                    {isApplied && !isStaged && <span className="text-[9px] text-gray-500 font-bold">✓ active</span>}
                   </div>
                   {m.description && (
                     <p className="text-[9px] text-slate-400 mt-0.5 ml-3.5 line-clamp-2">{m.description}</p>
@@ -209,7 +209,7 @@ function ModelPicker({ slotKey, models, selected, onSelect, disabled }) {
                   {isStaged && (
                     <button
                       onClick={(e) => apply(e, m)}
-                      className="nodrag mt-1.5 ml-3.5 px-2 py-0.5 rounded-md bg-emerald-500 text-white text-[10px] font-bold hover:bg-emerald-600 transition-colors"
+                      className="nodrag mt-1.5 ml-3.5 px-2 py-0.5 rounded-md bg-gray-700 text-white text-[10px] font-bold hover:bg-gray-800 transition-colors"
                     >
                       Apply this model
                     </button>
@@ -240,27 +240,27 @@ const SourceNode = memo(function SourceNode({ selected }) {
 
   return (
     <div className={`bg-white rounded-xl border-2 shadow-md px-3 py-2.5 w-64 cursor-pointer transition-colors duration-150
-      ${selected ? "border-orange-600 shadow-orange-100 ring-2 ring-orange-300 ring-offset-1" : "border-orange-400 hover:border-orange-500 hover:shadow-orange-100 hover:shadow-xl"}
-      ${simState === "running" && !selected ? "shadow-lg shadow-orange-100" : ""}`}
+      ${selected ? "border-gray-600 shadow-gray-100 ring-2 ring-gray-300 ring-offset-1" : "border-gray-400 hover:border-gray-500 hover:shadow-gray-100 hover:shadow-xl"}
+      ${simState === "running" && !selected ? "shadow-lg shadow-gray-100" : ""}`}
     >
       <div className="flex items-center gap-1.5 mb-1">
-        <span className="p-1 rounded-lg bg-orange-50 text-orange-500"><FiZap size={12} /></span>
+        <span className="p-1 rounded-lg bg-gray-50 text-gray-500"><FiZap size={12} /></span>
         <span className="text-xs font-bold text-slate-700 truncate max-w-[160px]">{sel?.name ?? "Flue Gas Source"}</span>
-        <StatusDot simState={simState} color="bg-orange-400" />
+        <StatusDot simState={simState} color="bg-gray-400" />
       </div>
       {sel && (
-        <p className="text-[10px] text-orange-600 font-semibold mb-1">
+        <p className="text-[10px] text-gray-600 font-semibold mb-1">
           {sel.capacity_kw ? `${(sel.capacity_kw / 1000).toFixed(0)} MW` : ""}
           {sel.co2_emission_kg_kwh ? ` · ${sel.co2_emission_kg_kwh.toFixed(2)} kg CO₂/kWh` : ""}
         </p>
       )}
       {latest && (
-        <div className="mt-1 mb-1 p-1.5 bg-orange-50 rounded">
-          <p className="text-[10px] font-semibold text-orange-700">{latest.flux.toFixed(1)} t CO₂/h</p>
+        <div className="mt-1 mb-1 p-1.5 bg-gray-50 rounded">
+          <p className="text-[10px] font-semibold text-gray-700">{latest.flux.toFixed(1)} t CO₂/h</p>
         </div>
       )}
       <ModelPicker slotKey={slotKey} models={models?.[slotKey]} selected={sel} onSelect={onSelectModel} disabled={disabled} />
-      <Handle type="source" position={Position.Right} id="flue-out" className="!bg-orange-400 !w-3 !h-3 !border-2 !border-white" />
+      <Handle type="source" position={Position.Right} id="flue-out" className="!bg-gray-400 !w-3 !h-3 !border-2 !border-white" />
     </div>
   );
 }, (p, n) => p.selected === n.selected);
@@ -283,26 +283,26 @@ const AbsorberNode = memo(function AbsorberNode({ selected }) {
 
   return (
     <div className={`bg-white rounded-xl border-2 shadow-md px-3 py-2.5 w-64 cursor-pointer transition-colors duration-150
-      ${selected ? "border-blue-600 shadow-blue-100 ring-2 ring-blue-300 ring-offset-1" : "border-blue-400 hover:border-blue-500 hover:shadow-blue-100 hover:shadow-xl"}
-      ${simState === "running" && !selected ? "shadow-lg shadow-blue-100" : ""}`}
+      ${selected ? "border-gray-600 shadow-gray-100 ring-2 ring-gray-300 ring-offset-1" : "border-gray-400 hover:border-gray-500 hover:shadow-gray-100 hover:shadow-xl"}
+      ${simState === "running" && !selected ? "shadow-lg shadow-gray-100" : ""}`}
     >
-      <Handle type="target" position={Position.Left} id="flue-in" className="!bg-orange-400 !w-3 !h-3 !border-2 !border-white" />
+      <Handle type="target" position={Position.Left} id="flue-in" className="!bg-gray-400 !w-3 !h-3 !border-2 !border-white" />
       <div className="flex items-center gap-1.5 mb-1">
-        <span className="p-1 rounded-lg bg-blue-50 text-blue-500"><FiDroplet size={12} /></span>
+        <span className="p-1 rounded-lg bg-gray-50 text-gray-500"><FiDroplet size={12} /></span>
         <span className="text-xs font-bold text-slate-700 truncate max-w-[110px]">{sel?.name ?? "CO₂ Absorber"}</span>
-        <StatusDot simState={simState} color="bg-blue-400" />
+        <StatusDot simState={simState} color="bg-gray-400" />
       </div>
       {sel?.efficiency_pct && (
-        <p className="text-[10px] text-blue-600 font-semibold mb-1">η {Number(sel.efficiency_pct).toFixed(0)}%</p>
+        <p className="text-[10px] text-gray-600 font-semibold mb-1">η {Number(sel.efficiency_pct).toFixed(0)}%</p>
       )}
       {latest && (
-        <div className="mt-1 mb-1 p-1.5 bg-blue-50 rounded">
-          <p className="text-[10px] font-semibold text-blue-700">{latest.captured.toFixed(1)} t/h captured</p>
-          <p className="text-[9px] text-blue-600">{latest.eff.toFixed(0)}% efficiency</p>
+        <div className="mt-1 mb-1 p-1.5 bg-gray-50 rounded">
+          <p className="text-[10px] font-semibold text-gray-700">{latest.captured.toFixed(1)} t/h captured</p>
+          <p className="text-[9px] text-gray-600">{latest.eff.toFixed(0)}% efficiency</p>
         </div>
       )}
       <ModelPicker slotKey={slotKey} models={models?.[slotKey]} selected={sel} onSelect={onSelectModel} disabled={disabled} />
-      <Handle type="source" position={Position.Right} id="rich-out" className="!bg-blue-600 !w-3 !h-3 !border-2 !border-white" />
+      <Handle type="source" position={Position.Right} id="rich-out" className="!bg-gray-600 !w-3 !h-3 !border-2 !border-white" />
     </div>
   );
 }, (p, n) => p.selected === n.selected);
@@ -322,25 +322,25 @@ const StripperNode = memo(function StripperNode({ selected }) {
 
   return (
     <div className={`bg-white rounded-xl border-2 shadow-md px-3 py-2.5 w-64 cursor-pointer transition-colors duration-150
-      ${selected ? "border-red-600 shadow-red-100 ring-2 ring-red-300 ring-offset-1" : "border-red-400 hover:border-red-500 hover:shadow-red-100 hover:shadow-xl"}
-      ${simState === "running" && !selected ? "shadow-lg shadow-red-100" : ""}`}
+      ${selected ? "border-gray-600 shadow-gray-100 ring-2 ring-gray-300 ring-offset-1" : "border-gray-400 hover:border-gray-500 hover:shadow-gray-100 hover:shadow-xl"}
+      ${simState === "running" && !selected ? "shadow-lg shadow-gray-100" : ""}`}
     >
-      <Handle type="target" position={Position.Left} id="rich-in" className="!bg-blue-600 !w-3 !h-3 !border-2 !border-white" />
+      <Handle type="target" position={Position.Left} id="rich-in" className="!bg-gray-600 !w-3 !h-3 !border-2 !border-white" />
       <div className="flex items-center gap-1.5 mb-1">
-        <span className="p-1 rounded-lg bg-red-50 text-red-500"><FiWind size={12} /></span>
+        <span className="p-1 rounded-lg bg-gray-50 text-gray-500"><FiWind size={12} /></span>
         <span className="text-xs font-bold text-slate-700 truncate max-w-[110px]">{sel?.name ?? "Stripper"}</span>
-        <StatusDot simState={simState} color="bg-red-400" />
+        <StatusDot simState={simState} color="bg-gray-400" />
       </div>
       {sel?.efficiency_pct && (
-        <p className="text-[10px] text-red-600 font-semibold mb-1">η {Number(sel.efficiency_pct).toFixed(0)}%</p>
+        <p className="text-[10px] text-gray-600 font-semibold mb-1">η {Number(sel.efficiency_pct).toFixed(0)}%</p>
       )}
       {latest && (
-        <div className="mt-1 mb-1 p-1.5 bg-red-50 rounded">
-          <p className="text-[10px] font-semibold text-red-700">{Math.round(latest.thermal)} kW heat</p>
+        <div className="mt-1 mb-1 p-1.5 bg-gray-50 rounded">
+          <p className="text-[10px] font-semibold text-gray-700">{Math.round(latest.thermal)} kW heat</p>
         </div>
       )}
       <ModelPicker slotKey={slotKey} models={models?.[slotKey]} selected={sel} onSelect={onSelectModel} disabled={disabled} />
-      <Handle type="source" position={Position.Right} id="co2-out" className="!bg-emerald-500 !w-3 !h-3 !border-2 !border-white" />
+      <Handle type="source" position={Position.Right} id="co2-out" className="!bg-gray-500 !w-3 !h-3 !border-2 !border-white" />
     </div>
   );
 }, (p, n) => p.selected === n.selected);
@@ -361,26 +361,26 @@ const CompressorNode = memo(function CompressorNode({ selected }) {
 
   return (
     <div className={`bg-white rounded-xl border-2 shadow-md px-3 py-2.5 w-64 cursor-pointer transition-colors duration-150
-      ${selected ? "border-amber-600 shadow-amber-100 ring-2 ring-amber-300 ring-offset-1" : "border-amber-500 hover:border-amber-600 hover:shadow-amber-100 hover:shadow-xl"}
-      ${simState === "running" && !selected ? "shadow-lg shadow-amber-100" : ""}`}
+      ${selected ? "border-gray-600 shadow-gray-100 ring-2 ring-gray-300 ring-offset-1" : "border-gray-500 hover:border-gray-600 hover:shadow-gray-100 hover:shadow-xl"}
+      ${simState === "running" && !selected ? "shadow-lg shadow-gray-100" : ""}`}
     >
-      <Handle type="target" position={Position.Left} id="co2-in" className="!bg-emerald-500 !w-3 !h-3 !border-2 !border-white" />
+      <Handle type="target" position={Position.Left} id="co2-in" className="!bg-gray-500 !w-3 !h-3 !border-2 !border-white" />
       <div className="flex items-center gap-1.5 mb-1">
-        <span className="p-1 rounded-lg bg-amber-50 text-amber-500"><FiBox size={12} /></span>
+        <span className="p-1 rounded-lg bg-gray-50 text-gray-500"><FiBox size={12} /></span>
         <span className="text-xs font-bold text-slate-700 truncate max-w-[110px]">{sel?.name ?? "Compressor"}</span>
-        <StatusDot simState={simState} color="bg-amber-400" />
+        <StatusDot simState={simState} color="bg-gray-400" />
       </div>
       {sel?.efficiency_pct && (
-        <p className="text-[10px] text-amber-600 font-semibold mb-1">η {Number(sel.efficiency_pct).toFixed(0)}%</p>
+        <p className="text-[10px] text-gray-600 font-semibold mb-1">η {Number(sel.efficiency_pct).toFixed(0)}%</p>
       )}
       {latest && (
-        <div className="mt-1 mb-1 p-1.5 bg-amber-50 rounded">
-          <p className="text-[10px] font-semibold text-amber-700">{Math.round(latest.power)} kW</p>
-          <p className="text-[9px] text-amber-600">{Math.round(latest.pressure)} bar</p>
+        <div className="mt-1 mb-1 p-1.5 bg-gray-50 rounded">
+          <p className="text-[10px] font-semibold text-gray-700">{Math.round(latest.power)} kW</p>
+          <p className="text-[9px] text-gray-600">{Math.round(latest.pressure)} bar</p>
         </div>
       )}
       <ModelPicker slotKey={slotKey} models={models?.[slotKey]} selected={sel} onSelect={onSelectModel} disabled={disabled} />
-      <Handle type="source" position={Position.Right} id="hp-out" className="!bg-amber-600 !w-3 !h-3 !border-2 !border-white" />
+      <Handle type="source" position={Position.Right} id="hp-out" className="!bg-gray-600 !w-3 !h-3 !border-2 !border-white" />
     </div>
   );
 }, (p, n) => p.selected === n.selected);
@@ -401,24 +401,24 @@ const StorageNode = memo(function StorageNode({ selected }) {
 
   return (
     <div className={`bg-white rounded-xl border-2 shadow-md px-3 py-2.5 w-64 cursor-pointer transition-colors duration-150
-      ${selected ? "border-emerald-600 shadow-emerald-100 ring-2 ring-emerald-300 ring-offset-1" : "border-emerald-500 hover:border-emerald-600 hover:shadow-emerald-100 hover:shadow-xl"}
-      ${simState === "running" && !selected ? "shadow-lg shadow-emerald-100" : ""}`}
+      ${selected ? "border-gray-600 shadow-gray-100 ring-2 ring-gray-300 ring-offset-1" : "border-gray-500 hover:border-gray-600 hover:shadow-gray-100 hover:shadow-xl"}
+      ${simState === "running" && !selected ? "shadow-lg shadow-gray-100" : ""}`}
     >
-      <Handle type="target" position={Position.Left} id="hp-in" className="!bg-amber-600 !w-3 !h-3 !border-2 !border-white" />
+      <Handle type="target" position={Position.Left} id="hp-in" className="!bg-gray-600 !w-3 !h-3 !border-2 !border-white" />
       <div className="flex items-center gap-1.5 mb-1">
-        <span className="p-1 rounded-lg bg-emerald-50 text-emerald-500"><FiDatabase size={12} /></span>
+        <span className="p-1 rounded-lg bg-gray-50 text-gray-500"><FiDatabase size={12} /></span>
         <span className="text-xs font-bold text-slate-700 truncate max-w-[110px]">{sel?.name ?? "CO₂ Storage"}</span>
-        <StatusDot simState={simState} color="bg-emerald-400" />
+        <StatusDot simState={simState} color="bg-gray-400" />
       </div>
       {sel && (
-        <p className="text-[10px] text-emerald-600 font-semibold mb-1">
+        <p className="text-[10px] text-gray-600 font-semibold mb-1">
           {sel.capacity_tco2_yr ? `${(sel.capacity_tco2_yr / 1000000).toFixed(1)} Mt/yr` : "Geological"}
         </p>
       )}
       {latest && (
-        <div className="mt-1 mb-1 p-1.5 bg-emerald-50 rounded">
-          <p className="text-[10px] font-semibold text-emerald-700">{latest.rate.toFixed(1)} t/h injected</p>
-          <p className="text-[9px] text-emerald-600">{(latest.total / 1000).toFixed(1)} kt stored</p>
+        <div className="mt-1 mb-1 p-1.5 bg-gray-50 rounded">
+          <p className="text-[10px] font-semibold text-gray-700">{latest.rate.toFixed(1)} t/h injected</p>
+          <p className="text-[9px] text-gray-600">{(latest.total / 1000).toFixed(1)} kt stored</p>
         </div>
       )}
       <ModelPicker slotKey={slotKey} models={models?.[slotKey]} selected={sel} onSelect={onSelectModel} disabled={disabled} />
@@ -465,7 +465,7 @@ const COMPONENT_PARAMS = {
   source: {
     label: "Flue Gas Source",
     Icon: FiZap,
-    accent: "#f97316",
+    accent: "#6b7280",
     fields: [
       { key: "capacity_kw", label: "Plant Capacity", unit: "MW", min: 10, max: 2000, step: 10, decimals: 0, fromState: (v) => v / 1000, toState: (v) => ({ capacity_kw: v * 1000 }) },
       { key: "efficiency_pct", label: "Thermal Efficiency", unit: "%", min: 20, max: 70, step: 0.5, decimals: 1, fromState: (v) => v, toState: (v) => ({ efficiency_pct: v }) },
@@ -477,7 +477,7 @@ const COMPONENT_PARAMS = {
   absorber: {
     label: "CO₂ Absorber",
     Icon: FiDroplet,
-    accent: "#3b82f6",
+    accent: "#6b7280",
     fields: [
       { key: "capture_rate_pct", label: "Capture Rate", unit: "%", min: 50, max: 99, step: 0.5, decimals: 1, fromState: (v) => v, toState: (v) => ({ capture_rate_pct: v }) },
       { key: "energy_requirement_gj_tco2", label: "Energy Requirement", unit: "GJ/t", min: 1.5, max: 6.0, step: 0.05, decimals: 2, fromState: (v) => v, toState: (v) => ({ energy_requirement_gj_tco2: v }) },
@@ -489,7 +489,7 @@ const COMPONENT_PARAMS = {
   stripper: {
     label: "Stripper / Regenerator",
     Icon: FiWind,
-    accent: "#ef4444",
+    accent: "#6b7280",
     fields: [
       { key: "reboiler_temp_c", label: "Reboiler Temperature", unit: "°C", min: 80, max: 150, step: 1, decimals: 0, fromState: (v) => v, toState: (v) => ({ reboiler_temp_c: v }) },
       { key: "steam_pressure_bar", label: "Steam Pressure", unit: "bar", min: 1.0, max: 8.0, step: 0.1, decimals: 1, fromState: (v) => v, toState: (v) => ({ steam_pressure_bar: v }) },
@@ -500,7 +500,7 @@ const COMPONENT_PARAMS = {
   compressor: {
     label: "CO₂ Compressor",
     Icon: FiBox,
-    accent: "#f59e0b",
+    accent: "#6b7280",
     fields: [
       { key: "target_pressure_bar", label: "Target Pressure", unit: "bar", min: 50, max: 300, step: 5, decimals: 0, fromState: (v) => v, toState: (v) => ({ target_pressure_bar: v }) },
       { key: "number_stages", label: "Compression Stages", unit: "", min: 1, max: 8, step: 1, decimals: 0, fromState: (v) => v, toState: (v) => ({ number_stages: v }) },
@@ -511,7 +511,7 @@ const COMPONENT_PARAMS = {
   storage: {
     label: "CO₂ Storage",
     Icon: FiDatabase,
-    accent: "#10b981",
+    accent: "#6b7280",
     fields: [
       { key: "injection_rate_mtco2_yr", label: "Injection Rate", unit: "Mt/yr", min: 0.01, max: 20, step: 0.1, decimals: 2, fromState: (v) => v, toState: (v) => ({ injection_rate_mtco2_yr: v }) },
       { key: "reservoir_depth_m", label: "Reservoir Depth", unit: "m", min: 200, max: 5000, step: 50, decimals: 0, fromState: (v) => v, toState: (v) => ({ reservoir_depth_m: v }) },
@@ -538,7 +538,7 @@ function DarkParamRow({ field, stateValue, accent, onChange, disabled }) {
           <input
             type="number"
             disabled={disabled}
-            className="w-16 text-right text-xs font-mono bg-slate-800 border border-slate-600 rounded px-1 py-0.5 text-slate-200 focus:outline-none focus:border-blue-500 disabled:opacity-40"
+            className="w-16 text-right text-xs font-mono bg-slate-800 border border-slate-600 rounded px-1 py-0.5 text-slate-200 focus:outline-none focus:border-gray-500 disabled:opacity-40"
             min={field.min} max={field.max} step={field.step}
             value={field.decimals > 0 ? Number(displayValue).toFixed(field.decimals) : Math.round(displayValue)}
             onChange={(e) => {
@@ -590,7 +590,7 @@ function ScenarioDropdown({ selectedId, onChange, disabled }) {
         disabled={disabled}
         onClick={toggle}
         className={`nodrag flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all
-          ${open ? "border-blue-500 bg-blue-900/40 text-blue-300" : "border-slate-600 bg-slate-800 text-slate-300 hover:border-slate-500 hover:bg-slate-700"}
+          ${open ? "border-gray-500 bg-gray-900/40 text-gray-300" : "border-slate-600 bg-slate-800 text-slate-300 hover:border-slate-500 hover:bg-slate-700"}
           disabled:opacity-40 disabled:cursor-not-allowed`}
       >
         <FiSettings size={11} className="shrink-0" />
@@ -614,17 +614,17 @@ function ScenarioDropdown({ selectedId, onChange, disabled }) {
                     key={sc.id}
                     onClick={(e) => pick(sc.id, e)}
                     className={`px-3 py-2.5 cursor-pointer border-l-2 transition-colors
-                      ${isActive ? "bg-blue-900/40 border-blue-500" : "border-transparent hover:bg-slate-800"}`}
+                      ${isActive ? "bg-gray-900/40 border-gray-500" : "border-transparent hover:bg-slate-800"}`}
                   >
                     <div className="flex items-center gap-2">
                       <span className="text-base">{sc.icon}</span>
-                      <span className={`text-xs font-semibold ${isActive ? "text-blue-300" : "text-slate-200"}`}>{sc.label}</span>
+                      <span className={`text-xs font-semibold ${isActive ? "text-gray-300" : "text-slate-200"}`}>{sc.label}</span>
                       {sc.status && (
                         <span className="ml-auto text-[9px] font-semibold px-1.5 py-0.5 rounded-full border" style={{ color: sc.statusColor, borderColor: sc.statusColor + "55", background: sc.statusColor + "22" }}>
                           {sc.status}
                         </span>
                       )}
-                      {isActive && <span className="text-blue-400 text-[10px] font-bold">✓</span>}
+                      {isActive && <span className="text-gray-400 text-[10px] font-bold">✓</span>}
                     </div>
                     {sc.region && <p className="text-[10px] text-slate-500 ml-7 mt-0.5">{sc.region}</p>}
                     {sc.description && <p className="text-[10px] text-slate-400 ml-7 mt-0.5 line-clamp-1">{sc.description}</p>}
@@ -698,13 +698,13 @@ function InlineParamPanel({ nodeId, paramState, onParamChange, ccsModels, select
                     disabled={disabled}
                     onClick={() => onSelectCcsModel?.(nodeId, m)}
                     className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[10px] border transition-all text-left
-                      ${isSel ? "border-emerald-500/50 bg-emerald-900/30 text-emerald-300" : "border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600 hover:text-slate-300"}
+                      ${isSel ? "border-gray-500/50 bg-gray-900/30 text-gray-300" : "border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600 hover:text-slate-300"}
                       disabled:opacity-40`}
                   >
                     <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${lifecycleDot(m.lifecycle)}`} />
                     <span className="flex-1 font-medium truncate">{m.name}</span>
                     {m.efficiency_pct != null && <span className="opacity-60">η{Number(m.efficiency_pct).toFixed(0)}%</span>}
-                    {isSel && <span className="text-emerald-400 font-bold">✓</span>}
+                    {isSel && <span className="text-gray-400 font-bold">✓</span>}
                   </button>
                 );
               })}
@@ -763,37 +763,37 @@ const INITIAL_POSITIONS = {
 const flueGasEdge = (id, src, tgt, srcH, tgtH, lbl) => ({
   id, source: src, target: tgt, sourceHandle: srcH, targetHandle: tgtH,
   type: "smoothstep", animated: true,
-  style: { stroke: "#f97316", strokeWidth: 2.5 },
-  label: lbl, labelStyle: { fontSize: 10, fill: "#9a3412", fontWeight: 600 },
-  labelBgStyle: { fill: "#fed7aa", fillOpacity: 0.9 }, labelBgPadding: [4, 3], labelBgBorderRadius: 4,
-  markerEnd: { type: MarkerType.ArrowClosed, color: "#f97316", width: 16, height: 16 },
+  style: { stroke: "#9ca3af", strokeWidth: 2.5 },
+  label: lbl, labelStyle: { fontSize: 10, fill: "#374151", fontWeight: 600 },
+  labelBgStyle: { fill: "#f3f4f6", fillOpacity: 0.9 }, labelBgPadding: [4, 3], labelBgBorderRadius: 4,
+  markerEnd: { type: MarkerType.ArrowClosed, color: "#9ca3af", width: 16, height: 16 },
 });
 
 const richSolventEdge = (id, src, tgt, srcH, tgtH, lbl) => ({
   id, source: src, target: tgt, sourceHandle: srcH, targetHandle: tgtH,
   type: "smoothstep", animated: true,
-  style: { stroke: "#3b82f6", strokeWidth: 2.5 },
-  label: lbl, labelStyle: { fontSize: 10, fill: "#1e3a8a", fontWeight: 600 },
-  labelBgStyle: { fill: "#bfdbfe", fillOpacity: 0.9 }, labelBgPadding: [4, 3], labelBgBorderRadius: 4,
-  markerEnd: { type: MarkerType.ArrowClosed, color: "#3b82f6", width: 16, height: 16 },
+  style: { stroke: "#6b7280", strokeWidth: 2.5 },
+  label: lbl, labelStyle: { fontSize: 10, fill: "#1f2937", fontWeight: 600 },
+  labelBgStyle: { fill: "#e5e7eb", fillOpacity: 0.9 }, labelBgPadding: [4, 3], labelBgBorderRadius: 4,
+  markerEnd: { type: MarkerType.ArrowClosed, color: "#6b7280", width: 16, height: 16 },
 });
 
 const pureCO2Edge = (id, src, tgt, srcH, tgtH, lbl) => ({
   id, source: src, target: tgt, sourceHandle: srcH, targetHandle: tgtH,
   type: "smoothstep", animated: true,
-  style: { stroke: "#10b981", strokeWidth: 2.5 },
-  label: lbl, labelStyle: { fontSize: 10, fill: "#065f46", fontWeight: 600 },
-  labelBgStyle: { fill: "#d1fae5", fillOpacity: 0.9 }, labelBgPadding: [4, 3], labelBgBorderRadius: 4,
-  markerEnd: { type: MarkerType.ArrowClosed, color: "#10b981", width: 16, height: 16 },
+  style: { stroke: "#4b5563", strokeWidth: 2.5 },
+  label: lbl, labelStyle: { fontSize: 10, fill: "#111827", fontWeight: 600 },
+  labelBgStyle: { fill: "#d1d5db", fillOpacity: 0.9 }, labelBgPadding: [4, 3], labelBgBorderRadius: 4,
+  markerEnd: { type: MarkerType.ArrowClosed, color: "#4b5563", width: 16, height: 16 },
 });
 
 const compressedCO2Edge = (id, src, tgt, srcH, tgtH, lbl) => ({
   id, source: src, target: tgt, sourceHandle: srcH, targetHandle: tgtH,
   type: "smoothstep", animated: true,
-  style: { stroke: "#f59e0b", strokeWidth: 3 },
-  label: lbl, labelStyle: { fontSize: 10, fill: "#78350f", fontWeight: 600 },
-  labelBgStyle: { fill: "#fde68a", fillOpacity: 0.9 }, labelBgPadding: [4, 3], labelBgBorderRadius: 4,
-  markerEnd: { type: MarkerType.ArrowClosed, color: "#f59e0b", width: 18, height: 18 },
+  style: { stroke: "#374151", strokeWidth: 3 },
+  label: lbl, labelStyle: { fontSize: 10, fill: "#111827", fontWeight: 600 },
+  labelBgStyle: { fill: "#e5e7eb", fillOpacity: 0.9 }, labelBgPadding: [4, 3], labelBgBorderRadius: 4,
+  markerEnd: { type: MarkerType.ArrowClosed, color: "#374151", width: 18, height: 18 },
 });
 
 const INITIAL_EDGES = [
@@ -898,29 +898,29 @@ export default function CCSFlowDiagram({
           disabled={disabled}
         />
         <span className="w-px h-4 bg-slate-700 shrink-0" />
-        <span className="flex items-center gap-1.5 text-orange-300">
-          <span className="inline-block w-5 h-0.5 border-t-2 border-orange-400" style={{ borderStyle: "dashed" }} />
+        <span className="flex items-center gap-1.5 text-gray-400">
+          <span className="inline-block w-5 h-0.5 border-t-2 border-gray-400" style={{ borderStyle: "dashed" }} />
           Flue Gas
         </span>
-        <span className="flex items-center gap-1.5 text-blue-300">
-          <span className="inline-block w-5 h-0.5 border-t-2 border-blue-400" style={{ borderStyle: "dashed" }} />
+        <span className="flex items-center gap-1.5 text-gray-400">
+          <span className="inline-block w-5 h-0.5 border-t-2 border-gray-500" style={{ borderStyle: "dashed" }} />
           Rich Solvent
         </span>
-        <span className="flex items-center gap-1.5 text-emerald-300">
-          <span className="inline-block w-5 h-0.5 border-t-2 border-emerald-400" style={{ borderStyle: "dashed" }} />
+        <span className="flex items-center gap-1.5 text-gray-400">
+          <span className="inline-block w-5 h-0.5 border-t-2 border-gray-600" style={{ borderStyle: "dashed" }} />
           Pure CO₂
         </span>
-        <span className="flex items-center gap-1.5 text-amber-300">
-          <span className="inline-block w-5 h-0.5 bg-amber-400 rounded" />
+        <span className="flex items-center gap-1.5 text-gray-400">
+          <span className="inline-block w-5 h-0.5 bg-gray-700 rounded" />
           Compressed CO₂
         </span>
         <span className="flex items-center gap-2 text-slate-400">
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-400" />Commercial</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400" />Demo</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-400" />Projection</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-400" />Commercial</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-400" />Demo</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-400" />Projection</span>
         </span>
         <span className="ml-auto text-slate-500 italic hidden lg:block">
-          Drag · zoom · <span className="text-amber-400">click a node</span> to open analysis
+          Drag · zoom · click a node to open analysis
         </span>
       </div>
 
@@ -962,11 +962,11 @@ export default function CCSFlowDiagram({
           />
           <MiniMap
             nodeColor={(n) => {
-              if (n.type === "source") return "#f97316";
-              if (n.type === "absorber") return "#3b82f6";
-              if (n.type === "stripper") return "#ef4444";
-              if (n.type === "compressor") return "#f59e0b";
-              if (n.type === "storage") return "#10b981";
+              if (n.type === "source") return "#9ca3af";
+              if (n.type === "absorber") return "#6b7280";
+              if (n.type === "stripper") return "#4b5563";
+              if (n.type === "compressor") return "#374151";
+              if (n.type === "storage") return "#1f2937";
               return "#64748b";
             }}
             position="bottom-left"
@@ -989,7 +989,7 @@ export default function CCSFlowDiagram({
         title={selectedCcsModels?.source?.name ?? "Flue Gas Source"}
         subtitle="Emission source configuration"
         icon={<FiZap size={20} />}
-        accentColor="bg-orange-500"
+        accentColor="bg-gray-500"
       >
         <CCSSourcePanel
           key={`source-${scenarioKey}`}
@@ -1008,7 +1008,7 @@ export default function CCSFlowDiagram({
         title={selectedCcsModels?.absorber?.name ?? "CO\u2082 Absorber"}
         subtitle="Post-combustion solvent capture"
         icon={<FiDroplet size={20} />}
-        accentColor="bg-blue-600"
+        accentColor="bg-gray-700"
       >
         <CCSAbsorberPanel
           key={`absorber-${scenarioKey}`}
@@ -1028,7 +1028,7 @@ export default function CCSFlowDiagram({
         title={selectedCcsModels?.stripper?.name ?? "Stripper / Regenerator"}
         subtitle="Solvent regeneration & CO\u2082 release"
         icon={<FiWind size={20} />}
-        accentColor="bg-red-500"
+        accentColor="bg-gray-600"
       >
         <CCSStripperPanel
           key={`stripper-${scenarioKey}`}
@@ -1048,7 +1048,7 @@ export default function CCSFlowDiagram({
         title={selectedCcsModels?.compressor?.name ?? "CO\u2082 Compressor"}
         subtitle="Compression to pipeline pressure"
         icon={<FiBox size={20} />}
-        accentColor="bg-amber-500"
+        accentColor="bg-gray-500"
       >
         <CCSCompressorPanel
           key={`compressor-${scenarioKey}`}
@@ -1068,7 +1068,7 @@ export default function CCSFlowDiagram({
         title={selectedCcsModels?.storage?.name ?? "CO\u2082 Storage"}
         subtitle="Geological CO\u2082 sequestration"
         icon={<FiDatabase size={20} />}
-        accentColor="bg-emerald-600"
+        accentColor="bg-gray-700"
       >
         <CCSStoragePanel
           key={`storage-${scenarioKey}`}

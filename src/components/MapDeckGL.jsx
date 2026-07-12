@@ -1454,7 +1454,7 @@ const MapDeckGL = () => {
               {/* Save current model */}
               <button
                 onClick={() => { updateCurrentModel(); showNotification('Model saved!', 'success'); }}
-                className="p-1.5 rounded hover:bg-green-100 text-slate-500 hover:text-green-700 transition-colors"
+                className="p-1.5 rounded hover:bg-gray-100 text-slate-500 hover:text-gray-700 transition-colors"
                 title="Save current model"
               >
                 <FiSave size={16} />
@@ -1462,7 +1462,7 @@ const MapDeckGL = () => {
               {/* Load model panel toggle */}
               <button
                 onClick={() => setShowModelPanel(v => !v)}
-                className={`p-1.5 rounded transition-colors ${showModelPanel ? 'bg-blue-100 text-blue-700' : 'hover:bg-blue-100 text-slate-500 hover:text-blue-700'}`}
+                className={`p-1.5 rounded transition-colors ${showModelPanel ? 'bg-gray-100 text-gray-700' : 'hover:bg-gray-100 text-slate-500 hover:text-gray-700'}`}
                 title="Switch / load model"
               >
                 <FiFolder size={16} />
@@ -1493,12 +1493,12 @@ const MapDeckGL = () => {
                       onClick={() => { loadModel(m.id); setShowModelPanel(false); showNotification(`Loaded "${m.name}"`, 'success'); }}
                       className={`w-full text-left px-2 py-1.5 rounded text-xs transition-colors ${
                         m.id === currentModelId
-                          ? 'bg-blue-100 text-blue-800 font-semibold'
+                          ? 'bg-gray-100 text-gray-800 font-semibold'
                           : 'hover:bg-white text-slate-700'
                       }`}
                     >
                       <span className="truncate block">{m.name}</span>
-                      {m.id === currentModelId && <span className="text-blue-500 text-xs">● current</span>}
+                      {m.id === currentModelId && <span className="text-gray-500 text-xs">● current</span>}
                     </button>
                   ))}
                 </div>
@@ -1508,7 +1508,7 @@ const MapDeckGL = () => {
                   const name = prompt('New model name:');
                   if (name) { createModel(name); setShowModelPanel(false); }
                 }}
-                className="mt-2 mb-1 w-full text-xs text-center py-1.5 rounded border border-dashed border-slate-300 text-slate-500 hover:border-blue-400 hover:text-blue-600 transition-colors"
+                className="mt-2 mb-1 w-full text-xs text-center py-1.5 rounded border border-dashed border-slate-300 text-slate-500 hover:border-gray-400 hover:text-gray-600 transition-colors"
               >
                 + New empty model
               </button>
@@ -1616,7 +1616,7 @@ const MapDeckGL = () => {
                         showNotification('All locations and links deleted', 'success');
                       }
                     }}
-                    className="p-2 mr-2 rounded hover:bg-red-100 text-slate-400 hover:text-red-600 transition-colors"
+                    className="p-2 mr-2 rounded hover:bg-gray-100 text-slate-400 hover:text-gray-600 transition-colors"
                     title="Delete all locations"
                   >
                     <FiTrash2 size={13} />
@@ -1653,7 +1653,7 @@ const MapDeckGL = () => {
                               {techKeys.length > 0 && (
                                 <div className="flex flex-wrap gap-1 mt-1">
                                   {techKeys.slice(0, 3).map(t => (
-                                    <span key={t} className="text-xs bg-blue-100 text-blue-700 rounded px-1 py-0.5 truncate max-w-[80px]">
+                                    <span key={t} className="text-xs bg-gray-100 text-gray-700 rounded px-1 py-0.5 truncate max-w-[80px]">
                                       {formatTechName(t)}
                                     </span>
                                   ))}
@@ -1666,14 +1666,14 @@ const MapDeckGL = () => {
                             <div className="flex items-center gap-0.5 shrink-0">
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleEditLocation(loc, idx); }}
-                                className="p-1 rounded hover:bg-blue-100 text-slate-400 hover:text-blue-600 transition-colors"
+                                className="p-1 rounded hover:bg-gray-100 text-slate-400 hover:text-gray-600 transition-colors"
                                 title="Edit location"
                               >
                                 <FiEdit2 size={12} />
                               </button>
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleDeleteLocation(idx); }}
-                                className="p-1 rounded hover:bg-red-100 text-slate-400 hover:text-red-600 transition-colors"
+                                className="p-1 rounded hover:bg-gray-100 text-slate-400 hover:text-gray-600 transition-colors"
                                 title="Delete location"
                               >
                                 <FiTrash2 size={12} />
@@ -1708,7 +1708,7 @@ const MapDeckGL = () => {
                         showNotification('All links deleted', 'success');
                       }
                     }}
-                    className="p-2 mr-2 rounded hover:bg-red-100 text-slate-400 hover:text-red-600 transition-colors"
+                    className="p-2 mr-2 rounded hover:bg-gray-100 text-slate-400 hover:text-gray-600 transition-colors"
                     title="Delete all links"
                   >
                     <FiTrash2 size={13} />
@@ -1745,7 +1745,7 @@ const MapDeckGL = () => {
                                 setLinks(links.filter((_, i) => i !== idx));
                               }
                             }}
-                            className="p-1 rounded hover:bg-red-100 text-slate-400 hover:text-red-600 transition-colors shrink-0"
+                            className="p-1 rounded hover:bg-gray-100 text-slate-400 hover:text-gray-600 transition-colors shrink-0"
                             title="Delete link"
                           >
                             <FiTrash2 size={12} />

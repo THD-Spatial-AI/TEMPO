@@ -553,7 +553,7 @@ export default function ScenarioComparison() {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Filter…"
-              className="w-full pl-7 pr-2.5 py-1.5 text-xs rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-400"
+              className="w-full pl-7 pr-2.5 py-1.5 text-xs rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:ring-1 focus:ring-gray-400"
             />
           </div>
 
@@ -570,7 +570,7 @@ export default function ScenarioComparison() {
           </div>
 
           {selectedIds.size > 0 && (
-            <p className="text-[11px] text-blue-600 font-semibold">
+            <p className="text-[11px] text-gray-700 font-semibold">
               {selectedIds.size} run{selectedIds.size !== 1 ? 's' : ''} selected
             </p>
           )}
@@ -594,7 +594,7 @@ export default function ScenarioComparison() {
                 onClick={() => toggleJob(job.id)}
                 className={`w-full text-left flex items-start gap-2 px-2 py-2 rounded-xl text-xs transition-all ${
                   checked
-                    ? 'bg-blue-50 border border-blue-200'
+                    ? 'bg-gray-50 border border-gray-200'
                     : 'hover:bg-slate-50 border border-transparent'
                 }`}
               >
@@ -647,7 +647,7 @@ export default function ScenarioComparison() {
                 })}
               </div>
               {manySelected && chartView !== 'parallel' && chartView !== 'scatter' && chartView !== 'table' && (
-                <span className="flex items-center gap-1.5 text-amber-600 text-xs bg-amber-50 border border-amber-200 px-2.5 py-1.5 rounded-lg">
+                <span className="flex items-center gap-1.5 text-gray-600 text-xs bg-gray-50 border border-gray-200 px-2.5 py-1.5 rounded-lg">
                   <FiInfo size={12} />
                   {selectedJobs.length} runs — <b>Parallel</b> or <b>Scatter</b> views scale better
                 </span>
@@ -740,9 +740,9 @@ export default function ScenarioComparison() {
                                 return (
                                   <td key={job.id}
                                     className={`px-3 py-2.5 font-mono tabular-nums ${
-                                      isBest ? 'text-emerald-700 font-bold bg-emerald-50/60' : 'text-slate-700'
+                                      isBest ? 'text-gray-700 font-bold bg-gray-50' : 'text-slate-700'
                                     }`}>
-                                    {isBest && <span className="mr-1 text-emerald-500">★</span>}
+                                    {isBest && <span className="mr-1 text-gray-500">★</span>}
                                     {fmt(v)}
                                   </td>
                                 );
@@ -807,14 +807,14 @@ export default function ScenarioComparison() {
                       <label className="flex items-center gap-1.5 text-xs text-slate-500">
                         X:
                         <select value={scatterX} onChange={e => setScatterX(e.target.value)}
-                          className="border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400">
+                          className="border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-gray-400">
                           {SCATTER_METRICS.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
                         </select>
                       </label>
                       <label className="flex items-center gap-1.5 text-xs text-slate-500">
                         Y:
                         <select value={scatterY} onChange={e => setScatterY(e.target.value)}
-                          className="border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400">
+                          className="border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-gray-400">
                           {SCATTER_METRICS.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
                         </select>
                       </label>

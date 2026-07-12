@@ -35,9 +35,9 @@ function detectStripperType(model) {
 const STRIPPER_META = {
   conventional: {
     label:   "Conventional Stripper",
-    hue:     "#dc2626",
-    bg:      "bg-red-50",
-    border:  "border-red-200",
+    hue:     "#6b7280",
+    bg:      "bg-gray-50",
+    border:  "border-gray-200",
     tagline: "Standard reboiler · 3.2-3.8 GJ/tCO₂ · 115-125°C",
     tempRange: [115, 125],
     energyRange: [3.2, 3.8],
@@ -45,9 +45,9 @@ const STRIPPER_META = {
   },
   vapor_recompression: {
     label:   "Vapor Recompression",
-    hue:     "#ef4444",
-    bg:      "bg-red-50",
-    border:  "border-red-300",
+    hue:     "#6b7280",
+    bg:      "bg-gray-50",
+    border:  "border-gray-200",
     tagline: "Mechanical recompression · 2.5-3.0 GJ/tCO₂ · 105-115°C",
     tempRange: [105, 115],
     energyRange: [2.5, 3.0],
@@ -55,9 +55,9 @@ const STRIPPER_META = {
   },
   multi_pressure: {
     label:   "Multi-Pressure Stripper",
-    hue:     "#f87171",
-    bg:      "bg-rose-50",
-    border:  "border-rose-200",
+    hue:     "#6b7280",
+    bg:      "bg-gray-50",
+    border:  "border-gray-200",
     tagline: "Split-flow design · 2.8-3.3 GJ/tCO₂ · 110-120°C",
     tempRange: [110, 120],
     energyRange: [2.8, 3.3],
@@ -65,9 +65,9 @@ const STRIPPER_META = {
   },
   flash_regen: {
     label:   "Flash Regeneration",
-    hue:     "#991b1b",
-    bg:      "bg-red-100",
-    border:  "border-red-300",
+    hue:     "#6b7280",
+    bg:      "bg-gray-50",
+    border:  "border-gray-200",
     tagline: "Flash stripping · 3.0-3.5 GJ/tCO₂ · 100-110°C",
     tempRange: [100, 110],
     energyRange: [3.0, 3.5],
@@ -177,8 +177,8 @@ export default function CCSStripperPanel({
           data: purity,
           smooth: true,
           symbol: "none",
-          color: "#10b981",
-          lineStyle: { color: "#10b981", width: 2 },
+          color: "#9ca3af",
+          lineStyle: { color: "#9ca3af", width: 2 },
           yAxisIndex: 1,
         },
       ],
@@ -202,7 +202,7 @@ export default function CCSStripperPanel({
       ],
       series: [
         { name: "Steam Flow",   type: "bar",  data: steamFlow,   itemStyle: { color: meta.hue, opacity: 0.75 }, yAxisIndex: 0 },
-        { name: "Reboiler Duty", type: "line", data: reboilerMW, symbol: "none", color: "#ef4444", lineStyle: { color: "#ef4444", width: 2 }, yAxisIndex: 1 },
+        { name: "Reboiler Duty", type: "line", data: reboilerMW, symbol: "none", color: "#6b7280", lineStyle: { color: "#6b7280", width: 2 }, yAxisIndex: 1 },
       ],
     };
   }, [localParams.energy_input_gj_tco2, meta.hue]);
@@ -222,10 +222,10 @@ export default function CCSStripperPanel({
       xAxis: { type: "category", data: labels, name: "Reboiler Temperature", nameLocation: "middle", nameGap: 28, axisLabel: { fontSize: 9 }, axisTick: { show: false } },
       yAxis: { type: "value", name: "GJ/tCO₂", nameTextStyle: { fontSize: 9 }, axisLabel: { fontSize: 9 }, max: 4.5 },
       series: [
-        { name: "Desorption",   type: "bar", stack: "total", data: desorp, itemStyle: { color: "#3b82f6" } },
-        { name: "Sensible Heat", type: "bar", stack: "total", data: sensib, itemStyle: { color: "#f59e0b" } },
-        { name: "Vaporisation", type: "bar", stack: "total", data: vapour, itemStyle: { color: "#6366f1" } },
-        { name: "Losses",       type: "bar", stack: "total", data: losses, itemStyle: { color: "#ef4444" } },
+        { name: "Desorption",   type: "bar", stack: "total", data: desorp, itemStyle: { color: "#9ca3af" } },
+        { name: "Sensible Heat", type: "bar", stack: "total", data: sensib, itemStyle: { color: "#6b7280" } },
+        { name: "Vaporisation", type: "bar", stack: "total", data: vapour, itemStyle: { color: "#4b5563" } },
+        { name: "Losses",       type: "bar", stack: "total", data: losses, itemStyle: { color: "#374151" } },
       ],
     };
   }, []);
@@ -279,16 +279,16 @@ export default function CCSStripperPanel({
         const appliedV = variants.find((v) => v.id === appliedId) ?? null;
         return (
           <div className={`bg-white rounded-xl border shadow-sm px-4 py-3 flex flex-wrap items-start gap-3
-            ${isPending ? "border-amber-300" : appliedV ? "border-emerald-300" : "border-slate-200"}`}>
+            ${isPending ? "border-gray-400" : appliedV ? "border-gray-300" : "border-slate-200"}`}>
             <FiLayers size={12} style={{ color: meta.hue }} className="mt-1" />
             <div className="flex-1 min-w-[220px] space-y-1.5">
               <div className="flex items-center gap-2">
                 <span className="text-[11px] font-semibold text-slate-600">Technology Variant</span>
-                {appliedV && !isPending && <span className="text-[10px] bg-emerald-100 text-emerald-700 font-semibold px-2 py-0.5 rounded-full">✓ Applied</span>}
-                {isPending && <span className="text-[10px] bg-amber-100 text-amber-700 font-semibold px-2 py-0.5 rounded-full">● Pending — click Apply</span>}
+                {appliedV && !isPending && <span className="text-[10px] bg-gray-100 text-gray-700 font-semibold px-2 py-0.5 rounded-full">✓ Applied</span>}
+                {isPending && <span className="text-[10px] bg-gray-100 text-gray-700 font-semibold px-2 py-0.5 rounded-full">● Pending — click Apply</span>}
               </div>
               <select value={stagedId} onChange={handleStage}
-                className="w-full text-[12px] border border-slate-200 rounded-lg px-2.5 py-1.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer">
+                className="w-full text-[12px] border border-slate-200 rounded-lg px-2.5 py-1.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-gray-400 cursor-pointer">
                 <option value="">— default —</option>
                 {variants.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
               </select>
@@ -297,12 +297,12 @@ export default function CCSStripperPanel({
             <div className="flex flex-col gap-1.5 shrink-0">
               <button onClick={handleApply} disabled={!isPending && !appliedId}
                 className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all
-                  ${isPending ? "bg-emerald-500 text-white hover:bg-emerald-600 shadow-sm" : appliedId ? "bg-slate-100 text-slate-500 hover:bg-slate-200" : "bg-slate-100 text-slate-300 cursor-not-allowed"}`}>
+                  ${isPending ? "bg-gray-700 text-white hover:bg-gray-800 shadow-sm" : appliedId ? "bg-slate-100 text-slate-500 hover:bg-slate-200" : "bg-slate-100 text-slate-300 cursor-not-allowed"}`}>
                 {isPending ? "✓ Apply variant" : appliedId ? "✓ Applied" : "Apply"}
               </button>
               {(appliedId || isPending) && (
                 <button onClick={() => { setLocalParams({}); onParamsChange?.({}); }}
-                  className="px-3 py-1 rounded-lg text-[10px] text-red-400 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200 transition-all">
+                  className="px-3 py-1 rounded-lg text-[10px] text-gray-500 hover:text-gray-700 hover:bg-gray-50 border border-transparent hover:border-gray-200 transition-all">
                   ✕ Reset
                 </button>
               )}
@@ -319,7 +319,7 @@ export default function CCSStripperPanel({
           <select
             value={selectedChart}
             onChange={(e) => setSelectedChart(e.target.value)}
-            className="ml-auto text-xs bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            className="ml-auto text-xs bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 text-slate-600 focus:outline-none focus:ring-2 focus:ring-gray-300"
           >
             <option value="energy">Thermal Energy vs Temperature</option>
             <option value="steam">Steam Demand vs Load</option>
@@ -366,7 +366,7 @@ export default function CCSStripperPanel({
       </div>
 
       {/* ── Info Banner ────────────────────────────────────────────────────── */}
-      <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-2xl text-xs text-blue-700">
+      <div className="flex items-start gap-2 p-3 bg-gray-50 border border-gray-200 rounded-2xl text-xs text-gray-700">
         <FiInfo className="shrink-0 mt-0.5" size={14} />
         <p>
           <b>Stripper regenerates solvent:</b> by releasing captured CO₂ using steam heat.
@@ -443,11 +443,11 @@ function ParamSlider({ label, unit, value, min, max, step = 1, onChange }) {
 
 function MetricBadge({ label, value, unit, color = "slate" }) {
   const palettes = {
-    amber:  "bg-amber-50  border-amber-200  text-amber-700",
-    green:  "bg-emerald-50 border-emerald-200 text-emerald-700",
-    violet: "bg-violet-50 border-violet-200 text-violet-700",
-    blue:   "bg-blue-50   border-blue-200   text-blue-700",
-    red:    "bg-red-50    border-red-200    text-red-700",
+    amber:  "bg-gray-50 border-gray-200 text-gray-700",
+    green:  "bg-gray-50 border-gray-200 text-gray-700",
+    violet: "bg-gray-50 border-gray-200 text-gray-700",
+    blue:   "bg-gray-50 border-gray-200 text-gray-700",
+    red:    "bg-gray-50 border-gray-200 text-gray-700",
     slate:  "bg-slate-50  border-slate-200  text-slate-700",
   };
   return (
@@ -464,16 +464,16 @@ function MetricBadge({ label, value, unit, color = "slate" }) {
 function KpiCard({ label, value, unit, color = "slate" }) {
   const ring = {
     electric: "border-electric-200 bg-electric-50",
-    emerald:  "border-emerald-200 bg-emerald-50",
-    amber:    "border-amber-200 bg-amber-50",
-    red:      "border-red-200 bg-red-50",
+    emerald:  "border-gray-200 bg-gray-50",
+    amber:    "border-gray-200 bg-gray-50",
+    red:      "border-gray-200 bg-gray-50",
     slate:    "border-slate-200 bg-slate-50",
   };
   const text = {
     electric: "text-electric-700",
-    emerald:  "text-emerald-700",
-    amber:    "text-amber-700",
-    red:      "text-red-700",
+    emerald:  "text-gray-700",
+    amber:    "text-gray-700",
+    red:      "text-gray-700",
     slate:    "text-slate-700",
   };
   return (

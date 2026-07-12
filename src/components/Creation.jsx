@@ -1222,7 +1222,7 @@ const Creation = () => {
                   }}
                   className={`p-3 rounded-lg border-2 transition-all ${
                     mode === 'single'
-                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      ? 'border-gray-500 bg-gray-50 text-gray-700'
                       : 'border-gray-200 hover:border-gray-300'
                   }`}
                 >
@@ -1236,7 +1236,7 @@ const Creation = () => {
                   }}
                   className={`p-3 rounded-lg border-2 transition-all ${
                     mode === 'multiple'
-                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      ? 'border-gray-500 bg-gray-50 text-gray-700'
                       : 'border-gray-200 hover:border-gray-300'
                   }`}
                 >
@@ -1253,7 +1253,7 @@ const Creation = () => {
                   }}
                   className={`p-3 rounded-lg border-2 transition-all ${
                     mode === 'link'
-                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      ? 'border-gray-500 bg-gray-50 text-gray-700'
                       : 'border-gray-200 hover:border-gray-300'
                   }`}
                 >
@@ -1267,7 +1267,7 @@ const Creation = () => {
                   }}
                   className={`p-3 rounded-lg border-2 transition-all ${
                     mode === 'polyline'
-                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      ? 'border-gray-500 bg-gray-50 text-gray-700'
                       : 'border-gray-200 hover:border-gray-300'
                   }`}
                 >
@@ -1295,14 +1295,14 @@ const Creation = () => {
                   <div className="flex gap-2">
                     <button
                       onClick={clearAll}
-                      className="p-1.5 hover:bg-red-50 text-red-600 rounded transition-colors"
+                      className="p-1.5 hover:bg-gray-100 text-gray-600 rounded transition-colors"
                       title="Clear all"
                     >
                       <FiTrash2 size={14} />
                     </button>
                     <button
                       onClick={() => setShowSaveDialog(true)}
-                      className="p-1.5 hover:bg-green-50 text-green-600 rounded transition-colors"
+                      className="p-1.5 hover:bg-gray-100 text-gray-600 rounded transition-colors"
                       title="Save model"
                       disabled={locationManager.tempLocations.length === 0}
                     >
@@ -1325,7 +1325,7 @@ const Creation = () => {
                           key={loc.id}
                           className={`p-3 border rounded-lg cursor-pointer transition-colors ${
                             locationManager.selectedLocation?.id === loc.id
-                              ? 'border-blue-500 bg-blue-50'
+                              ? 'border-gray-500 bg-gray-50'
                               : 'border-gray-200 hover:border-gray-300'
                           }`}
                           onClick={() => {
@@ -1362,7 +1362,7 @@ const Creation = () => {
                                   setPendingLocation(loc);
                                   setShowLocationDialog(true);
                                 }}
-                                className="p-1 hover:bg-blue-50 text-blue-600 rounded transition-colors"
+                                className="p-1 hover:bg-gray-100 text-gray-600 rounded transition-colors"
                                 title="Edit location"
                               >
                                 <FiEdit2 size={14} />
@@ -1372,7 +1372,7 @@ const Creation = () => {
                                   e.stopPropagation();
                                   locationManager.removeLocation(loc.id);
                                 }}
-                                className="p-1 hover:bg-red-50 text-red-600 rounded transition-colors"
+                                className="p-1 hover:bg-gray-100 text-gray-600 rounded transition-colors"
                                 title="Delete location"
                               >
                                 <FiTrash2 size={14} />
@@ -1405,7 +1405,7 @@ const Creation = () => {
                         locationManager.setTempLinks([]);
                         showNotification('All links cleared', 'success');
                       }}
-                      className="p-1.5 hover:bg-red-50 text-red-600 rounded transition-colors"
+                      className="p-1.5 hover:bg-gray-100 text-gray-600 rounded transition-colors"
                       title="Clear all links"
                     >
                       <FiTrash2 size={14} />
@@ -1496,7 +1496,7 @@ const Creation = () => {
                                   e.stopPropagation();
                                   locationManager.removeLink(link.id);
                                 }}
-                                className="p-1 hover:bg-red-50 text-red-600 rounded transition-colors"
+                                className="p-1 hover:bg-gray-100 text-gray-600 rounded transition-colors"
                                 title="Delete link"
                               >
                                 <FiTrash2 size={14} />
@@ -1521,7 +1521,7 @@ const Creation = () => {
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
             <div className="bg-white rounded-lg p-6 shadow-xl">
               <div className="flex items-center space-x-3">
-                <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full"></div>
+                <div className="animate-spin h-8 w-8 border-4 border-gray-500 border-t-transparent rounded-full"></div>
                 <span className="text-lg font-semibold text-gray-800">Loading infrastructure data...</span>
               </div>
             </div>
@@ -2146,13 +2146,13 @@ const Creation = () => {
               {/* Name + Description */}
               <div className="grid grid-cols-1 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Model Name <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Model Name <span className="text-gray-500">*</span></label>
                   <input
                     type="text"
                     value={modelName}
                     onChange={(e) => setModelName(e.target.value)}
                     placeholder="e.g. Germany 2030 High-Res"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm"
                     autoFocus
                   />
                 </div>
@@ -2163,7 +2163,7 @@ const Creation = () => {
                     onChange={(e) => setModelConfig(c => ({ ...c, description: e.target.value }))}
                     placeholder="Optional notes about this model..."
                     rows={2}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm resize-none"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm resize-none"
                   />
                 </div>
               </div>
@@ -2180,7 +2180,7 @@ const Creation = () => {
                       type="date"
                       value={modelConfig.startDate}
                       onChange={(e) => setModelConfig(c => ({ ...c, startDate: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm"
                     />
                   </div>
                   <div>
@@ -2189,7 +2189,7 @@ const Creation = () => {
                       type="date"
                       value={modelConfig.endDate}
                       onChange={(e) => setModelConfig(c => ({ ...c, endDate: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm"
                     />
                   </div>
                 </div>
@@ -2212,7 +2212,7 @@ const Creation = () => {
                     <select
                       value={modelConfig.mode}
                       onChange={(e) => setModelConfig(c => ({ ...c, mode: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm bg-white"
                     >
                       <option value="plan">Planning (optimise capacity)</option>
                       <option value="operate">Operate (fixed capacity)</option>
@@ -2223,7 +2223,7 @@ const Creation = () => {
                     <select
                       value={modelConfig.calliopeVersion}
                       onChange={(e) => setModelConfig(c => ({ ...c, calliopeVersion: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm bg-white"
                     >
                       <option value="0.6.8">0.6.8 (stable, default)</option>
                       <option value="0.7.0">0.7.0.dev7 (experimental)</option>
@@ -2234,7 +2234,7 @@ const Creation = () => {
                     <select
                       value={modelConfig.objectiveCostClass}
                       onChange={(e) => setModelConfig(c => ({ ...c, objectiveCostClass: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm bg-white"
                     >
                       <option value="monetary">Monetary</option>
                       <option value="co2">CO₂</option>
@@ -2254,7 +2254,7 @@ const Creation = () => {
                       type="checkbox"
                       checked={modelConfig.ensureFeasibility}
                       onChange={(e) => setModelConfig(c => ({ ...c, ensureFeasibility: e.target.checked }))}
-                      className="w-4 h-4 rounded text-blue-600"
+                      className="w-4 h-4 rounded text-gray-600"
                     />
                     <span className="text-sm text-gray-700">Ensure Feasibility</span>
                   </label>
@@ -2263,7 +2263,7 @@ const Creation = () => {
                       type="checkbox"
                       checked={modelConfig.cyclicStorage}
                       onChange={(e) => setModelConfig(c => ({ ...c, cyclicStorage: e.target.checked }))}
-                      className="w-4 h-4 rounded text-blue-600"
+                      className="w-4 h-4 rounded text-gray-600"
                     />
                     <span className="text-sm text-gray-700">Cyclic Storage</span>
                   </label>
@@ -2280,7 +2280,7 @@ const Creation = () => {
                     max={32}
                     value={modelConfig.solverOptions?.threads ?? 4}
                     onChange={(e) => setModelConfig(c => ({ ...c, solverOptions: { ...c.solverOptions, threads: parseInt(e.target.value) || 1 } }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm"
                   />
                 </div>
                 <div>
@@ -2291,7 +2291,7 @@ const Creation = () => {
                     min={0}
                     value={modelConfig.solverOptions?.mip_rel_gap ?? 0.001}
                     onChange={(e) => setModelConfig(c => ({ ...c, solverOptions: { ...c.solverOptions, mip_rel_gap: parseFloat(e.target.value) || 0.001 } }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm"
                   />
                 </div>
               </div>
@@ -2308,7 +2308,7 @@ const Creation = () => {
               <button
                 onClick={saveToMainData}
                 disabled={!modelName.trim()}
-                className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+                className="px-5 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors text-sm font-medium"
               >
                 Save Model
               </button>

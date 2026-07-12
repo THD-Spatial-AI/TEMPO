@@ -223,9 +223,9 @@ const CCS_SCENARIOS = [
 // ─────────────────────────────────────────────────────────────────────────────
 function StatusBadge({ status, color = "emerald" }) {
   const classes = {
-    emerald: "bg-emerald-100 text-emerald-700 border-emerald-200",
-    amber:   "bg-amber-100 text-amber-700 border-amber-200",
-    blue:    "bg-blue-100 text-blue-700 border-blue-200",
+    emerald: "bg-gray-100 text-gray-700 border-gray-200",
+    amber:   "bg-gray-100 text-gray-700 border-gray-200",
+    blue:    "bg-gray-100 text-gray-700 border-gray-200",
     slate:   "bg-slate-100 text-slate-600 border-slate-200",
   };
   if (!status) return null;
@@ -247,7 +247,7 @@ function ParamRow({ label, unit, value, min, max, step = 1, decimals = 0, onChan
       <span className="w-40 text-[11px] text-slate-500 shrink-0">{label}</span>
       <div className="flex-1 relative h-1.5 bg-slate-100 rounded-full">
         <div
-          className="absolute left-0 top-0 h-1.5 rounded-full bg-blue-400 transition-all"
+          className="absolute left-0 top-0 h-1.5 rounded-full bg-gray-400 transition-all"
           style={{ width: `${pct}%` }}
         />
         <input
@@ -262,7 +262,7 @@ function ParamRow({ label, unit, value, min, max, step = 1, decimals = 0, onChan
         <input
           type="number"
           disabled={disabled}
-          className="w-20 text-right text-xs font-mono font-semibold text-slate-800 border border-slate-200 rounded-lg px-1.5 py-0.5 focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:opacity-50"
+          className="w-20 text-right text-xs font-mono font-semibold text-slate-800 border border-slate-200 rounded-lg px-1.5 py-0.5 focus:outline-none focus:ring-2 focus:ring-gray-300 disabled:opacity-50"
           min={min} max={max} step={step} value={decimals > 0 ? Number(value).toFixed(decimals) : value}
           onChange={(e) => {
             const v = parseFloat(e.target.value);
@@ -283,10 +283,10 @@ const COMPONENT_TABS = [
     key: "source",
     label: "Source",
     icon: FiZap,
-    color: "text-orange-500",
-    border: "border-orange-300",
-    bg: "bg-orange-50",
-    activeBg: "bg-orange-500",
+    color: "text-gray-500",
+    border: "border-gray-300",
+    bg: "bg-gray-50",
+    activeBg: "bg-gray-500",
     params: (p) => ([
       { key: "capacity_kw",          label: "Plant Capacity",      unit: "MW",     value: (p.capacity_kw ?? 400000) / 1000, min: 10, max: 2000, step: 10,   decimals: 0, toState: (v) => ({ capacity_kw: v * 1000 }) },
       { key: "efficiency_pct",       label: "Thermal Efficiency",  unit: "%",      value: p.efficiency_pct ?? 58,          min: 20, max: 70,   step: 0.5,  decimals: 1, toState: (v) => ({ efficiency_pct: v }) },
@@ -299,10 +299,10 @@ const COMPONENT_TABS = [
     key: "absorber",
     label: "Absorber",
     icon: FiDroplet,
-    color: "text-blue-500",
-    border: "border-blue-300",
-    bg: "bg-blue-50",
-    activeBg: "bg-blue-500",
+    color: "text-gray-500",
+    border: "border-gray-300",
+    bg: "bg-gray-50",
+    activeBg: "bg-gray-500",
     params: (p) => ([
       { key: "capture_rate_pct",           label: "Capture Rate",       unit: "%",     value: p.capture_rate_pct ?? 90,          min: 50,   max: 99,   step: 0.5,  decimals: 1, toState: (v) => ({ capture_rate_pct: v }) },
       { key: "energy_requirement_gj_tco2", label: "Energy Requirement", unit: "GJ/t",  value: p.energy_requirement_gj_tco2 ?? 3.7, min: 1.5, max: 6.0, step: 0.05, decimals: 2, toState: (v) => ({ energy_requirement_gj_tco2: v }) },
@@ -315,10 +315,10 @@ const COMPONENT_TABS = [
     key: "stripper",
     label: "Stripper",
     icon: FiWind,
-    color: "text-red-500",
-    border: "border-red-300",
-    bg: "bg-red-50",
-    activeBg: "bg-red-500",
+    color: "text-gray-500",
+    border: "border-gray-300",
+    bg: "bg-gray-50",
+    activeBg: "bg-gray-500",
     params: (p) => ([
       { key: "reboiler_temp_c",       label: "Reboiler Temperature", unit: "°C",    value: p.reboiler_temp_c ?? 120,       min: 80,  max: 150, step: 1,    decimals: 0, toState: (v) => ({ reboiler_temp_c: v }) },
       { key: "steam_pressure_bar",    label: "Steam Pressure",       unit: "bar",   value: p.steam_pressure_bar ?? 3.5,    min: 1.0, max: 8.0, step: 0.1,  decimals: 1, toState: (v) => ({ steam_pressure_bar: v }) },
@@ -330,10 +330,10 @@ const COMPONENT_TABS = [
     key: "compressor",
     label: "Compressor",
     icon: FiBox,
-    color: "text-amber-600",
-    border: "border-amber-300",
-    bg: "bg-amber-50",
-    activeBg: "bg-amber-500",
+    color: "text-gray-600",
+    border: "border-gray-300",
+    bg: "bg-gray-50",
+    activeBg: "bg-gray-500",
     params: (p) => ([
       { key: "target_pressure_bar",     label: "Target Pressure",         unit: "bar", value: p.target_pressure_bar ?? 110,       min: 50,   max: 300,  step: 5,   decimals: 0, toState: (v) => ({ target_pressure_bar: v }) },
       { key: "number_stages",           label: "Compression Stages",      unit: "",    value: p.number_stages ?? 4,               min: 1,    max: 8,    step: 1,   decimals: 0, toState: (v) => ({ number_stages: v }) },
@@ -345,10 +345,10 @@ const COMPONENT_TABS = [
     key: "storage",
     label: "Storage",
     icon: FiDatabase,
-    color: "text-emerald-600",
-    border: "border-emerald-300",
-    bg: "bg-emerald-50",
-    activeBg: "bg-emerald-500",
+    color: "text-gray-600",
+    border: "border-gray-300",
+    bg: "bg-gray-50",
+    activeBg: "bg-gray-500",
     params: (p) => ([
       { key: "injection_rate_mtco2_yr", label: "Injection Rate",      unit: "Mt/yr",  value: p.injection_rate_mtco2_yr ?? 5,      min: 0.01, max: 20,   step: 0.1,  decimals: 2, toState: (v) => ({ injection_rate_mtco2_yr: v }) },
       { key: "reservoir_depth_m",       label: "Reservoir Depth",     unit: "m",      value: p.reservoir_depth_m ?? 1500,         min: 200,  max: 5000, step: 50,   decimals: 0, toState: (v) => ({ reservoir_depth_m: v }) },
@@ -447,7 +447,7 @@ export default function CCSConfigPanel({
         className="flex items-center gap-3 px-5 py-3.5 border-b border-slate-100 cursor-pointer select-none bg-slate-50 hover:bg-slate-100 transition-colors"
         onClick={() => setExpanded((e) => !e)}
       >
-        <span className="p-1.5 rounded-lg bg-blue-100 text-blue-600">
+        <span className="p-1.5 rounded-lg bg-gray-100 text-gray-600">
           <FiDatabase size={14} />
         </span>
         <div className="flex-1">
@@ -479,14 +479,14 @@ export default function CCSConfigPanel({
                   onClick={() => handleScenarioChange(sc.id)}
                   className={`relative text-left px-3 py-2.5 rounded-xl border transition-all text-xs
                     ${selectedScenario === sc.id
-                      ? "border-blue-400 bg-blue-50 shadow-sm ring-1 ring-blue-300"
+                      ? "border-gray-400 bg-gray-50 shadow-sm ring-1 ring-gray-300"
                       : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
                     }
                     ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
                 >
                   <div className="flex items-start gap-1.5 mb-1">
                     <span className="text-base leading-none mt-0.5">{sc.icon}</span>
-                    <span className={`font-semibold leading-snug ${selectedScenario === sc.id ? "text-blue-800" : "text-slate-700"}`}>
+                    <span className={`font-semibold leading-snug ${selectedScenario === sc.id ? "text-gray-800" : "text-slate-700"}`}>
                       {sc.label}
                     </span>
                   </div>
@@ -499,7 +499,7 @@ export default function CCSConfigPanel({
                     </div>
                   )}
                   {selectedScenario === sc.id && (
-                    <span className="absolute top-1.5 right-1.5 text-blue-500 text-[10px] font-bold">✓</span>
+                    <span className="absolute top-1.5 right-1.5 text-gray-500 text-[10px] font-bold">✓</span>
                   )}
                 </button>
               ))}
@@ -566,20 +566,20 @@ export default function CCSConfigPanel({
                         onClick={() => onSelectCcsModel?.(activeTab, m)}
                         className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] border transition-all font-medium
                           ${isSelected
-                            ? "border-emerald-400 bg-emerald-50 text-emerald-800 shadow-sm"
+                            ? "border-gray-400 bg-gray-50 text-gray-800 shadow-sm"
                             : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
                           }
                           ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
                       >
                         <span className={`w-1.5 h-1.5 rounded-full ${
-                          m.lifecycle === "commercial" ? "bg-emerald-400" :
-                          m.lifecycle === "demonstration" ? "bg-amber-400" : "bg-blue-400"
+                          m.lifecycle === "commercial" ? "bg-gray-400" :
+                          m.lifecycle === "demonstration" ? "bg-gray-400" : "bg-gray-400"
                         }`} />
                         {m.name}
                         {m.efficiency_pct != null && (
                           <span className="text-[10px] opacity-60">η{Number(m.efficiency_pct).toFixed(0)}%</span>
                         )}
-                        {isSelected && <span className="text-emerald-500 font-bold text-[9px]">✓</span>}
+                        {isSelected && <span className="text-gray-500 font-bold text-[9px]">✓</span>}
                       </button>
                     );
                   })}

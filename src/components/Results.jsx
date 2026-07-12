@@ -1979,7 +1979,7 @@ const Results = () => {
               </select>
               {selectedJobId && (
                 <button onClick={() => { removeCompletedJob(selectedJobId); setSelectedJobId(null); }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50">
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-gray-600 transition-colors rounded-lg hover:bg-gray-100">
                   <FiTrash2 size={11} /> Remove
                 </button>
               )}
@@ -1997,11 +1997,11 @@ const Results = () => {
         )}
         {!compareMode && selectedJob?.status === 'failed' && (
           <div className="space-y-4">
-            <div className="bg-white rounded-2xl shadow-sm border border-red-200 p-6 flex gap-4">
-              <FiAlertTriangle className="text-red-500 flex-shrink-0" size={24} />
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 flex gap-4">
+              <FiAlertTriangle className="text-gray-500 flex-shrink-0" size={24} />
               <div>
                 <h2 className="text-xl font-bold text-slate-800 mb-1">{selectedJob.modelName} — Failed</h2>
-                <p className="text-sm text-red-700">{result?.error || 'Unknown error'}</p>
+                <p className="text-sm text-gray-700">{result?.error || 'Unknown error'}</p>
               </div>
             </div>
             {selectedJob.logs?.length > 0 && (
@@ -2221,7 +2221,7 @@ const Results = () => {
                   {/* Generation donut */}
                   <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                     <button onClick={() => toggleSection('gen-mix')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
-                      <FiPieChart size={14} className="text-amber-500 flex-shrink-0" />
+                      <FiPieChart size={14} className="text-gray-500 flex-shrink-0" />
                       <span className="font-semibold text-slate-800 text-sm flex-1">Generation Mix</span>
                       <span className="text-xs text-slate-400 mr-1">· MWh total</span>
                       <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('gen-mix') ? '' : '-rotate-90'}`} />
@@ -2289,7 +2289,7 @@ const Results = () => {
                                 <td className="py-2.5 px-4 text-right font-mono text-xs text-slate-600">{cpm != null ? cpm.toFixed(2) : '—'}</td>
                                 <td className="py-2.5 pl-4 text-right font-mono text-xs">
                                   {cf != null ? (
-                                    <span className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${cf > 30 ? 'bg-green-100 text-green-700' : cf > 15 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
+                                    <span className="px-1.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
                                       {cf.toFixed(1)}%
                                     </span>
                                   ) : '—'}
@@ -2435,7 +2435,7 @@ const Results = () => {
                   <>
                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                       <button onClick={() => toggleSection('dispatch-stack')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
-                        <FiActivity size={14} className="text-green-600 flex-shrink-0" />
+                        <FiActivity size={14} className="text-gray-500 flex-shrink-0" />
                         <span className="font-semibold text-slate-800 text-sm flex-1">Generation Dispatch Stack</span>
                         <span className="text-xs text-slate-400 mr-1">· scroll to zoom</span>
                         <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('dispatch-stack') ? '' : '-rotate-90'}`} />
@@ -2481,7 +2481,7 @@ const Results = () => {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                     <button onClick={() => toggleSection('cost-by-tech')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
-                      <FiDollarSign size={14} className="text-emerald-600 flex-shrink-0" />
+                      <FiDollarSign size={14} className="text-gray-500 flex-shrink-0" />
                       <span className="font-semibold text-slate-800 text-sm flex-1">Total Cost by Technology</span>
                       <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('cost-by-tech') ? '' : '-rotate-90'}`} />
                     </button>
@@ -2536,7 +2536,7 @@ const Results = () => {
                         <>
                           <h3 className="font-semibold text-slate-800 text-sm mb-1">Cost Detail Table (€)</h3>
                           {truncated && (
-                            <p className="text-xs text-amber-600 mb-3">Showing top {LOC_CHART_LIMIT} locations by total cost (of {allLocs.length}). Export JSON for full data.</p>
+                            <p className="text-xs text-gray-500 mb-3">Showing top {LOC_CHART_LIMIT} locations by total cost (of {allLocs.length}). Export JSON for full data.</p>
                           )}
                           <table className="w-full text-xs">
                             <thead>
@@ -2678,7 +2678,7 @@ const Results = () => {
                         <>
                           <div className="flex items-center justify-between mb-3">
                             <h3 className="font-semibold text-slate-800 text-sm">Per-Location Capacity Breakdown</h3>
-                            {truncated && <span className="text-xs text-amber-600">Top {LOC_CHART_LIMIT} of {allEntries.length} locations</span>}
+                            {truncated && <span className="text-xs text-gray-500">Top {LOC_CHART_LIMIT} of {allEntries.length} locations</span>}
                           </div>
                           <div className="space-y-3">
                             {entries.map(([loc, cap]) => {
@@ -2714,14 +2714,14 @@ const Results = () => {
             {/* ════════════════ SPORES TAB ════════════════ */}
             {tab === 'spores' && (isSporesRun || hasSpores) && !hasSpores && (
               <div className="space-y-4">
-                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 flex items-start gap-3">
-                  <FiAlertTriangle className="text-amber-500 mt-0.5 shrink-0" size={18} />
+                <div className="bg-gray-50 border border-gray-200 rounded-2xl p-5 flex items-start gap-3">
+                  <FiAlertTriangle className="text-gray-500 mt-0.5 shrink-0" size={18} />
                   <div>
-                    <p className="text-sm font-semibold text-amber-800 mb-1">SPORES data not available in this result</p>
-                    <p className="text-xs text-amber-700 mb-2">
+                    <p className="text-sm font-semibold text-gray-800 mb-1">SPORES data not available in this result</p>
+                    <p className="text-xs text-gray-700 mb-2">
                       The run completed in SPORES mode, but the per-SPORE breakdown was not extracted. This usually means the backend encountered an error during SPORES result processing.
                     </p>
-                    <p className="text-xs text-amber-600">
+                    <p className="text-xs text-gray-600">
                       Check the <strong>Logs</strong> tab for <code>[SPORES]</code> messages or any Python traceback.
                     </p>
                   </div>
@@ -2936,9 +2936,9 @@ const Results = () => {
               }).sort((a, b) => b.max - a.max);
 
               const roleChip = role => ({
-                'Must-have':  'bg-blue-100 text-blue-700',
-                'Preferred':  'bg-green-100 text-green-700',
-                'Real choice':'bg-amber-100 text-amber-700',
+                'Must-have':  'bg-gray-200 text-gray-700',
+                'Preferred':  'bg-gray-100 text-gray-600',
+                'Real choice':'bg-gray-50 text-gray-500',
               }[role] || 'bg-slate-100 text-slate-600');
 
               // ── Fig 5: Per-SPORE map data ──
@@ -3031,7 +3031,7 @@ const Results = () => {
                 <div className="space-y-4">
 
                   {/* Banner */}
-                  <div className="bg-gradient-to-r from-electric-50 to-blue-50 border border-electric-200 rounded-2xl p-4 flex items-start gap-3">
+                  <div className="bg-gradient-to-r from-electric-50 to-gray-50 border border-electric-200 rounded-2xl p-4 flex items-start gap-3">
                     <FiGitMerge className="text-electric-500 mt-0.5 shrink-0" size={16} />
                     <div>
                       <p className="text-sm font-semibold text-electric-700">{sporesData.length} near-optimal solutions explored</p>
@@ -3069,7 +3069,7 @@ const Results = () => {
                                 <td className="py-2 pr-4 text-right tabular-nums">{fmtCost(s.cost)}</td>
                                 <td className="py-2 text-right tabular-nums">
                                   {pct != null
-                                    ? <span className="text-amber-600">+{pct}%</span>
+                                    ? <span className="text-gray-600">+{pct}%</span>
                                     : <span className="text-slate-400">—</span>}
                                 </td>
                               </tr>
@@ -3097,7 +3097,7 @@ const Results = () => {
                       <FiActivity size={14} /> Fig 2 — Technology Deployment Variability
                     </h3>
                     <p className="text-xs text-slate-400 mb-3">
-                      Each dot is one solution. Technologies clustered far from zero are <span className="font-medium text-blue-600">must-haves</span>; those scattered down to zero are <span className="font-medium text-amber-600">real choices</span>.
+                      Each dot is one solution. Technologies clustered far from zero are <span className="font-medium text-gray-700">must-haves</span>; those scattered down to zero are <span className="font-medium text-gray-500">real choices</span>.
                     </p>
                     <ReactECharts option={stripOption} style={{ height: Math.max(260, activeTechs.length * 30 + 60) }} />
                   </div>
@@ -3108,7 +3108,7 @@ const Results = () => {
                       <FiShare2 size={14} /> Fig 3 — Pairwise Technology Trade-off
                     </h3>
                     <p className="text-xs text-slate-400 mb-2">
-                      Each dot = one solution. <span className="text-red-500 font-medium">Negative slope</span> = substitutes. <span className="text-blue-600 font-medium">Positive slope</span> = complements.
+                      Each dot = one solution. <span className="font-medium text-gray-700">Negative slope</span> = substitutes. <span className="font-medium text-gray-500">Positive slope</span> = complements.
                     </p>
                     <div className="flex gap-3 mb-3">
                       <div className="flex-1">
@@ -3142,7 +3142,7 @@ const Results = () => {
                         <FiFilter size={14} /> Fig 4 — Near-Optimal Space (Parallel Coordinates)
                       </h3>
                       <p className="text-xs text-slate-400 mb-3">
-                        Each line = one solution. <span className="text-amber-500 font-medium">Amber</span> = cost-optimal (SPORE 0). Blue lines = near-optimal alternatives.
+                        Each line = one solution. <span className="font-medium text-gray-700">Bold</span> = cost-optimal (SPORE 0). Gray lines = near-optimal alternatives.
                         {parallelTechs.length < activeTechs.length && ` Showing top ${parallelTechs.length} technologies by maximum capacity.`}
                       </p>
                       <ReactECharts option={parallelOption} style={{ height: 320 }} />
@@ -3191,8 +3191,8 @@ const Results = () => {
                       </h3>
                       <p className="text-xs text-slate-400 mb-3">
                         Spearman ρ of capacity utilisation across all {sporesData.length} SPORES, grouped by region.{' '}
-                        <span className="text-red-500 font-medium">Red (+1)</span> = deployed together.{' '}
-                        <span className="text-blue-600 font-medium">Blue (−1)</span> = substitutes.{' '}
+                        <span className="font-medium text-gray-800">Dark (+1)</span> = deployed together.{' '}
+                        <span className="font-medium text-gray-400">Light (−1)</span> = substitutes.{' '}
                         Square size ∝ |ρ|. Self-correlation not shown. Hover for values.
                       </p>
 
@@ -3254,9 +3254,9 @@ const Results = () => {
                       <FiLayers size={14} /> Technology Classification
                     </h3>
                     <p className="text-xs text-slate-400 mb-3">
-                      <span className="font-medium text-blue-600">Must-have</span> = present in every solution.{' '}
-                      <span className="font-medium text-green-600">Preferred</span> = present in ≥70% of solutions.{' '}
-                      <span className="font-medium text-amber-600">Real choice</span> = absent in at least one solution.
+                      <span className="font-medium text-gray-800">Must-have</span> = present in every solution.{' '}
+                      <span className="font-medium text-gray-600">Preferred</span> = present in ≥70% of solutions.{' '}
+                      <span className="font-medium text-gray-400">Real choice</span> = absent in at least one solution.
                     </p>
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">

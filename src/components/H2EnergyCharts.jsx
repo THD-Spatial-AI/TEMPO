@@ -77,7 +77,6 @@ function buildPowerFlowChart(result, sourceName, requestedSourceProfile = []) {
   const srcPow = hasSimSource ? srcPowSim : (canOverlayRequested ? srcPowRequested : []);
   const elzPow = result?.electrolyzer_power_kw ?? [];
   const fcPow  = result?.fc_power_output_kw    ?? result?.fc_terminal_voltage_v?.map(() => 0) ?? [];
-  // Curtailed power: generated but not consumed by ELZ (e.g. ELZ at capacity)
   const curtailed = srcPow.map((s, i) => Math.max(0, Number((s - (elzPow[i] ?? 0)).toFixed(2))));
   const hasSrc = srcPow.length > 0 && srcPow.some((v) => v > 0);
 
@@ -87,9 +86,9 @@ function buildPowerFlowChart(result, sourceName, requestedSourceProfile = []) {
       type: 'line',
       data: srcPow,
       smooth: true, symbol: 'none',
-      color: '#3b82f6',
-      lineStyle: { color: '#3b82f6', width: 2.5 },
-      areaStyle: { color: 'rgba(59,130,246,0.08)' },
+      color: '#6b7280',
+      lineStyle: { color: '#6b7280', width: 2.5 },
+      areaStyle: { color: 'rgba(107,114,128,0.08)' },
       z: 1,
     }] : []),
     ...(hasSimSource && canOverlayRequested ? [{
@@ -98,8 +97,8 @@ function buildPowerFlowChart(result, sourceName, requestedSourceProfile = []) {
       data: srcPowRequested,
       smooth: true,
       symbol: 'none',
-      color: '#1d4ed8',
-      lineStyle: { color: '#1d4ed8', width: 1.5, type: 'dashed' },
+      color: '#4b5563',
+      lineStyle: { color: '#4b5563', width: 1.5, type: 'dashed' },
       z: 0,
     }] : []),
     {
@@ -107,9 +106,9 @@ function buildPowerFlowChart(result, sourceName, requestedSourceProfile = []) {
       type: 'line',
       data: elzPow,
       smooth: true, symbol: 'none',
-      color: '#f59e0b',
-      lineStyle: { color: '#f59e0b', width: 2 },
-      areaStyle: { color: 'rgba(245,158,11,0.13)' },
+      color: '#9ca3af',
+      lineStyle: { color: '#9ca3af', width: 2 },
+      areaStyle: { color: 'rgba(156,163,175,0.13)' },
       z: 2,
     },
     {
@@ -117,9 +116,9 @@ function buildPowerFlowChart(result, sourceName, requestedSourceProfile = []) {
       type: 'line',
       data: fcPow,
       smooth: true, symbol: 'none',
-      color: '#10b981',
-      lineStyle: { color: '#10b981', width: 2 },
-      areaStyle: { color: 'rgba(16,185,129,0.10)' },
+      color: '#d1d5db',
+      lineStyle: { color: '#d1d5db', width: 2 },
+      areaStyle: { color: 'rgba(209,213,219,0.10)' },
       z: 2,
     },
     ...(hasSrc ? [{
@@ -127,7 +126,7 @@ function buildPowerFlowChart(result, sourceName, requestedSourceProfile = []) {
       type: 'bar',
       data: curtailed,
       barMaxWidth: 12,
-      itemStyle: { color: 'rgba(239,68,68,0.55)', borderRadius: [2, 2, 0, 0] },
+      itemStyle: { color: 'rgba(107,114,128,0.55)', borderRadius: [2, 2, 0, 0] },
       z: 3,
     }] : []),
   ];
@@ -159,9 +158,9 @@ function buildH2BalanceChart(result) {
       type: 'line',
       data: h2prod,
       smooth: true, symbol: 'none',
-      color: '#10b981',
-      lineStyle: { color: '#10b981', width: 2 },
-      areaStyle: { color: 'rgba(16,185,129,0.15)' },
+      color: '#6b7280',
+      lineStyle: { color: '#6b7280', width: 2 },
+      areaStyle: { color: 'rgba(107,114,128,0.15)' },
     },
   ];
   if (hasConsSeries) {
@@ -170,8 +169,8 @@ function buildH2BalanceChart(result) {
       type: 'line',
       data: h2cons,
       smooth: true, symbol: 'none',
-      color: '#8b5cf6',
-      lineStyle: { color: '#8b5cf6', width: 2, type: 'dashed' },
+      color: '#4b5563',
+      lineStyle: { color: '#4b5563', width: 2, type: 'dashed' },
     });
   }
 
@@ -202,9 +201,9 @@ function buildTankStateChart(result) {
       type: 'line',
       data: press,
       smooth: true, symbol: 'none',
-      color: '#f59e0b',
-      lineStyle: { color: '#f59e0b', width: 2 },
-      areaStyle: { color: 'rgba(245,158,11,0.12)' },
+      color: '#6b7280',
+      lineStyle: { color: '#6b7280', width: 2 },
+      areaStyle: { color: 'rgba(107,114,128,0.12)' },
       yAxisIndex: 0,
     },
   ];
@@ -219,8 +218,8 @@ function buildTankStateChart(result) {
       type: 'line',
       data: soc,
       smooth: true, symbol: 'none',
-      color: '#10b981',
-      lineStyle: { color: '#10b981', width: 2, type: 'dashed' },
+      color: '#9ca3af',
+      lineStyle: { color: '#9ca3af', width: 2, type: 'dashed' },
       yAxisIndex: 1,
     });
     yAxes.push({
@@ -252,7 +251,6 @@ function buildFcDetailChart(result) {
   const curr   = result?.fc_current_density_acm2 ?? [];
   const power  = result?.fc_power_output_kw ?? volt.map((v, i) => v * (curr[i] ?? 0) / 1000);
 
-  // Instantaneous pole efficiency = P_out / (P_in = P_h2 consumed)
   const h2Enth = 3.54; // kWh per Nm³ H₂ (HHV)
   const h2cons = result?.h2_consumption_nm3h ?? result?.h2_production_nm3h?.map(() => null) ?? [];
   const eff    = power.map((p, i) => {
@@ -280,8 +278,8 @@ function buildFcDetailChart(result) {
         type: 'line',
         data: volt,
         smooth: true, symbol: 'none',
-        color: '#8b5cf6',
-        lineStyle: { color: '#8b5cf6', width: 2 },
+        color: '#6b7280',
+        lineStyle: { color: '#6b7280', width: 2 },
         yAxisIndex: 0,
       },
       {
@@ -289,8 +287,8 @@ function buildFcDetailChart(result) {
         type: 'line',
         data: curr,
         smooth: true, symbol: 'none',
-        color: '#ec4899',
-        lineStyle: { color: '#ec4899', width: 2, type: 'dashed' },
+        color: '#4b5563',
+        lineStyle: { color: '#4b5563', width: 2, type: 'dashed' },
         yAxisIndex: 1,
       },
       ...(hasEff ? [{
@@ -298,8 +296,8 @@ function buildFcDetailChart(result) {
         type: 'line',
         data: eff,
         smooth: true, symbol: 'none',
-        color: '#22c55e',
-        lineStyle: { color: '#22c55e', width: 1.5, type: 'dotted' },
+        color: '#9ca3af',
+        lineStyle: { color: '#9ca3af', width: 1.5, type: 'dotted' },
         yAxisIndex: 2,
       }] : []),
     ],
@@ -316,7 +314,7 @@ function buildCumulativeChart(result) {
 
   const elzEnergy  = (result?.electrolyzer_power_kw ?? []).map((v) => Number((v * kWhFactor).toFixed(2)));
   const fcEnergy   = (result?.fc_power_output_kw ?? result?.fc_terminal_voltage_v?.map(() => 0) ?? []).map((v) => Number((v * kWhFactor).toFixed(2)));
-  const h2Energy   = (result?.h2_production_nm3h ?? []).map((v) => Number((v * 3.54 * kWhFactor).toFixed(2))); // 3.54 kWh/Nm³ HHV
+  const h2Energy   = (result?.h2_production_nm3h ?? []).map((v) => Number((v * 3.54 * kWhFactor).toFixed(2)));
 
   return {
     animation: true,
@@ -332,7 +330,7 @@ function buildCumulativeChart(result) {
         type: 'bar',
         data: elzEnergy,
         stack: 'in',
-        itemStyle: { color: '#f59e0b', borderRadius: [0, 0, 0, 0] },
+        itemStyle: { color: '#9ca3af', borderRadius: [0, 0, 0, 0] },
         barMaxWidth: 28,
       },
       {
@@ -340,7 +338,7 @@ function buildCumulativeChart(result) {
         type: 'bar',
         data: h2Energy,
         stack: 'in',
-        itemStyle: { color: '#10b981', borderRadius: [3, 3, 0, 0] },
+        itemStyle: { color: '#6b7280', borderRadius: [3, 3, 0, 0] },
         barMaxWidth: 28,
       },
       {
@@ -348,38 +346,11 @@ function buildCumulativeChart(result) {
         type: 'line',
         data: fcEnergy,
         smooth: true, symbol: 'none',
-        color: '#8b5cf6',
-        lineStyle: { color: '#8b5cf6', width: 2 },
+        color: '#4b5563',
+        lineStyle: { color: '#4b5563', width: 2 },
       },
     ],
   };
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Section wrapper
-// ─────────────────────────────────────────────────────────────────────────────
-function ChartCard({ icon: Icon, title, subtitle, children, accent = "slate" }) {
-  const accentCls = {
-    amber:  "text-amber-500",
-    emerald:"text-emerald-500",
-    violet: "text-violet-500",
-    slate:  "text-slate-400",
-    indigo: "text-indigo-500",
-  };
-  return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-      <div className="flex items-center gap-2 mb-4">
-        <Icon size={15} className={accentCls[accent] ?? accentCls.slate} />
-        <h4 className="text-sm font-semibold text-slate-700">{title}</h4>
-        {subtitle && (
-          <span className="ml-auto flex items-center gap-1 text-xs text-slate-400">
-            <FiInfo size={11} /> {subtitle}
-          </span>
-        )}
-      </div>
-      {children}
-    </div>
-  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -405,11 +376,11 @@ export default function H2EnergyCharts({ result, simState, progress, sourceName,
   ];
 
   const CHART_MAP = {
-    powerFlow:  { icon: FiZap,        title: "Power Flow",                subtitle: "ELZ consumption vs FC output",                    opt: powerFlowOpt,  accentCls: "text-amber-500" },
-    h2Balance:  { icon: FiActivity,   title: "H₂ Mass Balance",           subtitle: "Production rate per step",                        opt: h2BalanceOpt,  accentCls: "text-emerald-500" },
-    tankState:  { icon: FiBarChart2,  title: "Tank State Evolution",       subtitle: "Pressure over time",                              opt: tankStateOpt,  accentCls: "text-amber-500" },
-    fcDetail:   { icon: FiActivity,   title: "Fuel Cell Polarisation",     subtitle: "Voltage · current density · efficiency",          opt: fcDetailOpt,   accentCls: "text-violet-500" },
-    cumulative: { icon: FiTrendingUp, title: "Cumulative Energy per Step", subtitle: "kWh in/out each Δt · H₂ HHV = 3.54 kWh/Nm³",    opt: cumulativeOpt, accentCls: "text-indigo-500" },
+    powerFlow:  { icon: FiZap,        title: "Power Flow",                subtitle: "ELZ consumption vs FC output",                    opt: powerFlowOpt,  accentCls: "text-slate-500" },
+    h2Balance:  { icon: FiActivity,   title: "H₂ Mass Balance",           subtitle: "Production rate per step",                        opt: h2BalanceOpt,  accentCls: "text-slate-500" },
+    tankState:  { icon: FiBarChart2,  title: "Tank State Evolution",       subtitle: "Pressure over time",                              opt: tankStateOpt,  accentCls: "text-slate-500" },
+    fcDetail:   { icon: FiActivity,   title: "Fuel Cell Polarisation",     subtitle: "Voltage · current density · efficiency",          opt: fcDetailOpt,   accentCls: "text-slate-500" },
+    cumulative: { icon: FiTrendingUp, title: "Cumulative Energy per Step", subtitle: "kWh in/out each Δt · H₂ HHV = 3.54 kWh/Nm³",    opt: cumulativeOpt, accentCls: "text-slate-500" },
   };
 
   const isRunning  = simState === 'running' || simState === 'queued';
@@ -421,7 +392,7 @@ export default function H2EnergyCharts({ result, simState, progress, sourceName,
     <div className="space-y-5">
       {/* Section divider */}
       <div className="flex items-center gap-3 flex-wrap">
-        <span className="p-2 rounded-xl bg-indigo-50 text-indigo-500"><FiActivity size={15} /></span>
+        <span className="p-2 rounded-xl bg-gray-100 text-gray-500"><FiActivity size={15} /></span>
         <div>
           <h3 className="font-semibold text-slate-800 text-sm uppercase tracking-wide">
             Energy Flow Evolution
@@ -433,7 +404,7 @@ export default function H2EnergyCharts({ result, simState, progress, sourceName,
           </p>
         </div>
         {isLocal && (
-          <span className="ml-auto flex items-center gap-1.5 text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-3 py-1">
+          <span className="ml-auto flex items-center gap-1.5 text-xs font-medium bg-gray-50 text-gray-700 border border-gray-200 rounded-full px-3 py-1">
             <FiInfo size={11} />
             Local physics model · connect to service for OpenModelica results
           </span>
@@ -446,7 +417,7 @@ export default function H2EnergyCharts({ result, simState, progress, sourceName,
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 h-52 flex items-center justify-center">
               <div className="flex flex-col items-center gap-3">
-                <span className="inline-block w-8 h-8 rounded-full border-4 border-t-indigo-500 border-slate-200 animate-spin" />
+                <span className="inline-block w-8 h-8 rounded-full border-4 border-t-gray-500 border-slate-200 animate-spin" />
                 <span className="text-xs text-slate-400">Running simulation…</span>
               </div>
             </div>
@@ -465,7 +436,7 @@ export default function H2EnergyCharts({ result, simState, progress, sourceName,
               <select
                 value={selectedChart}
                 onChange={(e) => setSelectedChart(e.target.value)}
-                className="ml-auto text-xs bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                className="ml-auto text-xs bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 text-slate-600 focus:outline-none focus:ring-2 focus:ring-gray-300"
               >
                 {CHART_OPTIONS.map((o) => (
                   <option key={o.id} value={o.id}>{o.label}</option>
@@ -482,4 +453,3 @@ export default function H2EnergyCharts({ result, simState, progress, sourceName,
     </div>
   );
 }
-

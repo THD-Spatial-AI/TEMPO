@@ -109,7 +109,7 @@ const RegionSelectionStepper = ({
                 className={`
                   font-semibold text-sm mb-2 flex items-center gap-1
                   ${step.status === 'completed' || step.status === 'active' ? 'text-gray-900' : 'text-slate-400'}
-                  ${canGoBack(step.id) ? 'cursor-pointer hover:text-blue-600 hover:underline' : ''}
+                  ${canGoBack(step.id) ? 'cursor-pointer hover:text-gray-600 hover:underline' : ''}
                 `}
               >
                 {step.title}

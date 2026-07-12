@@ -147,9 +147,9 @@ const SIM_CATALOGUE = [
     id:       "h2",
     label:    "H₂ Simulation",
     icon:     FiZap,
-    color:    "text-indigo-500",
-    bg:       "bg-indigo-50",
-    active:   "bg-indigo-600 text-white shadow-md",
+    color:    "text-gray-500",
+    bg:       "bg-gray-50",
+    active:   "bg-gray-700 text-white shadow-md",
     ready:    true,
     subtitle: "Electrolyzer · Compressor · Storage · Fuel Cell",
   },
@@ -157,9 +157,9 @@ const SIM_CATALOGUE = [
     id:       "biomass",
     label:    "Biomass CHP",
     icon:     FiSettings,
-    color:    "text-green-500",
-    bg:       "bg-green-50",
-    active:   "bg-green-600 text-white shadow-md",
+    color:    "text-gray-500",
+    bg:       "bg-gray-50",
+    active:   "bg-gray-700 text-white shadow-md",
     ready:    false,
     subtitle: "Coming soon",
   },
@@ -167,9 +167,9 @@ const SIM_CATALOGUE = [
     id:       "wind_battery",
     label:    "Wind + Battery",
     icon:     FiWind,
-    color:    "text-sky-500",
-    bg:       "bg-sky-50",
-    active:   "bg-sky-600 text-white shadow-md",
+    color:    "text-gray-500",
+    bg:       "bg-gray-50",
+    active:   "bg-gray-700 text-white shadow-md",
     ready:    false,
     subtitle: "Coming soon",
   },
@@ -249,9 +249,9 @@ function Card({ children, className = "" }) {
 function SectionHeader({ icon: Icon, label, color = "electric" }) {
   const colors = {
     electric: "bg-electric-50 text-electric-600",
-    emerald:  "bg-emerald-50 text-emerald-600",
-    violet:   "bg-violet-50  text-violet-600",
-    amber:    "bg-amber-50   text-amber-600",
+    emerald:  "bg-gray-50 text-gray-600",
+    violet:   "bg-gray-50 text-gray-600",
+    amber:    "bg-gray-50 text-gray-600",
   };
   return (
     <div className="flex items-center gap-2.5 mb-4">
@@ -310,16 +310,16 @@ function ParamSlider({ label, unit, value, min, max, step = 1, onChange }) {
 function KpiCard({ label, value, unit, color = "slate" }) {
   const ring = {
     electric: "border-electric-200 bg-electric-50",
-    emerald:  "border-emerald-200 bg-emerald-50",
-    violet:   "border-violet-200 bg-violet-50",
-    amber:    "border-amber-200 bg-amber-50",
+    emerald:  "border-gray-200 bg-gray-50",
+    violet:   "border-gray-200 bg-gray-50",
+    amber:    "border-gray-200 bg-gray-50",
     slate:    "border-slate-200 bg-slate-50",
   };
   const text = {
     electric: "text-electric-700",
-    emerald:  "text-emerald-700",
-    violet:   "text-violet-700",
-    amber:    "text-amber-700",
+    emerald:  "text-gray-700",
+    violet:   "text-gray-700",
+    amber:    "text-gray-700",
     slate:    "text-slate-700",
   };
   return (
@@ -356,8 +356,8 @@ function buildElzChart(result) {
         data: result?.electrolyzer_power_kw ?? [],
         smooth: true,
         symbol: "none",
-        lineStyle: { color: "#6366f1", width: 2 },
-        areaStyle: { color: "rgba(99,102,241,0.08)" },
+        lineStyle: { color: "#6b7280", width: 2 },
+        areaStyle: { color: "rgba(107,114,128,0.08)" },
         yAxisIndex: 0,
       },
       {
@@ -366,8 +366,8 @@ function buildElzChart(result) {
         data: result?.h2_production_nm3h ?? [],
         smooth: true,
         symbol: "none",
-        lineStyle: { color: "#10b981", width: 2 },
-        areaStyle: { color: "rgba(16,185,129,0.06)" },
+        lineStyle: { color: "#9ca3af", width: 2 },
+        areaStyle: { color: "rgba(156,163,175,0.06)" },
         yAxisIndex: 1,
       },
     ],
@@ -390,8 +390,8 @@ function buildTankChart(result) {
         data: result?.tank_pressure_bar ?? [],
         smooth: true,
         symbol: "none",
-        lineStyle: { color: "#f59e0b", width: 2 },
-        areaStyle: { color: "rgba(245,158,11,0.08)" },
+        lineStyle: { color: "#6b7280", width: 2 },
+        areaStyle: { color: "rgba(107,114,128,0.08)" },
       },
     ],
   };
@@ -416,7 +416,7 @@ function buildFcChart(result) {
         data: result?.fc_terminal_voltage_v ?? [],
         smooth: true,
         symbol: "none",
-        lineStyle: { color: "#8b5cf6", width: 2 },
+        lineStyle: { color: "#6b7280", width: 2 },
         yAxisIndex: 0,
       },
       {
@@ -425,7 +425,7 @@ function buildFcChart(result) {
         data: result?.fc_current_density_acm2 ?? [],
         smooth: true,
         symbol: "none",
-        lineStyle: { color: "#ec4899", width: 2, type: "dashed" },
+        lineStyle: { color: "#9ca3af", width: 2, type: "dashed" },
         yAxisIndex: 1,
       },
     ],
@@ -1001,7 +1001,7 @@ export default function HydrogenPlantDashboard() {
       <div className="flex flex-wrap items-center gap-3">
         {/* Section label */}
         <div className="flex items-center gap-2 mr-2">
-          <span className="p-1.5 rounded-lg bg-indigo-100 text-indigo-600"><FiZap size={15} /></span>
+          <span className="p-1.5 rounded-lg bg-gray-100 text-gray-600"><FiZap size={15} /></span>
           <span className="font-bold text-slate-800 text-sm tracking-wide uppercase">Tech Simulation</span>
         </div>
 
@@ -1046,12 +1046,12 @@ export default function HydrogenPlantDashboard() {
           className={`ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-medium border
             transition-all hover:shadow-sm active:scale-95
             ${ healthError
-                ? "bg-red-50 border-red-200 text-red-600"
+                ? "bg-gray-50 border-gray-200 text-gray-600"
                 : health === null
                   ? "bg-slate-50 border-slate-200 text-slate-400"
                   : health.engine_ready
-                    ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-                    : "bg-amber-50 border-amber-200 text-amber-700"
+                    ? "bg-gray-50 border-gray-200 text-gray-700"
+                    : "bg-gray-50 border-gray-200 text-gray-700"
               }`}
         >
           { healthError      ? <FiWifiOff size={11} />
@@ -1067,22 +1067,22 @@ export default function HydrogenPlantDashboard() {
       </div>
       {/* ── Engine offline diagnostic banner ────────────────────────────────── */}
       {healthError && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm">
+        <div className="rounded-2xl border border-gray-200 bg-gray-50 px-5 py-4 text-sm">
           <div className="flex items-start gap-3">
-            <FiWifiOff className="mt-0.5 shrink-0 text-red-500" size={16} />
+            <FiWifiOff className="mt-0.5 shrink-0 text-gray-500" size={16} />
             <div className="flex-1">
-              <p className="font-semibold text-red-700 mb-1">Cannot reach the simulation engine</p>
-              <p className="text-red-600 text-xs mb-3 font-mono break-all">
+              <p className="font-semibold text-gray-700 mb-1">Cannot reach the simulation engine</p>
+              <p className="text-gray-600 text-xs mb-3 font-mono break-all">
                 Target: {import.meta.env.VITE_H2_SERVICE_URL ?? "http://localhost:8765"}
               </p>
-              <ul className="text-red-600 text-xs space-y-1 list-disc list-inside">
-                <li><b>VPN / lab network</b> — the IP <code className="bg-red-100 px-1 rounded">{(import.meta.env.VITE_H2_SERVICE_URL ?? "").replace(/https?:\/\//, "").split(":")[0]}</code> is on a private subnet; connect to the VPN first.</li>
-                <li><b>Docker not running</b> — on the server, run <code className="bg-red-100 px-1 rounded">docker compose up -d</code> and check <code className="bg-red-100 px-1 rounded">docker ps</code>.</li>
-                <li><b>Wrong address</b> — update <code className="bg-red-100 px-1 rounded">VITE_H2_SERVICE_URL</code> in <code className="bg-red-100 px-1 rounded">.env</code>, then restart <code className="bg-red-100 px-1 rounded">npm run dev</code>.</li>
-                <li><b>Run locally</b> — set <code className="bg-red-100 px-1 rounded">VITE_H2_SERVICE_URL=http://localhost:8765</code> and run the Docker container on this machine.</li>
+              <ul className="text-gray-600 text-xs space-y-1 list-disc list-inside">
+                <li><b>VPN / lab network</b> — the IP <code className="bg-gray-100 px-1 rounded">{(import.meta.env.VITE_H2_SERVICE_URL ?? "").replace(/https?:\/\//, "").split(":")[0]}</code> is on a private subnet; connect to the VPN first.</li>
+                <li><b>Docker not running</b> — on the server, run <code className="bg-gray-100 px-1 rounded">docker compose up -d</code> and check <code className="bg-gray-100 px-1 rounded">docker ps</code>.</li>
+                <li><b>Wrong address</b> — update <code className="bg-gray-100 px-1 rounded">VITE_H2_SERVICE_URL</code> in <code className="bg-gray-100 px-1 rounded">.env</code>, then restart <code className="bg-gray-100 px-1 rounded">npm run dev</code>.</li>
+                <li><b>Run locally</b> — set <code className="bg-gray-100 px-1 rounded">VITE_H2_SERVICE_URL=http://localhost:8765</code> and run the Docker container on this machine.</li>
               </ul>
             </div>
-            <button onClick={pingHealth} title="Retry connection" className="shrink-0 p-1.5 rounded-lg hover:bg-red-100 text-red-400 transition-colors">
+            <button onClick={pingHealth} title="Retry connection" className="shrink-0 p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors">
               <FiRefreshCw size={14} />
             </button>
           </div>
@@ -1138,7 +1138,7 @@ export default function HydrogenPlantDashboard() {
         title={selectedModels?.source?.name ?? "Power Source Analysis"}
         subtitle="Technology profile · energy conversion chain · simulation overlay"
         icon={<FiZap size={18} />}
-        accentColor="bg-amber-500"
+        accentColor="bg-gray-700"
       >
         <H2GeneratorPanel
           selectedModel={selectedModels?.source}
@@ -1160,7 +1160,7 @@ export default function HydrogenPlantDashboard() {
         title={selectedModels?.electrolyzer?.name ?? "Electrolyzer Analysis"}
         subtitle="Partial-load efficiency · H₂ production · constraints"
         icon={<FiZap size={18} />}
-        accentColor="bg-indigo-500"
+        accentColor="bg-gray-700"
       >
         <H2ElectrolyzerPanel
           selectedModel={selectedModels?.electrolyzer}
@@ -1254,7 +1254,7 @@ export default function HydrogenPlantDashboard() {
                           key={preset.id}
                           onClick={() => setSim((p) => ({ ...p, t_end_s: preset.t_end_s, dt_s: suggestDtSeconds(preset.t_end_s, srcTechType) }))}
                           className={`px-2.5 py-1 rounded-lg text-xs border transition-colors ${
-                            active ? "bg-indigo-600 border-indigo-600 text-white" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                            active ? "bg-gray-700 border-gray-700 text-white" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
                           }`}
                         >
                           {preset.label}
@@ -1286,7 +1286,7 @@ export default function HydrogenPlantDashboard() {
                     />
                     <button
                       onClick={() => setSim((p) => ({ ...p, dt_s: recommendedDt }))}
-                      className="mt-1 w-full text-center px-1.5 py-0.5 rounded text-[10px] border border-indigo-200 text-indigo-600 bg-indigo-50 hover:bg-indigo-100"
+                      className="mt-1 w-full text-center px-1.5 py-0.5 rounded text-[10px] border border-gray-200 text-gray-600 bg-gray-50 hover:bg-gray-100"
                     >
                       Auto ({Math.round(recommendedDt / 60)} min)
                     </button>
@@ -1322,8 +1322,8 @@ export default function HydrogenPlantDashboard() {
                     <button
                       onClick={handleStop}
                       className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl
-                        bg-gradient-to-r from-red-500 to-red-600 text-white font-semibold text-sm
-                        shadow-md hover:shadow-lg hover:from-red-600 hover:to-red-700 transition-all active:scale-95"
+                        bg-gray-700 hover:bg-gray-800 text-white font-semibold text-sm
+                        shadow-md hover:shadow-lg transition-all active:scale-95"
                     >
                       <FiStopCircle size={14} />
                       Stop
@@ -1362,7 +1362,7 @@ export default function HydrogenPlantDashboard() {
                 {/* Done banner */}
                 {simState === SIM_STATES.DONE && (
                   <div className={`flex items-start gap-2 text-xs rounded-xl px-3 py-2 border ${
-                    result?._local ? 'text-amber-700 bg-amber-50 border-amber-200' : 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                    result?._local ? 'text-gray-700 bg-gray-50 border-gray-200' : 'text-gray-700 bg-gray-50 border-gray-200'
                   }`}>
                     <FiCheckCircle className="mt-0.5 shrink-0" size={13} />
                     <span>{result?._local ? `Local sim complete — ${result?.time_s?.length ?? 0} steps.` : `Done — ${result?.time_s?.length ?? 0} pts.`}</span>
@@ -1371,7 +1371,7 @@ export default function HydrogenPlantDashboard() {
 
                 {/* Error banner */}
                 {simState === SIM_STATES.ERROR && (
-                  <div className="flex items-start gap-2 text-red-700 text-xs bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+                  <div className="flex items-start gap-2 text-gray-700 text-xs bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
                     <FiAlertCircle className="mt-0.5 shrink-0" size={13} />
                     <span><strong>Error:</strong> {errorMsg}</span>
                   </div>
@@ -1383,7 +1383,7 @@ export default function HydrogenPlantDashboard() {
                     onClick={() => setShowPayloadPreview((p) => !p)}
                     className="w-full flex items-center justify-between px-3 py-2 bg-slate-50 hover:bg-slate-100 transition-colors text-xs font-medium text-slate-600"
                   >
-                    <span className="flex items-center gap-1.5"><FiInfo size={11} className="text-indigo-500" />Payload (v2.0)</span>
+                    <span className="flex items-center gap-1.5"><FiInfo size={11} className="text-gray-500" />Payload (v2.0)</span>
                     <span className="text-slate-400 font-mono">{showPayloadPreview ? '▲' : '▼'}</span>
                   </button>
                   {showPayloadPreview && (
@@ -1410,7 +1410,7 @@ export default function HydrogenPlantDashboard() {
                       type="checkbox"
                       checked={!!timeAdvanced.auto_apply}
                       onChange={(e) => setTimeAdvanced((p) => ({ ...p, auto_apply: e.target.checked }))}
-                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      className="rounded border-slate-300 text-gray-600 focus:ring-gray-500"
                     />
                     Auto-apply
                   </label>
@@ -1426,7 +1426,7 @@ export default function HydrogenPlantDashboard() {
                       step={24}
                       value={timeAdvanced.target_samples}
                       onChange={(e) => setTimeAdvanced((p) => ({ ...p, target_samples: Math.max(24, Number(e.target.value) || 24) }))}
-                      className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                      className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
                     />
                   </div>
 
@@ -1435,7 +1435,7 @@ export default function HydrogenPlantDashboard() {
                     <select
                       value={timeAdvanced.resampling_strategy}
                       onChange={(e) => setTimeAdvanced((p) => ({ ...p, resampling_strategy: e.target.value }))}
-                      className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                      className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
                     >
                       <option value="fixed">Fixed interval</option>
                       <option value="adaptive">Adaptive (target-based)</option>
@@ -1453,7 +1453,7 @@ export default function HydrogenPlantDashboard() {
                       value={timeAdvanced.rolling_window_days}
                       disabled={timeAdvanced.resampling_strategy !== "rolling_window"}
                       onChange={(e) => setTimeAdvanced((p) => ({ ...p, rolling_window_days: Math.max(1, Number(e.target.value) || 1) }))}
-                      className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:bg-slate-100 disabled:text-slate-400"
+                      className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:bg-slate-100 disabled:text-slate-400"
                     />
                   </div>
                 </div>
@@ -1462,10 +1462,10 @@ export default function HydrogenPlantDashboard() {
 
                 <div className={`rounded-lg border px-3 py-2 text-xs ${
                   performanceState === "high"
-                    ? "bg-red-50 border-red-200 text-red-700"
+                    ? "bg-gray-100 border-gray-300 text-gray-700"
                     : performanceState === "medium"
-                      ? "bg-amber-50 border-amber-200 text-amber-700"
-                      : "bg-emerald-50 border-emerald-200 text-emerald-700"
+                      ? "bg-gray-50 border-gray-200 text-gray-700"
+                      : "bg-gray-50 border-gray-200 text-gray-700"
                 }`}>
                   {performanceState === "high" && (
                     <span>High computation load: {sampleCount.toLocaleString()} samples exceed the hard limit ({Number(timeAdvanced.performance_hard_limit).toLocaleString()}). Increase interval or reduce horizon.</span>

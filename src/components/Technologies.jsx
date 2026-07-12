@@ -58,12 +58,12 @@ function MultiCarrierEditor({ values = [], onChange }) {
           style={{ backgroundColor: `${getCarrierColor(id)}18`, borderColor: `${getCarrierColor(id)}40`, color: getCarrierColor(id) }}>
           {CARRIERS[id]?.icon ?? '•'} {getCarrierLabel(id)}
           <button type="button" onClick={() => remove(id)}
-            className="ml-0.5 hover:text-red-500 text-inherit opacity-60 hover:opacity-100">&times;</button>
+            className="ml-0.5 hover:text-gray-500 text-inherit opacity-60 hover:opacity-100">&times;</button>
         </span>
       ))}
       {!adding ? (
         <button type="button" onClick={() => setAdding(true)}
-          className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs border border-dashed border-slate-400 text-slate-500 hover:border-blue-400 hover:text-blue-600">
+          className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs border border-dashed border-slate-400 text-slate-500 hover:border-gray-500 hover:text-gray-700">
           <FiPlus size={10}/> Add
         </button>
       ) : (
@@ -71,9 +71,9 @@ function MultiCarrierEditor({ values = [], onChange }) {
           <CarrierSelect value={picked} onChange={e => setPicked(e.target.value)}
             className="text-xs border border-slate-300 rounded px-1.5 py-0.5 focus:outline-none" />
           <button type="button" onClick={add} disabled={!picked}
-            className="text-xs text-emerald-600 hover:text-emerald-800 disabled:opacity-30">✓</button>
+            className="text-xs text-gray-600 hover:text-gray-800 disabled:opacity-30">✓</button>
           <button type="button" onClick={() => { setAdding(false); setPicked(''); }}
-            className="text-xs text-slate-400 hover:text-red-500">&times;</button>
+            className="text-xs text-slate-400 hover:text-gray-600">&times;</button>
         </span>
       )}
     </div>
@@ -259,13 +259,13 @@ const TechCard = ({ techName, tech, isCustom, onDuplicate, onEdit, onDelete }) =
           <>
             <button
               onClick={() => onEdit(techName, tech)}
-              className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 transition-colors"
+              className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 transition-colors"
             >
               <FiEdit2 size={11} /> Edit
             </button>
             <button
               onClick={() => onDelete(techName)}
-              className="flex items-center gap-1 text-xs text-red-400 hover:text-red-600 transition-colors ml-auto"
+              className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors ml-auto"
             >
               <FiTrash2 size={11} /> Delete
             </button>
@@ -294,7 +294,7 @@ const CategorySection = ({ categoryKey, items, isCustomSection = false }) => {
         <h3 className="text-sm font-semibold text-slate-700">{label}</h3>
         <span className="text-xs text-slate-400">({items.length})</span>
         {isCustomSection && (
-          <span className="text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200">custom</span>
+          <span className="text-xs px-2 py-0.5 rounded-full bg-gray-50 text-gray-600 border border-gray-200">custom</span>
         )}
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
@@ -504,12 +504,12 @@ function Technologies() {
                 <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-pulse" /> Checking
               </span>
             ) : isApiLive ? (
-              <span className="inline-flex items-center gap-1.5 text-xs text-emerald-700 px-2 py-0.5 bg-emerald-50 rounded-full border border-emerald-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> OPENTECH | DB
+              <span className="inline-flex items-center gap-1.5 text-xs text-gray-700 px-2 py-0.5 bg-gray-50 rounded-full border border-gray-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-gray-500" /> OPENTECH | DB
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1.5 text-xs text-amber-700 px-2 py-0.5 bg-amber-50 rounded-full border border-amber-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" /> Static data
+              <span className="inline-flex items-center gap-1.5 text-xs text-gray-700 px-2 py-0.5 bg-gray-50 rounded-full border border-gray-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-gray-400" /> Static data
               </span>
             )}
           </div>
@@ -524,7 +524,7 @@ function Technologies() {
               placeholder="Search"
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300 bg-slate-50"
+              className="w-full pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 bg-slate-50"
             />
           </div>
         </div>
@@ -597,7 +597,7 @@ function Technologies() {
           ) : (
             <div>
               <h2 className="text-lg font-bold text-slate-800 mb-5 flex items-center gap-2">
-                <FiStar size={16} className="text-amber-500" /> My Technologies
+                <FiStar size={16} className="text-gray-500" /> My Technologies
               </h2>
               {CATEGORY_ORDER.map(key => (
                 <CategorySection key={key} categoryKey={key} items={customTechsByParent[key] || []} isCustomSection />
@@ -608,8 +608,8 @@ function Technologies() {
           <div>
             {/* Inline custom techs panel (only in All view) */}
             {totalCustom > 0 && selectedCategory === 'all' && (
-              <div className="mb-8 p-4 rounded-xl bg-amber-50 border border-amber-200">
-                <h2 className="text-sm font-semibold text-amber-800 mb-4 flex items-center gap-2">
+              <div className="mb-8 p-4 rounded-xl bg-gray-50 border border-gray-200">
+                <h2 className="text-sm font-semibold text-gray-800 mb-4 flex items-center gap-2">
                   <FiStar size={14} /> My Technologies ({totalCustom})
                 </h2>
                 {CATEGORY_ORDER.map(key => (
@@ -660,7 +660,7 @@ function Technologies() {
                             <span className="text-xs text-slate-400">(single carrier for storage / transmission)</span>
                           </div>
                           <CarrierSelect value={value} onChange={e => setEss(e.target.value)}
-                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-gray-400 focus:outline-none" />
                         </div>
                       );
                     }
@@ -701,7 +701,7 @@ function Technologies() {
                               className="w-10 h-9 border border-slate-300 rounded cursor-pointer" />
                             <input type="text" value={value}
                               onChange={e => setEss(e.target.value)}
-                              className="flex-1 px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                              className="flex-1 px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-gray-400 focus:outline-none" />
                           </div>
                         ) : key === 'parent' ? (
                           <input type="text" value={value} disabled
@@ -709,7 +709,7 @@ function Technologies() {
                         ) : (
                           <input type="text" value={value}
                             onChange={e => setEss(e.target.value)}
-                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-gray-400 focus:outline-none" />
                         )}
                       </div>
                     );
@@ -736,7 +736,7 @@ function Technologies() {
                         {toAdd.map(field => (
                           <button key={field} type="button"
                             onClick={() => setEditForm({ ...editForm, essentials: { ...editForm.essentials, [field]: field === 'carrier' ? 'electricity' : [] } })}
-                            className="px-2.5 py-1 text-xs bg-blue-50 text-blue-600 border border-blue-200 rounded-full hover:bg-blue-100">
+                            className="px-2.5 py-1 text-xs bg-gray-50 text-gray-600 border border-gray-200 rounded-full hover:bg-gray-100">
                             + {field}
                           </button>
                         ))}
@@ -783,12 +783,12 @@ function Technologies() {
                                 if (!isNaN(v) && v !== '') v = parseFloat(v);
                                 setEditForm({ ...editForm, constraints: { ...editForm.constraints, [key]: v } });
                               }}
-                              className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none font-mono"
+                              className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-gray-400 focus:outline-none font-mono"
                             />
                           </div>
                           <button
                             onClick={() => { const c = { ...editForm.constraints }; delete c[key]; setEditForm({ ...editForm, constraints: c }); }}
-                            className="mt-5 p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded"
+                            className="mt-5 p-1.5 text-slate-400 hover:text-gray-600 hover:bg-gray-100 rounded"
                           >
                             <FiTrash2 size={14} />
                           </button>
@@ -835,12 +835,12 @@ function Technologies() {
                               step="any"
                               value={value}
                               onChange={e => setEditForm({ ...editForm, costs: { ...editForm.costs, monetary: { ...(editForm.costs?.monetary || {}), [key]: parseFloat(e.target.value) || 0 } } })}
-                              className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none font-mono"
+                              className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-gray-400 focus:outline-none font-mono"
                             />
                           </div>
                           <button
                             onClick={() => { const m = { ...(editForm.costs?.monetary || {}) }; delete m[key]; setEditForm({ ...editForm, costs: { ...editForm.costs, monetary: m } }); }}
-                            className="mt-5 p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded"
+                            className="mt-5 p-1.5 text-slate-400 hover:text-gray-600 hover:bg-gray-100 rounded"
                           >
                             <FiTrash2 size={14} />
                           </button>
@@ -857,7 +857,7 @@ function Technologies() {
             <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-xl">
               <button
                 onClick={handleDeleteTech}
-                className="flex items-center gap-1.5 px-4 py-2 text-sm bg-red-100 text-red-600 rounded-lg hover:bg-red-600 hover:text-white transition-colors"
+                className="flex items-center gap-1.5 px-4 py-2 text-sm bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-700 hover:text-white transition-colors"
               >
                 <FiTrash2 size={14} /> Delete
               </button>
@@ -901,7 +901,7 @@ function Technologies() {
                       {expanded && (
                         <div className="divide-y divide-slate-100">
                           {constraints.map(c => (
-                            <button key={c} onClick={() => addConstraint(c, '')} className="w-full text-left px-8 py-3 hover:bg-blue-50 transition-colors">
+                            <button key={c} onClick={() => addConstraint(c, '')} className="w-full text-left px-8 py-3 hover:bg-gray-50 transition-colors">
                               <div className="text-sm font-medium text-slate-800">{c}</div>
                               <div className="text-xs text-slate-500 mt-0.5">{CONSTRAINT_DEFINITIONS[c]?.desc || ''}</div>
                             </button>
@@ -945,7 +945,7 @@ function Technologies() {
                       {expanded && (
                         <div className="divide-y divide-slate-100">
                           {costs.map(c => (
-                            <button key={c} onClick={() => addCost(c, 0)} className="w-full text-left px-8 py-3 hover:bg-blue-50 transition-colors">
+                            <button key={c} onClick={() => addCost(c, 0)} className="w-full text-left px-8 py-3 hover:bg-gray-50 transition-colors">
                               <div className="text-sm font-medium text-slate-800">{c}</div>
                               <div className="text-xs text-slate-500 mt-0.5">{COST_DEFINITIONS[c]?.desc || ''}</div>
                             </button>

@@ -81,6 +81,15 @@ func InitDB(path string) (*DB, error) {
 	);
 
 	CREATE INDEX IF NOT EXISTS idx_completed_runs_completed_at ON completed_runs(completed_at DESC);
+
+	CREATE TABLE IF NOT EXISTS timeseries_data (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		model_id INTEGER NOT NULL,
+		ts_json TEXT NOT NULL,
+		FOREIGN KEY (model_id) REFERENCES models(id) ON DELETE CASCADE
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_timeseries_model_id ON timeseries_data(model_id);
 	`
 
 	if _, err := conn.Exec(schema); err != nil {
@@ -273,4 +282,41 @@ func (db *DB) ListCompletedRuns() ([]*models.CompletedRun, error) {
 func (db *DB) DeleteCompletedRun(id string) error {
 	_, err := db.conn.Exec("DELETE FROM completed_runs WHERE id = ?", id)
 	return err
+}
+
+// SaveModelTimeSeries inserts one timeSeries entry (JSON string) for a model.
+func (db *DB) SaveModelTimeSeries(modelID int64, tsJSON string) error {
+	_, err := db.conn.Exec(
+		"INSERT INTO timeseries_data (model_id, ts_json) VALUES (?, ?)",
+		modelID, tsJSON,
+	)
+	return err
+}
+
+// DeleteModelTimeSeries removes all timeSeries entries for a model.
+func (db *DB) DeleteModelTimeSeries(modelID int64) error {
+	_, err := db.conn.Exec("DELETE FROM timeseries_data WHERE model_id = ?", modelID)
+	return err
+}
+
+// GetModelTimeSeries returns all timeSeries entries for a model as raw JSON messages.
+func (db *DB) GetModelTimeSeries(modelID int64) ([]json.RawMessage, error) {
+	rows, err := db.conn.Query(
+		"SELECT ts_json FROM timeseries_data WHERE model_id = ? ORDER BY id",
+		modelID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []json.RawMessage
+	for rows.Next() {
+		var tsJSON string
+		if err := rows.Scan(&tsJSON); err != nil {
+			continue
+		}
+		result = append(result, json.RawMessage(tsJSON))
+	}
+	return result, rows.Err()
 }
