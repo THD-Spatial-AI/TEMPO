@@ -96,6 +96,7 @@ const CONSTRAINT_DEFINITIONS = {
   energy_ramping:    { group: 'Operation',  desc: 'Ramping rate limit (fraction/hour). Max change in output per timestep.' },
   charge_rate:       { group: 'Operation',  desc: 'Charge/discharge rate (C-rate). Storage power relative to capacity.' },
   storage_loss:      { group: 'Operation',  desc: 'Storage standing loss (fraction/hour). Energy lost per time period.' },
+  storage_initial:   { group: 'Operation',  desc: 'Initial storage state of charge (fraction, 0–1). Fraction of storage_cap_max at t=0.' },
   lifetime:          { group: 'Operation',  desc: 'Technology lifetime (years). Economic lifespan.' },
 };
 
@@ -114,7 +115,7 @@ const COST_DEFINITIONS = {
 // Constraints configuration for parent types
 const PARENT_CONSTRAINTS = {
   supply:          ['energy_cap_max','energy_cap_min','energy_eff','resource','resource_min_use','energy_ramping','lifetime'],
-  supply_plus:     ['energy_cap_max','energy_cap_min','energy_eff','resource','resource_min_use','energy_ramping','lifetime'],
+  supply_plus:     ['energy_cap_max','energy_cap_min','energy_eff','resource','resource_min_use','energy_ramping','storage_cap_max','storage_cap_min','storage_cap_equals','storage_loss','storage_initial','charge_rate','lifetime'],
   storage:         ['energy_cap_max','energy_cap_min','storage_cap_max','storage_cap_min','charge_rate','storage_loss','lifetime'],
   conversion:      ['energy_cap_max','energy_cap_min','energy_eff','energy_ramping','lifetime'],
   conversion_plus: ['energy_cap_max','energy_cap_min','energy_eff','energy_ramping','lifetime'],
@@ -745,6 +746,65 @@ function Technologies() {
                   );
                 })()}
               </section>
+
+              {/* Storage Buffer — visible for supply / supply_plus */}
+              {(editForm.essentials?.parent === 'supply' || editForm.essentials?.parent === 'supply_plus') && (() => {
+                const hasBuffer = editForm.essentials?.parent === 'supply_plus';
+                const toggleBuffer = () => {
+                  if (hasBuffer) {
+                    // Remove storage params and revert to supply
+                    const c = { ...editForm.constraints };
+                    ['storage_cap_max','storage_cap_min','storage_cap_equals','storage_loss','storage_initial','charge_rate'].forEach(k => delete c[k]);
+                    setEditForm({ ...editForm, essentials: { ...editForm.essentials, parent: 'supply' }, constraints: c });
+                  } else {
+                    setEditForm({ ...editForm, essentials: { ...editForm.essentials, parent: 'supply_plus' } });
+                  }
+                };
+                const setStorageParam = (key, val) =>
+                  setEditForm({ ...editForm, constraints: { ...editForm.constraints, [key]: val } });
+                const storageFields = [
+                  { key: 'storage_cap_max', label: 'Max storage capacity (kWh)', placeholder: 'e.g. 1000' },
+                  { key: 'storage_loss',    label: 'Standing loss (fraction/hr)', placeholder: 'e.g. 0.01' },
+                  { key: 'storage_initial', label: 'Initial state of charge (0–1)', placeholder: 'e.g. 0' },
+                ];
+                return (
+                  <section className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-sm font-semibold text-amber-800">Storage Buffer</h3>
+                        <p className="text-xs text-amber-600 mt-0.5">Adds a co-located buffer store (Calliope <code className="font-mono">supply_plus</code> / 0.7 <code className="font-mono">include_storage</code>).</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={toggleBuffer}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${hasBuffer ? 'bg-amber-500' : 'bg-slate-300'}`}
+                        aria-pressed={hasBuffer}
+                      >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${hasBuffer ? 'translate-x-6' : 'translate-x-1'}`} />
+                      </button>
+                    </div>
+                    {hasBuffer && (
+                      <div className="mt-3 grid grid-cols-3 gap-3">
+                        {storageFields.map(({ key, label, placeholder }) => (
+                          <div key={key}>
+                            <label className="block text-xs font-medium text-amber-700 mb-1">{label}</label>
+                            <input
+                              type="text"
+                              placeholder={placeholder}
+                              value={editForm.constraints?.[key] ?? ''}
+                              onChange={e => {
+                                const raw = e.target.value;
+                                setStorageParam(key, raw === '' ? '' : (isNaN(raw) ? raw : parseFloat(raw)));
+                              }}
+                              className="w-full px-2 py-1.5 text-sm border border-amber-200 rounded-lg focus:ring-2 focus:ring-amber-300 focus:outline-none font-mono bg-white"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                );
+              })()}
 
               {/* Constraints */}
               <section>

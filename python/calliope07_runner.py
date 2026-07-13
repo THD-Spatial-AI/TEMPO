@@ -204,6 +204,54 @@ def _write_payload_csvs(model_data, config_dir):
     return written
 
 
+def _build_user_data_tables(model_data, config_dir):
+    """Build data_tables blocks from timeSeries entries with type='data_table'.
+
+    Each such entry must have a dataTableConfig with 'rows' (required) and
+    optionally 'columns' and 'add_dims'.  The CSV is written to config_dir
+    with its original column names (no date-column normalisation)."""
+    import csv as _csv_mod
+
+    user_tables = {}
+    for ts in model_data.get('timeSeries') or []:
+        if ts.get('type') != 'data_table':
+            continue
+        data = ts.get('data') or []
+        columns = ts.get('columns') or []
+        file_name = ts.get('fileName') or ts.get('name')
+        cfg = ts.get('dataTableConfig') or {}
+        rows_dim = cfg.get('rows') or ''
+        if not rows_dim or not file_name or not data or not columns:
+            continue
+        if not file_name.lower().endswith('.csv'):
+            file_name = file_name + '.csv'
+
+        with open(str(config_dir / file_name), 'w', newline='', encoding='utf-8') as fh:
+            writer = _csv_mod.writer(fh)
+            writer.writerow(columns)
+            for row in data:
+                if isinstance(row, dict):
+                    writer.writerow([row.get(c, '') for c in columns])
+                else:
+                    writer.writerow(list(row))
+
+        table_name = file_name.replace('.csv', '')
+        table_block = {
+            'data': f'model_config/{file_name}',
+            'rows': rows_dim,
+        }
+        if cfg.get('columns'):
+            table_block['columns'] = cfg['columns']
+        add_dims = {k: v for k, v in (cfg.get('add_dims') or {}).items() if k and v}
+        if add_dims:
+            table_block['add_dims'] = add_dims
+
+        user_tables[table_name] = table_block
+        log(f"  User data table '{table_name}': rows={rows_dim}")
+
+    return user_tables
+
+
 def _build_file_ref_data_tables(techs_07, nodes, config_dir, warnings):
     """Convert 0.6 'file=xxx.csv[:col]' resource references into 0.7 data
     tables. Per (tech, param) a derived CSV is written whose columns ARE the
@@ -360,19 +408,26 @@ def _install_highs_lp_patch():
                 MAJOR = {'# Primal solution values', '# Dual solution values',
                          '# Basis'}
                 in_primal = False
+                in_dual = False
                 in_cols = False
+                in_rows = False
+                dual_rows = {}
 
                 for line in sol_text.splitlines():
                     ls = line.strip()
 
                     if ls in MAJOR:
                         in_primal = (ls == '# Primal solution values')
+                        in_dual = (ls == '# Dual solution values')
                         in_cols = False
+                        in_rows = False
                         continue
-                    if ls.startswith('# Columns') and in_primal:
-                        in_cols = True; continue
-                    if ls.startswith('#') and in_primal:
-                        in_cols = False; continue
+                    if ls.startswith('# Columns'):
+                        in_cols = True; in_rows = False; continue
+                    if ls.startswith('# Rows'):
+                        in_rows = True; in_cols = False; continue
+                    if ls.startswith('#'):
+                        in_cols = False; in_rows = False; continue
 
                     if ls == 'Optimal':
                         tc = TerminationCondition.optimal
@@ -396,6 +451,17 @@ def _install_highs_lp_patch():
                                     'Value': float(parts[1])}
                             except ValueError:
                                 pass
+
+                    if in_dual and in_rows and ls:
+                        parts = ls.split()
+                        if len(parts) == 2:
+                            try:
+                                dual_rows[parts[0]] = float(parts[1])
+                            except ValueError:
+                                pass
+
+                _thread_local.highs_symbol_map = symbol_map
+                _thread_local.highs_dual_rows = dual_rows
 
             is_ok = tc == TerminationCondition.optimal
             s.termination_condition = tc
@@ -422,6 +488,70 @@ def _install_highs_lp_patch():
     _patched_solve._tempo_highs_lp_patch = True
     PyomoBackendModel._solve = _patched_solve
     log("HiGHS LP-file patch applied to PyomoBackendModel._solve")
+
+
+# ---------------------------------------------------------------------------
+# Shadow price extraction (duals of system_balance constraints)
+# ---------------------------------------------------------------------------
+
+def _extract_shadow_prices(model, timestamps):
+    """Return {carrier:node: [shadow_price_per_timestep]} or {} on failure.
+
+    Works only when the HiGHS LP-file patch was used (highs solver) and the
+    symbol map + dual rows were captured in _thread_local.  Non-fatal on any
+    missing piece — callers should treat {} as "not available"."""
+    sym_map = getattr(_thread_local, 'highs_symbol_map', None)
+    dual_rows = getattr(_thread_local, 'highs_dual_rows', None)
+    if not sym_map or dual_rows is None:
+        return {}
+
+    try:
+        import pyomo.environ as pyo
+        instance = (getattr(model.backend, '_instance', None)
+                    or getattr(model.backend, 'instance', None))
+        if instance is None:
+            return {}
+
+        by_object = getattr(sym_map, 'byObject', {})
+        if not by_object:
+            return {}
+
+        # Build ts_index for ordering
+        ts_index = {str(ts): i for i, ts in enumerate(timestamps or [])}
+        n_ts = len(timestamps or [])
+        if n_ts == 0:
+            return {}
+
+        prices = {}
+        for c_name, c_comp in instance.component_map(pyo.Constraint).items():
+            if 'system_balance' not in c_name:
+                continue
+            for idx, c_data in c_comp.items():
+                lp_sym = by_object.get(id(c_data))
+                if lp_sym is None:
+                    continue
+                dual = dual_rows.get(lp_sym)
+                if dual is None:
+                    continue
+                # idx is typically (carriers, nodes, timesteps) in Calliope 0.7
+                if not isinstance(idx, tuple) or len(idx) < 3:
+                    continue
+                carrier, node, ts_raw = str(idx[0]), str(idx[1]), str(idx[2])
+                key = f"{carrier}:{node}"
+                if key not in prices:
+                    prices[key] = [None] * n_ts
+                ts_i = ts_index.get(ts_raw)
+                if ts_i is not None:
+                    prices[key][ts_i] = round(dual, 6)
+
+        # Drop series that are entirely None
+        prices = {k: v for k, v in prices.items() if any(x is not None for x in v)}
+        if prices:
+            log(f"  Shadow prices extracted for {len(prices)} carrier:node pair(s)")
+        return prices
+    except Exception as e:
+        log(f"  Shadow price extraction failed (non-fatal): {e}")
+        return {}
 
 
 # ---------------------------------------------------------------------------
@@ -641,6 +771,10 @@ def _extract_results(model, techs_07, technologies, model_name, solver):
         except Exception as e:
             log(f"  Could not extract cost breakdown: {e}")
 
+    shadow = _extract_shadow_prices(model, results.get('timestamps') or [])
+    if shadow:
+        results['shadow_prices'] = shadow
+
     log(f"Objective value: {results.get('objective', 'N/A')}")
     return results
 
@@ -761,7 +895,8 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
     demand_tables = _build_demand_data_tables(
         locations, nodes, techs_07, time_start, time_end, config_dir, warnings,
         covered_pairs)
-    data_tables = {**file_tables, **demand_tables}
+    user_tables = _build_user_data_tables(model_data, config_dir)
+    data_tables = {**file_tables, **demand_tables, **user_tables}
 
     for w in warnings:
         log(f"  [translate] {w}")
@@ -805,6 +940,14 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
             log(f"  [translate] {w}")
     if scenarios:
         model_doc['scenarios'] = scenarios  # lists of override names — no renames needed
+
+    custom_math_yaml = model_data.get('customMath') or ''
+    if custom_math_yaml.strip():
+        custom_math_path = config_dir / 'custom_math.yaml'
+        custom_math_path.write_text(custom_math_yaml, encoding='utf-8')
+        model_doc['config']['init'].setdefault('add_math', [])
+        model_doc['config']['init']['add_math'].append('model_config/custom_math.yaml')
+        log("  Custom math YAML injected (model_config/custom_math.yaml)")
 
     model_yaml_path = Path(work_dir) / 'model.yaml'
     _dump_yaml(model_doc, model_yaml_path)

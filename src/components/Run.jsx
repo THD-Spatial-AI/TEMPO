@@ -75,6 +75,7 @@ const Run = ({ onNavigate }) => {
       slack: 10,         // integer percent sent to backend (divided by 100 there)
       sporesNumber: 20,
     },
+    customMath: '',
     solverOptions: {
       threads: 4,
       timeLimit: 3600,
@@ -510,6 +511,7 @@ const Run = ({ onNavigate }) => {
         modelConfig,
         technologies: technologies || selectedModel.technologies || [],
         timeSeries: timeSeries.filter(ts => ts.modelId === selectedModel.id),
+        ...(modelConfig.customMath?.trim() ? { customMath: modelConfig.customMath } : {}),
       };
 
       if (config) {
@@ -1163,6 +1165,24 @@ const Run = ({ onNavigate }) => {
                 </div>
               )}
             </div>
+
+            {/* Custom Math — Calliope 0.7 only */}
+            {isCalliope07Selected && (
+              <div className="mb-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Custom Math (0.7)</span>
+                  <span className="text-xs text-slate-400">— optional YAML added to the built-in math</span>
+                </div>
+                <textarea
+                  rows={6}
+                  placeholder={'# Example — add a custom constraint:\nvariables:\n  my_var:\n    foreach: [nodes, techs, timesteps]\n    domain: NonNegativeReals\n    bounds:\n      min: 0\n      max: inf'}
+                  value={modelConfig.customMath}
+                  onChange={e => setModelConfig(p => ({ ...p, customMath: e.target.value }))}
+                  spellCheck={false}
+                  className="w-full px-3 py-2 text-xs font-mono border border-slate-200 rounded-lg bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-y"
+                />
+              </div>
+            )}
 
             {/* Run button */}
             <button
