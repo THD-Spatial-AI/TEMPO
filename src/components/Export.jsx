@@ -6,6 +6,9 @@ import { saveAs } from 'file-saver';
 import { dump } from 'js-yaml';
 import { LINK_TYPES } from '../config/linkTypes';
 import { internalTo07Yaml } from '../services/calliope07Format';
+import { exportModelArchive, checkEngineRunService } from '../services/engineClient';
+import { resolveScenario } from '../services/scenarioResolver';
+import TranslationReport from './TranslationReport';
 
 const EXPORT_FORMATS = [
   {
@@ -19,26 +22,26 @@ const EXPORT_FORMATS = [
   {
     id: 'pypsa',
     name: 'PyPSA',
-    description: 'Python for Power System Analysis',
+    description: 'Python for Power System Analysis — netCDF + CSV folder',
     icon: FiActivity,
     color: 'from-gray-500 to-gray-600',
-    supported: false
+    supported: true
   },
   {
     id: 'osemosys',
     name: 'OSeMOSYS',
-    description: 'Open Source Energy Modelling System',
+    description: 'Open Source Energy Modelling System — otoole-compatible CSV dataset',
     icon: FiCpu,
     color: 'from-gray-500 to-gray-600',
-    supported: false
+    supported: true
   },
   {
-    id: 'adoptnet',
-    name: 'AdoptNET',
-    description: 'Adoption Network Energy Transition',
+    id: 'adoptnet0',
+    name: 'AdOpT-NET0',
+    description: 'Advanced Optimisation of Polygeneration Technologies — NET-zero. Case-directory ZIP.',
     icon: FiSettings,
     color: 'from-gray-500 to-gray-600',
-    supported: false
+    supported: true
   },
   {
     id: 'calliope07',
@@ -55,6 +58,7 @@ const Export = () => {
   const currentModel = getCurrentModel();
   const [exporting, setExporting] = useState(false);
   const [exportStatus, setExportStatus] = useState(null);
+  const [exportReport, setExportReport] = useState([]);
   const [selectedFormat, setSelectedFormat] = useState('calliope');
 
   useEffect(() => {
@@ -318,8 +322,12 @@ model:
     // Add custom overrides from the model
     if (modelOverrides && Object.keys(modelOverrides).length > 0) {
       Object.entries(modelOverrides).forEach(([key, value]) => {
+        // Strip internal _meta before writing YAML
+        const config = (typeof value === 'object' && value !== null)
+          ? Object.fromEntries(Object.entries(value).filter(([k]) => k !== '_meta'))
+          : value;
         yaml += `    ${key}:\n`;
-        if (typeof value === 'object' && value !== null) {
+        if (typeof config === 'object' && config !== null) {
           const formatYamlValue = (obj, indent = 8) => {
             let result = '';
             Object.entries(obj).forEach(([k, v]) => {
@@ -335,9 +343,9 @@ model:
             });
             return result;
           };
-          yaml += formatYamlValue(value);
+          yaml += formatYamlValue(config);
         } else {
-          yaml += `        value: ${value}\n`;
+          yaml += `        value: ${config}\n`;
         }
       });
     }
@@ -549,6 +557,60 @@ calliope run model.yaml --scenario=Main
     }
   };
 
+  // Engine-backed export: translation + file writing happen in the engine's
+  // Python service (single source of mapping logic, shared with the runner).
+  const exportViaEngine = async (engine, label) => {
+    if (!currentModel) {
+      setExportStatus({ type: 'error', message: 'No model selected' });
+      return;
+    }
+    setExporting(true);
+    setExportReport([]);
+    setExportStatus({ type: 'info', message: `Translating model to ${label}…` });
+    try {
+      const up = await checkEngineRunService(engine);
+      if (!up) {
+        setExportStatus({
+          type: 'error',
+          message: `The ${label} engine is not running. Install it from Settings → ${label} Engine.`,
+        });
+        return;
+      }
+
+      const baseModel = {
+        name: currentModel.name,
+        technologies: technologies || [],
+        locations: currentModel.locations || [],
+        links: currentModel.links || [],
+        modelConfig: currentModel.metadata?.modelConfig || {},
+        timeSeries: timeSeries.filter(ts => ts.modelId === currentModel.id),
+      };
+
+      // Build datasets: base + one resolved model per scenario
+      const datasets = [{ name: 'base', model: baseModel }];
+      const resolverReports = [];
+      for (const scName of Object.keys(scenarios || {})) {
+        const { model: resolved, report: rpt } = resolveScenario(
+          baseModel, overrides || {}, scenarios || {}, { type: 'scenario', name: scName }
+        );
+        resolved.name = `${currentModel.name} (${scName})`;
+        datasets.push({ name: scName, model: resolved });
+        resolverReports.push(...rpt);
+      }
+
+      const { zipBlob, report } = await exportModelArchive(engine, { datasets });
+      const fileName = `${(currentModel.name || 'model').replace(/\s+/g, '_').toLowerCase()}_${engine}_export.zip`;
+      saveAs(zipBlob, fileName);
+      setExportReport([...resolverReports, ...report]);
+      setExportStatus({ type: 'success', message: `Model exported as ${fileName}` });
+    } catch (error) {
+      console.error('Export error:', error);
+      setExportStatus({ type: 'error', message: `Export failed: ${error.message}` });
+    } finally {
+      setExporting(false);
+    }
+  };
+
   if (!currentModel) {
     return (
       <div className="flex-1 p-6 overflow-y-auto">
@@ -665,7 +727,39 @@ calliope run model.yaml --scenario=Main
           <div className="bg-white rounded-xl shadow-lg p-5">
             <h2 className="text-xl font-semibold text-slate-800 mb-3">Output Structure</h2>
             <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-3 leading-5">
-              {selectedFormat === 'calliope07' ? (
+              {selectedFormat === 'osemosys' ? (
+                <>
+                  <TreeRow icon={FiFolder} name={`${currentModel.name || 'model'}/`} isDir note="ZIP root" />
+                  <TreeRow indent={1} icon={FiFolder} name="base/" isDir note="one folder per dataset" />
+                  <TreeRow indent={2} icon={FiFile} name="REGION.csv" />
+                  <TreeRow indent={2} icon={FiFile} name="TECHNOLOGY.csv" />
+                  <TreeRow indent={2} icon={FiFile} name="FUEL.csv" />
+                  <TreeRow indent={2} icon={FiFile} name="CapitalCost.csv" note="+ 18 more parameter CSVs" dim />
+                  <TreeRow indent={2} icon={FiFile} name="SpecifiedAnnualDemand.csv" />
+                  <TreeRow indent={2} icon={FiFile} name="YearSplit.csv" />
+                  <TreeRow indent={1} icon={FiFile} name="report.txt" note="translation notes" />
+                </>
+              ) : selectedFormat === 'adoptnet0' ? (
+                <>
+                  <TreeRow icon={FiFolder} name={`${currentModel.name || 'model'}/`} isDir note="ZIP root" />
+                  <TreeRow indent={1} icon={FiFolder} name="base/" isDir note="one folder per dataset" />
+                  <TreeRow indent={2} icon={FiFile} name="Topology.json" />
+                  <TreeRow indent={2} icon={FiFile} name="ConfigModel.json" />
+                  <TreeRow indent={2} icon={FiFile} name="NodeLocations.csv" />
+                  <TreeRow indent={2} icon={FiFolder} name="period1/" isDir />
+                  <TreeRow indent={3} icon={FiFolder} name="network_data/" isDir />
+                  <TreeRow indent={3} icon={FiFolder} name="node_data/" isDir note={`${locs.length} node${locs.length !== 1 ? 's' : ''}`} />
+                  <TreeRow indent={1} icon={FiFile} name="report.txt" note="translation notes" />
+                </>
+              ) : selectedFormat === 'pypsa' ? (
+                <>
+                  <TreeRow icon={FiFolder} name={`${currentModel.name || 'model'}/`} isDir note="ZIP root" />
+                  <TreeRow indent={1} icon={FiFolder} name="base/" isDir note="one folder per dataset" />
+                  <TreeRow indent={2} icon={FiFile} name="model.nc" note="pypsa.Network netCDF" />
+                  <TreeRow indent={2} icon={FiFolder} name="csv/" isDir note="CSV folder (buses, generators, …)" />
+                  <TreeRow indent={1} icon={FiFile} name="report.txt" note="translation notes" />
+                </>
+              ) : selectedFormat === 'calliope07' ? (
                 <>
                   <TreeRow icon={FiFolder} name={`${currentModel.name || 'model'}/`} isDir note="ZIP root" />
                   <TreeRow indent={1} icon={FiFile} name="model.yaml" note="config + techs + nodes + data_tables" />
@@ -719,10 +813,17 @@ calliope run model.yaml --scenario=Main
               </span>.
               {selectedFormat === 'calliope07' && ' Uses single flat YAML + CSV layout (0.7 convention).'}
               {selectedFormat === 'calliope' && ' Uses nested folder structure compatible with Calliope 0.6.8.'}
+              {selectedFormat === 'pypsa' && ' Contains both model.nc (netCDF) and a CSV folder — loadable with pypsa.Network(). Requires the PyPSA engine (Settings).'}
+              {selectedFormat === 'adoptnet0' && ' Generates the AdOpT-NET0 case-directory structure (Topology, ConfigModel, node_data). Requires the AdOpT-NET0 engine (Settings).'}
+              {selectedFormat === 'osemosys' && ' otoole-compatible CSV dataset (22 files). Run with otoole + GLPK via the OSeMOSYS engine (Settings), or load into any otoole workflow.'}
             </p>
             <button
               onClick={() => {
+                setExportReport([]);
                 if (selectedFormat === 'calliope07') { exportToCalliope07(); return; }
+                if (selectedFormat === 'pypsa') { exportViaEngine('pypsa', 'PyPSA'); return; }
+                if (selectedFormat === 'osemosys') { exportViaEngine('osemosys', 'OSeMOSYS'); return; }
+                if (selectedFormat === 'adoptnet0') { exportViaEngine('adoptnet0', 'AdOpT-NET0'); return; }
                 const fmt = EXPORT_FORMATS.find(f => f.id === selectedFormat);
                 if (!fmt.supported) {
                   setExportStatus({ type: 'error', message: `${fmt.name} export is not yet supported.` });
@@ -753,6 +854,8 @@ calliope run model.yaml --scenario=Main
                 <span>{exportStatus.message}</span>
               </div>
             )}
+
+            <TranslationReport report={exportReport} />
           </div>
 
         </div>

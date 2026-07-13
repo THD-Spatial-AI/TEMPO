@@ -2,7 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import { checkCalliopeService, runCalliopeModel, engineForVersion } from '../services/calliopeClient';
 import Calliope07EnginePanel from './Calliope07EnginePanel';
+import EngineInstallPanel from './EngineInstallPanel';
 import { checkAdoptnet0Service, runAdoptnet0Model } from '../services/adoptnet0Client';
+import { checkEngineRunService, runEngineModel } from '../services/engineClient';
+import { resolveScenario } from '../services/scenarioResolver';
 import {
   FiPlay, FiStopCircle, FiCheckCircle, FiAlertCircle,
   FiClock, FiCpu, FiZap, FiActivity, FiSettings,
@@ -34,7 +37,7 @@ const MODELING_FRAMEWORKS = [
     description: 'Python for Power System Analysis',
     icon: FiCpu,
     color: 'from-gray-500 to-gray-600',
-    supported: false,
+    supported: true,
   },
   {
     id: 'osemosys',
@@ -42,18 +45,20 @@ const MODELING_FRAMEWORKS = [
     description: 'Open Source Energy Modelling System',
     icon: FiBarChart2,
     color: 'from-gray-500 to-gray-600',
-    supported: false,
+    supported: true,
   },
 ];
 
 const SOLVER_OPTIONS = {
   calliope:  ['highs'],
   adoptnet0: ['highs', 'gurobi', 'glpk'],
+  pypsa:     ['highs'],
+  osemosys:  ['glpk'],
 };
 
 
 const Run = ({ onNavigate }) => {
-  const { models, getCurrentModel, showNotification, addCompletedJob, removeCompletedJob, completedJobs, setActiveResultJobId, timeSeries } = useData();
+  const { models, getCurrentModel, showNotification, addCompletedJob, removeCompletedJob, completedJobs, setActiveResultJobId, timeSeries, technologies, overrides, scenarios } = useData();
 
   const [selectedModel, setSelectedModel]       = useState(null);
   const [selectedFramework, setSelectedFramework] = useState('calliope');
@@ -100,6 +105,8 @@ const Run = ({ onNavigate }) => {
   const [serviceStatus,    setServiceStatus]    = useState(null); // calliope 0.6.8
   const [calliope07Status, setCalliope07Status] = useState(null); // calliope 0.7 (experimental)
   const [adoptnet0Status,  setAdoptnet0Status]  = useState(null); // adoptnet0
+  const [pypsaStatus,      setPypsaStatus]      = useState(null); // pypsa
+  const [osemosysStatus,   setOsemosysStatus]   = useState(null); // osemosys
 
   // Which Calliope engine the selected model targets ('0.6' | '0.7')
   const calliopeEngine = engineForVersion(modelConfig.calliopeVersion);
@@ -218,6 +225,35 @@ const Run = ({ onNavigate }) => {
     const id = setInterval(check, 30_000);
     return () => { cancelled = true; clearInterval(id); };
   }, [calliopeEngine]);
+
+  // Check PyPSA service health — only while PyPSA is selected (optional engine,
+  // same rationale as the 0.7 effect above).
+  useEffect(() => {
+    if (selectedFramework !== 'pypsa') return undefined;
+    let cancelled = false;
+    const check = () => {
+      if (runningJobsRef.current.length > 0) return;
+      checkEngineRunService('pypsa').then(ok => { if (!cancelled) setPypsaStatus(ok); });
+    };
+    setPypsaStatus(null);
+    check();
+    const id = setInterval(check, 30_000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [selectedFramework]);
+
+  // Check OSeMOSYS service health — only while OSeMOSYS is selected.
+  useEffect(() => {
+    if (selectedFramework !== 'osemosys') return undefined;
+    let cancelled = false;
+    const check = () => {
+      if (runningJobsRef.current.length > 0) return;
+      checkEngineRunService('osemosys').then(ok => { if (!cancelled) setOsemosysStatus(ok); });
+    };
+    setOsemosysStatus(null);
+    check();
+    const id = setInterval(check, 30_000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [selectedFramework]);
 
   // Check AdOpT-NET0 service health on mount and every 30 s.
   useEffect(() => {
@@ -384,7 +420,9 @@ const Run = ({ onNavigate }) => {
 
     // Framework/engine-aware service check
     const isAdoptnet0 = selectedFramework === 'adoptnet0';
-    const isCalliope07 = !isAdoptnet0 && calliopeEngine === '0.7';
+    const isPypsa = selectedFramework === 'pypsa';
+    const isOsemosys = selectedFramework === 'osemosys';
+    const isCalliope07 = selectedFramework === 'calliope' && calliopeEngine === '0.7';
 
     // SPORES is gated on the experimental 0.7 engine until upstream support is verified
     if (isCalliope07 && modelConfig.mode === 'spores') {
@@ -397,10 +435,16 @@ const Run = ({ onNavigate }) => {
     }
 
     const currentStatus = isAdoptnet0 ? adoptnet0Status
+      : isPypsa ? pypsaStatus
+      : isOsemosys ? osemosysStatus
       : isCalliope07 ? calliope07Status : serviceStatus;
     const checkFn = isAdoptnet0 ? checkAdoptnet0Service
+      : isPypsa ? (() => checkEngineRunService('pypsa'))
+      : isOsemosys ? (() => checkEngineRunService('osemosys'))
       : isCalliope07 ? (() => checkCalliopeService('0.7')) : checkCalliopeService;
     const setStatus = isAdoptnet0 ? setAdoptnet0Status
+      : isPypsa ? setPypsaStatus
+      : isOsemosys ? setOsemosysStatus
       : isCalliope07 ? setCalliope07Status : setServiceStatus;
     const frameworkLabel = isCalliope07 ? 'Calliope 0.7 (experimental)' : framework.name;
 
@@ -411,6 +455,10 @@ const Run = ({ onNavigate }) => {
         showNotification(
           isCalliope07
             ? 'The Calliope 0.7 engine is not running. Install it from Settings → Calliope 0.7 Engine.'
+            : isPypsa
+            ? 'The PyPSA engine is not running. Install it from Settings → PyPSA Engine.'
+            : isOsemosys
+            ? 'The OSeMOSYS engine is not running. Install it from Settings → OSeMOSYS Engine.'
             : `${frameworkLabel} service is not running. Install it from the Setup screen.`,
           'error'
         );
@@ -427,7 +475,10 @@ const Run = ({ onNavigate }) => {
       configs.push(null); // baseline run — no scenario/override
     }
 
-    const runFn = isAdoptnet0 ? runAdoptnet0Model : runCalliopeModel;
+    const runFn = isAdoptnet0 ? runAdoptnet0Model
+      : isPypsa ? ((opts) => runEngineModel('pypsa', opts))
+      : isOsemosys ? ((opts) => runEngineModel('osemosys', opts))
+      : runCalliopeModel;
     const started = [];
     const failed = [];
 
@@ -453,18 +504,29 @@ const Run = ({ onNavigate }) => {
       // Only expand log for the first job to avoid UI flicker
       if (started.length === 0) setExpandedLog(jobId);
 
-      const modelData = {
+      let modelData = {
         ...selectedModel,
         solver: selectedSolver,
         modelConfig,
+        technologies: technologies || selectedModel.technologies || [],
         timeSeries: timeSeries.filter(ts => ts.modelId === selectedModel.id),
       };
 
       if (config) {
-        if (config.type === 'scenario') {
-          modelData.scenario = config.name;
+        if (isPypsa || isOsemosys) {
+          // Pre-resolve the scenario/override on the frontend — non-Calliope
+          // runners receive a concrete model with the override already applied.
+          const { model: resolved } = resolveScenario(
+            modelData, overrides || {}, scenarios || {}, config
+          );
+          modelData = resolved;
         } else {
-          modelData.override = config.name;
+          // Calliope handles scenario/override application natively in the runner.
+          if (config.type === 'scenario') {
+            modelData.scenario = config.name;
+          } else {
+            modelData.override = config.name;
+          }
         }
       }
 
@@ -530,6 +592,8 @@ const Run = ({ onNavigate }) => {
 
   const isCalliope07Selected = selectedFramework === 'calliope' && calliopeEngine === '0.7';
   const activeStatus    = selectedFramework === 'adoptnet0' ? adoptnet0Status
+    : selectedFramework === 'pypsa' ? pypsaStatus
+    : selectedFramework === 'osemosys' ? osemosysStatus
     : isCalliope07Selected ? calliope07Status : serviceStatus;
   const serviceReady    = activeStatus === true;
   const serviceChecking = activeStatus === null;
@@ -589,6 +653,8 @@ const Run = ({ onNavigate }) => {
               <strong>{activeFrameworkLabel} service offline.</strong>{' '}
               {selectedFramework === 'adoptnet0'
                 ? 'Install the AdOpT-NET0 environment from the Setup screen, or restart the service.'
+                : selectedFramework === 'pypsa'
+                ? 'Install the PyPSA engine from Settings → PyPSA Engine, or restart the service.'
                 : isCalliope07Selected
                 ? 'This model targets the experimental Calliope 0.7 engine. Install it from Settings → Calliope 0.7 Engine.'
                 : <>Start it with:{' '}
@@ -607,6 +673,9 @@ const Run = ({ onNavigate }) => {
                 if (selectedFramework === 'adoptnet0') {
                   setAdoptnet0Status(null);
                   checkAdoptnet0Service().then(ok => setAdoptnet0Status(ok));
+                } else if (selectedFramework === 'pypsa') {
+                  setPypsaStatus(null);
+                  checkEngineRunService('pypsa').then(ok => setPypsaStatus(ok));
                 } else if (isCalliope07Selected) {
                   setCalliope07Status(null);
                   checkCalliopeService('0.7').then(ok => setCalliope07Status(ok));
@@ -619,6 +688,24 @@ const Run = ({ onNavigate }) => {
             >
               Retry
             </button>
+          </div>
+        )}
+
+        {/* INLINE PYPSA INSTALL PANEL — shown when PyPSA is selected but not yet installed */}
+        {selectedFramework === 'pypsa' && pypsaStatus === false && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+            <EngineInstallPanel
+              title="PyPSA Engine"
+              icon={FiCpu}
+              description="Optional optimisation engine in its own isolated Python environment. Requires Python 3.10+."
+              checkFn="checkPypsaEnv"
+              installFn="installPypsaEnv"
+              onProgressFn="onPypsaInstallProgress"
+              onInstallSuccess={() => {
+                setPypsaStatus(null);
+                checkEngineRunService('pypsa').then(ok => setPypsaStatus(ok));
+              }}
+            />
           </div>
         )}
 

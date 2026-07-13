@@ -1,11 +1,15 @@
-﻿import React, { useState } from 'react';
+﻿import React, { useState, useRef } from 'react';
 import { FiFolder, FiTrash2, FiEdit2, FiCheck, FiX, FiPlus, FiDownload, FiUpload, FiMap, FiZap, FiInfo, FiEye, FiChevronDown, FiChevronRight, FiCpu, FiDatabase, FiActivity, FiLayers, FiUploadCloud, FiPackage } from 'react-icons/fi';
 import Papa from 'papaparse';
+import JSZip from 'jszip';
 import { useData } from '../context/DataContext';
 import CSVUploader from './CSVUploader';
 import { fetchTemplate } from '../utils/templateFetch';
 import CalliopeYAMLImporter from './CalliopeYAMLImporter';
 import CSVImportWizard from './CSVImportWizard';
+import TranslationReport from './TranslationReport';
+import { detectArchiveFormat } from '../services/archiveFormat';
+import { importModelArchive } from '../services/engineClient';
 
 const Models = () => {
   const { models, setModels, currentModelId, loadModel, deleteModel, renameModel, createModel, setTimeSeries, setOverrides, setScenarios, showNotification } = useData();
@@ -18,6 +22,78 @@ const Models = () => {
   const [renamingTsId, setRenamingTsId] = useState(null);
   const [renamingTsName, setRenamingTsName] = useState('');
   const [showCSVWizard, setShowCSVWizard] = useState(false);
+  const [archiveImporting, setArchiveImporting] = useState(false);
+  const [importReport, setImportReport] = useState([]);
+  const archiveInputRef = useRef(null);
+
+  // Import a framework archive (PyPSA / OSeMOSYS / AdOpT-NET0): detect the
+  // format from the ZIP file listing, then let that engine's Python service
+  // parse and translate it into a TEMPO model.
+  const handleArchiveFile = async (file) => {
+    if (!file) return;
+    setArchiveImporting(true);
+    setImportReport([]);
+    try {
+      const zip = await JSZip.loadAsync(file);
+      const format = detectArchiveFormat(Object.keys(zip.files));
+
+      if (format === 'calliope') {
+        setShowCreatePanel(false);
+        setShowYAMLImporter(true);
+        showNotification('This is a Calliope archive — use the YAML importer that just opened.', 'info');
+        return;
+      }
+      if (format === 'unknown') {
+        showNotification('Could not detect the archive format (expected PyPSA, OSeMOSYS, AdOpT-NET0, or Calliope).', 'error');
+        return;
+      }
+
+      const { model, report, extraModels } = await importModelArchive(format, file);
+      const name = model.name || file.name.replace(/\.zip$/i, '');
+      createModel(
+        name,
+        model.locations || [],
+        model.links || [],
+        [],
+        model.technologies || [],
+        model.timeSeries || [],
+        {
+          source: `${format}_import`,
+          modelConfig: model.modelConfig || {},
+          description: `Imported from ${format} archive: ${file.name}`,
+        },
+      );
+      for (const extra of extraModels || []) {
+        const extraName = extra.name || `${name} (extra)`;
+        createModel(
+          extraName,
+          extra.locations || [],
+          extra.links || [],
+          [],
+          extra.technologies || [],
+          extra.timeSeries || [],
+          {
+            source: `${format}_import`,
+            modelConfig: extra.modelConfig || {},
+            description: `Imported from ${format} archive: ${file.name}`,
+          },
+        );
+      }
+      setImportReport(report || []);
+      const total = 1 + (extraModels?.length || 0);
+      showNotification(
+        total > 1 ? `${total} models imported from ${format} archive!` : `${name} imported from ${format} archive!`,
+        'success'
+      );
+      setShowCreatePanel(false);
+    } catch (err) {
+      console.error('Archive import error:', err);
+      showNotification(`Import failed: ${err.message}`, 'error');
+    } finally {
+      setArchiveImporting(false);
+      if (archiveInputRef.current) archiveInputRef.current.value = '';
+    }
+  };
   const [wizardData, setWizardData] = useState({
     modelName: '',
     description: '',
@@ -1514,8 +1590,40 @@ const Models = () => {
                 <div className="font-bold text-slate-800 mb-1">CSV Wizard</div>
                 <div className="text-xs text-slate-500">Build a model from locations, links and timeseries CSV files</div>
               </button>
+              <button
+                onClick={() => archiveInputRef.current?.click()}
+                disabled={archiveImporting}
+                className="flex flex-col items-start p-5 border-2 border-gray-200 rounded-xl hover:border-gray-300 hover:bg-gray-50 transition-all text-left group disabled:opacity-50 col-span-2"
+              >
+                <div className="p-2 bg-gray-100 rounded-lg mb-3 group-hover:bg-gray-200 transition-colors">
+                  <FiUploadCloud size={22} className="text-gray-700" />
+                </div>
+                <div className="font-bold text-slate-800 mb-1">
+                  {archiveImporting ? 'Importing…' : 'Framework Archive (auto-detect)'}
+                </div>
+                <div className="text-xs text-slate-500">
+                  Import a PyPSA (netCDF/CSV), OSeMOSYS, or AdOpT-NET0 archive — TEMPO detects the
+                  format and translates it. Requires the matching engine to be installed (Settings).
+                </div>
+              </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Hidden file input for framework-archive imports */}
+      <input
+        ref={archiveInputRef}
+        type="file"
+        accept=".zip"
+        className="hidden"
+        onChange={(e) => handleArchiveFile(e.target.files?.[0])}
+      />
+
+      {/* Translation report from the last framework-archive import */}
+      {importReport.length > 0 && (
+        <div className="mb-6">
+          <TranslationReport report={importReport} title="Import translation report" />
         </div>
       )}
 

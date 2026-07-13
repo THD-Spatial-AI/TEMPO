@@ -143,6 +143,54 @@ contextBridge.exposeInMainWorld('electronAPI', {
   /** Restart the running AdOpT-NET0 uvicorn service. */
   restartAdoptnet0Service: () => ipcRenderer.invoke('adoptnet0:restart-service'),
 
+  // ── PyPSA Python service (direct venv mode) ────────────────────────────────
+
+  /** Get the PyPSA service URL. */
+  getPypsaServiceURL: () => ipcRenderer.invoke('pypsa:service-url'),
+
+  /** Check whether the PyPSA venv exists and the service is running. */
+  checkPypsaEnv: () => ipcRenderer.invoke('pypsa:check'),
+
+  /**
+   * Install the PyPSA venv (Python 3.10+) and start the service.
+   * Streams progress via onPypsaInstallProgress.
+   */
+  installPypsaEnv: () => ipcRenderer.invoke('pypsa:install'),
+
+  /** Subscribe to PyPSA install progress events. */
+  onPypsaInstallProgress: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('pypsa:install-progress', handler);
+    return () => ipcRenderer.removeListener('pypsa:install-progress', handler);
+  },
+
+  /** Restart the running PyPSA uvicorn service. */
+  restartPypsaService: () => ipcRenderer.invoke('pypsa:restart-service'),
+
+  // ── OSeMOSYS Python service (direct venv mode) ─────────────────────────────
+
+  /** Get the OSeMOSYS service URL. */
+  getOsemosysServiceURL: () => ipcRenderer.invoke('osemosys:service-url'),
+
+  /** Check whether the OSeMOSYS venv exists, glpsol is available, and the service is running. */
+  checkOsemosysEnv: () => ipcRenderer.invoke('osemosys:check'),
+
+  /**
+   * Install the OSeMOSYS venv (Python 3.10+, otoole toolchain) and start the service.
+   * Streams progress via onOsemosysInstallProgress.
+   */
+  installOsemosysEnv: () => ipcRenderer.invoke('osemosys:install'),
+
+  /** Subscribe to OSeMOSYS install progress events. */
+  onOsemosysInstallProgress: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('osemosys:install-progress', handler);
+    return () => ipcRenderer.removeListener('osemosys:install-progress', handler);
+  },
+
+  /** Restart the running OSeMOSYS uvicorn service. */
+  restartOsemosysService: () => ipcRenderer.invoke('osemosys:restart-service'),
+
   // ── opentech-db URL ───────────────────────────────────────────────────────
 
   /**

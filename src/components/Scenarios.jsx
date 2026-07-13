@@ -8,6 +8,7 @@ import SaveBar from './ui/SaveBar';
 import {
   SCENARIO_TEMPLATES, SWEEP_PRESETS, ALL_OVERRIDE_TEMPLATES, setNestedValue,
 } from '../data/overrideTemplates';
+import { getModelFramework, FRAMEWORKS, FrameworkBadge } from '../utils/modelFramework.jsx';
 
 // ─── Scenario Template Cards ───────────────────────────────────────────────────
 const ScenarioTemplateCard = ({ template, overrides, onImport }) => {
@@ -22,8 +23,11 @@ const ScenarioTemplateCard = ({ template, overrides, onImport }) => {
           <div className="flex items-start gap-3 flex-1 min-w-0">
             <span className="text-base shrink-0 mt-0.5">{template.icon}</span>
             <div className="min-w-0">
-              <h3 className="text-sm font-semibold text-slate-800">{template.name}</h3>
-              <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{template.description}</p>
+              <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                <h3 className="text-sm font-semibold text-slate-800">{template.name}</h3>
+                <FrameworkBadge framework="calliope06" />
+              </div>
+              <p className="text-xs text-slate-500 line-clamp-2">{template.description}</p>
               <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                 <span className="text-xs text-slate-400">
                   {template.suggestedOverrides.length} override{template.suggestedOverrides.length !== 1 ? 's' : ''}
@@ -348,11 +352,6 @@ const ScenarioModal = ({ initial, overrides, onConfirm, onClose }) => {
                 ))}
               </div>
 
-              <div className="mt-3 p-3 bg-slate-800 rounded-xl">
-                <code className="text-xs text-green-300">
-                  {name || 'scenario'}: [{selected.map((o) => `"${o}"`).join(', ')}]
-                </code>
-              </div>
             </div>
           )}
         </div>
@@ -388,6 +387,7 @@ const Scenarios = () => {
 
   const scenarioCount = Object.keys(scenarios).length;
   const overrideCount = Object.keys(overrides).length;
+  const framework = getModelFramework(currentModel);
 
   // —— Scenario template import ——
   const handleImportTemplate = (template) => {
@@ -402,7 +402,7 @@ const Scenarios = () => {
 
     let newOverrides = { ...overrides };
     for (const tmpl of missingTemplates) {
-      newOverrides[tmpl.id] = tmpl.buildConfig({});
+      newOverrides[tmpl.id] = { _meta: { fw: 'calliope06' }, ...tmpl.buildConfig({}) };
     }
     if (missingTemplates.length > 0) setOverrides(newOverrides);
 
@@ -424,7 +424,7 @@ const Scenarios = () => {
     for (const v of stepValues) {
       const overrideName = `${baseName}_${v}`;
       const config = setNestedValue({}, effectivePath, v);
-      newOverrides[overrideName] = config;
+      newOverrides[overrideName] = { _meta: { fw: 'calliope06' }, ...config };
 
       if (createScenarios) {
         newScenarios[`${baseName}_scenario_${v}`] = [...baseOverrides, overrideName];
@@ -482,6 +482,29 @@ const Scenarios = () => {
           <FiLayers className="mx-auto text-slate-300 mb-3" size={32} />
           <p className="font-semibold text-slate-600 mb-1">No model selected</p>
           <p className="text-sm text-slate-400">Select a model to manage scenarios</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (framework !== 'calliope06') {
+    const fw = FRAMEWORKS[framework] ?? FRAMEWORKS.unknown;
+    return (
+      <div className="flex-1 flex flex-col bg-slate-50">
+        <SaveBar label="Scenarios" />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center max-w-sm px-6">
+            <FiLayers className="mx-auto text-slate-300 mb-3" size={32} />
+            <p className="font-semibold text-slate-700 mb-1">
+              Scenarios — {fw.label}
+            </p>
+            <p className="text-sm text-slate-400 mb-4">
+              {framework === 'calliope07'
+                ? 'Calliope 0.7 uses a different scenario format. Scenario management for 0.7 models is coming soon.'
+                : `Scenario management for ${fw.label} is not yet supported.`}
+            </p>
+            <FrameworkBadge framework={framework} className="text-xs" />
+          </div>
         </div>
       </div>
     );
@@ -666,11 +689,6 @@ const Scenarios = () => {
                                 {!overrides[o] && <span className="text-xs">(missing override)</span>}
                               </div>
                             ))}
-                          </div>
-                          <div className="p-3 bg-slate-800 rounded-xl">
-                            <code className="text-xs text-green-300">
-                              {name}: [{overrideList.map((o) => `"${o}"`).join(', ')}]
-                            </code>
                           </div>
                         </div>
                       )}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { FiDownload, FiRefreshCw, FiTerminal, FiCheckCircle, FiAlertCircle, FiBox, FiCpu, FiZap } from 'react-icons/fi';
 import Calliope07EnginePanel from './Calliope07EnginePanel';
+import EngineInstallPanel from './EngineInstallPanel';
 
 // ── Module catalogue (mirrors SetupScreen) ───────────────────────────────────
 const PYTHON_MODULES = [
@@ -11,13 +12,9 @@ const PYTHON_MODULES = [
     badgeColor: 'bg-gray-100 text-gray-700',
     description: 'Full energy system modelling & optimisation.',
   },
-  {
-    id: 'pypsa',
-    label: 'PyPSA ≥0.26',
-    badge: 'Optional',
-    badgeColor: 'bg-slate-100 text-slate-500',
-    description: 'Python for Power System Analysis — alternative framework.',
-  },
+  // NOTE: PyPSA is no longer installed into calliope-venv — it has its own
+  // isolated engine venv (see EngineInstallPanel below). requirements.pypsa.txt
+  // now targets that venv and is incompatible with the 0.6.8 stack.
   {
     id: 'adopt',
     label: 'ADOPT (latest)',
@@ -335,6 +332,30 @@ const Settings = () => {
 
         {/* Calliope 0.7 engine (experimental) */}
         <Calliope07EnginePanelSection />
+
+        {/* PyPSA engine */}
+        <div className="border-t border-slate-200 pt-6">
+          <EngineInstallPanel
+            title="PyPSA Engine"
+            icon={FiCpu}
+            description="Optional optimisation engine (Python for Power System Analysis) in its own isolated Python environment. Any TEMPO model can run on it — the translation from TEMPO's internal representation happens automatically at run time. Also enables PyPSA model import/export. Requires Python 3.10+."
+            checkFn="checkPypsaEnv"
+            installFn="installPypsaEnv"
+            onProgressFn="onPypsaInstallProgress"
+          />
+        </div>
+
+        {/* OSeMOSYS engine */}
+        <div className="border-t border-slate-200 pt-6">
+          <EngineInstallPanel
+            title="OSeMOSYS Engine"
+            icon={FiZap}
+            description="Optional optimisation engine (Open Source Energy Modelling System, via otoole + GLPK) in its own isolated Python environment. Hourly time series are aggregated into configurable timeslices at run time. Also enables OSeMOSYS dataset import/export. Requires Python 3.10+; the GLPK solver is bundled on Windows."
+            checkFn="checkOsemosysEnv"
+            installFn="installOsemosysEnv"
+            onProgressFn="onOsemosysInstallProgress"
+          />
+        </div>
 
         {/* Privacy & Data */}
         <div className="border-t border-slate-200 pt-6">

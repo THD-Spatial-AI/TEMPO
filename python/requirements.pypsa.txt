@@ -1,11 +1,20 @@
 # PyPSA – Python for Power System Analysis
 # https://pypsa.org
-# Tested Python versions: 3.9, 3.10, 3.11, 3.12
+# Requires Python 3.10+ (venv: pypsa-venv, service: pypsa_service.py, port 5003)
+#
+# Pin range chosen 2026-07; re-validate against the reference model
+# (scripts/verify_engines.py) before loosening.
 
-pypsa>=0.26,<0.30
+pypsa>=0.34,<0.36
 
-# Core runtime deps (pypsa installs these; pin for reproducibility)
-numpy>=1.23,<2.0
-pandas>=1.5,<2.2
+# LP/MILP solver used by the runner (linopy backend)
+highspy>=1.7
+
+# netCDF backend for network import/export (model.nc in export ZIPs)
+netCDF4>=1.6
+
+# Core runtime deps (pypsa installs these; floor for reproducibility)
+numpy>=1.24
+pandas>=2.1
 networkx>=2.8
-scipy>=1.6
+scipy>=1.11

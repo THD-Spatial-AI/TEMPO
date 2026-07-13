@@ -10,6 +10,8 @@ let backendProcess     = null;   // Go REST backend (port 8082)
 let calliopeService    = null;   // Python uvicorn service (port 5000, optional)
 let calliope07Service  = null;   // Calliope 0.7 FastAPI service (port 5002, optional)
 let adoptnet0Service   = null;   // AdOpT-NET0 FastAPI service (port 5001, optional)
+let pypsaService       = null;   // PyPSA FastAPI service (port 5003, optional)
+let osemosysService    = null;   // OSeMOSYS FastAPI service (port 5004, optional)
 let ccsSimService      = null;   // CCS simulation FastAPI service (port 8766)
 let hydrogenSimService = null;   // Hydrogen simulation FastAPI service (port 8765)
 
@@ -17,6 +19,8 @@ let BACKEND_PORT    = 8082;   // may be reassigned at startup if port is taken
 let CALLIOPE_PORT   = 5000;   // may be reassigned at startup if port is taken
 let ADOPTNET0_PORT  = 5001;   // may be reassigned at startup if port is taken
 let CALLIOPE07_PORT = 5002;   // may be reassigned at startup if port is taken
+let PYPSA_PORT      = 5003;   // may be reassigned at startup if port is taken
+let OSEMOSYS_PORT   = 5004;   // may be reassigned at startup if port is taken
 const IS_WIN        = process.platform === 'win32';
 const IS_LINUX      = process.platform === 'linux';
 
@@ -280,14 +284,16 @@ ipcMain.handle('docker:start-all', async () => {
 
 // ─── IPC: Service URL registry ───────────────────────────────────────────────
 ipcMain.handle('services:urls', async () => {
-  const [c, c07, a, o, h2, ccs, gs, be] = await Promise.all([
-    isPortOpen(CALLIOPE_PORT), isPortOpen(CALLIOPE07_PORT), isPortOpen(ADOPTNET0_PORT), isPortOpen(8000),
+  const [c, c07, a, py, osm, o, h2, ccs, gs, be] = await Promise.all([
+    isPortOpen(CALLIOPE_PORT), isPortOpen(CALLIOPE07_PORT), isPortOpen(ADOPTNET0_PORT), isPortOpen(PYPSA_PORT), isPortOpen(OSEMOSYS_PORT), isPortOpen(8000),
     isPortOpen(8765), isPortOpen(8766), isPortOpen(8081), isPortOpen(BACKEND_PORT),
   ]);
   return {
     calliope:   { url: `http://localhost:${CALLIOPE_PORT}`,  running: c   },
     calliope07: { url: `http://localhost:${CALLIOPE07_PORT}`, running: c07 },
     adoptnet0:  { url: `http://localhost:${ADOPTNET0_PORT}`, running: a   },
+    pypsa:      { url: `http://localhost:${PYPSA_PORT}`,     running: py  },
+    osemosys:   { url: `http://localhost:${OSEMOSYS_PORT}`,  running: osm },
     opentech:   { url: 'http://localhost:8000',              running: o   },
     hydrogen:   { url: 'http://localhost:8765',              running: h2  },
     ccs:        { url: 'http://localhost:8766',              running: ccs },
@@ -2031,6 +2037,502 @@ ipcMain.handle('calliope07:restart-service', async () => {
   return { running: await isPortOpen(CALLIOPE07_PORT) };
 });
 
+// ─── PyPSA engine — own venv, Python 3.10+ ──────────────────────────────────
+
+function resolvePypsaVenv() {
+  const binDir = IS_WIN ? 'Scripts' : 'bin';
+  const pyExe  = IS_WIN ? 'python.exe' : 'python3';
+  const venvDir = path.join(app.getPath('userData'), 'pypsa-venv');
+  const python  = path.join(venvDir, binDir, pyExe);
+
+  const hasPypsa = (dir) => {
+    try { return fs.readdirSync(dir).some(d => d.startsWith('pypsa')); }
+    catch { return false; }
+  };
+
+  let exists = false;
+  if (fs.existsSync(python)) {
+    const siteWin  = path.join(venvDir, 'Lib', 'site-packages');
+    const siteUnix = path.join(venvDir, 'lib');
+    exists = hasPypsa(siteWin);
+    if (!exists && fs.existsSync(siteUnix)) {
+      exists = fs.readdirSync(siteUnix).some(ver => {
+        try { return hasPypsa(path.join(siteUnix, ver, 'site-packages')); } catch { return false; }
+      });
+    }
+  }
+
+  return { venvDir, python, exists };
+}
+
+async function ensurePypsaPython(sendProgress) {
+  const found = findSystemPython310Plus();
+  if (found) {
+    try {
+      const ver = execFileSync(found, ['--version'],
+        { timeout: 5000, stdio: ['ignore', 'pipe', 'pipe'] }).toString().trim();
+      sendProgress({ type: 'log', line: `Found: ${ver} → ${found}` });
+    } catch { }
+    return found;
+  }
+
+  if (IS_WIN) {
+    sendProgress({ type: 'log', line: 'No Python 3.10+ found — downloading Python 3.12.9…' });
+    return downloadAndInstallPython312Win(sendProgress);
+  }
+
+  throw new Error(
+    'Python 3.10+ not found (required by PyPSA).\n' +
+    'Install it, then relaunch TEMPO:\n' +
+    '  Ubuntu/Debian: sudo apt-get install python3.11 python3.11-venv\n' +
+    '  macOS:         brew install python@3.11\n' +
+    '  Other:         https://www.python.org/downloads/'
+  );
+}
+
+// ─── PyPSA service (FastAPI / uvicorn) ───────────────────────────────────────
+let _pypsaSvcIntentionalStop = false;
+let _pypsaSvcRestartCount    = 0;
+const _PYPSA_MAX_RESTARTS    = 5;
+
+async function startPypsaService() {
+  _pypsaSvcIntentionalStop = false;
+  _pypsaSvcRestartCount    = 0;
+  if (await isPortOpen(PYPSA_PORT)) {
+    console.log('[pypsa-svc] Already running on port', PYPSA_PORT);
+    return;
+  }
+
+  const { python, exists } = resolvePypsaVenv();
+  if (!exists) {
+    console.log('[pypsa-svc] venv not ready — skipping autostart');
+    return;
+  }
+
+  const { pythonDir } = getServicePaths();
+
+  console.log(`[pypsa-svc] Starting uvicorn on port ${PYPSA_PORT}`);
+  pypsaService = spawn(python, [
+    '-m', 'uvicorn', 'pypsa_service:app',
+    '--host', '127.0.0.1',
+    '--port', String(PYPSA_PORT),
+    '--workers', '1',
+    '--log-level', 'warning',
+  ], { cwd: pythonDir, shell: false });
+
+  pypsaService.stdout.on('data', d => { for (const l of d.toString().split('\n').filter(x => x.trim())) console.log(`[pypsa-svc] ${l}`); });
+  pypsaService.stderr.on('data', d => { for (const l of d.toString().split('\n').filter(x => x.trim())) console.log(`[pypsa-svc] ${l}`); });
+  pypsaService.on('close', code => {
+    console.log(`[pypsa-svc] Exited: ${code}`);
+    pypsaService = null;
+    if (!_pypsaSvcIntentionalStop && _pypsaSvcRestartCount < _PYPSA_MAX_RESTARTS) {
+      _pypsaSvcRestartCount++;
+      const delay = Math.min(2000 * _pypsaSvcRestartCount, 10000);
+      setTimeout(() => startPypsaService().catch(e => console.warn('[pypsa-svc] Restart failed:', e)), delay);
+    }
+  });
+
+  try {
+    await waitForPort(PYPSA_PORT, 15000);
+    console.log('[pypsa-svc] Ready on port', PYPSA_PORT);
+  } catch {
+    console.warn('[pypsa-svc] Did not start within 15 s — continuing anyway');
+  }
+}
+
+function stopPypsaService() {
+  _pypsaSvcIntentionalStop = true;
+  if (pypsaService) { pypsaService.kill(); pypsaService = null; }
+}
+
+// ─── IPC: PyPSA service management ───────────────────────────────────────────
+
+ipcMain.handle('pypsa:service-url', async () => ({
+  url:     `http://127.0.0.1:${PYPSA_PORT}`,
+  running: await isPortOpen(PYPSA_PORT),
+}));
+
+ipcMain.handle('pypsa:check', async () => {
+  const { python, exists, venvDir } = resolvePypsaVenv();
+  const serviceRunning = await isPortOpen(PYPSA_PORT);
+
+  let importOk = false;
+  if (exists && fs.existsSync(python)) {
+    try {
+      execFileSync(python, ['-c', 'import pypsa; print("ok", pypsa.__version__)'],
+        { timeout: 30000, stdio: ['ignore', 'pipe', 'pipe'] });
+      importOk = true;
+    } catch { importOk = false; }
+  }
+
+  return { envExists: importOk, venvPath: importOk ? venvDir : null, serviceRunning, platform: process.platform };
+});
+
+ipcMain.handle('pypsa:install', async (_event) => {
+  const sendProgress = (data) => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('pypsa:install-progress', data);
+  };
+
+  try {
+    sendProgress({ type: 'stage', label: 'Locating Python 3.10+…' });
+    const systemPython = await ensurePypsaPython(sendProgress);
+
+    const venvDir    = path.join(app.getPath('userData'), 'pypsa-venv');
+    const binDir     = IS_WIN ? 'Scripts' : 'bin';
+    const pyExe      = IS_WIN ? 'python.exe' : 'python3';
+    const venvPython = path.join(venvDir, binDir, pyExe);
+
+    sendProgress({ type: 'log', line: 'Stopping any running PyPSA service…' });
+    stopPypsaService();
+    await new Promise(r => setTimeout(r, 2000));
+
+    if (fs.existsSync(venvDir)) {
+      sendProgress({ type: 'log', line: 'Removing old PyPSA environment…' });
+      if (IS_WIN) {
+        try { execFileSync('cmd', ['/c', 'rmdir', '/s', '/q', venvDir], { timeout: 30000, stdio: ['ignore', 'pipe', 'pipe'] }); }
+        catch (e) { sendProgress({ type: 'log', line: `⚠ rmdir warning: ${e.message}` }); }
+      } else {
+        try { fs.rmSync(venvDir, { recursive: true, force: true }); }
+        catch (e) { sendProgress({ type: 'log', line: `⚠ Remove warning: ${e.message}` }); }
+      }
+    }
+
+    sendProgress({ type: 'stage', label: 'Creating PyPSA Python environment…' });
+    sendProgress({ type: 'log', line: `Location: ${venvDir}` });
+    fs.mkdirSync(path.dirname(venvDir), { recursive: true });
+
+    const pipEnv = { ...process.env, PIP_PREFER_BINARY: '1', PIP_NO_CACHE_DIR: '1' };
+    const recentLines = [];
+    const runChild = (cmd, args, label) => new Promise((resolve, reject) => {
+      const child = spawn(cmd, args, { shell: false, env: pipEnv });
+      const onLine = l => {
+        recentLines.push(l);
+        if (recentLines.length > 50) recentLines.shift();
+        sendProgress({ type: 'log', line: l });
+      };
+      child.stdout.on('data', d => { for (const l of d.toString().split('\n').filter(x => x.trim())) onLine(l); });
+      child.stderr.on('data', d => { for (const l of d.toString().split('\n').filter(x => x.trim())) onLine(l); });
+      child.on('close', code => {
+        if (code === 0) resolve();
+        else reject(new Error(`${label} failed (exit ${code})\n\n${recentLines.slice(-10).join('\n')}`));
+      });
+      child.on('error', err => reject(new Error(`${label} could not start: ${err.message}`)));
+    });
+
+    await runChild(systemPython, ['-m', 'venv', '--clear', venvDir], 'venv creation');
+    try { await runChild(venvPython, ['-m', 'ensurepip', '--upgrade'], 'ensurepip'); } catch { /* non-fatal */ }
+
+    sendProgress({ type: 'stage', label: 'Upgrading build tools…' });
+    await runChild(venvPython, ['-m', 'pip', 'install', '--upgrade', '--quiet', 'pip', 'setuptools', 'wheel'], 'pip upgrade');
+
+    const { pythonDir } = getServicePaths();
+
+    sendProgress({ type: 'stage', label: 'Installing service layer (FastAPI + uvicorn)…' });
+    await runChild(venvPython, [
+      '-m', 'pip', 'install', '--prefer-binary', '--no-warn-script-location', '--no-cache-dir',
+      '-r', path.join(pythonDir, 'requirements.service.txt'),
+    ], 'pip install (service layer)');
+
+    sendProgress({ type: 'stage', label: 'Installing PyPSA…' });
+    sendProgress({ type: 'log', line: 'This may take several minutes…' });
+    recentLines.length = 0;
+    await runChild(venvPython, [
+      '-m', 'pip', 'install', '--prefer-binary', '--no-warn-script-location', '--no-cache-dir',
+      '-r', path.join(pythonDir, 'requirements.pypsa.txt'),
+    ], 'pip install (pypsa)');
+
+    sendProgress({ type: 'stage', label: 'Verifying PyPSA installation…' });
+    recentLines.length = 0;
+    await runChild(venvPython, ['-c',
+      'import pypsa, highspy;' +
+      'print("pypsa", pypsa.__version__)'
+    ], 'verification');
+
+    sendProgress({ type: 'stage', label: 'Starting PyPSA service…' });
+    await startPypsaService();
+
+    sendProgress({ type: 'done' });
+    return { success: true };
+  } catch (err) {
+    const msg = err.message || String(err);
+    sendProgress({ type: 'error', error: msg });
+    return { success: false, error: msg };
+  }
+});
+
+ipcMain.handle('pypsa:restart-service', async () => {
+  stopPypsaService();
+  await startPypsaService();
+  return { running: await isPortOpen(PYPSA_PORT) };
+});
+
+// ─── OSeMOSYS engine (otoole + GLPK) — own venv, Python 3.10+ ────────────────
+
+function resolveOsemosysVenv() {
+  const binDir = IS_WIN ? 'Scripts' : 'bin';
+  const pyExe  = IS_WIN ? 'python.exe' : 'python3';
+  const venvDir = path.join(app.getPath('userData'), 'osemosys-venv');
+  const python  = path.join(venvDir, binDir, pyExe);
+
+  const hasOtoole = (dir) => {
+    try { return fs.readdirSync(dir).some(d => d.startsWith('otoole')); }
+    catch { return false; }
+  };
+
+  let exists = false;
+  if (fs.existsSync(python)) {
+    const siteWin  = path.join(venvDir, 'Lib', 'site-packages');
+    const siteUnix = path.join(venvDir, 'lib');
+    exists = hasOtoole(siteWin);
+    if (!exists && fs.existsSync(siteUnix)) {
+      exists = fs.readdirSync(siteUnix).some(ver => {
+        try { return hasOtoole(path.join(siteUnix, ver, 'site-packages')); } catch { return false; }
+      });
+    }
+  }
+
+  return { venvDir, python, exists };
+}
+
+async function ensureOsemosysPython(sendProgress) {
+  const found = findSystemPython310Plus();
+  if (found) {
+    try {
+      const ver = execFileSync(found, ['--version'],
+        { timeout: 5000, stdio: ['ignore', 'pipe', 'pipe'] }).toString().trim();
+      sendProgress({ type: 'log', line: `Found: ${ver} → ${found}` });
+    } catch { }
+    return found;
+  }
+
+  if (IS_WIN) {
+    sendProgress({ type: 'log', line: 'No Python 3.10+ found — downloading Python 3.12.9…' });
+    return downloadAndInstallPython312Win(sendProgress);
+  }
+
+  throw new Error(
+    'Python 3.10+ not found (required by the OSeMOSYS toolchain).\n' +
+    'Install it, then relaunch TEMPO:\n' +
+    '  Ubuntu/Debian: sudo apt-get install python3.11 python3.11-venv\n' +
+    '  macOS:         brew install python@3.11\n' +
+    '  Other:         https://www.python.org/downloads/'
+  );
+}
+
+/** Bundled + user solver dirs that may contain glpsol (mirrors calliope07 CBC lookup). */
+function getGlpsolDirs() {
+  const solverSubdir = IS_WIN ? 'windows' : IS_LINUX ? 'linux' : '';
+  if (!solverSubdir) return [];
+  const bundled = app.isPackaged
+    ? path.join(process.resourcesPath, 'app.asar.unpacked', 'solvers', solverSubdir)
+    : path.join(__dirname, '..', 'solvers', solverSubdir);
+  const user = path.join(app.getPath('userData'), 'solvers', solverSubdir);
+  return [bundled, user].filter(d => fs.existsSync(d));
+}
+
+// ─── OSeMOSYS service (FastAPI / uvicorn) ────────────────────────────────────
+let _osemosysSvcIntentionalStop = false;
+let _osemosysSvcRestartCount    = 0;
+const _OSEMOSYS_MAX_RESTARTS    = 5;
+
+async function startOsemosysService() {
+  _osemosysSvcIntentionalStop = false;
+  _osemosysSvcRestartCount    = 0;
+  if (await isPortOpen(OSEMOSYS_PORT)) {
+    console.log('[osemosys-svc] Already running on port', OSEMOSYS_PORT);
+    return;
+  }
+
+  const { python, exists } = resolveOsemosysVenv();
+  if (!exists) {
+    console.log('[osemosys-svc] venv not ready — skipping autostart');
+    return;
+  }
+
+  const { pythonDir } = getServicePaths();
+
+  // glpsol must be resolvable from the service process (shutil.which)
+  const childEnv = { ...process.env };
+  const solverDirs = getGlpsolDirs();
+  if (solverDirs.length > 0) {
+    childEnv.PATH = solverDirs.join(path.delimiter) + path.delimiter + (childEnv.PATH || '');
+  }
+
+  console.log(`[osemosys-svc] Starting uvicorn on port ${OSEMOSYS_PORT}`);
+  osemosysService = spawn(python, [
+    '-m', 'uvicorn', 'osemosys_service:app',
+    '--host', '127.0.0.1',
+    '--port', String(OSEMOSYS_PORT),
+    '--workers', '1',
+    '--log-level', 'warning',
+  ], { cwd: pythonDir, shell: false, env: childEnv });
+
+  osemosysService.stdout.on('data', d => { for (const l of d.toString().split('\n').filter(x => x.trim())) console.log(`[osemosys-svc] ${l}`); });
+  osemosysService.stderr.on('data', d => { for (const l of d.toString().split('\n').filter(x => x.trim())) console.log(`[osemosys-svc] ${l}`); });
+  osemosysService.on('close', code => {
+    console.log(`[osemosys-svc] Exited: ${code}`);
+    osemosysService = null;
+    if (!_osemosysSvcIntentionalStop && _osemosysSvcRestartCount < _OSEMOSYS_MAX_RESTARTS) {
+      _osemosysSvcRestartCount++;
+      const delay = Math.min(2000 * _osemosysSvcRestartCount, 10000);
+      setTimeout(() => startOsemosysService().catch(e => console.warn('[osemosys-svc] Restart failed:', e)), delay);
+    }
+  });
+
+  try {
+    await waitForPort(OSEMOSYS_PORT, 15000);
+    console.log('[osemosys-svc] Ready on port', OSEMOSYS_PORT);
+  } catch {
+    console.warn('[osemosys-svc] Did not start within 15 s — continuing anyway');
+  }
+}
+
+function stopOsemosysService() {
+  _osemosysSvcIntentionalStop = true;
+  if (osemosysService) { osemosysService.kill(); osemosysService = null; }
+}
+
+// ─── IPC: OSeMOSYS service management ────────────────────────────────────────
+
+ipcMain.handle('osemosys:service-url', async () => ({
+  url:     `http://127.0.0.1:${OSEMOSYS_PORT}`,
+  running: await isPortOpen(OSEMOSYS_PORT),
+}));
+
+ipcMain.handle('osemosys:check', async () => {
+  const { python, exists, venvDir } = resolveOsemosysVenv();
+  const serviceRunning = await isPortOpen(OSEMOSYS_PORT);
+
+  let importOk = false;
+  if (exists && fs.existsSync(python)) {
+    try {
+      execFileSync(python, ['-c',
+        'from importlib.metadata import version; print("ok", version("otoole"))'
+      ], { timeout: 30000, stdio: ['ignore', 'pipe', 'pipe'] });
+      importOk = true;
+    } catch { importOk = false; }
+  }
+
+  const glpsolName = IS_WIN ? 'glpsol.exe' : 'glpsol';
+  const glpsolFound = getGlpsolDirs().some(d => fs.existsSync(path.join(d, glpsolName)));
+
+  return {
+    envExists: importOk,
+    venvPath: importOk ? venvDir : null,
+    serviceRunning,
+    glpsolFound,
+    platform: process.platform,
+  };
+});
+
+ipcMain.handle('osemosys:install', async (_event) => {
+  const sendProgress = (data) => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('osemosys:install-progress', data);
+  };
+
+  try {
+    sendProgress({ type: 'stage', label: 'Locating Python 3.10+…' });
+    const systemPython = await ensureOsemosysPython(sendProgress);
+
+    const venvDir    = path.join(app.getPath('userData'), 'osemosys-venv');
+    const binDir     = IS_WIN ? 'Scripts' : 'bin';
+    const pyExe      = IS_WIN ? 'python.exe' : 'python3';
+    const venvPython = path.join(venvDir, binDir, pyExe);
+
+    sendProgress({ type: 'log', line: 'Stopping any running OSeMOSYS service…' });
+    stopOsemosysService();
+    await new Promise(r => setTimeout(r, 2000));
+
+    if (fs.existsSync(venvDir)) {
+      sendProgress({ type: 'log', line: 'Removing old OSeMOSYS environment…' });
+      if (IS_WIN) {
+        try { execFileSync('cmd', ['/c', 'rmdir', '/s', '/q', venvDir], { timeout: 30000, stdio: ['ignore', 'pipe', 'pipe'] }); }
+        catch (e) { sendProgress({ type: 'log', line: `⚠ rmdir warning: ${e.message}` }); }
+      } else {
+        try { fs.rmSync(venvDir, { recursive: true, force: true }); }
+        catch (e) { sendProgress({ type: 'log', line: `⚠ Remove warning: ${e.message}` }); }
+      }
+    }
+
+    sendProgress({ type: 'stage', label: 'Creating OSeMOSYS Python environment…' });
+    sendProgress({ type: 'log', line: `Location: ${venvDir}` });
+    fs.mkdirSync(path.dirname(venvDir), { recursive: true });
+
+    const pipEnv = { ...process.env, PIP_PREFER_BINARY: '1', PIP_NO_CACHE_DIR: '1' };
+    const recentLines = [];
+    const runChild = (cmd, args, label) => new Promise((resolve, reject) => {
+      const child = spawn(cmd, args, { shell: false, env: pipEnv });
+      const onLine = l => {
+        recentLines.push(l);
+        if (recentLines.length > 50) recentLines.shift();
+        sendProgress({ type: 'log', line: l });
+      };
+      child.stdout.on('data', d => { for (const l of d.toString().split('\n').filter(x => x.trim())) onLine(l); });
+      child.stderr.on('data', d => { for (const l of d.toString().split('\n').filter(x => x.trim())) onLine(l); });
+      child.on('close', code => {
+        if (code === 0) resolve();
+        else reject(new Error(`${label} failed (exit ${code})\n\n${recentLines.slice(-10).join('\n')}`));
+      });
+      child.on('error', err => reject(new Error(`${label} could not start: ${err.message}`)));
+    });
+
+    await runChild(systemPython, ['-m', 'venv', '--clear', venvDir], 'venv creation');
+    try { await runChild(venvPython, ['-m', 'ensurepip', '--upgrade'], 'ensurepip'); } catch { /* non-fatal */ }
+
+    sendProgress({ type: 'stage', label: 'Upgrading build tools…' });
+    await runChild(venvPython, ['-m', 'pip', 'install', '--upgrade', '--quiet', 'pip', 'setuptools', 'wheel'], 'pip upgrade');
+
+    const { pythonDir } = getServicePaths();
+
+    sendProgress({ type: 'stage', label: 'Installing service layer (FastAPI + uvicorn)…' });
+    await runChild(venvPython, [
+      '-m', 'pip', 'install', '--prefer-binary', '--no-warn-script-location', '--no-cache-dir',
+      '-r', path.join(pythonDir, 'requirements.service.txt'),
+    ], 'pip install (service layer)');
+
+    sendProgress({ type: 'stage', label: 'Installing OSeMOSYS toolchain (otoole)…' });
+    recentLines.length = 0;
+    await runChild(venvPython, [
+      '-m', 'pip', 'install', '--prefer-binary', '--no-warn-script-location', '--no-cache-dir',
+      '-r', path.join(pythonDir, 'requirements.osemosys.txt'),
+    ], 'pip install (otoole)');
+
+    sendProgress({ type: 'stage', label: 'Verifying OSeMOSYS toolchain…' });
+    recentLines.length = 0;
+    await runChild(venvPython, ['-c',
+      'from importlib.metadata import version;' +
+      'print("otoole", version("otoole"))'
+    ], 'verification');
+
+    // GLPK solver: bundled for Windows; package manager elsewhere
+    const glpsolName = IS_WIN ? 'glpsol.exe' : 'glpsol';
+    const glpsolFound = getGlpsolDirs().some(d => fs.existsSync(path.join(d, glpsolName)));
+    if (glpsolFound) {
+      sendProgress({ type: 'log', line: '✓ GLPK solver (glpsol) found in bundled solvers' });
+    } else if (IS_WIN) {
+      sendProgress({ type: 'log', line: '⚠ glpsol.exe not found in solvers directory — runs will fail until it is present' });
+    } else {
+      sendProgress({ type: 'log', line: 'Linux/macOS: ensure GLPK is installed (e.g. apt-get install glpk-utils)' });
+    }
+
+    sendProgress({ type: 'stage', label: 'Starting OSeMOSYS service…' });
+    await startOsemosysService();
+
+    sendProgress({ type: 'done' });
+    return { success: true };
+  } catch (err) {
+    const msg = err.message || String(err);
+    sendProgress({ type: 'error', error: msg });
+    return { success: false, error: msg };
+  }
+});
+
+ipcMain.handle('osemosys:restart-service', async () => {
+  stopOsemosysService();
+  await startOsemosysService();
+  return { running: await isPortOpen(OSEMOSYS_PORT) };
+});
+
 // ─── Window ────────────────────────────────────────────────────────────────
 async function createWindow() {
   mainWindow = new BrowserWindow({
@@ -2083,6 +2585,8 @@ function stopAll() {
   stopCalliopeService();
   stopCalliope07Service();
   stopAdoptnet0Service();
+  stopPypsaService();
+  stopOsemosysService();
   stopSimServices();
   stopBackend();
 }
@@ -2133,7 +2637,13 @@ app.whenReady().then(async () => {
   if (!await isPortOpen(CALLIOPE07_PORT)) {
     try { CALLIOPE07_PORT = await findFreePort(CALLIOPE07_PORT); } catch { /* keep default */ }
   }
-  console.log(`[ports] backend=${BACKEND_PORT}  calliope=${CALLIOPE_PORT}  adoptnet0=${ADOPTNET0_PORT}  calliope07=${CALLIOPE07_PORT}`);
+  if (!await isPortOpen(PYPSA_PORT)) {
+    try { PYPSA_PORT = await findFreePort(PYPSA_PORT); } catch { /* keep default */ }
+  }
+  if (!await isPortOpen(OSEMOSYS_PORT)) {
+    try { OSEMOSYS_PORT = await findFreePort(OSEMOSYS_PORT); } catch { /* keep default */ }
+  }
+  console.log(`[ports] backend=${BACKEND_PORT}  calliope=${CALLIOPE_PORT}  adoptnet0=${ADOPTNET0_PORT}  calliope07=${CALLIOPE07_PORT}  pypsa=${PYPSA_PORT}  osemosys=${OSEMOSYS_PORT}`);
 
   await startBackend();
   // Start native calliope service (no-op if venv not installed yet)
@@ -2142,6 +2652,10 @@ app.whenReady().then(async () => {
   startCalliope07Service().catch(err => console.warn('[calliope07-svc] autostart error:', err.message));
   // Start AdOpT-NET0 service (no-op if venv not installed yet)
   startAdoptnet0Service().catch(err => console.warn('[adoptnet0-svc] autostart error:', err.message));
+  // Start PyPSA service (no-op if venv not installed yet)
+  startPypsaService().catch(err => console.warn('[pypsa-svc] autostart error:', err.message));
+  // Start OSeMOSYS service (no-op if venv not installed yet)
+  startOsemosysService().catch(err => console.warn('[osemosys-svc] autostart error:', err.message));
   // Start simulation services (no-op if venvs not installed yet)
   startAllSimServices().catch(err => console.warn('[sim-svc] autostart error:', err.message));
   await createWindow();

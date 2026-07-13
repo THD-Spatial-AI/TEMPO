@@ -8,6 +8,43 @@ import SaveBar from './ui/SaveBar';
 import {
   CATEGORY_META, CATEGORY_TEMPLATES, ALL_OVERRIDE_TEMPLATES,
 } from '../data/overrideTemplates';
+import { getModelFramework, FRAMEWORKS, FrameworkBadge } from '../utils/modelFramework.jsx';
+
+// ─── Config flattener + viewer ────────────────────────────────────────────────
+function flattenConfig(obj, prefix = '') {
+  const result = [];
+  for (const [k, v] of Object.entries(obj)) {
+    if (k === '_meta') continue;
+    const path = prefix ? `${prefix}.${k}` : k;
+    if (v !== null && typeof v === 'object' && !Array.isArray(v)) {
+      result.push(...flattenConfig(v, path));
+    } else {
+      result.push([path, v]);
+    }
+  }
+  return result;
+}
+
+const OverrideDetails = ({ config }) => {
+  const entries = flattenConfig(config ?? {});
+  if (entries.length === 0) {
+    return <p className="text-xs text-slate-400 italic px-1 py-2">Empty configuration</p>;
+  }
+  return (
+    <div className="space-y-1">
+      {entries.map(([path, value]) => (
+        <div key={path} className="flex items-center gap-3 px-3 py-1.5 bg-white border border-slate-200 rounded-lg">
+          <code className="text-xs text-blue-600 font-mono flex-1 min-w-0 truncate">{path}</code>
+          <span className={`text-xs font-mono shrink-0 ${
+            typeof value === 'boolean' ? (value ? 'text-green-600' : 'text-red-500') : 'text-slate-700'
+          }`}>
+            {Array.isArray(value) ? value.map(String).join(' → ') : String(value)}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+};
 
 // ─── Template Card ─────────────────────────────────────────────────────────────
 const TemplateCard = ({ template, onImport, alreadyAdded }) => {
@@ -28,6 +65,7 @@ const TemplateCard = ({ template, onImport, alreadyAdded }) => {
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="text-sm font-semibold text-slate-800">{template.name}</h3>
+                <FrameworkBadge framework="calliope06" />
                 {alreadyAdded && (
                   <span className="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full flex items-center gap-1">
                     <FiCheck size={10} /> Added
@@ -438,7 +476,8 @@ const Overrides = () => {
 
   const doAddOverride = (name, config) => {
     const verb = overrides[name] ? 'updated' : 'added';
-    setOverrides({ ...overrides, [name]: config });
+    const existingMeta = overrides[name]?._meta;
+    setOverrides({ ...overrides, [name]: { _meta: existingMeta ?? { fw: 'calliope06' }, ...config } });
     showNotification(`Override "${name}" ${verb}`, 'success');
   };
 
@@ -458,7 +497,8 @@ const Overrides = () => {
   const saveJsonEdit = (name) => {
     try {
       const parsed = JSON.parse(jsonEditText[name]);
-      setOverrides({ ...overrides, [name]: parsed });
+      const existingMeta = overrides[name]?._meta;
+      setOverrides({ ...overrides, [name]: { _meta: existingMeta ?? { fw: 'calliope06' }, ...parsed } });
       showNotification(`Override "${name}" updated`, 'success');
       setShowJsonEditor((p) => ({ ...p, [name]: false }));
     } catch (e) {
@@ -502,6 +542,30 @@ const Overrides = () => {
   }
 
   const overrideCount = Object.keys(overrides).length;
+  const framework = getModelFramework(currentModel);
+
+  if (framework !== 'calliope06') {
+    const fw = FRAMEWORKS[framework] ?? FRAMEWORKS.unknown;
+    return (
+      <div className="flex-1 flex flex-col bg-slate-50">
+        <SaveBar label="Overrides" />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center max-w-sm px-6">
+            <FiEdit3 className="mx-auto text-slate-300 mb-3" size={32} />
+            <p className="font-semibold text-slate-700 mb-1">
+              Model Variants — {fw.label}
+            </p>
+            <p className="text-sm text-slate-400 mb-4">
+              {framework === 'calliope07'
+                ? 'Calliope 0.7 uses a different scenario format. Variant management for 0.7 models is coming soon.'
+                : `Model variant management for ${fw.label} is not yet supported.`}
+            </p>
+            <FrameworkBadge framework={framework} className="text-xs" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 h-screen overflow-hidden flex flex-col bg-slate-50">
@@ -750,7 +814,8 @@ const Overrides = () => {
                                 onClick={() => {
                                   setShowJsonEditor((p) => ({ ...p, [name]: !p[name] }));
                                   if (!showJsonEditor[name]) {
-                                    setJsonEditText((p) => ({ ...p, [name]: JSON.stringify(config, null, 2) }));
+                                    const { _meta, ...cleanConfig } = config;
+                                    setJsonEditText((p) => ({ ...p, [name]: JSON.stringify(cleanConfig, null, 2) }));
                                   }
                                 }}
                                 className="px-3 py-1 text-xs bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300"
@@ -769,9 +834,7 @@ const Overrides = () => {
                               spellCheck={false}
                             />
                           ) : (
-                            <pre className="text-xs font-mono bg-slate-800 text-green-300 p-4 rounded-xl overflow-x-auto">
-                              {JSON.stringify(config, null, 2)}
-                            </pre>
+                            <OverrideDetails config={config} />
                           )}
                         </div>
                       )}
