@@ -1,85 +1,109 @@
 # Running Optimization
 
-Once a model is configured with locations, technologies, and parameters, you can submit it to the Calliope solver directly from the application.
+Once a model is configured with locations, technologies, and parameters, you can submit it to any supported solver engine directly from the Run screen.
+
+---
+
+## Supported engines
+
+| Engine | Solver | Port | Notes |
+|---|---|---|---|
+| Calliope 0.6.8 | HiGHS | 5000 (dynamic) | Default; full scenario/override support |
+| Calliope 0.7 (experimental) | CBC | 5002 (dynamic) | Opt-in per model; incompatible deps — separate venv |
+| PyPSA | HiGHS | 5003 (dynamic) | Install from Settings → PyPSA Engine |
+| OSeMOSYS (otoole + GLPK) | GLPK | 5004 (dynamic) | Install from Settings → OSeMOSYS Engine |
+| AdOpT-NET0 | HiGHS / Gurobi | 5001 (dynamic) | Install from Settings → AdOpT-NET0 Engine |
+
+All non-Calliope engines must be installed before use. Ports are chosen dynamically at startup via `findFreePort`.
 
 ---
 
 ## Pre-run checklist
 
-Before starting a run, verify:
-
 - [ ] At least one location is defined.
 - [ ] At least one technology is assigned to a location.
-- [ ] The time horizon (Start date / End date) is set in Parameters.
+- [ ] The time horizon (Start date / End date) is set on the Run screen (or in the model parameters).
 - [ ] Time series files cover the full time horizon if any technology references a time series.
-- [ ] The correct Python environment is selected in Settings (the one that has Calliope installed).
+- [ ] The target engine service is running (shown by a green indicator on the Run screen; install from Settings if absent).
 
 ---
 
 ## Starting a run
 
 1. Navigate to the **Run** screen in the sidebar.
-2. (Optional) Select a **Scenario** from the dropdown to apply scenario overrides.
-3. Click **Start optimization**.
+2. Select a **Modeling Framework** (Calliope, PyPSA, OSeMOSYS, AdOpT-NET0).
+3. *(Optional)* Select one or more **Scenarios** or **Overrides** from the dropdown.
+4. Set the date range and any advanced solver options.
+5. Click **Run**.
 
-The application:
+For **Calliope** runs, scenario and override names are passed to the runner and applied natively from the model's YAML overrides.
 
-1. Sends the model to the Go backend via `POST /api/models/:id/run`.
-2. The backend writes a temporary model JSON to disk and spawns the Python runner.
-3. The Python runner converts the model to Calliope YAML and calls the Calliope solver.
-4. Log output streams back to the Run screen in real time.
+For **PyPSA and OSeMOSYS** runs with a scenario selected, the override is resolved on the frontend before sending — the runner receives a fully concrete model with the override already applied.
 
 ---
 
 ## Understanding the run log
 
-The log window captures all output from the Calliope solver process. Key messages to look for:
+The log window streams output from the solver process in real time. Key messages:
 
 | Message | Meaning |
 |---|---|
-| `[CALLIOPE] Building model...` | Model YAML is being assembled |
-| `[CALLIOPE] Running optimization...` | Solver is active |
-| `[CALLIOPE] Model solved successfully` | Solver found a feasible optimum |
-| `[CALLIOPE] ERROR: ...` | An error occurred — see the message for details |
-| `Solver status: infeasible` | The model constraints have no feasible solution |
-| `Solver status: unbounded` | The objective function is unbounded — check cost parameters |
+| `Building model…` | Model is being translated for the engine |
+| `Running optimization…` / `glpsol` output | Solver is active |
+| `termination_condition: optimal` | Solver found a feasible optimum |
+| `termination_condition: infeasible` | No feasible solution exists |
+| `ERROR:` | A translation or solver error — read the message |
+
+Resource usage (CPU %, RAM) is shown alongside the log at 10-second intervals when `psutil` is available in the engine venv.
 
 ---
 
-## While the solver is running
+## Cancelling a run
 
-- You can navigate to other parts of the application while the solver runs. The run log continues to update in the background.
-- Click **Stop** to terminate the solver process. Partial results are not saved.
+Click **Stop** on the running job card. The solver process is terminated; partial results are not saved.
 
 ---
 
 ## After a successful run
 
-When the run completes, the **View Results** button becomes active. Click it to go directly to the [Results](results.md) screen.
+Click **View Results** to open the Results screen for the completed job. Each run is saved to the backend; previous job outputs are accessible from the run history list.
 
-Each run is saved as a job in the backend. You can view previous job outputs by selecting a job from the run history list at the bottom of the Run screen.
+---
+
+## Scenarios and batch runs
+
+Select multiple scenarios or overrides from the dropdown to launch them as parallel jobs in a single click. Each job gets its own log panel. For non-Calliope engines, each scenario is pre-resolved into a concrete model before submission.
+
+!!! note "SPORES mode"
+    SPORES (Spatially Explicit Practically Optimal Results) is supported on **Calliope 0.6.8 only**. The Run screen disables SPORES mode when the Calliope 0.7 engine is selected.
 
 ---
 
 ## Troubleshooting
 
-**The solver is not found**
+**Engine service is not running / not installed**
 
-Check that:
-- The correct conda environment is selected in Settings.
-- Calliope is installed: `conda activate <env> && python -c "import calliope"`.
+Go to **Settings → \<Engine\> Engine** and click **Install**. Installation downloads the Python venv and required solver binaries to `%APPDATA%/TEMPO/<engine>-venv`.
 
-**Import error in the log**
-
-A broken Calliope installation often shows as a Python `ImportError`. Reinstall Calliope in the selected environment.
-
-**Infeasible model**
+**Solver status: infeasible**
 
 Common causes:
 - Demand is not covered — ensure at least one supply technology is assigned to each location with demand.
 - Capacity bounds conflict — a `min` capacity greater than `max`.
-- Time series values are all zero or negative where positive values are expected.
+- Time series values are all zero where positive values are expected.
+
+**Solver status: unbounded**
+
+No cost is defined for a technology that has unconstrained capacity. Add a capital or operating cost, or add an explicit capacity bound.
 
 **Out of memory**
 
-Large models (many locations × many time steps) can exhaust RAM. Reduce the time horizon, increase the time resolution (e.g. from `1H` to `2H`), or use a more efficient solver such as Gurobi.
+Large models (many locations × many time steps) can exhaust RAM. Options:
+- Reduce the time horizon via Start/End date.
+- Use the `3H` or `6H` time resolution override for a quick test run.
+- For OSeMOSYS, reduce the timeslice scheme (seasons × dayBlocks) in Advanced Settings.
+- Switch to a more memory-efficient solver (HiGHS generally outperforms GLPK on large LPs).
+
+**PyPSA or OSeMOSYS run differs from Calliope**
+
+Formulation differences are expected. Cross-engine objective differences up to ~2–5% (PyPSA) or ~30% (OSeMOSYS/GLPK) are normal due to solver and model-structure differences. Use `scripts/verify_engines.py` to run a reference model on multiple engines and compare within defined tolerances.
