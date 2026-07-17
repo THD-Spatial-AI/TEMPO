@@ -357,6 +357,18 @@ const Settings = () => {
           />
         </div>
 
+        {/* AdOpT-NET0 engine */}
+        <div className="border-t border-slate-200 pt-6">
+          <EngineInstallPanel
+            title="AdOpT-NET0 Engine"
+            icon={FiBox}
+            description="Optional optimisation engine (Advanced Optimization Tool for Energy Networks) in its own isolated Python environment. Any TEMPO model can run on it — the translation happens automatically at run time. Also enables AdOpT-NET0 model import/export. Requires Python 3.10+."
+            checkFn="checkAdoptnet0Env"
+            installFn="installAdoptnet0Env"
+            onProgressFn="onAdoptnet0InstallProgress"
+          />
+        </div>
+
         {/* Privacy & Data */}
         <div className="border-t border-slate-200 pt-6">
           <h3 className="text-lg font-semibold text-slate-800 mb-1">Privacy &amp; Data</h3>

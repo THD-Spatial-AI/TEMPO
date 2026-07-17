@@ -723,6 +723,42 @@ const Run = ({ onNavigate }) => {
           </div>
         )}
 
+        {/* INLINE OSEMOSYS INSTALL PANEL — shown when OSeMOSYS is selected but not yet installed */}
+        {selectedFramework === 'osemosys' && osemosysStatus === false && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+            <EngineInstallPanel
+              title="OSeMOSYS Engine"
+              icon={FiZap}
+              description="Optional optimisation engine (otoole + GLPK) in its own isolated Python environment. Requires Python 3.10+; the GLPK solver is bundled on Windows."
+              checkFn="checkOsemosysEnv"
+              installFn="installOsemosysEnv"
+              onProgressFn="onOsemosysInstallProgress"
+              onInstallSuccess={() => {
+                setOsemosysStatus(null);
+                checkEngineRunService('osemosys').then(ok => setOsemosysStatus(ok));
+              }}
+            />
+          </div>
+        )}
+
+        {/* INLINE ADOPTNET0 INSTALL PANEL — shown when AdOpT-NET0 is selected but not yet installed */}
+        {selectedFramework === 'adoptnet0' && adoptnet0Status === false && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+            <EngineInstallPanel
+              title="AdOpT-NET0 Engine"
+              icon={FiBox}
+              description="Optional optimisation engine (Advanced Optimization Tool for Energy Networks) in its own isolated Python environment. Requires Python 3.10+."
+              checkFn="checkAdoptnet0Env"
+              installFn="installAdoptnet0Env"
+              onProgressFn="onAdoptnet0InstallProgress"
+              onInstallSuccess={() => {
+                setAdoptnet0Status(null);
+                checkAdoptnet0Service().then(ok => setAdoptnet0Status(ok));
+              }}
+            />
+          </div>
+        )}
+
         {/* TOP ROW: config + active jobs */}
         <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
 

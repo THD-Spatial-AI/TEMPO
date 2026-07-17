@@ -6,11 +6,12 @@ Supersedes verify_dual_engine.py — all original flags still work.
 
 Usage (from repo root):
     python scripts/verify_engines.py \\
-        [--python06       <calliope-venv/Scripts/python.exe>]   \\
-        [--python07       <calliope07-venv/Scripts/python.exe>] \\
-        [--python-pypsa   <pypsa-venv/Scripts/python.exe>]      \\
-        [--python-osemosys <osemosys-venv/Scripts/python.exe>]  \\
-        [--payload scripts/reference_model.json]                \\
+        [--python06         <calliope-venv/Scripts/python.exe>]   \\
+        [--python07         <calliope07-venv/Scripts/python.exe>] \\
+        [--python-pypsa     <pypsa-venv/Scripts/python.exe>]      \\
+        [--python-osemosys  <osemosys-venv/Scripts/python.exe>]   \\
+        [--python-adoptnet0 <adoptnet0-venv/Scripts/python.exe>]  \\
+        [--payload scripts/reference_model.json]                  \\
         [--solver-dir solvers/windows]
 
 At least one --python* flag is required. Any combination of engines can be
@@ -23,6 +24,9 @@ Tolerances:
   --pypsa-cap-tol    (default 5.0%)  PyPSA vs Calliope per-tech capacity
   --osemosys-obj-tol (default 30.0%) OSeMOSYS vs Calliope objective
   --osemosys-cap-tol (default 15.0%) OSeMOSYS vs Calliope per-tech capacity
+
+AdOpT-NET0 note: contract checks only (no pairwise comparison) — its multi-period
+investment formulation produces objectives on a different scale than Calliope/PyPSA.
 
 Checks (per engine):
   * terminates 'optimal'
@@ -184,6 +188,8 @@ def main():
                     help='PyPSA venv Python executable')
     ap.add_argument('--python-osemosys', default=None, dest='python_osemosys',
                     help='OSeMOSYS venv Python executable')
+    ap.add_argument('--python-adoptnet0', default=None, dest='python_adoptnet0',
+                    help='AdOpT-NET0 venv Python executable')
     ap.add_argument('--payload',
                     default=str(REPO / 'scripts' / 'reference_model.json'))
     ap.add_argument('--solver-dir',
@@ -215,9 +221,12 @@ def main():
         engines_to_run['pypsa'] = (args.python_pypsa, 'pypsa_runner')
     if args.python_osemosys:
         engines_to_run['osemosys'] = (args.python_osemosys, 'osemosys_runner')
+    if args.python_adoptnet0:
+        engines_to_run['adoptnet0'] = (args.python_adoptnet0, 'adoptnet0_runner')
 
     if not engines_to_run:
-        ap.error('Provide at least one of --python06, --python07, --python-pypsa, --python-osemosys')
+        ap.error('Provide at least one of --python06, --python07, --python-pypsa, '
+                 '--python-osemosys, --python-adoptnet0')
 
     payload = json.loads(Path(args.payload).read_text(encoding='utf-8'))
     tech_parents = {
@@ -280,8 +289,14 @@ def main():
             'osemosys', results['osemosys'],
             args.osemosys_obj_tol, args.osemosys_cap_tol, non_tx_techs, failures)
 
+    # AdOpT-NET0: contract-only, no pairwise comparison (different formulation/scale)
+    if 'adoptnet0' in results:
+        print("  [adoptnet0] pairwise comparison skipped — multi-period formulation "
+              "produces objectives on a different scale than Calliope/PyPSA")
+
     # Single-engine: no pairwise check possible, only contract was checked above
-    if len(results) == 1:
+    comparable = set(results) - {'adoptnet0'}
+    if len(comparable) <= 1 and 'adoptnet0' not in results:
         print(f"  (only one engine provided — pairwise checks skipped)")
 
     # ── Cross-engine contract key-set consistency ─────────────────────────────

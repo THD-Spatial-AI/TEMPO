@@ -112,6 +112,72 @@ def _extract_results(results_dir: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Frozen-contract normalisation
+# ---------------------------------------------------------------------------
+
+def _to_frozen_contract(extracted: dict, timestamps: list, model_data: dict, name: str = "") -> dict:
+    """Convert AdOpT-NET0 raw extracted data to TEMPO's frozen result contract."""
+    raw_capacity = extracted.get("capacity", {})   # {node: {tech: scalar}}
+    raw_dispatch = extracted.get("dispatch", {})   # {node: {tech: [array]}}
+    solver_status = extracted.get("solver_status", "ok")
+
+    # capacities: {node: {tech: v}} → {"node::tech": v}  (scalars only)
+    capacities = {}
+    for node, techs in raw_capacity.items():
+        for tech, val in techs.items():
+            if isinstance(val, (int, float)):
+                capacities[f"{node}::{tech}"] = val
+
+    # dispatch: {node: {tech: [arr]}} → {tech: [summed across nodes]}
+    dispatch: dict = {}
+    for node, techs in raw_dispatch.items():
+        for tech, arr in techs.items():
+            if not isinstance(arr, list):
+                continue
+            if tech not in dispatch:
+                dispatch[tech] = list(arr)
+            else:
+                existing = dispatch[tech]
+                for i, v in enumerate(arr):
+                    if i < len(existing):
+                        existing[i] = (existing[i] or 0) + (v or 0)
+                    else:
+                        existing.append(v or 0)
+
+    # termination_condition normalisation
+    term_cond = "optimal" if solver_status in ("ok", "optimal") else solver_status
+
+    # tech_metadata: populate display names from model_data technologies
+    tech_metadata = {}
+    for tech in model_data.get("technologies") or []:
+        tid = tech.get("id") or tech.get("name") or ""
+        if tid:
+            tech_metadata[tid] = {
+                "name": tech.get("name", tid),
+                "carrier": tech.get("carrier", ""),
+                "color": tech.get("color", ""),
+            }
+
+    return {
+        "success": True,
+        "framework": "adoptnet0",
+        "name": name,
+        "objective": extracted.get("objective"),
+        "termination_condition": term_cond,
+        "capacities": capacities,
+        "generation": {},
+        "dispatch": dispatch,
+        "timestamps": timestamps,
+        "transmission_flow": {},
+        "demand_timeseries": {},
+        "costs_by_tech": {},
+        "costs_by_location": {},
+        "tech_metadata": tech_metadata,
+        "tech_parents": {},
+    }
+
+
+# ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
 
@@ -188,18 +254,6 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
     except Exception:
         pass
 
-    result = {
-        "success": True,
-        "framework": "adoptnet0",
-        "name": name,
-        "objective": extracted.get("objective"),
-        "solver_status": extracted.get("solver_status", "ok"),
-        "capacity": extracted.get("capacity", {}),
-        "dispatch": extracted.get("dispatch", {}),
-        "timestamps": timestamps,
-        "transmission_flow": {},
-        "demand_timeseries": {},
-    }
-
-    log(f"  Done. Objective = {result['objective']}")
-    return result
+    frozen = _to_frozen_contract(extracted, timestamps, model_data, name)
+    log(f"  Done. Objective = {frozen['objective']}")
+    return frozen
