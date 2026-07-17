@@ -48,3 +48,39 @@ services:
       timeout: 5s
       retries: 4
       start_period: 60s
+
+  pypsa-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.pypsa
+    image: pypsa-runner:latest
+    container_name: pypsa-runner
+    ports:
+      - "5003:5003"
+    restart: unless-stopped
+    volumes:
+      - ./python:/app/python:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5003/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  osemosys-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.osemosys
+    image: osemosys-runner:latest
+    container_name: osemosys-runner
+    ports:
+      - "5004:5004"
+    restart: unless-stopped
+    volumes:
+      - ./python:/app/python:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5004/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s

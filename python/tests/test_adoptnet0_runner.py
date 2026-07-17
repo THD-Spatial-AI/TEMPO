@@ -7,7 +7,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from adoptnet0_runner import _to_frozen_contract
 
 CONTRACT_KEYS = {
-    "success", "framework", "name", "objective", "termination_condition",
+    "success", "framework", "model_name", "solver", "objective", "termination_condition",
     "capacities", "generation", "dispatch", "timestamps", "transmission_flow",
     "demand_timeseries", "costs_by_tech", "costs_by_location",
     "tech_metadata", "tech_parents",
@@ -45,6 +45,12 @@ def test_all_contract_keys_present():
 def test_framework_field():
     r = _to_frozen_contract(EXTRACTED, TIMESTAMPS, MODEL_DATA)
     assert r["framework"] == "adoptnet0"
+
+
+def test_model_name_and_solver():
+    r = _to_frozen_contract(EXTRACTED, TIMESTAMPS, MODEL_DATA, name="My Model", solver="glpk")
+    assert r["model_name"] == "My Model"
+    assert r["solver"] == "glpk"
 
 
 def test_capacities_flat_keys():

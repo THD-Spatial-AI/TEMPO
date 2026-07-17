@@ -1,0 +1,43 @@
+# ─── OSeMOSYS Web Service ─────────────────────────────────────────────────────
+# Runs otoole + GLPK as an HTTP / SSE service on port 5004.
+#
+# Build:   docker build -f Dockerfile.osemosys -t osemosys-runner .
+# Run:     docker run -p 5004:5004 osemosys-runner
+# ─────────────────────────────────────────────────────────────────────────────
+
+FROM python:3.12-slim
+
+LABEL org.opencontainers.image.description="OSeMOSYS (otoole + GLPK) optimisation web service"
+
+WORKDIR /app
+
+# GLPK solver — glpsol will be found on PATH by osemosys_runner._find_glpsol()
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        glpk-utils \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --upgrade pip setuptools wheel
+
+# Layer 1 — service deps (fastapi, uvicorn, psutil)
+COPY python/requirements.service.txt ./requirements.service.txt
+RUN pip install --prefer-binary --no-cache-dir -r requirements.service.txt
+
+# Layer 2 — otoole + pandas
+COPY python/requirements.osemosys.txt ./requirements.osemosys.txt
+RUN pip install --prefer-binary --no-cache-dir -r requirements.osemosys.txt
+
+# Verify otoole and glpsol
+RUN python -c "import otoole; print('otoole', otoole.__version__)"
+RUN glpsol --version 2>&1 | head -1
+
+COPY python/ ./python/
+
+EXPOSE 5004
+
+# GLPK is on PATH via apt — no separate solver dir needed
+ENV CALLIOPE_SOLVER_DIR=""
+
+HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5004/health')"
+
+CMD ["uvicorn", "python.osemosys_service:app", "--host", "0.0.0.0", "--port", "5004", "--workers", "1"]

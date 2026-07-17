@@ -1,0 +1,41 @@
+# ─── PyPSA Web Service ────────────────────────────────────────────────────────
+# Runs PyPSA 0.35.x as an HTTP / SSE service on port 5003.
+#
+# Build:   docker build -f Dockerfile.pypsa -t pypsa-runner .
+# Run:     docker run -p 5003:5003 pypsa-runner
+# ─────────────────────────────────────────────────────────────────────────────
+
+FROM python:3.12-slim
+
+LABEL org.opencontainers.image.description="PyPSA optimisation web service"
+
+WORKDIR /app
+
+# HDF5 + netCDF system libs (needed by netCDF4 and h5netcdf)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        libhdf5-dev \
+        libnetcdf-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --upgrade pip setuptools wheel
+
+# Layer 1 — service deps (fastapi, uvicorn, psutil)
+COPY python/requirements.service.txt ./requirements.service.txt
+RUN pip install --prefer-binary --no-cache-dir -r requirements.service.txt
+
+# Layer 2 — PyPSA + HiGHS + scientific stack
+COPY python/requirements.pypsa.txt ./requirements.pypsa.txt
+RUN pip install --prefer-binary --no-cache-dir -r requirements.pypsa.txt
+
+# Verify
+RUN python -c "import pypsa; print('pypsa', pypsa.__version__)"
+
+COPY python/ ./python/
+
+EXPOSE 5003
+
+HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5003/health')"
+
+CMD ["uvicorn", "python.pypsa_service:app", "--host", "0.0.0.0", "--port", "5003", "--workers", "1"]

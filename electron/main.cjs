@@ -57,6 +57,20 @@ function getDockerServices() {
       required: false,
     },
     {
+      name: 'pypsa-runner',
+      label: 'PyPSA Optimizer',
+      port: PYPSA_PORT,
+      composeDir: repoRoot,
+      required: false,
+    },
+    {
+      name: 'osemosys-runner',
+      label: 'OSeMOSYS Optimizer',
+      port: OSEMOSYS_PORT,
+      composeDir: repoRoot,
+      required: false,
+    },
+    {
       name: 'opentech-db',
       label: 'Technology Database',
       port: 8000,

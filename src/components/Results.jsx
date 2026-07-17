@@ -1159,6 +1159,7 @@ const Results = () => {
 
   // Reset per-job UI state when switching runs
   useEffect(() => {
+    setTab('overview');
     setMapView('capacity');
     setTechFilter(new Set());
     setCollapsedSections(new Set());
@@ -1493,7 +1494,8 @@ const Results = () => {
     const blob = new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = `calliope_${selectedJobId}.json`; a.click();
+    const fw = result.framework || 'results';
+    a.href = url; a.download = `${fw}_${selectedJobId}.json`; a.click();
     URL.revokeObjectURL(url);
     showNotification('Results exported', 'success');
   };
@@ -1881,19 +1883,23 @@ const Results = () => {
   const hasSpores = Array.isArray(result?.spores_data) && result.spores_data.length > 0;
 
   const hasShadowPrices = result?.shadow_prices && Object.keys(result.shadow_prices).length > 0;
+  const hasFlow     = Object.keys(result?.generation   || {}).length > 0;
+  const hasDispatch = Object.keys(result?.dispatch     || {}).length > 0;
+  const hasCosts    = Object.keys(result?.costs_by_tech || {}).length > 0;
 
   const TABS = [
     { id: 'overview',  label: 'Overview',    icon: FiLayers },
-    { id: 'flow',      label: 'Energy Flow', icon: FiShare2 },
-    { id: 'dispatch',  label: 'Dispatch',    icon: FiActivity },
-    { id: 'costs',     label: 'Costs',       icon: FiDollarSign },
+    ...(hasFlow     ? [{ id: 'flow',     label: 'Energy Flow',   icon: FiShare2    }] : []),
+    ...(hasDispatch ? [{ id: 'dispatch', label: 'Dispatch',      icon: FiActivity  }] : []),
+    ...(hasCosts    ? [{ id: 'costs',    label: 'Costs',         icon: FiDollarSign }] : []),
     ...(hasShadowPrices ? [{ id: 'shadow', label: 'Shadow Prices', icon: FiTrendingUp }] : []),
-    { id: 'analysis',  label: 'Analysis',    icon: FiGrid },
+    ...(hasFlow     ? [{ id: 'analysis', label: 'Analysis',      icon: FiGrid      }] : []),
     ...((isSporesRun || hasSpores) ? [{ id: 'spores', label: 'SPORES', icon: FiGitMerge }] : []),
     { id: 'logs',      label: 'Logs',        icon: FiTerminal },
   ];
 
-  const hasDispatch = result?.dispatch && Object.keys(result.dispatch).length > 0;
+  // Fall back to overview if the active tab was hidden by auto-hide logic
+  const activeTab = TABS.some(t => t.id === tab) ? tab : 'overview';
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -1982,6 +1988,22 @@ const Results = () => {
                   </option>
                 ))}
               </select>
+              {(() => {
+                const fw = result?.framework || selectedJob?.framework;
+                const ENGINE_LABELS = {
+                  calliope:   'Calliope 0.6',
+                  calliope07: 'Calliope 0.7',
+                  pypsa:      'PyPSA',
+                  osemosys:   'OSeMOSYS',
+                  adoptnet0:  'AdOpT-NET0',
+                };
+                const label = ENGINE_LABELS[fw];
+                return label ? (
+                  <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-slate-100 text-slate-600 border border-slate-200 whitespace-nowrap">
+                    {label}
+                  </span>
+                ) : null;
+              })()}
               {selectedJobId && (
                 <button onClick={() => { removeCompletedJob(selectedJobId); setSelectedJobId(null); }}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-gray-600 transition-colors rounded-lg hover:bg-gray-100">
@@ -2025,7 +2047,7 @@ const Results = () => {
                 {TABS.map(({ id, label, icon: Icon }) => (
                   <button key={id} onClick={() => setTab(id)}
                     className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
-                      tab === id ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                      activeTab === id ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                     }`}>
                     <Icon size={13} /> {label}
                     {id === 'dispatch' && !hasDispatch && <span className="text-xs text-slate-300 ml-0.5">(—)</span>}
@@ -2158,7 +2180,7 @@ const Results = () => {
             )}
 
             {/* ════════════════ OVERVIEW TAB ════════════════ */}
-            {tab === 'overview' && (
+            {activeTab === 'overview' && (
               <div className="space-y-4">
                 {/* Map — full width, main visual */}
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -2168,7 +2190,7 @@ const Results = () => {
                       <div className="ml-auto flex gap-1">
                         {[
                           { id: 'capacity',     label: 'Capacity',     icon: FiBarChart2 },
-                          { id: 'generation',   label: 'Gen Heatmap',  icon: FiZap },
+                          ...(hasFlow ? [{ id: 'generation', label: 'Gen Heatmap', icon: FiZap }] : []),
                           { id: 'transmission', label: 'Transmission', icon: FiShare2 },
                         ].map(({ id, label, icon: Icon }) => (
                           <button key={id} onClick={() => setMapView(id)}
@@ -2372,7 +2394,7 @@ const Results = () => {
             )}
 
             {/* ════════════════ ENERGY FLOW TAB (SANKEY) ════════════════ */}
-            {tab === 'flow' && (
+            {activeTab === 'flow' && (
               <div className="space-y-4">
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                   <button onClick={() => toggleSection('sankey')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
@@ -2428,7 +2450,7 @@ const Results = () => {
             )}
 
             {/* ════════════════ DISPATCH TAB ════════════════ */}
-            {tab === 'dispatch' && (
+            {activeTab === 'dispatch' && (
               <div className="space-y-4">
                 {!hasDispatch ? (
                   <div className="bg-white rounded-2xl border border-slate-200 p-16 text-center text-slate-400">
@@ -2481,7 +2503,7 @@ const Results = () => {
             )}
 
             {/* ════════════════ COSTS TAB ════════════════ */}
-            {tab === 'costs' && (
+            {activeTab === 'costs' && (
               <div className="space-y-4">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -2581,7 +2603,7 @@ const Results = () => {
             )}
 
             {/* ════════════════ SHADOW PRICES TAB ════════════════ */}
-            {tab === 'shadow' && hasShadowPrices && (() => {
+            {activeTab === 'shadow' && hasShadowPrices && (() => {
               const sp = result.shadow_prices;
               const keys = Object.keys(sp).sort();
               const timestamps = result.timestamps || [];
@@ -2670,7 +2692,7 @@ const Results = () => {
             })()}
 
             {/* ════════════════ ANALYSIS TAB ════════════════ */}
-            {tab === 'analysis' && (
+            {activeTab === 'analysis' && (
               <div className="space-y-4">
                 {/* Capacity factor chart */}
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -2806,7 +2828,7 @@ const Results = () => {
             )}
 
             {/* ════════════════ SPORES TAB ════════════════ */}
-            {tab === 'spores' && (isSporesRun || hasSpores) && !hasSpores && (
+            {activeTab === 'spores' && (isSporesRun || hasSpores) && !hasSpores && (
               <div className="space-y-4">
                 <div className="bg-gray-50 border border-gray-200 rounded-2xl p-5 flex items-start gap-3">
                   <FiAlertTriangle className="text-gray-500 mt-0.5 shrink-0" size={18} />
@@ -2822,7 +2844,7 @@ const Results = () => {
                 </div>
               </div>
             )}
-            {tab === 'spores' && hasSpores && (() => {
+            {activeTab === 'spores' && hasSpores && (() => {
               const sporesData = result.spores_data;
               const optimalCost = sporesData[0]?.cost ?? null;
 
@@ -3390,7 +3412,7 @@ const Results = () => {
             })()}
 
             {/* ════════════════ LOGS TAB ════════════════ */}
-            {tab === 'logs' && (
+            {activeTab === 'logs' && (
               <div className="bg-slate-900 rounded-2xl p-5">
                 <div className="flex items-center gap-2 mb-3 text-green-400">
                   <FiTerminal size={14} />

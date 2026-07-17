@@ -115,7 +115,7 @@ def _extract_results(results_dir: str) -> dict:
 # Frozen-contract normalisation
 # ---------------------------------------------------------------------------
 
-def _to_frozen_contract(extracted: dict, timestamps: list, model_data: dict, name: str = "") -> dict:
+def _to_frozen_contract(extracted: dict, timestamps: list, model_data: dict, name: str = "", solver: str = "highs") -> dict:
     """Convert AdOpT-NET0 raw extracted data to TEMPO's frozen result contract."""
     raw_capacity = extracted.get("capacity", {})   # {node: {tech: scalar}}
     raw_dispatch = extracted.get("dispatch", {})   # {node: {tech: [array]}}
@@ -161,7 +161,9 @@ def _to_frozen_contract(extracted: dict, timestamps: list, model_data: dict, nam
     return {
         "success": True,
         "framework": "adoptnet0",
+        "model_name": name,
         "name": name,
+        "solver": solver,
         "objective": extracted.get("objective"),
         "termination_condition": term_cond,
         "capacities": capacities,
@@ -254,6 +256,6 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
     except Exception:
         pass
 
-    frozen = _to_frozen_contract(extracted, timestamps, model_data, name)
+    frozen = _to_frozen_contract(extracted, timestamps, model_data, name, solver)
     log(f"  Done. Objective = {frozen['objective']}")
     return frozen
