@@ -497,54 +497,52 @@ def _install_highs_lp_patch():
 def _extract_shadow_prices(model, timestamps):
     """Return {carrier:node: [shadow_price_per_timestep]} or {} on failure.
 
-    Works only when the HiGHS LP-file patch was used (highs solver) and the
-    symbol map + dual rows were captured in _thread_local.  Non-fatal on any
-    missing piece — callers should treat {} as "not available"."""
+    Calliope 0.7 uses pyomo kernel block models which lack component_map.
+    Instead we call verbose_strings() to populate calliope_coords on each
+    ObjConstraint, then reverse-lookup via bySymbol to pair LP dual values
+    with (node, carrier, timestep) coordinates.  Non-fatal on any failure."""
     sym_map = getattr(_thread_local, 'highs_symbol_map', None)
     dual_rows = getattr(_thread_local, 'highs_dual_rows', None)
     if not sym_map or dual_rows is None:
         return {}
 
     try:
-        import pyomo.environ as pyo
-        instance = (getattr(model.backend, '_instance', None)
-                    or getattr(model.backend, 'instance', None))
-        if instance is None:
-            return {}
-
-        by_object = getattr(sym_map, 'byObject', {})
-        if not by_object:
-            return {}
-
-        # Build ts_index for ordering
-        ts_index = {str(ts): i for i, ts in enumerate(timestamps or [])}
+        import pandas as pd
         n_ts = len(timestamps or [])
         if n_ts == 0:
             return {}
 
-        prices = {}
-        for c_name, c_comp in instance.component_map(pyo.Constraint).items():
-            if 'system_balance' not in c_name:
-                continue
-            for idx, c_data in c_comp.items():
-                lp_sym = by_object.get(id(c_data))
-                if lp_sym is None:
-                    continue
-                dual = dual_rows.get(lp_sym)
-                if dual is None:
-                    continue
-                # idx is typically (carriers, nodes, timesteps) in Calliope 0.7
-                if not isinstance(idx, tuple) or len(idx) < 3:
-                    continue
-                carrier, node, ts_raw = str(idx[0]), str(idx[1]), str(idx[2])
-                key = f"{carrier}:{node}"
-                if key not in prices:
-                    prices[key] = [None] * n_ts
-                ts_i = ts_index.get(ts_raw)
-                if ts_i is not None:
-                    prices[key][ts_i] = round(dual, 6)
+        # verbose_strings() sets obj.calliope_coords = (coord_per_dim, ...)
+        # under a _datetime_as_string context that formats timestamps as
+        # '%Y-%m-%d %H:%M' strings.  Build ts_index in the same format.
+        model.backend.verbose_strings()
+        try:
+            ts_index = {pd.Timestamp(ts).strftime('%Y-%m-%d %H:%M'): i
+                        for i, ts in enumerate(timestamps)}
+        except Exception:
+            ts_index = {str(ts): i for i, ts in enumerate(timestamps)}
 
-        # Drop series that are entirely None
+        by_symbol = getattr(sym_map, 'bySymbol', {})
+        prices = {}
+        for lp_sym, dual in dual_rows.items():
+            obj = by_symbol.get(lp_sym)
+            if obj is None:
+                continue
+            obj_name = getattr(obj, 'name', None) or ''
+            if 'system_balance' not in obj_name:
+                continue
+            coords = getattr(obj, 'calliope_coords', None)
+            if coords is None or len(coords) < 3:
+                continue
+            # system_balance DataArray dims = ('nodes', 'carriers', 'timesteps')
+            node, carrier, ts_raw = str(coords[0]), str(coords[1]), str(coords[2])
+            key = f"{carrier}:{node}"
+            if key not in prices:
+                prices[key] = [None] * n_ts
+            ts_i = ts_index.get(ts_raw)
+            if ts_i is not None:
+                prices[key][ts_i] = round(dual, 6)
+
         prices = {k: v for k, v in prices.items() if any(x is not None for x in v)}
         if prices:
             log(f"  Shadow prices extracted for {len(prices)} carrier:node pair(s)")
