@@ -17,6 +17,9 @@
 import React, { useMemo, useState } from "react";
 import ReactECharts from "echarts-for-react";
 import { FiWind, FiActivity, FiInfo, FiSettings, FiLayers } from "react-icons/fi";
+import ParamSlider from './ui/ParamSlider';
+import MetricBadge from './ui/MetricBadge';
+import KpiCard from './ui/KpiCard';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Stripper type detection from model id / name
@@ -399,90 +402,8 @@ export default function CCSStripperPanel({
 // Helper components (reusable primitives)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function ParamSlider({ label, unit, value, min, max, step = 1, onChange }) {
-  const pct = ((value - min) / (max - min)) * 100;
-  return (
-    <div className="mb-4">
-      <div className="flex justify-between items-center mb-1">
-        <span className="text-xs text-slate-500">{label}</span>
-        <div className="flex items-center gap-1">
-          <input
-            type="number"
-            className="w-20 text-right text-sm font-medium text-slate-800 border border-slate-200 rounded-lg px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-electric-400"
-            value={value}
-            min={min}
-            max={max}
-            step={step}
-            onChange={(e) => onChange(parseFloat(e.target.value) || min)}
-          />
-          <span className="text-xs text-slate-400 w-10">{unit}</span>
-        </div>
-      </div>
-      <div className="relative h-2 bg-slate-100 rounded-full">
-        <div
-          className="absolute left-0 top-0 h-2 rounded-full bg-gradient-to-r from-electric-400 to-electric-600 transition-all"
-          style={{ width: `${pct}%` }}
-        />
-        <input
-          type="range"
-          className="absolute inset-0 w-full h-2 opacity-0 cursor-pointer"
-          min={min}
-          max={max}
-          step={step}
-          value={value}
-          onChange={(e) => onChange(parseFloat(e.target.value))}
-        />
-      </div>
-      <div className="flex justify-between text-[10px] text-slate-300 mt-0.5">
-        <span>{min}</span>
-        <span>{max}</span>
-      </div>
-    </div>
-  );
-}
 
-function MetricBadge({ label, value, unit, color = "slate" }) {
-  const palettes = {
-    amber:  "bg-gray-50 border-gray-200 text-gray-700",
-    green:  "bg-gray-50 border-gray-200 text-gray-700",
-    violet: "bg-gray-50 border-gray-200 text-gray-700",
-    blue:   "bg-gray-50 border-gray-200 text-gray-700",
-    red:    "bg-gray-50 border-gray-200 text-gray-700",
-    slate:  "bg-slate-50  border-slate-200  text-slate-700",
-  };
-  return (
-    <div className={`rounded-xl border px-3 py-2 ${palettes[color] ?? palettes.slate}`}>
-      <p className="text-[10px] text-slate-500 font-medium leading-none mb-1">{label}</p>
-      <p className="text-sm font-bold leading-none">
-        {value ?? "—"}
-        {value != null && unit && <span className="text-xs font-normal ml-1 text-slate-500">{unit}</span>}
-      </p>
-    </div>
-  );
-}
 
-function KpiCard({ label, value, unit, color = "slate" }) {
-  const ring = {
-    electric: "border-electric-200 bg-electric-50",
-    emerald:  "border-gray-200 bg-gray-50",
-    amber:    "border-gray-200 bg-gray-50",
-    red:      "border-gray-200 bg-gray-50",
-    slate:    "border-slate-200 bg-slate-50",
-  };
-  const text = {
-    electric: "text-electric-700",
-    emerald:  "text-gray-700",
-    amber:    "text-gray-700",
-    red:      "text-gray-700",
-    slate:    "text-slate-700",
-  };
-  return (
-    <div className={`rounded-xl border px-4 py-3 ${ring[color] ?? ring.slate}`}>
-      <p className="text-[10px] text-slate-500 uppercase tracking-wide font-medium">{label}</p>
-      <p className={`text-lg font-bold leading-tight ${text[color] ?? text.slate}`}>
-        {value ?? "—"}
-        {value != null && <span className="text-sm font-medium ml-1">{unit}</span>}
-      </p>
-    </div>
-  );
-}
+
+
+
