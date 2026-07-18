@@ -17,6 +17,90 @@ import threading
 
 import adoptnet0_translate as translate
 
+
+def _patch_res_capfactor(Res):
+    """Monkey-patch Res.fit_technology_performance to inject a constant capfactor fallback.
+
+    adopt_net0 only computes capfactor for names containing "Photovoltaic",
+    "SolarThermal", or "WindTurbine".  Generic TEMPO supply names (e.g. "solar_pv")
+    get no capfactor, causing KeyError in construct_tech_model.
+    This patch sets capfactor = 0.5 for any RES tech that didn't get one.
+    """
+    import numpy as np
+    _orig_fit = Res.fit_technology_performance
+
+    def _patched_fit(self, climate_data, location):
+        _orig_fit(self, climate_data, location)
+        td_full = self.processed_coeff.time_dependent_full
+        if "capfactor" not in td_full:
+            n = len(climate_data) if hasattr(climate_data, "__len__") else 8760
+            td_full["capfactor"] = np.ones(n) * 0.5
+
+    Res.fit_technology_performance = _patched_fit
+
+
+def _patch_highs_support(ModelHub):
+    """Monkey-patch adopt_net0 to accept HiGHS as a solver.
+
+    AdOpT-NET0 0.1.x hard-codes only gurobi/glpk in its solver check and
+    solver-settings methods.  HiGHS is available via pyomo's SolverFactory
+    but is not recognised, causing an UnboundLocalError at runtime.  This
+    patch adds the missing branch to both methods so HiGHS can be used.
+    """
+    import pyomo.environ as pyo
+
+    _orig_check = ModelHub._perform_preprocessing_checks
+    _orig_settings = ModelHub._define_solver_settings
+
+    _highs_names = ("highs", "appsi_highs", "highspy")
+
+    def _patched_check(self):
+        cfg = self.data.model_config
+        name = (cfg.get("solveroptions") or {}).get("solver", {}).get("value", "")
+        if name in _highs_names:
+            solver = pyo.SolverFactory("highs")
+            if not solver.available():
+                raise Exception("HiGHS solver is not available in this environment.")
+            # skip mock solve — availability check is sufficient for HiGHS
+        else:
+            _orig_check(self)
+
+    def _patched_settings(self):
+        cfg = self.data.model_config
+        name = (cfg.get("solveroptions") or {}).get("solver", {}).get("value", "")
+        if name in _highs_names:
+            self.solver = pyo.SolverFactory("highs")
+        else:
+            _orig_settings(self)
+
+    # Patch _call_solver: HiGHS's LegacySolverWrapper doesn't accept warmstart=True.
+    # Wrap the solver's solve() to strip that kwarg before the actual call.
+    _orig_call_solver = ModelHub._call_solver
+
+    def _patched_call_solver(self):
+        cfg = self.data.model_config
+        solver_name = (cfg.get("solveroptions") or {}).get("solver", {}).get("value", "")
+        if solver_name not in _highs_names:
+            _orig_call_solver(self)
+            return
+        # APPSI HiGHS (LegacySolverWrapper) does not accept warmstart, logfile,
+        # keepfiles, or suffixes — strip them before passing through to the solver.
+        _UNSUPPORTED = ("warmstart", "logfile", "keepfiles", "suffixes", "solver_io")
+        orig_solve = self.solver.solve
+        def _solve_highs(*args, **kwargs):
+            for k in _UNSUPPORTED:
+                kwargs.pop(k, None)
+            return orig_solve(*args, **kwargs)
+        self.solver.solve = _solve_highs
+        try:
+            _orig_call_solver(self)
+        finally:
+            self.solver.solve = orig_solve
+
+    ModelHub._perform_preprocessing_checks = _patched_check
+    ModelHub._define_solver_settings = _patched_settings
+    ModelHub._call_solver = _patched_call_solver
+
 logging.basicConfig(level=logging.WARNING)
 
 _thread_local = threading.local()
@@ -223,6 +307,11 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
             f"adopt_net0 package not found: {exc}\n"
             "Run the TEMPO setup wizard to install the AdOpT-NET0 environment."
         ) from exc
+
+    _patch_highs_support(ModelHub)
+
+    from adopt_net0.components.technologies import Res as _Res
+    _patch_res_capfactor(_Res)
 
     results_dir = os.path.join(model_dir, "results")
     os.makedirs(results_dir, exist_ok=True)

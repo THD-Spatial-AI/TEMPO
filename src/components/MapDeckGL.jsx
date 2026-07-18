@@ -9,6 +9,7 @@ import { TECH_TEMPLATES, useLiveTechTemplates } from './TechnologiesData';
 import { canCreateWebGLContext, webglUnavailableMessage } from '../utils/webglSupport';
 import 'leaflet/dist/leaflet.css';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import { CONSTRAINT_DEFINITIONS, COST_DEFINITIONS, PARENT_CONSTRAINTS } from '../utils/constraintDefinitions';
 
 // Technology color mapping for power plants and other types
 const TECH_COLORS = {
@@ -341,87 +342,11 @@ const getDefaultIconType = (location) => {
   return 'generic';
 };
 
-// Constraint definitions
-const CONSTRAINT_DEFINITIONS = {
-  energy_cap_max: { group: 'Capacity', desc: 'Maximum energy capacity (kW)' },
-  energy_cap_min: { group: 'Capacity', desc: 'Minimum energy capacity (kW)' },
-  energy_cap_equals: { group: 'Capacity', desc: 'Fixed energy capacity (kW)' },
-  energy_cap_equals_systemwide: { group: 'Capacity', desc: 'System-wide fixed energy capacity' },
-  energy_cap_max_systemwide: { group: 'Capacity', desc: 'System-wide maximum energy capacity' },
-  energy_cap_min_use: { group: 'Capacity', desc: 'Minimum capacity utilization (0-1)' },
-  energy_cap_per_unit: { group: 'Capacity', desc: 'Energy capacity per unit (kW/unit)' },
-  energy_cap_scale: { group: 'Capacity', desc: 'Scaling factor for energy capacity' },
-  energy_cap_per_storage_cap_min: { group: 'Capacity', desc: 'Min energy/storage capacity ratio' },
-  energy_cap_per_storage_cap_max: { group: 'Capacity', desc: 'Max energy/storage capacity ratio' },
-  energy_cap_per_storage_cap_equals: { group: 'Capacity', desc: 'Fixed energy/storage capacity ratio' },
-  storage_cap_max: { group: 'Capacity', desc: 'Maximum storage capacity (kWh)' },
-  storage_cap_min: { group: 'Capacity', desc: 'Minimum storage capacity (kWh)' },
-  storage_cap_equals: { group: 'Capacity', desc: 'Fixed storage capacity (kWh)' },
-  storage_cap_per_unit: { group: 'Capacity', desc: 'Storage capacity per unit (kWh/unit)' },
-  energy_eff: { group: 'Efficiency', desc: 'Energy conversion efficiency (0-1)' },
-  energy_eff_per_distance: { group: 'Efficiency', desc: 'Efficiency loss per distance' },
-  resource_eff: { group: 'Efficiency', desc: 'Resource conversion efficiency (0-1)' },
-  parasitic_eff: { group: 'Efficiency', desc: 'Parasitic efficiency loss (0-1)' },
-  resource: { group: 'Resource', desc: 'Resource availability (kWh or file://)' },
-  resource_min_use: { group: 'Resource', desc: 'Minimum resource utilization (0-1)' },
-  resource_scale: { group: 'Resource', desc: 'Resource scaling factor' },
-  resource_unit: { group: 'Resource', desc: 'Unit of resource measure' },
-  resource_area_max: { group: 'Resource', desc: 'Maximum resource area (m²)' },
-  resource_area_min: { group: 'Resource', desc: 'Minimum resource area (m²)' },
-  resource_area_equals: { group: 'Resource', desc: 'Fixed resource area (m²)' },
-  resource_area_per_energy_cap: { group: 'Resource', desc: 'Resource area per capacity (m²/kW)' },
-  resource_cap_max: { group: 'Resource', desc: 'Maximum resource capacity' },
-  resource_cap_min: { group: 'Resource', desc: 'Minimum resource capacity' },
-  resource_cap_equals: { group: 'Resource', desc: 'Fixed resource capacity' },
-  resource_cap_equals_energy_cap: { group: 'Resource', desc: 'Resource cap equals energy cap' },
-  force_resource: { group: 'Resource', desc: 'Force resource consumption' },
-  energy_ramping: { group: 'Operation', desc: 'Ramping rate limit (fraction/hour)' },
-  charge_rate: { group: 'Operation', desc: 'Charge/discharge rate (C-rate)' },
-  storage_loss: { group: 'Operation', desc: 'Storage standing loss (fraction/hour)' },
-  storage_initial: { group: 'Operation', desc: 'Initial storage state (0-1)' },
-  storage_time_max: { group: 'Operation', desc: 'Maximum storage duration (hours)' },
-  storage_discharge_depth: { group: 'Operation', desc: 'Minimum state of charge (0-1)' },
-  lifetime: { group: 'Operation', desc: 'Technology lifetime (years)' },
-  one_way: { group: 'Operation', desc: 'Unidirectional transmission' },
-  force_asynchronous_prod_con: { group: 'Operation', desc: 'Force async production/consumption' },
-  energy_prod: { group: 'Energy Flow', desc: 'Energy production (kWh)' },
-  energy_con: { group: 'Energy Flow', desc: 'Energy consumption (kWh)' },
-  carrier_ratios: { group: 'Energy Flow', desc: 'Carrier input/output ratios' },
-  export_carrier: { group: 'Energy Flow', desc: 'Exportable carrier' },
-  export_cap: { group: 'Energy Flow', desc: 'Maximum export capacity (kW)' },
-  units_max: { group: 'Units', desc: 'Maximum number of units' },
-  units_min: { group: 'Units', desc: 'Minimum number of units' },
-  units_equals: { group: 'Units', desc: 'Exact number of units' },
-  units_equals_systemwide: { group: 'Units', desc: 'System-wide exact units' },
-  units_max_systemwide: { group: 'Units', desc: 'System-wide maximum units' }
-};
 
-const COST_DEFINITIONS = {
-  energy_cap: { group: 'Investment', desc: 'Capital cost per capacity ($/kW)' },
-  storage_cap: { group: 'Investment', desc: 'Capital cost per storage ($/kWh)' },
-  resource_cap: { group: 'Investment', desc: 'Capital cost per resource capacity' },
-  resource_area: { group: 'Investment', desc: 'Capital cost per area ($/m²)' },
-  purchase: { group: 'Investment', desc: 'Purchase cost per unit ($)' },
-  energy_cap_per_distance: { group: 'Investment', desc: 'Cost per capacity per distance' },
-  purchase_per_distance: { group: 'Investment', desc: 'Purchase cost per distance' },
-  om_annual: { group: 'O&M', desc: 'Annual O&M cost ($/year)' },
-  om_annual_investment_fraction: { group: 'O&M', desc: 'Annual O&M as fraction of investment' },
-  om_prod: { group: 'O&M', desc: 'Variable O&M per production ($/kWh)' },
-  om_con: { group: 'O&M', desc: 'Variable O&M per consumption ($/kWh)' },
-  interest_rate: { group: 'Financial', desc: 'Interest rate (fraction)' },
-  depreciation_rate: { group: 'Financial', desc: 'Depreciation rate (fraction/year)' },
-  export: { group: 'Other', desc: 'Export revenue ($/kWh)' }
-};
 
-const PARENT_CONSTRAINTS = {
-  supply: ['energy_cap_equals', 'energy_cap_equals_systemwide', 'energy_cap_max', 'energy_cap_max_systemwide', 'energy_cap_min', 'energy_cap_min_use', 'energy_cap_per_unit', 'energy_cap_scale', 'energy_eff', 'energy_prod', 'energy_ramping', 'export_cap', 'export_carrier', 'force_resource', 'lifetime', 'resource', 'resource_area_equals', 'resource_area_max', 'resource_area_min', 'resource_area_per_energy_cap', 'resource_min_use', 'resource_scale', 'resource_unit', 'units_equals', 'units_equals_systemwide', 'units_max', 'units_max_systemwide', 'units_min'],
-  supply_plus: ['charge_rate', 'energy_cap_per_storage_cap_min', 'energy_cap_per_storage_cap_max', 'energy_cap_per_storage_cap_equals', 'energy_cap_equals', 'energy_cap_equals_systemwide', 'energy_cap_max', 'energy_cap_max_systemwide', 'energy_cap_min', 'energy_cap_min_use', 'energy_cap_per_unit', 'energy_cap_scale', 'energy_eff', 'energy_prod', 'energy_ramping', 'export_cap', 'export_carrier', 'force_resource', 'lifetime', 'parasitic_eff', 'resource', 'resource_area_equals', 'resource_area_max', 'resource_area_min', 'resource_area_per_energy_cap', 'resource_cap_equals', 'resource_cap_equals_energy_cap', 'resource_cap_max', 'resource_cap_min', 'resource_eff', 'resource_min_use', 'resource_scale', 'resource_unit', 'storage_cap_equals', 'storage_cap_max', 'storage_cap_min', 'storage_cap_per_unit', 'storage_initial', 'storage_loss', 'units_equals', 'units_equals_systemwide', 'units_max', 'units_max_systemwide', 'units_min'],
-  demand: ['energy_con', 'force_resource', 'resource', 'resource_area_equals', 'resource_scale', 'resource_unit'],
-  storage: ['charge_rate', 'energy_cap_per_storage_cap_min', 'energy_cap_per_storage_cap_max', 'energy_cap_per_storage_cap_equals', 'energy_cap_equals', 'energy_cap_equals_systemwide', 'energy_cap_max', 'energy_cap_max_systemwide', 'energy_cap_min', 'energy_cap_min_use', 'energy_cap_per_unit', 'energy_cap_scale', 'energy_con', 'energy_eff', 'energy_prod', 'energy_ramping', 'export_cap', 'export_carrier', 'force_asynchronous_prod_con', 'lifetime', 'storage_cap_equals', 'storage_cap_max', 'storage_cap_min', 'storage_cap_per_unit', 'storage_initial', 'storage_loss', 'storage_time_max', 'storage_discharge_depth', 'units_equals', 'units_equals_systemwide', 'units_max', 'units_max_systemwide', 'units_min'],
-  transmission: ['energy_cap_equals', 'energy_cap_min', 'energy_cap_max', 'energy_cap_per_unit', 'energy_cap_scale', 'energy_con', 'energy_eff', 'energy_eff_per_distance', 'energy_prod', 'force_asynchronous_prod_con', 'lifetime', 'one_way'],
-  conversion: ['energy_cap_equals', 'energy_cap_equals_systemwide', 'energy_cap_max', 'energy_cap_max_systemwide', 'energy_cap_min', 'energy_cap_min_use', 'energy_cap_per_unit', 'energy_cap_scale', 'energy_con', 'energy_eff', 'energy_prod', 'energy_ramping', 'export_cap', 'export_carrier', 'lifetime', 'units_equals', 'units_equals_systemwide', 'units_max', 'units_max_systemwide', 'units_min'],
-  conversion_plus: ['carrier_ratios', 'energy_cap_equals', 'energy_cap_equals_systemwide', 'energy_cap_max', 'energy_cap_max_systemwide', 'energy_cap_min', 'energy_cap_min_use', 'energy_cap_per_unit', 'energy_cap_scale', 'energy_con', 'energy_eff', 'energy_prod', 'energy_ramping', 'export_cap', 'export_carrier', 'lifetime', 'units_equals', 'units_equals_systemwide', 'units_max', 'units_max_systemwide', 'units_min']
-};
+
+
+
 
 // Helper function to format technology names
 const formatTechName = (techName) => {

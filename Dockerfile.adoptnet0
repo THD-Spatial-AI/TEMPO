@@ -11,10 +11,11 @@ LABEL org.opencontainers.image.description="AdOpT-NET0 optimisation web service"
 
 WORKDIR /app
 
-# System dependencies: HDF5 libraries (required by h5py) + build tools
+# System dependencies: HDF5 libraries (h5py) + GLPK solver + build tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libhdf5-dev \
         build-essential \
+        glpk-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies in two layers for better caching:

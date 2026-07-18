@@ -147,7 +147,8 @@ def _write_datafile(csv_dir: str, results_dir: str, discount_rate: float = 0.05)
         ("FixedCost.csv",                  "FixedCost",                 ["REGION", "TECHNOLOGY", "YEAR"]),
         ("VariableCost.csv",               "VariableCost",              ["REGION", "TECHNOLOGY", "MODE_OF_OPERATION", "YEAR"]),
         # Capacity constraints
-        ("TotalAnnualMaxCapacity.csv",     "TotalAnnualMaxCapacity",    ["REGION", "TECHNOLOGY", "YEAR"]),
+        ("TotalAnnualMaxCapacity.csv",           "TotalAnnualMaxCapacity",           ["REGION", "TECHNOLOGY", "YEAR"]),
+        ("TotalAnnualMaxCapacityInvestment.csv", "TotalAnnualMaxCapacityInvestment", ["REGION", "TECHNOLOGY", "YEAR"]),
         # Demand
         ("SpecifiedAnnualDemand.csv",      "SpecifiedAnnualDemand",     ["REGION", "FUEL", "YEAR"]),
         ("SpecifiedDemandProfile.csv",     "SpecifiedDemandProfile",    ["REGION", "FUEL", "TIMESLICE", "YEAR"]),
@@ -165,6 +166,31 @@ def _write_datafile(csv_dir: str, results_dir: str, discount_rate: float = 0.05)
             lines.append(f"  [{idx}] {val}")
         lines.append(";")
         lines.append("")
+
+    # OSeMOSYS optional params — write defaults so GLPK always has a value for
+    # every (REGION, TECHNOLOGY, YEAR) index.  Without these blocks the model's
+    # check statements error with "no value for …".
+    # Convention from OSeMOSYS: -1 = unconstrained (guards use <> -1), 0 = not active.
+    _optional_defaults: list[tuple[str, int]] = [
+        ("TotalAnnualMinCapacity",                      0),
+        ("TotalAnnualMinCapacityInvestment",             0),
+        ("TotalTechnologyAnnualActivityUpperLimit",     -1),
+        ("TotalTechnologyAnnualActivityLowerLimit",      0),
+        ("TotalTechnologyModelPeriodActivityUpperLimit",-1),
+        ("TotalTechnologyModelPeriodActivityLowerLimit", 0),
+        ("ReserveMarginTagTechnology",                   0),
+        ("ReserveMarginTagFuel",                         0),
+        ("ReserveMargin",                                0),
+        ("CapacityOfOneTechnologyUnit",                  0),
+        ("AccumulatedAnnualDemand",                      0),
+        ("TradeRoute",                                   0),
+        ("RETagTechnology",                              0),
+        ("RETagFuel",                                    0),
+        ("REMinProductionTarget",                        0),
+    ]
+    for pname, dval in _optional_defaults:
+        lines.append(f"param {pname} default {dval} := ;")
+    lines.append("")
 
     lines.append("end;")
 

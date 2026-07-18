@@ -28,6 +28,8 @@
  *   cancel();
  */
 
+import { streamRun } from './runService';
+
 // ---------------------------------------------------------------------------
 // Engine + service URL resolution
 // ---------------------------------------------------------------------------
@@ -144,83 +146,10 @@ export async function runCalliopeModel({ modelData, onLog, onStats, onDone, onEr
   if (engine === '0.7') {
     onLog?.('[TEMPO] Using the Calliope 0.7 (experimental) engine');
   }
-  // ── 1. Submit the model ──────────────────────────────────────────────────
-  let response;
-  try {
-    response = await fetch(`${SERVICE_URL}/run`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(modelData),
-    });
-  } catch (err) {
-    throw new Error(`Cannot reach Calliope ${engine} service at ${SERVICE_URL}: ${err.message}`);
-  }
-
-  if (!response.ok) {
-    const text = await response.text().catch(() => response.statusText);
-    throw new Error(`Calliope service rejected the run (${response.status}): ${text}`);
-  }
-
-  const { job_id: jobId } = await response.json();
-
-  // ── 2. Open SSE stream ───────────────────────────────────────────────────
-  const es = new EventSource(`${SERVICE_URL}/run/${jobId}/stream`);
-
-  // Guard: once the server sends done/error we close intentionally.
-  // Without this flag, the browser fires onerror right after close(), which
-  // would show a spurious "disconnected" notification even on success.
-  let finished = false;
-
-  es.onmessage = (evt) => {
-    let event;
-    try {
-      event = JSON.parse(evt.data);
-    } catch {
-      return; // skip malformed frames (e.g. keepalive comments)
-    }
-
-    if (event.type === 'log') {
-      onLog?.(event.line);
-    } else if (event.type === 'stats') {
-      onStats?.(event);
-    } else if (event.type === 'done') {
-      finished = true;
-      es.close();
-      // The SSE done event contains only a lightweight summary (no large timeseries).
-      // Fetch the full result from the dedicated REST endpoint so the browser
-      // doesn't have to parse a potentially 50-100 MB SSE message.
-      fetch(`${SERVICE_URL}/run/${jobId}/result`, {
-        signal: AbortSignal.timeout(120_000), // 2-minute timeout for large result payloads
-      })
-        .then(r => {
-          if (!r.ok) throw new Error(`result fetch ${r.status}`);
-          return r.json();
-        })
-        .then(fullResult => onDone?.(fullResult))
-        .catch(() => {
-          // Fallback: use whatever the SSE summary carried (objective etc. still present)
-          onDone?.(event.result ?? {});
-        });
-    } else if (event.type === 'error') {
-      finished = true;
-      es.close();
-      onError?.(event.error || 'Unknown error from Calliope service');
-    }
-  };
-
-  es.onerror = () => {
-    if (finished) return; // SSE closed intentionally after done/error — not a real disconnect
-    finished = true;
-    es.close();
-    onError?.('Lost connection to Calliope service');
-  };
-
-  // ── 3. Return jobId + cancel handle ─────────────────────────────────────
-  const cancel = () => {
-    es.close();
-    // Best-effort: ask the server to mark the job as cancelled
-    fetch(`${SERVICE_URL}/run/${jobId}`, { method: 'DELETE' }).catch(() => {});
-  };
-
-  return { jobId, cancel };
+  return streamRun(
+    SERVICE_URL,
+    modelData,
+    { onLog, onStats, onDone, onError },
+    { label: 'Calliope', reachError: `Cannot reach Calliope ${engine} service at ${SERVICE_URL}` },
+  );
 }

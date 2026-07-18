@@ -13,6 +13,8 @@
  * in adoptnet0Client.js. This module owns URL resolution + export/import.
  */
 
+import { streamRun } from './runService';
+
 const ENGINES = {
   pypsa: {
     urlFn: 'getPypsaServiceURL',
@@ -115,65 +117,7 @@ export async function checkEngineRunService(engine) {
 export async function runEngineModel(engine, { modelData, onLog, onStats, onDone, onError }) {
   const SERVICE_URL = await getEngineServiceURL(engine);
   const label = engine === 'pypsa' ? 'PyPSA' : engine === 'osemosys' ? 'OSeMOSYS' : engine;
-
-  let response;
-  try {
-    response = await fetch(`${SERVICE_URL}/run`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(modelData),
-    });
-  } catch (err) {
-    throw new Error(`Cannot reach ${label} service at ${SERVICE_URL}: ${err.message}`);
-  }
-
-  if (!response.ok) {
-    const text = await response.text().catch(() => response.statusText);
-    throw new Error(`${label} service rejected the run (${response.status}): ${text}`);
-  }
-
-  const { job_id: jobId } = await response.json();
-
-  const es = new EventSource(`${SERVICE_URL}/run/${jobId}/stream`);
-  let finished = false;
-
-  es.onmessage = (evt) => {
-    let event;
-    try { event = JSON.parse(evt.data); } catch { return; }
-
-    if (event.type === 'log') {
-      onLog?.(event.line);
-    } else if (event.type === 'stats') {
-      onStats?.(event);
-    } else if (event.type === 'done') {
-      finished = true;
-      es.close();
-      fetch(`${SERVICE_URL}/run/${jobId}/result`, {
-        signal: AbortSignal.timeout(120_000),
-      })
-        .then(r => { if (!r.ok) throw new Error(`result fetch ${r.status}`); return r.json(); })
-        .then(fullResult => onDone?.(fullResult))
-        .catch(() => onDone?.(event.result ?? {}));
-    } else if (event.type === 'error') {
-      finished = true;
-      es.close();
-      onError?.(event.error || `Unknown error from ${label} service`);
-    }
-  };
-
-  es.onerror = () => {
-    if (finished) return;
-    finished = true;
-    es.close();
-    onError?.(`Lost connection to ${label} service`);
-  };
-
-  const cancel = () => {
-    es.close();
-    fetch(`${SERVICE_URL}/run/${jobId}`, { method: 'DELETE' }).catch(() => {});
-  };
-
-  return { jobId, cancel };
+  return streamRun(SERVICE_URL, modelData, { onLog, onStats, onDone, onError }, { label });
 }
 
 /**

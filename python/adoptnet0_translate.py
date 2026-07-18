@@ -292,13 +292,22 @@ def _build_stor_json(tech: dict) -> dict:
         "decommission": "impossible",
         "Economics": _economics(tech),
         "Performance": {
-            "carrier_in": carrier,
-            "carrier_out": carrier,
-            "charging_efficiency": one_way,
-            "discharging_efficiency": one_way,
-            "self_discharge": constr["storage_loss"],
-            "min_fill_level": 0.0,
-            "initial_fill_level": 0.0,
+            "input_carrier": [carrier],
+            "main_input_carrier": carrier,
+            "output_carrier": [carrier],
+            "emission_factor": 0,
+            "allow_only_one_direction": 1,
+            "performance": {
+                "eta_in": one_way,
+                "eta_out": one_way,
+                "lambda": constr["storage_loss"],
+                "theta": 0.0,
+            },
+        },
+        "Flexibility": {
+            "power_energy_ratio": "fixedratio",
+            "charge_rate": 1.0,
+            "discharge_rate": 1.0,
         },
         "Units": {
             "size": "MWh",
@@ -376,10 +385,10 @@ def _write_topology(model_dir: str, locations: list, carriers: list,
 
 def _write_config(model_dir: str, solver: str, model_config: dict) -> None:
     solver_name = str(solver).lower()
-    if solver_name in ("highs", "appsi_highs", "highspy"):
-        solver_name = "highs"
-    elif solver_name == "gurobi":
+    if solver_name == "gurobi":
         solver_name = "gurobi"
+    elif solver_name in ("glpk",):
+        solver_name = "glpk"
     else:
         solver_name = "highs"
 
@@ -393,10 +402,10 @@ def _write_config(model_dir: str, solver: str, model_config: dict) -> None:
         "optimization": {
             "objective": {"value": "costs"},
             "emission_limit": {"value": 1e6},
-            "monte_carlo": {"N": 0, "type": "normal_dis", "sd": 0.2, "on_what": []},
+            "monte_carlo": {"N": {"value": 0}, "type": "normal_dis", "sd": 0.2, "on_what": []},
             "pareto_points": {"value": 1},
             "timestaging": {"value": 0},
-            "typicaldays": {"N": 0, "method": 2, "technologies_with_full_res": ["RES", "STOR"]},
+            "typicaldays": {"N": {"value": 0}, "method": {"value": 2}, "technologies_with_full_res": {"value": ["RES", "STOR"]}},
             "multiyear": {"value": 0},
         },
         "solveroptions": {
@@ -412,7 +421,9 @@ def _write_config(model_dir: str, solver: str, model_config: dict) -> None:
         "reporting": {
             "write_results": {"value": 1},
             "save_path": {"value": results_path},
+            "save_summary_path": {"value": results_path},
             "case_name": {"value": "tempo_run"},
+            "write_solution_diagnostics": {"value": 0},
         },
         "energybalance": {
             "violation": {"value": 1000},
@@ -429,6 +440,9 @@ def _write_config(model_dir: str, solver: str, model_config: dict) -> None:
                 "cost_vars": {"value": 0.001},
                 "objective": {"value": 1},
             },
+        },
+        "performance": {
+            "dynamics": {"value": 0},
         },
     })
 
@@ -472,6 +486,9 @@ def _write_networks(period_dir: str, locations: list, links: list, carriers: lis
     network_data_dir = os.path.join(period_dir, "network_data")
     os.makedirs(network_data_dir, exist_ok=True)
 
+    node_names = [_safe_id(loc.get("name") or loc.get("id", f"node_{i}"))
+                  for i, loc in enumerate(locations)]
+
     carrier_links: dict = {}
     for link in links:
         c = (link.get("carrier") or "electricity").lower()
@@ -514,6 +531,30 @@ def _write_networks(period_dir: str, locations: list, links: list, carriers: lis
                 "energyconsumption": [],
             },
         })
+
+        # network_topology/new/{net_name}/connection.csv and distance.csv
+        # AdOpT-NET0 requires node×node adjacency and distance matrices (semicolon-separated)
+        topo_dir = os.path.join(period_dir, "network_topology", "new", net_name)
+        os.makedirs(topo_dir, exist_ok=True)
+
+        conn: dict = {n: {n2: 0 for n2 in node_names} for n in node_names}
+        dist: dict = {n: {n2: 0 for n2 in node_names} for n in node_names}
+        for lnk in link_list:
+            fn = _safe_id(lnk.get("from") or "")
+            tn = _safe_id(lnk.get("to") or "")
+            km = float(lnk.get("distance") or 0) or 100.0
+            if fn in conn and tn in conn:
+                conn[fn][tn] = conn[tn][fn] = 1
+                dist[fn][tn] = dist[tn][fn] = km
+
+        def _write_matrix(path: str, matrix: dict) -> None:
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(";" + ";".join(node_names) + "\n")
+                for n in node_names:
+                    fh.write(n + ";" + ";".join(str(matrix[n][n2]) for n2 in node_names) + "\n")
+
+        _write_matrix(os.path.join(topo_dir, "connection.csv"), conn)
+        _write_matrix(os.path.join(topo_dir, "distance.csv"), dist)
 
     _write_json(os.path.join(period_dir, "Networks.json"), {
         "existing": [],
@@ -652,7 +693,7 @@ def _write_node_data(period_dir: str, locations: list, technologies: list,
 
         climate_lines = [";ghi;dni;dhi;temp_air;rh;ws10"]
         for ts in timestamps:
-            climate_lines.append(f"{_fmt_ts(ts)};;;;;; ")
+            climate_lines.append(f"{_fmt_ts(ts)};;;;;;")
         _write_text(os.path.join(node_dir, "ClimateData.csv"), "\n".join(climate_lines) + "\n")
 
         carbon_lines = [";price;subsidy"]
