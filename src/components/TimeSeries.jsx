@@ -13,6 +13,8 @@ import {
   FiChevronUp
 } from 'react-icons/fi';
 import ReactECharts from 'echarts-for-react';
+import DataTablePanel from './timeseries/DataTablePanel';
+import TimeSeriesFilterSidebar from './timeseries/TimeSeriesFilterSidebar';
 import Papa from 'papaparse';
 import { fetchTemplate } from '../utils/templateFetch';
 import { useData } from '../context/DataContext';
@@ -635,87 +637,6 @@ const TimeSeries = () => {
     updateDataTableConfig(id, { add_dims });
   };
 
-  // DataTablePanel: preview table + config editor (rendered inline for data_table type)
-  const DataTablePanel = ({ ts }) => {
-    const cfg = ts.dataTableConfig || { rows: ts.columns?.[0] || '', columns: '', add_dims: {} };
-    const previewRows = (ts.data || []).slice(0, 8);
-    const cols = ts.columns || [];
-    const dimEntries = Object.entries(cfg.add_dims || {});
-
-    return (
-      <div className="h-full flex flex-col overflow-auto p-4 gap-4">
-        {/* Config editor */}
-        <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
-          <h3 className="text-xs font-semibold text-indigo-800 mb-3">Calliope 0.7 data_tables configuration</h3>
-          <div className="grid grid-cols-2 gap-3 mb-3">
-            <div>
-              <label className="block text-xs font-medium text-indigo-700 mb-1">rows (row index dimension)</label>
-              <input type="text" value={cfg.rows || ''} placeholder="e.g. nodes or timesteps"
-                onChange={e => updateDataTableConfig(ts.id, { rows: e.target.value })}
-                className="w-full px-2 py-1.5 text-xs border border-indigo-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300 font-mono" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-indigo-700 mb-1">columns (column header dimension)</label>
-              <input type="text" value={cfg.columns || ''} placeholder="e.g. techs (leave blank if none)"
-                onChange={e => updateDataTableConfig(ts.id, { columns: e.target.value })}
-                className="w-full px-2 py-1.5 text-xs border border-indigo-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300 font-mono" />
-            </div>
-          </div>
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <label className="text-xs font-medium text-indigo-700">add_dims (fixed dimension values to inject)</label>
-              <button type="button" onClick={() => addDim(ts.id)}
-                className="px-2 py-0.5 text-[10px] bg-indigo-100 text-indigo-700 rounded-full hover:bg-indigo-200">+ add</button>
-            </div>
-            {dimEntries.map(([k, v], i) => (
-              <div key={i} className="flex items-center gap-2 mb-1.5">
-                <input type="text" value={k} placeholder="key (e.g. parameters)"
-                  onChange={e => {
-                    const ad = { ...cfg.add_dims };
-                    delete ad[k]; ad[e.target.value] = v;
-                    updateDataTableConfig(ts.id, { add_dims: ad });
-                  }}
-                  className="w-1/3 px-2 py-1 text-xs border border-indigo-200 rounded-lg bg-white font-mono focus:outline-none" />
-                <span className="text-indigo-400">:</span>
-                <input type="text" value={v} placeholder="value (e.g. flow_eff)"
-                  onChange={e => {
-                    const ad = { ...cfg.add_dims, [k]: e.target.value };
-                    updateDataTableConfig(ts.id, { add_dims: ad });
-                  }}
-                  className="flex-1 px-2 py-1 text-xs border border-indigo-200 rounded-lg bg-white font-mono focus:outline-none" />
-                <button type="button" onClick={() => {
-                  const ad = { ...cfg.add_dims }; delete ad[k];
-                  updateDataTableConfig(ts.id, { add_dims: ad });
-                }} className="text-indigo-400 hover:text-red-500 text-xs">&times;</button>
-              </div>
-            ))}
-            {dimEntries.length === 0 && <p className="text-xs text-indigo-400 italic">No fixed dimensions — add one above</p>}
-          </div>
-        </div>
-
-        {/* Table preview */}
-        <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
-          <div className="px-4 py-2 border-b border-slate-100 text-xs font-semibold text-slate-600">
-            Preview — first {previewRows.length} rows of {ts.rowCount}
-          </div>
-          <table className="w-full text-xs border-collapse">
-            <thead>
-              <tr className="bg-slate-50">
-                {cols.map(c => <th key={c} className="px-3 py-2 text-left text-slate-500 font-medium border-b border-slate-100 whitespace-nowrap">{c}</th>)}
-              </tr>
-            </thead>
-            <tbody>
-              {previewRows.map((row, i) => (
-                <tr key={i} className={i % 2 === 0 ? 'border-b border-slate-50' : 'border-b border-slate-50 bg-slate-50/40'}>
-                  {cols.map(c => <td key={c} className="px-3 py-1.5 text-slate-600 font-mono whitespace-nowrap">{row[c] ?? ''}</td>)}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    );
-  };
 
   return (
     <div className="flex-1 flex flex-col h-screen bg-gray-50">
@@ -865,7 +786,7 @@ const TimeSeries = () => {
               {/* Data Table type: show DataTablePanel instead of chart */}
               {selectedTimeSeries.type === 'data_table' && (
                 <div className="flex-1 overflow-hidden">
-                  <DataTablePanel ts={selectedTimeSeries} />
+                  <DataTablePanel ts={selectedTimeSeries} updateDataTableConfig={updateDataTableConfig} addDim={addDim} />
                 </div>
               )}
 
@@ -1105,139 +1026,29 @@ const TimeSeries = () => {
                 </div>
 
                 {/* Filter + Columns + Stats Sidebar */}
-                <div className="w-56 shrink-0 border-l border-slate-200 overflow-y-auto bg-white flex flex-col">
-                  <div className="p-3 space-y-4">
-
-                    {/* Range */}
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Range</p>
-                      <div className="flex flex-col gap-1">
-                        {[['weeks2','First 2 wks'],['month','Month'],['seasonal','Season'],['custom','Custom']].map(([id, lbl]) => (
-                          <button key={id} onClick={() => setViewMode(id)}
-                            className="px-2 py-1 rounded text-[11px] font-medium border transition-all text-left w-full"
-                            style={viewMode === id ? { background: '#6366f1', color: 'white', borderColor: '#6366f1' } : { background: 'white', color: '#475569', borderColor: '#e2e8f0' }}>
-                            {lbl}
-                          </button>
-                        ))}
-                      </div>
-                      {viewMode === 'month' && (
-                        <div className="mt-2 grid grid-cols-3 gap-1">
-                          {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
-                            <button key={i} onClick={() => setViewMonth(i)}
-                              className="px-1 py-0.5 rounded text-[10px] font-medium border transition-all text-center"
-                              style={viewMonth === i ? { background: '#6366f1', color: 'white', borderColor: '#6366f1' } : { background: 'white', color: '#475569', borderColor: '#e2e8f0' }}>
-                              {m}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                      {viewMode === 'seasonal' && (
-                        <div className="mt-2 flex flex-col gap-1">
-                          {[['DJF','Winter'],['MAM','Spring'],['JJA','Summer'],['SON','Autumn']].map(([id, lbl]) => (
-                            <button key={id} onClick={() => setViewSeason(id)}
-                              className="px-2 py-1 rounded text-[11px] font-medium border transition-all"
-                              style={viewSeason === id ? { background: '#6366f1', color: 'white', borderColor: '#6366f1' } : { background: 'white', color: '#475569', borderColor: '#e2e8f0' }}>
-                              {lbl} <span className="opacity-60 text-[9px]">({id})</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                      {viewMode === 'custom' && (
-                        <div className="mt-2 flex flex-col gap-1.5">
-                          <div>
-                            <label className="text-[10px] text-slate-400 block mb-0.5">From</label>
-                            <input type="date" value={viewCustomStart} onChange={e => setViewCustomStart(e.target.value)}
-                              className="w-full px-2 py-1 border border-slate-200 rounded text-[11px] bg-white" />
-                          </div>
-                          <div>
-                            <label className="text-[10px] text-slate-400 block mb-0.5">To</label>
-                            <input type="date" value={viewCustomEnd} onChange={e => setViewCustomEnd(e.target.value)}
-                              className="w-full px-2 py-1 border border-slate-200 rounded text-[11px] bg-white" />
-                          </div>
-                          {viewCustomStart && viewCustomEnd && (
-                            <span className="text-[10px] text-slate-400 text-center">
-                              {Math.max(0, Math.round((new Date(viewCustomEnd) - new Date(viewCustomStart)) / 86400000))} days
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Resolution */}
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Resolution</p>
-                      <div className="flex flex-col gap-1">
-                        {[['hourly','Hourly'],['daily','Daily avg'],['weekly','Weekly avg']].map(([id, lbl]) => (
-                          <button key={id} onClick={() => setViewResolution(id)}
-                            className="px-2 py-1 rounded text-[11px] font-medium border transition-all text-left w-full"
-                            style={viewResolution === id ? { background: '#6366f1', color: 'white', borderColor: '#6366f1' } : { background: 'white', color: '#475569', borderColor: '#e2e8f0' }}>
-                            {lbl}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Columns */}
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">
-                        Columns <span className="font-normal text-slate-300">({selectedColumns.length}/{getDataColumns(selectedTimeSeries).length})</span>
-                      </p>
-                      <div className="flex gap-2 mb-1.5">
-                        <button onClick={() => setSelectedColumns(getDataColumns(selectedTimeSeries))} className="text-[10px] text-gray-500 hover:underline">All</button>
-                        <button onClick={() => setSelectedColumns([])} className="text-[10px] text-slate-400 hover:underline">None</button>
-                      </div>
-                      <input type="text" placeholder="Search columns…" value={colSearch} onChange={e => setColSearch(e.target.value)}
-                        className="w-full px-2 py-1 border border-slate-200 rounded text-[11px] bg-white mb-1" />
-                      <div className="flex flex-col gap-1 max-h-60 overflow-y-auto pr-0.5">
-                        {getDataColumns(selectedTimeSeries)
-                          .filter(c => !colSearch || c.toLowerCase().includes(colSearch.toLowerCase()))
-                          .map(col => (
-                            <button key={col} title={col} onClick={() => toggleColumn(col)}
-                              className="px-2 py-1.5 rounded text-[11px] border transition-all text-left leading-snug whitespace-normal break-all"
-                              style={selectedColumns.includes(col)
-                                ? { background: '#ede9fe', borderColor: '#8b5cf6', color: '#5b21b6' }
-                                : { background: '#f8fafc', borderColor: '#e2e8f0', color: '#475569' }}>
-                              {col}
-                            </button>
-                          ))}
-                      </div>
-                    </div>
-
-                    {/* Stats (collapsible) */}
-                    <div>
-                      <button className="flex items-center justify-between w-full mb-1" onClick={() => setShowStats(!showStats)}>
-                        <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Statistics</p>
-                        {showStats ? <FiChevronUp size={10} className="text-slate-400" /> : <FiChevronDown size={10} className="text-slate-400" />}
-                      </button>
-                      {showStats && selectedTimeSeries.statistics && (
-                        <div className="space-y-2">
-                          {Object.entries(selectedTimeSeries.statistics)
-                            .filter(([col]) => selectedColumns.includes(col))
-                            .map(([col, stats]) => {
-                              const colData = selectedTimeSeries.data.map(row => parseFloat(row[col])).filter(v => !isNaN(v));
-                              if (!colData.length) return null;
-                              const max = Math.max(...colData), min = Math.min(...colData), range = max - min || 1;
-                              const pts = colData.map((v, i) => `${((i / Math.max(colData.length - 1, 1)) * 100).toFixed(1)},${(100 - ((v - min) / range) * 80).toFixed(1)}`).join(' ');
-                              return (
-                                <div key={col} className="bg-slate-50 rounded-lg p-2 border border-slate-200">
-                                  <div className="text-[10px] font-semibold text-slate-700 mb-1 truncate" title={col}>{col}</div>
-                                  <svg className="w-full h-6 mb-1" viewBox="0 0 100 100" preserveAspectRatio="none">
-                                    <polyline points={pts} fill="none" stroke="#6366f1" strokeWidth="2" vectorEffect="non-scaling-stroke" />
-                                  </svg>
-                                  <div className="grid grid-cols-2 gap-x-1 text-[10px]">
-                                    <span className="text-slate-400">Min</span><span className="font-semibold text-slate-700 text-right">{stats.min.toFixed(1)}</span>
-                                    <span className="text-slate-400">Max</span><span className="font-semibold text-slate-700 text-right">{stats.max.toFixed(1)}</span>
-                                    <span className="text-slate-400">Avg</span><span className="font-semibold text-slate-700 text-right">{stats.mean.toFixed(1)}</span>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                        </div>
-                      )}
-                    </div>
-
-                  </div>
-                </div>
+                <TimeSeriesFilterSidebar
+                  colSearch={colSearch}
+                  getDataColumns={getDataColumns}
+                  selectedColumns={selectedColumns}
+                  selectedTimeSeries={selectedTimeSeries}
+                  setColSearch={setColSearch}
+                  setSelectedColumns={setSelectedColumns}
+                  setShowStats={setShowStats}
+                  setViewCustomEnd={setViewCustomEnd}
+                  setViewCustomStart={setViewCustomStart}
+                  setViewMode={setViewMode}
+                  setViewMonth={setViewMonth}
+                  setViewResolution={setViewResolution}
+                  setViewSeason={setViewSeason}
+                  showStats={showStats}
+                  toggleColumn={toggleColumn}
+                  viewCustomEnd={viewCustomEnd}
+                  viewCustomStart={viewCustomStart}
+                  viewMode={viewMode}
+                  viewMonth={viewMonth}
+                  viewResolution={viewResolution}
+                  viewSeason={viewSeason}
+                />
               </div>}
             </div>
           )}
