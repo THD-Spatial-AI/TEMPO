@@ -13,6 +13,8 @@ import GlobalDataPanel from './GlobalDataPanel';
 import OsmInfrastructurePanel from './OsmInfrastructurePanel';
 import SaveModelDialog from './creation/SaveModelDialog';
 import CreationSidebar from './creation/CreationSidebar';
+import MapLegends from './creation/MapLegends';
+import HoverTooltip from './creation/HoverTooltip';
 import MapToolbar from './MapToolbar';
 import LocationEditDialog from './LocationEditDialog';
 import { useGeoServerData } from '../hooks/useGeoServerData';
@@ -1657,43 +1659,9 @@ const Creation = () => {
 
         {/* Hover Tooltip */}
         {hoveredInfo && (
-          <div
-            style={{
-              position: 'absolute',
-              left: hoveredInfo.x + 14,
-              top: hoveredInfo.y + 14,
-              pointerEvents: 'none',
-              backgroundColor: 'white',
-              padding: '10px 14px',
-              borderRadius: '8px',
-              boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
-              fontSize: '12px',
-              zIndex: 1000,
-              minWidth: '160px',
-              maxWidth: '260px',
-              borderLeft: `3px solid ${hoveredInfo.accentColor || '#6B7280'}`,
-            }}
-          >
-            <div style={{ fontWeight: 600, marginBottom: 2, color: '#1f2937' }}>{hoveredInfo.name}</div>
-            {hoveredInfo.layerType && (
-              <div style={{ color: '#9ca3af', fontSize: '10px', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                {hoveredInfo.layerType}
-              </div>
-            )}
-            {hoveredInfo.details && hoveredInfo.details.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                {hoveredInfo.details.map((d, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
-                    <span style={{ color: '#6b7280' }}>{d.label}</span>
-                    <span style={{ fontWeight: 500, color: '#374151', textAlign: 'right' }}>{d.value}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            {!hoveredInfo.details && hoveredInfo.techs && (
-              <div style={{ color: '#4b5563' }}>{hoveredInfo.techs}</div>
-            )}
-          </div>
+          <HoverTooltip
+            hoveredInfo={hoveredInfo}
+          />
         )}
 
         {/* Mode Indicator */}
@@ -1721,85 +1689,11 @@ const Creation = () => {
 
         {/* Map Legends */}
         {(osmPowerLines || osmPowerPlants) && (
-          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-white bg-opacity-95 rounded-lg shadow-lg p-3 max-w-2xl">
-            <div className="flex gap-6">
-              {/* Power Lines Legend */}
-              {osmPowerLines && layerVisibility.powerLines && (
-                <div>
-                  <div className="text-xs font-semibold text-slate-800 mb-2 flex items-center gap-1.5">
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
-                    Transmission Lines
-                  </div>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-0.5 bg-[rgb(220,20,60)] rounded"></div>
-                      <span className="text-xs text-slate-600">≥220 kV</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-0.5 bg-[rgb(255,140,0)] rounded"></div>
-                      <span className="text-xs text-slate-600">110-220 kV</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-0.5 bg-[rgb(255,215,0)] rounded"></div>
-                      <span className="text-xs text-slate-600">20-110 kV</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-0.5 bg-[rgb(100,100,100)] rounded"></div>
-                      <span className="text-xs text-slate-600">&lt;20 kV</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-              
-              {/* Power Plants Legend */}
-              {osmPowerPlants && layerVisibility.powerPlants && (
-                <div>
-                  <div className="text-xs font-semibold text-slate-800 mb-2 flex items-center gap-1.5">
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-                    </svg>
-                    Power Plants
-                  </div>
-                  <div className="grid grid-cols-2 gap-x-3 gap-y-1">
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2.5 h-2.5 rounded-full bg-[#FDB813]"></div>
-                      <span className="text-xs text-slate-600">Solar</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2.5 h-2.5 rounded-full bg-[#00A8CC]"></div>
-                      <span className="text-xs text-slate-600">Wind</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2.5 h-2.5 rounded-full bg-[#1976D2]"></div>
-                      <span className="text-xs text-slate-600">Hydro</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2.5 h-2.5 rounded-full bg-[#689F38]"></div>
-                      <span className="text-xs text-slate-600">Biomass</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2.5 h-2.5 rounded-full bg-[#FF6F00]"></div>
-                      <span className="text-xs text-slate-600">Gas</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2.5 h-2.5 rounded-full bg-[#424242]"></div>
-                      <span className="text-xs text-slate-600">Coal</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2.5 h-2.5 rounded-full bg-[#E91E63]"></div>
-                      <span className="text-xs text-slate-600">Nuclear</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2.5 h-2.5 rounded-full bg-[#9C27B0]"></div>
-                      <span className="text-xs text-slate-600">Battery</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+          <MapLegends
+            layerVisibility={layerVisibility}
+            osmPowerLines={osmPowerLines}
+            osmPowerPlants={osmPowerPlants}
+          />
         )}
 
         {/* Map Controls */}
