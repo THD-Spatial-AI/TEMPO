@@ -11,6 +11,8 @@ import 'leaflet/dist/leaflet.css';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import GlobalDataPanel from './GlobalDataPanel';
 import OsmInfrastructurePanel from './OsmInfrastructurePanel';
+import SaveModelDialog from './creation/SaveModelDialog';
+import CreationSidebar from './creation/CreationSidebar';
 import MapToolbar from './MapToolbar';
 import LocationEditDialog from './LocationEditDialog';
 import { useGeoServerData } from '../hooks/useGeoServerData';
@@ -19,8 +21,8 @@ import { generatePowerMesh, meshToCalliopeLocations, exportMeshToJson, validateM
 import { calculateDistance, calculateMeshStatistics } from '../meshGenerator/MeshUtils.js';
 import { CONSTRAINT_DEFINITIONS, COST_DEFINITIONS, ESSENTIAL_DEFINITIONS, PARENT_CONSTRAINTS } from '../utils/constraintDefinitions';
 import api from '../services/api';
-import { LINK_TYPES, LINK_TYPES_BY_GROUP, getLinkTypeColorRgb, getLinkTypeColor } from '../config/linkTypes';
-import { CARRIERS, getCarrierColorRgb, getCarrierLabel, getCarrierColor } from '../config/carriers';
+import { LINK_TYPES, getLinkTypeColorRgb } from '../config/linkTypes';
+import { CARRIERS, getCarrierColorRgb, getCarrierLabel } from '../config/carriers';
 
 // Import new custom hooks
 import { useLocationManager } from '../hooks/useLocationManager';
@@ -29,7 +31,7 @@ import { useMapInteractions } from '../hooks/useMapInteractions';
 import { useTechnologyManager } from '../hooks/useTechnologyManager';
 import { usePolylineMode } from '../hooks/usePolylineMode';
 
-import { normalizeFolderName, formatTechName } from '../utils/nameUtils';
+import { normalizeFolderName } from '../utils/nameUtils';
 import { getTechColor, getTechIcon } from '../utils/techUtils';
 import { createLocationIcon, getSubstationIcon, substationIconCache } from '../utils/mapIcons';
 import { MAP_STYLES, MAP_STYLE_NAMES } from '../config/mapStyles';
@@ -1192,327 +1194,25 @@ const Creation = () => {
   return (
     <div className="flex h-screen bg-gray-50">
       {/* Left Sidebar */}
-      <div className={`bg-white border-r border-gray-200 transition-all duration-300 ${leftSidebarCollapsed ? 'w-16' : 'w-80'} flex flex-col overflow-hidden`}>
-        {/* Header */}
-        <div className="p-4 border-b border-gray-200 flex justify-between items-center">
-          {!leftSidebarCollapsed && (
-            <div>
-              <h2 className="text-lg font-bold text-gray-800">Creation Mode</h2>
-              <p className="text-xs text-gray-600">Build your energy system</p>
-            </div>
-          )}
-          <button
-            onClick={() => setLeftSidebarCollapsed(!leftSidebarCollapsed)}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors ml-auto"
-          >
-            {leftSidebarCollapsed ? <FiChevronRight size={20} /> : <FiChevronLeft size={20} />}
-          </button>
-        </div>
-
-        {!leftSidebarCollapsed && (
-          <>
-            {/* Mode Selection */}
-            <div className="p-4 border-b border-gray-200">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Mode</label>
-              <div className="grid grid-cols-2 gap-2 mb-2">
-                <button
-                  onClick={() => {
-                    setMode('single');
-                    polylineMode.resetPolyline();
-                  }}
-                  className={`p-3 rounded-lg border-2 transition-all ${
-                    mode === 'single'
-                      ? 'border-gray-500 bg-gray-50 text-gray-700'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <FiMapPin className="mx-auto mb-1" size={20} />
-                  <div className="text-xs font-medium">Single</div>
-                </button>
-                <button
-                  onClick={() => {
-                    setMode('multiple');
-                    polylineMode.resetPolyline();
-                  }}
-                  className={`p-3 rounded-lg border-2 transition-all ${
-                    mode === 'multiple'
-                      ? 'border-gray-500 bg-gray-50 text-gray-700'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <FiCpu className="mx-auto mb-1" size={20} />
-                  <div className="text-xs font-medium">Multiple</div>
-                </button>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => {
-                    setMode('link');
-                    locationManager.setLinkStart(null);
-                    polylineMode.resetPolyline();
-                  }}
-                  className={`p-3 rounded-lg border-2 transition-all ${
-                    mode === 'link'
-                      ? 'border-gray-500 bg-gray-50 text-gray-700'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <FiLink className="mx-auto mb-1" size={20} />
-                  <div className="text-xs font-medium">Link</div>
-                </button>
-                <button
-                  onClick={() => {
-                    setMode('polyline');
-                    polylineMode.resetPolyline();
-                  }}
-                  className={`p-3 rounded-lg border-2 transition-all ${
-                    mode === 'polyline'
-                      ? 'border-gray-500 bg-gray-50 text-gray-700'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <FiActivity className="mx-auto mb-1" size={20} />
-                  <div className="text-xs font-medium">Polyline</div>
-                </button>
-              </div>
-            </div>
-
-            {/* Locations List */}
-            <div className="flex-1 overflow-y-auto p-4">
-              {/* Locations Section */}
-              <div className="mb-4">
-                <div className="flex justify-between items-center mb-3">
-                  <button
-                    onClick={() => setLocationsExpanded(!locationsExpanded)}
-                    className="flex items-center gap-2 text-sm font-semibold text-gray-700 hover:text-gray-900"
-                  >
-                    <FiChevronDown 
-                      size={16} 
-                      className={`transition-transform ${locationsExpanded ? '' : '-rotate-90'}`}
-                    />
-                    Locations ({locationManager.tempLocations.length})
-                  </button>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={clearAll}
-                      className="p-1.5 hover:bg-gray-100 text-gray-600 rounded transition-colors"
-                      title="Clear all"
-                    >
-                      <FiTrash2 size={14} />
-                    </button>
-                    <button
-                      onClick={() => setShowSaveDialog(true)}
-                      className="p-1.5 hover:bg-gray-100 text-gray-600 rounded transition-colors"
-                      title="Save model"
-                      disabled={locationManager.tempLocations.length === 0}
-                    >
-                      <FiSave size={14} />
-                    </button>
-                  </div>
-                </div>
-
-                {locationsExpanded && (
-                  locationManager.tempLocations.length === 0 ? (
-                    <div className="text-center py-8 text-gray-400 text-sm">
-                      <FiMapPin className="mx-auto mb-2" size={32} />
-                      <p>No locations yet</p>
-                      <p className="text-xs mt-1">Select a mode and click the map</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {locationManager.tempLocations.map((loc, index) => (
-                        <div
-                          key={loc.id}
-                          className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                            locationManager.selectedLocation?.id === loc.id
-                              ? 'border-gray-500 bg-gray-50'
-                              : 'border-gray-200 hover:border-gray-300'
-                          }`}
-                          onClick={() => {
-                            locationManager.setSelectedLocation(loc);
-                          }}
-                          onDoubleClick={() => {
-                            setPendingLocation(loc);
-                            setShowLocationDialog(true);
-                          }}
-                        >
-                          <div className="flex justify-between items-start">
-                            <div className="flex-1">
-                              <h4 className="font-medium text-sm text-gray-800">{loc.name || `Location ${index + 1}`}</h4>
-                              <p className="text-xs text-gray-500">
-                                {loc.latitude.toFixed(4)}, {loc.longitude.toFixed(4)}
-                              </p>
-                              {loc.techs && Object.keys(loc.techs).length > 0 && (
-                                <div className="mt-1 flex flex-wrap gap-1">
-                                  {Object.keys(loc.techs).map(techName => (
-                                    <span
-                                      key={techName}
-                                      className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded"
-                                    >
-                                      {formatTechName(techName)}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                            <div className="flex gap-1">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setPendingLocation(loc);
-                                  setShowLocationDialog(true);
-                                }}
-                                className="p-1 hover:bg-gray-100 text-gray-600 rounded transition-colors"
-                                title="Edit location"
-                              >
-                                <FiEdit2 size={14} />
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  locationManager.removeLocation(loc.id);
-                                }}
-                                className="p-1 hover:bg-gray-100 text-gray-600 rounded transition-colors"
-                                title="Delete location"
-                              >
-                                <FiTrash2 size={14} />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )
-                )}
-              </div>
-
-              {/* Links Section */}
-              <div className="border-t pt-4">
-                <div className="flex justify-between items-center mb-3">
-                  <button
-                    onClick={() => setLinksExpanded(!linksExpanded)}
-                    className="flex items-center gap-2 text-sm font-semibold text-gray-700 hover:text-gray-900"
-                  >
-                    <FiChevronDown 
-                      size={16} 
-                      className={`transition-transform ${linksExpanded ? '' : '-rotate-90'}`}
-                    />
-                    Links ({locationManager.tempLinks.length})
-                  </button>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => {
-                        locationManager.setTempLinks([]);
-                        showNotification('All links cleared', 'success');
-                      }}
-                      className="p-1.5 hover:bg-gray-100 text-gray-600 rounded transition-colors"
-                      title="Clear all links"
-                    >
-                      <FiTrash2 size={14} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Link type selector — applies to new links drawn on the map */}
-                <div className="px-3 pb-2">
-                  <label className="block text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">New link type</label>
-                  <div className="flex items-center gap-1.5">
-                    <span
-                      className="w-3 h-3 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: getLinkTypeColor(currentLinkType) }}
-                    />
-                    <select
-                      value={currentLinkType}
-                      onChange={e => setCurrentLinkType(e.target.value)}
-                      className="flex-1 text-xs border border-gray-200 rounded px-1.5 py-1 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-gray-400"
-                    >
-                      {Object.entries(LINK_TYPES_BY_GROUP).map(([group, types]) => (
-                        <optgroup key={group} label={group}>
-                          {types.map(t => (
-                            <option key={t.id} value={t.id}>{t.label}</option>
-                          ))}
-                        </optgroup>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {linksExpanded && (
-                  locationManager.tempLinks.length === 0 ? (
-                    <div className="text-center py-8 text-gray-400 text-sm">
-                      <FiLink className="mx-auto mb-2" size={32} />
-                      <p>No links yet</p>
-                      <p className="text-xs mt-1">Create links between locations</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {locationManager.tempLinks.map((link, index) => (
-                        <div
-                          key={link.id}
-                          className="p-3 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors"
-                        >
-                          <div className="flex justify-between items-start">
-                            <div className="flex-1 min-w-0">
-                              <h4 className="font-medium text-sm text-gray-800 flex items-center gap-1">
-                                <span
-                                  className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                                  style={{ backgroundColor: link.linkType ? getLinkTypeColor(link.linkType) : (link.carrier ? getCarrierColor(link.carrier) : '#6366f1') }}
-                                />
-                                <span className="truncate">{link.fromName}</span>
-                                <FiArrowRight size={12} className="text-gray-400 flex-shrink-0" />
-                                <span className="truncate">{link.toName}</span>
-                              </h4>
-                              <p className="text-xs text-gray-500 mt-0.5">
-                                {link.distance != null && !isNaN(parseFloat(link.distance)) ? `${parseFloat(link.distance).toFixed(2)} km` : 'N/A'}
-                                {link.linkType && <span className="ml-1 text-gray-400">· {LINK_TYPES[link.linkType]?.label || link.linkType}</span>}
-                              </p>
-                              {/* Inline link type changer */}
-                              <div className="mt-1.5">
-                                <select
-                                  value={link.linkType || ''}
-                                  onChange={e => {
-                                    const lt = e.target.value;
-                                    locationManager.updateLink(link.id, {
-                                      linkType: lt || null,
-                                      carrier: lt ? (LINK_TYPES[lt]?.carrier || null) : link.carrier,
-                                    });
-                                  }}
-                                  className="w-full text-[10px] border border-gray-200 rounded px-1 py-0.5 bg-white text-gray-600 focus:outline-none"
-                                >
-                                  <option value="">— no type —</option>
-                                  {Object.entries(LINK_TYPES_BY_GROUP).map(([group, types]) => (
-                                    <optgroup key={group} label={group}>
-                                      {types.map(t => (
-                                        <option key={t.id} value={t.id}>{t.label}</option>
-                                      ))}
-                                    </optgroup>
-                                  ))}
-                                </select>
-                              </div>
-                            </div>
-                            <div className="flex gap-1 ml-1 flex-shrink-0">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  locationManager.removeLink(link.id);
-                                }}
-                                className="p-1 hover:bg-gray-100 text-gray-600 rounded transition-colors"
-                                title="Delete link"
-                              >
-                                <FiTrash2 size={14} />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )
-                )}
-              </div>
-            </div>
-          </>
-        )}
-      </div>
+      <CreationSidebar
+        clearAll={clearAll}
+        currentLinkType={currentLinkType}
+        leftSidebarCollapsed={leftSidebarCollapsed}
+        linksExpanded={linksExpanded}
+        locationManager={locationManager}
+        locationsExpanded={locationsExpanded}
+        mode={mode}
+        polylineMode={polylineMode}
+        setCurrentLinkType={setCurrentLinkType}
+        setLeftSidebarCollapsed={setLeftSidebarCollapsed}
+        setLinksExpanded={setLinksExpanded}
+        setLocationsExpanded={setLocationsExpanded}
+        setMode={setMode}
+        setPendingLocation={setPendingLocation}
+        setShowLocationDialog={setShowLocationDialog}
+        setShowSaveDialog={setShowSaveDialog}
+        showNotification={showNotification}
+      />
 
       {/* Main Map View */}
       <div className="flex-1 relative">
@@ -2129,192 +1829,15 @@ const Creation = () => {
 
       {/* Save Model Dialog */}
       {showSaveDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000] p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            {/* Header */}
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-              <div>
-                <h3 className="text-xl font-bold text-gray-800">Save as New Model</h3>
-                <p className="text-sm text-gray-500 mt-0.5">{locationManager.tempLocations.length} locations · {locationManager.tempLinks.length} links</p>
-              </div>
-              <button onClick={() => setShowSaveDialog(false)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                <FiX size={20} className="text-gray-500" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-5">
-              {/* Name + Description */}
-              <div className="grid grid-cols-1 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Model Name <span className="text-gray-500">*</span></label>
-                  <input
-                    type="text"
-                    value={modelName}
-                    onChange={(e) => setModelName(e.target.value)}
-                    placeholder="e.g. Germany 2030 High-Res"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm"
-                    autoFocus
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Description</label>
-                  <textarea
-                    value={modelConfig.description || ''}
-                    onChange={(e) => setModelConfig(c => ({ ...c, description: e.target.value }))}
-                    placeholder="Optional notes about this model..."
-                    rows={2}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm resize-none"
-                  />
-                </div>
-              </div>
-
-              <hr className="border-gray-200" />
-
-              {/* Time horizon */}
-              <div>
-                <h4 className="text-sm font-semibold text-gray-700 mb-3">Time Horizon</h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Start Date</label>
-                    <input
-                      type="date"
-                      value={modelConfig.startDate}
-                      onChange={(e) => setModelConfig(c => ({ ...c, startDate: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">End Date</label>
-                    <input
-                      type="date"
-                      value={modelConfig.endDate}
-                      onChange={(e) => setModelConfig(c => ({ ...c, endDate: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <hr className="border-gray-200" />
-
-              {/* Solver + Mode */}
-              <div>
-                <h4 className="text-sm font-semibold text-gray-700 mb-3">Solver &amp; Mode</h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Solver</label>
-                    <div className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-700">
-                      HiGHS
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Mode</label>
-                    <select
-                      value={modelConfig.mode}
-                      onChange={(e) => setModelConfig(c => ({ ...c, mode: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm bg-white"
-                    >
-                      <option value="plan">Planning (optimise capacity)</option>
-                      <option value="operate">Operate (fixed capacity)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Calliope Version</label>
-                    <select
-                      value={modelConfig.calliopeVersion}
-                      onChange={(e) => setModelConfig(c => ({ ...c, calliopeVersion: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm bg-white"
-                    >
-                      <option value="0.6.8">0.6.8 (stable, default)</option>
-                      <option value="0.7.0">0.7.0.dev7 (experimental)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Objective Cost Class</label>
-                    <select
-                      value={modelConfig.objectiveCostClass}
-                      onChange={(e) => setModelConfig(c => ({ ...c, objectiveCostClass: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm bg-white"
-                    >
-                      <option value="monetary">Monetary</option>
-                      <option value="co2">CO₂</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              <hr className="border-gray-200" />
-
-              {/* Advanced toggles */}
-              <div>
-                <h4 className="text-sm font-semibold text-gray-700 mb-3">Advanced Options</h4>
-                <div className="grid grid-cols-2 gap-3">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={modelConfig.ensureFeasibility}
-                      onChange={(e) => setModelConfig(c => ({ ...c, ensureFeasibility: e.target.checked }))}
-                      className="w-4 h-4 rounded text-gray-600"
-                    />
-                    <span className="text-sm text-gray-700">Ensure Feasibility</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={modelConfig.cyclicStorage}
-                      onChange={(e) => setModelConfig(c => ({ ...c, cyclicStorage: e.target.checked }))}
-                      className="w-4 h-4 rounded text-gray-600"
-                    />
-                    <span className="text-sm text-gray-700">Cyclic Storage</span>
-                  </label>
-                </div>
-              </div>
-
-              {/* Solver threads */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Solver Threads</label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={32}
-                    value={modelConfig.solverOptions?.threads ?? 4}
-                    onChange={(e) => setModelConfig(c => ({ ...c, solverOptions: { ...c.solverOptions, threads: parseInt(e.target.value) || 1 } }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">MIP Relative Gap</label>
-                  <input
-                    type="number"
-                    step="0.001"
-                    min={0}
-                    value={modelConfig.solverOptions?.mip_rel_gap ?? 0.001}
-                    onChange={(e) => setModelConfig(c => ({ ...c, solverOptions: { ...c.solverOptions, mip_rel_gap: parseFloat(e.target.value) || 0.001 } }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="p-6 border-t border-gray-200 flex justify-end gap-3 bg-gray-50 rounded-b-xl">
-              <button
-                onClick={() => setShowSaveDialog(false)}
-                className="px-5 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors text-sm font-medium"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={saveToMainData}
-                disabled={!modelName.trim()}
-                className="px-5 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors text-sm font-medium"
-              >
-                Save Model
-              </button>
-            </div>
-          </div>
-        </div>
+        <SaveModelDialog
+          locationManager={locationManager}
+          modelConfig={modelConfig}
+          modelName={modelName}
+          saveToMainData={saveToMainData}
+          setModelConfig={setModelConfig}
+          setModelName={setModelName}
+          setShowSaveDialog={setShowSaveDialog}
+        />
       )}
 
       {/* Location Edit Dialog */}
@@ -2325,7 +1848,6 @@ const Creation = () => {
           setPendingLocation(null);
         }}
         location={pendingLocation}
-        mode={mode}
         techMap={techMap}
         onSave={(savedLocation) => {
           if (savedLocation.id && locationManager.tempLocations.find(l => l.id === savedLocation.id)) {
