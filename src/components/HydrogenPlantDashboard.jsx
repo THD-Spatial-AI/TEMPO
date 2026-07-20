@@ -6,7 +6,7 @@
  * Future: Biomass CHP, Carbon Capture, PV+Battery, etc.
  */
 
-import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import ReactECharts from "echarts-for-react";
 import {
   FiZap,
@@ -47,6 +47,7 @@ import CCSAbsorberPanel from "./CCSAbsorberPanel";
 import CCSStripperPanel from "./CCSStripperPanel";
 import CCSCompressorPanel from "./CCSCompressorPanel";
 import CCSStoragePanel from "./CCSStoragePanel";
+import { useUnitSimulation } from "../hooks/useUnitSimulation";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Detect source tech type from model (mirrors H2GeneratorPanel logic)
@@ -418,9 +419,11 @@ export default function HydrogenPlantDashboard() {
   // ── Active simulation type (extendable) ────────────────────────────────
   const [simType, setSimType] = useState("h2");
 
-  // ── Service health ────────────────────────────────────────────────────
-  const [health, setHealth] = useState(null);
-  const [healthError, setHealthError] = useState(null);
+  // ── Service health + simulation lifecycle (state machine in useUnitSimulation) ──
+  const {
+    simState, progress, result, errorMsg,
+    health, healthError, pingHealth, run, stop, reset,
+  } = useUnitSimulation(checkHealth);
 
   // ── Parameters  (restored from localStorage on every mount) ──────────────
   // H₂ Power Plant parameters
@@ -493,31 +496,6 @@ export default function HydrogenPlantDashboard() {
     );
     return { ...bestFromFallback, ...saved };
   });
-
-  // ── Simulation state ──────────────────────────────────────────────────────
-  const [simState,  setSimState]  = useState(SIM_STATES.IDLE);
-  const [progress,  setProgress]  = useState(0);
-  const [result,    setResult]    = useState(null);
-  const [errorMsg,  setErrorMsg]  = useState(null);
-  const cancelRef = useRef(null);
-
-  // ── Health check on mount and every 30 s ────────────────────────────────
-  const pingHealth = useCallback(async () => {
-    try {
-      const h = await checkHealth();
-      setHealth(h);
-      setHealthError(null);
-    } catch (e) {
-      setHealth(null);
-      setHealthError(e.message);
-    }
-  }, []);
-
-  useEffect(() => {
-    pingHealth();
-    const id = setInterval(pingHealth, 30_000);
-    return () => clearInterval(id);
-  }, [pingHealth]);
 
   // ── Persist user selections & parameters to localStorage ──────────────────
   // Runs whenever any user-controlled value changes so navigation away and back
@@ -784,13 +762,7 @@ export default function HydrogenPlantDashboard() {
   }, [elzParamOverrides?.efficiency_pct]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Run simulation ────────────────────────────────────────────────────────
-  const handleRun = async () => {
-    setSimState(SIM_STATES.QUEUED);
-    setProgress(0);
-    setResult(null);
-    setErrorMsg(null);
-
-    try {
+  const handleRun = () => run(() => {
       // ── Build the canonical v2.0 simulation payload ──────────────────────
       // Choose the correct payload builder and service based on simType
       let payload, runFn, normalizeFn;
@@ -863,37 +835,11 @@ export default function HydrogenPlantDashboard() {
         throw new Error(`Unknown simulation type: ${simType}`);
       }
 
-      const cancel = await runFn(
-        payload,
-        {
-          onQueued:   () => setSimState(SIM_STATES.QUEUED),
-          onProgress: (d) => { setSimState(SIM_STATES.RUNNING); setProgress(d.progress_pct ?? 0); },
-          onResult:   (r) => {
-            setResult(normalizeFn(r));
-            setSimState(SIM_STATES.DONE);
-            pingHealth();
-          },
-          onError:    (m) => { setErrorMsg(typeof m === 'string' ? m : (m?.message ?? String(m ?? 'Unknown error'))); setSimState(SIM_STATES.ERROR); }
-        }
-      );
-      cancelRef.current = cancel;
-    } catch (e) {
-      setErrorMsg(e.message);
-      setSimState(SIM_STATES.ERROR);
-    }
-  };
+    return { runFn, payload, normalize: normalizeFn };
+  });
 
-  const handleStop = () => {
-    cancelRef.current?.();
-    setSimState(SIM_STATES.IDLE);
-    setProgress(0);
-  };
-
-  const handleReset = () => {
-    handleStop();
-    setResult(null);
-    setErrorMsg(null);
-  };
+  const handleStop = stop;
+  const handleReset = reset;
 
   // ── KPIs from result ──────────────────────────────────────────────────────
   const kpi = result?.kpi ?? null;
