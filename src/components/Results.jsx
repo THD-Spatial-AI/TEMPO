@@ -12,12 +12,18 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import ScenarioComparison from './ScenarioComparison';
 
 import {
-  techColor, fmtNum, fmtFull, fmtPower, fmtEnergy, fmtCost,
+  techColor, fmtNum, fmtPower, fmtEnergy, fmtCost,
   autoScale, axisNameStyle, scaledFmt, TECH_GROUPS, classifyTech,
   linkTechBase, calliopeLocName, parseLTC,
 } from '../utils/resultFormat';
 
 import { ResultsMap, TransmissionFlowMap, GroupedCorrMatrixSVG } from './results/ResultMaps';
+import OverviewTab from './results/tabs/OverviewTab';
+import FlowTab from './results/tabs/FlowTab';
+import DispatchTab from './results/tabs/DispatchTab';
+import CostsTab from './results/tabs/CostsTab';
+import AnalysisTab from './results/tabs/AnalysisTab';
+import LogsTab from './results/tabs/LogsTab';
 
 // ── Main component ───────────────────────────────────────────────────────────
 const Results = () => {
@@ -1065,425 +1071,61 @@ const Results = () => {
 
             {/* ════════════════ OVERVIEW TAB ════════════════ */}
             {activeTab === 'overview' && (
-              <div className="space-y-4">
-                {/* Map — full width, main visual */}
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div className="px-4 pt-3 pb-2 flex items-center gap-2 flex-wrap">
-                      <FiMap size={14} className="text-gray-600 flex-shrink-0" />
-                      <span className="font-semibold text-slate-800 text-sm">Location Map</span>
-                      <div className="ml-auto flex gap-1">
-                        {[
-                          { id: 'capacity',     label: 'Capacity',     icon: FiBarChart2 },
-                          ...(hasFlow ? [{ id: 'generation', label: 'Gen Heatmap', icon: FiZap }] : []),
-                          { id: 'transmission', label: 'Transmission', icon: FiShare2 },
-                        ].map(({ id, label, icon: Icon }) => (
-                          <button key={id} onClick={() => setMapView(id)}
-                            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium transition-all ${
-                              mapView === id ? 'bg-gray-900 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                            }`}>
-                            <Icon size={10} /> {label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <div style={{ height: mapView === 'transmission' ? 560 : 480 }}>
-                      {modelLocations.length > 0 ? (
-                        mapView === 'transmission' ? (
-                          <TransmissionFlowMap
-                            key={selectedJobId + '-transmission'}
-                            locations={modelLocations}
-                            transmissionFlowData={transmissionFlowData}
-                            capacitiesByLoc={derivedData?.capByLoc || {}}
-                            timestamps={derivedData?.timestamps || []}
-                          />
-                        ) : (
-                          <ResultsMap key={selectedJobId + '-' + mapView}
-                            locations={modelLocations}
-                            capacitiesByLoc={derivedData?.capByLoc || {}}
-                            dominantTechByLoc={derivedData?.domTech || {}}
-                            generationByLoc={derivedData?.genByLoc || {}}
-                            viewMode={mapView}
-                            colorFn={techColorFn}
-                            transmissionLinks={transmissionLinks}
-                          />
-                        )
-                      ) : (
-                        <div className="h-full flex items-center justify-center text-slate-400 text-sm">
-                          <FiMapPin size={20} className="mr-2 opacity-40" /> Location data unavailable
-                        </div>
-                      )}
-                    </div>
-                </div>
-                {/* Capacity + Generation row */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  {/* Capacity by tech */}
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                    <button onClick={() => toggleSection('cap-by-tech')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
-                      <FiBarChart2 size={14} className="text-gray-600 flex-shrink-0" />
-                      <span className="font-semibold text-slate-800 text-sm flex-1">Installed Capacity by Technology</span>
-                      <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('cap-by-tech') ? '' : '-rotate-90'}`} />
-                    </button>
-                    {sectionOpen('cap-by-tech') && <div className="px-5 pb-5">
-                      {capBarOption ? (
-                        <ReactECharts option={capBarOption} style={{ height: 280 }} notMerge />
-                      ) : <div className="text-slate-400 text-sm text-center py-16">No capacity data</div>}
-                    </div>}
-                  </div>
-                  {/* Generation donut */}
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                    <button onClick={() => toggleSection('gen-mix')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
-                      <FiPieChart size={14} className="text-gray-500 flex-shrink-0" />
-                      <span className="font-semibold text-slate-800 text-sm flex-1">Generation Mix</span>
-                      <span className="text-xs text-slate-400 mr-1">· MWh total</span>
-                      <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('gen-mix') ? '' : '-rotate-90'}`} />
-                    </button>
-                    {sectionOpen('gen-mix') && <div className="px-5 pb-5">
-                      {genDonutOption ? (
-                        <ReactECharts option={genDonutOption} style={{ height: 280 }} notMerge />
-                      ) : <div className="text-slate-400 text-sm text-center py-16">No generation data</div>}
-                    </div>}
-                  </div>
-                  {/* Capacity by location */}
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                    <button onClick={() => toggleSection('cap-by-loc')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
-                      <FiMapPin size={14} className="text-gray-600 flex-shrink-0" />
-                      <span className="font-semibold text-slate-800 text-sm flex-1">Capacity by Location & Technology</span>
-                      <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('cap-by-loc') ? '' : '-rotate-90'}`} />
-                    </button>
-                    {sectionOpen('cap-by-loc') && <div className="px-5 pb-5">
-                      {capLocOption ? (
-                        <ReactECharts option={capLocOption} style={{ height: 280 }} notMerge />
-                      ) : <div className="text-slate-400 text-sm text-center py-16">No location data</div>}
-                    </div>}
-                  </div>
-                </div>
-
-                {/* Technology summary table */}
-                {derivedData?.capByTech && (
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                    <button onClick={() => toggleSection('tech-summary')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
-                      <FiTrendingUp size={14} className="text-slate-500 flex-shrink-0" />
-                      <span className="font-semibold text-slate-800 text-sm flex-1">Technology Summary</span>
-                      <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('tech-summary') ? '' : '-rotate-90'}`} />
-                    </button>
-                    {sectionOpen('tech-summary') && <div className="px-5 pb-5 overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="border-b border-slate-100">
-                            <th className="text-left py-2 pr-6 font-semibold text-slate-500 text-xs uppercase tracking-wide">Technology</th>
-                            <th className="text-right py-2 px-4 font-semibold text-slate-500 text-xs uppercase tracking-wide">Capacity</th>
-                            <th className="text-right py-2 px-4 font-semibold text-slate-500 text-xs uppercase tracking-wide">Generation</th>
-                            <th className="text-right py-2 px-4 font-semibold text-slate-500 text-xs uppercase tracking-wide">Cost</th>
-                            <th className="text-right py-2 px-4 font-semibold text-slate-500 text-xs uppercase tracking-wide">€ / MWh</th>
-                            <th className="text-right py-2 pl-4 font-semibold text-slate-500 text-xs uppercase tracking-wide">Cap. Factor</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {Object.keys(derivedData.capByTech).sort().map((tech, i) => {
-                            const cap = derivedData.capByTech[tech] || 0;
-                            const gen = derivedData.genByTech[tech] || 0;
-                            const cost = result?.costs_by_tech?.[tech] || 0;
-                            const hrs = (result?.timestamps?.length) || 8760;
-                            const cf = cap > 0 ? (gen / (cap * hrs) * 100) : null;
-                            const cpm = gen > 0 && cost > 0 ? (cost / gen) : null;
-                            return (
-                              <tr key={tech} className={i % 2 === 0 ? 'border-b border-slate-50' : 'border-b border-slate-50 bg-slate-50/50'}>
-                                <td className="py-2.5 pr-6">
-                                  <div className="flex items-center gap-2">
-                                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: techColorFn(tech) }} />
-                                    <span className="font-medium text-slate-700 capitalize">{tech.replace(/_/g, ' ')}</span>
-                                  </div>
-                                </td>
-                                <td className="py-2.5 px-4 text-right text-slate-600 font-mono text-xs">{fmtPower(cap)}</td>
-                                <td className="py-2.5 px-4 text-right text-slate-600 font-mono text-xs">{gen > 0 ? fmtEnergy(gen) : '—'}</td>
-                                <td className="py-2.5 px-4 text-right text-slate-600 font-mono text-xs">{cost > 0 ? fmtCost(cost) : '—'}</td>
-                                <td className="py-2.5 px-4 text-right font-mono text-xs text-slate-600">{cpm != null ? cpm.toFixed(2) : '—'}</td>
-                                <td className="py-2.5 pl-4 text-right font-mono text-xs">
-                                  {cf != null ? (
-                                    <span className="px-1.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
-                                      {cf.toFixed(1)}%
-                                    </span>
-                                  ) : '—'}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>}
-                  </div>
-                )}
-
-                {/* Transmission Capacity */}
-                {(derivedData?.txLinks?.length > 0) && (() => {
-                  const allLinks = derivedData.txLinks;
-                  // Separate constrained links from unconstrained (free_transmission, ≥50 GW threshold)
-                  const FREE_CAP = 50e6; // 50 GW — treat as unconstrained modeling artifact
-                  const constrained = allLinks.filter(l => l.cap < FREE_CAP);
-                  const free       = allLinks.filter(l => l.cap >= FREE_CAP);
-                  const { div: txDiv, unit: txUnit } = autoScale(
-                    Math.max(1, ...constrained.map(l => l.cap), 1), 'MW'
-                  );
-                  const fmtTx = scaledFmt(txDiv);
-                  const MAX_BARS = 30;
-                  const barLinks = constrained.slice(0, MAX_BARS);
-                  const txBarOption = barLinks.length > 0 ? {
-                    backgroundColor: 'transparent',
-                    grid: { left: 160, right: 70, top: 10, bottom: 10 },
-                    xAxis: { type: 'value', ...axisNameStyle(txUnit), axisLabel: { fontSize: 9, color: '#64748b', formatter: v => fmtTx(v) }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
-                    yAxis: { type: 'category', data: barLinks.map(l => `${l.from} ↔ ${l.to}`), axisLabel: { fontSize: 9, color: '#475569' } },
-                    series: [{
-                      type: 'bar', barMaxWidth: 20,
-                      data: barLinks.map(l => ({ value: l.cap, itemStyle: { color: techColorFn(l.tech), borderRadius: [0, 4, 4, 0] } })),
-                      label: { show: true, position: 'right', formatter: p => fmtTx(p.value) + ' ' + txUnit, fontSize: 9, color: '#64748b' },
-                    }],
-                    tooltip: { trigger: 'axis', formatter: p => `${p[0].name}<br/><b>${fmtTx(p[0].value)} ${txUnit}</b>` },
-                  } : null;
-
-                  return (
-                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                      <button onClick={() => toggleSection('tx-capacity')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
-                        <FiShare2 size={14} className="text-slate-500 flex-shrink-0" />
-                        <span className="font-semibold text-slate-800 text-sm flex-1">Transmission Capacity</span>
-                        <span className="text-xs text-slate-400 mr-1">· {constrained.length} link{constrained.length !== 1 ? 's' : ''}</span>
-                        <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('tx-capacity') ? '' : '-rotate-90'}`} />
-                      </button>
-                      {sectionOpen('tx-capacity') && (
-                        <div className="px-5 pb-5">
-                          {txBarOption ? (
-                            <>
-                              <p className="text-xs text-slate-400 mb-3">Per-link installed capacity (constrained lines only). Capacity shown per unique pair.</p>
-                              <ReactECharts option={txBarOption} style={{ height: Math.max(160, barLinks.length * 26 + 30) }} notMerge />
-                              {constrained.length > MAX_BARS && (
-                                <p className="text-xs text-slate-400 mt-2 text-center">Showing top {MAX_BARS} of {constrained.length} links</p>
-                              )}
-                            </>
-                          ) : (
-                            <p className="text-xs text-slate-400 py-4 text-center">No constrained transmission links</p>
-                          )}
-                          {free.length > 0 && (
-                            <div className="mt-4 pt-4 border-t border-slate-100">
-                              <p className="text-xs text-slate-400">
-                                <span className="font-medium text-slate-500">{free.length} unconstrained link{free.length !== 1 ? 's' : ''}</span>
-                                {' '}({[...new Set(free.map(l => l.tech))].join(', ')}) — fixed at very high capacity, omitted from chart.
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
-              </div>
+              <OverviewTab
+                capBarOption={capBarOption}
+                capLocOption={capLocOption}
+                derivedData={derivedData}
+                genDonutOption={genDonutOption}
+                hasFlow={hasFlow}
+                mapView={mapView}
+                modelLocations={modelLocations}
+                result={result}
+                sectionOpen={sectionOpen}
+                selectedJobId={selectedJobId}
+                setMapView={setMapView}
+                techColorFn={techColorFn}
+                toggleSection={toggleSection}
+                transmissionFlowData={transmissionFlowData}
+                transmissionLinks={transmissionLinks}
+              />
             )}
 
             {/* ════════════════ ENERGY FLOW TAB (SANKEY) ════════════════ */}
             {activeTab === 'flow' && (
-              <div className="space-y-4">
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                  <button onClick={() => toggleSection('sankey')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
-                    <FiShare2 size={14} className="text-gray-600 flex-shrink-0" />
-                    <span className="font-semibold text-slate-800 text-sm flex-1">Energy Flow — Sankey Diagram</span>
-                    <span className="text-xs text-slate-400 mr-1">· tech → carrier → demand</span>
-                    <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('sankey') ? '' : '-rotate-90'}`} />
-                  </button>
-                  {sectionOpen('sankey') && <div className="px-5 pb-5">
-                    <p className="text-xs text-slate-400 mb-4">Flow width = total generation (MWh) · Technology → Carrier → Total Demand</p>
-                  {sankeyOption ? (
-                    <ReactECharts option={sankeyOption} style={{ height: 480 }} notMerge />
-                  ) : (
-                    <div className="text-slate-400 text-sm text-center py-24">
-                      <FiShare2 size={40} className="mx-auto mb-3 opacity-20" />
-                      Insufficient generation data to build energy flow diagram
-                    </div>
-                  )}
-                  </div>}
-                </div>
-
-                {/* Generation ratio per carrier */}
-                {derivedData?.genByTech && (
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                    {Object.entries(derivedData.genByTech)
-                      .sort(([,a],[,b]) => b - a)
-                      .map(([tech, gen]) => {
-                        const share = derivedData.totalGen > 0 ? (gen / derivedData.totalGen * 100) : 0;
-                        const cap = derivedData.capByTech[tech] || 0;
-                        return (
-                          <div key={tech} className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: techColorFn(tech) }} />
-                              <span className="font-semibold text-slate-700 text-sm capitalize">{tech.replace(/_/g, ' ')}</span>
-                            </div>
-                            <div className="flex justify-between text-xs text-slate-500 mb-1">
-                              <span>{fmtEnergy(gen)}</span>
-                              <span className="font-bold text-slate-700">{share.toFixed(1)}%</span>
-                            </div>
-                            <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                              <div className="h-full rounded-full transition-all" style={{ width: `${share}%`, background: techColorFn(tech) }} />
-                            </div>
-                            <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-500">
-                              <span>Cap: <strong className="text-slate-700">{fmtPower(cap)}</strong></span>
-                              <span>CF: <strong className="text-slate-700">{cap > 0 ? ((gen / (cap * (result?.timestamps?.length || 8760))) * 100).toFixed(1) + '%' : '—'}</strong></span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                  </div>
-                )}
-              </div>
+              <FlowTab
+                derivedData={derivedData}
+                result={result}
+                sankeyOption={sankeyOption}
+                sectionOpen={sectionOpen}
+                techColorFn={techColorFn}
+                toggleSection={toggleSection}
+              />
             )}
 
             {/* ════════════════ DISPATCH TAB ════════════════ */}
             {activeTab === 'dispatch' && (
-              <div className="space-y-4">
-                {!hasDispatch ? (
-                  <div className="bg-white rounded-2xl border border-slate-200 p-16 text-center text-slate-400">
-                    <FiActivity size={40} className="mx-auto mb-3 opacity-30" />
-                    <p className="text-sm">Dispatch timeseries not available</p>
-                    <p className="text-xs mt-1 text-slate-300">Re-run the model to generate dispatch data</p>
-                  </div>
-                ) : (
-                  <>
-                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                      <button onClick={() => toggleSection('dispatch-stack')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
-                        <FiActivity size={14} className="text-gray-500 flex-shrink-0" />
-                        <span className="font-semibold text-slate-800 text-sm flex-1">Generation Dispatch Stack</span>
-                        <span className="text-xs text-slate-400 mr-1">· scroll to zoom</span>
-                        <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('dispatch-stack') ? '' : '-rotate-90'}`} />
-                      </button>
-                      {sectionOpen('dispatch-stack') && <div className="px-5 pb-5">
-                        <p className="text-xs text-slate-400 mb-3">Stacked area = supply mix · dashed red = demand</p>
-                        <ReactECharts option={dispatchOption} style={{ height: 400 }} notMerge />
-                      </div>}
-                    </div>
-
-                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-                      <h3 className="font-semibold text-slate-800 text-sm mb-4">Dispatch Totals per Technology</h3>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                        {Object.entries(result.dispatch).map(([tech, vals]) => {
-                          const total = vals.reduce((s, v) => s + v, 0);
-                          const peak = Math.max(...vals);
-                          const avg = total / vals.length;
-                          return (
-                            <div key={tech} className="rounded-xl border border-slate-100 p-3 bg-slate-50">
-                              <div className="flex items-center gap-1.5 mb-2">
-                                <span className="w-2.5 h-2.5 rounded-full" style={{ background: techColorFn(tech) }} />
-                                <span className="text-xs font-semibold text-slate-700 capitalize truncate">{tech.replace(/_/g, ' ')}</span>
-                              </div>
-                              <div className="text-lg font-bold text-slate-800">{fmtEnergy(total)}</div>
-                              <div className="text-xs text-slate-400">total output</div>
-                              <div className="mt-1 space-y-0.5">
-                                <div className="text-xs text-slate-500">Peak: <strong>{fmtPower(peak)}</strong></div>
-                                <div className="text-xs text-slate-500">Avg: <strong>{fmtPower(avg)}</strong></div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
+              <DispatchTab
+                dispatchOption={dispatchOption}
+                hasDispatch={hasDispatch}
+                result={result}
+                sectionOpen={sectionOpen}
+                techColorFn={techColorFn}
+                toggleSection={toggleSection}
+              />
             )}
 
             {/* ════════════════ COSTS TAB ════════════════ */}
             {activeTab === 'costs' && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                    <button onClick={() => toggleSection('cost-by-tech')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
-                      <FiDollarSign size={14} className="text-gray-500 flex-shrink-0" />
-                      <span className="font-semibold text-slate-800 text-sm flex-1">Total Cost by Technology</span>
-                      <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('cost-by-tech') ? '' : '-rotate-90'}`} />
-                    </button>
-                    {sectionOpen('cost-by-tech') && <div className="px-5 pb-5">
-                      {costsTechOption ? (
-                        <ReactECharts option={costsTechOption} style={{ height: 280 }} notMerge />
-                      ) : <div className="text-slate-400 text-sm text-center py-12">No cost data</div>}
-                    </div>}
-                  </div>
-
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                    <button onClick={() => toggleSection('cost-per-mwh')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
-                      <FiTrendingUp size={14} className="text-gray-600 flex-shrink-0" />
-                      <span className="font-semibold text-slate-800 text-sm flex-1">Cost per MWh by Technology</span>
-                      <span className="text-xs text-slate-400 mr-1">· LCOE proxy</span>
-                      <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('cost-per-mwh') ? '' : '-rotate-90'}`} />
-                    </button>
-                    {sectionOpen('cost-per-mwh') && <div className="px-5 pb-5">
-                      {costPerMwhOption ? (
-                        <ReactECharts option={costPerMwhOption} style={{ height: 280 }} notMerge />
-                      ) : <div className="text-slate-400 text-sm text-center py-12">No data</div>}
-                    </div>}
-                  </div>
-                </div>
-
-                {costsLocOption && (
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                    <button onClick={() => toggleSection('cost-by-loc')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
-                      <FiMapPin size={14} className="text-gray-600 flex-shrink-0" />
-                      <span className="font-semibold text-slate-800 text-sm flex-1">Cost Breakdown by Location &amp; Technology</span>
-                      <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('cost-by-loc') ? '' : '-rotate-90'}`} />
-                    </button>
-                    {sectionOpen('cost-by-loc') && <div className="px-5 pb-5">
-                      <ReactECharts option={costsLocOption} style={{ height: 300 }} notMerge />
-                    </div>}
-                  </div>
-                )}
-
-                {result?.costs_by_location && (
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 overflow-x-auto">
-                    {(() => {
-                      const allLocs = Object.keys(result.costs_by_location);
-                      const totalByLoc = Object.fromEntries(
-                        allLocs.map(l => [l, Object.values(result.costs_by_location[l]).reduce((s, v) => s + (Number(v) || 0), 0)])
-                      );
-                      const locs = allLocs
-                        .sort((a, b) => totalByLoc[b] - totalByLoc[a])
-                        .slice(0, isLargeModel ? LOC_CHART_LIMIT : allLocs.length);
-                      const truncated = isLargeModel && allLocs.length > LOC_CHART_LIMIT;
-                      const techs = [...new Set(locs.flatMap(l => Object.keys(result.costs_by_location[l])))].sort();
-                      return (
-                        <>
-                          <h3 className="font-semibold text-slate-800 text-sm mb-1">Cost Detail Table (€)</h3>
-                          {truncated && (
-                            <p className="text-xs text-gray-500 mb-3">Showing top {LOC_CHART_LIMIT} locations by total cost (of {allLocs.length}). Export JSON for full data.</p>
-                          )}
-                          <table className="w-full text-xs">
-                            <thead>
-                              <tr className="border-b border-slate-200">
-                                <th className="text-left py-2 pr-4 font-semibold text-slate-500 uppercase tracking-wide">Location</th>
-                                {techs.map(t => (
-                                  <th key={t} className="text-right py-2 px-3 font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap capitalize">
-                                    {t.replace(/_/g, ' ')}
-                                  </th>
-                                ))}
-                                <th className="text-right py-2 pl-4 font-semibold text-slate-800 uppercase tracking-wide">Total</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {locs.map((loc, li) => {
-                                const rowTotal = Object.values(result.costs_by_location[loc]).reduce((s, v) => s + (Number(v) || 0), 0);
-                                return (
-                                  <tr key={loc} className={li % 2 === 0 ? 'border-b border-slate-50' : 'border-b border-slate-50 bg-slate-50/60'}>
-                                    <td className="py-2 pr-4 font-medium text-slate-700">{loc}</td>
-                                    {techs.map(t => (
-                                      <td key={t} className="py-2 px-3 text-right text-slate-500 font-mono">
-                                        {fmtFull(result.costs_by_location[loc]?.[t] || 0)}
-                                      </td>
-                                    ))}
-                                    <td className="py-2 pl-4 text-right font-bold text-slate-800 font-mono">{fmtFull(rowTotal)}</td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </>
-                      );
-                    })()}
-                  </div>
-                )}
-              </div>
+              <CostsTab
+                LOC_CHART_LIMIT={LOC_CHART_LIMIT}
+                costPerMwhOption={costPerMwhOption}
+                costsLocOption={costsLocOption}
+                costsTechOption={costsTechOption}
+                isLargeModel={isLargeModel}
+                result={result}
+                sectionOpen={sectionOpen}
+                toggleSection={toggleSection}
+              />
             )}
 
             {/* ════════════════ SHADOW PRICES TAB ════════════════ */}
@@ -1577,138 +1219,16 @@ const Results = () => {
 
             {/* ════════════════ ANALYSIS TAB ════════════════ */}
             {activeTab === 'analysis' && (
-              <div className="space-y-4">
-                {/* Capacity factor chart */}
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                  <button onClick={() => toggleSection('cf-chart')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
-                    <FiGrid size={14} className="text-gray-600 flex-shrink-0" />
-                    <span className="font-semibold text-slate-800 text-sm flex-1">
-                      {isLargeModel ? 'Average Capacity Factor by Technology' : 'Capacity Factor Heatmap'}
-                    </span>
-                    <span className="text-xs text-slate-400 mr-1">
-                      {isLargeModel ? '· aggregated' : '· Loc × Tech'}
-                    </span>
-                    <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('cf-chart') ? '' : '-rotate-90'}`} />
-                  </button>
-                  {sectionOpen('cf-chart') && <div className="px-5 pb-5">
-                    <p className="text-xs text-slate-400 mb-4">CF = total generation ÷ (installed capacity × hours). High CF means the asset is heavily used.</p>
-                    {cfHeatmapOption ? (
-                      <ReactECharts option={cfHeatmapOption} style={{ height: isLargeModel ? 220 : 320 }} notMerge />
-                    ) : (
-                      <div className="text-slate-400 text-sm text-center py-16">
-                        Insufficient data — needs both capacity and generation outputs
-                      </div>
-                    )}
-                  </div>}
-                </div>
-
-                {/* Renewable share & system metrics */}
-                {derivedData && (
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                    {/* Renewable share */}
-                    {(() => {
-                      const renewables = ['solar_pv','solar','wind_onshore','wind_offshore','wind','hydro','biomass'];
-                      const renewGen = Object.entries(derivedData.genByTech)
-                        .filter(([t]) => renewables.some(r => t.toLowerCase().includes(r)))
-                        .reduce((s,[,v]) => s + v, 0);
-                      const share = derivedData.totalGen > 0 ? (renewGen / derivedData.totalGen * 100) : 0;
-                      return (
-                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-                          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Renewable Share</div>
-                          <div className="text-4xl font-bold text-gray-900 mb-1">{share.toFixed(1)}<span className="text-xl font-normal text-slate-400">%</span></div>
-                          <div className="text-xs text-slate-400 mb-3">of total generation</div>
-                          <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
-                            <div className="h-full rounded-full bg-gradient-to-r from-gray-600 to-gray-900 transition-all" style={{ width: `${share}%` }} />
-                          </div>
-                          <div className="mt-2 text-xs text-slate-500">{fmtEnergy(renewGen)} renewables / {fmtEnergy(derivedData.totalGen)} total</div>
-                        </div>
-                      );
-                    })()}
-
-                    {/* Avg system LCOE */}
-                    {result?.costs_by_tech && (() => {
-                      const totalCost = Object.values(result.costs_by_tech).reduce((s,v) => s+(Number(v)||0),0);
-                      const lcoe = derivedData.totalGen > 0 ? totalCost / derivedData.totalGen : null;
-                      return (
-                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-                          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">System Average LCOE</div>
-                          <div className="text-4xl font-bold text-gray-900 mb-1">
-                            {lcoe != null ? lcoe.toFixed(2) : '—'}<span className="text-xl font-normal text-slate-400"> €/MWh</span>
-                          </div>
-                          <div className="text-xs text-slate-400 mt-2">Total Cost: {fmtCost(totalCost)}</div>
-                          <div className="text-xs text-slate-400">Total Gen: {fmtEnergy(derivedData.totalGen)}</div>
-                        </div>
-                      );
-                    })()}
-
-                    {/* Tech diversity */}
-                    {(() => {
-                      const techCount = Object.keys(derivedData.capByTech).length;
-                      const locCount = Object.keys(derivedData.capByLoc).length;
-                      const topTech = Object.entries(derivedData.capByTech).sort(([,a],[,b]) => b-a)[0];
-                      return (
-                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-                          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">System Profile</div>
-                          <div className="space-y-2 text-sm">
-                            <div className="flex justify-between"><span className="text-slate-500">Technologies</span> <strong className="text-slate-800">{techCount}</strong></div>
-                            <div className="flex justify-between"><span className="text-slate-500">Locations</span> <strong className="text-slate-800">{locCount}</strong></div>
-                            <div className="flex justify-between"><span className="text-slate-500">Timesteps</span> <strong className="text-slate-800">{(result?.timestamps?.length || 0).toLocaleString()}</strong></div>
-                            <div className="flex justify-between"><span className="text-slate-500">Dominant tech</span>
-                              <span className="flex items-center gap-1.5">
-                                <span className="w-2 h-2 rounded-full" style={{ background: techColorFn(topTech?.[0] || '') }} />
-                                <strong className="text-slate-800 capitalize">{topTech?.[0]?.replace(/_/g,' ') || '—'}</strong>
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                )}
-
-                {/* Per-location generation bars */}
-                {derivedData?.capByLoc && Object.keys(derivedData.capByLoc).length > 0 && (
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-                    {(() => {
-                      const allEntries = Object.entries(derivedData.capByLoc).sort(([,a],[,b]) => b-a);
-                      const entries = isLargeModel ? allEntries.slice(0, LOC_CHART_LIMIT) : allEntries;
-                      const truncated = isLargeModel && allEntries.length > LOC_CHART_LIMIT;
-                      const maxCap = allEntries[0]?.[1] || 1;
-                      return (
-                        <>
-                          <div className="flex items-center justify-between mb-3">
-                            <h3 className="font-semibold text-slate-800 text-sm">Per-Location Capacity Breakdown</h3>
-                            {truncated && <span className="text-xs text-gray-500">Top {LOC_CHART_LIMIT} of {allEntries.length} locations</span>}
-                          </div>
-                          <div className="space-y-3">
-                            {entries.map(([loc, cap]) => {
-                              const pct = maxCap > 0 ? (cap / maxCap * 100) : 0;
-                              const dom = derivedData.domTech[loc];
-                              return (
-                                <div key={loc}>
-                                  <div className="flex items-center justify-between mb-1 text-xs">
-                                    <span className="font-medium text-slate-700 flex items-center gap-1.5">
-                                      <span className="w-2 h-2 rounded-full" style={{ background: techColorFn(dom) }} />
-                                      {loc}
-                                    </span>
-                                    <span className="font-mono text-slate-500">{fmtPower(cap)} · {dom?.replace(/_/g,' ')}</span>
-                                  </div>
-                                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                                    <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: techColorFn(dom) }} />
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                          {truncated && (
-                            <p className="mt-3 text-xs text-slate-400 text-center">… {allEntries.length - LOC_CHART_LIMIT} more locations. Export JSON for full data.</p>
-                          )}
-                        </>
-                      );
-                    })()}
-                  </div>
-                )}
-              </div>
+              <AnalysisTab
+                LOC_CHART_LIMIT={LOC_CHART_LIMIT}
+                cfHeatmapOption={cfHeatmapOption}
+                derivedData={derivedData}
+                isLargeModel={isLargeModel}
+                result={result}
+                sectionOpen={sectionOpen}
+                techColorFn={techColorFn}
+                toggleSection={toggleSection}
+              />
             )}
 
             {/* ════════════════ SPORES TAB ════════════════ */}
@@ -2297,22 +1817,9 @@ const Results = () => {
 
             {/* ════════════════ LOGS TAB ════════════════ */}
             {activeTab === 'logs' && (
-              <div className="bg-slate-900 rounded-2xl p-5">
-                <div className="flex items-center gap-2 mb-3 text-green-400">
-                  <FiTerminal size={14} />
-                  <span className="text-sm font-mono font-semibold">Solver Log — {selectedJob.logs?.length || 0} lines</span>
-                </div>
-                <div className="text-green-400 text-xs font-mono space-y-0.5 max-h-[600px] overflow-y-auto pr-2">
-                  {(selectedJob.logs || []).map((l, i) => (
-                    <div key={i} className={`leading-relaxed ${l.startsWith('[ERROR]') || l.includes('Error') ? 'text-red-400' : l.includes('WARNING') ? 'text-amber-400' : ''}`}>
-                      {l}
-                    </div>
-                  ))}
-                  {(!selectedJob.logs || selectedJob.logs.length === 0) && (
-                    <div className="text-slate-600 italic">No log lines available</div>
-                  )}
-                </div>
-              </div>
+              <LogsTab
+                selectedJob={selectedJob}
+              />
             )}
 
             </div>

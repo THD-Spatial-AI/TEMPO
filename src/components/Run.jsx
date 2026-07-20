@@ -14,6 +14,9 @@ import {
   FiCalendar, FiChevronDown, FiChevronRight, FiHelpCircle,
 } from 'react-icons/fi';
 import { MODELING_FRAMEWORKS, SOLVER_OPTIONS } from '../config/modelingFrameworks';
+import CompletedRunsSection from './run/CompletedRunsSection';
+import ActiveJobsPanel from './run/ActiveJobsPanel';
+import SporesConfigPanel from './run/SporesConfigPanel';
 
 
 
@@ -801,90 +804,10 @@ const Run = ({ onNavigate }) => {
 
               {/* SPORES configuration panel — visible only in spores mode */}
               {modelConfig.mode === 'spores' && (
-                <div className="mt-4 border-t border-slate-100 pt-4">
-                  {/* Header row with title + hint */}
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
-                      <FiZap size={12} className="text-electric-500" /> SPORES Options
-                    </span>
-                    <div className="group relative">
-                      <button
-                        type="button"
-                        className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-electric-600 bg-electric-50 hover:bg-electric-100 border border-electric-200 transition-colors"
-                      >
-                        <FiHelpCircle size={12} /> What is SPORES?
-                      </button>
-                      <div className="hidden group-hover:block absolute right-0 top-7 z-20 w-80 p-3 bg-slate-800 text-white text-xs rounded-xl shadow-xl leading-relaxed">
-                        <p className="font-semibold text-electric-300 mb-1">Spatially Explicit Practically Optimal Results</p>
-                        <p className="text-slate-300 mb-2">
-                          Instead of one "best" plan, SPORES generates N alternative energy system
-                          configurations that are all near-optimal in cost but differ in <em>where</em>
-                          technologies are deployed — revealing hidden trade-offs like wind farm siting
-                          or transmission dependencies.
-                        </p>
-                        <p className="text-slate-400 border-t border-slate-700 pt-2 mt-1">
-                          <span className="text-slate-200 font-medium">Cost slack</span> — how much more expensive the alternatives can be vs. the cheapest plan (e.g. 10% = up to 10% above optimal cost).<br />
-                          <span className="text-slate-200 font-medium">Number of SPORES</span> — how many alternatives to generate. Each is a full solver run; more SPORES = longer runtime.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Runtime warning */}
-                  <div className="flex items-start gap-2 px-3 py-2 mb-3 bg-slate-50 border border-slate-200 rounded-lg">
-                    <FiAlertTriangle size={12} className="text-slate-400 mt-0.5 shrink-0" />
-                    <p className="text-xs text-slate-500">
-                      Runs <span className="font-semibold text-slate-700">N + 1</span> full optimisations sequentially.
-                      Start with 5–10 SPORES to estimate runtime before scaling up.
-                    </p>
-                  </div>
-
-                  {/* Parameter inputs */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <div className="flex items-center gap-1 mb-1">
-                        <label className="text-xs font-medium text-slate-700">Cost Slack (%)</label>
-                        <div className="group relative">
-                          <FiHelpCircle size={12} className="text-slate-400 cursor-help hover:text-electric-500 transition-colors" />
-                          <div className="hidden group-hover:block absolute left-0 top-5 z-20 w-60 p-2 bg-slate-800 text-white text-xs rounded-lg shadow-lg leading-relaxed">
-                            Maximum cost increase allowed above the optimal solution.
-                            <br /><span className="text-slate-400 mt-1 block">10% → alternatives cost at most 10% more. Higher values give more diversity but stray further from optimal.</span>
-                          </div>
-                        </div>
-                      </div>
-                      <input
-                        type="number" min={1} max={30} step={1}
-                        value={modelConfig.sporesOptions.slack}
-                        onChange={e => setModelConfig(p => ({
-                          ...p,
-                          sporesOptions: { ...p.sporesOptions, slack: Math.max(1, Math.min(30, +e.target.value)) }
-                        }))}
-                        className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-electric-500 focus:border-transparent"
-                      />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1 mb-1">
-                        <label className="text-xs font-medium text-slate-700">Number of SPORES</label>
-                        <div className="group relative">
-                          <FiHelpCircle size={12} className="text-slate-400 cursor-help hover:text-electric-500 transition-colors" />
-                          <div className="hidden group-hover:block absolute left-0 top-5 z-20 w-60 p-2 bg-slate-800 text-white text-xs rounded-lg shadow-lg leading-relaxed">
-                            How many alternative plans to generate after the cost-optimal run.
-                            <br /><span className="text-slate-400 mt-1 block">5–10 is fast for testing; 20–50 gives richer analysis. The paper used 178.</span>
-                          </div>
-                        </div>
-                      </div>
-                      <input
-                        type="number" min={5} max={100} step={5}
-                        value={modelConfig.sporesOptions.sporesNumber}
-                        onChange={e => setModelConfig(p => ({
-                          ...p,
-                          sporesOptions: { ...p.sporesOptions, sporesNumber: Math.max(5, Math.min(100, +e.target.value)) }
-                        }))}
-                        className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-electric-500 focus:border-transparent"
-                      />
-                    </div>
-                  </div>
-                </div>
+                <SporesConfigPanel
+                  modelConfig={modelConfig}
+                  setModelConfig={setModelConfig}
+                />
               )}
 
               {/* Scenarios & Overrides multiselect — full width below grid */}
@@ -1192,273 +1115,25 @@ const Run = ({ onNavigate }) => {
           </div>
 
           {/* RIGHT: active jobs */}
-          <div className="xl:col-span-2">
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 h-full">
-              <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-4 flex items-center gap-2">
-                <FiActivity size={13} className="text-gray-500" />
-                Active runs ({runningJobs.length})
-              </h2>
-
-              {runningJobs.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-14 text-slate-300">
-                  <FiClock size={36} className="mb-2 opacity-40" />
-                  <p className="text-sm">No active runs</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {runningJobs.map(job => (
-                    <div key={job.id} className="p-4 bg-gray-50 border border-gray-100 rounded-xl">
-                      {/* header */}
-                      <div className="flex justify-between items-center mb-2">
-                        <div>
-                          <div className="font-semibold text-sm text-slate-800">{job.modelName}</div>
-                          <div className="text-xs text-slate-500">Calliope · {job.solver.toUpperCase()}</div>
-                        </div>
-                        <button onClick={() => handleStopJob(job.id)} className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg" title="Stop">
-                          <FiStopCircle size={16} />
-                        </button>
-                      </div>
-                      {/* progress bar */}
-                      <div className="w-full bg-gray-100 rounded-full h-1 mb-3 overflow-hidden">
-                        <div className="h-1 bg-gray-400 rounded-full animate-pulse" style={{ width: '60%' }} />
-                      </div>
-                      {/* resource stats panel */}
-                      {(() => {
-                        const s = job.stats;
-                        return (
-                          <div className="mb-3 grid grid-cols-4 gap-2">
-                            {/* elapsed */}
-                            <div className="bg-white border border-gray-100 rounded-lg p-2 text-center">
-                              <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Elapsed</div>
-                              <div className="text-xs font-bold text-slate-700">{s?.elapsed ?? '—'}</div>
-                            </div>
-                            {/* CPU */}
-                            <div className="bg-white border border-gray-100 rounded-lg p-2 text-center">
-                              <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">CPU</div>
-                              <div className="text-xs font-bold text-slate-700">
-                                {s?.cpu_pct != null ? `${s.cpu_pct}%` : '—'}
-                              </div>
-                              {s?.cpu_pct != null && (
-                                <div className="mt-1 w-full bg-slate-100 rounded-full h-1 overflow-hidden">
-                                  <div className="h-1 rounded-full bg-gray-400 transition-all duration-500"
-                                    style={{ width: `${Math.min(s.cpu_pct, 100)}%` }} />
-                                </div>
-                              )}
-                            </div>
-                            {/* process RAM */}
-                            <div className="bg-white border border-gray-100 rounded-lg p-2 text-center">
-                              <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Proc RAM</div>
-                              <div className="text-xs font-bold text-slate-700">
-                                {s?.proc_ram_mb != null
-                                  ? s.proc_ram_mb >= 1024
-                                    ? `${(s.proc_ram_mb / 1024).toFixed(1)} GB`
-                                    : `${s.proc_ram_mb} MB`
-                                  : '—'
-                                }
-                              </div>
-                            </div>
-                            {/* system RAM */}
-                            <div className="bg-white border border-gray-100 rounded-lg p-2 text-center">
-                              <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Sys RAM</div>
-                              <div className="text-xs font-bold text-slate-700">
-                                {s?.sys_ram_pct != null
-                                  ? `${s.sys_ram_pct}%`
-                                  : '—'
-                                }
-                              </div>
-                              {s?.sys_ram_pct != null && (
-                                <div className="mt-1 w-full bg-slate-100 rounded-full h-1 overflow-hidden">
-                                  <div
-                                    className="h-1 rounded-full transition-all duration-500 bg-gray-400"
-                                    style={{ width: `${Math.min(s.sys_ram_pct, 100)}%` }}
-                                  />
-                                </div>
-                              )}
-                              {s?.sys_ram_used_gb != null && (
-                                <div className="text-[9px] text-slate-400 mt-0.5">
-                                  {s.sys_ram_used_gb} / {s.sys_ram_total_gb} GB
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })()}
-                      {/* log toggle */}
-                      <button
-                        onClick={() => setExpandedLog(expandedLog === job.id ? null : job.id)}
-                        className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600"
-                      >
-                        <FiTerminal size={11} />
-                        {expandedLog === job.id ? 'Hide' : 'Show'} logs ({job.logs.length} lines)
-                      </button>
-                      {expandedLog === job.id && (
-                        <div className="mt-2 bg-slate-900 text-green-400 rounded-lg p-3 text-xs font-mono h-48 overflow-y-auto">
-                          {job.logs.length === 0
-                            ? <span className="text-slate-500">Waiting for output…</span>
-                            : job.logs.map((l, i) => (
-                                <div key={i} className={`${
-                                  l.includes('ERROR') || l.includes('error') ? 'text-red-400'
-                                  : l.includes('WARNING') || l.includes('Skipping') ? 'text-yellow-400'
-                                  : l.includes('Optimisation finished') || l.includes('Extracted') ? 'text-cyan-300'
-                                  : ''
-                                }`}>{l}</div>
-                              ))
-                          }
-                          <div ref={logEndRef} />
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+          <ActiveJobsPanel
+            expandedLog={expandedLog}
+            handleStopJob={handleStopJob}
+            logEndRef={logEndRef}
+            runningJobs={runningJobs}
+            setExpandedLog={setExpandedLog}
+          />
         </div>
 
         {/* FULL-WIDTH COMPLETED RUNS */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200">
-          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-            <h2 className="text-base font-semibold text-slate-800 flex items-center gap-2">
-              <FiList size={16} className="text-electric-500" />
-              Completed Runs
-              <span className="ml-1 px-2 py-0.5 bg-electric-100 text-electric-700 rounded-full text-xs font-bold">
-                {completedJobs.length}
-              </span>
-            </h2>
-            {completedJobs.length > 0 && (
-              <span className="text-xs text-slate-400">Stored in database · latest first</span>
-            )}
-          </div>
-
-          {completedJobs.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-slate-300">
-              <FiCheckCircle size={48} className="mb-3 opacity-30" />
-              <p className="text-base font-medium">No completed runs yet</p>
-              <p className="text-sm mt-1 opacity-70">Run a model above to see results here</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-50">
-              {completedJobs.map(job => {
-                const failed = job.status === 'failed';
-                const isLogOpen = expandedCompletedLog === job.id;
-
-                return (
-                  <div key={job.id} className="px-6 py-4 hover:bg-slate-50/60 transition-colors">
-                    <div className="flex items-center gap-4 flex-wrap">
-
-                      {/* Status icon */}
-                      <div className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center bg-gray-100">
-                        {failed
-                          ? <FiAlertTriangle size={16} className="text-gray-500" />
-                          : <FiCheckCircle size={16} className="text-gray-600" />
-                        }
-                      </div>
-
-                      {/* Model name + ID */}
-                      <div className="flex-1 min-w-[160px]">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-semibold text-slate-800 text-sm">{job.modelName}</span>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
-                            {failed ? 'FAILED' : 'DONE'}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-400 flex-wrap">
-                          <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 select-all">
-                            {job.id?.replace('job_', '#')}
-                          </span>
-                          <span>{new Date(job.completedAt).toLocaleString(undefined, {
-                            year: 'numeric', month: 'short', day: 'numeric',
-                            hour: '2-digit', minute: '2-digit',
-                          })}</span>
-                        </div>
-                      </div>
-
-                      {/* Stats chips */}
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <div className="flex items-center gap-1.5 bg-slate-100 px-2.5 py-1.5 rounded-lg text-xs">
-                          <FiCpu size={11} className="text-slate-400" />
-                          <span className="font-medium text-slate-600">{(job.solver || '—').toUpperCase()}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 bg-slate-100 px-2.5 py-1.5 rounded-lg text-xs">
-                          <FiClock size={11} className="text-slate-400" />
-                          <span className="font-medium text-slate-600">{job.duration || '—'}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 bg-slate-100 px-2.5 py-1.5 rounded-lg text-xs">
-                          <FiActivity size={11} className="text-slate-400" />
-                          <span className="font-medium text-slate-600 capitalize">{job.terminationCondition || '—'}</span>
-                        </div>
-                        {!failed && job.objective != null && (
-                          <div className="flex items-center gap-1.5 bg-electric-50 border border-electric-100 px-2.5 py-1.5 rounded-lg text-xs">
-                            <FiZap size={11} className="text-electric-500" />
-                            <span className="font-bold text-electric-700 font-mono">
-                              {job.objective.toLocaleString(undefined, { maximumFractionDigits: 1 })}
-                            </span>
-                          </div>
-                        )}
-                        {failed && job.result?.error && (
-                          <div className="text-xs text-gray-600 bg-gray-50 border border-gray-100 px-2.5 py-1.5 rounded-lg max-w-xs truncate" title={job.result.error}>
-                            {job.result.error.slice(0, 60)}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Action buttons */}
-                      <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
-                        {!failed && (
-                          <button
-                            onClick={() => { setActiveResultJobId(job.id); onNavigate && onNavigate('Results'); }}
-                            title="View Results dashboard"
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-electric-50 text-electric-600 border border-electric-200 rounded-lg hover:bg-electric-100 transition-colors"
-                          >
-                            <FiBarChart2 size={13} />
-                            Results
-                          </button>
-                        )}
-                        <button
-                          onClick={() => setExpandedCompletedLog(isLogOpen ? null : job.id)}
-                          title="Toggle logs"
-                          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
-                            isLogOpen
-                              ? 'bg-slate-800 text-white border-slate-800'
-                              : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                          }`}
-                        >
-                          <FiTerminal size={13} />
-                          Logs {job.logs?.length ? `(${job.logs.length})` : ''}
-                        </button>
-                        <button
-                          onClick={() => downloadJob(job)}
-                          title="Download as JSON"
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-slate-50 text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors"
-                        >
-                          <FiDownload size={13} />
-                          JSON
-                        </button>
-                        <button
-                          onClick={() => removeCompletedJob(job.id)}
-                          title="Delete run"
-                          className="p-1.5 text-slate-300 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                        >
-                          <FiTrash2 size={14} />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Expandable logs */}
-                    {isLogOpen && (
-                      <div className="mt-3 bg-slate-900 text-green-400 rounded-xl p-4 text-xs font-mono max-h-64 overflow-y-auto">
-                        {(job.logs || []).length === 0
-                          ? <span className="text-slate-500">No logs available</span>
-                          : (job.logs || []).map((l, i) => <div key={i} className="leading-relaxed">{l}</div>)
-                        }
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        <CompletedRunsSection
+          onNavigate={onNavigate}
+          completedJobs={completedJobs}
+          downloadJob={downloadJob}
+          expandedCompletedLog={expandedCompletedLog}
+          removeCompletedJob={removeCompletedJob}
+          setActiveResultJobId={setActiveResultJobId}
+          setExpandedCompletedLog={setExpandedCompletedLog}
+        />
 
       </div>
     </div>
