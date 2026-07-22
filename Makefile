@@ -3,7 +3,7 @@
 #
 # One-command local install on a fresh machine (Linux or Windows via Git Bash/WSL):
 #
-#     make install     # prerequisites check, .env, npm deps, Go backend, all images
+#     make install     # install Node/Go/Docker if missing, .env, npm deps, Go backend, all images
 #     make up          # start every Docker service (optimization engines + sims + db)
 #     make dev         # launch the desktop app (Electron)
 #
@@ -13,6 +13,10 @@
 
 SHELL := bash
 .DEFAULT_GOAL := help
+
+# ── Prerequisite versions installed by `make bootstrap` when missing ────────
+GO_VERSION := 1.26.5
+NODE_MAJOR := 22
 
 # ── OS detection (for the Go backend binary name only; Docker is identical) ──
 UNAME_S := $(shell uname -s 2>/dev/null || echo Unknown)
@@ -34,7 +38,8 @@ CCSSIM_DIR   := ../ccssim
 HYDROSIM_DIR := ../hydrogenmatsim
 OPENTECH_DIR := ../opentech-db
 
-.PHONY: help check env npm-install go-build frontend-build docker-build install \
+.PHONY: help check bootstrap _bootstrap-linux _bootstrap-mac _bootstrap-windows \
+        env npm-install go-build frontend-build docker-build install \
         up up-engines up-geoserver up-sims up-opentech \
         down down-engines down-geoserver down-sims down-opentech \
         ps logs dev web backend-run test clean clean-docker
@@ -70,7 +75,50 @@ check: ## Verify required tools (node, npm, go, docker) are installed
 	else \
 	  printf "  \033[31m✗\033[0m %-8s docker compose v2 NOT FOUND\n" "compose"; ok=0; \
 	fi; \
-	if [ $$ok -eq 0 ]; then echo; echo "Install the missing tools and re-run 'make check'."; exit 1; fi
+	if [ $$ok -eq 0 ]; then echo; echo "Missing tools — run 'make bootstrap' (or 'make install') to install them."; exit 1; fi
+
+bootstrap: ## Install any missing prerequisites (Node, Go, Docker) for this OS
+	@case "$(UNAME_S)" in \
+	  Linux)                 $(MAKE) --no-print-directory _bootstrap-linux ;; \
+	  Darwin)                $(MAKE) --no-print-directory _bootstrap-mac ;; \
+	  MINGW*|MSYS*|CYGWIN*)  $(MAKE) --no-print-directory _bootstrap-windows ;; \
+	  *) echo "Unsupported OS '$(UNAME_S)'. Install Node $(NODE_MAJOR)+, Go $(GO_VERSION)+, and Docker manually."; exit 1 ;; \
+	esac
+
+_bootstrap-linux:
+	@set -e; \
+	if command -v node >/dev/null 2>&1; then echo "✓ node present ($$(node --version))"; else \
+	  echo "── Installing Node.js $(NODE_MAJOR).x (NodeSource) ──"; \
+	  curl -fsSL https://deb.nodesource.com/setup_$(NODE_MAJOR).x | sudo -E bash -; \
+	  sudo apt-get install -y nodejs; \
+	fi; \
+	if command -v go >/dev/null 2>&1; then echo "✓ go present ($$(go version))"; else \
+	  echo "── Installing Go $(GO_VERSION) ──"; \
+	  m=$$(uname -m); case "$$m" in x86_64) a=amd64 ;; aarch64|arm64) a=arm64 ;; *) a=amd64 ;; esac; \
+	  curl -fsSL https://go.dev/dl/go$(GO_VERSION).linux-$$a.tar.gz -o /tmp/go.tar.gz; \
+	  sudo rm -rf /usr/local/go; sudo tar -C /usr/local -xzf /tmp/go.tar.gz; \
+	  grep -q '/usr/local/go/bin' $$HOME/.bashrc 2>/dev/null || echo 'export PATH=$$PATH:/usr/local/go/bin' >> $$HOME/.bashrc; \
+	  echo "  Added /usr/local/go/bin to ~/.bashrc (open a new shell to pick it up)"; \
+	fi; \
+	if command -v docker >/dev/null 2>&1; then echo "✓ docker present ($$(docker --version))"; else \
+	  echo "── Installing Docker Engine (get.docker.com) ──"; \
+	  curl -fsSL https://get.docker.com | sudo sh; \
+	  sudo usermod -aG docker $$USER || true; \
+	  echo "  ⚠ Log out and back in (or run 'newgrp docker') so Docker works without sudo."; \
+	fi
+
+_bootstrap-mac:
+	@command -v brew >/dev/null 2>&1 || { echo "Install Homebrew first: https://brew.sh"; exit 1; }
+	@command -v node   >/dev/null 2>&1 && echo "✓ node present"   || brew install node@$(NODE_MAJOR)
+	@command -v go     >/dev/null 2>&1 && echo "✓ go present"     || brew install go
+	@command -v docker >/dev/null 2>&1 && echo "✓ docker present" || brew install --cask docker
+
+_bootstrap-windows:
+	@command -v winget >/dev/null 2>&1 || { echo "winget not found — install 'App Installer' from the Microsoft Store, then retry."; exit 1; }
+	@command -v node   >/dev/null 2>&1 && echo "✓ node present"   || winget install -e --id OpenJS.NodeJS.LTS      --accept-package-agreements --accept-source-agreements
+	@command -v go     >/dev/null 2>&1 && echo "✓ go present"     || winget install -e --id GoLang.Go             --accept-package-agreements --accept-source-agreements
+	@command -v docker >/dev/null 2>&1 && echo "✓ docker present" || winget install -e --id Docker.DockerDesktop  --accept-package-agreements --accept-source-agreements
+	@echo "⚠ Windows: restart your terminal (and reboot if Docker Desktop was just installed, then start it) before running 'make install' again."
 
 env: ## Create .env from .env.example if missing (defaults target the Docker ports)
 	@if [ ! -f .env ]; then \
@@ -93,7 +141,9 @@ npm-install: ## Install frontend Node dependencies (npm ci, falls back to npm in
 
 go-build: ## Compile the Go backend into backend-go/$(GO_BIN)
 	@echo "Building Go backend → backend-go/$(GO_BIN)"
-	@cd backend-go && go build -o $(GO_BIN) .
+	@export PATH="$$PATH:/usr/local/go/bin:/c/Program Files/Go/bin"; \
+	 GO=$$(command -v go || echo /usr/local/go/bin/go); \
+	 cd backend-go && "$$GO" build -o $(GO_BIN) .
 
 frontend-build: ## Build the production frontend bundle into dist/
 	@npm run build
@@ -121,7 +171,7 @@ _sibling-build:
 # ─────────────────────────────────────────────────────────────────────────────
 # One-command install
 # ─────────────────────────────────────────────────────────────────────────────
-install: check env npm-install go-build docker-build ## Full install: tools check, .env, deps, backend, all images
+install: bootstrap env npm-install go-build docker-build ## Full install: Node/Go/Docker, .env, deps, backend, all images
 	@echo
 	@echo "Install complete. Next:"
 	@echo "  make up     # start the Docker services"
