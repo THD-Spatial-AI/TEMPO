@@ -5,13 +5,15 @@ import Calliope07EnginePanel from './Calliope07EnginePanel';
 import EngineInstallPanel from './EngineInstallPanel';
 import { checkAdoptnet0Service, runAdoptnet0Model } from '../services/adoptnet0Client';
 import { checkEngineRunService, runEngineModel } from '../services/engineClient';
+import { runMemeModel, getMemeServerConfig } from '../services/memeClient';
+import { SETTINGS_EVENT } from '../services/appSettings';
 import { resolveScenario } from '../services/scenarioResolver';
 import {
   FiPlay, FiStopCircle, FiCheckCircle, FiAlertCircle,
   FiClock, FiCpu, FiZap, FiActivity, FiSettings,
   FiTerminal, FiTrash2, FiAlertTriangle, FiBox,
   FiBarChart2, FiDownload, FiEye, FiList,
-  FiCalendar, FiChevronDown, FiChevronRight, FiHelpCircle,
+  FiCalendar, FiChevronDown, FiChevronRight, FiHelpCircle, FiServer,
 } from 'react-icons/fi';
 import { MODELING_FRAMEWORKS, SOLVER_OPTIONS } from '../config/modelingFrameworks';
 import CompletedRunsSection from './run/CompletedRunsSection';
@@ -27,6 +29,11 @@ const Run = ({ onNavigate }) => {
   const [selectedFramework, setSelectedFramework] = useState('calliope');
   const [selectedSolver, setSelectedSolver]     = useState('highs');
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
+
+  // Compute location for this run: 'local' (default) or 'remote' (a MEME server).
+  // Not persisted on the model — it's an execution-environment choice.
+  const [computeTarget, setComputeTarget] = useState('local');
+  const [remoteServer, setRemoteServer]   = useState(() => getMemeServerConfig());
   const [modelConfig, setModelConfig] = useState({
     startDate: '2024-01-01',
     endDate: '2024-12-31',
@@ -153,6 +160,13 @@ const Run = ({ onNavigate }) => {
 
   // Keep ref in sync with state so the health-check interval sees current jobs
   useEffect(() => { runningJobsRef.current = runningJobs; }, [runningJobs]);
+
+  // Reflect Settings › Remote Execution changes without a remount.
+  useEffect(() => {
+    const handler = () => setRemoteServer(getMemeServerConfig());
+    window.addEventListener(SETTINGS_EVENT, handler);
+    return () => window.removeEventListener(SETTINGS_EVENT, handler);
+  }, []);
 
   // Check Calliope service health on mount and every 30 s.
   useEffect(() => {
@@ -410,9 +424,12 @@ const Run = ({ onNavigate }) => {
       : isPypsa ? setPypsaStatus
       : isOsemosys ? setOsemosysStatus
       : isCalliope07 ? setCalliope07Status : setServiceStatus;
-    const frameworkLabel = isCalliope07 ? 'Calliope 0.7 (experimental)' : framework.name;
+    const baseLabel = isCalliope07 ? 'Calliope 0.7 (experimental)' : framework.name;
+    const frameworkLabel = computeRemote ? `${baseLabel} (remote)` : baseLabel;
 
-    if (!currentStatus) {
+    // Local runs need the local engine service up; remote runs skip that check
+    // entirely — the model is offloaded to the configured MEME server.
+    if (!computeRemote && !currentStatus) {
       const isUp = await checkFn();
       setStatus(isUp);
       if (!isUp) {
@@ -439,7 +456,14 @@ const Run = ({ onNavigate }) => {
       configs.push(null); // baseline run — no scenario/override
     }
 
-    const runFn = isAdoptnet0 ? runAdoptnet0Model
+    const runFn = computeRemote
+      ? ((opts) => runMemeModel(remoteEngine, {
+          server: remoteServer,
+          mode: modelConfig.mode,
+          solver: selectedSolver,
+          ...opts,
+        }))
+      : isAdoptnet0 ? runAdoptnet0Model
       : isPypsa ? ((opts) => runEngineModel('pypsa', opts))
       : isOsemosys ? ((opts) => runEngineModel('osemosys', opts))
       : runCalliopeModel;
@@ -523,7 +547,7 @@ const Run = ({ onNavigate }) => {
     } else if (started.length > 1) {
       showNotification(`Started ${started.length} ${frameworkLabel} runs`, 'success');
     }
-    if (failed.length > 0 && started.length === 0) {
+    if (!computeRemote && failed.length > 0 && started.length === 0) {
       setStatus(false);
     }
   };
@@ -571,6 +595,18 @@ const Run = ({ onNavigate }) => {
   const availableOverrides = selectedModel?.overrides ? Object.keys(selectedModel.overrides) : [];
   const hasSelections = selectedScenarios.length + selectedOverrides.length > 0;
 
+  // ── Remote execution (MEME) availability ─────────────────────────────────
+  // The memeClient engine id for the current framework/engine, or null when
+  // the selection can't run remotely (Calliope 0.6.8, OSeMOSYS).
+  const remoteEngine = selectedFramework === 'pypsa' ? 'pypsa'
+    : selectedFramework === 'adoptnet0' ? 'adoptnet0'
+    : (selectedFramework === 'calliope' && calliopeEngine === '0.7') ? 'calliope07'
+    : null;
+  const remoteAvailable = !!(remoteServer?.enabled && remoteServer?.url && remoteEngine);
+  // v2 scope: remote handles a single baseline run only — a scenario/override
+  // selection transparently falls back to local execution.
+  const computeRemote = computeTarget === 'remote' && remoteAvailable && !hasSelections;
+
   return (
     <div className="h-full bg-gradient-to-br from-slate-50 to-slate-100 overflow-y-auto">
       <div className="p-6 space-y-6">
@@ -581,7 +617,11 @@ const Run = ({ onNavigate }) => {
             <h1 className="text-3xl font-bold bg-gradient-to-r from-electric-600 to-electric-700 bg-clip-text text-transparent">
               Run Model
             </h1>
-            <p className="text-sm text-slate-500 mt-0.5">Execute your energy model locally using {activeFrameworkLabel}</p>
+            <p className="text-sm text-slate-500 mt-0.5">
+              {computeRemote
+                ? `Execute your energy model remotely using ${activeFrameworkLabel} on MEME`
+                : `Execute your energy model locally using ${activeFrameworkLabel}`}
+            </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {selectedFramework === 'calliope' && selectedModel && (
@@ -611,8 +651,8 @@ const Run = ({ onNavigate }) => {
           </div>
         </div>
 
-        {/* OFFLINE BANNER */}
-        {!serviceChecking && !serviceReady && (
+        {/* OFFLINE BANNER — hidden when running remotely (local engine is irrelevant) */}
+        {!computeRemote && !serviceChecking && !serviceReady && (
           <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 flex items-start justify-between gap-4">
             <div>
               <strong>{activeFrameworkLabel} service offline.</strong>{' '}
@@ -657,7 +697,7 @@ const Run = ({ onNavigate }) => {
         )}
 
         {/* INLINE PYPSA INSTALL PANEL — shown when PyPSA is selected but not yet installed */}
-        {selectedFramework === 'pypsa' && pypsaStatus === false && (
+        {!computeRemote && selectedFramework === 'pypsa' && pypsaStatus === false && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
             <EngineInstallPanel
               title="PyPSA Engine"
@@ -675,7 +715,7 @@ const Run = ({ onNavigate }) => {
         )}
 
         {/* INLINE 0.7 INSTALL PANEL — shown when 0.7 is selected but not yet installed */}
-        {isCalliope07Selected && calliope07Status === false && (
+        {!computeRemote && isCalliope07Selected && calliope07Status === false && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
             <Calliope07EnginePanel
               onInstallSuccess={() => {
@@ -687,7 +727,7 @@ const Run = ({ onNavigate }) => {
         )}
 
         {/* INLINE OSEMOSYS INSTALL PANEL — shown when OSeMOSYS is selected but not yet installed */}
-        {selectedFramework === 'osemosys' && osemosysStatus === false && (
+        {!computeRemote && selectedFramework === 'osemosys' && osemosysStatus === false && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
             <EngineInstallPanel
               title="OSeMOSYS Engine"
@@ -705,7 +745,7 @@ const Run = ({ onNavigate }) => {
         )}
 
         {/* INLINE ADOPTNET0 INSTALL PANEL — shown when AdOpT-NET0 is selected but not yet installed */}
-        {selectedFramework === 'adoptnet0' && adoptnet0Status === false && (
+        {!computeRemote && selectedFramework === 'adoptnet0' && adoptnet0Status === false && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
             <EngineInstallPanel
               title="AdOpT-NET0 Engine"
@@ -1103,14 +1143,61 @@ const Run = ({ onNavigate }) => {
               </div>
             )}
 
+            {/* Compute location — only when a remote MEME server is configured
+                and the current engine is remote-capable */}
+            {remoteAvailable && (
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div>
+                    <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-2">
+                      <FiServer size={13} className="text-electric-500" /> Compute
+                    </div>
+                    <p className="text-xs text-slate-400 mt-1">
+                      {computeRemote
+                        ? <>Runs on <span className="font-mono text-slate-500">{remoteServer.url}</span></>
+                        : 'Runs on this machine'}
+                    </p>
+                  </div>
+                  <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs font-medium">
+                    <button
+                      onClick={() => setComputeTarget('local')}
+                      className={computeTarget === 'local'
+                        ? 'px-4 py-2 bg-electric-500 text-white'
+                        : 'px-4 py-2 text-slate-600 hover:bg-slate-50'}
+                    >
+                      Local
+                    </button>
+                    <button
+                      onClick={() => setComputeTarget('remote')}
+                      disabled={hasSelections}
+                      title={hasSelections ? 'Remote runs support a single baseline run only' : undefined}
+                      className={computeTarget === 'remote' && !hasSelections
+                        ? 'px-4 py-2 bg-electric-500 text-white'
+                        : 'px-4 py-2 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed'}
+                    >
+                      Remote (MEME)
+                    </button>
+                  </div>
+                </div>
+                {computeTarget === 'remote' && hasSelections && (
+                  <p className="mt-2 text-xs text-gray-600">
+                    Scenarios/overrides run locally — remote execution supports a single baseline run in this version.
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Run button */}
             <button
               onClick={handleRunModel}
-              disabled={!selectedModel || !serviceReady}
+              disabled={!selectedModel || (!computeRemote && !serviceReady)}
               className="w-full py-3.5 bg-gradient-to-r from-electric-500 to-electric-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl hover:from-electric-600 hover:to-electric-700 disabled:from-slate-300 disabled:to-slate-400 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2"
             >
               <FiPlay size={18} />
-              {hasSelections ? `Run Selected (${selectedScenarios.length + selectedOverrides.length})` : runningJobs.length > 0 ? 'Run in Progress…' : 'Run Model'}
+              {hasSelections
+                ? `Run Selected (${selectedScenarios.length + selectedOverrides.length})`
+                : runningJobs.length > 0 ? 'Run in Progress…'
+                : computeRemote ? 'Run Model (Remote)' : 'Run Model'}
             </button>
           </div>
 

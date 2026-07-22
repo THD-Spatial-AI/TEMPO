@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
-import { FiDownload, FiRefreshCw, FiTerminal, FiCheckCircle, FiAlertCircle, FiBox, FiCpu, FiZap, FiSliders, FiShield, FiChevronDown, FiInfo } from 'react-icons/fi';
+import { FiDownload, FiRefreshCw, FiTerminal, FiCheckCircle, FiAlertCircle, FiBox, FiCpu, FiZap, FiSliders, FiShield, FiChevronDown, FiInfo, FiServer } from 'react-icons/fi';
 import Calliope07EnginePanel from './Calliope07EnginePanel';
 import EngineInstallPanel from './EngineInstallPanel';
 import { getSettings, setSetting } from '../services/appSettings';
+import { checkMemeService } from '../services/memeClient';
 
 // ── Module catalogue (mirrors SetupScreen) ───────────────────────────────────
 const PYTHON_MODULES = [
@@ -361,6 +362,155 @@ function GeneralPanel() {
   );
 }
 
+// ── Remote execution (MEME) panel ─────────────────────────────────────────────
+// Configures the single remote MEME server that supported engines (PyPSA,
+// Calliope 0.7, AdOpT-NET0) can be offloaded to. The api_key is stored in
+// localStorage (plaintext) alongside other app settings. The per-run Local/
+// Remote choice lives in the Run panel — this only configures the server.
+function RemoteExecutionPanel() {
+  const [form, setForm] = useState(() => {
+    const s = getSettings().memeServer || {};
+    return { url: s.url || '', apiKey: s.apiKey || '', enabled: s.enabled ?? false };
+  });
+  const [saved, setSaved]         = useState(false);
+  const [showKey, setShowKey]     = useState(false);
+  const [testing, setTesting]     = useState(false);
+  const [testResult, setTestResult] = useState(null); // null | { ok, targets? , error? }
+
+  const update = (key, value) => { setForm(f => ({ ...f, [key]: value })); setSaved(false); };
+
+  const save = () => {
+    setSetting('memeServer', { url: form.url.trim(), apiKey: form.apiKey, enabled: form.enabled });
+    setSaved(true);
+  };
+
+  const testConnection = async () => {
+    setTesting(true);
+    setTestResult(null);
+    const caps = await checkMemeService({ url: form.url.trim() });
+    setTesting(false);
+    setTestResult(caps
+      ? { ok: true, targets: caps.targets || [] }
+      : { ok: false, error: 'Could not reach the MEME server, or /capabilities failed.' });
+  };
+
+  return (
+    <div>
+      <h3 className="text-lg font-semibold text-slate-800 mb-1 flex items-center gap-2">
+        <FiServer className="w-5 h-5 text-slate-400" /> Remote Execution (MEME)
+        <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-600">Beta</span>
+      </h3>
+      <p className="text-sm text-slate-500 mb-5 max-w-2xl">
+        Point TEMPO at a remote MEME server to run models on its hardware instead of this
+        machine. Only <span className="font-medium text-slate-600">PyPSA</span>,{' '}
+        <span className="font-medium text-slate-600">Calliope 0.7</span> and{' '}
+        <span className="font-medium text-slate-600">AdOpT-NET0</span> can run remotely; Calliope
+        0.6.8 and OSeMOSYS always run locally. Choose Local or Remote per run in the Run panel.
+      </p>
+
+      <div className="space-y-5 max-w-md">
+        {/* Enabled toggle */}
+        <label className="flex items-start gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={form.enabled}
+            onChange={(e) => update('enabled', e.target.checked)}
+            className="mt-0.5 rounded text-gray-600"
+          />
+          <span>
+            <span className="block text-sm font-medium text-slate-700">Enable remote execution</span>
+            <span className="block text-xs text-slate-400 mt-0.5">
+              When on, supported engines offer a Remote option in the Run panel.
+            </span>
+          </span>
+        </label>
+
+        {/* Server URL */}
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-2">Server URL</label>
+          <input
+            type="text"
+            value={form.url}
+            onChange={(e) => update('url', e.target.value)}
+            placeholder="http://192.168.1.50:8080"
+            className="w-full px-3 py-2 border border-slate-300 rounded-md font-mono text-sm focus:outline-none focus:ring-2 focus:ring-gray-500"
+          />
+        </div>
+
+        {/* API key */}
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-2">API key</label>
+          <div className="flex gap-2">
+            <input
+              type={showKey ? 'text' : 'password'}
+              value={form.apiKey}
+              onChange={(e) => update('apiKey', e.target.value)}
+              placeholder="Leave blank if the server has no API_KEY set"
+              className="flex-1 px-3 py-2 border border-slate-300 rounded-md font-mono text-sm focus:outline-none focus:ring-2 focus:ring-gray-500"
+            />
+            <button
+              type="button"
+              onClick={() => setShowKey(v => !v)}
+              className="px-3 py-2 text-xs font-medium text-slate-500 border border-slate-200 rounded-md hover:bg-slate-50"
+            >
+              {showKey ? 'Hide' : 'Show'}
+            </button>
+          </div>
+          <p className="text-xs text-slate-400 mt-1.5">
+            Sent as the top-level <code className="font-mono">api_key</code> field on each request.
+            Stored in this device's local settings (not encrypted).
+          </p>
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={save}
+            className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-gray-700 hover:bg-gray-800 transition-colors"
+          >
+            Save
+          </button>
+          <button
+            onClick={testConnection}
+            disabled={testing || !form.url.trim()}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {testing
+              ? <><span className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" /> Testing…</>
+              : <><FiRefreshCw className="w-4 h-4" /> Test connection</>}
+          </button>
+          {saved && <span className="text-xs text-gray-600 flex items-center gap-1"><FiCheckCircle className="w-3.5 h-3.5" /> Saved</span>}
+        </div>
+
+        {/* Test result */}
+        {testResult && (
+          <div className={`rounded-xl border p-3 text-sm ${testResult.ok ? 'bg-gray-50 border-gray-200 text-gray-700' : 'bg-gray-50 border-gray-200 text-gray-700'}`}>
+            {testResult.ok ? (
+              <div className="flex items-start gap-2">
+                <FiCheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="font-semibold">Server reachable</p>
+                  <p className="text-xs mt-1">
+                    Targets:{' '}
+                    {(testResult.targets.length ? testResult.targets : ['—']).map(t => (
+                      <span key={t} className="inline-block px-2 py-0.5 mr-1 rounded-full bg-white border border-gray-200 font-mono text-[11px]">{t}</span>
+                    ))}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-start gap-2">
+                <FiAlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <span>{testResult.error}</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── About panel ───────────────────────────────────────────────────────────────
 function AboutPanel() {
   const [version, setVersion] = useState(null);
@@ -399,6 +549,7 @@ function AboutPanel() {
 const SECTIONS = [
   { id: 'general', label: 'General',              icon: FiSliders },
   { id: 'engines', label: 'Optimization Engines', icon: FiCpu },
+  { id: 'remote',  label: 'Remote Execution',     icon: FiServer },
   { id: 'data',    label: 'Privacy & Data',       icon: FiShield },
   { id: 'about',   label: 'About',                icon: FiInfo },
 ];
@@ -525,6 +676,11 @@ const Settings = () => {
                 )}
               </EngineAccordion>
             </div>
+          </div>
+
+          {/* Remote Execution */}
+          <div className={activeSection === 'remote' ? '' : 'hidden'}>
+            <RemoteExecutionPanel />
           </div>
 
           {/* Privacy & Data */}
