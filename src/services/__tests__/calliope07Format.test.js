@@ -289,6 +289,33 @@ describe('internalTo07Yaml – config', () => {
   });
 });
 
+describe('internalTo07Yaml – node coordinates are all-or-nothing', () => {
+  it('drops coordinates for all nodes when any node lacks them', () => {
+    const model = baseModel({
+      locations: [
+        { name: 'a', latitude: 52.5, longitude: 13.4, techs: {} },
+        { name: 'b', techs: {} }, // no coordinates
+      ],
+    });
+    const { modelDoc } = internalTo07Yaml(model, []);
+    expect(modelDoc.nodes.a.latitude).toBeUndefined();
+    expect(modelDoc.nodes.a.longitude).toBeUndefined();
+    expect(modelDoc.nodes.b.latitude).toBeUndefined();
+  });
+
+  it('keeps coordinates when every node has them', () => {
+    const model = baseModel({
+      locations: [
+        { name: 'a', latitude: 1, longitude: 2, techs: {} },
+        { name: 'b', lat: 3, lng: 4, techs: {} },
+      ],
+    });
+    const { modelDoc } = internalTo07Yaml(model, []);
+    expect(modelDoc.nodes.a).toMatchObject({ latitude: 1, longitude: 2 });
+    expect(modelDoc.nodes.b).toMatchObject({ latitude: 3, longitude: 4 });
+  });
+});
+
 // ---------------------------------------------------------------------------
 // internalTo07Yaml – links → per-link transmission techs
 // ---------------------------------------------------------------------------

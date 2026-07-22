@@ -545,13 +545,31 @@ export function internalTo07Yaml(model, timeSeriesList) {
   }
 
   // ── Nodes ────────────────────────────────────────────────────────────────
+  // Calliope 0.7 requires node coordinates to be all-or-nothing: every node
+  // must define latitude+longitude, or none may. Emit them only when every
+  // location has valid coordinates, otherwise drop them for all nodes so the
+  // exported model still loads ("Must define node latitude and longitude for
+  // _all_ nodes or _no_ nodes.").
+  const coordOf = (loc) => {
+    const lat = loc.lat ?? loc.latitude;
+    const lon = loc.lng ?? loc.lon ?? loc.longitude;
+    return (lat != null && lat !== '' && lon != null && lon !== '') ? { lat, lon } : null;
+  };
+  const emitCoords = locations.length > 0 && locations.every(l => coordOf(l) != null);
+  if (!emitCoords && locations.some(l => coordOf(l) != null)) {
+    const missing = locations.filter(l => coordOf(l) == null).length;
+    log.push(`⚠ node coordinates dropped: ${missing} of ${locations.length} node(s) lack latitude/longitude and Calliope 0.7 requires all-or-nothing`);
+  }
+
   const nodes07 = {};
   for (const loc of locations) {
     const nodeId = safeId(loc.name || loc.id).toLowerCase();
     const node = {};
-    const lat = loc.lat ?? loc.latitude;
-    const lon = loc.lng ?? loc.lon ?? loc.longitude;
-    if (lat != null && lon != null) { node.latitude = lat; node.longitude = lon; }
+    if (emitCoords) {
+      const { lat, lon } = coordOf(loc);
+      node.latitude = lat;
+      node.longitude = lon;
+    }
 
     const techsAtNode = {};
     for (const [ref, tcfg] of Object.entries(loc.techs || {})) {

@@ -213,6 +213,28 @@ def build_techs_07(technologies: list, warnings: list) -> dict:
     return techs
 
 
+def _extract_coords(loc: dict):
+    """Return (lat, lng) as floats if the location defines both, else None.
+
+    Handles 0.6's varied key names and treats 0.0 as a valid coordinate —
+    a plain ``loc.get('lat') or loc.get('latitude')`` would wrongly discard a
+    node on the equator or prime meridian."""
+    lat = loc.get('lat')
+    if lat is None:
+        lat = loc.get('latitude')
+    lng = loc.get('lng')
+    if lng is None:
+        lng = loc.get('lon')
+    if lng is None:
+        lng = loc.get('longitude')
+    if lat is None or lng is None or lat == '' or lng == '':
+        return None
+    try:
+        return (float(lat), float(lng))
+    except (TypeError, ValueError):
+        return None
+
+
 def build_nodes_07(locations: list, location_tech_assignments: dict,
                    technologies: list, warnings: list) -> dict:
     """0.6 locations → 0.7 nodes (latitude/longitude, techs with translated
@@ -228,15 +250,32 @@ def build_nodes_07(locations: list, location_tech_assignments: dict,
         ess = tech.get('essentials') or {}
         parent_by_tid[tid] = ess.get('parent') or tech.get('parent') or 'supply'
 
+    # Calliope 0.7 requires node coordinates to be all-or-nothing: every node
+    # must define latitude+longitude, or none may. Emitting them for only some
+    # nodes raises "Must define node latitude and longitude for _all_ nodes or
+    # _no_ nodes." Decide up front and drop coordinates entirely on any gap
+    # (link distances come from each link's explicit `distance`, not coords).
+    coords_by_key = {}
+    for loc in locations or []:
+        raw_id = loc.get('id') or loc.get('name') or 'loc'
+        coords_by_key[safe_id(raw_id).lower()] = _extract_coords(loc)
+    emit_coords = bool(coords_by_key) and all(c is not None for c in coords_by_key.values())
+    if not emit_coords and any(c is not None for c in coords_by_key.values()):
+        missing = sorted(k for k, c in coords_by_key.items() if c is None)
+        warnings.append(
+            f"node coordinates dropped: {len(missing)} of {len(coords_by_key)} node(s) "
+            f"lack latitude/longitude and Calliope 0.7 requires all-or-nothing "
+            f"(missing: {', '.join(missing[:5])}{'…' if len(missing) > 5 else ''})"
+        )
+
     nodes = {}
     for loc in locations or []:
         raw_id = loc.get('id') or loc.get('name') or 'loc'
         loc_id = safe_id(raw_id).lower()  # match 0.6 runner's lowercase keys
 
         cfg = {}
-        lat = loc.get('lat') or loc.get('latitude')
-        lng = loc.get('lng') or loc.get('lon') or loc.get('longitude')
-        if lat is not None and lng is not None:
+        if emit_coords:
+            lat, lng = coords_by_key[loc_id]
             cfg['latitude'] = lat
             cfg['longitude'] = lng
 
@@ -389,18 +428,33 @@ def translate_override_07(override: dict, parent_by_tid: dict, warnings: list,
     for lid, ldef in (src.get('locations') or {}).items():
         if not isinstance(ldef, dict):
             continue
-        node_id = safe_id(lid).lower()
+        # Calliope 0.6 allows a comma-separated list of location names as a
+        # single override key ("Arica, Putre, Camarones") meaning "apply to
+        # each of these locations". 0.7 has no such shorthand, so expand it
+        # into one entry per node — otherwise a phantom combined node
+        # ("arica_putre_camarones") is created without coordinates, which
+        # breaks 0.7's all-or-nothing latitude/longitude rule.
+        node_ids = [safe_id(part).lower() for part in str(lid).split(',') if part.strip()]
+        if not node_ids:
+            continue
         node_tgt: dict = {}
+        ctx_id = ','.join(node_ids)
         for tid, tdef in (ldef.get('techs') or {}).items():
             parent = parent_by_tid.get(tid, 'supply')
             per = tdef.get('constraints') if isinstance(tdef, dict) and 'constraints' in tdef else tdef
             translated = translate_constraints(per if isinstance(per, dict) else {},
-                                               parent, warnings, f"{label}:{node_id}.{tid}")
+                                               parent, warnings, f"{label}:{ctx_id}.{tid}")
             node_tgt.setdefault('techs', {})[tid] = translated or None
         if 'exists' in ldef:
             node_tgt['active'] = bool(ldef['exists'])
         if node_tgt:
-            out.setdefault('nodes', {})[node_id] = node_tgt
+            for nid in node_ids:
+                dst = out.setdefault('nodes', {}).setdefault(nid, {})
+                for k, v in node_tgt.items():
+                    if k == 'techs':
+                        dst.setdefault('techs', {}).update(v)
+                    else:
+                        dst[k] = v
 
     run_cfg = src.get('run') or {}
     model_cfg = src.get('model') or {}

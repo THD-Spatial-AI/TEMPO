@@ -1,5 +1,6 @@
 import React, { Suspense, lazy, useState, useEffect } from "react";
 import { DataProvider, useData } from "./context/DataContext";
+import { getSetting } from "./services/appSettings";
 import Sidebar from "./components/Sidebar";
 import ErrorBoundary from "./components/ErrorBoundary";
 import PrivacyDialog from "./components/PrivacyDialog";
@@ -25,7 +26,7 @@ const SetupScreen = lazy(() => import("./components/SetupScreen"));
 const HydrogenPlantDashboard = lazy(() => import("./components/HydrogenPlantDashboard"));
 
 function AppContent() {
-  const [selected, setSelected] = useState("Dashboard");
+  const [selected, setSelected] = useState(() => getSetting('defaultView'));
   const [pendingNavigation, setPendingNavigation] = useState(null);
   const { isDirty, saveNow, locations, links, timeSeries, overrides, scenarios, technologies, currentModelId, showNotification } = useData();
 

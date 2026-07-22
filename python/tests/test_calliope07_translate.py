@@ -193,6 +193,41 @@ def test_nodes_lat_lon_and_tech_assignment():
     assert warnings == []
 
 
+def test_nodes_mixed_coords_dropped_for_calliope07():
+    # Calliope 0.7 rejects a mix of coordinate / no-coordinate nodes
+    # ("Must define node latitude and longitude for _all_ nodes or _no_ nodes").
+    # When some nodes lack lat/lon, coordinates must be dropped for *all* nodes.
+    warnings = []
+    nodes = t.build_nodes_07(
+        [{'name': 'A', 'latitude': 52.5, 'longitude': 13.4},
+         {'name': 'B'}],  # no coordinates
+        {}, [], warnings)
+    assert 'latitude' not in nodes['a'] and 'longitude' not in nodes['a']
+    assert 'latitude' not in nodes['b'] and 'longitude' not in nodes['b']
+    assert any('coordinates dropped' in w for w in warnings)
+
+
+def test_nodes_all_coords_emitted_when_every_node_has_them():
+    warnings = []
+    nodes = t.build_nodes_07(
+        [{'name': 'A', 'latitude': 1.0, 'longitude': 2.0},
+         {'name': 'B', 'lat': 3.0, 'lng': 4.0}],
+        {}, [], warnings)
+    assert nodes['a']['latitude'] == 1.0 and nodes['a']['longitude'] == 2.0
+    assert nodes['b']['latitude'] == 3.0 and nodes['b']['longitude'] == 4.0
+    assert warnings == []
+
+
+def test_nodes_zero_coordinate_is_valid():
+    # A node at the equator / prime meridian (0.0) must not be treated as missing.
+    warnings = []
+    nodes = t.build_nodes_07(
+        [{'name': 'A', 'latitude': 0.0, 'longitude': 0.0}],
+        {}, [], warnings)
+    assert nodes['a']['latitude'] == 0.0 and nodes['a']['longitude'] == 0.0
+    assert not any('coordinates dropped' in w for w in warnings)
+
+
 def test_node_per_loc_override_translated():
     nodes = t.build_nodes_07(
         [{'name': 'Z2', 'lat': 1, 'lng': 2,
@@ -352,6 +387,19 @@ def test_override_locations_become_nodes():
         {'wind': 'supply'}, [], 'x')
     assert out['nodes']['berlin']['techs']['wind'] == {
         'flow_cap_min': 500, 'flow_cap_max': 500}
+
+
+def test_override_comma_separated_locations_expand_to_each_node():
+    # Calliope 0.6 shorthand: one override key naming several locations applies
+    # to each. Must expand to separate 0.7 nodes (that already exist in the base
+    # with coordinates), not a single phantom "arica_putre_camarones" node.
+    out = t.translate_override_07(
+        {'locations': {'Arica, Putre, Camarones': {'techs': {'battery': None}}}},
+        {'battery': 'storage'}, [], 'short_term_storage')
+    assert set(out['nodes']) == {'arica', 'putre', 'camarones'}
+    assert 'arica_putre_camarones' not in out['nodes']
+    for nid in ('arica', 'putre', 'camarones'):
+        assert 'battery' in out['nodes'][nid]['techs']
 
 
 def test_override_run_and_model_config():

@@ -7,7 +7,7 @@ import { FiZap, FiCheckCircle, FiAlertCircle, FiDownload, FiTerminal, FiRefreshC
  *
  * @param {function} [onInstallSuccess]  Called after a successful install, with no args.
  */
-export default function Calliope07EnginePanel({ onInstallSuccess }) {
+export default function Calliope07EnginePanel({ onInstallSuccess, embedded = false }) {
   const [envStatus, setEnvStatus]         = useState(null);
   const [statusLoading, setStatusLoading] = useState(true);
   const [installing, setInstalling]       = useState(false);
@@ -71,10 +71,12 @@ export default function Calliope07EnginePanel({ onInstallSuccess }) {
 
   return (
     <div>
-      <h3 className="text-lg font-semibold text-slate-800 mb-1 flex items-center gap-2">
-        <FiZap className="w-5 h-5 text-gray-500" /> Calliope 0.7 Engine
-        <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-700">Experimental</span>
-      </h3>
+      {!embedded && (
+        <h3 className="text-lg font-semibold text-slate-800 mb-1 flex items-center gap-2">
+          <FiZap className="w-5 h-5 text-gray-500" /> Calliope 0.7 Engine
+          <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-700">Experimental</span>
+        </h3>
+      )}
       <p className="text-sm text-slate-500 mb-4">
         Optional second optimisation engine (Calliope 0.7.0.dev7, pre-release) in its own
         isolated Python environment. Any TEMPO model can run on either engine — the
@@ -83,6 +85,7 @@ export default function Calliope07EnginePanel({ onInstallSuccess }) {
       </p>
 
       {/* Status */}
+      {!embedded && (
       <div className={`flex items-center gap-3 p-3 rounded-xl border mb-4 ${
         statusLoading         ? 'bg-slate-50 border-slate-200'
         : envStatus?.envExists ? 'bg-gray-50 border-gray-200'
@@ -115,6 +118,7 @@ export default function Calliope07EnginePanel({ onInstallSuccess }) {
           <FiRefreshCw className="w-4 h-4" />
         </button>
       </div>
+      )}
 
       {/* Install button or CLI fallback */}
       {window.electronAPI ? (

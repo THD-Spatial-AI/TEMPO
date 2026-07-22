@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
-import { FiDownload, FiRefreshCw, FiTerminal, FiCheckCircle, FiAlertCircle, FiBox, FiCpu, FiZap } from 'react-icons/fi';
+import { FiDownload, FiRefreshCw, FiTerminal, FiCheckCircle, FiAlertCircle, FiBox, FiCpu, FiZap, FiSliders, FiShield, FiChevronDown, FiInfo } from 'react-icons/fi';
 import Calliope07EnginePanel from './Calliope07EnginePanel';
 import EngineInstallPanel from './EngineInstallPanel';
+import { getSettings, setSetting } from '../services/appSettings';
 
 // ── Module catalogue (mirrors SetupScreen) ───────────────────────────────────
 const PYTHON_MODULES = [
@@ -25,7 +26,7 @@ const PYTHON_MODULES = [
 ];
 
 // ── Python Environment panel ──────────────────────────────────────────────────
-function PythonEnvironmentPanel() {
+function PythonEnvironmentPanel({ embedded = false, onInstallSuccess }) {
   const [envStatus, setEnvStatus]         = useState(null);   // null | { envExists, venvPath, serviceRunning, platform }
   const [statusLoading, setStatusLoading] = useState(true);
   const [selectedModules, setSelectedModules] = useState(['calliope']);
@@ -78,6 +79,7 @@ function PythonEnvironmentPanel() {
         setInstalling(false);
         setSuccess(true);
         refreshStatus();
+        onInstallSuccess?.();
       }
       if (data.type === 'error') {
         appendLog('✗ ' + (data.error || data.label || 'Install error'));
@@ -94,16 +96,20 @@ function PythonEnvironmentPanel() {
   const isWindows = envStatus?.platform === 'win32';
 
   return (
-    <div className="border-t border-slate-200 pt-6">
-      <h3 className="text-lg font-semibold text-slate-800 mb-1 flex items-center gap-2">
-        <FiBox className="w-5 h-5 text-slate-400" /> Python Environment
-      </h3>
+    <div>
+      {!embedded && (
+        <h3 className="text-lg font-semibold text-slate-800 mb-1 flex items-center gap-2">
+          <FiBox className="w-5 h-5 text-slate-400" /> Calliope 0.6.8 Engine
+          <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-700">Core</span>
+        </h3>
+      )}
       <p className="text-sm text-slate-500 mb-4">
         Manage the Python environment used for energy model optimisation.
         Reinstalling wipes the existing environment and creates a fresh one from scratch.
       </p>
 
       {/* Status badge */}
+      {!embedded && (
       <div className={`flex items-center gap-3 p-3 rounded-xl border mb-4 ${
         statusLoading ? 'bg-slate-50 border-slate-200' :
         envStatus?.envExists ? 'bg-gray-50 border-gray-200' : 'bg-gray-50 border-gray-200'
@@ -134,6 +140,7 @@ function PythonEnvironmentPanel() {
           <FiRefreshCw className="w-4 h-4" />
         </button>
       </div>
+      )}
 
       {/* Module selection */}
       <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-2">
@@ -257,17 +264,147 @@ function PythonEnvironmentPanel() {
   );
 }
 
-// Calliope07EnginePanel is defined in its own file (Calliope07EnginePanel.jsx)
-// and wrapped here with the Settings page border/spacing.
-function Calliope07EnginePanelSection() {
+// ── Collapsible engine row ────────────────────────────────────────────────────
+// Compact header (name + badge + live status chip). Children stay mounted and are
+// hidden when collapsed, so an in-progress install survives collapsing the row.
+function EngineAccordion({ title, icon: Icon, badge, checkFn, defaultOpen = false, children }) {
+  const [open, setOpen]       = useState(defaultOpen);
+  const [status, setStatus]   = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = async () => {
+    setLoading(true);
+    try {
+      const fn = window.electronAPI?.[checkFn];
+      if (!fn) { setStatus({ envExists: false, serviceRunning: false }); return; }
+      const env = await fn().catch(() => ({ envExists: false, serviceRunning: false }));
+      setStatus(env || { envExists: false, serviceRunning: false });
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => { refresh(); }, []);
+
+  const installed = status?.envExists;
+  const statusLabel = installed
+    ? (status?.serviceRunning ? 'Installed' : 'Installed · stopped')
+    : 'Not installed';
+
   return (
-    <div className="border-t border-slate-200 pt-6">
-      <Calliope07EnginePanel />
+    <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 transition-colors"
+      >
+        {Icon && <Icon className="w-5 h-5 text-slate-400 shrink-0" />}
+        <span className="text-sm font-semibold text-slate-800">{title}</span>
+        {badge && (
+          <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-600">{badge}</span>
+        )}
+        <span className="ml-auto flex items-center gap-3">
+          {loading ? (
+            <span className="w-3.5 h-3.5 border-2 border-slate-300 border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <span className="flex items-center gap-1.5 text-xs">
+              <span className={`w-2 h-2 rounded-full ${installed ? 'bg-gray-500' : 'bg-slate-300'}`} />
+              <span className={installed ? 'text-slate-600' : 'text-slate-400'}>{statusLabel}</span>
+            </span>
+          )}
+          <FiChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+        </span>
+      </button>
+      <div className={open ? 'px-4 pb-4 pt-2 border-t border-slate-100' : 'hidden'}>
+        {children(refresh)}
+      </div>
     </div>
   );
 }
 
+// ── General preferences panel ─────────────────────────────────────────────────
+function GeneralPanel() {
+  const [settings, setSettings] = useState(() => getSettings());
+  const update = (key, value) => setSettings(setSetting(key, value));
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-2">Default View</label>
+        <select
+          value={settings.defaultView}
+          onChange={(e) => update('defaultView', e.target.value)}
+          className="w-full max-w-md px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500"
+        >
+          <option value="Dashboard">Dashboard</option>
+          <option value="Map View">Map View</option>
+        </select>
+        <p className="text-xs text-slate-400 mt-1.5">The view TEMPO opens to on launch.</p>
+      </div>
+
+      <div className="border-t border-slate-200 pt-6">
+        <label className="flex items-start gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={settings.autoSave}
+            onChange={(e) => update('autoSave', e.target.checked)}
+            className="mt-0.5 rounded text-gray-600"
+          />
+          <span>
+            <span className="block text-sm font-medium text-slate-700">Auto-save</span>
+            <span className="block text-xs text-slate-400 mt-0.5">
+              Automatically persist model changes 1.5s after you stop editing. When off, save
+              manually with Ctrl+S — TEMPO still prompts before navigating away from unsaved changes.
+            </span>
+          </span>
+        </label>
+      </div>
+    </div>
+  );
+}
+
+// ── About panel ───────────────────────────────────────────────────────────────
+function AboutPanel() {
+  const [version, setVersion] = useState(null);
+
+  useEffect(() => {
+    window.electronAPI?.getSetupVersion?.()
+      .then(info => setVersion(info?.currentVersion || null))
+      .catch(() => {});
+  }, []);
+
+  const rows = [
+    { label: 'TEMPO version',  value: version ? `v${version}` : '—' },
+    { label: 'Calliope core',  value: '0.6.8' },
+    { label: 'Optional engines', value: 'Calliope 0.7 · PyPSA · OSeMOSYS · AdOpT-NET0' },
+  ];
+
+  return (
+    <div>
+      <h3 className="text-lg font-semibold text-slate-800 mb-1">About TEMPO</h3>
+      <p className="text-sm text-slate-500 mb-4">
+        Tool for Energy Model Preparation and Optimization. All model data is stored locally on this device.
+      </p>
+      <dl className="rounded-xl border border-slate-200 divide-y divide-slate-100">
+        {rows.map(({ label, value }) => (
+          <div key={label} className="flex items-center justify-between gap-4 px-4 py-3">
+            <dt className="text-sm text-slate-500">{label}</dt>
+            <dd className="text-sm font-medium text-slate-800 text-right">{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
+// ── Settings sub-navigation ───────────────────────────────────────────────────
+const SECTIONS = [
+  { id: 'general', label: 'General',              icon: FiSliders },
+  { id: 'engines', label: 'Optimization Engines', icon: FiCpu },
+  { id: 'data',    label: 'Privacy & Data',       icon: FiShield },
+  { id: 'about',   label: 'About',                icon: FiInfo },
+];
+
 const Settings = () => {
+  const [activeSection, setActiveSection] = useState('general');
   const [clearing, setClearing]       = useState(false);
   const [clearResult, setClearResult] = useState(null); // null | { success, deleted? }
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -297,109 +434,136 @@ const Settings = () => {
         <p className="text-slate-600">Application configuration and preferences</p>
       </div>
 
-      <div className="bg-white rounded-lg shadow-lg p-6 space-y-6">
+      <div className="bg-white rounded-lg shadow-lg flex overflow-hidden min-h-[600px]">
 
-        {/* General Settings */}
-        <div>
-          <h3 className="text-lg font-semibold text-slate-800 mb-4">General Settings</h3>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Default View
-              </label>
-              <select className="w-full max-w-md px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500">
-                <option>Dashboard</option>
-                <option>Map View</option>
-              </select>
+        {/* Sub-navigation */}
+        <nav className="w-60 shrink-0 border-r border-slate-200 bg-slate-50/60 p-3 space-y-1">
+          {SECTIONS.map((section) => {
+            const active = activeSection === section.id;
+            const Icon = section.icon;
+            return (
+              <button
+                key={section.id}
+                onClick={() => setActiveSection(section.id)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-left transition-colors
+                  ${active
+                    ? 'bg-white text-slate-900 shadow-sm border border-slate-200'
+                    : 'text-slate-600 hover:bg-white/70 hover:text-slate-800 border border-transparent'}`}
+              >
+                <Icon className={`w-4 h-4 shrink-0 ${active ? 'text-gray-600' : 'text-slate-400'}`} />
+                {section.label}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* Panel content — all sections stay mounted so in-progress installs survive tab switches */}
+        <div className="flex-1 p-8 overflow-y-auto">
+
+          {/* General */}
+          <div className={activeSection === 'general' ? '' : 'hidden'}>
+            <GeneralPanel />
+          </div>
+
+          {/* Optimization Engines */}
+          <div className={activeSection === 'engines' ? '' : 'hidden'}>
+            <p className="text-sm text-slate-500 mb-4">
+              Install and manage the optimisation engines TEMPO can run models on. Expand a row for
+              details, installation, and logs.
+            </p>
+            <div className="space-y-3">
+              <EngineAccordion title="Calliope 0.6.8" icon={FiBox} badge="Core" checkFn="checkCalliopeEnv" defaultOpen>
+                {(onInstalled) => <PythonEnvironmentPanel embedded onInstallSuccess={onInstalled} />}
+              </EngineAccordion>
+
+              <EngineAccordion title="Calliope 0.7" icon={FiZap} badge="Experimental" checkFn="checkCalliope07Env">
+                {(onInstalled) => <Calliope07EnginePanel embedded onInstallSuccess={onInstalled} />}
+              </EngineAccordion>
+
+              <EngineAccordion title="PyPSA" icon={FiCpu} badge="Optional" checkFn="checkPypsaEnv">
+                {(onInstalled) => (
+                  <EngineInstallPanel
+                    embedded
+                    title="PyPSA Engine"
+                    icon={FiCpu}
+                    description="Python for Power System Analysis, in its own isolated Python environment. Any TEMPO model can run on it — the translation from TEMPO's internal representation happens automatically at run time. Also enables PyPSA model import/export. Requires Python 3.10+."
+                    checkFn="checkPypsaEnv"
+                    installFn="installPypsaEnv"
+                    onProgressFn="onPypsaInstallProgress"
+                    onInstallSuccess={onInstalled}
+                  />
+                )}
+              </EngineAccordion>
+
+              <EngineAccordion title="OSeMOSYS" icon={FiZap} badge="Optional" checkFn="checkOsemosysEnv">
+                {(onInstalled) => (
+                  <EngineInstallPanel
+                    embedded
+                    title="OSeMOSYS Engine"
+                    icon={FiZap}
+                    description="Open Source Energy Modelling System (via otoole + GLPK), in its own isolated Python environment. Hourly time series are aggregated into configurable timeslices at run time. Also enables OSeMOSYS dataset import/export. Requires Python 3.10+; the GLPK solver is bundled on Windows."
+                    checkFn="checkOsemosysEnv"
+                    installFn="installOsemosysEnv"
+                    onProgressFn="onOsemosysInstallProgress"
+                    onInstallSuccess={onInstalled}
+                  />
+                )}
+              </EngineAccordion>
+
+              <EngineAccordion title="AdOpT-NET0" icon={FiBox} badge="Optional" checkFn="checkAdoptnet0Env">
+                {(onInstalled) => (
+                  <EngineInstallPanel
+                    embedded
+                    title="AdOpT-NET0 Engine"
+                    icon={FiBox}
+                    description="Advanced Optimization Tool for Energy Networks, in its own isolated Python environment. Any TEMPO model can run on it — the translation happens automatically at run time. Also enables AdOpT-NET0 model import/export. Requires Python 3.10+."
+                    checkFn="checkAdoptnet0Env"
+                    installFn="installAdoptnet0Env"
+                    onProgressFn="onAdoptnet0InstallProgress"
+                    onInstallSuccess={onInstalled}
+                  />
+                )}
+              </EngineAccordion>
             </div>
           </div>
-        </div>
 
-        {/* Model Settings */}
-        <div className="border-t border-slate-200 pt-6">
-          <h3 className="text-lg font-semibold text-slate-800 mb-4">Model Settings</h3>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Auto-save</label>
-              <input type="checkbox" className="rounded text-gray-600" />
-              <span className="ml-2 text-sm text-slate-600">Automatically save changes</span>
-            </div>
-          </div>
-        </div>
+          {/* Privacy & Data */}
+          <div className={activeSection === 'data' ? '' : 'hidden'}>
+            <h3 className="text-lg font-semibold text-slate-800 mb-1">Privacy &amp; Data</h3>
+            <p className="text-sm text-slate-500 mb-4">
+              TEMPO stores all model data locally on this device. Use the button below to
+              permanently delete all locally stored data (models, exports, and privacy consent
+              record) — this cannot be undone.
+            </p>
 
-        {/* Python Environment */}
-        <PythonEnvironmentPanel />
+            <button
+              onClick={() => setConfirmOpen(true)}
+              disabled={clearing}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white bg-gray-700 hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {clearing ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Clearing…
+                </>
+              ) : (
+                'Clear All Data'
+              )}
+            </button>
 
-        {/* Calliope 0.7 engine (experimental) */}
-        <Calliope07EnginePanelSection />
-
-        {/* PyPSA engine */}
-        <div className="border-t border-slate-200 pt-6">
-          <EngineInstallPanel
-            title="PyPSA Engine"
-            icon={FiCpu}
-            description="Optional optimisation engine (Python for Power System Analysis) in its own isolated Python environment. Any TEMPO model can run on it — the translation from TEMPO's internal representation happens automatically at run time. Also enables PyPSA model import/export. Requires Python 3.10+."
-            checkFn="checkPypsaEnv"
-            installFn="installPypsaEnv"
-            onProgressFn="onPypsaInstallProgress"
-          />
-        </div>
-
-        {/* OSeMOSYS engine */}
-        <div className="border-t border-slate-200 pt-6">
-          <EngineInstallPanel
-            title="OSeMOSYS Engine"
-            icon={FiZap}
-            description="Optional optimisation engine (Open Source Energy Modelling System, via otoole + GLPK) in its own isolated Python environment. Hourly time series are aggregated into configurable timeslices at run time. Also enables OSeMOSYS dataset import/export. Requires Python 3.10+; the GLPK solver is bundled on Windows."
-            checkFn="checkOsemosysEnv"
-            installFn="installOsemosysEnv"
-            onProgressFn="onOsemosysInstallProgress"
-          />
-        </div>
-
-        {/* AdOpT-NET0 engine */}
-        <div className="border-t border-slate-200 pt-6">
-          <EngineInstallPanel
-            title="AdOpT-NET0 Engine"
-            icon={FiBox}
-            description="Optional optimisation engine (Advanced Optimization Tool for Energy Networks) in its own isolated Python environment. Any TEMPO model can run on it — the translation happens automatically at run time. Also enables AdOpT-NET0 model import/export. Requires Python 3.10+."
-            checkFn="checkAdoptnet0Env"
-            installFn="installAdoptnet0Env"
-            onProgressFn="onAdoptnet0InstallProgress"
-          />
-        </div>
-
-        {/* Privacy & Data */}
-        <div className="border-t border-slate-200 pt-6">
-          <h3 className="text-lg font-semibold text-slate-800 mb-1">Privacy &amp; Data</h3>
-          <p className="text-sm text-slate-500 mb-4">
-            TEMPO stores all model data locally on this device. Use the button below to
-            permanently delete all locally stored data (models, exports, and privacy consent
-            record) — this cannot be undone.
-          </p>
-
-          <button
-            onClick={() => setConfirmOpen(true)}
-            disabled={clearing}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white bg-gray-700 hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {clearing ? (
-              <>
-                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Clearing…
-              </>
-            ) : (
-              'Clear All Data'
+            {clearResult && (
+              <div className={`mt-3 rounded-lg p-3 text-sm ${clearResult.success ? 'bg-gray-50 text-gray-800' : 'bg-gray-50 text-gray-800'}`}>
+                {clearResult.success
+                  ? `Data cleared successfully. Removed: ${(clearResult.deleted || []).join(', ') || 'nothing to remove'}.`
+                  : `Error: ${clearResult.error || 'Unknown error'}`}
+              </div>
             )}
-          </button>
+          </div>
 
-          {clearResult && (
-            <div className={`mt-3 rounded-lg p-3 text-sm ${clearResult.success ? 'bg-gray-50 text-gray-800' : 'bg-gray-50 text-gray-800'}`}>
-              {clearResult.success
-                ? `Data cleared successfully. Removed: ${(clearResult.deleted || []).join(', ') || 'nothing to remove'}.`
-                : `Error: ${clearResult.error || 'Unknown error'}`}
-            </div>
-          )}
+          {/* About */}
+          <div className={activeSection === 'about' ? '' : 'hidden'}>
+            <AboutPanel />
+          </div>
         </div>
       </div>
 

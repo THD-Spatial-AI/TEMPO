@@ -4,6 +4,7 @@ import Papa from 'papaparse';
 import Notification from '../components/Notification';
 import { TECH_TEMPLATES } from '../components/TechnologiesData';
 import { api } from '../services/api';
+import { getSetting, SETTINGS_EVENT } from '../services/appSettings';
 
 // Convert TECH_TEMPLATES to flat array of technologies
 const getDefaultTechnologies = () => {
@@ -614,9 +615,20 @@ export const DataProvider = ({ children }) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locations, links, parameters, technologies, timeSeries, overrides, scenarios]);
 
+  // ── Auto-save preference (Settings › General) ─────────────────────────────
+  // When off, the debounced save below is skipped; isDirty stays true so the
+  // navigation guard and Ctrl+S still protect unsaved work.
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState(() => getSetting('autoSave'));
+  useEffect(() => {
+    const handler = (e) => setAutoSaveEnabled(e.detail?.autoSave ?? getSetting('autoSave'));
+    window.addEventListener(SETTINGS_EVENT, handler);
+    return () => window.removeEventListener(SETTINGS_EVENT, handler);
+  }, []);
+
   // ── Debounced auto-save ───────────────────────────────────────────────────
   useEffect(() => {
     if (!currentModelId) return;
+    if (!autoSaveEnabled) return;
     const hasData =
       locations.length > 0 || links.length > 0 || parameters.length > 0 ||
       technologies.length > 0 || timeSeries.length > 0 ||
@@ -628,7 +640,7 @@ export const DataProvider = ({ children }) => {
       setIsDirty(false);   // optimistically clear; data is already in local state
     }, 1500);
     return () => clearTimeout(timeout);
-  }, [locations, links, parameters, technologies, timeSeries, overrides, scenarios, currentModelId, updateCurrentModel]);
+  }, [locations, links, parameters, technologies, timeSeries, overrides, scenarios, currentModelId, updateCurrentModel, autoSaveEnabled]);
 
   // ── Context value ─────────────────────────────────────────────────────────
 

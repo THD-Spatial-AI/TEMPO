@@ -14,7 +14,7 @@ import { FiCheckCircle, FiAlertCircle, FiDownload, FiTerminal, FiRefreshCw } fro
  * @param {string}   onProgressFn     window.electronAPI method name: subscribe to progress.
  * @param {function} [onInstallSuccess] Called after a successful install, with no args.
  */
-export default function EngineInstallPanel({ title, icon: Icon, description, checkFn, installFn, onProgressFn, onInstallSuccess }) {
+export default function EngineInstallPanel({ title, icon: Icon, description, checkFn, installFn, onProgressFn, onInstallSuccess, embedded = false }) {
   const [envStatus, setEnvStatus]         = useState(null);
   const [statusLoading, setStatusLoading] = useState(true);
   const [installing, setInstalling]       = useState(false);
@@ -78,13 +78,16 @@ export default function EngineInstallPanel({ title, icon: Icon, description, che
 
   return (
     <div>
-      <h3 className="text-lg font-semibold text-slate-800 mb-1 flex items-center gap-2">
-        {Icon && <Icon className="w-5 h-5 text-gray-500" />} {title}
-        <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-700">Optional</span>
-      </h3>
+      {!embedded && (
+        <h3 className="text-lg font-semibold text-slate-800 mb-1 flex items-center gap-2">
+          {Icon && <Icon className="w-5 h-5 text-gray-500" />} {title}
+          <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-700">Optional</span>
+        </h3>
+      )}
       <p className="text-sm text-slate-500 mb-4">{description}</p>
 
       {/* Status */}
+      {!embedded && (
       <div className={`flex items-center gap-3 p-3 rounded-xl border mb-4 ${
         statusLoading         ? 'bg-slate-50 border-slate-200'
         : envStatus?.envExists ? 'bg-gray-50 border-gray-200'
@@ -117,6 +120,7 @@ export default function EngineInstallPanel({ title, icon: Icon, description, che
           <FiRefreshCw className="w-4 h-4" />
         </button>
       </div>
+      )}
 
       {/* Install button */}
       {window.electronAPI?.[installFn] ? (
