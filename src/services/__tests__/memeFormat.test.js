@@ -397,6 +397,120 @@ describe('internalToMemeCanonical – warnings', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Calliope-safe identifiers (no hyphens, no leading digit)
+// ---------------------------------------------------------------------------
+
+describe('internalToMemeCanonical – Calliope-safe identifiers', () => {
+  it('replaces hyphens in node and tech ids and keeps placement consistent', () => {
+    const model = baseModel({
+      technologies: [makeTech('hydro-ror', 'supply', { energy_cap_max: 10 })],
+      locations: [{ name: 'N_DIESEL-QUANI-ARICA', latitude: 1, longitude: 2, techs: { 'hydro-ror': null } }],
+    });
+    const { payload } = internalToMemeCanonical(model);
+    expect(Object.keys(payload.model.nodes)).toContain('N_DIESEL_QUANI_ARICA');
+    expect(payload.model.technologies.hydro_ror).toBeDefined();
+    expect(payload.model.technologies.hydro_ror.node).toBe('N_DIESEL_QUANI_ARICA');
+  });
+
+  it('prefixes transmission ids that would start with a digit', () => {
+    const model = baseModel({
+      technologies: [{
+        name: 'ac', essentials: { parent: 'transmission', carrier: 'electricity' },
+        constraints: { energy_cap_max: 100 }, costs: {},
+      }],
+      locations: [
+        { name: 'north', latitude: 1, longitude: 2, techs: {} },
+        { name: 'south', latitude: 3, longitude: 4, techs: {} },
+      ],
+      links: [{ from: 'north', to: 'south', tech: '110_kv_line', distance: 5 }],
+    });
+    const { payload } = internalToMemeCanonical(model);
+    const key = Object.keys(payload.model.transmission)[0];
+    expect(/^[A-Za-z]/.test(key)).toBe(true);
+    expect(key.startsWith('n_110')).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// File-based timeseries (demand profiles + supply availability)
+// ---------------------------------------------------------------------------
+
+describe('internalToMemeCanonical – file-based timeseries', () => {
+  const model = {
+    name: 'TS',
+    technologies: [
+      { name: 'total_demand', essentials: { parent: 'demand', carrier_in: 'electricity', carrier_out: null }, constraints: {}, costs: {} },
+      makeTech('pv', 'supply', {}),
+    ],
+    locations: [
+      { name: 'Arica', latitude: 1, longitude: 2, techs: {
+        total_demand: { constraints: { resource: 'file=total_demand.csv:Arica' } },
+        pv: { constraints: { resource: 'file=resource_pv.csv:Arica' } },
+      } },
+    ],
+    links: [],
+    timeSeries: [
+      { fileName: 'total_demand.csv', dateColumn: 'time', dataColumns: ['Arica'], data: [{ time: 't0', Arica: -100 }, { time: 't1', Arica: -120 }] },
+      { fileName: 'resource_pv.csv', dateColumn: 'time', dataColumns: ['Arica'], data: [{ time: 't0', Arica: 0.5 }, { time: 't1', Arica: 0.8 }] },
+    ],
+    metadata: { modelConfig: {}, runConfig: {} },
+  };
+  const { payload } = internalToMemeCanonical(model);
+
+  it('materializes referenced columns into inline timeseries', () => {
+    expect(payload.model.timeseries).toBeDefined();
+    const entries = Object.values(payload.model.timeseries);
+    expect(entries.length).toBe(2);
+    entries.forEach((e) => expect(e.source).toBe('inline'));
+  });
+
+  it('maps a demand file-ref to demand_profile (positive) at node + tech level', () => {
+    const d = payload.model.technologies.total_demand;
+    const id = d.node_overrides.Arica.demand_profile;
+    expect(id).toBeTypeOf('string');
+    expect(d.demand_profile).toBe(id); // tech-level default borrowed from the node
+    expect(payload.model.timeseries[id].values).toEqual([100, 120]); // sign-flipped positive
+  });
+
+  it('maps a supply availability file-ref to operation.max_pu', () => {
+    const pv = payload.model.technologies.pv;
+    const id = pv.node_overrides.Arica.operation.max_pu;
+    expect(id).toBeTypeOf('string');
+    expect(payload.model.timeseries[id].values).toEqual([0.5, 0.8]);
+  });
+
+  it('resolves file-refs from raw csvContent (non-current model)', () => {
+    const m = {
+      name: 'CSV',
+      technologies: [
+        { name: 'total_demand', essentials: { parent: 'demand', carrier_in: 'electricity', carrier_out: null }, constraints: {}, costs: {} },
+      ],
+      locations: [
+        { name: 'Arica', latitude: 1, longitude: 2, techs: { total_demand: { constraints: { resource: 'file=total_demand.csv:Arica' } } } },
+      ],
+      links: [],
+      timeSeries: [
+        { fileName: 'total_demand.csv', csvContent: 'time,Arica\n2021-01-01 00:00,-100\n2021-01-01 01:00,-120\n' },
+      ],
+      metadata: { modelConfig: {}, runConfig: {} },
+    };
+    const { payload } = internalToMemeCanonical(m);
+    const id = payload.model.technologies.total_demand.demand_profile;
+    expect(id).toBeTypeOf('string');
+    expect(payload.model.timeseries[id].values).toEqual([100, 120]);
+  });
+
+  it('warns when a file-ref cannot be resolved', () => {
+    const bad = {
+      ...model,
+      timeSeries: [], // no CSVs → refs unresolvable
+    };
+    const { log } = internalToMemeCanonical(bad);
+    expect(log.some((l) => l.includes('could not be resolved'))).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Full-model shape
 // ---------------------------------------------------------------------------
 

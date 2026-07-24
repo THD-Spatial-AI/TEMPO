@@ -13,7 +13,7 @@ import {
   FiClock, FiCpu, FiZap, FiActivity, FiSettings,
   FiTerminal, FiTrash2, FiAlertTriangle, FiBox,
   FiBarChart2, FiDownload, FiEye, FiList,
-  FiCalendar, FiChevronDown, FiChevronRight, FiHelpCircle, FiServer,
+  FiCalendar, FiChevronDown, FiChevronRight, FiHelpCircle,
 } from 'react-icons/fi';
 import { MODELING_FRAMEWORKS, SOLVER_OPTIONS } from '../config/modelingFrameworks';
 import CompletedRunsSection from './run/CompletedRunsSection';
@@ -70,6 +70,14 @@ const Run = ({ onNavigate }) => {
     const start = new Date(modelConfig.startDate);
     const end = new Date(modelConfig.endDate);
     return Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+  };
+
+  // Valid = both dates parse and start is on or before end. Guards the Run action
+  // and the presets against empty/invalid date fields.
+  const isDateRangeValid = () => {
+    const start = new Date(modelConfig.startDate);
+    const end = new Date(modelConfig.endDate);
+    return !isNaN(start) && !isNaN(end) && start <= end;
   };
 
   // Service status per framework: null = checking, true = reachable, false = unavailable
@@ -396,6 +404,11 @@ const Run = ({ onNavigate }) => {
       return;
     }
 
+    if (!isDateRangeValid()) {
+      showNotification('Set a valid date range — the start date must be on or before the end date.', 'error');
+      return;
+    }
+
     // Framework/engine-aware service check
     const isAdoptnet0 = selectedFramework === 'adoptnet0';
     const isPypsa = selectedFramework === 'pypsa';
@@ -467,6 +480,31 @@ const Run = ({ onNavigate }) => {
       : isPypsa ? ((opts) => runEngineModel('pypsa', opts))
       : isOsemosys ? ((opts) => runEngineModel('osemosys', opts))
       : runCalliopeModel;
+
+    // First log line makes the compute location unmistakable — including the
+    // case where Remote was chosen but a scenario/override forced a local run.
+    const computeBanner = computeRemote
+      ? `[TEMPO] Running REMOTELY on MEME (${remoteServer.url})`
+      : (computeTarget === 'remote' && remoteAvailable && hasSelections
+          ? '[TEMPO] Running LOCALLY — remote supports a single baseline run only; a scenario/override is selected'
+          : '[TEMPO] Running LOCALLY on this machine');
+
+    // Techs to send with the run: live (possibly unsaved) techs only for the
+    // currently-loaded model; for any other selected model use its own saved
+    // techs. Never fall through to the global default catalog, which would
+    // clobber the selected model's technologies (nodes reference techs that
+    // then don't exist → empty nodes on export).
+    const isCurrentModel = selectedModel.id === getCurrentModel()?.id;
+    const techsForRun = (isCurrentModel && technologies?.length)
+      ? technologies
+      : (selectedModel.technologies?.length ? selectedModel.technologies : (technologies || []));
+
+    // Same story for timeSeries: the global list has parsed `data` only for the
+    // currently-loaded model. For any other selected model, use its own saved
+    // entries (which carry raw csvContent) so file= refs still resolve.
+    const tsFiltered = timeSeries.filter(ts => ts.modelId === selectedModel.id);
+    const timeSeriesForRun = tsFiltered.length ? tsFiltered : (selectedModel.timeSeries || []);
+
     const started = [];
     const failed = [];
 
@@ -484,7 +522,7 @@ const Run = ({ onNavigate }) => {
         solver: selectedSolver,
         mode: modelConfig.mode || 'plan',
         startTime: new Date().toISOString(),
-        logs: [],
+        logs: [computeBanner],
         stats: null,
       };
 
@@ -496,8 +534,8 @@ const Run = ({ onNavigate }) => {
         ...selectedModel,
         solver: selectedSolver,
         modelConfig,
-        technologies: technologies || selectedModel.technologies || [],
-        timeSeries: timeSeries.filter(ts => ts.modelId === selectedModel.id),
+        technologies: techsForRun,
+        timeSeries: timeSeriesForRun,
         ...(modelConfig.customMath?.trim() ? { customMath: modelConfig.customMath } : {}),
       };
 
@@ -602,7 +640,7 @@ const Run = ({ onNavigate }) => {
     : selectedFramework === 'adoptnet0' ? 'adoptnet0'
     : (selectedFramework === 'calliope' && calliopeEngine === '0.7') ? 'calliope07'
     : null;
-  const remoteAvailable = !!(remoteServer?.enabled && remoteServer?.url && remoteEngine);
+  const remoteAvailable = !!(remoteServer?.url && remoteEngine);
   // v2 scope: remote handles a single baseline run only — a scenario/override
   // selection transparently falls back to local execution.
   const computeRemote = computeTarget === 'remote' && remoteAvailable && !hasSelections;
@@ -842,6 +880,46 @@ const Run = ({ onNavigate }) => {
                 </div>
               </div>
 
+              {/* Compute location — shown when a MEME server is saved and the
+                  selected engine is remote-capable (PyPSA / Calliope 0.7 / AdOpT-NET0) */}
+              {remoteAvailable && (
+                <div className="mt-4 border-t border-slate-100 pt-4">
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Compute</label>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs font-medium">
+                      <button
+                        type="button"
+                        onClick={() => setComputeTarget('local')}
+                        className={computeTarget === 'local'
+                          ? 'px-4 py-2 bg-electric-500 text-white'
+                          : 'px-4 py-2 text-slate-600 hover:bg-slate-50'}
+                      >
+                        Local
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setComputeTarget('remote')}
+                        className={computeTarget === 'remote'
+                          ? 'px-4 py-2 bg-electric-500 text-white'
+                          : 'px-4 py-2 text-slate-600 hover:bg-slate-50'}
+                      >
+                        Remote (MEME)
+                      </button>
+                    </div>
+                    <span className="text-xs text-slate-400">
+                      {computeRemote
+                        ? <>Runs on <span className="font-mono text-slate-500">{remoteServer.url}</span></>
+                        : 'Runs on this machine'}
+                    </span>
+                  </div>
+                  {computeTarget === 'remote' && hasSelections && (
+                    <p className="mt-2 text-xs text-gray-600">
+                      Scenarios/overrides run locally — remote execution supports a single baseline run.
+                    </p>
+                  )}
+                </div>
+              )}
+
               {/* SPORES configuration panel — visible only in spores mode */}
               {modelConfig.mode === 'spores' && (
                 <SporesConfigPanel
@@ -993,12 +1071,16 @@ const Run = ({ onNavigate }) => {
                     key={preset.label}
                     type="button"
                     onClick={() => {
-                      const s = new Date(modelConfig.startDate + 'T00:00:00');
+                      // Fall back to today if startDate is missing/invalid so the
+                      // preset can't produce an Invalid Date (which throws on toISOString).
+                      let s = new Date(modelConfig.startDate + 'T00:00:00');
+                      const startStr = isNaN(s) ? new Date().toISOString().slice(0, 10) : modelConfig.startDate;
+                      if (isNaN(s)) s = new Date(startStr + 'T00:00:00');
                       const e = new Date(s);
                       if (preset.days  != null) e.setDate(e.getDate() + preset.days);
                       if (preset.months)        e.setMonth(e.getMonth() + preset.months, e.getDate() - 1);
                       if (preset.years)         e.setFullYear(e.getFullYear() + preset.years, e.getMonth(), e.getDate() - 1);
-                      setModelConfig(p => ({ ...p, endDate: e.toISOString().slice(0, 10) }));
+                      setModelConfig(p => ({ ...p, startDate: startStr, endDate: e.toISOString().slice(0, 10) }));
                     }}
                     className="px-3 py-1 text-xs font-medium rounded-lg border border-slate-200 bg-slate-50 hover:bg-electric-50 hover:border-electric-300 hover:text-electric-700 transition-colors"
                   >
@@ -1143,54 +1225,11 @@ const Run = ({ onNavigate }) => {
               </div>
             )}
 
-            {/* Compute location — only when a remote MEME server is configured
-                and the current engine is remote-capable */}
-            {remoteAvailable && (
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
-                <div className="flex items-center justify-between gap-3 flex-wrap">
-                  <div>
-                    <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-2">
-                      <FiServer size={13} className="text-electric-500" /> Compute
-                    </div>
-                    <p className="text-xs text-slate-400 mt-1">
-                      {computeRemote
-                        ? <>Runs on <span className="font-mono text-slate-500">{remoteServer.url}</span></>
-                        : 'Runs on this machine'}
-                    </p>
-                  </div>
-                  <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs font-medium">
-                    <button
-                      onClick={() => setComputeTarget('local')}
-                      className={computeTarget === 'local'
-                        ? 'px-4 py-2 bg-electric-500 text-white'
-                        : 'px-4 py-2 text-slate-600 hover:bg-slate-50'}
-                    >
-                      Local
-                    </button>
-                    <button
-                      onClick={() => setComputeTarget('remote')}
-                      disabled={hasSelections}
-                      title={hasSelections ? 'Remote runs support a single baseline run only' : undefined}
-                      className={computeTarget === 'remote' && !hasSelections
-                        ? 'px-4 py-2 bg-electric-500 text-white'
-                        : 'px-4 py-2 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed'}
-                    >
-                      Remote (MEME)
-                    </button>
-                  </div>
-                </div>
-                {computeTarget === 'remote' && hasSelections && (
-                  <p className="mt-2 text-xs text-gray-600">
-                    Scenarios/overrides run locally — remote execution supports a single baseline run in this version.
-                  </p>
-                )}
-              </div>
-            )}
-
             {/* Run button */}
             <button
               onClick={handleRunModel}
-              disabled={!selectedModel || (!computeRemote && !serviceReady)}
+              disabled={!selectedModel || (!computeRemote && !serviceReady) || !isDateRangeValid()}
+              title={!isDateRangeValid() ? 'Set a valid date range (start on or before end) to run.' : undefined}
               className="w-full py-3.5 bg-gradient-to-r from-electric-500 to-electric-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl hover:from-electric-600 hover:to-electric-700 disabled:from-slate-300 disabled:to-slate-400 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2"
             >
               <FiPlay size={18} />

@@ -583,12 +583,32 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
               )}
             </div>
 
-            {parseLog.some(l => l.includes('⚠ Timeseries CSV')) && (
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 flex gap-2 text-sm text-gray-800">
-                <FiAlertTriangle size={15} className="flex-shrink-0 mt-0.5 text-gray-500" />
-                <span>Some timeseries CSV files were not found. The model imports without them — you can add them later in the TimeSeries section.</span>
-              </div>
-            )}
+            {(() => {
+              const missing = preview.missingTimeSeries || [];
+              const demandMissing = missing.filter(m => m.isDemand);
+              const otherMissing  = missing.filter(m => !m.isDemand);
+              const nameList = arr => arr.map(m => m.file).join(', ');
+              return (
+                <>
+                  {demandMissing.length > 0 && (
+                    <div className="bg-amber-50 border border-amber-300 rounded-lg p-3 flex gap-2 text-sm text-amber-900">
+                      <FiAlertTriangle size={15} className="flex-shrink-0 mt-0.5 text-amber-600" />
+                      <span>
+                        <strong>{demandMissing.length} demand timeseries file{demandMissing.length > 1 ? 's are' : ' is'} missing</strong> ({nameList(demandMissing)}).
+                        Demand techs have nothing to serve without them, so a run will be trivial or infeasible.
+                        Add the missing CSV{demandMissing.length > 1 ? 's' : ''} in the TimeSeries section before running the model.
+                      </span>
+                    </div>
+                  )}
+                  {otherMissing.length > 0 && (
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 flex gap-2 text-sm text-gray-800">
+                      <FiAlertTriangle size={15} className="flex-shrink-0 mt-0.5 text-gray-500" />
+                      <span>{otherMissing.length} timeseries CSV file{otherMissing.length > 1 ? 's were' : ' was'} not found. The model imports without them — you can add them later in the TimeSeries section.</span>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
 
             <div className="flex gap-2 pt-1">
               <button onClick={doImport}

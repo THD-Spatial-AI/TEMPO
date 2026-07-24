@@ -1088,8 +1088,43 @@ def _ensure_missing_file_csvs(techs, locs, time_start, time_end, config_dir):
     log("  [FALLBACK] Placeholder CSVs use constant values — results are approximate.")
 
 
+def _data_time_range(config_dir):
+    """
+    Scan the timeseries CSVs written into *config_dir* and return
+    ``(min_ts, max_ts, freq)`` — the tightest common datetime window plus the
+    inferred timestep — or ``(None, None, None)`` if none parse.
+
+    Calliope requires the requested subset_time to lie within *every* timeseries'
+    index, so the valid window is the intersection across all CSVs:
+    the latest first-timestamp and the earliest last-timestamp. ``freq`` is the
+    median spacing of the longest series, used to align the subset to whole days.
+    """
+    import pandas as pd
+    firsts, lasts = [], []
+    best_ts = None  # longest parsed series — used to infer the timestep
+    for csv_path in Path(config_dir).glob('*.csv'):
+        try:
+            col = pd.read_csv(csv_path, usecols=[0]).iloc[:, 0]
+            ts = pd.to_datetime(col, errors='coerce').dropna()
+            if len(ts):
+                firsts.append(ts.min())
+                lasts.append(ts.max())
+                if best_ts is None or len(ts) > len(best_ts):
+                    best_ts = ts
+        except Exception:
+            continue
+    if not firsts:
+        return None, None, None
+    freq = None
+    if best_ts is not None and len(best_ts) >= 2:
+        diffs = best_ts.sort_values().diff().dropna()
+        if len(diffs):
+            freq = diffs.median()
+    return max(firsts), min(lasts), freq
+
+
 # ---------------------------------------------------------------------------
-# Main run logic  
+# Main run logic
 # ---------------------------------------------------------------------------
 
 def run_model(model_data, work_dir, log_fn=None):
@@ -1880,17 +1915,58 @@ def _run_model_impl(model_data, work_dir):
         run_cfg['objective_options'] = {'cost_class': {'monetary': 1, 'spores_score': 0}}
         log(f"  [SPORES] slack={_slack*100:.0f}%, n_spores={_n_spores}")
 
+    # Pandas >= 2.0 requires full %Y-%m-%d %H:%M:%S format for strptime;
+    # bare YYYY-MM-DD strings cause a ValueError in Calliope's timeseries subset.
+    import pandas as _pd
+    _req_start = _pd.Timestamp(f'{str(time_start)[:10]} 00:00:00')
+    _req_end   = _pd.Timestamp(f'{str(time_end)[:10]} 23:00:00')
+    # Clamp the requested window to what the timeseries data actually covers.
+    # Calliope raises a ModelError if subset_time extends beyond the data — e.g.
+    # EnerPlanet series that end at 00:00 on the final day (not 23:00), or a stray
+    # end date past the series. Clamping only ever shrinks a valid subset to fit.
+    _data_min, _data_max, _freq = _data_time_range(config_dir)
+    if _data_min is not None:
+        _sub_start = max(_req_start, _data_min)
+        _sub_end   = min(_req_end, _data_max)
+        if _sub_start >= _sub_end:
+            # Requested window doesn't overlap the data — use the full data range.
+            _sub_start, _sub_end = _data_min, _data_max
+            log(f"  ⚠ Requested subset_time is outside the data range "
+                f"[{_data_min} → {_data_max}]; using the full data range instead")
+        elif _sub_start != _req_start or _sub_end != _req_end:
+            log(f"  Clamped subset_time to data range: {_sub_start} → {_sub_end}")
+
+        # Calliope requires every calendar day in the subset to have the same number
+        # of timesteps; a partial leading/trailing day (e.g. data ending at 00:00 on
+        # the final day) triggers a ragged-array ValueError in its daily check.
+        # Trim the window to whole days.
+        if _freq and _freq > _pd.Timedelta(0):
+            _steps_per_day = _pd.Timedelta('1D') / _freq
+            if float(_steps_per_day).is_integer() and int(_steps_per_day) > 0:
+                _steps_per_day = int(_steps_per_day)
+                # Snap start up to a day boundary if it isn't already midnight.
+                if _sub_start != _sub_start.normalize():
+                    _sub_start = _sub_start.normalize() + _pd.Timedelta('1D')
+                _total_steps = int((_sub_end - _sub_start) / _freq) + 1
+                _n_full_days = _total_steps // _steps_per_day
+                if _n_full_days >= 1:
+                    _aligned_end = _sub_start + (_n_full_days * _steps_per_day - 1) * _freq
+                    if _aligned_end != _sub_end:
+                        log(f"  Trimmed subset_time to whole days "
+                            f"({_n_full_days}×{_steps_per_day} steps): {_sub_start} → {_aligned_end}")
+                        _sub_end = _aligned_end
+    else:
+        _sub_start, _sub_end = _req_start, _req_end
+
     model_yaml = {
         'import': ['model_config/techs.yaml', 'model_config/locations.yaml'],
         'model': {
             'name': model_name,
             'calliope_version': '0.6.8',
             'timeseries_data_path': 'model_config',
-            # Pandas >= 2.0 requires full %Y-%m-%d %H:%M:%S format for strptime;
-            # bare YYYY-MM-DD strings cause a ValueError in Calliope's timeseries subset.
             'subset_time': [
-                f'{str(time_start)[:10]} 00:00:00',
-                f'{str(time_end)[:10]} 23:00:00',
+                _sub_start.strftime('%Y-%m-%d %H:%M:%S'),
+                _sub_end.strftime('%Y-%m-%d %H:%M:%S'),
             ],
         },
         'run': run_cfg,

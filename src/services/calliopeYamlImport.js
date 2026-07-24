@@ -101,6 +101,10 @@ export async function getFilesFromDataTransfer(dt) {
 /** Replace Infinity/NaN (from js-yaml .inf) with JSON-safe numbers. */
 function sanitizeInfinity(obj) {
   if (obj === null || obj === undefined) return obj;
+  // js-yaml's DEFAULT_SCHEMA parses ISO timestamps (e.g. subset_time: 2025-12-10T00:00:00Z)
+  // into Date objects. Convert to an ISO string here so the generic object branch below
+  // doesn't rebuild them as {} (a Date has no enumerable keys → "[object Object]").
+  if (obj instanceof Date) return obj.toISOString();
   if (typeof obj === 'number') {
     if (!isFinite(obj)) return obj > 0 ? 1e15 : -1e15;
     if (isNaN(obj)) return 0;
@@ -424,8 +428,10 @@ export function translateCalliopeModel(mergedDoc, filesMap) {
   const locationsExpanded = expandLocations(doc.locations || {});
   const locations = Object.entries(locationsExpanded).map(([name, loc]) => {
     const c   = loc?.coordinates || {};
-    const lat = c.lat ?? c.latitude  ?? loc?.lat  ?? loc?.latitude  ?? 0;
-    const lon = c.lon ?? c.longitude ?? loc?.lon  ?? loc?.longitude ?? 0;
+    // Calliope also allows cartesian coordinates: {x, y} (used by EnerPlanet exports),
+    // where x is longitude and y is latitude.
+    const lat = c.lat ?? c.latitude  ?? c.y ?? loc?.lat  ?? loc?.latitude  ?? 0;
+    const lon = c.lon ?? c.longitude ?? c.x ?? loc?.lon  ?? loc?.longitude ?? 0;
     return { name, latitude: lat, longitude: lon, lat, lon, type: loc?.type || 'site', techs: loc?.techs || {} };
   });
   log.push('Found ' + locations.length + ' locations');
@@ -522,7 +528,13 @@ export function translateCalliopeModel(mergedDoc, filesMap) {
   });
 
   // ── Build one timeSeries entry per CSV file ────────────────────────────────
+  // Demand techs whose missing timeseries would leave the model with nothing to
+  // serve — surfaced separately so the importer can warn more strongly.
+  const demandTechNames = new Set(
+    technologies.filter(t => t.parent === 'demand' || t.parent === 'unmet_demand').map(t => t.name)
+  );
   const timeSeries = [];
+  const missingTimeSeries = []; // [{ file, refCount, isDemand }]
   for (const [csvFile, tsRefs] of fileRefMap.entries()) {
     const content = resolveFile(filesMap, csvFile) ?? resolveFile(filesMap, tsPath + '/' + csvFile);
     if (content) {
@@ -572,9 +584,12 @@ export function translateCalliopeModel(mergedDoc, filesMap) {
       });
       log.push('Loaded CSV: ' + csvFile + ' (' + dataCols.length + ' columns, ' + parsed.data.length + ' rows)');
     } else {
-      log.push('⚠ CSV not available: ' + csvFile + ' (referenced by ' + tsRefs.length + ' constraints)');
+      const isDemand = tsRefs.some(r => demandTechNames.has(r.tech));
+      missingTimeSeries.push({ file: csvFile, refCount: tsRefs.length, isDemand });
+      log.push('⚠ ' + (isDemand ? 'Demand timeseries' : 'Timeseries') +
+        ' CSV not available: ' + csvFile + ' (referenced by ' + tsRefs.length + ' constraints)');
     }
   }
 
-  return { modelName, locations, links, technologies, timeSeries, runConfig, subsetTime, overrides, scenarios, log };
+  return { modelName, locations, links, technologies, timeSeries, missingTimeSeries, runConfig, subsetTime, overrides, scenarios, log };
 }

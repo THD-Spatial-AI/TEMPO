@@ -370,7 +370,7 @@ function GeneralPanel() {
 function RemoteExecutionPanel() {
   const [form, setForm] = useState(() => {
     const s = getSettings().memeServer || {};
-    return { url: s.url || '', apiKey: s.apiKey || '', enabled: s.enabled ?? false };
+    return { url: s.url || '', apiKey: s.apiKey || '' };
   });
   const [saved, setSaved]         = useState(false);
   const [showKey, setShowKey]     = useState(false);
@@ -380,7 +380,7 @@ function RemoteExecutionPanel() {
   const update = (key, value) => { setForm(f => ({ ...f, [key]: value })); setSaved(false); };
 
   const save = () => {
-    setSetting('memeServer', { url: form.url.trim(), apiKey: form.apiKey, enabled: form.enabled });
+    setSetting('memeServer', { url: form.url.trim(), apiKey: form.apiKey });
     setSaved(true);
   };
 
@@ -409,22 +409,6 @@ function RemoteExecutionPanel() {
       </p>
 
       <div className="space-y-5 max-w-md">
-        {/* Enabled toggle */}
-        <label className="flex items-start gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={form.enabled}
-            onChange={(e) => update('enabled', e.target.checked)}
-            className="mt-0.5 rounded text-gray-600"
-          />
-          <span>
-            <span className="block text-sm font-medium text-slate-700">Enable remote execution</span>
-            <span className="block text-xs text-slate-400 mt-0.5">
-              When on, supported engines offer a Remote option in the Run panel.
-            </span>
-          </span>
-        </label>
-
         {/* Server URL */}
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-2">Server URL</label>

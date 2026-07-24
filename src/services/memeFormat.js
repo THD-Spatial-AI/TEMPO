@@ -70,11 +70,16 @@ const MODE_MAP = {
 
 const INF = 1e14;
 
+// Produce an identifier accepted by every target. Calliope 0.7 is the strictest:
+// ids must match ^[^_^\d][\w]*$ — no leading digit/underscore, and only word
+// characters (so hyphens are out). Applied uniformly, so a node id and every
+// reference to it (placement keys, transmission from/to) stay consistent.
 function safeId(name) {
   let s = String(name ?? '').trim();
   s = s.replace(/::/g, '__').replace(/:/g, '_');
-  s = s.replace(/[^A-Za-z0-9_-]/g, '_');
+  s = s.replace(/[^A-Za-z0-9]+/g, '_');       // hyphens & any other punctuation → _
   s = s.replace(/_+/g, '_').replace(/^_+|_+$/g, '');
+  if (/^[0-9]/.test(s)) s = 'n_' + s;          // no leading digit (e.g. 110_kv → n_110_kv)
   return s || 'unknown';
 }
 
@@ -91,6 +96,75 @@ function num(v) {
 const parentOf = (t) => t.essentials?.parent || t.parent || 'supply';
 const techIdOf = (t) => safeId(t.name || t.id);
 
+/**
+ * Build a resolver for internal `file=<csv>:<column>` resource references.
+ * Reads the model's timeSeries CSVs, and on demand materializes a referenced
+ * column into a MEME inline timeseries (deduped), returning its generated id.
+ * The accumulated `timeseries` object becomes model.timeseries.
+ */
+// Extract { column → number[] } from a timeSeries entry — either the parsed
+// `data` rows (present for the currently-loaded model) or the raw `csvContent`
+// string (all that's kept for other saved models). First CSV column is the
+// timestamp; the rest are data columns (names may contain spaces).
+function columnsFromTs(ts) {
+  if (Array.isArray(ts.data) && ts.data.length) {
+    const dateCol = ts.dateColumn || (ts.columns || [])[0];
+    const cols = ts.dataColumns || (ts.columns || []).filter((cc) => cc !== dateCol);
+    const colMap = {};
+    for (const col of cols) colMap[col] = ts.data.map((r) => Number(r[col]));
+    return colMap;
+  }
+  if (typeof ts.csvContent === 'string' && ts.csvContent.trim()) {
+    const raw = ts.csvContent.charCodeAt(0) === 0xFEFF ? ts.csvContent.slice(1) : ts.csvContent;
+    const lines = raw.trim().split(/\r?\n/);
+    if (lines.length < 2) return {};
+    const dataCols = lines[0].split(',').slice(1).map((h) => h.trim());
+    const colMap = {};
+    dataCols.forEach((col) => { colMap[col] = []; });
+    for (let r = 1; r < lines.length; r++) {
+      const vals = lines[r].split(',');
+      dataCols.forEach((col, i) => { colMap[col].push(Number(vals[i + 1])); });
+    }
+    return colMap;
+  }
+  return {};
+}
+
+function makeTsContext(model) {
+  const files = new Map(); // fileName → { column → number[] }
+  for (const ts of model.timeSeries || []) {
+    const fname = ts.fileName || ts.file;
+    if (!fname) continue;
+    const colMap = columnsFromTs(ts);
+    if (Object.keys(colMap).length) files.set(fname, colMap);
+  }
+
+  const timeseries = {};
+  const idByKey = new Map();
+
+  /** @returns {string|null} the inline-timeseries id, or null if unresolvable. */
+  const register = (ref, { abs = false } = {}) => {
+    if (typeof ref !== 'string' || !ref.startsWith('file=')) return null;
+    const key = `${ref}|${abs}`;
+    if (idByKey.has(key)) return idByKey.get(key);
+    const body = ref.slice(5);
+    const sep = body.indexOf(':');
+    if (sep < 0) return null;
+    const fname = body.slice(0, sep);
+    const col = body.slice(sep + 1);
+    const colMap = files.get(fname);
+    let values = colMap ? colMap[col] : null;
+    if (!values || !values.length) return null;
+    if (abs) values = values.map((v) => Math.abs(v));
+    const id = safeId(`ts_${fname.replace(/\.csv$/i, '')}_${col}`);
+    timeseries[id] = { source: 'inline', values };
+    idByKey.set(key, id);
+    return id;
+  };
+
+  return { timeseries, register };
+}
+
 // ---------------------------------------------------------------------------
 // Constraints / costs → MEME tech fields
 // ---------------------------------------------------------------------------
@@ -100,7 +174,7 @@ const techIdOf = (t) => safeId(t.name || t.id);
  * (capacity / efficiency / storage / demand_profile / source). Mutates `out`.
  * Unmapped keys are warned about and dropped.
  */
-function applyConstraints(out, constraints, role, log, ctx) {
+function applyConstraints(out, constraints, role, log, ctx, tsCtx) {
   const c = { ...(constraints || {}) };
   delete c.lifetime; // → tech.lifetime, handled by caller
 
@@ -140,14 +214,29 @@ function applyConstraints(out, constraints, role, log, ctx) {
   if ('resource' in c) {
     const r = c.resource;
     delete c.resource;
+    const fileRef = typeof r === 'string' && r.startsWith('file=');
     if (role === 'demand') {
-      // internal demand is a negative sink; MEME demand_profile is positive
-      out.demand_profile = typeof r === 'number' ? Math.abs(r) : r;
+      // internal demand is a negative sink; MEME demand_profile is positive.
+      if (typeof r === 'number') {
+        out.demand_profile = Math.abs(r);
+      } else if (fileRef) {
+        const id = tsCtx?.register(r, { abs: true });
+        if (id) out.demand_profile = id;
+        else log.push(`⚠ ${ctx}: demand timeseries '${r}' could not be resolved — dropped`);
+      } else if (r != null) {
+        out.demand_profile = r;
+      }
     } else if (role === 'supply') {
-      // supply resource is Calliope-only in MEME (source.max, curtailable)
-      if (typeof r === 'number' && !isInf(r)) out.source = { ...(out.source || {}), max: r };
-      else if (typeof r === 'string') out.source = { ...(out.source || {}), max: r };
-      if (force) log.push(`⚠ ${ctx}: force_resource (source_use_equals) not mapped — using curtailable source.max`);
+      if (fileRef) {
+        // a per-timestep availability series → capacity-factor bound (max_pu)
+        const id = tsCtx?.register(r, { abs: false });
+        if (id) out.operation = { ...(out.operation || {}), max_pu: id };
+        else log.push(`⚠ ${ctx}: availability timeseries '${r}' could not be resolved — dropped`);
+      } else if (typeof r === 'number' && !isInf(r)) {
+        // scalar resource is Calliope-only in MEME (source.max, curtailable)
+        out.source = { ...(out.source || {}), max: r };
+      }
+      if (force) log.push(`⚠ ${ctx}: force_resource (source_use_equals) not mapped — using a curtailable bound`);
     }
   }
 
@@ -222,6 +311,8 @@ export function internalToMemeCanonical(model, opts = {}) {
   const modelCfg = model.modelConfig || meta.modelConfig || {};
   const runCfg = model.runConfig || meta.runConfig || {};
 
+  const tsCtx = makeTsContext(model);
+
   const techById = new Map();
   for (const t of technologies) techById.set(techIdOf(t), t);
 
@@ -261,7 +352,7 @@ export function internalToMemeCanonical(model, opts = {}) {
       if (cfg && typeof cfg === 'object') {
         const per = cfg.constraints || cfg;
         const patch = {};
-        applyConstraints(patch, per, ROLE_FOR_PARENT[parentOf(tech)], log, `${nodeId}.${tid}`);
+        applyConstraints(patch, per, ROLE_FOR_PARENT[parentOf(tech)], log, `${nodeId}.${tid}`, tsCtx);
         const costs = buildCosts(cfg.costs, log, `${nodeId}.${tid}`);
         if (costs) patch.costs = costs;
         addOverride(tid, nodeId, patch);
@@ -292,7 +383,7 @@ export function internalToMemeCanonical(model, opts = {}) {
     if (out.carrier_in) carriers.add(out.carrier_in);
     if (out.carrier_out) carriers.add(out.carrier_out);
 
-    applyConstraints(out, tech.constraints, role, log, id);
+    applyConstraints(out, tech.constraints, role, log, id, tsCtx);
 
     const costs = buildCosts(tech.costs, log, id);
     if (costs) out.costs = costs;
@@ -305,6 +396,15 @@ export function internalToMemeCanonical(model, opts = {}) {
 
     const overrides = overridesForTech.get(id);
     if (overrides && Object.keys(overrides).length) out.node_overrides = overrides;
+
+    // MEME requires a tech-level demand_profile on a demand tech. When the
+    // profile is per-node (via node_overrides), borrow one as the default so
+    // validation passes — every node still gets its own via the override.
+    if (role === 'demand' && out.demand_profile == null && overrides) {
+      for (const node of Object.keys(overrides)) {
+        if (overrides[node].demand_profile != null) { out.demand_profile = overrides[node].demand_profile; break; }
+      }
+    }
 
     memeTechs[id] = out;
   }
@@ -397,6 +497,7 @@ export function internalToMemeCanonical(model, opts = {}) {
     nodes,
     technologies: memeTechs,
   };
+  if (Object.keys(tsCtx.timeseries).length) memeModel.timeseries = tsCtx.timeseries;
   if (Object.keys(transmission).length) memeModel.transmission = transmission;
 
   const mode = opts.mode || modelCfg.mode || runCfg.mode || 'plan';
