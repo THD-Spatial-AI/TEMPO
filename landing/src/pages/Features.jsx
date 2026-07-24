@@ -55,15 +55,76 @@ export default function Features() {
               </p>
               <div className="flex flex-col border-l border-outline-variant/30 pl-8 space-y-2">
                 <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-outline">
-                  v1.0.0 Stable
+                  v2.0.0 Stable
                 </span>
                 <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-outline">
                   Architecture: x64 / ARM64
                 </span>
                 <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-outline">
-                  Engine: Calliope 0.6.8 / 0.7 + AdOpT-NET0
+                  Engines: Calliope 0.6.8 / 0.7 · PyPSA · OSeMOSYS · AdOpT-NET0 · MEME
                 </span>
               </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── What's New in v2 ── */}
+        <section className="py-32 px-8 bg-black text-white">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-8">
+              <div>
+                <span className="text-[0.6875rem] font-bold uppercase tracking-[0.3em] text-white/40 mb-4 block">
+                  Release 2.0.0
+                </span>
+                <h2 className="text-[2.75rem] md:text-[3.5rem] font-bold tracking-tighter leading-none">
+                  WHAT&rsquo;S NEW IN V2
+                </h2>
+              </div>
+              <p className="max-w-md text-white/60 font-medium">
+                v2 turns TEMPO from a single-engine editor into a multi-engine energy
+                optimization platform — run one model on four local solvers or push it
+                to a remote server, with a rebuilt results dashboard and smarter imports.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {[
+                {
+                  icon: 'hub',
+                  tag: 'New Engines',
+                  title: 'PyPSA & OSeMOSYS — now fully supported',
+                  desc: 'Both adapters graduate from "in progress" to production. Run any model on Calliope 0.6.8 / 0.7, PyPSA, or OSeMOSYS locally — all four return the same result contract, so every dashboard just works.',
+                },
+                {
+                  icon: 'cloud_sync',
+                  tag: 'Remote Execution',
+                  title: 'MEME — remote multi-engine runs',
+                  desc: 'Send one canonical model to a remote MEME (Multi Energy Model Execution) server and have it translated and solved on PyPSA, Calliope 0.7, or AdOpT-NET0 — no local Python venv required.',
+                },
+                {
+                  icon: 'insights',
+                  tag: 'Analysis',
+                  title: 'Rebuilt results dashboard',
+                  desc: 'New tabbed analysis — Overview, Dispatch, Flow, Costs, Shadow prices, Analysis, Logs, and SPORES — plus transmission flow drawn on the results map and KPI cards.',
+                },
+                {
+                  icon: 'upload_file',
+                  tag: 'Imports',
+                  title: 'Smarter YAML & CSV import',
+                  desc: 'The Calliope YAML importer resolves imports recursively and warns on missing timeseries in detail. A new multi-step CSV wizard builds a full model — locations, links, technologies, scenarios, and resource profiles — from spreadsheets.',
+                },
+              ].map((item) => (
+                <div key={item.title} className="bg-white/5 border border-white/10 p-10 flex flex-col justify-between min-h-[260px]">
+                  <div className="flex items-center justify-between">
+                    <span className="material-symbols-outlined text-3xl">{item.icon}</span>
+                    <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-white/40">{item.tag}</span>
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold uppercase mt-8 mb-3">{item.title}</h3>
+                    <p className="text-white/60 text-sm leading-relaxed">{item.desc}</p>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </section>
@@ -346,8 +407,8 @@ export default function Features() {
                 <div>
                   <h3 className="text-2xl font-bold uppercase">Multi-Framework Export</h3>
                   <p className="text-neutral-300 mt-3 max-w-md">
-                    Export the full model as a Calliope ZIP archive or run it via the integrated
-                    AdOpT-NET0 service. PyPSA and OSeMOSYS adapters in progress.
+                    Export the full model as a Calliope ZIP archive or run it on any integrated
+                    engine — Calliope 0.6.8 / 0.7, PyPSA, OSeMOSYS, and AdOpT-NET0 all ship in v2.
                   </p>
                 </div>
               </div>
@@ -462,8 +523,8 @@ export default function Features() {
                   <div className="text-[0.6875rem] font-bold tracking-[0.3em] uppercase opacity-50 mb-2">
                     Optimization Engine
                   </div>
-                  <div className="text-2xl font-bold">CALLIOPE 0.6 / 0.7</div>
-                  <div className="text-xs text-white/40 mt-1 font-medium tracking-widest uppercase">CBC · HiGHS · AdOpT-NET0</div>
+                  <div className="text-2xl font-bold">4 ENGINES + MEME</div>
+                  <div className="text-xs text-white/40 mt-1 font-medium tracking-widest uppercase">Calliope · PyPSA · OSeMOSYS · AdOpT-NET0</div>
                 </div>
               </div>
             </div>
