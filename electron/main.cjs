@@ -440,6 +440,71 @@ ipcMain.handle('setup:mark-complete', () => {
   }
 });
 
+// ─── IPC: AI assistant (Results analysis) ────────────────────────────────────
+// User-supplied API keys drive an LLM over the frozen result contract. The call
+// happens here in main (no CORS, keys never enter the renderer). Deltas stream
+// back over the 'ai:stream' channel keyed by reqId.
+const aiKeystore = require('./ai/keystore.cjs');
+const { streamChat: aiStreamChat } = require('./ai/providers.cjs');
+const aiAbortControllers = new Map();
+
+ipcMain.handle('ai:set-key',    (_e, provider, key) => aiKeystore.setKey(provider, key));
+ipcMain.handle('ai:clear-key',  (_e, provider)      => aiKeystore.clearKey(provider));
+ipcMain.handle('ai:key-status', (_e, provider)      => ({ hasKey: aiKeystore.hasKey(provider) }));
+
+ipcMain.handle('ai:test-key', async (_e, { provider, model, baseUrl } = {}) => {
+  const apiKey = aiKeystore.getKey(provider);
+  if (!apiKey) return { ok: false, error: 'No API key stored for this provider.' };
+  try {
+    let got = '';
+    await aiStreamChat({
+      provider, baseUrl, apiKey, model, maxTokens: 16,
+      messages: [{ role: 'user', content: 'Reply with the single word: ok' }],
+      onDelta: (t) => { got += t; },
+    });
+    return { ok: true, sample: got.trim().slice(0, 40) };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('ai:send', async (_e, payload = {}) => {
+  const { reqId, provider, model, baseUrl, system, messages, maxTokens } = payload;
+  const apiKey = aiKeystore.getKey(provider);
+  if (!apiKey) return { ok: false, error: `No API key configured for ${provider}. Add one in Settings → AI Assistant.` };
+
+  const controller = new AbortController();
+  aiAbortControllers.set(reqId, controller);
+  const send = (msg) => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('ai:stream', { reqId, ...msg });
+  };
+
+  try {
+    await aiStreamChat({
+      provider, baseUrl, apiKey, model, system, messages, maxTokens,
+      signal: controller.signal,
+      onDelta: (t) => send({ type: 'delta', text: t }),
+    });
+    send({ type: 'done' });
+    return { ok: true };
+  } catch (err) {
+    if (controller.signal.aborted || err?.name === 'AbortError') {
+      send({ type: 'aborted' });
+      return { ok: false, aborted: true };
+    }
+    send({ type: 'error', error: err.message });
+    return { ok: false }; // error already delivered over the stream
+  } finally {
+    aiAbortControllers.delete(reqId);
+  }
+});
+
+ipcMain.handle('ai:cancel', (_e, reqId) => {
+  const c = aiAbortControllers.get(reqId);
+  if (c) c.abort();
+  return { success: true };
+});
+
 // ─── Python venv resolver ─────────────────────────────────────────────────
 /**
  * Find the Calliope Python venv, whether it's the repo-local .venv-calliope

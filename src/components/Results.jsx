@@ -26,9 +26,10 @@ import AnalysisTab from './results/tabs/AnalysisTab';
 import LogsTab from './results/tabs/LogsTab';
 import SporesTab from './results/tabs/SporesTab';
 import ShadowTab from './results/tabs/ShadowTab';
+import AIAnalysisTab from './results/tabs/AIAnalysisTab';
 
 // ── Main component ───────────────────────────────────────────────────────────
-const Results = () => {
+const Results = ({ onNavigate }) => {
   const { completedJobs, removeCompletedJob, showNotification, models, activeResultJobId, setActiveResultJobId } = useData();
   const [selectedJobId, setSelectedJobId] = useState(null);
   const [tab, setTab] = useState('overview');
@@ -787,6 +788,7 @@ const Results = () => {
     ...(hasShadowPrices ? [{ id: 'shadow', label: 'Shadow Prices', icon: FiTrendingUp }] : []),
     ...(hasFlow     ? [{ id: 'analysis', label: 'Analysis',      icon: FiGrid      }] : []),
     ...((isSporesRun || hasSpores) ? [{ id: 'spores', label: 'SPORES', icon: FiGitMerge }] : []),
+    { id: 'ai',        label: 'AI Analysis', icon: FiCpu },
     { id: 'logs',      label: 'Logs',        icon: FiTerminal },
   ];
 
@@ -1183,6 +1185,16 @@ const Results = () => {
                 setSporeScatterB={setSporeScatterB}
                 sporeScatterA={sporeScatterA}
                 sporeScatterB={sporeScatterB}
+              />
+            )}
+
+            {/* ════════════════ AI ANALYSIS TAB ════════════════ */}
+            {activeTab === 'ai' && (
+              <AIAnalysisTab
+                key={selectedJobId}
+                result={result}
+                selectedJob={selectedJob}
+                onOpenSettings={() => onNavigate?.('Settings')}
               />
             )}
 

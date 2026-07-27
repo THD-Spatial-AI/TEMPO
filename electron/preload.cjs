@@ -228,6 +228,37 @@ contextBridge.exposeInMainWorld('electronAPI', {
    * @returns Promise<{ success: bool }>
    */
   markSetupComplete: () => ipcRenderer.invoke('setup:mark-complete'),
+
+  // ── AI assistant (Results analysis) ───────────────────────────────────────
+  // Keys are held encrypted in the main process; the renderer only ever sends
+  // prompts and receives streamed text. See electron/ai/*.
+  ai: {
+    /** Store an API key for a provider (encrypted at rest). key='' clears it. */
+    setKey: (provider, key) => ipcRenderer.invoke('ai:set-key', provider, key),
+    /** Remove the stored key for a provider. */
+    clearKey: (provider) => ipcRenderer.invoke('ai:clear-key', provider),
+    /** @returns Promise<{ hasKey: boolean }> */
+    keyStatus: (provider) => ipcRenderer.invoke('ai:key-status', provider),
+    /** Quick round-trip to validate a stored key. @returns {ok, sample?|error?} */
+    testKey: (opts) => ipcRenderer.invoke('ai:test-key', opts),
+    /**
+     * Start a streaming completion. Deltas arrive via onStream keyed by reqId.
+     * @param {{reqId, provider, model, baseUrl?, system?, messages, maxTokens?}} payload
+     */
+    send: (payload) => ipcRenderer.invoke('ai:send', payload),
+    /** Abort an in-flight request by reqId. */
+    cancel: (reqId) => ipcRenderer.invoke('ai:cancel', reqId),
+    /**
+     * Subscribe to AI stream events.
+     * Callback receives { reqId, type: 'delta'|'done'|'error'|'aborted', text?, error? }
+     * @returns {Function} unsubscribe
+     */
+    onStream: (callback) => {
+      const handler = (_event, data) => callback(data);
+      ipcRenderer.on('ai:stream', handler);
+      return () => ipcRenderer.removeListener('ai:stream', handler);
+    },
+  },
 });
 
 
