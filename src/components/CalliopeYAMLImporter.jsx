@@ -26,7 +26,7 @@ import jsyaml from 'js-yaml';
 import Papa from 'papaparse';
 import { fetchTemplate } from '../utils/templateFetch';
 import { detectCalliopeFormat, from07ToInternal } from '../services/calliope07Format';
-import { translateCalliopeModel, readText, parseFilesMap, getFilesFromDataTransfer } from '../services/calliopeYamlImport';
+import { translateCalliopeModel, readText, parseFilesMap, getFilesFromDataTransfer, findModelRoots } from '../services/calliopeYamlImport';
 
 // ─── known server-side YAML templates ────────────────────────────────────────
 // Add entries here as more YAML models are placed in public/templates/
@@ -102,6 +102,8 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
   const [modelName,  setModelName]  = useState('');
   const [loadingTpl, setLoadingTpl] = useState(null);
   const [tplAvailable, setTplAvailable] = useState({});
+  const [rootCandidates, setRootCandidates] = useState([]);
+  const [pendingFilesMap, setPendingFilesMap] = useState(null);
 
   // Check which server templates are actually present on first switch to 'server' tab
   useEffect(() => {
@@ -127,13 +129,14 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
   const reset = () => {
     setStatus('idle'); setErrorMsg(''); setParseLog([]);
     setPreview(null);  setShowLog(false); setModelName(''); setLoadingTpl(null);
+    setRootCandidates([]); setPendingFilesMap(null);
   };
 
-  // ── shared: parse a filesMap ───────────────────────────────────────────────
-  const runParse = useCallback(async (filesMap) => {
+  // ── shared: parse a filesMap against a chosen (or auto-detected) root ───────
+  const doParse = useCallback(async (filesMap, rootKey) => {
     setStatus('parsing');
     try {
-      const mergedDoc = await parseFilesMap(filesMap, addLog);
+      const mergedDoc = await parseFilesMap(filesMap, addLog, rootKey);
       const format    = detectCalliopeFormat(mergedDoc);
       addLog('Detected Calliope model format: ' + format);
       const result    = format === '0.7'
@@ -148,6 +151,19 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
       setStatus('error');
     }
   }, [addLog]);
+
+  // If a folder/zip holds several model definitions (e.g. model_main.yaml +
+  // model_incremental.yaml), let the user pick which one to import.
+  const runParse = useCallback(async (filesMap) => {
+    const roots = findModelRoots(filesMap);
+    if (roots.length > 1) {
+      setPendingFilesMap(filesMap);
+      setRootCandidates(roots);
+      setStatus('chooseRoot');
+      return;
+    }
+    await doParse(filesMap, roots[0]?.key);
+  }, [doParse]);
 
   // ── ZIP mode ───────────────────────────────────────────────────────────────
   const handleZIP = useCallback(async (file) => {
@@ -500,6 +516,34 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
               </>
             )}
           </>
+        )}
+
+        {/* Root picker — multiple model definitions found */}
+        {status === 'chooseRoot' && (
+          <div className="space-y-3">
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-2.5 flex gap-2 text-xs text-gray-600">
+              <FiInfo size={13} className="flex-shrink-0 mt-0.5 text-gray-400" />
+              <span>This folder contains <strong>{rootCandidates.length} model definitions</strong>. Choose which one to import.</span>
+            </div>
+            {rootCandidates.map(c => (
+              <button key={c.key} onClick={() => doParse(pendingFilesMap, c.key)}
+                className="w-full text-left border border-gray-200 rounded-lg px-4 py-3 flex items-center gap-3 hover:border-gray-400 hover:bg-gray-50 transition-colors">
+                <FiPackage size={16} className="text-gray-400 flex-shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-gray-800 leading-tight truncate">
+                    {c.title || c.name}
+                  </p>
+                  <p className="text-xs text-gray-400 truncate mt-0.5">
+                    {c.title ? c.name : c.key}
+                  </p>
+                </div>
+              </button>
+            ))}
+            <button onClick={reset}
+              className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium text-sm">
+              Cancel
+            </button>
+          </div>
         )}
 
         {/* Parsing spinner */}
