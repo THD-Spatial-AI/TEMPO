@@ -6,7 +6,7 @@ import {
   FiCpu, FiSend, FiRefreshCw, FiStopCircle, FiSettings, FiAlertTriangle, FiSliders,
 } from 'react-icons/fi';
 import { streamAI, aiAvailable, hasKey } from '../../../services/aiClient';
-import { buildResultContextString, summarizeResult, estimateTokens } from '../../../services/aiContext';
+import { buildResultContextString, summarizeResult, summarizeModelInputs, estimateTokens } from '../../../services/aiContext';
 import { SYSTEM_PROMPT, buildReportMessages, buildChatMessages } from '../../../services/aiPrompts';
 import { getAIConfig, providerMeta } from '../../../services/aiSettings';
 
@@ -43,7 +43,7 @@ function renderMarkdown(text) {
   return out;
 }
 
-export default function AIAnalysisTab({ result, selectedJob, onOpenSettings }) {
+export default function AIAnalysisTab({ result, selectedJob, model, onOpenSettings }) {
   const modelName = selectedJob?.modelName || 'model';
 
   // ── Config / key gating ─────────────────────────────────────────────────
@@ -61,9 +61,12 @@ export default function AIAnalysisTab({ result, selectedJob, onOpenSettings }) {
   const [includeDispatch, setIncludeDispatch] = useState(true);
   const [dispatchStride, setDispatchStride] = useState(1);
   const [topNKeys, setTopNKeys] = useState(0); // 0 = all
+  const [includeInputs, setIncludeInputs] = useState(true);
   const [showControls, setShowControls] = useState(false);
 
   const summary = useMemo(() => summarizeResult(result), [result]);
+  const inputsDigestFull = useMemo(() => summarizeModelInputs(model), [model]);
+  const inputsDigest = includeInputs ? inputsDigestFull : '';
   const contextJson = useMemo(
     () => buildResultContextString(result, {
       includeDispatch,
@@ -73,8 +76,8 @@ export default function AIAnalysisTab({ result, selectedJob, onOpenSettings }) {
     [result, includeDispatch, dispatchStride, topNKeys],
   );
   const tokens = useMemo(
-    () => estimateTokens(contextJson) + estimateTokens(summary) + estimateTokens(SYSTEM_PROMPT),
-    [contextJson, summary],
+    () => estimateTokens(contextJson) + estimateTokens(summary) + estimateTokens(inputsDigest) + estimateTokens(SYSTEM_PROMPT),
+    [contextJson, summary, inputsDigest],
   );
   const heavy = tokens > 100_000;
 
@@ -88,14 +91,14 @@ export default function AIAnalysisTab({ result, selectedJob, onOpenSettings }) {
     setReport(''); setReportErr(''); setReportBusy(true);
     reportHandle.current = streamAI({
       system: SYSTEM_PROMPT,
-      messages: buildReportMessages(summary, contextJson, modelName),
+      messages: buildReportMessages(summary, contextJson, modelName, inputsDigest),
       maxTokens: 4096,
       onDelta: (t) => setReport((r) => r + t),
       onDone: () => setReportBusy(false),
       onError: (e) => { setReportErr(e); setReportBusy(false); },
       onAbort: () => setReportBusy(false),
     });
-  }, [summary, contextJson, modelName]);
+  }, [summary, contextJson, modelName, inputsDigest]);
 
   // ── Chat state ──────────────────────────────────────────────────────────
   const [messages, setMessages] = useState([]); // {role, content}
@@ -114,7 +117,7 @@ export default function AIAnalysisTab({ result, selectedJob, onOpenSettings }) {
     setChatBusy(true);
     chatHandle.current = streamAI({
       system: SYSTEM_PROMPT,
-      messages: buildChatMessages(summary, contextJson, modelName, history, q),
+      messages: buildChatMessages(summary, contextJson, modelName, history, q, inputsDigest),
       maxTokens: 2048,
       onDelta: (t) => setMessages((m) => {
         const next = m.slice();
@@ -125,7 +128,7 @@ export default function AIAnalysisTab({ result, selectedJob, onOpenSettings }) {
       onError: (e) => { setMessages((m) => { const n = m.slice(); n[n.length - 1] = { role: 'assistant', content: `⚠ ${e}` }; return n; }); setChatBusy(false); },
       onAbort: () => setChatBusy(false),
     });
-  }, [input, chatBusy, messages, summary, contextJson, modelName]);
+  }, [input, chatBusy, messages, summary, contextJson, modelName, inputsDigest]);
 
   // Cancel any in-flight request on unmount / run switch
   useEffect(() => () => { reportHandle.current?.cancel(); chatHandle.current?.cancel(); }, []);
@@ -208,6 +211,10 @@ export default function AIAnalysisTab({ result, selectedJob, onOpenSettings }) {
               <label className="block mb-1">Cap keys: {topNKeys > 0 ? `top ${topNKeys}` : 'all'}</label>
               <input type="range" min="0" max="200" step="10" value={topNKeys} onChange={(e) => setTopNKeys(+e.target.value)} className="w-full" />
             </div>
+            <label className={`flex items-center gap-2 text-xs ${inputsDigestFull ? 'text-slate-600' : 'text-slate-300'}`}>
+              <input type="checkbox" checked={includeInputs} disabled={!inputsDigestFull} onChange={(e) => setIncludeInputs(e.target.checked)} className="rounded text-gray-600" />
+              Include model input assumptions{inputsDigestFull ? '' : ' (unavailable)'}
+            </label>
           </div>
         )}
       </div>

@@ -79,14 +79,17 @@ const Results = ({ onNavigate }) => {
   const selectedJob = completedJobs.find(j => j.id === selectedJobId) || null;
   const result = selectedJob?.result || null;
 
-  // Find model for location lat/lon data
+  // Find the source model for this run (for lat/lon, tech metadata, AI input digest)
   // Strip the " (version N)" suffix that Run.jsx appends after repeated runs
-  const modelLocations = useMemo(() => {
-    if (!selectedJob) return [];
+  const selectedModel = useMemo(() => {
+    if (!selectedJob) return null;
     const baseName = selectedJob.modelName.replace(/ \(version \d+\)$/, '');
-    const m = models.find(m => m.name === baseName || m.name === selectedJob.modelName);
-    return (m?.locations || []).filter(l => l.latitude && l.longitude).map(l => ({ ...l, calliopeName: calliopeLocName(l.name) }));
+    return models.find(m => m.name === baseName || m.name === selectedJob.modelName) || null;
   }, [selectedJob, models]);
+
+  const modelLocations = useMemo(() => {
+    return (selectedModel?.locations || []).filter(l => l.latitude && l.longitude).map(l => ({ ...l, calliopeName: calliopeLocName(l.name) }));
+  }, [selectedModel]);
 
   // ── Tech metadata map: tech_name → {parent, carrier_out, display_name} ─────
   // Priority order (highest wins):
@@ -1194,6 +1197,7 @@ const Results = ({ onNavigate }) => {
                 key={selectedJobId}
                 result={result}
                 selectedJob={selectedJob}
+                model={selectedModel}
                 onOpenSettings={() => onNavigate?.('Settings')}
               />
             )}

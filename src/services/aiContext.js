@@ -125,12 +125,97 @@ export function buildResultContextString(result, opts = {}) {
   return JSON.stringify(buildResultContext(result, opts));
 }
 
+// ── Model inputs digest ───────────────────────────────────────────────────
+// The result contract carries only outputs. To let the assistant critique the
+// ASSUMPTIONS behind a run (cost inputs, potentials, efficiencies), this emits a
+// slim per-technology digest of the model's input definitions. Only assumption-
+// relevant params are surfaced; timeseries/file refs are collapsed to a marker.
+
+// Constraint keys worth showing (potentials, limits, efficiencies, lifetime).
+// Anything not listed (file refs, internal flags) is skipped to stay slim.
+const INPUT_CONSTRAINT_KEYS = [
+  'energy_cap_max', 'energy_cap_min', 'energy_cap_equals', 'energy_cap_max_systemwide',
+  'storage_cap_max', 'storage_cap_equals', 'resource', 'resource_area_max',
+  'resource_area_per_energy_cap', 'energy_eff', 'parasitic_eff', 'storage_loss',
+  'energy_ramping', 'lifetime', 'force_resource',
+];
+
+/** Render a constraint value slim: collapse timeseries/file refs, pass numbers. */
+function inputVal(v) {
+  if (typeof v === 'string') return /^file=|\.csv/i.test(v) ? 'timeseries' : v;
+  if (typeof v === 'number') return String(Number(v.toFixed(4))); // no locale commas
+  if (typeof v === 'boolean') return String(v);
+  return undefined;
+}
+
+/** Compact "k=v" clauses for the present keys of an object (given a key order). */
+function clauses(obj, keys) {
+  const out = [];
+  for (const k of keys) {
+    if (obj == null || obj[k] === undefined || obj[k] === null || obj[k] === '') continue;
+    const v = inputVal(obj[k]);
+    if (v !== undefined) out.push(`${k}=${v}`);
+  }
+  return out;
+}
+
+/**
+ * Build a slim markdown digest of a model's INPUT assumptions.
+ * @param {object} model  frontend internal model ({ technologies[], locations[], links[] })
+ * @param {object} [opts] { maxTechs=60 }
+ * @returns {string} markdown digest (empty string if no usable inputs)
+ */
+export function summarizeModelInputs(model, opts = {}) {
+  if (!model || typeof model !== 'object') return '';
+  const { maxTechs = 60 } = opts;
+  const techs = Array.isArray(model.technologies) ? model.technologies : [];
+  const locations = Array.isArray(model.locations) ? model.locations : [];
+  const links = Array.isArray(model.links) ? model.links : [];
+  if (!techs.length && !locations.length && !links.length) return '';
+
+  const L = [];
+  L.push('# Model input assumptions (definitions, not results — critique these)');
+  L.push('');
+  L.push('## Model scale');
+  L.push(`- Technologies defined: ${techs.length}`);
+  L.push(`- Locations: ${locations.length}`);
+  if (links.length) L.push(`- Links: ${links.length}`);
+  // Location-specific overrides hint at heterogeneity the global defaults hide.
+  const overrideCount = locations.reduce((n, l) => n + Object.keys(l?.techs || {}).length, 0);
+  if (overrideCount) L.push(`- Location-specific technology overrides: ${overrideCount}`);
+  L.push('');
+
+  if (techs.length) {
+    const shown = techs.slice(0, maxTechs);
+    L.push(`## Technology assumptions${techs.length > maxTechs ? ` (first ${maxTechs} of ${techs.length})` : ''}`);
+    for (const t of shown) {
+      const id = t.id || t.name || '(unnamed)';
+      const ess = t.essentials || {};
+      const parent = ess.parent || t.parent || '';
+      let carrier = ess.carrier_out || ess.carrier || '';
+      if (Array.isArray(carrier)) carrier = carrier[0] || '';
+      const cost = clauses(t.costs?.monetary, Object.keys(t.costs?.monetary || {}));
+      const limit = clauses(t.constraints, INPUT_CONSTRAINT_KEYS);
+      const tag = [parent, carrier].filter(Boolean).join(', ');
+      const parts = [];
+      if (cost.length) parts.push(`costs ${cost.join(' ')}`);
+      if (limit.length) parts.push(`constraints ${limit.join(' ')}`);
+      L.push(`- ${id}${tag ? ` (${tag})` : ''}: ${parts.length ? parts.join('; ') : 'no cost/limit assumptions set'}`);
+    }
+    L.push('');
+  }
+
+  return L.join('\n').trim();
+}
+
 // ── Pre-aggregated summary ────────────────────────────────────────────────
 // Fast models reason poorly over thousands of raw loc::tech entries. This
 // digests the contract into the same headline stats the dashboard shows, so
 // the model is handed conclusions to explain rather than raw data to crunch.
 
 const RENEWABLE_RE = /solar|pv|wind|hydro|biomass|geothermal|renewable/i;
+const STORAGE_RE = /storage|battery|store|phs|pumped|_bess|flywheel/i;
+const DEMAND_RE = /demand|unmet|load_shed|unserved/i;
 
 /** Parse a Calliope key: "loc::tech" or transmission "loc::tech:dest". */
 function parseKey(k) {
@@ -259,11 +344,73 @@ export function summarizeResult(result, opts = {}) {
 
   // Demand / dispatch peaks
   const demand = result.demand_timeseries;
+  let demandEnergy = 0;
   if (Array.isArray(demand) && demand.length) {
     const peak = Math.max(...demand.map((x) => Math.abs(Number(x) || 0)));
-    const mean = demand.reduce((s, x) => s + Math.abs(Number(x) || 0), 0) / demand.length;
+    demandEnergy = demand.reduce((s, x) => s + Math.abs(Number(x) || 0), 0);
+    const mean = demandEnergy / demand.length;
     L.push('## Demand');
     L.push(`- Peak demand: ${num(peak, 1)}, mean ${num(mean, 1)}, load factor ${num(peak > 0 ? mean / peak * 100 : 0, 1)}%`);
+    L.push('');
+  }
+
+  // ── Derived diagnostics (these are what should drive recommendations) ─────
+  // System adequacy: generation vs demanded energy. Won't match exactly
+  // (storage/transmission losses, exports), so only flag large deviations.
+  if (demandEnergy > 0 && totalGen > 0) {
+    const coverage = totalGen / demandEnergy * 100;
+    L.push('## System adequacy');
+    L.push(`- Total generation ${num(totalGen, 0)} vs demanded energy ${num(demandEnergy, 0)} (coverage ${num(coverage, 1)}%)`);
+    L.push('');
+  }
+
+  // Binding constraints: any non-zero shadow price marks a scarce/limiting
+  // constraint — the single richest source of actionable recommendations.
+  const sp = result.shadow_prices;
+  if (sp && typeof sp === 'object') {
+    const rows = [];
+    for (const [k, v] of Object.entries(sp)) {
+      const arr = Array.isArray(v) ? v : [v];
+      let peak = 0, sum = 0;
+      for (const x of arr) { const a = Math.abs(Number(x) || 0); if (a > peak) peak = a; sum += a; }
+      if (peak > 0) rows.push([k, peak, arr.length ? sum / arr.length : 0]);
+    }
+    if (rows.length) {
+      rows.sort((a, b) => b[1] - a[1]);
+      L.push('## Binding constraints (non-zero shadow price ⇒ scarce/limiting)');
+      L.push(`- ${rows.length} constraint(s) with a non-zero shadow price`);
+      for (const [k, peak, mean] of rows.slice(0, 8)) L.push(`- ${k}: peak ${num(peak, 2)}, mean ${num(mean, 2)}`);
+      L.push('');
+    }
+  }
+
+  // Flags: over/under-built techs (capacity factor), adequacy gaps, and
+  // technologies the solver left unbuilt. Storage is exempt from CF flags
+  // (low utilisation is expected for it).
+  const flags = [];
+  if (demandEnergy > 0 && totalGen > 0) {
+    const coverage = totalGen / demandEnergy * 100;
+    if (coverage < 99) flags.push(`Generation covers only ${num(coverage, 1)}% of demanded energy — possible unmet load / unserved-energy slack; check demand-balance feasibility.`);
+    else if (coverage > 115) flags.push(`Generation exceeds demand by ${num(coverage - 100, 1)}% — notable oversupply, curtailment, or unaccounted exports/losses.`);
+  }
+  if (hours > 0) {
+    for (const [t, cap] of Object.entries(capByTech)) {
+      if (cap <= 0 || STORAGE_RE.test(t)) continue;
+      const cf = (genByTech[t] || 0) / (cap * hours) * 100;
+      if (cf < 12) flags.push(`${t}: ${num(cf, 1)}% capacity factor (built ${num(cap, 1)} but barely dispatched — overbuild, must-run, or curtailment).`);
+      else if (cf > 88) flags.push(`${t}: ${num(cf, 1)}% capacity factor (near-saturated — likely capacity-constrained/bottleneck).`);
+    }
+  }
+  // Available-but-unbuilt: techs the solver could have used but rejected.
+  const available = new Set(Object.keys(result.tech_metadata || {}));
+  if (!available.size && result.tech_parents) for (const t of Object.keys(result.tech_parents)) available.add(t);
+  const unbuilt = [...available].filter((t) => !(t in capByTech) && !(t in txCapByTech) && !DEMAND_RE.test(t));
+  if (unbuilt.length) {
+    flags.push(`Available but not built: ${unbuilt.slice(0, 12).join(', ')}${unbuilt.length > 12 ? ` (+${unbuilt.length - 12} more)` : ''} — the solver rejected these on cost/constraints.`);
+  }
+  if (flags.length) {
+    L.push('## Diagnostics & flags');
+    for (const f of flags.slice(0, 14)) L.push(`- ${f}`);
     L.push('');
   }
 

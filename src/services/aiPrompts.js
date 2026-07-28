@@ -13,12 +13,16 @@ export const SYSTEM_PROMPT = [
   'You are an expert energy-systems analyst embedded in TEMPO, a tool for building and',
   'running energy-system optimization models (Calliope, PyPSA, OSeMOSYS, AdOpT-NET0).',
   'The user has solved an optimization. You are given (1) a PRE-COMPUTED SUMMARY of the',
-  'result with headline aggregates already calculated, and (2) the raw result JSON',
-  '(capacities keyed loc::tech, generation, dispatch, costs by tech and location).',
+  'result with headline aggregates AND diagnostics already calculated (capacity-factor flags,',
+  'system adequacy, binding constraints from shadow prices, and available-but-unbuilt techs),',
+  'and (2) the raw result JSON (capacities keyed loc::tech, generation, dispatch, costs).',
+  'A MODEL INPUT ASSUMPTIONS block may also be present (per-technology cost inputs, potentials,',
+  'efficiencies) — use it to critique the assumptions behind the result, not just the outcome.',
   '',
   'Rules:',
-  '- Ground every statement in the provided data. The SUMMARY aggregates are authoritative;',
-  '  use them for totals and shares rather than re-deriving from raw JSON.',
+  '- Ground every statement in the provided data. The SUMMARY aggregates and its "Diagnostics',
+  '  & flags" / "Binding constraints" sections are authoritative; use them for totals, shares,',
+  '  and reasoning rather than re-deriving from raw JSON.',
   '- Be concrete and quantitative. Cite specific numbers with units (MW, MWh, €, %) and name',
   '  the actual technologies and locations from THIS run — never generic placeholders.',
   '- Explain WHY the solver made a choice (economics, capacity factors, costs, constraints),',
@@ -28,12 +32,13 @@ export const SYSTEM_PROMPT = [
   '- Use clear markdown: short paragraphs, ## headings, - bullets. Lead with the answer.',
 ].join('\n');
 
-/** Wrap the summary + raw context into the shared grounding block. */
-function groundingBlock(summary, contextJson, modelName) {
+/** Wrap the summary + optional input assumptions + raw context into the shared grounding block. */
+function groundingBlock(summary, contextJson, modelName, inputsDigest) {
   return [
     `Model: ${modelName || 'unnamed model'}`,
     '',
     summary || '(no summary available)',
+    ...(inputsDigest ? ['', inputsDigest] : []),
     '',
     'Raw result JSON (for drill-down; may be downsampled/capped):',
     '```json',
@@ -44,16 +49,17 @@ function groundingBlock(summary, contextJson, modelName) {
 
 /**
  * Messages for the one-shot structured report.
- * @param {string} summary      pre-computed digest (from aiContext.summarizeResult)
- * @param {string} contextJson  serialized raw result context
+ * @param {string} summary       pre-computed digest (from aiContext.summarizeResult)
+ * @param {string} contextJson   serialized raw result context
  * @param {string} modelName
+ * @param {string} [inputsDigest] slim model-input assumptions (from aiContext.summarizeModelInputs)
  */
-export function buildReportMessages(summary, contextJson, modelName) {
+export function buildReportMessages(summary, contextJson, modelName, inputsDigest) {
   return [
     {
       role: 'user',
       content: [
-        groundingBlock(summary, contextJson, modelName),
+        groundingBlock(summary, contextJson, modelName, inputsDigest),
         '',
         'Write a detailed, specific analysis of THIS result with exactly these sections:',
         '',
@@ -68,9 +74,14 @@ export function buildReportMessages(summary, contextJson, modelName) {
         'or surprises. Reference concrete figures throughout.',
         '',
         '## Recommendations',
-        'Specific, actionable next steps for this model: sensitivities worth testing, likely',
-        'bottlenecks or over/under-build, and inputs or assumptions to double-check. Tie each',
-        'recommendation to something you observed in the data.',
+        'Specific, actionable next steps grounded in the diagnostics. Prioritise: binding',
+        'constraints worth relaxing (name the constraint and its shadow price), technologies',
+        'flagged as over- or under-built (cite the capacity factor), adequacy gaps (unmet demand',
+        'or oversupply/curtailment), and technologies the solver left unbuilt (say why, and what',
+        'input would change that). Where the input assumptions block is available, cite the specific',
+        'input param (e.g. energy_cap_max, energy_cap cost, resource) that drives the result and is',
+        'worth revisiting. For EACH recommendation, name the specific metric or flag that motivates',
+        'it and the concrete sensitivity or input to change. No generic energy advice.',
       ].join('\n'),
     },
   ];
@@ -84,8 +95,9 @@ export function buildReportMessages(summary, contextJson, modelName) {
  * @param {string} modelName
  * @param {Array<{role:'user'|'assistant',content:string}>} history
  * @param {string} question
+ * @param {string} [inputsDigest] slim model-input assumptions (from aiContext.summarizeModelInputs)
  */
-export function buildChatMessages(summary, contextJson, modelName, history, question) {
+export function buildChatMessages(summary, contextJson, modelName, history, question, inputsDigest) {
   return [
     {
       role: 'user',
@@ -93,7 +105,7 @@ export function buildChatMessages(summary, contextJson, modelName, history, ques
         'You will answer questions about a specific optimization result. Base answers strictly on',
         'the data below and cite concrete numbers, technologies and locations from it.',
         '',
-        groundingBlock(summary, contextJson, modelName),
+        groundingBlock(summary, contextJson, modelName, inputsDigest),
       ].join('\n'),
     },
     { role: 'assistant', content: 'Understood — I have this run\'s summary and raw results in front of me. What would you like to know?' },

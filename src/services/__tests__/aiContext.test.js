@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildResultContext, buildResultContextString, summarizeResult, estimateTokens } from '../aiContext.js';
+import { buildResultContext, buildResultContextString, summarizeResult, summarizeModelInputs, estimateTokens } from '../aiContext.js';
 
 const makeResult = () => ({
   framework: 'calliope',
@@ -132,5 +132,83 @@ describe('summarizeResult', () => {
   it('reports demand peak/mean', () => {
     const s = summarizeResult(makeResult());
     expect(s).toMatch(/Peak demand: 5/);
+  });
+
+  it('summarizes binding constraints from non-zero shadow prices', () => {
+    const s = summarizeResult(makeResult());
+    expect(s).toMatch(/Binding constraints/);
+    expect(s).toMatch(/electricity::A/);
+  });
+
+  it('flags available-but-unbuilt technologies from tech_metadata', () => {
+    const r = makeResult();
+    r.tech_metadata = { solar: { parent: 'supply' }, nuclear: { parent: 'supply' } };
+    const s = summarizeResult(r);
+    expect(s).toMatch(/Diagnostics & flags/);
+    expect(s).toMatch(/Available but not built:.*nuclear/);
+  });
+
+  it('flags a low-capacity-factor supply technology (over-build/curtailment)', () => {
+    const r = makeResult();
+    // wind: 50 MW over 4h = 200 MWh potential, but generates only 8 → 4% CF
+    r.capacities = { 'A::wind': 50 };
+    r.generation = { 'A::wind': 8 };
+    const s = summarizeResult(r);
+    expect(s).toMatch(/wind: 4% capacity factor/);
+  });
+
+  it('exempts storage from capacity-factor flags', () => {
+    const r = makeResult();
+    r.capacities = { 'A::battery_storage': 50 };
+    r.generation = { 'A::battery_storage': 8 };
+    const s = summarizeResult(r);
+    expect(s).not.toMatch(/battery_storage: .* capacity factor/);
+  });
+});
+
+describe('summarizeModelInputs', () => {
+  const makeModel = () => ({
+    technologies: [
+      {
+        id: 'solar', essentials: { parent: 'supply', carrier_out: 'electricity' },
+        constraints: { energy_cap_max: 500, resource: 'file=solar.csv:A' },
+        costs: { monetary: { energy_cap: 1200, om_annual: 30 } },
+      },
+      {
+        id: 'gas', essentials: { parent: 'supply', carrier_out: 'electricity' },
+        constraints: { lifetime: 25 },
+        costs: { monetary: { energy_cap: 600, om_prod: 40 } },
+      },
+    ],
+    locations: [{ name: 'A', techs: { solar: { constraints: { energy_cap_max: 100 } } } }],
+    links: [{ from: 'A', to: 'B' }],
+  });
+
+  it('returns empty string for missing/empty model', () => {
+    expect(summarizeModelInputs(null)).toBe('');
+    expect(summarizeModelInputs({})).toBe('');
+    expect(summarizeModelInputs({ technologies: [], locations: [], links: [] })).toBe('');
+  });
+
+  it('emits scale, per-tech costs and constraints, and collapses timeseries refs', () => {
+    const s = summarizeModelInputs(makeModel());
+    expect(s).toMatch(/Technologies defined: 2/);
+    expect(s).toMatch(/Locations: 1/);
+    expect(s).toMatch(/Links: 1/);
+    expect(s).toMatch(/Location-specific technology overrides: 1/);
+    expect(s).toMatch(/solar \(supply, electricity\):/);
+    expect(s).toMatch(/costs energy_cap=1200 om_annual=30/);
+    expect(s).toMatch(/constraints energy_cap_max=500/);
+    // file/timeseries refs collapsed, not dumped verbatim
+    expect(s).toMatch(/resource=timeseries/);
+    expect(s).not.toMatch(/solar\.csv/);
+  });
+
+  it('truncates the tech list at maxTechs', () => {
+    const many = { technologies: Array.from({ length: 5 }, (_, i) => ({ id: `t${i}`, constraints: { energy_cap_max: i } })) };
+    const s = summarizeModelInputs(many, { maxTechs: 2 });
+    expect(s).toMatch(/first 2 of 5/);
+    expect(s).toMatch(/t0/);
+    expect(s).not.toMatch(/\bt4\b/);
   });
 });

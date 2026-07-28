@@ -19,6 +19,17 @@ describe('buildReportMessages', () => {
     expect(msg.content).toContain('## Key decisions the solver made');
     expect(msg.content).toContain('## Recommendations');
   });
+
+  it('embeds the optional model inputs digest when provided', () => {
+    const [msg] = buildReportMessages('SUM', '{"objective":1}', 'M', '# Model input assumptions\n- solar: costs energy_cap=1200');
+    expect(msg.content).toContain('Model input assumptions');
+    expect(msg.content).toContain('energy_cap=1200');
+  });
+
+  it('omits the inputs digest cleanly when absent', () => {
+    const [msg] = buildReportMessages('SUM', '{"objective":1}', 'M');
+    expect(msg.content).not.toContain('Model input assumptions');
+  });
 });
 
 describe('buildChatMessages', () => {

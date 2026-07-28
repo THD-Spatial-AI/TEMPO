@@ -31,6 +31,21 @@ function extractErrorMessage(text) {
   }
 }
 
+/** Map an HTTP status to a short, human hint (null when nothing useful to add). */
+function statusHint(status) {
+  if (status === 401 || status === 403) return 'authentication failed — check your API key';
+  if (status === 404) return 'not found — check the model id and (for compatible endpoints) the base URL';
+  if (status === 429) return 'rate limit or quota exceeded — wait and retry, or check your plan/billing';
+  if (status >= 500) return 'the provider had a server error — try again shortly';
+  return null;
+}
+
+/** Shared HTTP-error formatter: "<label> error (HTTP 429) — <hint>: <detail>". */
+function formatHttpError(label, status, text) {
+  const hint = statusHint(status);
+  return `${label} error (HTTP ${status})${hint ? ` — ${hint}` : ''}: ${extractErrorMessage(text)}`;
+}
+
 const ADAPTERS = {
   // ── Anthropic (Claude) — Messages API ──────────────────────────────────
   anthropic: {
@@ -62,7 +77,7 @@ const ADAPTERS = {
       return null;
     },
     parseError(status, text) {
-      return `Anthropic API error (HTTP ${status}): ${extractErrorMessage(text)}`;
+      return formatHttpError('Anthropic API', status, text);
     },
   },
 
@@ -84,12 +99,21 @@ const ADAPTERS = {
       };
     },
     parseDelta(json) {
-      const parts = json?.candidates?.[0]?.content?.parts;
-      if (Array.isArray(parts)) return parts.map((p) => p.text || '').join('');
-      return null;
+      // A blocked prompt or a non-STOP finish returns no text — surface it
+      // instead of silently ending the stream with an empty report.
+      const block = json?.promptFeedback?.blockReason;
+      if (block) throw new Error(`Gemini blocked the request (${block}). Try rephrasing or reducing the data sent.`);
+      const cand = json?.candidates?.[0];
+      const parts = cand?.content?.parts;
+      const text = Array.isArray(parts) ? parts.map((p) => p.text || '').join('') : '';
+      const finish = cand?.finishReason;
+      if (!text && finish && finish !== 'STOP' && finish !== 'MAX_TOKENS') {
+        throw new Error(`Gemini stopped without returning text (finishReason: ${finish}).`);
+      }
+      return text || null;
     },
     parseError(status, text) {
-      return `Gemini API error (HTTP ${status}): ${extractErrorMessage(text)}`;
+      return formatHttpError('Gemini API', status, text);
     },
   },
 
@@ -112,7 +136,7 @@ const ADAPTERS = {
       return typeof delta === 'string' ? delta : null;
     },
     parseError(status, text) {
-      return `OpenAI API error (HTTP ${status}): ${extractErrorMessage(text)}`;
+      return formatHttpError('OpenAI API', status, text);
     },
   },
 };
@@ -123,7 +147,7 @@ ADAPTERS.compatible = {
   buildRequest: ADAPTERS.openai.buildRequest,
   parseDelta: ADAPTERS.openai.parseDelta,
   parseError(status, text) {
-    return `AI endpoint error (HTTP ${status}): ${extractErrorMessage(text)}`;
+    return formatHttpError('AI endpoint', status, text);
   },
 };
 
@@ -143,9 +167,14 @@ const AI_PROVIDERS = Object.keys(ADAPTERS);
  * @param {Array<{role:string,content:string}>} o.messages
  * @param {number}   [o.maxTokens=2048]
  * @param {AbortSignal} [o.signal]
+ * @param {number}   [o.connectTimeoutMs=30000]  max wait for the first response
+ * @param {number}   [o.idleTimeoutMs=60000]     max gap between stream chunks
  * @param {(text:string)=>void} o.onDelta
  */
-async function streamChat({ provider, baseUrl, apiKey, model, system, messages, maxTokens = 2048, signal, onDelta }) {
+async function streamChat({
+  provider, baseUrl, apiKey, model, system, messages, maxTokens = 2048, signal, onDelta,
+  connectTimeoutMs = 30000, idleTimeoutMs = 60000,
+}) {
   const adapter = ADAPTERS[provider];
   if (!adapter) throw new Error(`Unknown AI provider: ${provider}`);
   if (provider === 'compatible' && !stripTrailingSlash(baseUrl)) {
@@ -154,51 +183,93 @@ async function streamChat({ provider, baseUrl, apiKey, model, system, messages, 
 
   const req = adapter.buildRequest({ baseUrl, apiKey, model, system, messages, maxTokens });
 
+  // One internal controller drives the whole request. It is aborted by the
+  // caller's signal (user cancel), a connect timeout (no first byte), or an
+  // idle timeout (stream stalls). `abortReason` lets us turn each into the
+  // right message — a timeout must surface as an error, not a silent cancel.
+  const ctrl = new AbortController();
+  let abortReason = null; // 'user' | 'connect' | 'idle'
+  const onExternalAbort = () => { if (!abortReason) abortReason = 'user'; ctrl.abort(); };
+  if (signal) {
+    if (signal.aborted) onExternalAbort();
+    else signal.addEventListener('abort', onExternalAbort, { once: true });
+  }
+  const cleanup = () => signal?.removeEventListener('abort', onExternalAbort);
+
+  let connectTimer = setTimeout(() => { abortReason = 'connect'; ctrl.abort(); }, connectTimeoutMs);
+
   let res;
   try {
     res = await fetch(req.url, {
       method: 'POST',
       headers: req.headers,
       body: JSON.stringify(req.body),
-      signal,
+      signal: ctrl.signal,
     });
   } catch (err) {
-    if (err?.name === 'AbortError') throw err;
+    clearTimeout(connectTimer);
+    cleanup();
+    if (abortReason === 'connect') throw new Error(`The AI provider did not respond within ${connectTimeoutMs / 1000}s. Check your connection, base URL, or model id.`);
+    if (abortReason === 'user' || err?.name === 'AbortError') throw err;
     throw new Error(`Could not reach the AI provider: ${err.message}`);
   }
+  clearTimeout(connectTimer); // response headers received
 
   if (!res.ok) {
     const text = await res.text().catch(() => '');
+    cleanup();
     throw new Error(adapter.parseError(res.status, text));
   }
-  if (!res.body) throw new Error('AI provider returned an empty response stream.');
+  if (!res.body) { cleanup(); throw new Error('AI provider returned an empty response stream.'); }
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buf = '';
+  let sawText = false;
 
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buf += decoder.decode(value, { stream: true });
+  let idleTimer;
+  const resetIdle = () => {
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => { abortReason = 'idle'; ctrl.abort(); }, idleTimeoutMs);
+  };
 
-    let nl;
-    while ((nl = buf.indexOf('\n')) >= 0) {
-      const line = buf.slice(0, nl).trim();
-      buf = buf.slice(nl + 1);
-      if (!line.startsWith('data:')) continue;
-      const data = line.slice(5).trim();
-      if (data === '[DONE]') return;
-      let json;
-      try {
-        json = JSON.parse(data);
-      } catch {
-        continue; // partial / keep-alive frame
+  try {
+    resetIdle();
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      resetIdle();
+      buf += decoder.decode(value, { stream: true });
+
+      let nl;
+      while ((nl = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, nl).trim();
+        buf = buf.slice(nl + 1);
+        if (!line.startsWith('data:')) continue;
+        const data = line.slice(5).trim();
+        if (data === '[DONE]') { clearTimeout(idleTimer); cleanup(); return; }
+        let json;
+        try {
+          json = JSON.parse(data);
+        } catch {
+          continue; // partial / keep-alive frame
+        }
+        const text = adapter.parseDelta(json); // may throw (blocked/finish reasons)
+        if (text) { sawText = true; onDelta(text); }
       }
-      const text = adapter.parseDelta(json);
-      if (text) onDelta(text);
     }
+  } catch (err) {
+    if (abortReason === 'idle') throw new Error(`The AI provider stopped responding (no data for ${idleTimeoutMs / 1000}s).`);
+    if (abortReason === 'user' || err?.name === 'AbortError') throw err;
+    throw err;
+  } finally {
+    clearTimeout(idleTimer);
+    cleanup();
   }
+
+  // Stream ended cleanly but produced nothing — a blocked/filtered/empty reply
+  // that would otherwise render as a blank report with no explanation.
+  if (!sawText) throw new Error('The AI provider returned an empty response. This can be a content filter, an unsupported model id, or a token limit — try another model or reduce the data sent.');
 }
 
 module.exports = { streamChat, AI_PROVIDERS, ADAPTERS };
