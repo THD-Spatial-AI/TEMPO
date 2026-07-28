@@ -20,6 +20,8 @@ const EQUALS_PARAMS = mapping.equals_params;   // 0.6 X_equals → [min, max]
 const COST_PARAMS = mapping.cost_params;       // 0.6 cost key → 0.7 cost_*
 const BASE_TECH = mapping.base_tech;           // 0.6 parent → {base_tech, extra}
 const MODE_MAP = mapping.mode_map;             // 0.6 plan → 0.7 base
+// 0.7-native params with no 0.6 equivalent — kept verbatim across the round-trip.
+const PASSTHROUGH_07 = new Set((mapping.passthrough_07?.params) || []);
 
 // 0.6 keys that are deprecated aliases — excluded when building the
 // 0.7 → 0.6 inverse so the canonical name wins.
@@ -44,6 +46,131 @@ const SOURCE_SINK_INV = {
   source_use_equals: { param: 'resource', force: true, sign: 1 },
   source_use_max: { param: 'resource', force: false, sign: 1 },
 };
+
+// Dimension names Calliope has used for the "which parameter" axis of a data
+// table: 'parameters' (0.7.0.dev, what TEMPO's engine expects) and 'inputs'
+// (0.7.0 release). Accept either on import.
+const PARAM_DIMS = new Set(['inputs', 'parameters']);
+
+/** The parameter a data table assigns, from add_dims.inputs or add_dims.parameters. */
+function paramDimValue(addDims) {
+  if (typeof addDims.inputs === 'string') return addDims.inputs;
+  if (typeof addDims.parameters === 'string') return addDims.parameters;
+  return null;
+}
+
+/** Rename an 'inputs' add_dims key to 'parameters' (the dim TEMPO's engine uses). */
+function normalizeAddDims(addDims) {
+  const out = {};
+  for (const [k, v] of Object.entries(addDims || {})) {
+    out[k === 'inputs' ? 'parameters' : k] = v;
+  }
+  return out;
+}
+
+/**
+ * Some 0.7 overrides swap timeseries by embedding their own `data_tables`
+ * block (e.g. per-scenario PV/heat profiles). These use 0.7.0-release keys
+ * (`table:`/`inputs:`) and reference CSVs the base model never loads. Rewrite
+ * them in place to the engine's keys (`data:`/`parameters:`), point them at the
+ * config dir, and load the referenced CSVs so they exist at run time.
+ */
+function normalizeOverrideDataTables(overrides, filesMap, timeSeries, locations, log) {
+  const haveFile = new Map(timeSeries.map(t => [t.fileName, t]));
+  const findLoc = (name) => locations.find(l => l.name === name
+    || safeId(l.name).toLowerCase() === safeId(name).toLowerCase());
+
+  const loadCsv = (csvPath) => {
+    const csvName = String(csvPath).split('/').pop();
+    const existing = haveFile.get(csvName);
+    if (existing) return { csvName, dataCols: existing.dataColumns || [] };
+    const content = filesMap.get(String(csvPath).replace(/\\/g, '/')) ?? filesMap.get(csvName) ?? null;
+    if (!content) { log.push(`⚠ override data table CSV not available: ${csvPath}`); return { csvName, dataCols: [] }; }
+    const rows = content.trim().split(/\r?\n/);
+    const rawCols = (rows[0] || '').split(',');
+    const allCols = rawCols.map((c, i) => (i === 0 && c === '') ? 'time' : c.trim());
+    const dataCols = allCols.slice(1);
+    const rowData = rows.slice(1).map(line => {
+      const vals = line.split(',');
+      const o = {};
+      allCols.forEach((c, i) => { const v = (vals[i] ?? '').trim(); o[c] = v !== '' && !isNaN(v) ? Number(v) : v; });
+      return o;
+    });
+    const entry = {
+      id: 'ts_' + csvName.replace('.csv', '') + '_' + Date.now(),
+      name: csvName.replace('.csv', ''), fileName: csvName, file: csvName,
+      data: rowData, columns: allCols, dateColumn: allCols[0] || 'time',
+      dataColumns: dataCols, rowCount: rowData.length,
+      type: 'resource', source: 'calliope_yaml_override',
+    };
+    timeSeries.push(entry);
+    haveFile.set(csvName, entry);
+    log.push(`Loaded override CSV: ${csvName}`);
+    return { csvName, dataCols };
+  };
+
+  const baseRefCsv = (loc, tech) => {
+    const c = loc?.techs?.[tech] && typeof loc.techs[tech] === 'object' ? loc.techs[tech].constraints : null;
+    const ref = c && typeof c.resource === 'string' && c.resource.startsWith('file=') ? c.resource : null;
+    return ref ? ref.slice('file='.length).split(':')[0] : null;
+  };
+  const clearBaseRef = (loc, tech) => {
+    const c = loc.techs[tech].constraints;
+    delete c.resource; delete c.force_resource;
+    log.push(`Override supersedes base timeseries for ${loc.name}.${tech}`);
+  };
+
+  const walk = (parent) => {
+    if (!parent || typeof parent !== 'object' || Array.isArray(parent)) return;
+    const tables = parent.data_tables;
+    if (tables && typeof tables === 'object') {
+      for (const [tblName, tbl] of Object.entries(tables)) {
+        if (!tbl || typeof tbl !== 'object') continue;
+        const path = tbl.table || tbl.data || tbl.source;
+        let dataCols = [], csvName = null;
+        if (path) {
+          const res = loadCsv(path);
+          dataCols = res.dataCols; csvName = res.csvName;
+          delete tbl.table; delete tbl.source;
+          tbl.data = `model_config/${res.csvName}`;
+        }
+        if (tbl.add_dims && typeof tbl.add_dims === 'object') tbl.add_dims = normalizeAddDims(tbl.add_dims);
+
+        // Resolve the (loc, tech) pairs this table targets.
+        const cols = String(tbl.columns || '').toLowerCase();
+        const scalarNode = typeof tbl.add_dims?.nodes === 'string' ? tbl.add_dims.nodes : null;
+        const scalarTech = typeof tbl.add_dims?.techs === 'string' ? tbl.add_dims.techs : null;
+        const pairs = [];
+        if (cols === 'techs') {
+          for (const tech of dataCols) {
+            const targets = scalarNode ? [findLoc(scalarNode)].filter(Boolean)
+              : locations.filter(l => tech in (l.techs || {}));
+            for (const loc of targets) pairs.push([loc, tech]);
+          }
+        } else if (scalarTech) {
+          for (const col of dataCols) { const loc = findLoc(col); if (loc) pairs.push([loc, scalarTech]); }
+        }
+
+        // Redundant if every target's base file-ref already uses this same CSV —
+        // then the base already provides it; drop the override table so we don't
+        // double up (or trigger the runner's synthetic demand fallback).
+        const withBase = pairs.filter(([loc, tech]) => baseRefCsv(loc, tech));
+        const redundant = withBase.length > 0
+          && withBase.every(([loc, tech]) => baseRefCsv(loc, tech) === csvName);
+        if (redundant) {
+          delete tables[tblName];
+          log.push(`Dropped redundant override data table '${tblName}' (base already loads ${csvName})`);
+        } else {
+          // Genuine supersede: clear any base ref so the override owns it.
+          for (const [loc, tech] of withBase) clearBaseRef(loc, tech);
+        }
+      }
+      if (!Object.keys(tables).length) delete parent.data_tables;
+    }
+    for (const v of Object.values(parent)) if (v && typeof v === 'object') walk(v);
+  };
+  for (const ov of Object.values(overrides || {})) walk(ov);
+}
 
 function safeId(name) {
   let s = String(name ?? '').trim();
@@ -92,16 +219,19 @@ function resolveTemplate(entity, templates, seen = new Set()) {
   return { ...base, ...rest };
 }
 
-/** Unwrap a 0.7 cost value: {data, index: monetary, dims: costs} → number. */
-function unwrapCost(val, log, ctx) {
+// Sentinel wrapping a 0.7 cost that can't collapse to a monetary scalar
+// (carrier-indexed / multi-dimensioned) — carried through verbatim.
+const RAW07 = Symbol('raw07');
+
+/** Unwrap a 0.7 cost value: {data, index: monetary, dims: costs} → number.
+ * Carrier/multi-indexed costs are returned as { [RAW07]: original } so the
+ * caller can preserve them instead of dropping them. */
+function unwrapCost(val) {
   if (val && typeof val === 'object' && 'data' in val) {
     const idx = val.index;
     const isMonetary = idx == null || idx === 'monetary'
       || (Array.isArray(idx) && idx.length === 1 && idx[0] === 'monetary');
-    if (!isMonetary) {
-      log.push(`⚠ ${ctx}: non-monetary cost index ${JSON.stringify(idx)} dropped`);
-      return null;
-    }
+    if (!isMonetary) return { [RAW07]: val };
     if (Array.isArray(val.data)) return val.data[0];
     return val.data;
   }
@@ -115,6 +245,7 @@ function unwrapCost(val, log, ctx) {
 function paramsToInternal(params, log, ctx) {
   const constraints = {};
   const costs = {};
+  const rawCosts07 = {};  // carrier/multi-indexed 0.7 costs kept verbatim (keyed by 0.7 name)
   const fileRefs = {};   // param values like 'file=x.csv:col' pass through as resource refs
 
   for (const [key, raw] of Object.entries(params || {})) {
@@ -131,12 +262,23 @@ function paramsToInternal(params, log, ctx) {
       continue;
     }
     if (key in COST_PARAMS_INV) {
-      const v = unwrapCost(raw, log, `${ctx}.${key}`);
-      if (v != null) costs[COST_PARAMS_INV[key]] = v;
+      const v = unwrapCost(raw);
+      if (v && typeof v === 'object' && RAW07 in v) {
+        rawCosts07[key] = v[RAW07];   // e.g. carrier-indexed heat-pump cost_flow_cap
+        log.push(`ℹ ${ctx}: cost '${key}' is carrier/multi-indexed — kept verbatim for Calliope 0.7`);
+      } else if (v != null) {
+        costs[COST_PARAMS_INV[key]] = v;
+      }
       continue;
     }
     if (key in TECH_PARAMS_INV) {
       constraints[TECH_PARAMS_INV[key]] = raw;
+      continue;
+    }
+    if (PASSTHROUGH_07.has(key)) {
+      // 0.7-native param with no 0.6 equivalent — keep verbatim so the run
+      // path (calliope07_translate) re-emits it unchanged.
+      constraints[key] = raw;
       continue;
     }
     if (key.startsWith('cost_')) {
@@ -146,11 +288,23 @@ function paramsToInternal(params, log, ctx) {
     log.push(`⚠ ${ctx}: 0.7 parameter '${key}' has no internal equivalent — dropped`);
   }
 
-  return { constraints, costs, fileRefs };
+  return { constraints, costs, rawCosts07, fileRefs };
 }
 
+/** Build the internal costs object, adding a `__raw07__` class for verbatim
+ * 0.7 costs that don't reduce to a monetary scalar. */
+function buildCosts(costs, rawCosts07) {
+  const out = {};
+  if (Object.keys(costs).length) out.monetary = costs;
+  if (rawCosts07 && Object.keys(rawCosts07).length) out.__raw07__ = rawCosts07;
+  return out;
+}
+
+// Structural keys handled outside paramsToInternal. `one_way` is intentionally
+// NOT here: it must survive as a constraint (via the identity tech_params
+// mapping) so directional transmission links stay one-way on export/run.
 const TECH_META_KEYS = new Set(['base_tech', 'name', 'color', 'carrier_in', 'carrier_out',
-  'carrier_export', 'template', 'link_from', 'link_to', 'distance', 'one_way',
+  'carrier_export', 'template', 'link_from', 'link_to', 'distance',
   'include_storage', 'active']);
 
 /** One flat 0.7 tech → internal tech shape (essentials/constraints/costs). */
@@ -166,7 +320,7 @@ function techToInternal(id, tech07, log) {
   for (const [k, v] of Object.entries(tech07)) {
     if (!TECH_META_KEYS.has(k)) params[k] = v;
   }
-  const { constraints, costs, fileRefs } = paramsToInternal(params, log, id);
+  const { constraints, costs, rawCosts07, fileRefs } = paramsToInternal(params, log, id);
   for (const [param, ref] of Object.entries(fileRefs)) constraints[param] = ref;
 
   return {
@@ -186,7 +340,7 @@ function techToInternal(id, tech07, log) {
       ...(tech07.carrier_export != null ? { export_carrier: tech07.carrier_export } : {}),
     },
     constraints,
-    costs: Object.keys(costs).length ? { monetary: costs } : {},
+    costs: buildCosts(costs, rawCosts07),
   };
 }
 
@@ -249,16 +403,20 @@ export function from07ToInternal(doc, filesMap, papa) {
     for (const [tid, tcfg] of Object.entries(node.techs || {})) {
       if (linkTechDefs.has(tid)) continue; // 0.7 does not put link techs on nodes, but be safe
       if (tcfg && typeof tcfg === 'object') {
-        const { constraints, costs, fileRefs } = paramsToInternal(tcfg, log, `${name}.${tid}`);
+        const { constraints, costs, rawCosts07, fileRefs } = paramsToInternal(tcfg, log, `${name}.${tid}`);
         for (const [param, ref] of Object.entries(fileRefs)) constraints[param] = ref;
-        techs[tid] = Object.keys(constraints).length || Object.keys(costs).length
-          ? { constraints, ...(Object.keys(costs).length ? { costs: { monetary: costs } } : {}) }
+        const costObj = buildCosts(costs, rawCosts07);
+        techs[tid] = Object.keys(constraints).length || Object.keys(costObj).length
+          ? { constraints, ...(Object.keys(costObj).length ? { costs: costObj } : {}) }
           : null;
       } else {
         techs[tid] = null;
       }
     }
-    return { name, latitude: lat, longitude: lon, lat, lon, type: 'site', techs };
+    const loc = { name, latitude: lat, longitude: lon, lat, lon, type: 'site', techs };
+    // 0.7 node-level land-availability constraint (used by area_use_per_flow_cap).
+    if (node.available_area != null) loc.available_area = node.available_area;
+    return loc;
   });
   log.push(`Found ${locations.length} locations`);
 
@@ -283,12 +441,61 @@ export function from07ToInternal(doc, filesMap, papa) {
     solver_options: solve.solver_options || {},
   };
 
+  // ── Custom math (config.init.math_paths / extra_math) ─────────────────────
+  // 0.7 names math modules in `math_paths: {name: file}`. Names also listed in
+  // `extra_math` apply to every tech unconditionally; names NOT listed are
+  // conditional — activated per-tech via `<name>_active` (used by scenarios).
+  // We preserve this structure so conditional calibration math only applies in
+  // the scenarios that switch it on, rather than forcing it everywhere.
+  const mathPaths = init.math_paths && typeof init.math_paths === 'object' ? init.math_paths : {};
+  const extraMathNames = new Set(
+    (Array.isArray(init.extra_math) ? init.extra_math : []).filter(x => typeof x === 'string'));
+  const resolveMathText = (ref) => {
+    const base = String(ref).split('/').pop();
+    const withExt = /\.(ya?ml)$/i.test(base) ? base : `${base}.yaml`;
+    return filesMap.get(String(ref).replace(/\\/g, '/'))
+      ?? filesMap.get(base) ?? filesMap.get(withExt) ?? null;
+  };
+  const mathModules = [];   // [{ name, filename, text, unconditional }]
+  const seenMath = new Set();
+  for (const [mname, mpath] of Object.entries(mathPaths)) {
+    if (typeof mpath !== 'string') continue;
+    const text = resolveMathText(mpath);
+    seenMath.add(mname);
+    if (text) {
+      const unconditional = extraMathNames.has(mname);
+      mathModules.push({ name: mname, filename: mpath.split('/').pop(), text, unconditional });
+      log.push(`Loaded custom math '${mname}' (${unconditional ? 'applied to all techs' : 'conditional'})`);
+    } else {
+      log.push(`⚠ Custom math file not available: ${mpath}`);
+    }
+  }
+  // extra_math entries that are direct file paths, not names defined in math_paths
+  for (const entry of extraMathNames) {
+    if (seenMath.has(entry)) continue;
+    const text = resolveMathText(entry);
+    if (text) {
+      const base = String(entry).split('/').pop().replace(/\.(ya?ml)$/i, '');
+      mathModules.push({ name: base, filename: `${base}.yaml`, text, unconditional: true });
+      log.push(`Loaded custom math (extra_math): ${entry}`);
+    }
+  }
+
+  // ── Top-level parameters (0.7 `parameters` / `data_definitions`) ──────────
+  const modelParameters = { ...(doc.parameters || {}), ...(doc.data_definitions || {}) };
+  if (Object.keys(modelParameters).length) {
+    log.push(`Found ${Object.keys(modelParameters).length} top-level parameter definition(s)`);
+  }
+
   // ── Data tables → timeSeries + per-location file= refs ───────────────────
+  const knownTechIds = new Set(technologies.map(t => t.name));
   const timeSeries = [];
   const tables = doc.data_tables || doc.data_sources || {};
   for (const [tableId, rawTable] of Object.entries(tables)) {
     const table = rawTable || {};
-    const csvPath = table.data || table.source;
+    // File-path key drifted across 0.7 versions: `data` (0.7.0.dev, what TEMPO's
+    // engine writes), `table` (0.7.0 release), `source` (old data_sources).
+    const csvPath = table.data || table.table || table.source;
     if (!csvPath) continue;
     const csvName = String(csvPath).split('/').pop();
     const content = filesMap.get(String(csvPath).replace(/\\/g, '/'))
@@ -299,13 +506,13 @@ export function from07ToInternal(doc, filesMap, papa) {
     }
 
     const addDims = table.add_dims || {};
-    const param07 = typeof addDims.parameters === 'string' ? addDims.parameters : null;
-    const techId = typeof addDims.techs === 'string' ? addDims.techs : null;
-    const isSink = !!param07 && param07.startsWith('sink');
+    const param07 = paramDimValue(addDims);                    // e.g. 'sink_use_equals'
     const inv = param07 ? SOURCE_SINK_INV[param07] : null;
-    if (param07 && !inv) {
-      log.push(`⚠ data table '${tableId}': parameter '${param07}' not supported — loaded as plain timeseries`);
-    }
+    const columnsDim = String(table.columns || '').toLowerCase();
+    const scalarNode = typeof addDims.nodes === 'string' ? addDims.nodes : null;
+    const scalarTech = typeof addDims.techs === 'string' ? addDims.techs : null;
+    const columnsAreParams = PARAM_DIMS.has(columnsDim);       // CSV columns hold parameter names
+    const isSink = !!param07 && param07.startsWith('sink');
 
     const parsed = papa.parse(content, { header: true, skipEmptyLines: true, dynamicTyping: true });
     const rawCols = parsed.meta.fields || [];
@@ -316,8 +523,10 @@ export function from07ToInternal(doc, filesMap, papa) {
     const dateCol = allCols[0] || 'time';
     const dataCols = allCols.slice(1);
 
-    // 0.7 demand values are positive; internal (0.6) convention is negative
-    if (isSink) {
+    // 0.7 demand values are positive; internal (0.6) convention is negative.
+    // Only flip columns that are actually injected as a sink resource — leave
+    // custom-parameter tables (columnsAreParams) untouched.
+    if (isSink && inv && !columnsAreParams) {
       rowData = rowData.map(row => {
         const out = { ...row };
         for (const c of dataCols) {
@@ -342,23 +551,68 @@ export function from07ToInternal(doc, filesMap, papa) {
       }
     });
 
+    // ── Link CSV columns to (node, tech) resource refs ──────────────────────
     const refs = [];
     const locationColumns = {};
-    if (inv && techId && table.columns === 'nodes') {
-      // Inject internal resource refs so the run path (either engine) finds them
+    let tsType = 'resource';
+    let dataTableConfig = null;
+
+    const findLoc = (name) =>
+      locations.find(l => l.name === name
+        || safeId(l.name).toLowerCase() === safeId(name).toLowerCase());
+
+    const injectRef = (loc, tId, column) => {
+      loc.techs[tId] = (loc.techs[tId] && typeof loc.techs[tId] === 'object') ? loc.techs[tId] : {};
+      loc.techs[tId].constraints = {
+        ...(loc.techs[tId].constraints || {}),
+        [inv.param]: `file=${csvName}:${column}`,
+        ...(inv.force ? { force_resource: true } : {}),
+      };
+      refs.push({ location: loc.name, tech: tId, param: inv.param, column });
+      locationColumns[loc.name] = column;
+    };
+
+    if (columnsAreParams) {
+      // CSV columns ARE parameter names (e.g. custom-math inputs). Preserve as a
+      // passthrough data table so the runner writes it and injects the named
+      // parameters directly. Normalise the param dim to 'parameters'.
+      tsType = 'data_table';
+      dataTableConfig = {
+        rows: table.rows || 'timesteps',
+        columns: 'parameters',
+        add_dims: normalizeAddDims(addDims),
+      };
+      log.push(`Data table '${tableId}': columns are parameters — kept as custom data table`);
+    } else if (inv && columnsDim === 'techs') {
+      // Each CSV column is a tech id. Node from add_dims.nodes (scalar) or, when
+      // absent, every location that hosts the tech.
       for (const col of dataCols) {
-        const loc = locations.find(l => l.name === col || safeId(l.name).toLowerCase() === String(col).toLowerCase());
-        if (!loc) continue;
-        loc.techs[techId] = loc.techs[techId] && typeof loc.techs[techId] === 'object'
-          ? loc.techs[techId] : {};
-        loc.techs[techId].constraints = {
-          ...(loc.techs[techId].constraints || {}),
-          [inv.param]: `file=${csvName}:${col}`,
-          ...(inv.force ? { force_resource: true } : {}),
-        };
-        refs.push({ location: loc.name, tech: techId, param: inv.param, column: col });
-        locationColumns[loc.name] = col;
+        const tId = String(col);
+        if (!knownTechIds.has(tId)) {
+          log.push(`⚠ data table '${tableId}': tech '${tId}' is not defined — column loaded but not linked`);
+          continue;
+        }
+        const targets = scalarNode
+          ? [findLoc(scalarNode)].filter(Boolean)
+          : locations.filter(l => tId in (l.techs || {}));
+        if (!targets.length) {
+          log.push(`⚠ data table '${tableId}': tech '${tId}' not found at any node — column loaded but not linked`);
+          continue;
+        }
+        for (const loc of targets) injectRef(loc, tId, col);
       }
+    } else if (inv && scalarTech && knownTechIds.has(scalarTech)) {
+      // Columns are nodes (default); the tech is fixed via add_dims.techs.
+      for (const col of dataCols) {
+        const loc = findLoc(col);
+        if (loc) injectRef(loc, scalarTech, col);
+      }
+    } else if (inv && scalarTech) {
+      log.push(`⚠ data table '${tableId}': tech '${scalarTech}' is not defined — loaded as plain timeseries`);
+    } else if (param07 && !inv) {
+      log.push(`⚠ data table '${tableId}': parameter '${param07}' not supported — loaded as plain timeseries`);
+    } else if (param07 && !scalarTech && columnsDim !== 'techs') {
+      log.push(`⚠ data table '${tableId}': no add_dims.techs and columns are nodes — loaded as plain timeseries`);
     }
 
     timeSeries.push({
@@ -374,7 +628,8 @@ export function from07ToInternal(doc, filesMap, papa) {
       statistics,
       locationColumns,
       refs,
-      type: 'resource',
+      type: tsType,
+      ...(dataTableConfig ? { dataTableConfig } : {}),
       source: 'calliope_yaml',
     });
     log.push(`Loaded CSV: ${csvName} (${dataCols.length} columns, ${rowData.length} rows)`);
@@ -385,6 +640,8 @@ export function from07ToInternal(doc, filesMap, papa) {
   const overrides = doc.overrides || {};
   const scenarios = doc.scenarios || {};
   if (Object.keys(overrides).length) {
+    // Normalise any override-embedded data_tables to engine keys + load their CSVs.
+    normalizeOverrideDataTables(overrides, filesMap, timeSeries, locations, log);
     log.push(`Found ${Object.keys(overrides).length} overrides (kept in 0.7 vocabulary)`);
   }
 
@@ -392,6 +649,11 @@ export function from07ToInternal(doc, filesMap, papa) {
     modelName, locations, links, technologies, timeSeries,
     runConfig, subsetTime, overrides, scenarios, log,
     calliopeVersion: '0.7.0',
+    mathModules,
+    modelParameters,
+    // Imported overrides are already in 0.7 vocabulary; the runner must apply
+    // them verbatim rather than re-translating from 0.6.
+    overridesFormat: '0.7',
   };
 }
 
@@ -446,6 +708,8 @@ function constraintsTo07(constraints, parent, log, ctx) {
       for (const target of EQUALS_PARAMS[key]) out[target] = val;
     } else if (key in TECH_PARAMS) {
       out[TECH_PARAMS[key]] = val;
+    } else if (PASSTHROUGH_07.has(key)) {
+      out[key] = val;   // 0.7-native param stored verbatim on import
     } else {
       log.push(`⚠ ${ctx}: parameter '${key}' has no Calliope 0.7 equivalent — dropped`);
     }
@@ -456,6 +720,11 @@ function constraintsTo07(constraints, parent, log, ctx) {
 function costsTo07(costs, log, ctx) {
   const out = {};
   for (const [costClass, vals] of Object.entries(costs || {})) {
+    if (costClass === '__raw07__') {
+      // Carrier/multi-indexed 0.7 costs preserved on import — emit verbatim.
+      if (vals && typeof vals === 'object') Object.assign(out, vals);
+      continue;
+    }
     if (costClass !== 'monetary') {
       log.push(`⚠ ${ctx}: cost class '${costClass}' dropped (0.7 export supports monetary only)`);
       continue;

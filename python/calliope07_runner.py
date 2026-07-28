@@ -923,21 +923,68 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
         model_doc['data_tables'] = data_tables
     if model_config_payload.get('cyclicStorage') is not None:
         log("[translate] model.cyclicStorage dropped — not supported in Calliope 0.7 (ignored)")
+
+    # Top-level parameter definitions (0.7 `parameters` / imported
+    # `data_definitions`, e.g. cost_interest_rate, objective_cost_weights).
+    # calliope 0.7.0.dev7's model-definition schema forbids a top-level
+    # `parameters:` block (extra_forbidden), so we cannot inject them there —
+    # the engine falls back to its built-in defaults. Captured in metadata for
+    # provenance; logged here so the drop is visible.
+    model_parameters = (meta.get('modelParameters')
+                        or model_config_payload.get('modelParameters') or {})
+    if isinstance(model_parameters, dict) and model_parameters:
+        log(f"  {len(model_parameters)} top-level parameter definition(s) not applied "
+            f"(unsupported by Calliope 0.7.0.dev7 schema): {', '.join(sorted(model_parameters))}")
+
     if overrides:
-        parent_by_tid = {}
-        for tech in technologies or []:
-            tid = translate.tech_id(tech)
-            ess = tech.get('essentials') or {}
-            parent_by_tid[tid] = ess.get('parent') or tech.get('parent') or 'supply'
-        ov_warnings: list[str] = []
-        model_doc['overrides'] = {
-            name: translate.translate_override_07(ov, parent_by_tid, ov_warnings, name)
-            for name, ov in overrides.items() if isinstance(ov, dict)
-        }
-        for w in ov_warnings:
-            log(f"  [translate] {w}")
+        # Imported native-0.7 models carry overrides already in 0.7 vocabulary
+        # (nodes.*, active, direct 0.7 params). Apply them verbatim; only
+        # TEMPO-authored (0.6-vocabulary) overrides need translation.
+        overrides_format = str(meta.get('overridesFormat')
+                               or model_config_payload.get('overridesFormat') or '')
+        if overrides_format.startswith('0.7'):
+            model_doc['overrides'] = {
+                name: ov for name, ov in overrides.items() if isinstance(ov, dict)
+            }
+            log(f"  Applied {len(model_doc['overrides'])} override(s) verbatim (native 0.7 vocabulary)")
+        else:
+            parent_by_tid = {}
+            for tech in technologies or []:
+                tid = translate.tech_id(tech)
+                ess = tech.get('essentials') or {}
+                parent_by_tid[tid] = ess.get('parent') or tech.get('parent') or 'supply'
+            ov_warnings: list[str] = []
+            model_doc['overrides'] = {
+                name: translate.translate_override_07(ov, parent_by_tid, ov_warnings, name)
+                for name, ov in overrides.items() if isinstance(ov, dict)
+            }
+            for w in ov_warnings:
+                log(f"  [translate] {w}")
     if scenarios:
         model_doc['scenarios'] = scenarios  # lists of override names — no renames needed
+
+    # Named math modules imported from a native 0.7 model (config.init.math_paths
+    # + extra_math). Preserved so conditionally-activated math (e.g. baseline
+    # calibration switched on by a scenario override) only applies where enabled.
+    math_modules = meta.get('mathModules') or model_config_payload.get('mathModules') or []
+    if isinstance(math_modules, list) and math_modules:
+        init_cfg = model_doc['config']['init']
+        math_paths = init_cfg.setdefault('math_paths', {})
+        extra_math = init_cfg.setdefault('extra_math', [])
+        for mod in math_modules:
+            if not isinstance(mod, dict) or not (mod.get('text') or '').strip():
+                continue
+            name = translate.safe_id(mod.get('name') or 'custom_math')
+            fname = f'math_{name}.yaml'
+            (config_dir / fname).write_text(mod['text'], encoding='utf-8')
+            math_paths[name] = f'model_config/{fname}'
+            if mod.get('unconditional'):
+                if name not in extra_math:
+                    extra_math.append(name)
+            log(f"  Math module '{name}' registered "
+                f"({'applied to all techs' if mod.get('unconditional') else 'conditional'})")
+        if not extra_math:
+            init_cfg.pop('extra_math')   # keep the doc clean when all are conditional
 
     custom_math_yaml = model_data.get('customMath') or ''
     if custom_math_yaml.strip():

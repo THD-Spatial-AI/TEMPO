@@ -103,5 +103,15 @@
     "plan": "base",
     "operate": "operate",
     "spores": "spores"
+  },
+
+  "passthrough_07": {
+    "_comment": "0.7-native tech parameters with no 0.6 equivalent. Kept verbatim through the internal round-trip: JS import stores them under the same key, JS export and Python translate_constraints re-emit them unchanged. Verified against the Calliope 0.7.0 reference model (thd_calliope_model).",
+    "params": [
+      "flow_in_eff",
+      "source_unit",
+      "sink_unit",
+      "cyclic_storage"
+    ]
   }
 }

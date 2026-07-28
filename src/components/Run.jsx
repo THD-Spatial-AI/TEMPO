@@ -162,6 +162,10 @@ const Run = ({ onNavigate }) => {
       ...(runCfg.mode               != null ? { mode:               runCfg.mode               } : {}),
       ...(runCfg.ensure_feasibility != null ? { ensureFeasibility:  !!runCfg.ensure_feasibility } : {}),
       ...(runCfg.cyclic_storage     != null ? { cyclicStorage:      !!runCfg.cyclic_storage     } : {}),
+      // Imported Calliope 0.7 models carry their engine version so the correct
+      // engine is preselected. (Imported named math travels via metadata.mathModules,
+      // not the customMath textarea, to preserve conditional activation.)
+      ...(meta.modelConfig?.calliopeVersion ? { calliopeVersion: meta.modelConfig.calliopeVersion } : {}),
     }));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedModel?.id]);

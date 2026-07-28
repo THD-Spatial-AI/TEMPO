@@ -29,6 +29,8 @@ BASE_TECH = _MAPPING["base_tech"]
 RESULT_VARS = _MAPPING["result_vars"]
 DROPPED_PARAMS = set(_MAPPING["dropped_params"])
 MODE_MAP = _MAPPING["mode_map"]
+# 0.7-native params with no 0.6 equivalent — re-emitted verbatim.
+PASSTHROUGH_07 = set((_MAPPING.get("passthrough_07") or {}).get("params") or [])
 
 # 0.6 pseudo-techs that mark grid topology, not real Calliope technologies
 # (mirrors _HUB_LABELS in calliope_runner.py)
@@ -125,6 +127,8 @@ def translate_constraints(constraints: dict, parent: str, warnings: list,
                 out[target] = val
         elif key in TECH_PARAMS:
             out[TECH_PARAMS[key]] = val
+        elif key in PASSTHROUGH_07:
+            out[key] = val   # 0.7-native param kept verbatim on import
         elif key in DROPPED_PARAMS:
             warnings.append(f"{tech_name}: parameter '{key}' has no Calliope 0.7 equivalent — dropped")
         else:
@@ -138,6 +142,11 @@ def translate_costs(costs: dict, warnings: list, tech_name: str = '') -> dict:
     translated — SPORES is gated on the 0.7 engine."""
     out = {}
     for cost_class, cost_vals in (costs or {}).items():
+        if cost_class == '__raw07__':
+            # Carrier/multi-indexed 0.7 costs preserved on import — emit verbatim.
+            if isinstance(cost_vals, dict):
+                out.update(cost_vals)
+            continue
         if cost_class != 'monetary':
             warnings.append(
                 f"{tech_name}: cost class '{cost_class}' not supported on the 0.7 engine — dropped")
@@ -278,6 +287,9 @@ def build_nodes_07(locations: list, location_tech_assignments: dict,
             lat, lng = coords_by_key[loc_id]
             cfg['latitude'] = lat
             cfg['longitude'] = lng
+        # 0.7 node land-availability constraint (paired with area_use_* techs)
+        if loc.get('available_area') is not None:
+            cfg['available_area'] = loc['available_area']
 
         assigned_from_assignments = ((location_tech_assignments or {}).get(raw_id)
                                      or (location_tech_assignments or {}).get(loc_id) or [])

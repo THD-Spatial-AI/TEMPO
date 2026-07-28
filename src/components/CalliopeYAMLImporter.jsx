@@ -343,6 +343,12 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
         description: 'Imported: ' + name,
         // 0.7 archives run on the 0.7 engine; absent for 0.6 imports
         ...(preview.calliopeVersion ? { modelConfig: { calliopeVersion: preview.calliopeVersion } } : {}),
+        // 0.7-specific carry-through: named math modules, top-level parameters,
+        // and a flag telling the runner the overrides are already in 0.7 vocabulary.
+        ...(preview.mathModules?.length ? { mathModules: preview.mathModules } : {}),
+        ...(preview.modelParameters && Object.keys(preview.modelParameters).length
+          ? { modelParameters: preview.modelParameters } : {}),
+        ...(preview.overridesFormat ? { overridesFormat: preview.overridesFormat } : {}),
       },
       preview.overrides,
       preview.scenarios,
