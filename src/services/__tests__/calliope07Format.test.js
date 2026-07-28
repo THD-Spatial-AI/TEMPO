@@ -332,6 +332,30 @@ describe('from07ToInternal – 0.7-native passthrough + node/model metadata', ()
     expect(locations[0].available_area).toBe(2800);
   });
 
+  it('assigns distinct placeholder coords when the model has no node coordinates', () => {
+    const doc = { techs: {}, nodes: { a: { techs: {} }, b: { techs: {} }, c: { techs: {} } }, config: {} };
+    const { locations } = from07ToInternal(doc, new Map(), papa);
+    // none at 0,0 (which the map filters out), all distinct, all flagged
+    expect(locations.every(l => !(l.latitude === 0 && l.longitude === 0))).toBe(true);
+    expect(new Set(locations.map(l => `${l.latitude},${l.longitude}`)).size).toBe(3);
+    expect(locations.every(l => l.placeholderCoords === true)).toBe(true);
+    // lat/lon mirrored onto lat/lng-style fields the map reads
+    expect(locations[0].lat).toBe(locations[0].latitude);
+    expect(locations[0].lon).toBe(locations[0].longitude);
+  });
+
+  it('does NOT override real node coordinates with placeholders', () => {
+    const doc = {
+      techs: {},
+      nodes: { a: { latitude: 48.8, longitude: 12.9, techs: {} }, b: { techs: {} } },
+      config: {},
+    };
+    const { locations } = from07ToInternal(doc, new Map(), papa);
+    const a = locations.find(l => l.name === 'a');
+    expect(a.latitude).toBe(48.8);
+    expect(a.placeholderCoords).toBeUndefined();
+  });
+
   it('loads named conditional math and top-level data_definitions', () => {
     const mathYaml = 'constraints:\n  fix_x:\n    where: battery_charge_baseline\n';
     const filesMap = new Map([['additional_math.yaml', mathYaml]]);

@@ -300,6 +300,40 @@ function buildCosts(costs, rawCosts07) {
   return out;
 }
 
+// TEMPO's default map view centre (matches MapView) — used only to place the
+// placeholder grid within the initial viewport; the map auto-fits regardless.
+const PLACEHOLDER_CENTER = { lat: -33.4489, lon: -70.6693 };
+
+/** A location has usable map coordinates when they exist and aren't 0,0. */
+function hasRealCoords(loc) {
+  const la = Number(loc.latitude ?? loc.lat);
+  const lo = Number(loc.longitude ?? loc.lon);
+  return Number.isFinite(la) && Number.isFinite(lo) && !(la === 0 && lo === 0);
+}
+
+/**
+ * Calliope models are frequently geography-free (the THD model defines no node
+ * coordinates), so every node lands at 0,0 — which the map filters out. When no
+ * node has real coordinates, spread them on a small placeholder grid so they're
+ * visible and can be dragged to real positions. Marked `placeholderCoords` so
+ * the UI can flag them.
+ */
+function assignPlaceholderCoords(locations, log) {
+  if (!locations.length || locations.some(hasRealCoords)) return;
+  const step = 0.08;
+  const cols = Math.ceil(Math.sqrt(locations.length));
+  const rows = Math.ceil(locations.length / cols);
+  locations.forEach((loc, i) => {
+    const r = Math.floor(i / cols), c = i % cols;
+    const lat = +(PLACEHOLDER_CENTER.lat + (r - (rows - 1) / 2) * step).toFixed(6);
+    const lon = +(PLACEHOLDER_CENTER.lon + (c - (cols - 1) / 2) * step).toFixed(6);
+    loc.latitude = loc.lat = lat;
+    loc.longitude = loc.lon = lon;
+    loc.placeholderCoords = true;
+  });
+  log.push(`Model defines no node coordinates — placed ${locations.length} node(s) on a placeholder grid (drag them to real positions on the Map).`);
+}
+
 // Structural keys handled outside paramsToInternal. `one_way` is intentionally
 // NOT here: it must survive as a constraint (via the identity tech_params
 // mapping) so directional transmission links stay one-way on export/run.
@@ -419,6 +453,7 @@ export function from07ToInternal(doc, filesMap, papa) {
     return loc;
   });
   log.push(`Found ${locations.length} locations`);
+  assignPlaceholderCoords(locations, log);
 
   // ── Config → runConfig / subsetTime ───────────────────────────────────────
   const cfg = doc.config || {};
