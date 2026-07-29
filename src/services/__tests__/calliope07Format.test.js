@@ -224,6 +224,30 @@ describe('from07ToInternal – data table sink sign flip', () => {
     expect(vals[0]).toBe(-100);
     expect(vals[1]).toBe(-120);
   });
+
+  it('stores csvContent so timeseries survive the save/reload cycle', () => {
+    const csv = 'timesteps,north\n2005-01-01 00:00:00,100\n2005-01-01 01:00:00,120\n';
+    const filesMap = new Map([['demand.csv', csv]]);
+    const doc = {
+      techs: { power_demand: { base_tech: 'demand', carrier_in: 'electricity' } },
+      nodes: { north: { techs: { power_demand: null } } },
+      config: {},
+      data_tables: {
+        demand_data: {
+          data: 'demand.csv', rows: 'timesteps', columns: 'nodes',
+          add_dims: { parameters: 'sink_use_equals', techs: 'power_demand' },
+        },
+      },
+    };
+    const { timeSeries } = from07ToInternal(doc, filesMap, papa);
+    const ts = timeSeries[0];
+    expect(typeof ts.csvContent).toBe('string');
+    expect(ts.csvContent.length).toBeGreaterThan(0);
+    // csvContent reflects the internal (sign-flipped) values, so a reload
+    // rebuilds the exact same negative-demand data — not the positive source.
+    expect(ts.csvContent).toContain('-100');
+    expect(ts.csvContent).not.toMatch(/,100(\D|$)/);
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { 
-  FiDownload, 
+import {
+  FiDownload,
   FiMapPin,
   FiLink,
   FiZap,
@@ -16,7 +16,11 @@ import {
   FiTerminal,
   FiEye,
   FiServer,
-  FiSliders
+  FiSliders,
+  FiPackage,
+  FiBarChart2,
+  FiSearch,
+  FiTrash2,
 } from 'react-icons/fi';
 import { ENTITY_TYPES } from '../config/domainModel';
 import { generateCSVDownload, generateJSONDownload } from '../config/dataTemplates';
@@ -91,7 +95,7 @@ const Tutorial = () => {
               <h1 className="text-4xl font-bold text-slate-900 mb-3">Welcome to TEMPO</h1>
               <p className="text-xl text-slate-600 mb-4">Tool for Energy Model Planning and Optimization</p>
               <div className="flex items-center justify-center gap-4 text-sm font-medium text-slate-500 flex-wrap">
-                {['Calliope-based', 'Visual Interface', 'Real GIS Data', 'No Coding'].map(l => (
+                {['Multi-engine', 'Visual Interface', 'Real GIS Data', 'Multi-format'].map(l => (
                   <div key={l} className="flex items-center gap-1.5">
                     <FiCheckCircle className="text-gray-500" />
                     <span>{l}</span>
@@ -165,33 +169,74 @@ const Tutorial = () => {
             {/* Left sidebar navigation guide */}
             <div>
               <h2 className="text-2xl font-bold text-slate-800 mb-4">Where to Find Everything</h2>
-              <div className="bg-slate-800 text-white rounded-2xl p-6">
-                <div className="grid md:grid-cols-2 gap-4">
-                  {[
-                    { icon: '🏠', label: 'Dashboard', desc: 'Model overview, KPIs, location map, technology donut' },
-                    { icon: '✏️', label: 'Creation', desc: 'Visual map editor — place locations, draw links, select region' },
-                    { icon: '📋', label: 'Structure → Models', desc: 'Manage multiple saved models' },
-                    { icon: '📍', label: 'Structure → Locations', desc: 'Table view of all nodes with coordinates' },
-                    { icon: '🔗', label: 'Structure → Links', desc: 'Transmission line table — from/to, capacity, type' },
-                    { icon: '📈', label: 'Structure → TimeSeries', desc: 'Upload CSV demand & resource profiles' },
-                    { icon: '▶️', label: 'Run / Results', desc: 'Execute Calliope solver and view optimisation output' },
-                    { icon: '⚙️', label: 'Configuration', desc: 'Backend connection, Python venv, solver settings' },
-                  ].map(item => (
-                    <div key={item.label} className="flex items-start gap-3">
-                      <span className="text-lg">{item.icon}</span>
-                      <div>
-                        <span className="font-semibold text-slate-100 text-sm">{item.label}</span>
-                        <p className="text-slate-400 text-xs mt-0.5">{item.desc}</p>
+              <div className="border border-slate-200 rounded-xl overflow-hidden">
+                {[
+                  { label: 'Dashboard',                      desc: 'Model KPIs, location map, capacity overview and cost summary',                                        group: null },
+                  { label: 'Creation',                       desc: 'Visual map editor — place locations, draw links, load OSM infrastructure layers',                      group: null },
+                  { label: 'Structure → Models',             desc: 'Import, search and filter models. Multi-select for bulk delete or JSON export.',                       group: 'Structure' },
+                  { label: 'Structure → Map View',           desc: 'Interactive map of active model locations and transmission links',                                     group: 'Structure' },
+                  { label: 'Structure → Locations',          desc: 'Table view of all nodes with coordinates and assigned technologies',                                   group: 'Structure' },
+                  { label: 'Structure → Links',              desc: 'Transmission line table — from/to, capacity, voltage, type',                                           group: 'Structure' },
+                  { label: 'Structure → TimeSeries',         desc: 'Upload and manage CSV demand & resource capacity-factor profiles',                                     group: 'Structure' },
+                  { label: 'Structure → Overrides / Scenarios', desc: 'Define named parameter overrides and scenario combinations for sensitivity runs',                   group: 'Structure' },
+                  { label: 'Export',                         desc: 'Download the active model as Calliope 0.6/0.7, PyPSA, OSeMOSYS, or AdOpT-NET0 archive',              group: null },
+                  { label: 'Run',                            desc: 'Launch optimisation. Search, filter and bulk-manage completed runs by name or status.',                group: null },
+                  { label: 'Results',                        desc: 'Dispatch, costs, capacity maps, shadow prices — plus AI Analysis tab for LLM-powered insights',       group: null },
+                  { label: 'Settings',                       desc: 'Engine install panels, AI assistant API key, backend connection, solver paths',                        group: null },
+                ].map((item, i, arr) => {
+                  const isStructureFirst = item.group === 'Structure' && (!arr[i - 1] || arr[i - 1].group !== 'Structure');
+                  return (
+                    <div
+                      key={item.label}
+                      className={`flex items-baseline gap-0 border-b border-slate-100 last:border-0 ${
+                        item.group === 'Structure' ? 'bg-slate-50' : 'bg-white'
+                      } ${isStructureFirst ? 'mt-0' : ''}`}
+                    >
+                      {item.group === 'Structure' && (
+                        <div className="w-1 self-stretch bg-slate-300 flex-shrink-0" />
+                      )}
+                      <div className="flex items-baseline gap-4 px-5 py-3 flex-1 min-w-0">
+                        <span className="font-mono text-xs font-semibold text-slate-800 whitespace-nowrap flex-shrink-0 w-52">{item.label}</span>
+                        <span className="text-xs text-slate-500 leading-snug">{item.desc}</span>
                       </div>
                     </div>
-                  ))}
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Model & run management features */}
+            <div>
+              <h2 className="text-2xl font-bold text-slate-800 mb-4">Managing Models &amp; Runs</h2>
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="bg-white border border-slate-200 rounded-2xl p-5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <FiSearch size={18} className="text-slate-500" />
+                    <h3 className="font-bold text-slate-800">Models (Structure → Models)</h3>
+                  </div>
+                  <ul className="text-sm text-slate-600 space-y-1.5">
+                    <li className="flex gap-2"><FiCheckCircle size={14} className="text-gray-500 mt-0.5 flex-shrink-0" /><span>Search models by name; filter by engine type (Calliope, PyPSA, OSeMOSYS, AdOpT-NET0)</span></li>
+                    <li className="flex gap-2"><FiCheckCircle size={14} className="text-gray-500 mt-0.5 flex-shrink-0" /><span>Tick the "Select all" checkbox or pick individual models</span></li>
+                    <li className="flex gap-2"><FiTrash2 size={14} className="text-gray-500 mt-0.5 flex-shrink-0" /><span>Bulk delete or export selected models as JSON backup files</span></li>
+                  </ul>
+                </div>
+                <div className="bg-white border border-slate-200 rounded-2xl p-5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <FiBarChart2 size={18} className="text-slate-500" />
+                    <h3 className="font-bold text-slate-800">Completed Runs (Run tab)</h3>
+                  </div>
+                  <ul className="text-sm text-slate-600 space-y-1.5">
+                    <li className="flex gap-2"><FiCheckCircle size={14} className="text-gray-500 mt-0.5 flex-shrink-0" /><span>Search runs by model name; filter by status (Done / Failed)</span></li>
+                    <li className="flex gap-2"><FiCheckCircle size={14} className="text-gray-500 mt-0.5 flex-shrink-0" /><span>Tick the "Select all" checkbox or pick individual runs</span></li>
+                    <li className="flex gap-2"><FiTrash2 size={14} className="text-gray-500 mt-0.5 flex-shrink-0" /><span>Bulk download as JSON or bulk delete selected runs</span></li>
+                  </ul>
                 </div>
               </div>
             </div>
 
-            {/* two method cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <div className="bg-slate-50 border-2 border-slate-200 rounded-2xl p-6 hover:shadow-lg transition-all cursor-pointer" onClick={() => setActiveTab('methods')}>
+            {/* three method cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div className="bg-slate-50 border-2 border-slate-200 rounded-2xl p-6 hover:shadow-lg transition-all cursor-pointer" onClick={() => { setActiveTab('methods'); setSelectedMethod('manual'); }}>
                 <FiEdit className="text-slate-600 mb-3" size={32} />
                 <h3 className="text-xl font-bold text-slate-800 mb-2">Manual Creation</h3>
                 <p className="text-slate-600 text-sm mb-4">Click-and-build on the map. Great for learning and small models.</p>
@@ -199,12 +244,20 @@ const Tutorial = () => {
                   <span>Step-by-step guide</span><FiArrowRight />
                 </div>
               </div>
-              <div className="bg-slate-50 border-2 border-slate-200 rounded-2xl p-6 hover:shadow-lg transition-all cursor-pointer" onClick={() => setActiveTab('templates')}>
-                <FiUpload className="text-slate-600 mb-3" size={32} />
-                <h3 className="text-xl font-bold text-slate-800 mb-2">Bulk Import</h3>
-                <p className="text-slate-600 text-sm mb-4">Upload CSV/JSON with hundreds of locations at once.</p>
+              <div className="bg-slate-50 border-2 border-slate-200 rounded-2xl p-6 hover:shadow-lg transition-all cursor-pointer" onClick={() => { setActiveTab('methods'); setSelectedMethod('import'); }}>
+                <FiPackage className="text-slate-600 mb-3" size={32} />
+                <h3 className="text-xl font-bold text-slate-800 mb-2">Import a Model</h3>
+                <p className="text-slate-600 text-sm mb-4">YAML archive, CSV wizard, or framework archive — TEMPO auto-detects the format.</p>
                 <div className="flex items-center gap-2 text-slate-600 font-semibold text-sm">
-                  <span>Download templates</span><FiArrowRight />
+                  <span>Import guide</span><FiArrowRight />
+                </div>
+              </div>
+              <div className="bg-slate-50 border-2 border-slate-200 rounded-2xl p-6 hover:shadow-lg transition-all cursor-pointer" onClick={() => setActiveTab('templates')}>
+                <FiDownload className="text-slate-600 mb-3" size={32} />
+                <h3 className="text-xl font-bold text-slate-800 mb-2">Download Templates</h3>
+                <p className="text-slate-600 text-sm mb-4">CSV/JSON starter files with real example data — ready to populate and import.</p>
+                <div className="flex items-center gap-2 text-slate-600 font-semibold text-sm">
+                  <span>Browse templates</span><FiArrowRight />
                 </div>
               </div>
             </div>
@@ -220,22 +273,30 @@ const Tutorial = () => {
             </div>
 
             {/* Method Selector */}
-            <div className="flex justify-center gap-4">
+            <div className="flex justify-center gap-3 flex-wrap">
               <button
                 onClick={() => setSelectedMethod('manual')}
-                className={`px-6 py-3 rounded-xl font-bold transition-all flex items-center gap-2 ${
+                className={`px-5 py-3 rounded-xl font-bold transition-all flex items-center gap-2 ${
                   selectedMethod === 'manual' ? 'bg-slate-800 text-white shadow-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
-                <FiEdit size={20} /> Manual Creation
+                <FiEdit size={18} /> Manual Creation
+              </button>
+              <button
+                onClick={() => setSelectedMethod('import')}
+                className={`px-5 py-3 rounded-xl font-bold transition-all flex items-center gap-2 ${
+                  selectedMethod === 'import' ? 'bg-slate-800 text-white shadow-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                <FiPackage size={18} /> YAML / Archive Import
               </button>
               <button
                 onClick={() => setSelectedMethod('bulk')}
-                className={`px-6 py-3 rounded-xl font-bold transition-all flex items-center gap-2 ${
+                className={`px-5 py-3 rounded-xl font-bold transition-all flex items-center gap-2 ${
                   selectedMethod === 'bulk' ? 'bg-slate-800 text-white shadow-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
-                <FiUpload size={20} /> Bulk Import
+                <FiUpload size={18} /> CSV Wizard
               </button>
             </div>
 
@@ -364,7 +425,72 @@ const Tutorial = () => {
               </div>
             )}
 
-            {/* Bulk Import Steps */}
+            {/* YAML / Archive Import */}
+            {(selectedMethod === 'import' || !selectedMethod) && (
+              <div className="bg-slate-50 rounded-3xl p-8 border-2 border-slate-200 mt-6">
+                <div className="flex items-center gap-4 mb-8">
+                  <div className="w-14 h-14 bg-slate-700 rounded-2xl flex items-center justify-center">
+                    <FiPackage className="text-white text-3xl" />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold text-slate-800">Import a Model — Three Paths</h3>
+                    <p className="text-slate-500">Go to <strong className="text-slate-700">Structure → Models</strong> and click <strong className="text-slate-700">Import Calliope Model</strong> (or drag a ZIP onto the archive target)</p>
+                  </div>
+                </div>
+
+                <div className="space-y-5">
+                  <Step n={1} title="YAML Archive (Calliope 0.6.8 or 0.7)">
+                    <p className="text-slate-600 text-sm mb-2">
+                      Click <strong>YAML Archive</strong> in the import chooser. Drop a Calliope <code className="bg-slate-100 px-1 rounded">.zip</code> bundle — the file must contain a <code className="bg-slate-100 px-1 rounded">model.yaml</code> (or similar entry point) and any referenced CSV time-series files.
+                    </p>
+                    <p className="text-slate-600 text-sm">TEMPO auto-detects the Calliope version (0.6 vs 0.7), applies the parameter mapping, and opens the <strong>YAML Importer</strong> dialog where you can review locations, technologies and time-series before confirming.</p>
+                    <Tip>If the archive has multiple models (e.g. a parent <code>model.yaml</code> importing regional sub-models), TEMPO lists all detected roots so you can choose which one to load.</Tip>
+                  </Step>
+
+                  <Step n={2} title="CSV Wizard (Locations + Links CSVs)">
+                    <p className="text-slate-600 text-sm mb-2">
+                      Click <strong>CSV Wizard</strong>. Upload your locations CSV (required) and optionally links, demand timeseries, technologies, and scenarios files — the wizard steps you through each one in order and validates each before moving on.
+                    </p>
+                    <p className="text-slate-500 text-xs">See the <strong>Templates</strong> tab for downloadable CSV examples with the exact column format expected.</p>
+                  </Step>
+
+                  <Step n={3} title="Framework Archive — auto-detect (PyPSA / OSeMOSYS / AdOpT-NET0)">
+                    <p className="text-slate-600 text-sm mb-2">
+                      Click <strong>Framework Archive (auto-detect)</strong> and drop a <code className="bg-slate-100 px-1 rounded">.zip</code>. TEMPO inspects the file listing and routes it to the correct engine's Python service (PyPSA, OSeMOSYS, or AdOpT-NET0) to translate it into the internal TEMPO format.
+                    </p>
+                    <div className="bg-slate-100 rounded-lg p-3 mt-2 text-xs text-slate-700">
+                      <p className="font-semibold mb-1">Requirements:</p>
+                      <ul className="space-y-0.5">
+                        <li>• The matching engine venv must be installed (Settings → Engine panels)</li>
+                        <li>• PyPSA: netCDF or CSV network folder · OSeMOSYS: otoole-compatible CSV set · AdOpT-NET0: case-directory ZIP</li>
+                        <li>• A translation report is shown after import listing any unrecognised parameters</li>
+                      </ul>
+                    </div>
+                  </Step>
+                </div>
+
+                <div className="bg-slate-800 text-white rounded-xl p-5 mt-6">
+                  <h4 className="font-bold text-lg mb-2">Multi-engine support</h4>
+                  <p className="text-slate-300 text-sm mb-3">TEMPO runs models on five engines from a single interface. Select the engine per model in the model metadata.</p>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+                    {[
+                      ['Calliope 0.6.8', 'Multi-carrier LP (HiGHS)'],
+                      ['Calliope 0.7', 'Dev-series 0.7 (CBC)'],
+                      ['PyPSA', 'Power flow + capacity (HiGHS)'],
+                      ['OSeMOSYS', 'Long-run planning (GLPK)'],
+                      ['AdOpT-NET0', 'Net-zero pathway (LP)'],
+                    ].map(([name, desc]) => (
+                      <div key={name} className="bg-white/10 rounded-lg p-2">
+                        <div className="font-bold text-white">{name}</div>
+                        <div className="text-slate-400">{desc}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* CSV Wizard Steps */}
             {(selectedMethod === 'bulk' || !selectedMethod) && (
               <div className="bg-slate-50 rounded-3xl p-8 border-2 border-slate-200 mt-6">
                 <div className="flex items-center gap-4 mb-8">
@@ -372,7 +498,7 @@ const Tutorial = () => {
                     <FiUpload className="text-white text-3xl" />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-bold text-slate-800">Bulk Import Workflow</h3>
+                    <h3 className="text-2xl font-bold text-slate-800">CSV Wizard Workflow</h3>
                     <p className="text-slate-500">Import a 12-node German grid from CSV in under 2 minutes</p>
                   </div>
                 </div>

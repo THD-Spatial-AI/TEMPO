@@ -55,6 +55,31 @@ _SOLVER_OPTION_DEFAULTS = {
 }
 
 
+def _looks_like_07_overrides(overrides: dict) -> bool:
+    """Heuristically decide whether overrides are already in 0.7 vocabulary.
+
+    0.7 overrides address `nodes:` / `config:` / `data_tables:` and put flat
+    parameters directly on techs; 0.6 (TEMPO-authored) overrides use
+    `locations:` / `run:` / `model:` and nest tech params under
+    essentials/constraints/costs. Used as a fallback when the
+    metadata.overridesFormat flag is absent (e.g. models imported before it
+    existed)."""
+    for ov in (overrides or {}).values():
+        if not isinstance(ov, dict):
+            continue
+        if any(k in ov for k in ('nodes', 'config', 'data_tables')):
+            return True
+        techs = ov.get('techs')
+        if isinstance(techs, dict):
+            for tdef in techs.values():
+                # A flat tech override (no 0.6 essentials/constraints/costs
+                # wrapper) is 0.7-shaped.
+                if isinstance(tdef, dict) and not any(
+                        k in tdef for k in ('essentials', 'constraints', 'costs')):
+                    return True
+    return False
+
+
 def log(msg):
     fn = getattr(_thread_local, 'log_fn', None)
     if fn is not None:
@@ -940,9 +965,16 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
         # Imported native-0.7 models carry overrides already in 0.7 vocabulary
         # (nodes.*, active, direct 0.7 params). Apply them verbatim; only
         # TEMPO-authored (0.6-vocabulary) overrides need translation.
+        #
+        # The importer sets metadata.overridesFormat='0.7', but models imported
+        # before that flag existed lack it — so we ALSO auto-detect 0.7 vocabulary
+        # structurally. Without this, 0.7 overrides go through the 0.6 translator,
+        # which drops the `nodes.*` blocks and makes every scenario collapse to
+        # the baseline (identical results).
         overrides_format = str(meta.get('overridesFormat')
                                or model_config_payload.get('overridesFormat') or '')
-        if overrides_format.startswith('0.7'):
+        native07 = overrides_format.startswith('0.7') or _looks_like_07_overrides(overrides)
+        if native07:
             model_doc['overrides'] = {
                 name: ov for name, ov in overrides.items() if isinstance(ov, dict)
             }

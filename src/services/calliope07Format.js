@@ -99,7 +99,7 @@ function normalizeOverrideDataTables(overrides, filesMap, timeSeries, locations,
     const entry = {
       id: 'ts_' + csvName.replace('.csv', '') + '_' + Date.now(),
       name: csvName.replace('.csv', ''), fileName: csvName, file: csvName,
-      data: rowData, columns: allCols, dateColumn: allCols[0] || 'time',
+      data: rowData, csvContent: content, columns: allCols, dateColumn: allCols[0] || 'time',
       dataColumns: dataCols, rowCount: rowData.length,
       type: 'resource', source: 'calliope_yaml_override',
     };
@@ -170,6 +170,15 @@ function normalizeOverrideDataTables(overrides, filesMap, timeSeries, locations,
     for (const v of Object.values(parent)) if (v && typeof v === 'object') walk(v);
   };
   for (const ov of Object.values(overrides || {})) walk(ov);
+}
+
+/** Serialise parsed rows back to CSV text. Used to persist a timeseries'
+ * (possibly transformed, e.g. sign-flipped) data so it survives the backend
+ * save/reload cycle, which strips `data` and rebuilds it from `csvContent`. */
+function rowsToCsv(cols, rows) {
+  const esc = (v) => (v == null ? '' : String(v));
+  return cols.join(',') + '\n'
+    + (rows || []).map(r => cols.map(c => esc(r[c])).join(',')).join('\n') + '\n';
 }
 
 function safeId(name) {
@@ -656,6 +665,9 @@ export function from07ToInternal(doc, filesMap, papa) {
       fileName: csvName,
       file: csvName,
       data: rowData,
+      // Persist the (possibly sign-flipped) rows so data survives the backend
+      // save/reload cycle, which strips `data` and rebuilds it from csvContent.
+      csvContent: rowsToCsv(allCols, rowData),
       columns: allCols,
       dateColumn: dateCol,
       dataColumns: dataCols,
