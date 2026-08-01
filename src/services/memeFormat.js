@@ -232,7 +232,13 @@ function applyConstraints(out, constraints, role, log, ctx, tsCtx) {
         const id = tsCtx?.register(r, { abs: false });
         if (id) out.operation = { ...(out.operation || {}), max_pu: id };
         else log.push(`⚠ ${ctx}: availability timeseries '${r}' could not be resolved — dropped`);
-      } else if (typeof r === 'number' && !isInf(r)) {
+      } else if (isInf(r)) {
+        // resource: inf → an unlimited source (the import/slack tech). Calliope
+        // leaves energy_cap unbounded; MEME defaults an unspecified supply
+        // capacity to 0, so make it explicitly expandable/unbounded — otherwise
+        // the source can never produce and demand is unservable → infeasible.
+        out.capacity = { ...(out.capacity || {}), expandable: true };
+      } else if (typeof r === 'number') {
         // scalar resource is Calliope-only in MEME (source.max, curtailable)
         out.source = { ...(out.source || {}), max: r };
       }
@@ -426,16 +432,23 @@ export function internalToMemeCanonical(model, opts = {}) {
 
     const entry = { carrier, from, to, bidirectional: link.oneWay ? false : true };
 
-    // Capacity: an explicit link capacity wins; otherwise inherit the
+    // Capacity: a positive link capacity wins; otherwise inherit the
     // transmission tech's energy_cap_* constraints. Without this a link with a
     // tech-level cap (the common case) would emit no capacity and PyPSA would
     // fix it at 0 → infeasible.
+    // A link capacity of 0 (the common case here) means "unspecified — optimize
+    // freely" in TEMPO: Calliope treats an unset link cap as unbounded. It must
+    // NOT become capacity.max = 0, which MEME emits as flow_cap_max: 0 and
+    // islands the node → infeasible. So 0/absent ⇒ expandable with no max.
     const txc = def?.constraints || {};
     const cap = {};
-    const capMax = link.capacity != null ? link.capacity : txc.energy_cap_max;
-    if (capMax != null) {
-      if (isInf(capMax)) cap.expandable = true;
-      else { cap.max = num(capMax); cap.expandable = true; }
+    const linkCap = num(link.capacity);
+    const capMax = linkCap != null && linkCap > 0 ? linkCap : txc.energy_cap_max;
+    if (capMax != null && !isInf(capMax) && num(capMax) > 0) {
+      cap.max = num(capMax);
+      cap.expandable = true;
+    } else {
+      cap.expandable = true; // unbounded — build transmission as needed
     }
     if (txc.energy_cap_equals != null) { cap.existing = num(txc.energy_cap_equals); cap.expandable = false; }
     if (txc.energy_cap_min != null) cap.min = num(txc.energy_cap_min);
@@ -479,9 +492,22 @@ export function internalToMemeCanonical(model, opts = {}) {
   const subset = (modelCfg.startDate && modelCfg.endDate)
     ? [modelCfg.startDate, modelCfg.endDate]
     : (meta.subsetTime || model.subsetTime || ['2005-01-01', '2005-01-07']);
+  const start = String(subset[0]).slice(0, 10);
+  const end = String(subset[1]).slice(0, 10);
   const time = {
-    start: String(subset[0]).slice(0, 10),
-    end: String(subset[1]).slice(0, 10),
+    start,
+    end,
+    // MEME labels the full series from start+resolution but only *slices* the
+    // run when time.subset has two elements (emitter.go:60 → config.init.subset.
+    // timesteps). Without this it always solves the whole series (the full year).
+    //
+    // The bounds carry a 'T00:00'/'T23:00' time component (no seconds): MEME
+    // emits them UNQUOTED, and a bare 'YYYY-MM-DD' would be parsed by PyYAML as
+    // a datetime.date, which Calliope 0.7's pydantic schema rejects (it wants a
+    // string). The 'THH:MM' form doesn't match YAML's timestamp resolver, so it
+    // stays a string. End-of-day (23:00) keeps the window inclusive of the last
+    // day, matching a local run.
+    subset: [`${start}T00:00`, `${end}T23:00`],
     resolution: opts.resolution || modelCfg.resolution || '1H',
   };
 
@@ -501,9 +527,15 @@ export function internalToMemeCanonical(model, opts = {}) {
   if (Object.keys(transmission).length) memeModel.transmission = transmission;
 
   const mode = opts.mode || modelCfg.mode || runCfg.mode || 'plan';
+  // Unmet-demand slack. TEMPO enables ensure_feasibility by default on local
+  // runs; MEME only emits config.build.ensure_feasibility when this flag is set
+  // (emitter.go:134). Without it a model whose peak demand exceeds a feeder's
+  // capacity is reported infeasible even though it solves fine locally.
+  const ensureFeasibility = modelCfg.ensureFeasibility ?? true;
   const experiment = {
     mode: MODE_MAP[mode] || 'plan',
     objective: opts.objective || 'min_cost',
+    allow_unmet_demand: { enabled: !!ensureFeasibility },
     solver: { name: opts.solver || runCfg.solver || 'highs' },
   };
 

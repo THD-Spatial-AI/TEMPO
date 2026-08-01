@@ -63,7 +63,14 @@ export async function checkMemeService(server) {
 /** Extract TEMPO's frozen contract from a succeeded job (inline or via result.json). */
 async function fetchContract(base, jobId, status) {
   let contract = null;
-  if (status && status.contract && typeof status.contract === 'object') {
+  // MEME carries the contract on each run (JobView.runs[].contract). A single
+  // baseline run (all v2 submits) → the first run's contract. Fall back to a
+  // top-level status.contract, then to a result.json endpoint.
+  const runs = Array.isArray(status?.runs) ? status.runs : [];
+  const runContract = runs.find((r) => r && r.contract)?.contract;
+  if (runContract && typeof runContract === 'object') {
+    contract = runContract;
+  } else if (status && status.contract && typeof status.contract === 'object') {
     contract = status.contract;
   } else {
     try {

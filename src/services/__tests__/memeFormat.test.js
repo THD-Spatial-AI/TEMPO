@@ -45,7 +45,11 @@ function assertCanonicalShape(payload) {
     expect(['supply', 'demand', 'conversion', 'storage'], `role of ${id}`).toContain(t.role);
     expect(t.node, `node of ${id}`).toBeDefined();
   }
+  // subset carries a 'THH:MM' component (no seconds) so MEME's unquoted YAML
+  // isn't coerced to a date by PyYAML; still bounded by start/end days.
+  expect(model.time.subset).toEqual([`${model.time.start}T00:00`, `${model.time.end}T23:00`]);
   expect(experiment.mode).toBeTypeOf('string');
+  expect(experiment.allow_unmet_demand.enabled).toBeTypeOf('boolean');
   expect(experiment.solver.name).toBeTypeOf('string');
 }
 
@@ -95,6 +99,13 @@ describe('internalToMemeCanonical – metadata & time', () => {
     expect(payload.model.time.end).toBe('2025-01-03');
   });
 
+  it('emits time.subset so MEME slices the run to the window (not the full series)', () => {
+    const model = baseModel({ metadata: { modelConfig: { startDate: '2025-01-01', endDate: '2025-01-03' }, runConfig: {} } });
+    const { payload } = internalToMemeCanonical(model);
+    // 'THH:MM' (no seconds) keeps PyYAML from coercing the bare date to a date object.
+    expect(payload.model.time.subset).toEqual(['2025-01-01T00:00', '2025-01-03T23:00']);
+  });
+
   it('reads a top-level modelConfig (the Run payload shape)', () => {
     // Run.jsx sends modelConfig at the top level, not under metadata.
     const model = { ...baseModel(), modelConfig: { startDate: '2040-03-01', endDate: '2040-03-02' } };
@@ -119,6 +130,17 @@ describe('internalToMemeCanonical – experiment', () => {
   it('maps internal mode operate → operate', () => {
     const { payload } = internalToMemeCanonical(baseModel({ metadata: { modelConfig: { mode: 'operate' }, runConfig: {} } }));
     expect(payload.experiment.mode).toBe('operate');
+  });
+
+  it('enables allow_unmet_demand by default (matches TEMPO local ensure_feasibility)', () => {
+    const { payload } = internalToMemeCanonical(baseModel());
+    expect(payload.experiment.allow_unmet_demand).toEqual({ enabled: true });
+  });
+
+  it('respects modelConfig.ensureFeasibility === false', () => {
+    const model = baseModel({ metadata: { modelConfig: { ensureFeasibility: false }, runConfig: {} } });
+    const { payload } = internalToMemeCanonical(model);
+    expect(payload.experiment.allow_unmet_demand).toEqual({ enabled: false });
   });
 
   it('honours solver and objective opts', () => {
@@ -186,6 +208,19 @@ describe('internalToMemeCanonical – infinite / equals capacity', () => {
     });
     const { payload } = internalToMemeCanonical(model);
     expect(payload.model.technologies.ccgt.capacity).toEqual({ existing: 500, expandable: false });
+  });
+
+  it('treats a supply with resource: "inf" as an unbounded (expandable) source', () => {
+    // The import/slack tech: supply_plus with resource "inf" and no energy_cap_max.
+    // Calliope leaves it unbounded; without an explicit expandable capacity MEME
+    // defaults it to 0 and the slack can never produce → infeasible.
+    const model = baseModel({
+      technologies: [makeTech('import', 'supply', { resource: 'inf', resource_eff: 1 })],
+      locations: [{ name: 'n', latitude: 1, longitude: 2, techs: { import: null } }],
+    });
+    const { payload } = internalToMemeCanonical(model);
+    expect(payload.model.technologies.import.capacity).toEqual({ expandable: true });
+    expect(payload.model.technologies.import.source).toBeUndefined();
   });
 });
 
@@ -335,6 +370,28 @@ describe('internalToMemeCanonical – transmission', () => {
     const { payload } = internalToMemeCanonical(model2);
     const tx = payload.model.transmission[Object.keys(payload.model.transmission)[0]];
     expect(tx.capacity).toEqual({ max: 3000, expandable: true });
+  });
+
+  it('treats a 0 link capacity as unspecified → expandable with no max (not max: 0)', () => {
+    // In TEMPO a link capacity of 0 means "optimize freely"; Calliope treats an
+    // unset link cap as unbounded. Emitting max: 0 would island the node → infeasible.
+    const model2 = baseModel({
+      technologies: [{
+        name: 'ac',
+        essentials: { parent: 'transmission', carrier: 'electricity' },
+        constraints: {}, // no energy_cap_max on the tech either
+        costs: {},
+      }],
+      locations: [
+        { name: 'north', latitude: 52, longitude: 10, techs: {} },
+        { name: 'south', latitude: 48, longitude: 11, techs: {} },
+      ],
+      links: [{ from: 'north', to: 'south', tech: 'ac', capacity: 0, distance: 400 }],
+    });
+    const { payload } = internalToMemeCanonical(model2);
+    const tx = payload.model.transmission[Object.keys(payload.model.transmission)[0]];
+    expect(tx.capacity).toEqual({ expandable: true });
+    expect(tx.capacity.max).toBeUndefined();
   });
 });
 
