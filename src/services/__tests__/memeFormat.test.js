@@ -143,6 +143,16 @@ describe('internalToMemeCanonical – experiment', () => {
     expect(payload.experiment.allow_unmet_demand).toEqual({ enabled: false });
   });
 
+  it('disables allow_unmet_demand for adoptnet0 regardless of ensureFeasibility (MEME requires penalty_price for enabled=true, which TEMPO cannot supply)', () => {
+    const { payload } = internalToMemeCanonical(baseModel(), { engine: 'adoptnet0' });
+    expect(payload.experiment.allow_unmet_demand).toEqual({ enabled: false });
+  });
+
+  it('keeps allow_unmet_demand enabled by default for pypsa and calliope07', () => {
+    expect(internalToMemeCanonical(baseModel(), { engine: 'pypsa' }).payload.experiment.allow_unmet_demand).toEqual({ enabled: true });
+    expect(internalToMemeCanonical(baseModel(), { engine: 'calliope07' }).payload.experiment.allow_unmet_demand).toEqual({ enabled: true });
+  });
+
   it('honours solver and objective opts', () => {
     const { payload } = internalToMemeCanonical(baseModel(), { solver: 'cbc', objective: 'min_emissions' });
     expect(payload.experiment.solver.name).toBe('cbc');

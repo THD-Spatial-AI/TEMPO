@@ -531,7 +531,12 @@ export function internalToMemeCanonical(model, opts = {}) {
   // runs; MEME only emits config.build.ensure_feasibility when this flag is set
   // (emitter.go:134). Without it a model whose peak demand exceeds a feeder's
   // capacity is reported infeasible even though it solves fine locally.
-  const ensureFeasibility = modelCfg.ensureFeasibility ?? true;
+  // AdOpT-NET0 exception: MEME's validator requires penalty_price alongside
+  // allow_unmet_demand.enabled=true; TEMPO has no penalty_price concept for
+  // AdOpT, so disable it unconditionally for that target to avoid a 422 error.
+  const ensureFeasibility = opts.engine === 'adoptnet0'
+    ? false
+    : (modelCfg.ensureFeasibility ?? true);
   const experiment = {
     mode: MODE_MAP[mode] || 'plan',
     objective: opts.objective || 'min_cost',

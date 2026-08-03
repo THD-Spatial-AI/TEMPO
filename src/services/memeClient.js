@@ -115,7 +115,7 @@ export async function runMemeModel(engine, {
   if (!base) throw new Error('No MEME server URL configured');
 
   // ── 1. Translate internal model → MEME canonical (surface warnings) ────────
-  const { payload, log } = internalToMemeCanonical(modelData, { mode, objective, solver });
+  const { payload, log } = internalToMemeCanonical(modelData, { mode, objective, solver, engine });
   log.forEach((l) => onLog?.(l));
 
   const body = JSON.stringify({
