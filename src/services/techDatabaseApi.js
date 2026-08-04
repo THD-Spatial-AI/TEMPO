@@ -22,7 +22,7 @@
  *   1. Electron: TEMPO_TECH_API_URL env var read by main process, exposed via IPC
  *   2. VITE_TECH_API_URL build-time env var
  *   3. Vite dev proxy at '/tech'  (dev mode only)
- *   4. http://localhost:8000     (local Docker fallback)
+ *   4. https://otdb.th-deg.de   (public API fallback)
  */
 
 // ---------------------------------------------------------------------------
@@ -33,7 +33,7 @@
 // All actual fetch calls go through getTechBaseURL() which is async and cached.
 export const OEO_API_BASE_URL =
   (typeof import.meta !== 'undefined' && import.meta.env?.VITE_TECH_API_URL) ||
-  (typeof window !== 'undefined' && window.electronAPI ? 'http://localhost:8000' : '/tech');
+  (typeof window !== 'undefined' && window.electronAPI ? 'https://otdb.th-deg.de' : '/tech');
 
 const EXTRA_HEADERS = {};
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -66,7 +66,7 @@ async function getTechBaseURL() {
   }
   _techBaseURLCache = (typeof import.meta !== 'undefined' && import.meta.env?.DEV)
     ? '/tech'
-    : 'http://localhost:8000';
+    : 'https://otdb.th-deg.de';
   return _techBaseURLCache;
 }
 
@@ -88,8 +88,17 @@ async function apiFetch(path, timeoutMs = DEFAULT_TIMEOUT_MS) {
   const timerId = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(url, { signal: controller.signal, headers: EXTRA_HEADERS });
-    if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText} (${url})`);
-    return await response.json();
+    if (!response.ok) {
+      let detail = '';
+      try {
+        const body = await response.json();
+        detail = JSON.stringify(body?.detail || body).slice(0, 300);
+      } catch { /* ignore parse errors */ }
+      throw new Error(`HTTP ${response.status}: ${response.statusText} (${url})${detail ? ' — ' + detail : ''}`);
+    }
+    const text = await response.text();
+    if (!text) return null;
+    return JSON.parse(text);
   } catch (err) {
     if (err.name === 'AbortError') throw new Error(`Request timed out after ${timeoutMs}ms (${url})`);
     throw err;
@@ -308,15 +317,21 @@ export async function fetchSingleTechCalliope(techId, { instance_index = 0, cost
  * @throws {Error}  If the API is offline.
  */
 export async function fetchRawTechCatalog() {
-  const data = await apiFetch('/api/v1/technologies?limit=200');
-  // Normalise: API may return an array or a wrapper object
-  if (Array.isArray(data)) return data;
-  if (data && typeof data === 'object') {
-    for (const key of ['technologies', 'items', 'data', 'results']) {
-      if (Array.isArray(data[key])) return data[key];
+  const all = [];
+  let skip = 0;
+  const PAGE = 100;
+  while (true) {
+    const data = await apiFetch(`/api/v1/technologies?limit=${PAGE}&skip=${skip}`);
+    let page;
+    if (Array.isArray(data)) { page = data; }
+    else {
+      page = data?.technologies || data?.items || data?.data || data?.results || [];
     }
+    all.push(...page);
+    if (!data?.has_more || page.length < PAGE) break;
+    skip += page.length;
   }
-  return [];
+  return all;
 }
 
 // ---------------------------------------------------------------------------
@@ -370,11 +385,14 @@ export function instanceToParams(inst) {
   const constraints = {};
   const monetary = { interest_rate: 0.10 };
 
-  // ── Efficiency ──────────────────────────────────────────────────────────
-  // New API: efficiency_percent (0-100). Old API: electrical_efficiency (0-1).
+  // ── Efficiency / Capacity Factor ────────────────────────────────────────
+  // Real API: capacity_factor (0-1 fraction). Legacy: efficiency_percent (0-100) or electrical_efficiency (0-1).
+  const cf      = v('capacity_factor');
   const effPct  = v('efficiency_percent');
   const effFrac = v('electrical_efficiency', 'efficiency');
-  if (effPct != null) {
+  if (cf != null) {
+    constraints.energy_eff = parseFloat((cf > 1 ? cf / 100 : cf).toFixed(4));
+  } else if (effPct != null) {
     constraints.energy_eff = parseFloat((effPct / 100).toFixed(4));
   } else if (effFrac != null) {
     constraints.energy_eff = parseFloat((effFrac > 1 ? effFrac / 100 : effFrac).toFixed(4));
@@ -467,12 +485,13 @@ export function instanceToParams(inst) {
 export function oeoDetailToCalliope(detail) {
   if (!detail || typeof detail !== 'object') return null;
 
-  // Identity — new API: technology_id / technology_name
-  const id   = detail.technology_id   || detail.id   || '';
-  const name = detail.technology_name || detail.name  || id;
+  // Identity — UUID for API calls, slug as stable display key
+  const uuid = detail.id || '';
+  const id   = detail.slug || detail.technology_id || uuid;
+  const name = detail.technology_name || detail.name || id;
 
-  // Category — new API uses `domain` (generation|storage|transmission|conversion)
-  const category = detail.domain || detail.category || 'generation';
+  // Category — real API uses `category`; legacy API used `domain`
+  const category = detail.category || detail.domain || 'generation';
   const parent = apiCategoryToParent(name, category);
 
   // Carriers
@@ -500,6 +519,7 @@ export function oeoDetailToCalliope(detail) {
 
   return {
     id,
+    uuid,
     name,
     parent,
     category,
@@ -528,11 +548,35 @@ export function oeoDetailToCalliope(detail) {
  * @returns {Promise<Object[]>}
  */
 export async function fetchFullCatalogWithInstances() {
-  // Step 1: fetch list
-  let catalogList;
+  // Step 1: fetch catalog — main paginated list + per-category lists in parallel
+  // (category endpoints may surface additional entries not in the base list)
+  let catalogList = [];
   try {
-    const data = await apiFetch(`/api/v1/technologies?limit=200`);
-    catalogList = data?.technologies || data?.data || (Array.isArray(data) ? data : []);
+    const PAGE = 100;
+
+    // Main paginated list
+    const mainPages = [];
+    let skip = 0;
+    while (true) {
+      const data = await apiFetch(`/api/v1/technologies?limit=${PAGE}&skip=${skip}`);
+      const page = data?.technologies || data?.items || data?.data || data?.results || (Array.isArray(data) ? data : []);
+      mainPages.push(...page);
+      if (!data?.has_more || page.length < PAGE) break;
+      skip += page.length;
+    }
+
+    // Per-category lists in parallel (may include entries not in the main list)
+    const cats = ['generation', 'storage', 'transmission', 'conversion'];
+    const catResults = await Promise.allSettled(
+      cats.map(cat => apiFetch(`/api/v1/technologies/category/${cat}?limit=${PAGE}&skip=0`))
+    );
+    const catEntries = catResults.flatMap(r => {
+      if (r.status !== 'fulfilled') return [];
+      const d = r.value;
+      return d?.technologies || d?.items || d?.data || d?.results || (Array.isArray(d) ? d : []);
+    });
+
+    catalogList = [...mainPages, ...catEntries];
   } catch (err) {
     console.warn('[OEO] Failed to fetch technology catalog list:', err.message);
     return [];
@@ -543,18 +587,39 @@ export async function fetchFullCatalogWithInstances() {
     return [];
   }
 
-  console.info(`[OEO] Catalog list: ${catalogList.length} technologies`);
+  // Deduplicate by UUID id — catalog may return the same entry multiple times
+  const seen = new Set();
+  catalogList = catalogList.filter(e => {
+    const key = e.id || e.slug || e.technology_id;
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  console.info(`[OEO] Catalog list: ${catalogList.length} unique technologies`);
 
   // Fast path: if list entries already include populated instances[], use directly
   if (Array.isArray(catalogList[0]?.instances) && catalogList[0].instances.length > 0) {
     return catalogList.map(oeoDetailToCalliope).filter(Boolean);
   }
 
-  // Step 2: fetch detail for every tech in parallel
+  // Fast path: try the /calliope bulk endpoint which returns all techs formatted
+  try {
+    const calliopeData = await apiFetch('/api/v1/technologies/calliope');
+    const calliopeList = Array.isArray(calliopeData)
+      ? calliopeData
+      : calliopeData?.technologies || calliopeData?.data || [];
+    if (calliopeList.length > 0) {
+      console.info(`[OEO] Got ${calliopeList.length} techs from /calliope bulk endpoint`);
+      return calliopeList.map(oeoDetailToCalliope).filter(Boolean);
+    }
+  } catch { /* /calliope endpoint not available, fall through to per-tech detail */ }
+
+  // Step 2: fetch detail for every tech in parallel using UUID id (primary key)
   const detailResults = await Promise.allSettled(
     catalogList.map(entry => {
-      const techId = entry.technology_id || entry.id;
-      if (!techId) return Promise.reject(new Error('Missing technology_id'));
+      const techId = entry.id || entry.technology_id || entry.slug;
+      if (!techId) return Promise.reject(new Error('Missing tech id'));
       return apiFetch(`/api/v1/technologies/${encodeURIComponent(techId)}`);
     })
   );
@@ -595,10 +660,10 @@ export async function fetchFullCatalogByCategory() {
     return [];
   }
 
-  // Deduplicate by technology_id
+  // Deduplicate by slug / id
   const seen = new Set();
   const uniqueEntries = allEntries.filter(e => {
-    const id = e.technology_id || e.id;
+    const id = e.slug || e.id || e.technology_id;
     if (!id || seen.has(id)) return false;
     seen.add(id);
     return true;
@@ -606,7 +671,7 @@ export async function fetchFullCatalogByCategory() {
 
   const detailResults = await Promise.allSettled(
     uniqueEntries.map(entry => {
-      const techId = entry.technology_id || entry.id;
+      const techId = entry.slug || entry.id || entry.technology_id;
       return apiFetch(`/api/v1/technologies/${encodeURIComponent(techId)}`);
     })
   );
@@ -637,7 +702,7 @@ export async function fetchTechsByType(techType) {
   try {
     if (cat) {
       const entries = await fetchTechsByCategory(cat);
-      const details = await Promise.allSettled(entries.map(e => fetchTechDetail(e.technology_id || e.id)));
+      const details = await Promise.allSettled(entries.map(e => fetchTechDetail(e.slug || e.id || e.technology_id)));
       return details.filter(r => r.status === 'fulfilled').map(r => oeoDetailToCalliope(r.value)).filter(Boolean);
     }
   } catch { /* fall through */ }
@@ -707,4 +772,18 @@ export async function enrichTechsFromApi(existingTechs) {
 
   console.info(`[OEO] Tech enrichment complete (${enriched.length} technologies).`);
   return enriched;
+}
+
+/**
+ * Fetch framework-specific parameter export for a technology from the live API.
+ *
+ * @param {string} techUuid     - UUID of the technology (not slug)
+ * @param {string} framework    - One of: calliope | pypsa | osemosys | adoptnet0
+ * @param {number} instanceIndex - 0-based instance index
+ * @returns {Promise<Object|null>}
+ */
+export async function fetchTechFramework(techUuid, framework, instanceIndex = 0) {
+  return apiFetch(
+    `/api/v1/technologies/${encodeURIComponent(techUuid)}/${framework}?instance_index=${instanceIndex}`
+  );
 }

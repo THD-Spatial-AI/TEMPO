@@ -307,7 +307,7 @@ ipcMain.handle('services:urls', async () => {
     adoptnet0:  { url: `http://localhost:${ADOPTNET0_PORT}`, running: a   },
     pypsa:      { url: `http://localhost:${PYPSA_PORT}`,     running: py  },
     osemosys:   { url: `http://localhost:${OSEMOSYS_PORT}`,  running: osm },
-    opentech:   { url: 'http://localhost:8000',              running: o   },
+    opentech:   { url: 'https://otdb.th-deg.de',             running: o   },
     hydrogen:   { url: 'http://localhost:8765',              running: h2  },
     ccs:        { url: 'http://localhost:8766',              running: ccs },
     geoserver:  { url: 'http://localhost:8081',              running: gs  },
@@ -315,9 +315,9 @@ ipcMain.handle('services:urls', async () => {
   };
 });
 
-// opentech-db base URL — override by setting TEMPO_TECH_API_URL at build/launch time
-const TECH_API_URL = process.env.TEMPO_TECH_API_URL || 'http://localhost:8000';
-ipcMain.handle('tech:api-url', () => TECH_API_URL);
+// Route opentech-db through the Go backend proxy to avoid CORS in the renderer.
+// The Go proxy (techproxy.go) forwards /tech/* → https://otdb.th-deg.de.
+ipcMain.handle('tech:api-url', () => `http://localhost:${BACKEND_PORT}/tech`);
 
 // Backward compat — calliopeClient.js calls this
 ipcMain.handle('calliope:service-url', async () => ({
