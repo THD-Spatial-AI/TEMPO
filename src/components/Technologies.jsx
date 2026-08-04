@@ -2,13 +2,13 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
   FiSearch, FiEdit2, FiX, FiSave, FiTrash2, FiChevronDown,
   FiChevronRight as FiChevronRightIcon, FiArrowRight, FiHelpCircle, FiCopy, FiZap,
-  FiSun, FiDatabase, FiRefreshCw, FiShare2, FiBarChart2, FiStar, FiPlus,
+  FiSun, FiDatabase, FiRefreshCw, FiShare2, FiBarChart2, FiStar, FiPlus, FiCheck,
   FiExternalLink,
 } from 'react-icons/fi';
 import { useData } from '../context/DataContext';
 import SaveBar from './ui/SaveBar';
 import { TECH_TEMPLATES, PARENT_TYPES, useLiveTechTemplates } from './TechnologiesData';
-import { fetchTechFramework } from '../services/techDatabaseApi';
+import { fetchTechFramework, oeoDetailToCalliope } from '../services/techDatabaseApi';
 import { CARRIERS, CARRIERS_BY_GROUP, getCarrierColor, getCarrierLabel } from '../config/carriers';
 import {
   CONSTRAINT_DEFINITIONS,
@@ -202,7 +202,9 @@ function SkeletonGrid() {
 
 // ── Tech Card ────────────────────────────────────────────────────────────────
 const TechCard = ({ techName, tech, isCustom, onDuplicate, onEdit, onDelete, onOpenDetail }) => {
+  const { technologies, addTechToModel, removeTechFromModel, currentModelId } = useData();
   const meta = CATEGORY_META[tech.parent] || { color: '#94a3b8' };
+  const inModel = currentModelId && technologies.some(t => t.name === techName);
   const displayName = tech.essentials?.name || formatName(techName);
   const instances = tech.instances || [];
 
@@ -336,6 +338,26 @@ const TechCard = ({ techName, tech, isCustom, onDuplicate, onEdit, onDelete, onO
             >
               <FiCopy size={10} /> Duplicate
             </button>
+            {currentModelId && tech.uuid && (
+              inModel ? (
+                <button
+                  onClick={() => removeTechFromModel(techName)}
+                  className="flex items-center gap-1 text-[10px] font-semibold transition-colors"
+                  style={{ color: meta.color }}
+                  title="Remove from active model"
+                >
+                  <FiCheck size={10} /> In model
+                </button>
+              ) : (
+                <button
+                  onClick={() => addTechToModel(oeoDetailToCalliope(tech))}
+                  className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-700 transition-colors"
+                  title="Add to active model"
+                >
+                  <FiPlus size={10} /> Model
+                </button>
+              )
+            )}
             <button
               onClick={() => onOpenDetail && onOpenDetail(tech)}
               className="ml-auto flex items-center gap-0.5 text-[10px] transition-colors"
@@ -868,7 +890,7 @@ function DetailPanel({ tech, onClose, onDuplicate }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 function Technologies() {
-  const { technologies, setTechnologies } = useData();
+  const { technologies, setTechnologies, currentModelId } = useData();
   const [searchTerm, setSearchTerm]             = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [showOnlyCustom, setShowOnlyCustom]     = useState(false);
@@ -1017,7 +1039,14 @@ function Technologies() {
         {/* ── Sidebar ──────────────────────────────────────────────────────── */}
         <aside className="w-60 flex-shrink-0 bg-white border-r border-slate-200 flex flex-col overflow-hidden">
           <div className="px-4 pt-4 pb-3 border-b border-slate-100">
-            <h2 className="text-sm font-bold text-slate-800">Technology Library</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-bold text-slate-800">Technology Library</h2>
+              {currentModelId && technologies.filter(t => t.uuid).length > 0 && (
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600">
+                  {technologies.filter(t => t.uuid).length} in model
+                </span>
+              )}
+            </div>
             <p className="text-[11px] text-slate-400 mt-0.5">Browse &amp; manage energy technologies</p>
           </div>
 

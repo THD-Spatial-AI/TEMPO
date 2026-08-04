@@ -40,6 +40,7 @@ import { MAP_STYLES, MAP_STYLE_NAMES } from '../config/mapStyles';
 import LayerSelector from './creation/LayerSelector';
 import SearchBar from './creation/SearchBar';
 import MapZoomControls from './creation/MapZoomControls';
+import TechLibraryPanel from './creation/TechLibraryPanel';
 
 const Creation = () => {
   const { 
@@ -69,10 +70,11 @@ const Creation = () => {
   // Mode state
   const [mode, setMode] = useState(null); // null (no mode), 'single', 'multiple', 'link', 'polyline'
   const [currentLinkType, setCurrentLinkType] = useState('hvac_overhead'); // link type used when drawing new links
+  const [showTechLibrary, setShowTechLibrary] = useState(false);
   
   // Initialize custom hooks
   const locationManager = useLocationManager();
-  const techManager = useTechnologyManager();
+  const techManager = useTechnologyManager(technologies);
   const polylineMode = usePolylineMode(locationManager, showNotification);
   
   // OSM Filters (local state - not persisted)
@@ -233,7 +235,7 @@ const Creation = () => {
   const [modelResults, setModelResults] = useState(null);
   
   // Create technology map — live API catalog first, then static fallback, then model-specific overrides
-  const { techTemplates: liveTechTemplates } = useLiveTechTemplates();
+  const { techTemplates: liveTechTemplates, isLive: isApiLive } = useLiveTechTemplates();
   const techMap = useMemo(() => {
     const map = {};
 
@@ -1661,6 +1663,35 @@ const Creation = () => {
         {hoveredInfo && (
           <HoverTooltip
             hoveredInfo={hoveredInfo}
+          />
+        )}
+
+        {/* Tech Library toggle button */}
+        <button
+          onClick={() => setShowTechLibrary(v => !v)}
+          className={`absolute top-4 left-4 z-30 flex items-center gap-1.5 px-3 py-1.5 rounded-lg shadow-md text-[11px] font-semibold transition-colors border ${
+            showTechLibrary
+              ? 'bg-indigo-600 text-white border-indigo-700'
+              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          <FiCpu size={12} />
+          Tech Library
+          {technologies.filter(t => t.uuid).length > 0 && (
+            <span className={`text-[9px] font-bold px-1 py-0.5 rounded-full ml-0.5 ${
+              showTechLibrary ? 'bg-indigo-500 text-white' : 'bg-indigo-50 text-indigo-600'
+            }`}>
+              {technologies.filter(t => t.uuid).length}
+            </span>
+          )}
+        </button>
+
+        {/* Tech Library panel */}
+        {showTechLibrary && (
+          <TechLibraryPanel
+            onClose={() => setShowTechLibrary(false)}
+            liveTechTemplates={liveTechTemplates}
+            isApiLive={isApiLive}
           />
         )}
 

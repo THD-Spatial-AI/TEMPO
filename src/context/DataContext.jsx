@@ -681,6 +681,12 @@ export const DataProvider = ({ children }) => {
     links, setLinks,
     parameters, setParameters,
     technologies, setTechnologies,
+    addTechToModel: (tech) => setTechnologies(prev =>
+      prev.some(t => t.name === tech.name) ? prev : [...prev, tech]
+    ),
+    removeTechFromModel: (techName) => setTechnologies(prev =>
+      prev.filter(t => t.name !== techName)
+    ),
     timeSeries, setTimeSeries,
     overrides, setOverrides,
     scenarios, setScenarios,
