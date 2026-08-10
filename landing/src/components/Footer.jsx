@@ -25,6 +25,7 @@ const sections = [
     links: [
       { label: 'License', to: '/license' },
       { label: 'Privacy', to: '/privacy' },
+      { label: 'Imprint', to: '/impressum' },
       { label: 'Code of Conduct', to: '/code-of-conduct' },
     ],
   },
