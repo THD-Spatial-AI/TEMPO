@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo, useCallback } from 'react';
+﻿import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import ReactECharts from 'echarts-for-react';
 import {
@@ -8,6 +8,8 @@ import {
   FiZap, FiActivity, FiClock, FiCpu, FiMap, FiLayers, FiShare2, FiGrid,
   FiChevronDown, FiFilter, FiGitMerge, FiSearch, FiX,
 } from 'react-icons/fi';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import ScenarioComparison from './ScenarioComparison';
 
@@ -48,6 +50,8 @@ const Results = () => {
   const [selectedSpore, setSelectedSpore] = useState(0);
   // empty Set = nothing selected yet; Set<string> = regions to show
   const [corrLocFilter, setCorrLocFilter] = useState(new Set());
+  const [downloadOpen, setDownloadOpen] = useState(false);
+  const downloadRef = useRef(null);
 
   // Reset per-job UI state when switching runs
   useEffect(() => {
@@ -74,6 +78,17 @@ const Results = () => {
       setSelectedJobId(completedJobs[0].id);
     }
   }, [completedJobs]);
+
+  // Close download dropdown on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (downloadRef.current && !downloadRef.current.contains(e.target)) {
+        setDownloadOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   const selectedJob = completedJobs.find(j => j.id === selectedJobId) || null;
   const result = selectedJob?.result || null;
@@ -381,7 +396,7 @@ const Results = () => {
   };
 
   // ── Export ─────────────────────────────────────────────────────────────────
-  const handleExport = () => {
+  const handleExportJSON = () => {
     if (!result) return;
     const blob = new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -389,7 +404,74 @@ const Results = () => {
     const fw = result.framework || 'results';
     a.href = url; a.download = `${fw}_${selectedJobId}.json`; a.click();
     URL.revokeObjectURL(url);
-    showNotification('Results exported', 'success');
+    showNotification('Results exported as JSON', 'success');
+    setDownloadOpen(false);
+  };
+
+  const handleExportCSV = async () => {
+    if (!result) return;
+    const zip = new JSZip();
+    const fw = result.framework || 'results';
+    const fmt = (v) => (typeof v === 'number' ? v.toFixed(4) : (v ?? ''));
+
+    // capacities.csv
+    const capRows = [['location', 'tech', 'capacity_MW']];
+    Object.entries(result.capacities || {}).forEach(([key, val]) => {
+      const parts = key.split('::');
+      const loc = parts[0] || '';
+      const tech = parts.slice(1).join('::') || key;
+      capRows.push([loc, tech, fmt(val)]);
+    });
+    zip.file('capacities.csv', capRows.map(r => r.join(',')).join('\n'));
+
+    // dispatch.csv — timestamp × tech pivot
+    const ts = result.timestamps || [];
+    const dispatchTechs = Object.keys(result.dispatch || {});
+    if (ts.length && dispatchTechs.length) {
+      const header = ['timestamp', ...dispatchTechs];
+      const rows = ts.map((t, i) =>
+        [t, ...dispatchTechs.map(tech => fmt(result.dispatch[tech]?.[i]))].join(',')
+      );
+      zip.file('dispatch.csv', [header.join(','), ...rows].join('\n'));
+    }
+
+    // generation.csv
+    const genEntries = Object.entries(result.generation || {});
+    if (genEntries.length) {
+      const genRows = [['key', 'generation_MWh'], ...genEntries.map(([k, v]) => [k, fmt(v)])];
+      zip.file('generation.csv', genRows.map(r => r.join(',')).join('\n'));
+    }
+
+    // costs_by_tech.csv
+    const costEntries = Object.entries(result.costs_by_tech || {});
+    if (costEntries.length) {
+      const costRows = [['tech', 'total_cost_eur'], ...costEntries.map(([k, v]) => [k, fmt(v)])];
+      zip.file('costs_by_tech.csv', costRows.map(r => r.join(',')).join('\n'));
+    }
+
+    // costs_by_location.csv
+    const costLocEntries = Object.entries(result.costs_by_location || {});
+    if (costLocEntries.length) {
+      const rows = [['location', 'tech', 'cost_eur']];
+      costLocEntries.forEach(([loc, techs]) => {
+        Object.entries(techs || {}).forEach(([tech, val]) => rows.push([loc, tech, fmt(val)]));
+      });
+      zip.file('costs_by_location.csv', rows.map(r => r.join(',')).join('\n'));
+    }
+
+    // metadata.json
+    zip.file('metadata.json', JSON.stringify({
+      framework: result.framework,
+      model_name: result.model_name,
+      objective: result.objective,
+      termination_condition: result.termination_condition,
+      solver: result.solver,
+    }, null, 2));
+
+    const blob = await zip.generateAsync({ type: 'blob' });
+    saveAs(blob, `${fw}_${selectedJobId}_results.zip`);
+    showNotification('Results exported as CSV', 'success');
+    setDownloadOpen(false);
   };
 
   // ── ECharts options ────────────────────────────────────────────────────────
@@ -857,10 +939,27 @@ const Results = () => {
                 </button>
               </div>
               {result && !compareMode && (
-                <button onClick={handleExport}
-                  className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white text-slate-700 rounded-xl hover:bg-slate-50 transition text-sm shadow-sm">
-                  <FiDownload size={14} /> Export JSON
-                </button>
+                <div className="relative" ref={downloadRef}>
+                  <button
+                    onClick={() => setDownloadOpen(v => !v)}
+                    className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white text-slate-700 rounded-xl hover:bg-slate-50 transition text-sm shadow-sm">
+                    <FiDownload size={14} /> Download <FiChevronDown size={12} />
+                  </button>
+                  {downloadOpen && (
+                    <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-slate-200 rounded-xl shadow-lg z-20 py-1 overflow-hidden">
+                      <button
+                        onClick={handleExportJSON}
+                        className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2.5">
+                        <FiDownload size={13} className="text-slate-400" /> Results JSON
+                      </button>
+                      <button
+                        onClick={handleExportCSV}
+                        className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2.5">
+                        <FiGrid size={13} className="text-slate-400" /> Results CSV (ZIP)
+                      </button>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </div>
