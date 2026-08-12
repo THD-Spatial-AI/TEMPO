@@ -228,6 +228,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
    * @returns Promise<{ success: bool }>
    */
   markSetupComplete: () => ipcRenderer.invoke('setup:mark-complete'),
+
+  // ── MEME remote server ────────────────────────────────────────────────────
+
+  /**
+   * Probe a MEME server's /capabilities endpoint from the main process
+   * (avoids CORS when called from the renderer).
+   * @param {string} url  Base URL of the MEME server (e.g. "http://localhost:8081")
+   * @returns Promise<object|null>  Parsed /capabilities JSON, or null if unreachable.
+   */
+  memeCheck: (url) => ipcRenderer.invoke('meme:check', url),
+
+  /**
+   * General-purpose MEME HTTP proxy. Bypasses CORS — all MEME run traffic
+   * goes through the main process, not the renderer.
+   * @param {{ url: string, method?: string, body?: string, timeoutMs?: number }} opts
+   * @returns Promise<{ ok: boolean, status: number, data: object|null, networkError?: string }>
+   */
+  memeFetch: (opts) => ipcRenderer.invoke('meme:fetch', opts),
 });
 
 

@@ -440,6 +440,43 @@ ipcMain.handle('setup:mark-complete', () => {
   }
 });
 
+// ─── IPC: MEME server proxy (avoids CORS from renderer) ──────────────────
+ipcMain.handle('meme:check', async (_event, rawUrl) => {
+  if (!rawUrl || typeof rawUrl !== 'string') return null;
+  const base = rawUrl.trim().replace(/\/+$/, '');
+  try {
+    const { net } = require('electron');
+    const res = await net.fetch(`${base}/capabilities`, {
+      signal: AbortSignal.timeout(5000),
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+});
+
+// General-purpose MEME HTTP proxy — renderer calls this for all MEME requests
+// so they bypass CORS (main process has no origin restrictions).
+// Returns { ok, status, data } where data is the parsed JSON body (or null).
+ipcMain.handle('meme:fetch', async (_event, { url, method = 'GET', body, timeoutMs = 30000 }) => {
+  try {
+    const { net } = require('electron');
+    const opts = { method, signal: AbortSignal.timeout(timeoutMs), cache: 'no-store' };
+    if (body) {
+      opts.headers = { 'Content-Type': 'application/json' };
+      opts.body = body;
+    }
+    const res = await net.fetch(url, opts);
+    let data = null;
+    try { data = await res.json(); } catch { /* non-JSON body */ }
+    return { ok: res.ok, status: res.status, data };
+  } catch (err) {
+    return { ok: false, status: 0, data: null, networkError: err.message };
+  }
+});
+
 // ─── Python venv resolver ─────────────────────────────────────────────────
 /**
  * Find the Calliope Python venv, whether it's the repo-local .venv-calliope

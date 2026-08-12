@@ -368,6 +368,7 @@ export function internalToMemeCanonical(model, opts = {}) {
 
   // ── Technologies ──────────────────────────────────────────────────────────
   const memeTechs = {};
+  const tradeEntries = {};
   const carriers = new Set();
   for (const tech of technologies) {
     const id = techIdOf(tech);
@@ -381,6 +382,30 @@ export function internalToMemeCanonical(model, opts = {}) {
     if (!nodes || !nodes.length) {
       log.push(`⚠ tech '${id}': not placed at any node — skipped (MEME requires a node)`);
       continue;
+    }
+
+    // AdOpT-NET0 is database-driven: a plain supply role has no database mapping.
+    // Infinite-resource supply_plus techs (grid import / slack) map to MEME's
+    // trade.import concept, which adopt_net0 natively supports.
+    if (opts.engine === 'adoptnet0' && parent === 'supply_plus') {
+      const r = tech.constraints?.resource;
+      if (isInf(r)) {
+        const ess0 = tech.essentials || {};
+        const carrier = ess0.carrier_out || ess0.carrier || 'electricity';
+        carriers.add(carrier);
+        const price = num(tech.costs?.monetary?.om_prod ?? tech.costs?.monetary?.om_con);
+        const capMax = tech.constraints?.energy_cap_max;
+        const limit = (capMax != null && !isInf(capMax)) ? (num(capMax) ?? INF) : INF;
+        for (const nodeId of nodes) {
+          tradeEntries[`${id}_${nodeId}`] = {
+            node: nodeId,
+            carrier,
+            import: { limit, ...(price != null && { price }) },
+          };
+        }
+        log.push(`ℹ tech '${id}': infinite-resource supply mapped to trade import for adopt-net0`);
+        continue;
+      }
     }
 
     const ess = tech.essentials || {};
@@ -525,6 +550,7 @@ export function internalToMemeCanonical(model, opts = {}) {
   };
   if (Object.keys(tsCtx.timeseries).length) memeModel.timeseries = tsCtx.timeseries;
   if (Object.keys(transmission).length) memeModel.transmission = transmission;
+  if (Object.keys(tradeEntries).length) memeModel.trade = tradeEntries;
 
   const mode = opts.mode || modelCfg.mode || runCfg.mode || 'plan';
   // Unmet-demand slack. TEMPO enables ensure_feasibility by default on local

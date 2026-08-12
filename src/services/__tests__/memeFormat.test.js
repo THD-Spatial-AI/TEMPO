@@ -409,6 +409,99 @@ describe('internalToMemeCanonical – transmission', () => {
 // Node coordinates: all-or-nothing
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// AdOpT-NET0: infinite-resource supply_plus → trade import
+// ---------------------------------------------------------------------------
+
+describe('internalToMemeCanonical – adoptnet0 trade import', () => {
+  const importTech = {
+    name: 'import',
+    essentials: { parent: 'supply_plus', carrier_out: 'electricity' },
+    constraints: { resource: 'inf', lifetime: 40 },
+    costs: { monetary: { om_prod: 0.104, interest_rate: 0.1 } },
+  };
+  const battTech = makeTech('batt', 'storage',
+    { storage_cap_max: 500, energy_cap_max: 200, energy_eff: 0.95, lifetime: 15 },
+    { monetary: { energy_cap: 1000, interest_rate: 0.05 } },
+    { carrier_in: 'electricity', carrier_out: 'electricity' },
+  );
+  const demandTech = makeTech('load', 'demand', { resource: -100, force_resource: true });
+
+  const model = baseModel({
+    technologies: [importTech, battTech, demandTech],
+    locations: [{ name: 'n1', latitude: -18.5, longitude: -70.3,
+      techs: { import: null, batt: null, load: null } }],
+  });
+
+  it('routes infinite-resource supply_plus to model.trade (not technologies) for adoptnet0', () => {
+    const { payload } = internalToMemeCanonical(model, { engine: 'adoptnet0' });
+    expect(payload.model.technologies.import).toBeUndefined();
+    expect(payload.model.trade).toBeDefined();
+    const entry = Object.values(payload.model.trade)[0];
+    expect(entry.node).toBe('n1');
+    expect(entry.carrier).toBe('electricity');
+    expect(entry.import).toBeDefined();
+  });
+
+  it('carries the om_prod cost as the import price', () => {
+    const { payload } = internalToMemeCanonical(model, { engine: 'adoptnet0' });
+    const entry = Object.values(payload.model.trade)[0];
+    expect(entry.import.price).toBeCloseTo(0.104);
+  });
+
+  it('uses INF limit when energy_cap_max is absent', () => {
+    const { payload } = internalToMemeCanonical(model, { engine: 'adoptnet0' });
+    const entry = Object.values(payload.model.trade)[0];
+    expect(entry.import.limit).toBeGreaterThan(1e10);
+  });
+
+  it('uses energy_cap_max as the import limit when set', () => {
+    const m2 = baseModel({
+      technologies: [{
+        ...importTech,
+        constraints: { resource: 'inf', energy_cap_max: 500 },
+      }],
+      locations: [{ name: 'n1', latitude: 0, longitude: 0, techs: { import: null } }],
+    });
+    const { payload } = internalToMemeCanonical(m2, { engine: 'adoptnet0' });
+    const entry = Object.values(payload.model.trade)[0];
+    expect(entry.import.limit).toBe(500);
+  });
+
+  it('leaves the import tech as a supply role for non-adoptnet0 engines', () => {
+    const { payload } = internalToMemeCanonical(model, { engine: 'calliope07' });
+    expect(payload.model.technologies.import).toBeDefined();
+    expect(payload.model.technologies.import.role).toBe('supply');
+    expect(payload.model.trade).toBeUndefined();
+  });
+
+  it('emits trade entry per node when the tech is on multiple nodes', () => {
+    const m2 = baseModel({
+      technologies: [importTech],
+      locations: [
+        { name: 'n1', latitude: 0, longitude: 0, techs: { import: null } },
+        { name: 'n2', latitude: 1, longitude: 1, techs: { import: null } },
+      ],
+    });
+    const { payload } = internalToMemeCanonical(m2, { engine: 'adoptnet0' });
+    const entries = Object.values(payload.model.trade);
+    const nodeSet = new Set(entries.map((e) => e.node));
+    expect(entries).toHaveLength(2);
+    expect(nodeSet).toContain('n1');
+    expect(nodeSet).toContain('n2');
+  });
+
+  it('storage and demand techs still appear in model.technologies for adoptnet0', () => {
+    const { payload } = internalToMemeCanonical(model, { engine: 'adoptnet0' });
+    expect(payload.model.technologies.batt).toBeDefined();
+    expect(payload.model.technologies.load).toBeDefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Node coordinates: all-or-nothing
+// ---------------------------------------------------------------------------
+
 describe('internalToMemeCanonical – node coords all-or-nothing', () => {
   it('emits coords when every node has them', () => {
     const model = baseModel({
