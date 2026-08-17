@@ -1,11 +1,13 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import ReactECharts from 'echarts-for-react';
 import {
   FiSearch, FiBarChart2, FiGrid, FiTrendingUp, FiZap,
   FiDollarSign, FiSliders, FiLayers, FiInfo, FiCheckSquare,
-  FiSquare, FiDownload, FiFilter, FiChevronDown,
+  FiSquare, FiDownload, FiFilter, FiChevronDown, FiMap,
 } from 'react-icons/fi';
+import { RegionChoropleth, MultiRegionChoropleth } from './results/ResultMaps';
+import { choroMetricsFromResult } from '../utils/choroMetrics';
 
 // ─── Qualitative colour palette (20 perceptually-distinct colours) ────────────
 const PALETTE = [
@@ -369,11 +371,29 @@ const KPI_ROWS = [
 // ─── Chart-view tabs ───────────────────────────────────────────────────────
 const CHART_VIEWS = [
   { id: 'table',    label: 'Summary',    icon: FiGrid },
+  { id: 'maps',     label: 'Maps',       icon: FiMap },
   { id: 'capacity', label: 'Capacity',   icon: FiBarChart2 },
   { id: 'gen',      label: 'Generation', icon: FiZap },
   { id: 'costs',    label: 'Costs',      icon: FiDollarSign },
   { id: 'parallel', label: 'Parallel',   icon: FiTrendingUp },
   { id: 'scatter',  label: 'Scatter',    icon: FiSliders },
+];
+
+// Shared metric options for the side-by-side region maps
+const MAP_METRICS = [
+  { key: 'demand',    label: 'Demand' },
+  { key: 'unmet',     label: 'Unmet demand' },
+  { key: 'demandMet', label: 'Demand met' },
+];
+const MAX_MAPS = 6; // WebGL contexts are costly — cap the small-multiples grid
+
+// Aggregate KPIs for the combined cross-region map (one value shades a whole region)
+const REGION_KPIS = [
+  { key: 'renewableShare', label: 'Renewable share', kind: 'pct', ramp: ['#d73027', '#fee08b', '#1a9850'] },
+  { key: 'renewableCapShare', label: 'Renewable cap.', kind: 'pct', ramp: ['#d73027', '#fee08b', '#1a9850'] },
+  { key: 'totalCost',      label: 'System cost',     kind: 'seq', ramp: ['#fff7ec', '#fdbb84', '#d7301f'], unit: '€' },
+  { key: 'lcoe',           label: 'LCOE',            kind: 'seq', ramp: ['#fff7ec', '#fdbb84', '#d7301f'], unit: '€/MWh' },
+  { key: 'unmetTotal',     label: 'Unmet demand',    kind: 'seq', ramp: ['#fff5f0', '#fb6a4a', '#a50f15'], unit: 'MWh' },
 ];
 
 // ─── CSV export ────────────────────────────────────────────────────────────
@@ -417,6 +437,9 @@ export default function ScenarioComparison() {
   const [scatterX,    setScatterX]    = useState('renewableShare');
   const [scatterY,    setScatterY]    = useState('totalCost');
   const [techFilter,  setTechFilter]  = useState(new Set());
+  const [mapMetric,   setMapMetric]   = useState('demand');
+  const [mapMode,     setMapMode]     = useState('multiples'); // 'multiples' | 'combined'
+  const [regionKpi,   setRegionKpi]   = useState('renewableShare');
 
   // Jobs with a usable result
   const validJobs = useMemo(
@@ -451,6 +474,41 @@ export default function ScenarioComparison() {
       .filter(x => x.kpis),
     [selectedJobs]
   );
+
+  // Per-job commune choropleth metrics (for the Maps view), capped for WebGL cost
+  const mapsPerJob = useMemo(
+    () => selectedJobs.slice(0, MAX_MAPS).map(j => ({ job: j, choro: choroMetricsFromResult(j.result) })),
+    [selectedJobs]
+  );
+  // All three metrics derive from commune demand — offer them if any run has demand.
+  const availableMapMetrics = useMemo(
+    () => (mapsPerJob.some(({ choro }) => Object.keys(choro.demand || {}).length > 0) ? MAP_METRICS : []),
+    [mapsPerJob]
+  );
+
+  // Combined cross-region map: one shaded footprint per run (uncapped — single canvas)
+  const regionRuns = useMemo(() => selectedJobs.map((job, i) => {
+    const kpis = extractKPIs(job.result) || {};
+    return {
+      id: job.id,
+      label: job.modelName,
+      color: colorMap[job.id] || jobColor(i),
+      communes: Object.keys(choroMetricsFromResult(job.result).demand || {}),
+      values: {
+        renewableShare: kpis.renewableShare || 0,
+        renewableCapShare: kpis.renewableCapShare || 0,
+        totalCost: kpis.totalCost || 0,
+        lcoe: kpis.lcoe || 0,
+        unmetTotal: Number(job.result?.unmet_demand_total) || 0,
+      },
+    };
+  }), [selectedJobs, colorMap]);
+  const regionMapReady = useMemo(() => regionRuns.some(r => r.communes.length > 0), [regionRuns]);
+  useEffect(() => {
+    if (availableMapMetrics.length && !availableMapMetrics.some(m => m.key === mapMetric)) {
+      setMapMetric(availableMapMetrics[0].key);
+    }
+  }, [availableMapMetrics, mapMetric]);
 
   // Union of all tech names across selected jobs
   const allTechs = useMemo(() => {
@@ -753,6 +811,104 @@ export default function ScenarioComparison() {
                       </tbody>
                     </table>
                   </div>
+                </div>
+              )}
+
+              {chartView === 'maps' && (
+                <div className="h-full bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+                  <div className="flex-shrink-0 px-4 py-3 border-b border-slate-100 flex items-center gap-3 flex-wrap">
+                    <span className="font-semibold text-slate-800 text-sm">Region Maps</span>
+                    {/* Mode toggle */}
+                    <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
+                      {[{ id: 'multiples', label: 'Side by side' }, { id: 'combined', label: 'Combined' }].map(m => (
+                        <button key={m.id} onClick={() => setMapMode(m.id)}
+                          className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+                            mapMode === m.id ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                          }`}>
+                          {m.label}
+                        </button>
+                      ))}
+                    </div>
+                    {/* Metric selector — commune metric (multiples) or region KPI (combined) */}
+                    {mapMode === 'multiples' && availableMapMetrics.length > 0 && (
+                      <div className="ml-auto flex gap-1 bg-slate-100 rounded-lg p-1">
+                        {availableMapMetrics.map(m => (
+                          <button key={m.key} onClick={() => setMapMetric(m.key)}
+                            className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+                              mapMetric === m.key ? 'bg-gray-900 text-white' : 'text-slate-500 hover:text-slate-700'
+                            }`}>
+                            {m.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {mapMode === 'combined' && (
+                      <div className="ml-auto flex gap-1 bg-slate-100 rounded-lg p-1 flex-wrap">
+                        {REGION_KPIS.map(m => (
+                          <button key={m.key} onClick={() => setRegionKpi(m.key)}
+                            className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+                              regionKpi === m.key ? 'bg-gray-900 text-white' : 'text-slate-500 hover:text-slate-700'
+                            }`}>
+                            {m.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {mapMode === 'multiples' ? (
+                    availableMapMetrics.length === 0 ? (
+                      <div className="flex-1 flex items-center justify-center text-slate-400 text-sm text-center px-8">
+                        None of the selected runs have commune-level demand data.<br />
+                        Re-run the models (with unmet-demand enabled) to populate region maps.
+                      </div>
+                    ) : (
+                      <div className="flex-1 overflow-auto p-3">
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                          {mapsPerJob.map(({ job, choro }, i) => {
+                            const hasData = Object.keys(choro.demand || {}).length > 0;
+                            return (
+                              <div key={job.id} className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50 flex flex-col" style={{ height: 300 }}>
+                                <div className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 bg-white border-b border-slate-100">
+                                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: colorMap[job.id] || jobColor(i) }} />
+                                  <span className="text-xs font-medium text-slate-700 truncate" title={job.modelName}>{job.modelName}</span>
+                                </div>
+                                <div className="flex-1 min-h-0">
+                                  {hasData ? (
+                                    <RegionChoropleth key={job.id + '-' + mapMetric} metrics={choro} metric={mapMetric} compact />
+                                  ) : (
+                                    <div className="h-full flex items-center justify-center text-slate-400 text-xs">No commune data</div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {selectedJobs.length > MAX_MAPS && (
+                          <p className="text-xs text-slate-400 text-center mt-3">
+                            Showing first {MAX_MAPS} of {selectedJobs.length} selected runs (maps are GPU-intensive).
+                          </p>
+                        )}
+                      </div>
+                    )
+                  ) : (
+                    !regionMapReady ? (
+                      <div className="flex-1 flex items-center justify-center text-slate-400 text-sm text-center px-8">
+                        Selected runs have no commune footprint to shade.
+                      </div>
+                    ) : (() => {
+                      const kpiDef = REGION_KPIS.find(k => k.key === regionKpi) || REGION_KPIS[0];
+                      const combinedRuns = regionRuns.map(r => ({ communes: r.communes, value: r.values[regionKpi], label: r.label, color: r.color }));
+                      return (
+                        <div className="flex-1 min-h-0 p-3 flex flex-col">
+                          <p className="text-xs text-slate-400 mb-2 flex-shrink-0">Each region shaded by <b>{kpiDef.label}</b>. Select one run per region; on overlap the last selected wins.</p>
+                          <div className="flex-1 min-h-0">
+                            <MultiRegionChoropleth key={regionKpi} runs={combinedRuns} kind={kpiDef.kind} ramp={kpiDef.ramp} unit={kpiDef.unit || ''} />
+                          </div>
+                        </div>
+                      );
+                    })()
+                  )}
                 </div>
               )}
 

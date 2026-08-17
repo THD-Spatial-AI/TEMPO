@@ -1,8 +1,8 @@
 // OverviewTab — the "overview" result tab, extracted verbatim from Results.jsx.
 // Renders the pre-computed chart options / data passed as props.
-import { FiBarChart2, FiChevronDown, FiMap, FiMapPin, FiPieChart, FiShare2, FiTrendingUp, FiZap } from 'react-icons/fi';
+import { FiBarChart2, FiChevronDown, FiGrid, FiMap, FiMapPin, FiPieChart, FiShare2, FiTrendingUp, FiZap } from 'react-icons/fi';
 import ReactECharts from 'echarts-for-react';
-import { ResultsMap, TransmissionFlowMap } from '../ResultMaps';
+import { ResultsMap, TransmissionFlowMap, RegionChoropleth } from '../ResultMaps';
 import { autoScale, axisNameStyle, fmtCost, fmtEnergy, fmtPower, scaledFmt } from '../../../utils/resultFormat';
 
 export default function OverviewTab({
@@ -32,6 +32,8 @@ export default function OverviewTab({
                       <div className="ml-auto flex gap-1">
                         {[
                           { id: 'capacity',     label: 'Capacity',     icon: FiBarChart2 },
+                          { id: 'mix',          label: 'Tech Mix',     icon: FiPieChart },
+                          { id: 'regions',      label: 'Regions',      icon: FiGrid },
                           ...(hasFlow ? [{ id: 'generation', label: 'Gen Heatmap', icon: FiZap }] : []),
                           { id: 'transmission', label: 'Transmission', icon: FiShare2 },
                         ].map(({ id, label, icon: Icon }) => (
@@ -54,11 +56,17 @@ export default function OverviewTab({
                             capacitiesByLoc={derivedData?.capByLoc || {}}
                             timestamps={derivedData?.timestamps || []}
                           />
+                        ) : mapView === 'regions' ? (
+                          <RegionChoropleth
+                            key={selectedJobId + '-regions'}
+                            metrics={derivedData?.choroMetrics || {}}
+                          />
                         ) : (
                           <ResultsMap key={selectedJobId + '-' + mapView}
                             locations={modelLocations}
                             capacitiesByLoc={derivedData?.capByLoc || {}}
                             dominantTechByLoc={derivedData?.domTech || {}}
+                            techMixByLoc={derivedData?.techMixByLoc || {}}
                             generationByLoc={derivedData?.genByLoc || {}}
                             viewMode={mapView}
                             colorFn={techColorFn}

@@ -2330,8 +2330,61 @@ def _run_model_impl(model_data, work_dir):
                     results['demand_timeseries'] = [round(float(v), 3) for v in demand_vals.tolist()]
                     if 'timestamps' not in results:
                         results['timestamps'] = timestamps
+
+                # Per-location demand (total MWh), grouped by location — for the
+                # region choropleth "demand" layer.
+                demand_by_loc = {}
+                for coord_val in con[lt_dim_con].values:
+                    parts = str(coord_val).split('::')
+                    tech = parts[1] if len(parts) >= 3 else (parts[0] if len(parts) == 1 else parts[1])
+                    if 'demand' in tech.split(':')[0].lower():
+                        loc = parts[0]
+                        vals = con.sel({lt_dim_con: coord_val}).values.astype(float)
+                        tot = float(np.nansum(np.abs(vals)))
+                        if tot > 0:
+                            demand_by_loc[loc] = demand_by_loc.get(loc, 0.0) + tot
+                if demand_by_loc:
+                    results['demand_by_location'] = {k: round(v, 3) for k, v in demand_by_loc.items()}
         except Exception as e:
             log(f"  Could not extract demand timeseries: {e}")
+
+    # Unmet demand slack (present when ensure_feasibility=True). Calliope 0.6.8
+    # exposes an 'unmet_demand' variable over (loc_carriers, timesteps). We total
+    # it per location — the core signal of an infeasible/isolated region.
+    if 'unmet_demand' in ds:
+        try:
+            import numpy as np
+            ud = ds['unmet_demand']
+            lt_dim_ud = next((d for d in ud.dims if 'loc' in d), None)
+            if lt_dim_ud:
+                unmet_by_loc = {}
+                total_unmet = 0.0
+                summed = ud.sum(dim='timesteps') if 'timesteps' in ud.dims else ud
+                for coord_val, val in zip(summed[lt_dim_ud].values, np.atleast_1d(summed.values)):
+                    v = float(val) if val == val else 0.0
+                    if abs(v) < 1e-6:
+                        continue
+                    loc = str(coord_val).split('::')[0]
+                    unmet_by_loc[loc] = unmet_by_loc.get(loc, 0.0) + abs(v)
+                    total_unmet += abs(v)
+                results['unmet_demand_by_location'] = {k: round(v, 3) for k, v in unmet_by_loc.items()}
+                results['unmet_demand_total'] = round(total_unmet, 3)
+        except Exception as e:
+            log(f"  Could not extract unmet demand: {e}")
+
+    # Location coordinates — makes results self-describing for map exports (pie map).
+    try:
+        loc_coords = {}
+        for loc in (locations or []):
+            nm = loc.get('name') or loc.get('id')
+            la = loc.get('lat') if loc.get('lat') is not None else loc.get('latitude')
+            lo = loc.get('lng') if loc.get('lng') is not None else (loc.get('lon') if loc.get('lon') is not None else loc.get('longitude'))
+            if nm and la is not None and lo is not None:
+                loc_coords[str(nm)] = [float(la), float(lo)]
+        if loc_coords:
+            results['coordinates'] = loc_coords
+    except Exception as e:
+        log(f"  Could not extract coordinates: {e}")
 
     # Cost breakdown by technology
     # Calliope 0.6 uses a MultiIndex dimension 'loc_techs_cost' shaped as

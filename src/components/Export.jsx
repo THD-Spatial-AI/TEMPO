@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useData } from '../context/DataContext';
-import { FiDownload, FiFolder, FiFile, FiCheckCircle, FiAlertCircle, FiPackage, FiZap, FiActivity, FiCpu, FiSettings } from 'react-icons/fi';
+import { FiDownload, FiFolder, FiFile, FiCheckCircle, FiAlertCircle, FiPackage, FiZap, FiActivity, FiCpu, FiSettings, FiBox, FiBarChart2 } from 'react-icons/fi';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { dump } from 'js-yaml';
@@ -9,6 +9,356 @@ import { internalTo07Yaml } from '../services/calliope07Format';
 import { exportModelArchive, checkEngineRunService } from '../services/engineClient';
 import { resolveScenario } from '../services/scenarioResolver';
 import TranslationReport from './TranslationReport';
+import ReactECharts from 'echarts-for-react';
+import { FiCheck } from 'react-icons/fi';
+import { buildResultDataFiles, renderChartPng, dataUrlToBase64, techMixByLocFromResult, aggregateResult } from '../utils/resultExports';
+import { buildAllResultCharts } from '../utils/resultCharts';
+import { choroMetricsFromResult } from '../utils/choroMetrics';
+import { loadCommunesGeo, normComuna } from '../utils/loadCommunesGeo';
+import { buildChoroplethSVG, buildTechPieMapSVG } from '../utils/choroSvg';
+import { techColor, fmtNum, fmtPower, fmtEnergy, fmtCost } from '../utils/resultFormat';
+
+const TECH_PIE_ID = 'techpie';
+// Charts with many x-categories / timeline → render full width
+const WIDE_CHARTS = new Set(['dispatch', 'energy_flow_sankey', 'capacity_factor', 'capacity_by_location', 'costs_by_location']);
+
+const SectionTitle = ({ children, count }) => (
+  <div className="flex items-center gap-2 mt-1 mb-2">
+    <h3 className="text-sm font-semibold text-slate-700">{children}</h3>
+    {count != null && <span className="text-[10px] text-slate-400">{count} available</span>}
+  </div>
+);
+
+// Clickable card that toggles whether an item is included in the export.
+// Module-level (stable identity) so toggling selection never remounts the
+// chart/map children — otherwise every click would re-init the ECharts.
+const ToggleCard = React.memo(function ToggleCard({ on, onToggle, title, badge, children, className = '' }) {
+  return (
+    <div role="button" tabIndex={0} onClick={onToggle}
+      className={`relative rounded-xl border cursor-pointer transition-all ${className} ${
+        on ? 'border-gray-700 ring-1 ring-gray-300 bg-white' : 'border-slate-200 bg-slate-50 opacity-55 hover:opacity-90'
+      }`}>
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-100">
+        <span className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 ${on ? 'bg-gray-800 text-white' : 'bg-white border border-slate-300 text-transparent'}`}>
+          <FiCheck size={11} />
+        </span>
+        <span className="text-xs font-medium text-slate-700 flex-1 truncate">{title}</span>
+        {badge && <span className="text-[9px] font-mono text-slate-400">{badge}</span>}
+        {!on && <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-wide">excluded</span>}
+      </div>
+      {children && <div className="p-2 pointer-events-none">{children}</div>}
+    </div>
+  );
+});
+
+// Selectable region-map (SVG) outputs — all derive from commune demand data
+const MAP_OUTPUTS = [
+  { id: 'region_demand',    metric: 'demand',    label: 'Region map — Demand',       kind: 'seq', ramp: ['#fff7ec', '#fdbb84', '#d7301f'], unit: 'MWh' },
+  { id: 'region_unmet',     metric: 'unmet',     label: 'Region map — Unmet demand',  kind: 'seq', ramp: ['#fff5f0', '#fb6a4a', '#a50f15'], unit: 'MWh' },
+  { id: 'region_demandMet', metric: 'demandMet', label: 'Region map — Demand met',    kind: 'pct', ramp: ['#d73027', '#fee08b', '#1a9850'] },
+];
+
+// Human labels for the selectable result outputs
+const RESULT_FILE_LABELS = {
+  'summary_kpis.csv': 'Summary KPIs',
+  'capacities.csv': 'Capacities by location & tech',
+  'generation.csv': 'Generation by location & tech',
+  'costs_by_tech.csv': 'Costs by technology',
+  'costs_by_location.csv': 'Costs by location',
+  'demand_unmet_by_commune.csv': 'Demand & unmet by commune',
+  'dispatch.csv': 'Dispatch timeseries',
+  'result.json': 'Full result (JSON)',
+};
+// ── Results export panel: pick a run, click items to include, download ZIP ──
+function ResultsExportPanel({ completedJobs, modelLocations = [] }) {
+  const runs = useMemo(
+    () => (completedJobs || []).filter(j => j.result && j.result.success !== false),
+    [completedJobs]
+  );
+  const [runId, setRunId] = useState('');
+  const [selected, setSelected] = useState(new Set());
+  const [exporting, setExporting] = useState(false);
+  const [status, setStatus] = useState(null);
+
+  const activeRun = runs.find(r => r.id === runId) || runs[0] || null;
+
+  // Commune boundaries for live map previews
+  const [geo, setGeo] = useState(null);
+  useEffect(() => { let dead = false; loadCommunesGeo().then(g => { if (!dead) setGeo(g); }).catch(() => {}); return () => { dead = true; }; }, []);
+
+  // Headline values for the preview strip
+  const summary = useMemo(() => {
+    if (!activeRun) return null;
+    const a = aggregateResult(activeRun.result);
+    return { ...a, objective: activeRun.result?.objective, unmet: activeRun.result?.unmet_demand_total };
+  }, [activeRun]);
+
+  // Available outputs for the active run
+  const dataFiles = useMemo(() => (activeRun ? buildResultDataFiles(activeRun.result) : {}), [activeRun]);
+  // Same chart builders the Results view uses (single source) → { id: { label, option } }
+  const charts = useMemo(() => (activeRun ? buildAllResultCharts(activeRun.result, { colorFn: techColor }) : {}), [activeRun]);
+  const choro = useMemo(() => (activeRun ? choroMetricsFromResult(activeRun.result) : { demand: {}, unmet: {}, demandMet: {} }), [activeRun]);
+  const hasCommunes = Object.keys(choro.demand || {}).length > 0;
+
+  // Tech-mix pie map: per-location pies placed at coordinates. Prefer the run's
+  // own coordinates (self-describing); fall back to the loaded model's locations.
+  const pies = useMemo(() => {
+    if (!activeRun) return [];
+    const coords = {};
+    Object.entries(activeRun.result?.coordinates || {}).forEach(([n, ll]) => {
+      if (Array.isArray(ll) && ll.length === 2) coords[normComuna(n)] = { lat: +ll[0], lon: +ll[1] };
+    });
+    (modelLocations || []).forEach(l => {
+      const lat = l.latitude ?? l.coordinates?.lat, lon = l.longitude ?? l.coordinates?.lon;
+      if (lat != null && lon != null) {
+        coords[normComuna(l.calliopeName || l.name)] = coords[normComuna(l.calliopeName || l.name)] || { lat: +lat, lon: +lon };
+        coords[normComuna(l.name)] = coords[normComuna(l.name)] || { lat: +lat, lon: +lon };
+      }
+    });
+    const mix = techMixByLocFromResult(activeRun.result);
+    return Object.entries(mix).map(([loc, slices]) => {
+      const c = coords[normComuna(loc)];
+      if (!c) return null;
+      return { name: loc, lat: c.lat, lon: c.lon, slices: slices.map(s => ({ tech: s.tech, color: techColor(s.tech), value: s.value })) };
+    }).filter(Boolean);
+  }, [activeRun, modelLocations]);
+  const pieAvailable = pies.length > 0;
+
+  const dataIds = Object.keys(dataFiles);
+  const chartIds = Object.keys(charts);
+  const mapIds = [
+    ...(hasCommunes ? MAP_OUTPUTS.map(m => m.id) : []),
+    ...(pieAvailable ? [TECH_PIE_ID] : []),
+  ];
+
+  // Live SVG previews per map id (same generators used for export)
+  const mapPreviews = useMemo(() => {
+    if (!geo) return {};
+    const out = {};
+    if (hasCommunes) {
+      MAP_OUTPUTS.forEach(m => {
+        out[m.id] = buildChoroplethSVG(geo, choro, m.metric, { ramp: m.ramp, kind: m.kind, label: m.label, unit: m.unit || '', width: 420, height: 540 });
+      });
+    }
+    if (pieAvailable) {
+      out[TECH_PIE_ID] = buildTechPieMapSVG({ geo, communeNames: Object.keys(choro.demand || {}), pies, label: 'Technology mix', width: 420, height: 540 });
+    }
+    return out;
+  }, [geo, hasCommunes, pieAvailable, choro, pies]);
+  const allIds = useMemo(
+    () => [...dataIds.map(id => 'data:' + id), ...chartIds.map(id => 'chart:' + id), ...mapIds.map(id => 'map:' + id)],
+    [activeRun] // eslint-disable-line react-hooks/exhaustive-deps
+  );
+
+  // Default: select everything available whenever the run changes
+  useEffect(() => { setSelected(new Set(allIds)); setStatus(null); }, [activeRun?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const toggle = (id) => setSelected(prev => {
+    const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n;
+  });
+  const setAll = (on) => setSelected(on ? new Set(allIds) : new Set());
+
+  const doExport = async () => {
+    if (!activeRun) return;
+    setExporting(true);
+    setStatus({ type: 'info', message: 'Building export…' });
+    try {
+      const zip = new JSZip();
+      let count = 0;
+      // Data files
+      for (const id of dataIds) {
+        if (!selected.has('data:' + id)) continue;
+        zip.file(id, dataFiles[id]); count++;
+      }
+      // Chart images (headless render → PNG) — same options as the Results view
+      for (const id of chartIds) {
+        if (!selected.has('chart:' + id)) continue;
+        const url = await renderChartPng(charts[id].option);
+        const b64 = dataUrlToBase64(url);
+        if (b64) { zip.file(id + '.png', b64, { base64: true }); count++; }
+      }
+      // Region maps (SVG) — load commune boundaries once if any map selected
+      const selectedMaps = MAP_OUTPUTS.filter(m => mapIds.includes(m.id) && selected.has('map:' + m.id));
+      const wantPie = pieAvailable && selected.has('map:' + TECH_PIE_ID);
+      if (selectedMaps.length || wantPie) {
+        const geo = await loadCommunesGeo();
+        for (const m of selectedMaps) {
+          const svg = buildChoroplethSVG(geo, choro, m.metric, { ramp: m.ramp, kind: m.kind, label: m.label, unit: m.unit || '' });
+          zip.file(m.id + '.svg', svg); count++;
+        }
+        if (wantPie) {
+          const svg = buildTechPieMapSVG({ geo, communeNames: Object.keys(choro.demand || {}), pies, label: 'Technology mix by location' });
+          zip.file('techmix_pie_map.svg', svg); count++;
+        }
+      }
+      if (count === 0) { setStatus({ type: 'error', message: 'Nothing selected to export.' }); setExporting(false); return; }
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const base = (activeRun.modelName || 'run').replace(/\s+/g, '_').toLowerCase();
+      saveAs(blob, `${base}_results_export.zip`);
+      setStatus({ type: 'success', message: `Exported ${count} file${count !== 1 ? 's' : ''}.` });
+    } catch (e) {
+      console.error('Results export error:', e);
+      setStatus({ type: 'error', message: `Export failed: ${e.message}` });
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  if (runs.length === 0) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
+        <FiBarChart2 size={36} className="mx-auto text-gray-300 mb-3" />
+        <p className="font-semibold text-gray-700 mb-1">No completed runs</p>
+        <p className="text-sm text-gray-400">Run a model first — its results will appear here for export.</p>
+      </div>
+    );
+  }
+
+  const mapLabel = (id) => id === TECH_PIE_ID ? 'Tech-mix pie map' : (MAP_OUTPUTS.find(m => m.id === id)?.label || id);
+
+  const kpiCards = summary ? [
+    { label: 'Objective', value: summary.objective != null ? fmtNum(summary.objective) : '—' },
+    { label: 'Capacity', value: fmtPower(summary.totalCap) },
+    { label: 'Generation', value: fmtEnergy(summary.totalGen) },
+    { label: 'System cost', value: summary.totalCost > 0 ? fmtCost(summary.totalCost) : '—' },
+    { label: 'Renewable', value: (summary.renewableShare * 100).toFixed(0) + '%' },
+    { label: 'Unmet', value: summary.unmet != null ? fmtEnergy(summary.unmet) : '—', warn: summary.unmet > 0 },
+  ] : [];
+
+
+  return (
+    <div className="space-y-5">
+      {/* Run picker + headline values */}
+      <div className="bg-white rounded-xl shadow-lg p-5">
+        <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Select Run</h2>
+        <select value={activeRun?.id || ''} onChange={e => setRunId(e.target.value)}
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-gray-400">
+          {runs.map(r => (
+            <option key={r.id} value={r.id}>
+              {r.modelName} — {new Date(r.completedAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+            </option>
+          ))}
+        </select>
+        {kpiCards.length > 0 && (
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mt-4">
+            {kpiCards.map(k => (
+              <div key={k.label} className="rounded-lg border border-slate-100 bg-slate-50 px-2.5 py-2">
+                <div className="text-[9px] font-semibold uppercase tracking-wide text-slate-400">{k.label}</div>
+                <div className={`text-sm font-semibold tabular-nums ${k.warn ? 'text-red-600' : 'text-slate-800'}`}>{k.value}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Toolbar: instruction + actions */}
+      <div className="bg-white rounded-xl shadow-lg px-5 py-3 flex items-center gap-3 flex-wrap sticky top-0 z-10">
+        <span className="text-sm text-slate-600">Click any item below to include or exclude it. <span className="text-slate-400">{selected.size} selected.</span></span>
+        <div className="ml-auto flex items-center gap-2">
+          <button onClick={() => setAll(true)} className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs">All</button>
+          <button onClick={() => setAll(false)} className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs">None</button>
+          <button onClick={doExport} disabled={exporting || selected.size === 0}
+            className="px-4 py-2 bg-gray-700 text-white rounded-lg font-semibold text-sm hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+            <FiDownload size={15} />
+            {exporting ? 'Exporting…' : `Export ${selected.size} as ZIP`}
+          </button>
+        </div>
+        {status && (
+          <div className={`w-full px-3 py-2 rounded-lg flex items-center gap-2 text-sm ${
+            status.type === 'success' ? 'bg-gray-50 text-gray-700 border border-gray-200'
+            : status.type === 'error' ? 'bg-red-50 text-red-700 border border-red-100'
+            : 'bg-gray-50 text-gray-600 border border-gray-200'
+          }`}>
+            {status.type === 'success' ? <FiCheckCircle size={14} className="flex-shrink-0" /> : <FiAlertCircle size={14} className="flex-shrink-0" />}
+            <span>{status.message}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Cards: CSV/values on the left, graphs + maps on the right */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+
+        {/* Left — data / values (CSV, JSON) */}
+        {dataIds.length > 0 && (
+          <div className="lg:col-span-4 bg-white rounded-xl shadow-lg p-4">
+            <SectionTitle count={dataIds.length}>Data &amp; values</SectionTitle>
+            <div className="space-y-2">
+              {dataIds.map(id => {
+                const isJson = id.endsWith('.json');
+                const lines = isJson ? [] : dataFiles[id].split('\n');
+                const rows = isJson ? null : Math.max(0, lines.length - 1);
+                return (
+                  <ToggleCard key={'data:' + id} on={selected.has('data:' + id)} onToggle={() => toggle('data:' + id)}
+                    title={RESULT_FILE_LABELS[id] || id} badge={isJson ? 'JSON' : `CSV · ${rows}`}>
+                    {id === 'summary_kpis.csv' ? (
+                      <table className="w-full text-xs">
+                        <tbody>
+                          {lines.slice(1, 10).map((line, i) => {
+                            const ci = line.indexOf(',');
+                            const metric = line.slice(0, ci), value = line.slice(ci + 1);
+                            return (
+                              <tr key={i} className={i % 2 ? 'bg-slate-50/60' : ''}>
+                                <td className="px-2 py-0.5 text-slate-500">{metric.replace(/_/g, ' ')}</td>
+                                <td className="px-2 py-0.5 text-right font-mono text-slate-700 truncate">{value}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    ) : isJson ? (
+                      <div className="text-[10px] font-mono text-slate-400 truncate">full result contract</div>
+                    ) : (
+                      <div className="text-[10px] font-mono leading-tight">
+                        <div className="text-slate-500 truncate" title={lines[0]}><span className="text-slate-400">cols: </span>{lines[0]}</div>
+                        {lines[1] && <div className="text-slate-400 truncate" title={lines[1]}>{lines[1]}</div>}
+                      </div>
+                    )}
+                  </ToggleCard>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Right — graphs (charts + region maps) */}
+        <div className="lg:col-span-8 bg-white rounded-xl shadow-lg p-4 space-y-4">
+          {chartIds.length > 0 && (
+            <div>
+              <SectionTitle count={chartIds.length}>Charts</SectionTitle>
+              <div className="grid grid-cols-1 2xl:grid-cols-2 gap-3">
+                {chartIds.map(id => (
+                  <ToggleCard key={'chart:' + id} on={selected.has('chart:' + id)} onToggle={() => toggle('chart:' + id)}
+                    title={charts[id].label} badge="PNG" className={WIDE_CHARTS.has(id) ? '2xl:col-span-2' : ''}>
+                    <ReactECharts option={charts[id].option} style={{ height: 260 }} notMerge lazyUpdate />
+                  </ToggleCard>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {mapIds.length > 0 && (
+            <div>
+              <SectionTitle count={mapIds.length}>Region maps</SectionTitle>
+              {!geo ? (
+                <p className="text-xs text-slate-400">Loading boundaries…</p>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  {mapIds.map(id => (
+                    <ToggleCard key={'map:' + id} on={selected.has('map:' + id)} onToggle={() => toggle('map:' + id)}
+                      title={mapLabel(id)} badge="SVG">
+                      <div className="flex justify-center [&_svg]:max-w-full [&_svg]:h-auto" style={{ maxHeight: 260, overflow: 'hidden' }}
+                        dangerouslySetInnerHTML={{ __html: mapPreviews[id] || '' }} />
+                    </ToggleCard>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const EXPORT_FORMATS = [
   {
@@ -54,8 +404,9 @@ const EXPORT_FORMATS = [
 ];
 
 const Export = () => {
-  const { getCurrentModel, technologies, timeSeries, overrides, scenarios } = useData();
+  const { getCurrentModel, technologies, timeSeries, overrides, scenarios, completedJobs } = useData();
   const currentModel = getCurrentModel();
+  const [exportKind, setExportKind] = useState('model'); // 'model' | 'results'
   const [exporting, setExporting] = useState(false);
   const [exportStatus, setExportStatus] = useState(null);
   const [exportReport, setExportReport] = useState([]);
@@ -611,13 +962,72 @@ calliope run model.yaml --scenario=Main
     }
   };
 
+  const TreeRow = ({ indent = 0, icon: Icon, name, note, isDir, dim }) => (
+    <div className={`flex items-center gap-1.5 py-0.5 ${dim ? 'text-gray-400' : 'text-gray-700'}`}
+         style={{ paddingLeft: `${indent * 16}px` }}>
+      {indent > 0 && <span className="text-gray-300 select-none flex-shrink-0">{'└─'}</span>}
+      <Icon size={11} className={`flex-shrink-0 ${isDir ? 'text-amber-400' : 'text-blue-400'}`} />
+      <span className="font-mono text-xs">{name}</span>
+      {note && <span className="font-sans text-[10px] text-gray-400 ml-1">{note}</span>}
+    </div>
+  );
+
+  const KIND_TABS = [
+    { id: 'model',   label: 'Model',   icon: FiBox },
+    { id: 'results', label: 'Results', icon: FiBarChart2 },
+  ];
+
+  const kindToggle = (
+    <div className="flex gap-1 bg-slate-100 rounded-xl p-1">
+      {KIND_TABS.map(({ id, label, icon: Icon }) => (
+        <button key={id} onClick={() => setExportKind(id)}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            exportKind === id ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+          }`}>
+          <Icon size={12} /> {label}
+        </button>
+      ))}
+    </div>
+  );
+
+  const header = (
+    <div className="flex items-center justify-between gap-3 flex-wrap">
+      <div className="flex items-center gap-3">
+        <FiDownload size={18} className="text-gray-500" />
+        <div>
+          <h1 className="text-xl font-semibold text-slate-800">Export</h1>
+          <p className="text-xs text-slate-500">
+            {exportKind === 'model'
+              ? 'Export your active model as a framework-ready ZIP archive'
+              : 'Export values and charts from a completed run'}
+          </p>
+        </div>
+      </div>
+      {kindToggle}
+    </div>
+  );
+
+  if (exportKind === 'results') {
+    return (
+      <div className="flex-1 p-6 overflow-y-auto">
+        <div className="space-y-5">
+          {header}
+          <ResultsExportPanel completedJobs={completedJobs} modelLocations={currentModel?.locations || []} />
+        </div>
+      </div>
+    );
+  }
+
   if (!currentModel) {
     return (
       <div className="flex-1 p-6 overflow-y-auto">
-        <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
-          <FiPackage size={36} className="mx-auto text-gray-300 mb-3" />
-          <p className="font-semibold text-gray-700 mb-1">No model selected</p>
-          <p className="text-sm text-gray-400">Select a model from the Models section to export it.</p>
+        <div className="space-y-5">
+          {header}
+          <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
+            <FiPackage size={36} className="mx-auto text-gray-300 mb-3" />
+            <p className="font-semibold text-gray-700 mb-1">No model selected</p>
+            <p className="text-sm text-gray-400">Select a model from the Models section to export it.</p>
+          </div>
         </div>
       </div>
     );
@@ -634,28 +1044,11 @@ calliope run model.yaml --scenario=Main
   const storageTechs = techs.filter(t => t.parent === 'storage' || t.techType === 'storage');
   const transmTechs = techs.filter(t => t.parent === 'transmission' || t.techType === 'transmission');
 
-  const TreeRow = ({ indent = 0, icon: Icon, name, note, isDir, dim }) => (
-    <div className={`flex items-center gap-1.5 py-0.5 ${dim ? 'text-gray-400' : 'text-gray-700'}`}
-         style={{ paddingLeft: `${indent * 16}px` }}>
-      {indent > 0 && <span className="text-gray-300 select-none flex-shrink-0">{'└─'}</span>}
-      <Icon size={11} className={`flex-shrink-0 ${isDir ? 'text-amber-400' : 'text-blue-400'}`} />
-      <span className="font-mono text-xs">{name}</span>
-      {note && <span className="font-sans text-[10px] text-gray-400 ml-1">{note}</span>}
-    </div>
-  );
-
   return (
     <div className="flex-1 p-6 overflow-y-auto">
       <div className="space-y-5">
 
-        {/* Page header */}
-        <div className="flex items-center gap-3">
-          <FiDownload size={18} className="text-gray-500" />
-          <div>
-            <h1 className="text-xl font-semibold text-slate-800">Export Model</h1>
-            <p className="text-xs text-slate-500">Export your active model as a framework-ready ZIP archive</p>
-          </div>
-        </div>
+        {header}
 
         {/* Active model card */}
         <div className="bg-white rounded-xl shadow-lg p-5">
