@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
-import { buildChoroplethSVG, buildTechPieMapSVG } from '../choroSvg';
+import { buildChoroplethSVG, buildTechPieMapSVG, buildNodeMapSVG, buildTransmissionMapSVG } from '../choroSvg';
 
 const geo = JSON.parse(readFileSync('public/data/geo/chile_communes.geojson', 'utf8'));
 
@@ -58,5 +58,27 @@ describe('buildTechPieMapSVG', () => {
   it('placeholder when no located pies', () => {
     const svg = buildTechPieMapSVG({ geo, pies: [{ name: 'x', lat: NaN, lon: NaN, slices: [] }] });
     expect(svg).toContain('No located generation');
+  });
+});
+
+describe('buildNodeMapSVG / buildTransmissionMapSVG', () => {
+  const nodes = [
+    { name: 'TER ARICA', lat: -18.47, lon: -70.30, value: 13207, color: '#000000' },
+    { name: 'PFV EL AGUILA', lat: -18.45, lon: -69.89, value: 2013, color: '#F9FF2C' },
+  ];
+  const links = [{ from: 'TER ARICA', to: 'PFV EL AGUILA', cap: 5000, util: 0.8, ax: -70.30, ay: -18.47, bx: -69.89, by: -18.45 }];
+
+  it('node map draws a circle per located node (tech colours)', () => {
+    const svg = buildNodeMapSVG({ geo, communeNames: ['Arica'], nodes, links, colorMode: 'tech', legend: [['oil', '#000000']], label: 'Capacity' });
+    expect(svg.startsWith('<svg')).toBe(true);
+    expect((svg.match(/<circle /g) || []).length).toBe(2);
+    expect(svg).toContain('<line ');       // transmission line
+    expect(svg).toContain('Capacity');
+  });
+
+  it('transmission map colours links by utilisation', () => {
+    const svg = buildTransmissionMapSVG({ geo, communeNames: ['Arica'], nodes: nodes.map(n => ({ name: n.name, lat: n.lat, lon: n.lon })), links, label: 'TX' });
+    expect((svg.match(/<line /g) || []).length).toBeGreaterThanOrEqual(1);
+    expect(svg).toContain('stroke="#ea580c"'); // 0.8 util → High-load line colour
   });
 });

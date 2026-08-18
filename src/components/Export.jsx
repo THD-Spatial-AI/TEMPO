@@ -15,8 +15,9 @@ import { buildResultDataFiles, renderChartPng, dataUrlToBase64, techMixByLocFrom
 import { buildAllResultCharts } from '../utils/resultCharts';
 import { choroMetricsFromResult } from '../utils/choroMetrics';
 import { loadCommunesGeo, normComuna } from '../utils/loadCommunesGeo';
-import { buildChoroplethSVG, buildTechPieMapSVG } from '../utils/choroSvg';
-import { techColor, fmtNum, fmtPower, fmtEnergy, fmtCost } from '../utils/resultFormat';
+import { buildChoroplethSVG, buildTechPieMapSVG, buildNodeMapSVG, buildTransmissionMapSVG } from '../utils/choroSvg';
+import { techColor, fmtNum, fmtPower, fmtEnergy, fmtCost, calliopeLocName, parseLTC } from '../utils/resultFormat';
+import { ResultsMap, TransmissionFlowMap, RegionChoropleth } from './results/ResultMaps';
 
 const TECH_PIE_ID = 'techpie';
 // Charts with many x-categories / timeline → render full width
@@ -71,6 +72,7 @@ const RESULT_FILE_LABELS = {
 };
 // ── Results export panel: pick a run, click items to include, download ZIP ──
 function ResultsExportPanel({ completedJobs, modelLocations = [] }) {
+  const { models } = useData();
   const runs = useMemo(
     () => (completedJobs || []).filter(j => j.result && j.result.success !== false),
     [completedJobs]
@@ -84,7 +86,12 @@ function ResultsExportPanel({ completedJobs, modelLocations = [] }) {
 
   // Commune boundaries for live map previews
   const [geo, setGeo] = useState(null);
-  useEffect(() => { let dead = false; loadCommunesGeo().then(g => { if (!dead) setGeo(g); }).catch(() => {}); return () => { dead = true; }; }, []);
+  const [geoErr, setGeoErr] = useState(null);
+  useEffect(() => {
+    let dead = false;
+    loadCommunesGeo().then(g => { if (!dead) setGeo(g); }).catch(e => { if (!dead) setGeoErr(e.message || 'failed to load'); });
+    return () => { dead = true; };
+  }, []);
 
   // Headline values for the preview strip
   const summary = useMemo(() => {
@@ -100,51 +107,177 @@ function ResultsExportPanel({ completedJobs, modelLocations = [] }) {
   const choro = useMemo(() => (activeRun ? choroMetricsFromResult(activeRun.result) : { demand: {}, unmet: {}, demandMet: {} }), [activeRun]);
   const hasCommunes = Object.keys(choro.demand || {}).length > 0;
 
-  // Tech-mix pie map: per-location pies placed at coordinates. Prefer the run's
-  // own coordinates (self-describing); fall back to the loaded model's locations.
-  const pies = useMemo(() => {
+  // The run's own model (by name) → its locations with coordinates, exactly like
+  // the Results view resolves them. This is what makes the real maps show points.
+  const runModelLocations = useMemo(() => {
     if (!activeRun) return [];
-    const coords = {};
-    Object.entries(activeRun.result?.coordinates || {}).forEach(([n, ll]) => {
-      if (Array.isArray(ll) && ll.length === 2) coords[normComuna(n)] = { lat: +ll[0], lon: +ll[1] };
+    const baseName = (activeRun.modelName || '').replace(/ \(version \d+\)$/, '');
+    const m = (models || []).find(mm => mm.name === baseName || mm.name === activeRun.modelName);
+    const locs = (m?.locations || []).filter(l => l.latitude && l.longitude);
+    const src = locs.length ? locs : (modelLocations || []);
+    return src.filter(l => (l.latitude ?? l.coordinates?.lat) != null).map(l => ({ ...l, calliopeName: calliopeLocName(l.name) }));
+  }, [activeRun, models, modelLocations]);
+
+  // Coordinates for every location: run's own coordinates, else the model's. Keyed by normalized name.
+  const coords = useMemo(() => {
+    const c = {};
+    Object.entries(activeRun?.result?.coordinates || {}).forEach(([n, ll]) => {
+      if (Array.isArray(ll) && ll.length === 2) c[normComuna(n)] = { lat: +ll[0], lon: +ll[1] };
     });
-    (modelLocations || []).forEach(l => {
+    runModelLocations.forEach(l => {
       const lat = l.latitude ?? l.coordinates?.lat, lon = l.longitude ?? l.coordinates?.lon;
       if (lat != null && lon != null) {
-        coords[normComuna(l.calliopeName || l.name)] = coords[normComuna(l.calliopeName || l.name)] || { lat: +lat, lon: +lon };
-        coords[normComuna(l.name)] = coords[normComuna(l.name)] || { lat: +lat, lon: +lon };
+        [l.calliopeName || l.name, l.name].forEach(nm => { const k = normComuna(nm); if (!c[k]) c[k] = { lat: +lat, lon: +lon }; });
       }
     });
+    return c;
+  }, [activeRun, runModelLocations]);
+
+  // Props for the real Results map components (identical shapes to Results.jsx)
+  const mapProps = useMemo(() => {
+    const res = activeRun?.result || {};
+    let locations = runModelLocations;
+    if (!locations.length) {
+      locations = Object.entries(res.coordinates || {})
+        .map(([name, ll]) => (Array.isArray(ll) && ll.length === 2) ? { name, calliopeName: name, latitude: +ll[0], longitude: +ll[1] } : null)
+        .filter(Boolean);
+    }
+    const capByLoc = {}, domTech = {}, genByLoc = {}, locTechCap = {};
+    Object.entries(res.capacities || {}).forEach(([k, v]) => {
+      const { loc, tech } = parseLTC(k); const val = Number(v) || 0;
+      if (val <= 0 || tech.includes(':')) return;
+      capByLoc[loc] = (capByLoc[loc] || 0) + val;
+      if (!locTechCap[loc] || locTechCap[loc].value < val) locTechCap[loc] = { tech, value: val };
+    });
+    Object.entries(locTechCap).forEach(([loc, { tech }]) => { domTech[loc] = tech; });
+    Object.entries(res.generation || {}).forEach(([k, v]) => {
+      const { loc } = parseLTC(k); const val = Number(v) || 0; if (val > 0) genByLoc[loc] = (genByLoc[loc] || 0) + val;
+    });
+    const techMixByLoc = techMixByLocFromResult(res);
+    // transmission links (same detection as Results)
+    const txEntries = Object.entries(res.capacities || {}).filter(([k]) => parseLTC(k).tech.includes(':')).map(([k, v]) => ({ ...parseLTC(k), value: Number(v) || 0 })).filter(e => e.value > 0);
+    const links = [], used = new Set();
+    txEntries.forEach(entry => {
+      const key = `${entry.loc}::${entry.tech}`; if (used.has(key)) return;
+      const parts = entry.tech.split(':'); const toLoc = parts.length > 1 ? parts[parts.length - 1] : null;
+      if (toLoc && locations.find(l => l.calliopeName === toLoc || l.name === toLoc)) { links.push({ fromLoc: entry.loc, toLoc, cap: entry.value }); used.add(key); }
+      else { const opp = txEntries.find(e => e.loc !== entry.loc && e.tech === entry.tech && !used.has(`${e.loc}::${e.tech}`)); if (opp) { links.push({ fromLoc: entry.loc, toLoc: opp.loc, cap: entry.value }); used.add(key); used.add(`${opp.loc}::${opp.tech}`); } }
+    });
+    let flow = [];
+    if (res.transmission_flow && Object.keys(res.transmission_flow).length) {
+      flow = Object.values(res.transmission_flow).map(({ from: fromLoc, to: toLoc, timeseries }) => {
+        const vals = (timeseries || []).map(v => Number(v) || 0);
+        const cap = links.find(t => (t.fromLoc === fromLoc && t.toLoc === toLoc) || (t.fromLoc === toLoc && t.toLoc === fromLoc))?.cap || (vals.length ? Math.max(1, ...vals.map(Math.abs)) : 1);
+        return { fromLoc, toLoc, timeseries: vals, cap };
+      });
+    }
+    const timestamps = (res.timestamps || []).map(t => { const d = new Date(t); return isNaN(d) ? t : d.toLocaleDateString('en-GB', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); });
+    return { locations, capByLoc, domTech, genByLoc, techMixByLoc, links, flow, timestamps };
+  }, [activeRun, runModelLocations]);
+
+  // Tech-mix pies (per generation location)
+  const pies = useMemo(() => {
+    if (!activeRun) return [];
     const mix = techMixByLocFromResult(activeRun.result);
     return Object.entries(mix).map(([loc, slices]) => {
       const c = coords[normComuna(loc)];
       if (!c) return null;
       return { name: loc, lat: c.lat, lon: c.lon, slices: slices.map(s => ({ tech: s.tech, color: techColor(s.tech), value: s.value })) };
     }).filter(Boolean);
-  }, [activeRun, modelLocations]);
+  }, [activeRun, coords]);
   const pieAvailable = pies.length > 0;
+
+  // Node maps (capacity / generation circles) + transmission lines, all placed at coords.
+  const nodeMaps = useMemo(() => {
+    const res = activeRun?.result || {};
+    const capByLocTech = {}, genByLoc = {};
+    Object.entries(res.capacities || {}).forEach(([k, v]) => {
+      const val = Number(v) || 0; if (val <= 0) return;
+      const [loc, techRaw = ''] = k.split('::');
+      if (techRaw.includes(':')) return; // transmission atom
+      const tech = techRaw.split(':')[0];
+      (capByLocTech[loc] || (capByLocTech[loc] = {}))[tech] = (capByLocTech[loc][tech] || 0) + val;
+    });
+    Object.entries(res.generation || {}).forEach(([k, v]) => {
+      const val = Number(v) || 0; if (val <= 0) return;
+      const loc = k.split('::')[0]; genByLoc[loc] = (genByLoc[loc] || 0) + val;
+    });
+    const cap = [], gen = [], legendMap = new Map();
+    Object.entries(capByLocTech).forEach(([loc, techs]) => {
+      const c = coords[normComuna(loc)]; if (!c) return;
+      const total = Object.values(techs).reduce((s, x) => s + x, 0);
+      const dom = Object.entries(techs).sort((a, b) => b[1] - a[1])[0][0];
+      if (!legendMap.has(dom)) legendMap.set(dom, techColor(dom));
+      cap.push({ name: loc, lat: c.lat, lon: c.lon, value: total, color: techColor(dom) });
+    });
+    Object.entries(genByLoc).forEach(([loc, g]) => {
+      const c = coords[normComuna(loc)]; if (!c) return;
+      gen.push({ name: loc, lat: c.lat, lon: c.lon, value: g });
+    });
+    // Transmission links from capacity keys "loc::tech:dest"
+    const seen = new Set(), links = [], subSet = new Set();
+    Object.entries(res.capacities || {}).forEach(([k, v]) => {
+      const val = Number(v) || 0; if (val <= 0) return;
+      const [loc, techRaw = ''] = k.split('::');
+      const ci = techRaw.indexOf(':'); if (ci < 0) return;
+      const dest = techRaw.slice(ci + 1);
+      const key = [loc, dest].sort().join('|'); if (seen.has(key)) return; seen.add(key);
+      subSet.add(loc); subSet.add(dest);
+      const a = coords[normComuna(loc)], b = coords[normComuna(dest)];
+      if (!a || !b) return;
+      links.push({ from: loc, to: dest, cap: val, ax: a.lon, ay: a.lat, bx: b.lon, by: b.lat });
+    });
+    // Peak utilisation from transmission_flow
+    const flowPeak = {};
+    Object.values(res.transmission_flow || {}).forEach(f => {
+      const peak = (f.timeseries || []).reduce((m, x) => Math.max(m, Math.abs(Number(x) || 0)), 0);
+      const key = [f.from, f.to].sort().join('|'); flowPeak[key] = Math.max(flowPeak[key] || 0, peak);
+    });
+    links.forEach(l => { const p = flowPeak[[l.from, l.to].sort().join('|')]; if (p != null && l.cap > 0) l.util = p / l.cap; });
+    const substations = [...subSet].map(loc => { const c = coords[normComuna(loc)]; return c ? { name: loc, lat: c.lat, lon: c.lon } : null; }).filter(Boolean);
+    return { cap, gen, links, legend: [...legendMap.entries()], substations };
+  }, [activeRun, coords]);
 
   const dataIds = Object.keys(dataFiles);
   const chartIds = Object.keys(charts);
-  const mapIds = [
-    ...(hasCommunes ? MAP_OUTPUTS.map(m => m.id) : []),
-    ...(pieAvailable ? [TECH_PIE_ID] : []),
-  ];
 
-  // Live SVG previews per map id (same generators used for export)
-  const mapPreviews = useMemo(() => {
-    if (!geo) return {};
-    const out = {};
-    if (hasCommunes) {
-      MAP_OUTPUTS.forEach(m => {
-        out[m.id] = buildChoroplethSVG(geo, choro, m.metric, { ramp: m.ramp, kind: m.kind, label: m.label, unit: m.unit || '', width: 420, height: 540 });
-      });
-    }
-    if (pieAvailable) {
-      out[TECH_PIE_ID] = buildTechPieMapSVG({ geo, communeNames: Object.keys(choro.demand || {}), pies, label: 'Technology mix', width: 420, height: 540 });
-    }
-    return out;
-  }, [geo, hasCommunes, pieAvailable, choro, pies]);
+  // All spatial maps for this run, ordered like the Results dashboard. Each carries
+  // a live `preview` (the SAME map component Results uses) and an `svg` for export.
+  const spatialMaps = useMemo(() => {
+    const mp = mapProps;
+    const communeNames = hasCommunes ? Object.keys(choro.demand) : [];
+    const W = 460, H = 560;
+    const hasNodes = mp.locations.length > 0 && Object.keys(mp.capByLoc).length > 0;
+    const rmProps = { locations: mp.locations, capacitiesByLoc: mp.capByLoc, dominantTechByLoc: mp.domTech, techMixByLoc: mp.techMixByLoc, generationByLoc: mp.genByLoc, colorFn: techColor, transmissionLinks: mp.links };
+    const list = [];
+    if (hasNodes) list.push({
+      id: 'node_capacity', label: 'Capacity map',
+      preview: <ResultsMap key={activeRun.id + '-capacity'} {...rmProps} viewMode="capacity" />,
+      svg: geo ? buildNodeMapSVG({ geo, communeNames, nodes: nodeMaps.cap, links: nodeMaps.links, colorMode: 'tech', legend: nodeMaps.legend, label: 'Installed capacity', unit: 'MW', width: W, height: H }) : '',
+    });
+    if (Object.keys(mp.genByLoc).length) list.push({
+      id: 'node_generation', label: 'Generation map',
+      preview: <ResultsMap key={activeRun.id + '-generation'} {...rmProps} viewMode="generation" />,
+      svg: geo ? buildNodeMapSVG({ geo, communeNames, nodes: nodeMaps.gen, links: nodeMaps.links, colorMode: 'value', ramp: ['#fbbf24', '#f59e0b', '#dc2626'], label: 'Generation', unit: 'MWh', width: W, height: H }) : '',
+    });
+    if (hasNodes) list.push({
+      id: TECH_PIE_ID, label: 'Tech-mix map',
+      preview: <ResultsMap key={activeRun.id + '-mix'} {...rmProps} viewMode="mix" />,
+      svg: (geo && pieAvailable) ? buildTechPieMapSVG({ geo, communeNames, pies, label: 'Technology mix', width: W, height: H }) : '',
+    });
+    if (mp.links.length) list.push({
+      id: 'transmission', label: 'Transmission map',
+      preview: <TransmissionFlowMap key={activeRun.id + '-tx'} locations={mp.locations} transmissionFlowData={mp.flow} capacitiesByLoc={mp.capByLoc} timestamps={mp.timestamps} />,
+      svg: geo ? buildTransmissionMapSVG({ geo, communeNames, nodes: nodeMaps.substations, links: nodeMaps.links, label: 'Transmission utilisation', width: W, height: H }) : '',
+    });
+    if (hasCommunes) MAP_OUTPUTS.forEach(m => list.push({
+      id: m.id, label: m.label,
+      preview: <RegionChoropleth key={activeRun.id + '-' + m.id} metrics={choro} metric={m.metric} compact />,
+      svg: geo ? buildChoroplethSVG(geo, choro, m.metric, { ramp: m.ramp, kind: m.kind, label: m.label, unit: m.unit || '', width: W, height: H }) : '',
+    }));
+    return list;
+  }, [activeRun, mapProps, nodeMaps, geo, hasCommunes, choro, pieAvailable, pies]);
+  const mapIds = useMemo(() => spatialMaps.map(m => m.id), [spatialMaps]);
   const allIds = useMemo(
     () => [...dataIds.map(id => 'data:' + id), ...chartIds.map(id => 'chart:' + id), ...mapIds.map(id => 'map:' + id)],
     [activeRun] // eslint-disable-line react-hooks/exhaustive-deps
@@ -177,19 +310,9 @@ function ResultsExportPanel({ completedJobs, modelLocations = [] }) {
         const b64 = dataUrlToBase64(url);
         if (b64) { zip.file(id + '.png', b64, { base64: true }); count++; }
       }
-      // Region maps (SVG) — load commune boundaries once if any map selected
-      const selectedMaps = MAP_OUTPUTS.filter(m => mapIds.includes(m.id) && selected.has('map:' + m.id));
-      const wantPie = pieAvailable && selected.has('map:' + TECH_PIE_ID);
-      if (selectedMaps.length || wantPie) {
-        const geo = await loadCommunesGeo();
-        for (const m of selectedMaps) {
-          const svg = buildChoroplethSVG(geo, choro, m.metric, { ramp: m.ramp, kind: m.kind, label: m.label, unit: m.unit || '' });
-          zip.file(m.id + '.svg', svg); count++;
-        }
-        if (wantPie) {
-          const svg = buildTechPieMapSVG({ geo, communeNames: Object.keys(choro.demand || {}), pies, label: 'Technology mix by location' });
-          zip.file('techmix_pie_map.svg', svg); count++;
-        }
+      // Spatial maps → exported as SVG (built alongside the live preview)
+      for (const m of spatialMaps) {
+        if (selected.has('map:' + m.id) && m.svg) { zip.file(m.id + '.svg', m.svg); count++; }
       }
       if (count === 0) { setStatus({ type: 'error', message: 'Nothing selected to export.' }); setExporting(false); return; }
       const blob = await zip.generateAsync({ type: 'blob' });
@@ -213,8 +336,6 @@ function ResultsExportPanel({ completedJobs, modelLocations = [] }) {
       </div>
     );
   }
-
-  const mapLabel = (id) => id === TECH_PIE_ID ? 'Tech-mix pie map' : (MAP_OUTPUTS.find(m => m.id === id)?.label || id);
 
   const kpiCards = summary ? [
     { label: 'Objective', value: summary.objective != null ? fmtNum(summary.objective) : '—' },
@@ -336,24 +457,28 @@ function ResultsExportPanel({ completedJobs, modelLocations = [] }) {
             </div>
           )}
 
-          {mapIds.length > 0 && (
-            <div>
-              <SectionTitle count={mapIds.length}>Region maps</SectionTitle>
-              {!geo ? (
-                <p className="text-xs text-slate-400">Loading boundaries…</p>
-              ) : (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                  {mapIds.map(id => (
-                    <ToggleCard key={'map:' + id} on={selected.has('map:' + id)} onToggle={() => toggle('map:' + id)}
-                      title={mapLabel(id)} badge="SVG">
-                      <div className="flex justify-center [&_svg]:max-w-full [&_svg]:h-auto" style={{ maxHeight: 260, overflow: 'hidden' }}
-                        dangerouslySetInnerHTML={{ __html: mapPreviews[id] || '' }} />
+          {/* Maps — the real Results map components (basemap + points + connections) */}
+          <div>
+            <SectionTitle count={spatialMaps.length || undefined}>Maps</SectionTitle>
+            {spatialMaps.length === 0 ? (
+              <div className="text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded-lg p-3 leading-relaxed">
+                No maps for this run — the maps need location coordinates. New runs embed them automatically;
+                for older runs, load the matching model in the <b>Models</b> tab first.
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+                  {spatialMaps.map(m => (
+                    <ToggleCard key={'map:' + m.id} on={selected.has('map:' + m.id)} onToggle={() => toggle('map:' + m.id)}
+                      title={m.label} badge="SVG">
+                      <div style={{ height: 280 }} className="rounded-lg overflow-hidden bg-slate-100">{m.preview}</div>
                     </ToggleCard>
                   ))}
                 </div>
-              )}
-            </div>
-          )}
+                {geoErr && <p className="text-[11px] text-amber-600 mt-2">Map SVG export unavailable (boundaries failed to load: {geoErr}). Live preview still works.</p>}
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>

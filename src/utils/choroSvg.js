@@ -125,6 +125,117 @@ ${legend}
 </svg>`;
 }
 
+// Shared: project lon/lat → svg x/y over a bbox of features + points.
+function makeProjection(feats, points, { width, height, pad, legendH, titleH }) {
+  let minLon = Infinity, minLat = Infinity, maxLon = -Infinity, maxLat = -Infinity;
+  const ext = (lng, lat) => { if (lng < minLon) minLon = lng; if (lng > maxLon) maxLon = lng; if (lat < minLat) minLat = lat; if (lat > maxLat) maxLat = lat; };
+  feats.forEach((f) => eachCoord(f.geometry.coordinates, ext));
+  points.forEach(([lng, lat]) => ext(lng, lat));
+  if (!isFinite(minLon)) return null;
+  const midLat = (minLat + maxLat) / 2;
+  const cosLat = Math.cos((midLat * Math.PI) / 180) || 1;
+  const dLonC = Math.max(1e-6, (maxLon - minLon) * cosLat);
+  const dLat = Math.max(1e-6, maxLat - minLat);
+  const availW = width - 2 * pad;
+  const availH = height - 2 * pad - legendH - titleH;
+  const scale = Math.min(availW / dLonC, availH / dLat);
+  const offX = pad + (availW - dLonC * scale) / 2;
+  const offY = pad + titleH + (availH - dLat * scale) / 2;
+  return {
+    px: (lng) => offX + (lng - minLon) * cosLat * scale,
+    py: (lat) => offY + (maxLat - lat) * scale,
+    scale,
+  };
+}
+
+const commumeBackdrop = (feats, proj) => {
+  const ringPath = (ring) => 'M' + ring.map(([lng, lat]) => `${proj.px(lng).toFixed(1)} ${proj.py(lat).toFixed(1)}`).join(' L') + 'Z';
+  const gp = (g) => g.type === 'Polygon' ? g.coordinates.map(ringPath).join(' ') : g.type === 'MultiPolygon' ? g.coordinates.flat().map(ringPath).join(' ') : '';
+  return feats.map((f) => `<path d="${gp(f.geometry)}" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="0.4"/>`).join('\n');
+};
+
+const esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+const congestionColor = (u) => u >= 0.9 ? '#dc2626' : u >= 0.75 ? '#ea580c' : u >= 0.5 ? '#ca8a04' : '#16a34a';
+
+/**
+ * Node map as SVG — one circle per location over a commune backdrop, with
+ * transmission lines. Mirrors the Results "Capacity" / "Gen Heatmap" map views.
+ *
+ * nodes: [{ name, lat, lon, value, color? }]   (color used in colorMode:'tech')
+ * links: [{ ax, ay, bx, by, cap }]             (lon/lat endpoints, pre-resolved)
+ * colorMode: 'tech' (circle = node.color) | 'value' (circle = heat ramp of value)
+ */
+export function buildNodeMapSVG({ geo, communeNames = [], nodes = [], links = [], colorMode = 'tech', ramp = ['#fbbf24', '#f59e0b', '#dc2626'], legend = [], label = '', unit = 'MW', width = 900, height = 1100 } = {}) {
+  const pad = 24, legendH = 56, titleH = label ? 30 : 8;
+  const communeSet = new Set((communeNames || []).map(normComuna));
+  const feats = (geo?.features || []).filter(f => communeSet.has(normComuna(f.properties?.comuna)));
+  const valid = nodes.filter(n => Number.isFinite(n.lat) && Number.isFinite(n.lon) && (n.value || 0) > 0);
+  if (!valid.length) return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><text x="20" y="30" font-family="sans-serif" font-size="14" fill="#94a3b8">No located generation to map</text></svg>`;
+  const pts = [...valid.map(n => [n.lon, n.lat]), ...links.flatMap(l => [[l.ax, l.ay], [l.bx, l.by]])];
+  const proj = makeProjection(feats, pts, { width, height, pad, legendH, titleH });
+  if (!proj) return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"></svg>`;
+
+  const maxVal = Math.max(1, ...valid.map(n => n.value || 0));
+  const maxCap = Math.max(1, ...links.map(l => l.cap || 0));
+  const linksSvg = links.map(l => {
+    const w = Math.max(0.6, Math.min(4, 0.6 + (l.cap || 0) / maxCap * 3));
+    return `<line x1="${proj.px(l.ax).toFixed(1)}" y1="${proj.py(l.ay).toFixed(1)}" x2="${proj.px(l.bx).toFixed(1)}" y2="${proj.py(l.by).toFixed(1)}" stroke="#94a3b8" stroke-width="${w.toFixed(1)}" stroke-opacity="0.6"/>`;
+  }).join('\n');
+
+  const nodesSvg = valid.map(n => {
+    const r = 3 + Math.sqrt((n.value || 0) / maxVal) * 16;
+    const fill = colorMode === 'tech' ? (n.color || '#64748b') : rampColor(ramp, (n.value || 0) / maxVal);
+    const disp = n.value >= 1000 ? (n.value / 1000).toFixed(1) + 'k' : Math.round(n.value);
+    return `<circle cx="${proj.px(n.lon).toFixed(1)}" cy="${proj.py(n.lat).toFixed(1)}" r="${r.toFixed(1)}" fill="${fill}" fill-opacity="0.9" stroke="#ffffff" stroke-width="0.8"><title>${esc(n.name)}: ${disp} ${unit}</title></circle>`;
+  }).join('\n');
+
+  // legend
+  const lx = pad, ly = height - legendH + 10;
+  let legendSvg;
+  if (colorMode === 'tech') {
+    legendSvg = (legend || []).slice(0, 12).map(([tech, color], i) => {
+      const col = i % 4, row = Math.floor(i / 4);
+      const ex = lx + col * ((width - 2 * pad) / 4), ey = ly + row * 15;
+      return `<rect x="${ex}" y="${ey - 8}" width="9" height="9" rx="1.5" fill="${color}"/><text x="${ex + 13}" y="${ey}" font-family="sans-serif" font-size="10" fill="#475569">${esc(String(tech).replace(/_/g, ' '))}</text>`;
+    }).join('\n');
+  } else {
+    const lw = Math.min(240, width - 2 * pad);
+    legendSvg = `<defs><linearGradient id="ng" x1="0" x2="1"><stop offset="0%" stop-color="${ramp[0]}"/><stop offset="50%" stop-color="${ramp[1]}"/><stop offset="100%" stop-color="${ramp[2]}"/></linearGradient></defs>
+      <rect x="${lx}" y="${ly}" width="${lw}" height="10" fill="url(#ng)"/>
+      <text x="${lx}" y="${ly + 24}" font-family="sans-serif" font-size="10" fill="#64748b">0</text>
+      <text x="${lx + lw}" y="${ly + 24}" font-family="sans-serif" font-size="10" fill="#64748b" text-anchor="end">${maxVal >= 1000 ? (maxVal / 1000).toFixed(0) + 'k' : Math.round(maxVal)} ${unit}</text>`;
+  }
+  const title = label ? `<text x="${pad}" y="22" font-family="sans-serif" font-size="15" font-weight="600" fill="#1e293b">${esc(label)}</text>` : '';
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="${width}" height="${height}" fill="#ffffff"/>${title}${commumeBackdrop(feats, proj)}${linksSvg}${nodesSvg}${legendSvg}</svg>`;
+}
+
+/**
+ * Transmission map as SVG — links coloured by peak utilisation, width by capacity.
+ * links: [{ ax, ay, bx, by, cap, util }] ; nodes: [{ name, lat, lon }]
+ */
+export function buildTransmissionMapSVG({ geo, communeNames = [], nodes = [], links = [], label = '', width = 900, height = 1100 } = {}) {
+  const pad = 24, legendH = 40, titleH = label ? 30 : 8;
+  const communeSet = new Set((communeNames || []).map(normComuna));
+  const feats = (geo?.features || []).filter(f => communeSet.has(normComuna(f.properties?.comuna)));
+  const validLinks = links.filter(l => [l.ax, l.ay, l.bx, l.by].every(Number.isFinite));
+  if (!validLinks.length) return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><text x="20" y="30" font-family="sans-serif" font-size="14" fill="#94a3b8">No transmission lines to map</text></svg>`;
+  const pts = [...validLinks.flatMap(l => [[l.ax, l.ay], [l.bx, l.by]]), ...nodes.filter(n => Number.isFinite(n.lat)).map(n => [n.lon, n.lat])];
+  const proj = makeProjection(feats, pts, { width, height, pad, legendH, titleH });
+  if (!proj) return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"></svg>`;
+  const maxCap = Math.max(1, ...validLinks.map(l => l.cap || 0));
+  const linksSvg = validLinks.map(l => {
+    const w = Math.max(1, Math.min(5, 1 + (l.cap || 0) / maxCap * 4));
+    const col = l.util != null ? congestionColor(l.util) : '#64748b';
+    return `<line x1="${proj.px(l.ax).toFixed(1)}" y1="${proj.py(l.ay).toFixed(1)}" x2="${proj.px(l.bx).toFixed(1)}" y2="${proj.py(l.by).toFixed(1)}" stroke="${col}" stroke-width="${w.toFixed(1)}" stroke-opacity="0.85"><title>${esc(l.from || '')} ↔ ${esc(l.to || '')}${l.util != null ? ` · ${(l.util * 100).toFixed(0)}% peak` : ''}</title></line>`;
+  }).join('\n');
+  const nodesSvg = nodes.filter(n => Number.isFinite(n.lat) && Number.isFinite(n.lon)).map(n => `<circle cx="${proj.px(n.lon).toFixed(1)}" cy="${proj.py(n.lat).toFixed(1)}" r="2.4" fill="#ffffff" stroke="#06b6d4" stroke-width="1.2"><title>${esc(n.name)}</title></circle>`).join('\n');
+  const levels = [['Free < 50%', '#16a34a'], ['Moderate', '#ca8a04'], ['High', '#ea580c'], ['Congested ≥ 90%', '#dc2626']];
+  const ly = height - legendH + 14;
+  const legendSvg = levels.map(([lab, col], i) => { const ex = pad + i * ((width - 2 * pad) / 4); return `<line x1="${ex}" y1="${ly - 4}" x2="${ex + 16}" y2="${ly - 4}" stroke="${col}" stroke-width="3"/><text x="${ex + 20}" y="${ly}" font-family="sans-serif" font-size="10" fill="#475569">${lab}</text>`; }).join('\n');
+  const title = label ? `<text x="${pad}" y="22" font-family="sans-serif" font-size="15" font-weight="600" fill="#1e293b">${esc(label)}</text>` : '';
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="${width}" height="${height}" fill="#ffffff"/>${title}${commumeBackdrop(feats, proj)}${linksSvg}${nodesSvg}${legendSvg}</svg>`;
+}
+
 /**
  * Tech-mix pie map as SVG — one pie per generation location, sized by total
  * capacity, sliced by technology, over a light commune-outline backdrop.
