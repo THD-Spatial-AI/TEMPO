@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   FiTrendingUp, FiSun, FiCloud, FiDollarSign, FiSliders,
-  FiPlay, FiStopCircle, FiAlertCircle, FiAlertTriangle,
+  FiPlay, FiStopCircle, FiAlertCircle, FiAlertTriangle, FiActivity,
   FiChevronDown, FiInfo, FiZap, FiClock, FiPlus, FiTrash2, FiDownload, FiLayers,
 } from 'react-icons/fi';
 import { useData } from '../context/DataContext';
@@ -717,36 +717,6 @@ function RecipeCard({ card, selected, onSelect }) {
   );
 }
 
-// ─── Running job row ─────────────────────────────────────────────────────────
-
-function JobRow({ job, onStop }) {
-  const [expanded, setExpanded] = useState(false);
-  return (
-    <div className="bg-white border border-slate-200 rounded-xl p-3">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="w-2 h-2 rounded-full bg-electric-500 animate-pulse shrink-0" />
-          <span className="text-sm font-medium text-slate-700 truncate">{job.displayName}</span>
-        </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          <button onClick={() => setExpanded(e => !e)} className="p-1 text-slate-400 hover:text-slate-600 rounded">
-            <FiChevronDown size={13} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
-          </button>
-          <button onClick={() => onStop(job.id)}
-            className="flex items-center gap-1 px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-            <FiStopCircle size={12} /> Stop
-          </button>
-        </div>
-      </div>
-      {expanded && job.logs.length > 0 && (
-        <div className="mt-2 bg-slate-900 rounded-lg p-2 max-h-32 overflow-y-auto font-mono text-[10px] text-slate-300 space-y-0.5">
-          {job.logs.slice(-20).map((l, i) => <div key={i}>{l}</div>)}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── Preview label helpers ────────────────────────────────────────────────────
 
 function summarizeOps(ops) {
@@ -812,8 +782,11 @@ function VariantBadge({ variant, recipeId }) {
 
 // ─── Main component ──────────────────────────────────────────────────────────
 
-export default function ScenarioStudio() {
-  const { models, getCurrentModel, showNotification, addCompletedJob, completedJobs, timeSeries, technologies } = useData();
+export default function ScenarioStudio({ onNavigate }) {
+  const {
+    models, getCurrentModel, showNotification, addCompletedJob, completedJobs, timeSeries, technologies,
+    runningJobs, addRunningJob, removeRunningJob, appendRunningJobLog, getRunningJob,
+  } = useData();
 
   const [selectedModel, setSelectedModel] = useState(null);
   const [extraModels, setExtraModels] = useState([]); // additional models for cross-model compare
@@ -822,7 +795,9 @@ export default function ScenarioStudio() {
   const [params, setParams] = useState(DEFAULT_PARAMS['demandGrowth']);
   const [serviceStatus, setServiceStatus] = useState(null);
   const [selectedEngine, setSelectedEngine] = useState('calliope06');
-  const [runningJobs, setRunningJobs] = useState([]);
+  // runningJobs is shared via DataContext; keep a local ref for synchronous reads in callbacks
+  const runningJobsRef = useRef([]);
+  useEffect(() => { runningJobsRef.current = runningJobs; }, [runningJobs]);
   const cancelFnsRef = useRef({});
   const completedIdsRef = useRef(new Set());
 
@@ -881,50 +856,47 @@ export default function ScenarioStudio() {
   const _handleDone = (jobId, batchId, variantLabel, modelLabel, result) => {
     if (completedIdsRef.current.has(jobId)) return;
     completedIdsRef.current.add(jobId);
-    setRunningJobs(prev => {
-      const job = prev.find(j => j.id === jobId);
-      if (job) {
-        const ms = Date.now() - new Date(job.startTime).getTime();
-        const duration = ms < 60000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms / 60000)}m`;
-        setTimeout(() => {
-          addCompletedJob({
-            id: jobId, modelName: job.displayName, framework: ENGINE_FRAMEWORK[job.engine] || 'calliope', solver: 'highs', mode: 'plan',
-            status: result?.success === false ? 'failed' : 'completed',
-            completedAt: new Date().toISOString(), duration,
-            objective: result?.objective || null,
-            terminationCondition: result?.termination_condition || 'optimal',
-            result: result || {}, logs: job.logs, batchId, variantLabel, modelLabel,
-          });
-          showNotification(
-            result?.success === false ? `Run failed: ${result.error}` : `Completed: ${job.displayName} (${duration})`,
-            result?.success === false ? 'error' : 'success'
-          );
-        }, 0);
-      }
-      return prev.filter(j => j.id !== jobId);
-    });
+
+    const job = runningJobsRef.current.find(j => j.id === jobId);
+    removeRunningJob(jobId);
+    if (job) {
+      const ms = Date.now() - new Date(job.startTime).getTime();
+      const duration = ms < 60000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms / 60000)}m`;
+      setTimeout(() => {
+        addCompletedJob({
+          id: jobId, modelName: job.displayName, framework: ENGINE_FRAMEWORK[job.engine] || 'calliope',
+          solver: 'highs', mode: 'plan', status: result?.success === false ? 'failed' : 'completed',
+          completedAt: new Date().toISOString(), duration, objective: result?.objective || null,
+          terminationCondition: result?.termination_condition || 'optimal',
+          result: result || {}, logs: job.logs, batchId, variantLabel, modelLabel,
+        });
+        showNotification(
+          result?.success === false ? `Run failed: ${result.error}` : `Completed: ${job.displayName} (${duration})`,
+          result?.success === false ? 'error' : 'success'
+        );
+      }, 0);
+    }
     delete cancelFnsRef.current[jobId];
   };
 
   const _handleError = (jobId, batchId, variantLabel, modelLabel, error) => {
     if (completedIdsRef.current.has(jobId)) return;
     completedIdsRef.current.add(jobId);
-    setRunningJobs(prev => {
-      const job = prev.find(j => j.id === jobId);
-      if (job) {
-        setTimeout(() => {
-          addCompletedJob({
-            id: jobId, modelName: job.displayName, framework: ENGINE_FRAMEWORK[job.engine] || 'calliope', solver: 'highs', mode: 'plan',
-            status: 'failed', completedAt: new Date().toISOString(), duration: 'N/A',
-            objective: null, terminationCondition: 'error',
-            result: { success: false, error }, logs: [...job.logs, `[ERROR] ${error}`],
-            batchId, variantLabel, modelLabel,
-          });
-          showNotification(`Run failed: ${error}`, 'error');
-        }, 0);
-      }
-      return prev.filter(j => j.id !== jobId);
-    });
+
+    const job = runningJobsRef.current.find(j => j.id === jobId);
+    removeRunningJob(jobId);
+    if (job) {
+      setTimeout(() => {
+        addCompletedJob({
+          id: jobId, modelName: job.displayName, framework: ENGINE_FRAMEWORK[job.engine] || 'calliope',
+          solver: 'highs', mode: 'plan', status: 'failed', completedAt: new Date().toISOString(),
+          duration: 'N/A', objective: null, terminationCondition: 'error',
+          result: { success: false, error }, logs: [...job.logs, `[ERROR] ${error}`],
+          batchId, variantLabel, modelLabel,
+        });
+        showNotification(`Run failed: ${error}`, 'error');
+      }, 0);
+    }
     delete cancelFnsRef.current[jobId];
   };
 
@@ -959,6 +931,8 @@ export default function ScenarioStudio() {
         : `Starting ${variants.length} scenario run${variants.length > 1 ? 's' : ''} on ${engineLabel}…`,
       'info'
     );
+    // Redirect to Run section so the user can monitor progress there
+    onNavigate?.('Run');
 
     for (const m of modelsToRun) {
       const isCurrentModel = m.id === getCurrentModel()?.id;
@@ -988,17 +962,18 @@ export default function ScenarioStudio() {
           }
         }
 
-        setRunningJobs(prev => [...prev, {
+        addRunningJob({
           id: jobId, displayName, startTime: new Date().toISOString(), engine: selectedEngine,
+          source: 'scenario_studio',
           logs: [`[TEMPO] Scenario Studio — ${displayName} [${engineLabel}]`],
-        }]);
+        });
 
         try {
           let runPromise;
           if (selectedEngine === 'calliope06' || selectedEngine === 'calliope07') {
             runPromise = runCalliopeModel({
               modelData: concreteModel,
-              onLog: line => setRunningJobs(prev => prev.map(j => j.id === jobId ? { ...j, logs: [...j.logs, line] } : j)),
+              onLog: line => appendRunningJobLog(jobId, line),
               onStats: () => {},
               onDone: result => _handleDone(jobId, batchId, variant.label, m.name, result),
               onError: error => _handleError(jobId, batchId, variant.label, m.name, error),
@@ -1006,7 +981,7 @@ export default function ScenarioStudio() {
           } else {
             runPromise = runEngineModel(selectedEngine, {
               modelData: concreteModel,
-              onLog: line => setRunningJobs(prev => prev.map(j => j.id === jobId ? { ...j, logs: [...j.logs, line] } : j)),
+              onLog: line => appendRunningJobLog(jobId, line),
               onStats: () => {},
               onDone: result => _handleDone(jobId, batchId, variant.label, m.name, result),
               onError: error => _handleError(jobId, batchId, variant.label, m.name, error),
@@ -1015,7 +990,7 @@ export default function ScenarioStudio() {
           const { cancel } = await runPromise;
           cancelFnsRef.current[jobId] = cancel;
         } catch (err) {
-          setRunningJobs(prev => prev.filter(j => j.id !== jobId));
+          removeRunningJob(jobId);
           showNotification(`Failed to start "${displayName}": ${err.message}`, 'error');
         }
       }
@@ -1025,7 +1000,7 @@ export default function ScenarioStudio() {
   const handleStop = (jobId) => {
     cancelFnsRef.current[jobId]?.();
     delete cancelFnsRef.current[jobId];
-    setRunningJobs(prev => prev.filter(j => j.id !== jobId));
+    removeRunningJob(jobId);
     showNotification('Run stopped.', 'info');
   };
 
@@ -1204,12 +1179,10 @@ export default function ScenarioStudio() {
                   </div>
 
                   <button onClick={handleRun}
-                    disabled={!model || runningJobs.length > 0 || serviceStatus === false}
+                    disabled={!model || serviceStatus === false}
                     className={`w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl font-semibold text-sm transition-all shadow-sm ${
                       !model || serviceStatus === false
                         ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                        : runningJobs.length > 0
-                        ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
                         : 'bg-gradient-to-r from-electric-600 to-electric-700 text-white hover:shadow-md hover:scale-[1.01] active:scale-100'
                     }`}>
                     <FiPlay size={15} />
@@ -1217,23 +1190,16 @@ export default function ScenarioStudio() {
                   </button>
 
                   {runningJobs.length > 0 && (
-                    <p className="text-xs text-slate-400 text-center">
-                      <FiClock size={11} className="inline mr-1" />
-                      {runningJobs.length} run{runningJobs.length > 1 ? 's' : ''} in progress…
-                    </p>
+                    <button
+                      onClick={() => onNavigate?.('Run')}
+                      className="w-full text-xs text-electric-600 hover:text-electric-700 text-center py-1 flex items-center justify-center gap-1"
+                    >
+                      <FiActivity size={11} />
+                      {runningJobs.length} run{runningJobs.length > 1 ? 's' : ''} active — monitor in Run section →
+                    </button>
                   )}
                 </>
               )}
-            </div>
-          </div>
-        )}
-
-        {/* Active jobs */}
-        {runningJobs.length > 0 && (
-          <div>
-            <h2 className="text-sm font-semibold text-slate-700 mb-2">Active runs</h2>
-            <div className="space-y-2">
-              {runningJobs.map(j => <JobRow key={j.id} job={j} onStop={handleStop} />)}
             </div>
           </div>
         )}

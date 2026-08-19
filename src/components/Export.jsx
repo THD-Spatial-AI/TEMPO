@@ -233,6 +233,7 @@ function ResultsExportPanel({ completedJobs }) {
   const [checked, setChecked] = useState(() => new Set(RESULT_OUTPUT_DEFS.filter(o => o.group !== 'svg' && o.group !== 'charts').map(o => o.id)));
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState(null);
+  const [previewSvgs, setPreviewSvgs] = useState(null); // null | false (loading) | { demand, unmet, demandMet }
 
   useEffect(() => {
     if (validJobs.length > 0 && !selJobId) setSelJobId(validJobs[0].id);
@@ -240,6 +241,27 @@ function ResultsExportPanel({ completedJobs }) {
 
   const job = useMemo(() => validJobs.find(j => j.id === selJobId) || null, [validJobs, selJobId]);
   const result = job?.result || null;
+
+  useEffect(() => {
+    if (!result?.demand_by_location || !Object.keys(result.demand_by_location).length) {
+      setPreviewSvgs(null);
+      return;
+    }
+    setPreviewSvgs(false);
+    let cancelled = false;
+    loadCommunesGeo()
+      .then(geo => {
+        if (cancelled) return;
+        const choro = choroMetricsFromResult(result);
+        setPreviewSvgs({
+          demand:    buildChoroplethSVG(geo, choro, 'demand',    { ramp: ['#fff7ec', '#fdbb84', '#d7301f'], label: 'Demand (MWh)',        unit: 'MWh', width: 300, height: 370 }),
+          unmet:     buildChoroplethSVG(geo, choro, 'unmet',     { ramp: ['#fff5f0', '#fb6a4a', '#a50f15'], label: 'Unmet Demand (MWh)',  unit: 'MWh', width: 300, height: 370 }),
+          demandMet: buildChoroplethSVG(geo, choro, 'demandMet', { kind: 'pct', ramp: ['#d73027', '#fee08b', '#1a9850'], label: 'Demand Met (%)', width: 300, height: 370 }),
+        });
+      })
+      .catch(() => { if (!cancelled) setPreviewSvgs(null); });
+    return () => { cancelled = true; };
+  }, [result]);
 
   const outputs = useMemo(() =>
     RESULT_OUTPUT_DEFS.map(def => ({ ...def, available: result ? def.hasData(result) : false })),
@@ -361,6 +383,35 @@ function ResultsExportPanel({ completedJobs }) {
           })}
         </div>
       </div>
+
+      {/* Map preview — shown when the selected run has commune-level demand data */}
+      {previewSvgs === false && (
+        <div className="bg-white rounded-xl shadow-lg p-5 text-center text-slate-400 text-sm">
+          Loading map preview…
+        </div>
+      )}
+      {previewSvgs && (
+        <div className="bg-white rounded-xl shadow-lg p-5">
+          <h2 className="text-base font-semibold text-slate-800 mb-3">Map Preview</h2>
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { key: 'demand',    label: 'Demand' },
+              { key: 'unmet',     label: 'Unmet Demand' },
+              { key: 'demandMet', label: 'Demand Met %' },
+            ].map(({ key, label }) => (
+              <div key={key} className="text-center">
+                <p className="text-[10px] font-medium text-slate-500 mb-1">{label}</p>
+                <img
+                  src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(previewSvgs[key])}`}
+                  alt={label}
+                  className="w-full rounded border border-slate-100"
+                />
+              </div>
+            ))}
+          </div>
+          <p className="text-[10px] text-slate-400 mt-2 text-center">Enable "Map SVGs" in the checklist above to include these as vector exports</p>
+        </div>
+      )}
 
       {/* Export action */}
       <div className="bg-white rounded-xl shadow-lg p-5">
