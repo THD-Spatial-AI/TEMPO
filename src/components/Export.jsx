@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useData } from '../context/DataContext';
-import { FiDownload, FiFolder, FiFile, FiCheckCircle, FiAlertCircle, FiPackage, FiZap, FiActivity, FiCpu, FiSettings } from 'react-icons/fi';
+import { FiDownload, FiFolder, FiFile, FiCheckCircle, FiAlertCircle, FiPackage, FiZap, FiActivity, FiCpu, FiSettings, FiDatabase, FiLayers } from 'react-icons/fi';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { dump } from 'js-yaml';
@@ -53,13 +53,294 @@ const EXPORT_FORMATS = [
   }
 ];
 
+// ── Results export helpers ───────────────────────────────────────────────────
+function parseLTCExport(key) {
+  const parts = key.split('::');
+  return parts.length >= 2 ? { loc: parts[0], tech: parts[1] } : { loc: '', tech: parts[0] };
+}
+
+const RESULT_OUTPUT_DEFS = [
+  {
+    id: 'summary', group: 'data', label: 'Summary KPIs', filename: 'summary_kpis.csv',
+    hasData: (r) => !!r,
+    build: (r) => {
+      const totalCap = Object.values(r.capacities || {}).reduce((s, v) => s + v, 0);
+      const totalGen = Object.values(r.generation || {}).reduce((s, v) => s + v, 0);
+      const totalCost = Object.values(r.costs_by_tech || {}).reduce((s, v) => s + v, 0);
+      const totalImports = r.imports_by_location ? Object.values(r.imports_by_location).reduce((s, v) => s + v, 0) : 0;
+      const rows = [
+        ['Metric', 'Value'],
+        ['Termination Condition', r.termination_condition ?? ''],
+        ['Objective', r.objective ?? ''],
+        ['Total Capacity (MW)', totalCap.toFixed(3)],
+        ['Total Generation (MWh)', totalGen.toFixed(3)],
+        ['Total Cost', totalCost.toFixed(3)],
+        ['LCOE (cost/MWh)', totalGen > 0 ? (totalCost / totalGen).toFixed(6) : ''],
+        ['Unmet Demand (MWh)', (r.total_unmet_demand_mwh ?? 0).toFixed(3)],
+        ['Net Imports (MWh)', totalImports.toFixed(3)],
+      ];
+      return rows.map(r2 => r2.join(',')).join('\n');
+    },
+  },
+  {
+    id: 'capacities', group: 'data', label: 'Capacities', filename: 'capacities.csv',
+    hasData: (r) => !!Object.keys(r.capacities || {}).length,
+    build: (r) => {
+      const rows = [['Location', 'Technology', 'Capacity_MW']];
+      Object.entries(r.capacities || {}).sort(([a], [b]) => a.localeCompare(b)).forEach(([k, v]) => {
+        const { loc, tech } = parseLTCExport(k);
+        rows.push([`"${loc}"`, `"${tech}"`, v]);
+      });
+      return rows.map(r2 => r2.join(',')).join('\n');
+    },
+  },
+  {
+    id: 'generation', group: 'data', label: 'Generation', filename: 'generation.csv',
+    hasData: (r) => !!Object.keys(r.generation || {}).length,
+    build: (r) => {
+      const rows = [['Location', 'Technology', 'Generation_MWh']];
+      Object.entries(r.generation || {}).sort(([a], [b]) => a.localeCompare(b)).forEach(([k, v]) => {
+        const { loc, tech } = parseLTCExport(k);
+        rows.push([`"${loc}"`, `"${tech}"`, v]);
+      });
+      return rows.map(r2 => r2.join(',')).join('\n');
+    },
+  },
+  {
+    id: 'costs_tech', group: 'data', label: 'Costs by Technology', filename: 'costs_by_tech.csv',
+    hasData: (r) => !!Object.keys(r.costs_by_tech || {}).length,
+    build: (r) => {
+      const rows = [['Technology', 'Cost']];
+      Object.entries(r.costs_by_tech || {}).sort(([a], [b]) => a.localeCompare(b)).forEach(([k, v]) => rows.push([`"${k}"`, v]));
+      return rows.map(r2 => r2.join(',')).join('\n');
+    },
+  },
+  {
+    id: 'costs_loc', group: 'data', label: 'Costs by Location', filename: 'costs_by_location.csv',
+    hasData: (r) => !!r.costs_by_location && !!Object.keys(r.costs_by_location).length,
+    build: (r) => {
+      const rows = [['Location', 'Cost']];
+      Object.entries(r.costs_by_location || {}).sort(([a], [b]) => a.localeCompare(b)).forEach(([k, v]) => rows.push([`"${k}"`, v]));
+      return rows.map(r2 => r2.join(',')).join('\n');
+    },
+  },
+  {
+    id: 'demand_loc', group: 'data', label: 'Demand by Location', filename: 'demand_by_location.csv',
+    hasData: (r) => !!r.demand_by_location && !!Object.keys(r.demand_by_location).length,
+    build: (r) => {
+      const rows = [['Location', 'Demand_MWh']];
+      Object.entries(r.demand_by_location || {}).sort(([a], [b]) => a.localeCompare(b)).forEach(([k, v]) => rows.push([`"${k}"`, v]));
+      return rows.map(r2 => r2.join(',')).join('\n');
+    },
+  },
+  {
+    id: 'unmet', group: 'data', label: 'Unmet Demand by Location', filename: 'unmet_demand.csv',
+    hasData: (r) => !!r.unmet_demand_by_location && !!Object.keys(r.unmet_demand_by_location).length,
+    build: (r) => {
+      const rows = [['Location', 'Unmet_MWh']];
+      Object.entries(r.unmet_demand_by_location || {}).sort(([a], [b]) => a.localeCompare(b)).forEach(([k, v]) => rows.push([`"${k}"`, v]));
+      return rows.map(r2 => r2.join(',')).join('\n');
+    },
+  },
+  {
+    id: 'imports', group: 'data', label: 'Imports / Exports', filename: 'imports_exports.csv',
+    hasData: (r) => !!r.imports_by_location && !!Object.keys(r.imports_by_location).length,
+    build: (r) => {
+      const locs = new Set([...Object.keys(r.imports_by_location || {}), ...Object.keys(r.exports_by_location || {})]);
+      const rows = [['Location', 'Imports_MWh', 'Exports_MWh']];
+      [...locs].sort().forEach(loc => rows.push([`"${loc}"`, r.imports_by_location?.[loc] ?? 0, r.exports_by_location?.[loc] ?? 0]));
+      return rows.map(r2 => r2.join(',')).join('\n');
+    },
+  },
+  {
+    id: 'dispatch', group: 'data', label: 'Dispatch timeseries', filename: 'dispatch.csv',
+    hasData: (r) => !!(r.dispatch && r.timestamps?.length),
+    build: (r) => {
+      const keys = Object.keys(r.dispatch || {}).sort();
+      if (!keys.length || !r.timestamps?.length) return null;
+      const header = ['Timestamp', ...keys.map(k => `"${k}"`)].join(',');
+      const rows = r.timestamps.map((t, i) =>
+        [`"${t}"`, ...keys.map(k => { const v = r.dispatch[k]?.[i]; return v != null ? Number(v).toFixed(3) : '0'; })].join(',')
+      );
+      return [header, ...rows].join('\n');
+    },
+  },
+  {
+    id: 'json', group: 'raw', label: 'Full Result (JSON)', filename: 'full_result.json',
+    hasData: (r) => !!r,
+    build: (r) => JSON.stringify(r, null, 2),
+  },
+];
+
+const OUTPUT_GROUPS = [
+  { id: 'data', label: 'Data Files', icon: FiDatabase },
+  { id: 'raw',  label: 'Raw',        icon: FiFile },
+];
+
+function ResultsExportPanel({ completedJobs }) {
+  const validJobs = useMemo(() => completedJobs.filter(j => j.result && j.result.success !== false), [completedJobs]);
+  const [selJobId, setSelJobId] = useState(null);
+  const [checked, setChecked] = useState(() => new Set(RESULT_OUTPUT_DEFS.map(o => o.id)));
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState(null);
+
+  useEffect(() => {
+    if (validJobs.length > 0 && !selJobId) setSelJobId(validJobs[0].id);
+  }, [validJobs, selJobId]);
+
+  const job = useMemo(() => validJobs.find(j => j.id === selJobId) || null, [validJobs, selJobId]);
+  const result = job?.result || null;
+
+  const outputs = useMemo(() =>
+    RESULT_OUTPUT_DEFS.map(def => ({ ...def, available: result ? def.hasData(result) : false })),
+    [result]
+  );
+
+  const toggleOutput = (id) => setChecked(prev => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+
+  const readyCount = outputs.filter(o => checked.has(o.id) && o.available).length;
+
+  const handleExport = async () => {
+    if (!result) return;
+    setBusy(true);
+    setStatus(null);
+    try {
+      const zip = new JSZip();
+      outputs.filter(o => checked.has(o.id) && o.available).forEach(o => {
+        const content = o.build(result);
+        if (content) zip.file(o.filename, content);
+      });
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const name = `results_${(job.modelName || 'run').replace(/[^a-z0-9]+/gi, '_').toLowerCase()}.zip`;
+      saveAs(blob, name);
+      setStatus({ type: 'success', message: `Downloaded ${name}` });
+    } catch (e) {
+      setStatus({ type: 'error', message: `Export failed: ${e.message}` });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (validJobs.length === 0) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
+        <FiActivity size={36} className="mx-auto text-gray-300 mb-3" />
+        <p className="font-semibold text-gray-700 mb-1">No completed runs</p>
+        <p className="text-sm text-gray-400">Run a model first to export its results.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Run selector */}
+      <div className="bg-white rounded-xl shadow-lg p-5">
+        <h2 className="text-base font-semibold text-slate-800 mb-3">Select Run</h2>
+        <select
+          value={selJobId || ''}
+          onChange={e => { setSelJobId(e.target.value); setStatus(null); }}
+          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-gray-400"
+        >
+          {validJobs.map(j => (
+            <option key={j.id} value={j.id}>
+              {j.modelName} — {new Date(j.completedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+            </option>
+          ))}
+        </select>
+        {result && (
+          <p className="text-xs text-slate-400 mt-2">
+            Objective: <span className="text-slate-600 font-medium">{result.objective != null ? Number(result.objective).toLocaleString(undefined, { maximumFractionDigits: 0 }) : '—'}</span>
+            {' · '}
+            Termination: <span className="text-slate-600 font-medium">{result.termination_condition ?? '—'}</span>
+          </p>
+        )}
+      </div>
+
+      {/* Output checklist */}
+      <div className="bg-white rounded-xl shadow-lg p-5">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-base font-semibold text-slate-800">Select Outputs</h2>
+          <div className="flex gap-2">
+            <button onClick={() => setChecked(new Set(outputs.filter(o => o.available).map(o => o.id)))}
+              className="text-[11px] px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-500 transition">All</button>
+            <button onClick={() => setChecked(new Set())}
+              className="text-[11px] px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-500 transition">None</button>
+          </div>
+        </div>
+        <div className="space-y-4">
+          {OUTPUT_GROUPS.map(grp => {
+            const grpOutputs = outputs.filter(o => o.group === grp.id);
+            if (!grpOutputs.length) return null;
+            const GrpIcon = grp.icon;
+            return (
+              <div key={grp.id}>
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <GrpIcon size={11} className="text-slate-400" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{grp.label}</span>
+                </div>
+                <div className="space-y-0.5">
+                  {grpOutputs.map(o => (
+                    <label key={o.id} className={`flex items-center gap-3 px-2 py-1.5 rounded-lg cursor-pointer transition-all ${
+                      o.available ? 'hover:bg-slate-50' : 'opacity-40 cursor-not-allowed'
+                    }`}>
+                      <input
+                        type="checkbox"
+                        checked={checked.has(o.id) && o.available}
+                        disabled={!o.available}
+                        onChange={() => o.available && toggleOutput(o.id)}
+                        className="w-3.5 h-3.5 rounded accent-gray-700 flex-shrink-0"
+                      />
+                      <span className="flex-1 text-sm text-slate-700">{o.label}</span>
+                      <span className="font-mono text-[10px] text-slate-400">{o.filename}</span>
+                      {!o.available && (
+                        <span className="text-[9px] text-slate-300 border border-slate-200 rounded px-1">n/a</span>
+                      )}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Export action */}
+      <div className="bg-white rounded-xl shadow-lg p-5">
+        <button
+          onClick={handleExport}
+          disabled={busy || !result || readyCount === 0}
+          className="w-full py-2.5 bg-gray-700 text-white rounded-lg font-semibold text-sm hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
+        >
+          <FiDownload size={15} />
+          {busy ? 'Building ZIP…' : `Export ${readyCount} file${readyCount !== 1 ? 's' : ''} as ZIP`}
+        </button>
+        {status && (
+          <div className={`mt-3 px-4 py-2.5 rounded-lg flex items-center gap-2 text-sm ${
+            status.type === 'success'
+              ? 'bg-gray-50 text-gray-700 border border-gray-200'
+              : 'bg-red-50 text-red-700 border border-red-100'
+          }`}>
+            {status.type === 'success' ? <FiCheckCircle size={14} className="flex-shrink-0" /> : <FiAlertCircle size={14} className="flex-shrink-0" />}
+            <span>{status.message}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const Export = () => {
-  const { getCurrentModel, technologies, timeSeries, overrides, scenarios } = useData();
+  const { getCurrentModel, technologies, timeSeries, overrides, scenarios, completedJobs } = useData();
   const currentModel = getCurrentModel();
   const [exporting, setExporting] = useState(false);
   const [exportStatus, setExportStatus] = useState(null);
   const [exportReport, setExportReport] = useState([]);
   const [selectedFormat, setSelectedFormat] = useState('calliope');
+  const [exportMode, setExportMode] = useState('model');
 
   useEffect(() => {
     if (!currentModel) return;
@@ -611,21 +892,9 @@ calliope run model.yaml --scenario=Main
     }
   };
 
-  if (!currentModel) {
-    return (
-      <div className="flex-1 p-6 overflow-y-auto">
-        <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
-          <FiPackage size={36} className="mx-auto text-gray-300 mb-3" />
-          <p className="font-semibold text-gray-700 mb-1">No model selected</p>
-          <p className="text-sm text-gray-400">Select a model from the Models section to export it.</p>
-        </div>
-      </div>
-    );
-  }
-
-  const modelTs = timeSeries.filter(ts => ts.modelId === currentModel.id);
-  const locs = currentModel.locations || [];
-  const lnks = currentModel.links || [];
+  const modelTs = currentModel ? timeSeries.filter(ts => ts.modelId === currentModel.id) : [];
+  const locs = currentModel?.locations || [];
+  const lnks = currentModel?.links || [];
   const techs = technologies || [];
   const modelOverrides = Object.keys(overrides || {});
   const modelScenarios = Object.keys(scenarios || {});
@@ -648,14 +917,42 @@ calliope run model.yaml --scenario=Main
     <div className="flex-1 p-6 overflow-y-auto">
       <div className="space-y-5">
 
-        {/* Page header */}
-        <div className="flex items-center gap-3">
+        {/* Page header + mode toggle */}
+        <div className="flex items-center gap-3 flex-wrap">
           <FiDownload size={18} className="text-gray-500" />
-          <div>
-            <h1 className="text-xl font-semibold text-slate-800">Export Model</h1>
-            <p className="text-xs text-slate-500">Export your active model as a framework-ready ZIP archive</p>
+          <div className="flex-1">
+            <h1 className="text-xl font-semibold text-slate-800">Export</h1>
+            <p className="text-xs text-slate-500">
+              {exportMode === 'model' ? 'Export your active model as a framework-ready ZIP archive' : 'Download results data from a completed run'}
+            </p>
+          </div>
+          <div className="flex gap-1 bg-slate-100 rounded-xl p-1">
+            {[{ id: 'model', label: 'Model', icon: FiPackage }, { id: 'results', label: 'Results', icon: FiLayers }].map(({ id, label, icon: Icon }) => (
+              <button key={id} onClick={() => setExportMode(id)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  exportMode === id ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}>
+                <Icon size={12} /> {label}
+              </button>
+            ))}
           </div>
         </div>
+
+        {/* Results mode */}
+        {exportMode === 'results' && (
+          <ResultsExportPanel completedJobs={completedJobs || []} />
+        )}
+
+        {/* Model mode */}
+        {exportMode === 'model' && !currentModel && (
+          <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
+            <FiPackage size={36} className="mx-auto text-gray-300 mb-3" />
+            <p className="font-semibold text-gray-700 mb-1">No model selected</p>
+            <p className="text-sm text-gray-400">Select a model from the Models section to export it.</p>
+          </div>
+        )}
+
+        {exportMode === 'model' && currentModel && (<>
 
         {/* Active model card */}
         <div className="bg-white rounded-xl shadow-lg p-5">
@@ -859,6 +1156,9 @@ calliope run model.yaml --scenario=Main
           </div>
 
         </div>
+
+        </>
+        )}
       </div>
     </div>
   );
