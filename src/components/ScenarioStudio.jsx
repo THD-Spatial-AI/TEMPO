@@ -9,6 +9,7 @@ import { checkCalliopeService, runCalliopeModel } from '../services/calliopeClie
 import { applyOps } from '../services/scenarioStudio/transform.js';
 import { expandRecipe } from '../services/scenarioStudio/recipes/index.js';
 import { autoDetectTechs, FOSSIL_KEYWORDS, RENEWABLE_KEYWORDS, buildCalliope06GroupConstraintsOverride } from '../services/scenarioStudio/utils.js';
+import BatchComparison from './results/BatchComparison.jsx';
 
 // ─── Recipe catalogue (UI metadata) ─────────────────────────────────────────
 
@@ -870,6 +871,9 @@ export default function ScenarioStudio() {
             </div>
           </div>
         )}
+
+        {/* Batch comparison */}
+        <BatchComparison completedJobs={completedJobs} />
       </div>
     </div>
   );
