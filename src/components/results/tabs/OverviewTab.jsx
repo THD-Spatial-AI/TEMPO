@@ -1,6 +1,6 @@
 // OverviewTab — the "overview" result tab, extracted verbatim from Results.jsx.
 // Renders the pre-computed chart options / data passed as props.
-import { FiBarChart2, FiChevronDown, FiMap, FiMapPin, FiPieChart, FiShare2, FiTrendingUp, FiZap } from 'react-icons/fi';
+import { FiAlertTriangle, FiBarChart2, FiChevronDown, FiMap, FiMapPin, FiPieChart, FiShare2, FiTrendingUp, FiZap } from 'react-icons/fi';
 import ReactECharts from 'echarts-for-react';
 import { ResultsMap, TransmissionFlowMap } from '../ResultMaps';
 import { autoScale, axisNameStyle, fmtCost, fmtEnergy, fmtPower, scaledFmt } from '../../../utils/resultFormat';
@@ -115,6 +115,50 @@ export default function OverviewTab({
                     </div>}
                   </div>
                 </div>
+
+                {/* Unmet demand — shown only when model has unmet demand */}
+                {(result?.total_unmet_demand_mwh > 0) && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-2xl overflow-hidden">
+                    <button onClick={() => toggleSection('unmet-demand')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-amber-100/60 transition text-left">
+                      <FiAlertTriangle size={14} className="text-amber-500 flex-shrink-0" />
+                      <span className="font-semibold text-amber-900 text-sm flex-1">Unmet Demand</span>
+                      <span className="text-xs text-amber-600 mr-1">· {fmtEnergy(result.total_unmet_demand_mwh)}</span>
+                      <FiChevronDown size={12} className={`text-amber-400 transition-transform duration-150 ${sectionOpen('unmet-demand') ? '' : '-rotate-90'}`} />
+                    </button>
+                    {sectionOpen('unmet-demand') && (
+                      <div className="px-5 pb-5">
+                        <p className="text-xs text-amber-700 mb-3">
+                          The solver used <span className="font-semibold">{fmtEnergy(result.total_unmet_demand_mwh)}</span> of unmet-demand slack to remain feasible.
+                          Consider relaxing demand constraints or adding generation capacity.
+                        </p>
+                        {result.unmet_demand_by_location && Object.keys(result.unmet_demand_by_location).length > 0 && (
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="border-b border-amber-200">
+                                <th className="text-left py-1.5 font-semibold text-amber-700 uppercase tracking-wide">Location</th>
+                                <th className="text-right py-1.5 font-semibold text-amber-700 uppercase tracking-wide">Unmet (MWh)</th>
+                                <th className="text-right py-1.5 font-semibold text-amber-700 uppercase tracking-wide">Share</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {Object.entries(result.unmet_demand_by_location)
+                                .sort(([, a], [, b]) => b - a)
+                                .map(([loc, mwh]) => (
+                                  <tr key={loc} className="border-b border-amber-100">
+                                    <td className="py-1.5 text-amber-900 font-mono">{loc}</td>
+                                    <td className="py-1.5 text-right font-mono text-amber-800">{fmtEnergy(mwh)}</td>
+                                    <td className="py-1.5 text-right font-mono text-amber-600">
+                                      {(mwh / result.total_unmet_demand_mwh * 100).toFixed(1)}%
+                                    </td>
+                                  </tr>
+                                ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Technology summary table */}
                 {derivedData?.capByTech && (

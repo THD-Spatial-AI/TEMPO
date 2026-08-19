@@ -2308,6 +2308,28 @@ def _run_model_impl(model_data, work_dir):
             log(f"  Could not extract transmission flow timeseries: {e}")
             log(_tb.format_exc())
 
+    # Net imports/exports by location (G2) — derived from transmission_flow already extracted.
+    # For each pair "a::b": net > 0 means net flow a→b (a exports, b imports).
+    if 'transmission_flow' in results:
+        try:
+            import numpy as np
+            imports_by_loc = {}
+            exports_by_loc = {}
+            for flow in results['transmission_flow'].values():
+                from_loc = flow['from']
+                to_loc   = flow['to']
+                ts = np.array(flow['timeseries'], dtype=float)
+                pos = np.maximum(ts,  0.0)   # a→b: from_loc exports, to_loc imports
+                neg = np.maximum(-ts, 0.0)   # b→a: to_loc exports, from_loc imports
+                imports_by_loc[to_loc]   = imports_by_loc.get(to_loc,   0.0) + float(pos.sum())
+                imports_by_loc[from_loc] = imports_by_loc.get(from_loc, 0.0) + float(neg.sum())
+                exports_by_loc[from_loc] = exports_by_loc.get(from_loc, 0.0) + float(pos.sum())
+                exports_by_loc[to_loc]   = exports_by_loc.get(to_loc,   0.0) + float(neg.sum())
+            results['imports_by_location'] = {k: round(v, 3) for k, v in imports_by_loc.items() if v > 1e-3}
+            results['exports_by_location'] = {k: round(v, 3) for k, v in exports_by_loc.items() if v > 1e-3}
+        except Exception as e:
+            log(f"  Could not extract imports/exports by location: {e}")
+
     # Demand timeseries from carrier_con (demand techs consume electricity)
     if 'carrier_con' in ds:
         try:
@@ -2332,6 +2354,42 @@ def _run_model_impl(model_data, work_dir):
                         results['timestamps'] = timestamps
         except Exception as e:
             log(f"  Could not extract demand timeseries: {e}")
+
+    # Unmet demand (G1) — carrier_prod for unmet_demand slack techs.
+    # Calliope injects these automatically when ensure_feasibility=True.
+    # Without extracting them, an infeasible-but-slack-padded run looks healthy.
+    if 'carrier_prod' in ds:
+        try:
+            import numpy as np
+            prod = ds['carrier_prod']
+            lt_dim = next((d for d in prod.dims if 'loc_tech' in d), None)
+            if lt_dim:
+                timestamps = results.get('timestamps') or [str(t) for t in prod['timesteps'].values]
+                unmet_total = np.zeros(len(timestamps))
+                unmet_by_loc = {}
+                has_unmet = False
+                for coord_val in prod[lt_dim].values:
+                    parts = str(coord_val).split('::')
+                    loc       = parts[0] if len(parts) >= 2 else ''
+                    tech_base = (parts[1] if len(parts) >= 2 else parts[0]).split(':')[0]
+                    if 'unmet_demand' not in tech_base.lower():
+                        continue
+                    vals = prod.sel({lt_dim: coord_val}).values.astype(float)
+                    vals = np.maximum(np.where(np.isnan(vals), 0.0, vals), 0.0)
+                    unmet_total += vals
+                    if loc:
+                        unmet_by_loc[loc] = unmet_by_loc.get(loc, 0.0) + float(vals.sum())
+                    has_unmet = True
+                if has_unmet:
+                    total_unmet = float(unmet_total.sum())
+                    results['unmet_demand_timeseries'] = [round(float(v), 3) for v in unmet_total.tolist()]
+                    results['unmet_demand_by_location'] = {
+                        k: round(v, 3) for k, v in unmet_by_loc.items() if v > 1e-3
+                    }
+                    results['total_unmet_demand_mwh'] = round(total_unmet, 3)
+                    log(f"  Extracted unmet demand: {total_unmet:.1f} MWh across {len(unmet_by_loc)} location(s)")
+        except Exception as e:
+            log(f"  Could not extract unmet demand: {e}")
 
     # Cost breakdown by technology
     # Calliope 0.6 uses a MultiIndex dimension 'loc_techs_cost' shaped as

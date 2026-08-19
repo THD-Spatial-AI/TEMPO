@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import ReactECharts from 'echarts-for-react';
-import { FiLayers, FiTrendingUp, FiGrid, FiChevronDown, FiChevronUp } from 'react-icons/fi';
+import { FiDownload, FiLayers, FiTrendingUp, FiGrid, FiChevronDown, FiChevronUp } from 'react-icons/fi';
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
 const PALETTE = [
@@ -44,8 +44,12 @@ function extractKPIs(result) {
   const totalCost = Object.values(costByTech).reduce((s, v) => s + v, 0);
   const renewableGen = Object.entries(genByTech).filter(([t]) => isRenewable(t)).reduce((s, [, v]) => s + v, 0);
   const lcoe = totalGen > 0 ? totalCost / totalGen : null;
+  const totalUnmetMWh = result.total_unmet_demand_mwh || 0;
+  const totalImportsMWh = result.imports_by_location
+    ? Object.values(result.imports_by_location).reduce((s, v) => s + v, 0)
+    : 0;
 
-  return { capByTech, genByTech, costByTech, totalCap, totalGen, totalCost, renewableShare: totalGen > 0 ? renewableGen / totalGen : 0, lcoe };
+  return { capByTech, genByTech, costByTech, totalCap, totalGen, totalCost, renewableShare: totalGen > 0 ? renewableGen / totalGen : 0, lcoe, totalUnmetMWh, totalImportsMWh };
 }
 
 const fmtNum = (v, dec = 1) => {
@@ -73,6 +77,8 @@ const TRAJECTORY_KPIS = [
   { id: 'renewableShare',label: 'Renewable share (%)', fn: (_, kpis) => kpis ? kpis.renewableShare * 100 : null },
   { id: 'totalCost',     label: 'Total cost', fn: (_, kpis) => kpis?.totalCost ?? null },
   { id: 'lcoe',          label: 'LCOE (€/MWh)', fn: (_, kpis) => kpis?.lcoe ?? null },
+  { id: 'totalUnmetMWh',  label: 'Unmet demand (MWh)', fn: (_, kpis) => kpis?.totalUnmetMWh ?? null },
+  { id: 'totalImportsMWh',label: 'Net imports (MWh)',   fn: (_, kpis) => kpis?.totalImportsMWh ?? null },
 ];
 
 function buildTrajectoryOption(sortedJobs, kpisMap, kpiId) {
@@ -138,6 +144,43 @@ function buildCapacityOption(sortedJobs, kpisMap) {
   };
 }
 
+// ─── CSV export ───────────────────────────────────────────────────────────────
+function exportBatchCSV(sortedJobs, kpisMap, baseName) {
+  const cols = [
+    { header: 'Variant',        fn: (job)        => job.variantLabel },
+    { header: 'Status',         fn: (job)        => job.status },
+    { header: 'Engine',         fn: (job)        => job.engine || 'calliope06' },
+    { header: 'Objective',      fn: (job)        => job.objective ?? '' },
+    { header: 'Cap_MW',         fn: (_, kpis)    => kpis?.totalCap?.toFixed(2) ?? '' },
+    { header: 'Gen_MWh',        fn: (_, kpis)    => kpis?.totalGen?.toFixed(2) ?? '' },
+    { header: 'RE_pct',         fn: (_, kpis)    => kpis ? (kpis.renewableShare * 100).toFixed(2) : '' },
+    { header: 'TotalCost',      fn: (_, kpis)    => kpis?.totalCost?.toFixed(2) ?? '' },
+    { header: 'LCOE_EUR_MWh',   fn: (_, kpis)    => kpis?.lcoe?.toFixed(4) ?? '' },
+    { header: 'UnmetDemand_MWh',fn: (_, kpis)    => kpis?.totalUnmetMWh?.toFixed(2) ?? '0' },
+    { header: 'NetImports_MWh', fn: (_, kpis)    => kpis?.totalImportsMWh?.toFixed(2) ?? '0' },
+  ];
+
+  const escape = v => {
+    const s = String(v ?? '');
+    return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+
+  const header = cols.map(c => escape(c.header)).join(',');
+  const rows = sortedJobs.map(job => {
+    const kpis = kpisMap[job.id];
+    return cols.map(c => escape(c.fn(job, kpis))).join(',');
+  });
+
+  const csv = [header, ...rows].join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `${(baseName || 'batch').replace(/[^a-z0-9_-]/gi, '_')}_kpis.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 // ─── BatchComparison ──────────────────────────────────────────────────────────
 
 export default function BatchComparison({ completedJobs }) {
@@ -186,11 +229,37 @@ export default function BatchComparison({ completedJobs }) {
   const baseName = sortedJobs[0]?.modelName?.replace(/ — .*$/, '') || '';
   const completedCount = sortedJobs.filter(j => j.status === 'completed').length;
   const failedCount = sortedJobs.filter(j => j.status === 'failed').length;
+  const hasUnmet   = sortedJobs.some(j => (kpisMap[j.id]?.totalUnmetMWh || 0) > 0);
+  const hasImports = sortedJobs.some(j => (kpisMap[j.id]?.totalImportsMWh || 0) > 0);
+
+  // Multi-model detection
+  const modelLabels = [...new Set(sortedJobs.map(j => j.modelLabel || j.modelName?.replace(/ — .*$/, '') || ''))];
+  const isMultiModel = modelLabels.length > 1;
+  // All unique variant labels in insertion order
+  const variantLabels = [...new Set(sortedJobs.map(j => j.variantLabel))];
+  // Matrix cell lookup: modelLabel → variantLabel → job
+  const matrixCells = isMultiModel
+    ? Object.fromEntries(modelLabels.map(ml => [
+        ml,
+        Object.fromEntries(variantLabels.map(vl => [
+          vl,
+          sortedJobs.find(j => (j.modelLabel || j.modelName?.replace(/ — .*$/, '') || '') === ml && j.variantLabel === vl) || null,
+        ])),
+      ]))
+    : {};
 
   return (
     <div>
       <h2 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
         <FiLayers size={14} className="text-electric-500" /> Batch results
+        {sortedJobs.length > 0 && (
+          <button
+            onClick={() => exportBatchCSV(sortedJobs, kpisMap, baseName)}
+            className="ml-auto flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+          >
+            <FiDownload size={11} /> Export CSV
+          </button>
+        )}
       </h2>
 
       {/* Batch selector */}
@@ -224,8 +293,56 @@ export default function BatchComparison({ completedJobs }) {
         </div>
       )}
 
-      {/* Trajectory chart */}
-      {trajectoryOption && (
+      {/* ── Multi-model matrix view ── */}
+      {isMultiModel && (
+        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden mb-3">
+          <div className="px-3 py-2 border-b border-slate-100 flex items-center gap-2">
+            <FiLayers size={13} className="text-electric-500" />
+            <span className="text-xs font-semibold text-slate-700">Model × Variant matrix</span>
+            <span className="ml-auto text-xs text-slate-400">{modelLabels.length} models · {variantLabels.length} variants</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  <th className="text-left px-3 py-1.5 font-semibold text-slate-600 whitespace-nowrap min-w-[140px]">Model</th>
+                  {variantLabels.map(vl => (
+                    <th key={vl} className="text-right px-3 py-1.5 font-semibold text-slate-600 whitespace-nowrap">{vl}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {modelLabels.map((ml, ri) => (
+                  <tr key={ml} className={ri % 2 === 1 ? 'bg-slate-50' : ''}>
+                    <td className="px-3 py-1.5 font-medium text-slate-700 whitespace-nowrap max-w-[200px] truncate" title={ml}>{ml}</td>
+                    {variantLabels.map(vl => {
+                      const job = matrixCells[ml]?.[vl];
+                      if (!job) return <td key={vl} className="px-3 py-1.5 text-right text-slate-300">—</td>;
+                      if (job.status === 'failed') return (
+                        <td key={vl} className="px-3 py-1.5 text-right">
+                          <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-600">failed</span>
+                        </td>
+                      );
+                      const kpis = kpisMap[job.id];
+                      return (
+                        <td key={vl} className="px-3 py-1.5 text-right font-mono text-slate-700">
+                          <span title={`Cap: ${fmtNum(kpis?.totalCap)} MW · RE: ${kpis ? (kpis.renewableShare*100).toFixed(0) : '—'}%`}>
+                            {fmtNum(job.objective)}
+                          </span>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="px-3 py-1.5 text-[10px] text-slate-400 border-t border-slate-100">Cells show objective value. Hover for capacity and RE share.</p>
+        </div>
+      )}
+
+      {/* Trajectory chart — single-model batches only */}
+      {!isMultiModel && trajectoryOption && (
         <div className="bg-white border border-slate-200 rounded-xl p-3 mb-3">
           <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
             <span className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
@@ -243,8 +360,8 @@ export default function BatchComparison({ completedJobs }) {
         </div>
       )}
 
-      {/* Capacity stacked bar */}
-      {capacityOption && (
+      {/* Capacity stacked bar — single-model batches only */}
+      {!isMultiModel && capacityOption && (
         <div className="bg-white border border-slate-200 rounded-xl p-3 mb-3">
           <span className="text-xs font-semibold text-slate-700 mb-2 block">Capacity by technology (MW)</span>
           <ReactECharts option={capacityOption} style={{ height: 220 }} notMerge />
@@ -273,6 +390,8 @@ export default function BatchComparison({ completedJobs }) {
                     <th className="text-right px-3 py-1.5 font-semibold text-slate-600 whitespace-nowrap">Gen (MWh)</th>
                     <th className="text-right px-3 py-1.5 font-semibold text-slate-600 whitespace-nowrap">RE %</th>
                     <th className="text-right px-3 py-1.5 font-semibold text-slate-600 whitespace-nowrap">LCOE</th>
+                    {hasUnmet   && <th className="text-right px-3 py-1.5 font-semibold text-amber-600 whitespace-nowrap">Unmet (MWh)</th>}
+                    {hasImports && <th className="text-right px-3 py-1.5 font-semibold text-slate-600 whitespace-nowrap">Imports (MWh)</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -294,6 +413,12 @@ export default function BatchComparison({ completedJobs }) {
                           {kpis ? (kpis.renewableShare * 100).toFixed(1) + '%' : '—'}
                         </td>
                         <td className="px-3 py-1.5 text-right font-mono text-slate-700">{fmtNum(kpis?.lcoe)}</td>
+                        {hasUnmet   && (
+                          <td className={`px-3 py-1.5 text-right font-mono ${(kpis?.totalUnmetMWh || 0) > 0 ? 'text-amber-600 font-semibold' : 'text-slate-400'}`}>
+                            {(kpis?.totalUnmetMWh || 0) > 0 ? fmtNum(kpis.totalUnmetMWh) : '—'}
+                          </td>
+                        )}
+                        {hasImports && <td className="px-3 py-1.5 text-right font-mono text-slate-700">{fmtNum(kpis?.totalImportsMWh)}</td>}
                       </tr>
                     );
                   })}

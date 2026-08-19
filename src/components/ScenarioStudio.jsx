@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   FiTrendingUp, FiSun, FiCloud, FiDollarSign, FiSliders,
   FiPlay, FiStopCircle, FiAlertCircle, FiAlertTriangle,
-  FiChevronDown, FiInfo, FiZap, FiClock, FiPlus, FiTrash2, FiDownload,
+  FiChevronDown, FiInfo, FiZap, FiClock, FiPlus, FiTrash2, FiDownload, FiLayers,
 } from 'react-icons/fi';
 import { useData } from '../context/DataContext';
 import { checkCalliopeService, runCalliopeModel } from '../services/calliopeClient';
@@ -749,6 +749,32 @@ function JobRow({ job, onStop }) {
 
 // ─── Preview label helpers ────────────────────────────────────────────────────
 
+function summarizeOps(ops) {
+  if (!ops || ops.length === 0) return null;
+  const SYS_LABEL = { co2_cap: 'CO₂', renewable_min: 'RE min', reserve_margin: 'reserve' };
+  const parts = ops.map(op => {
+    if (op.op === 'scaleParam') {
+      const tech = op.techMatch || '*';
+      const f = op.factor ?? 1;
+      return `${tech} ×${parseFloat(f.toFixed(3))}`;
+    }
+    if (op.op === 'setParam') {
+      const tech = op.techMatch || '*';
+      const key  = (op.path || '').split('.').pop();
+      return `${tech}.${key}=${op.value ?? ''}`;
+    }
+    if (op.op === 'disableTech') return `${op.techMatch || '*'} off`;
+    if (op.op === 'systemConstraint') {
+      const lbl = SYS_LABEL[op.kind] || op.kind;
+      return `${lbl} ${op.value ?? ''}`;
+    }
+    return op.op;
+  });
+  return parts.length <= 3
+    ? parts.join(' · ')
+    : parts.slice(0, 3).join(' · ') + ` +${parts.length - 3} more`;
+}
+
 function VariantBadge({ variant, recipeId }) {
   let detail = null;
   if (recipeId === 'demandGrowth') {
@@ -769,6 +795,12 @@ function VariantBadge({ variant, recipeId }) {
       : null;
   } else if (recipeId === 'costSensitivity') {
     detail = <span className="text-purple-700 font-mono">{variant.label}</span>;
+  } else if (recipeId === 'custom') {
+    const summary = summarizeOps(variant.ops);
+    detail = summary ? <span className="text-slate-500 truncate max-w-[220px]" title={summary}>{summary}</span> : null;
+  } else {
+    const summary = summarizeOps(variant.ops);
+    if (summary) detail = <span className="text-slate-400 font-mono text-[10px] truncate max-w-[180px]" title={summary}>{summary}</span>;
   }
   return (
     <div className="flex items-center justify-between gap-2 px-3 py-1.5 bg-slate-50 rounded-lg text-xs">
@@ -784,6 +816,8 @@ export default function ScenarioStudio() {
   const { models, getCurrentModel, showNotification, addCompletedJob, completedJobs, timeSeries, technologies } = useData();
 
   const [selectedModel, setSelectedModel] = useState(null);
+  const [extraModels, setExtraModels] = useState([]); // additional models for cross-model compare
+  const [showModelCompare, setShowModelCompare] = useState(false);
   const [selectedRecipe, setSelectedRecipe] = useState('demandGrowth');
   const [params, setParams] = useState(DEFAULT_PARAMS['demandGrowth']);
   const [serviceStatus, setServiceStatus] = useState(null);
@@ -844,7 +878,7 @@ export default function ScenarioStudio() {
 
   // ── Job completion ────────────────────────────────────────────────────────
 
-  const _handleDone = (jobId, batchId, variantLabel, result) => {
+  const _handleDone = (jobId, batchId, variantLabel, modelLabel, result) => {
     if (completedIdsRef.current.has(jobId)) return;
     completedIdsRef.current.add(jobId);
     setRunningJobs(prev => {
@@ -859,7 +893,7 @@ export default function ScenarioStudio() {
             completedAt: new Date().toISOString(), duration,
             objective: result?.objective || null,
             terminationCondition: result?.termination_condition || 'optimal',
-            result: result || {}, logs: job.logs, batchId, variantLabel,
+            result: result || {}, logs: job.logs, batchId, variantLabel, modelLabel,
           });
           showNotification(
             result?.success === false ? `Run failed: ${result.error}` : `Completed: ${job.displayName} (${duration})`,
@@ -872,7 +906,7 @@ export default function ScenarioStudio() {
     delete cancelFnsRef.current[jobId];
   };
 
-  const _handleError = (jobId, batchId, variantLabel, error) => {
+  const _handleError = (jobId, batchId, variantLabel, modelLabel, error) => {
     if (completedIdsRef.current.has(jobId)) return;
     completedIdsRef.current.add(jobId);
     setRunningJobs(prev => {
@@ -884,7 +918,7 @@ export default function ScenarioStudio() {
             status: 'failed', completedAt: new Date().toISOString(), duration: 'N/A',
             objective: null, terminationCondition: 'error',
             result: { success: false, error }, logs: [...job.logs, `[ERROR] ${error}`],
-            batchId, variantLabel,
+            batchId, variantLabel, modelLabel,
           });
           showNotification(`Run failed: ${error}`, 'error');
         }, 0);
@@ -916,65 +950,74 @@ export default function ScenarioStudio() {
     }
 
     const batchId = `batch_${Date.now()}`;
-    const isCurrentModel = model.id === getCurrentModel()?.id;
-    const techsForRun = isCurrentModel && technologies?.length ? technologies : (model.technologies || technologies || []);
-    const tsForRun = (timeSeries || []).filter(ts => ts.modelId === model.id);
+    const modelsToRun = extraModels.length > 0 ? [model, ...extraModels] : [model];
+    const totalRuns = modelsToRun.length * variants.length;
 
-    showNotification(`Starting ${variants.length} scenario run${variants.length > 1 ? 's' : ''} on ${engineLabel}…`, 'info');
+    showNotification(
+      modelsToRun.length > 1
+        ? `Starting ${totalRuns} runs (${modelsToRun.length} models × ${variants.length} variant${variants.length > 1 ? 's' : ''}) on ${engineLabel}…`
+        : `Starting ${variants.length} scenario run${variants.length > 1 ? 's' : ''} on ${engineLabel}…`,
+      'info'
+    );
 
-    for (const variant of variants) {
-      const jobId = `job_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-      const displayName = `${model.name} — ${variant.label}`;
+    for (const m of modelsToRun) {
+      const isCurrentModel = m.id === getCurrentModel()?.id;
+      const techsForRun = isCurrentModel && technologies?.length ? technologies : (m.technologies || technologies || []);
+      const tsForRun = (timeSeries || []).filter(ts => ts.modelId === m.id);
 
-      const baseModelData = {
-        ...model, solver: 'highs', modelConfig: model.modelConfig || {},
-        technologies: techsForRun, timeSeries: tsForRun,
-      };
-      const concreteModel = applyOps(baseModelData, variant.ops);
+      for (const variant of variants) {
+        const jobId = `job_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        const displayName = `${m.name} — ${variant.label}`;
 
-      // Calliope: inject system constraints as native override
-      if (selectedEngine === 'calliope06' || selectedEngine === 'calliope07') {
-        const gc = concreteModel.modelConfig?.groupConstraints;
-        const nativeGC = gc ? buildCalliope06GroupConstraintsOverride(gc) : null;
-        if (nativeGC) {
-          concreteModel.overrides = { ...(concreteModel.overrides || {}), _studio_sys: { group_constraints: nativeGC } };
-          concreteModel.override = '_studio_sys';
-        }
-        // Calliope 0.7: set calliopeVersion in modelConfig
-        if (selectedEngine === 'calliope07') {
-          concreteModel.modelConfig = { ...(concreteModel.modelConfig || {}), calliopeVersion: '0.7.0' };
-        }
-      }
+        const baseModelData = {
+          ...m, solver: 'highs', modelConfig: m.modelConfig || {},
+          technologies: techsForRun, timeSeries: tsForRun,
+        };
+        const concreteModel = applyOps(baseModelData, variant.ops);
 
-      setRunningJobs(prev => [...prev, {
-        id: jobId, displayName, startTime: new Date().toISOString(), engine: selectedEngine,
-        logs: [`[TEMPO] Scenario Studio — ${displayName} [${engineLabel}]`],
-      }]);
-
-      try {
-        let runPromise;
+        // Calliope: inject system constraints as native override
         if (selectedEngine === 'calliope06' || selectedEngine === 'calliope07') {
-          runPromise = runCalliopeModel({
-            modelData: concreteModel,
-            onLog: line => setRunningJobs(prev => prev.map(j => j.id === jobId ? { ...j, logs: [...j.logs, line] } : j)),
-            onStats: () => {},
-            onDone: result => _handleDone(jobId, batchId, variant.label, result),
-            onError: error => _handleError(jobId, batchId, variant.label, error),
-          });
-        } else {
-          runPromise = runEngineModel(selectedEngine, {
-            modelData: concreteModel,
-            onLog: line => setRunningJobs(prev => prev.map(j => j.id === jobId ? { ...j, logs: [...j.logs, line] } : j)),
-            onStats: () => {},
-            onDone: result => _handleDone(jobId, batchId, variant.label, result),
-            onError: error => _handleError(jobId, batchId, variant.label, error),
-          });
+          const gc = concreteModel.modelConfig?.groupConstraints;
+          const nativeGC = gc ? buildCalliope06GroupConstraintsOverride(gc) : null;
+          if (nativeGC) {
+            concreteModel.overrides = { ...(concreteModel.overrides || {}), _studio_sys: { group_constraints: nativeGC } };
+            concreteModel.override = '_studio_sys';
+          }
+          if (selectedEngine === 'calliope07') {
+            concreteModel.modelConfig = { ...(concreteModel.modelConfig || {}), calliopeVersion: '0.7.0' };
+          }
         }
-        const { cancel } = await runPromise;
-        cancelFnsRef.current[jobId] = cancel;
-      } catch (err) {
-        setRunningJobs(prev => prev.filter(j => j.id !== jobId));
-        showNotification(`Failed to start "${displayName}": ${err.message}`, 'error');
+
+        setRunningJobs(prev => [...prev, {
+          id: jobId, displayName, startTime: new Date().toISOString(), engine: selectedEngine,
+          logs: [`[TEMPO] Scenario Studio — ${displayName} [${engineLabel}]`],
+        }]);
+
+        try {
+          let runPromise;
+          if (selectedEngine === 'calliope06' || selectedEngine === 'calliope07') {
+            runPromise = runCalliopeModel({
+              modelData: concreteModel,
+              onLog: line => setRunningJobs(prev => prev.map(j => j.id === jobId ? { ...j, logs: [...j.logs, line] } : j)),
+              onStats: () => {},
+              onDone: result => _handleDone(jobId, batchId, variant.label, m.name, result),
+              onError: error => _handleError(jobId, batchId, variant.label, m.name, error),
+            });
+          } else {
+            runPromise = runEngineModel(selectedEngine, {
+              modelData: concreteModel,
+              onLog: line => setRunningJobs(prev => prev.map(j => j.id === jobId ? { ...j, logs: [...j.logs, line] } : j)),
+              onStats: () => {},
+              onDone: result => _handleDone(jobId, batchId, variant.label, m.name, result),
+              onError: error => _handleError(jobId, batchId, variant.label, m.name, error),
+            });
+          }
+          const { cancel } = await runPromise;
+          cancelFnsRef.current[jobId] = cancel;
+        } catch (err) {
+          setRunningJobs(prev => prev.filter(j => j.id !== jobId));
+          showNotification(`Failed to start "${displayName}": ${err.message}`, 'error');
+        }
       }
     }
   };
@@ -1040,7 +1083,54 @@ export default function ScenarioStudio() {
             }`} />
             {ENGINE_LABELS[selectedEngine]} {serviceStatus === true ? 'ready' : serviceStatus === false ? 'offline' : 'checking…'}
           </div>
+          <button
+            onClick={() => setShowModelCompare(v => !v)}
+            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+              showModelCompare || extraModels.length > 0
+                ? 'bg-electric-50 border-electric-300 text-electric-700'
+                : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'
+            }`}
+            title="Compare across multiple models">
+            <FiLayers size={12} />
+            Compare{extraModels.length > 0 ? ` (${extraModels.length + 1})` : ''}
+          </button>
         </div>
+        {/* Multi-model selector — shown when Compare is toggled */}
+        {showModelCompare && (
+          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+            <p className="text-xs font-semibold text-slate-600 mb-2 flex items-center gap-1.5">
+              <FiLayers size={12} className="text-electric-500" />
+              Cross-model comparison — select additional models to run the same recipe against
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 max-h-48 overflow-y-auto pr-1">
+              {models.filter(m => m.id !== selectedModel?.id).map(m => {
+                const checked = extraModels.some(e => e.id === m.id);
+                return (
+                  <label key={m.id} className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer text-xs transition-colors ${
+                    checked ? 'bg-electric-50 border-electric-300 text-electric-800' : 'bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300'
+                  }`}>
+                    <input type="checkbox" checked={checked}
+                      onChange={e => setExtraModels(prev =>
+                        e.target.checked ? [...prev, m] : prev.filter(em => em.id !== m.id)
+                      )}
+                      className="accent-electric-600 shrink-0"
+                    />
+                    <span className="truncate font-medium">{m.name}</span>
+                  </label>
+                );
+              })}
+              {models.filter(m => m.id !== selectedModel?.id).length === 0 && (
+                <p className="text-xs text-slate-400 col-span-full italic">No other models available.</p>
+              )}
+            </div>
+            {extraModels.length > 0 && (
+              <p className="text-xs text-slate-500 mt-2">
+                Total runs: <span className="font-semibold text-slate-700">{(extraModels.length + 1) * (variants.length || 0)}</span>
+                {' '}({extraModels.length + 1} models × {variants.length || 0} variant{variants.length !== 1 ? 's' : ''})
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Recipe gallery */}
         <div>
