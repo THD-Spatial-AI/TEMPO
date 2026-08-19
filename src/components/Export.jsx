@@ -84,9 +84,10 @@ function ResultsExportPanel({ completedJobs, modelLocations = [] }) {
 
   const activeRun = runs.find(r => r.id === runId) || runs[0] || null;
 
-  // Commune boundaries for live map previews
+  // Commune boundaries for the exported SVGs
   const [geo, setGeo] = useState(null);
   const [geoErr, setGeoErr] = useState(null);
+  const [previewMapId, setPreviewMapId] = useState(null); // which map shows in the big live view
   useEffect(() => {
     let dead = false;
     loadCommunesGeo().then(g => { if (!dead) setGeo(g); }).catch(e => { if (!dead) setGeoErr(e.message || 'failed to load'); });
@@ -278,6 +279,10 @@ function ResultsExportPanel({ completedJobs, modelLocations = [] }) {
     return list;
   }, [activeRun, mapProps, nodeMaps, geo, hasCommunes, choro, pieAvailable, pies]);
   const mapIds = useMemo(() => spatialMaps.map(m => m.id), [spatialMaps]);
+  useEffect(() => {
+    if (spatialMaps.length && !spatialMaps.some(m => m.id === previewMapId)) setPreviewMapId(spatialMaps[0].id);
+  }, [spatialMaps, previewMapId]);
+  const previewMap = spatialMaps.find(m => m.id === previewMapId) || spatialMaps[0] || null;
   const allIds = useMemo(
     () => [...dataIds.map(id => 'data:' + id), ...chartIds.map(id => 'chart:' + id), ...mapIds.map(id => 'map:' + id)],
     [activeRun] // eslint-disable-line react-hooks/exhaustive-deps
@@ -457,7 +462,7 @@ function ResultsExportPanel({ completedJobs, modelLocations = [] }) {
             </div>
           )}
 
-          {/* Maps — the real Results map components (basemap + points + connections) */}
+          {/* Maps — one large live map (real Results component) + view tabs + export chips */}
           <div>
             <SectionTitle count={spatialMaps.length || undefined}>Maps</SectionTitle>
             {spatialMaps.length === 0 ? (
@@ -467,15 +472,42 @@ function ResultsExportPanel({ completedJobs, modelLocations = [] }) {
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+                {/* View tabs */}
+                <div className="flex gap-1 flex-wrap mb-2">
                   {spatialMaps.map(m => (
-                    <ToggleCard key={'map:' + m.id} on={selected.has('map:' + m.id)} onToggle={() => toggle('map:' + m.id)}
-                      title={m.label} badge="SVG">
-                      <div style={{ height: 280 }} className="rounded-lg overflow-hidden bg-slate-100">{m.preview}</div>
-                    </ToggleCard>
+                    <button key={m.id} onClick={() => setPreviewMapId(m.id)}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${
+                        previewMap?.id === m.id ? 'bg-gray-900 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                      }`}>
+                      {m.label}
+                    </button>
                   ))}
                 </div>
-                {geoErr && <p className="text-[11px] text-amber-600 mt-2">Map SVG export unavailable (boundaries failed to load: {geoErr}). Live preview still works.</p>}
+                {/* One large, properly-sized live map */}
+                <div style={{ height: 460 }} className="rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
+                  {previewMap?.preview}
+                </div>
+                {/* Export selection */}
+                <div className="mt-3">
+                  <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Include in export (SVG)</div>
+                  <div className="flex flex-wrap gap-2">
+                    {spatialMaps.map(m => {
+                      const on = selected.has('map:' + m.id);
+                      return (
+                        <button key={m.id} onClick={() => toggle('map:' + m.id)}
+                          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all ${
+                            on ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
+                          }`}>
+                          <span className={`w-3.5 h-3.5 rounded flex items-center justify-center ${on ? 'bg-white/20' : 'border border-slate-300'}`}>
+                            {on && <FiCheck size={10} />}
+                          </span>
+                          {m.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {geoErr && <p className="text-[11px] text-amber-600 mt-2">SVG export unavailable (boundaries failed to load: {geoErr}). Live preview still works.</p>}
+                </div>
               </>
             )}
           </div>
