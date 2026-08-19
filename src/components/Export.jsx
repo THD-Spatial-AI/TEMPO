@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useData } from '../context/DataContext';
-import { FiDownload, FiFolder, FiFile, FiCheckCircle, FiAlertCircle, FiPackage, FiZap, FiActivity, FiCpu, FiSettings, FiDatabase, FiLayers } from 'react-icons/fi';
+import { FiDownload, FiFolder, FiFile, FiCheckCircle, FiAlertCircle, FiPackage, FiZap, FiActivity, FiCpu, FiSettings, FiDatabase, FiLayers, FiMap } from 'react-icons/fi';
+import { loadCommunesGeo } from '../utils/loadCommunesGeo';
+import { choroMetricsFromResult } from '../utils/choroMetrics';
+import { buildChoroplethSVG } from '../utils/choroSvg';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { dump } from 'js-yaml';
@@ -170,17 +173,45 @@ const RESULT_OUTPUT_DEFS = [
     hasData: (r) => !!r,
     build: (r) => JSON.stringify(r, null, 2),
   },
+  {
+    id: 'svg_demand', group: 'svg', label: 'Map — Demand (SVG)', filename: 'map_demand.svg',
+    hasData: (r) => !!r.demand_by_location && !!Object.keys(r.demand_by_location).length,
+    build: async (r) => {
+      const geo = await loadCommunesGeo();
+      const choro = choroMetricsFromResult(r);
+      return buildChoroplethSVG(geo, choro, 'demand', { ramp: ['#fff7ec', '#fdbb84', '#d7301f'], label: 'Demand (MWh)', unit: 'MWh' });
+    },
+  },
+  {
+    id: 'svg_unmet', group: 'svg', label: 'Map — Unmet Demand (SVG)', filename: 'map_unmet_demand.svg',
+    hasData: (r) => !!r.demand_by_location && !!Object.keys(r.demand_by_location).length,
+    build: async (r) => {
+      const geo = await loadCommunesGeo();
+      const choro = choroMetricsFromResult(r);
+      return buildChoroplethSVG(geo, choro, 'unmet', { ramp: ['#fff5f0', '#fb6a4a', '#a50f15'], label: 'Unmet Demand (MWh)', unit: 'MWh' });
+    },
+  },
+  {
+    id: 'svg_demand_met', group: 'svg', label: 'Map — Demand Met % (SVG)', filename: 'map_demand_met.svg',
+    hasData: (r) => !!r.demand_by_location && !!Object.keys(r.demand_by_location).length,
+    build: async (r) => {
+      const geo = await loadCommunesGeo();
+      const choro = choroMetricsFromResult(r);
+      return buildChoroplethSVG(geo, choro, 'demandMet', { kind: 'pct', ramp: ['#d73027', '#fee08b', '#1a9850'], label: 'Demand Met (%)' });
+    },
+  },
 ];
 
 const OUTPUT_GROUPS = [
-  { id: 'data', label: 'Data Files', icon: FiDatabase },
-  { id: 'raw',  label: 'Raw',        icon: FiFile },
+  { id: 'data', label: 'Data Files',  icon: FiDatabase },
+  { id: 'raw',  label: 'Raw',         icon: FiFile },
+  { id: 'svg',  label: 'Map SVGs',    icon: FiMap },
 ];
 
 function ResultsExportPanel({ completedJobs }) {
   const validJobs = useMemo(() => completedJobs.filter(j => j.result && j.result.success !== false), [completedJobs]);
   const [selJobId, setSelJobId] = useState(null);
-  const [checked, setChecked] = useState(() => new Set(RESULT_OUTPUT_DEFS.map(o => o.id)));
+  const [checked, setChecked] = useState(() => new Set(RESULT_OUTPUT_DEFS.filter(o => o.group !== 'svg').map(o => o.id)));
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState(null);
 
@@ -210,10 +241,12 @@ function ResultsExportPanel({ completedJobs }) {
     setStatus(null);
     try {
       const zip = new JSZip();
-      outputs.filter(o => checked.has(o.id) && o.available).forEach(o => {
-        const content = o.build(result);
-        if (content) zip.file(o.filename, content);
-      });
+      const selected = outputs.filter(o => checked.has(o.id) && o.available);
+      const built = await Promise.all(selected.map(async (o) => {
+        const content = await Promise.resolve(o.build(result));
+        return { filename: o.filename, content };
+      }));
+      built.forEach(({ filename, content }) => { if (content) zip.file(filename, content); });
       const blob = await zip.generateAsync({ type: 'blob' });
       const name = `results_${(job.modelName || 'run').replace(/[^a-z0-9]+/gi, '_').toLowerCase()}.zip`;
       saveAs(blob, name);

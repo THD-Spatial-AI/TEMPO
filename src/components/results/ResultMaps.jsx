@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { techColor, fmtPower, fmtEnergy, OSM_STYLE, osmTransformRequest } from '../../utils/resultFormat';
+import { loadCommunesGeo } from '../../utils/loadCommunesGeo';
 
 // ── Capacity / Generation map ───────────────────────────────────────────────
 // ─── Pie SVG builder (for tech-mix markers) ──────────────────────────────────
@@ -992,15 +993,6 @@ const GroupedCorrMatrixSVG = ({ ltGroups, ltCorrMap }) => {
 };
 
 // ── Choropleth map (commune boundaries filled by metric value) ───────────────
-let _communesCache = null;
-async function loadCommunesGeoJSON() {
-  if (_communesCache) return _communesCache;
-  const url = new URL('data/geo/chile_communes.geojson', document.baseURI).href;
-  const resp = await fetch(url);
-  if (!resp.ok) throw new Error(`GeoJSON fetch failed: ${resp.status}`);
-  _communesCache = await resp.json();
-  return _communesCache;
-}
 
 const CHORO_RAMPS = {
   blue:   ['#e0f2fe', '#0369a1'],
@@ -1024,7 +1016,7 @@ const RegionChoropleth = ({ metric = {}, metricLabel = 'Value', colorRamp = 'blu
     (async () => {
       let geoJSON;
       try {
-        geoJSON = await loadCommunesGeoJSON();
+        geoJSON = await loadCommunesGeo();
       } catch {
         if (!destroyed) setError('Could not load region boundaries.');
         return;
