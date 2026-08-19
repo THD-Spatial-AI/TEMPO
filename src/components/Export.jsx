@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useData } from '../context/DataContext';
-import { FiDownload, FiFolder, FiFile, FiCheckCircle, FiAlertCircle, FiPackage, FiZap, FiActivity, FiCpu, FiSettings, FiDatabase, FiLayers, FiMap } from 'react-icons/fi';
+import { FiDownload, FiFolder, FiFile, FiCheckCircle, FiAlertCircle, FiPackage, FiZap, FiActivity, FiCpu, FiSettings, FiDatabase, FiLayers, FiMap, FiBarChart2 } from 'react-icons/fi';
 import { loadCommunesGeo } from '../utils/loadCommunesGeo';
 import { choroMetricsFromResult } from '../utils/choroMetrics';
 import { buildChoroplethSVG } from '../utils/choroSvg';
+import { techColor } from '../utils/resultFormat';
+import { buildAllResultCharts, RESULT_CHARTS } from '../utils/resultCharts';
+import { renderChartPng, dataUrlToBase64 } from '../utils/resultExports';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { dump } from 'js-yaml';
@@ -200,18 +203,34 @@ const RESULT_OUTPUT_DEFS = [
       return buildChoroplethSVG(geo, choro, 'demandMet', { kind: 'pct', ramp: ['#d73027', '#fee08b', '#1a9850'], label: 'Demand Met (%)' });
     },
   },
+  // Chart PNGs — one entry per chart in the RESULT_CHARTS catalogue
+  ...RESULT_CHARTS.map(c => ({
+    id: `chart_${c.id}`,
+    group: 'charts',
+    label: `Chart — ${c.label}`,
+    filename: `chart_${c.id}.png`,
+    hasData: (r) => !!r,
+    build: async (r) => {
+      const all = buildAllResultCharts(r, { colorFn: techColor });
+      const entry = all[c.id];
+      if (!entry?.option) return null;
+      const url = await renderChartPng(entry.option);
+      return dataUrlToBase64(url);
+    },
+  })),
 ];
 
 const OUTPUT_GROUPS = [
-  { id: 'data', label: 'Data Files',  icon: FiDatabase },
-  { id: 'raw',  label: 'Raw',         icon: FiFile },
-  { id: 'svg',  label: 'Map SVGs',    icon: FiMap },
+  { id: 'data',   label: 'Data Files', icon: FiDatabase },
+  { id: 'raw',    label: 'Raw',        icon: FiFile },
+  { id: 'charts', label: 'Chart PNGs', icon: FiBarChart2 },
+  { id: 'svg',    label: 'Map SVGs',   icon: FiMap },
 ];
 
 function ResultsExportPanel({ completedJobs }) {
   const validJobs = useMemo(() => completedJobs.filter(j => j.result && j.result.success !== false), [completedJobs]);
   const [selJobId, setSelJobId] = useState(null);
-  const [checked, setChecked] = useState(() => new Set(RESULT_OUTPUT_DEFS.filter(o => o.group !== 'svg').map(o => o.id)));
+  const [checked, setChecked] = useState(() => new Set(RESULT_OUTPUT_DEFS.filter(o => o.group !== 'svg' && o.group !== 'charts').map(o => o.id)));
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState(null);
 
@@ -246,7 +265,9 @@ function ResultsExportPanel({ completedJobs }) {
         const content = await Promise.resolve(o.build(result));
         return { filename: o.filename, content };
       }));
-      built.forEach(({ filename, content }) => { if (content) zip.file(filename, content); });
+      built.forEach(({ filename, content }) => {
+        if (content) zip.file(filename, content, filename.endsWith('.png') ? { base64: true } : {});
+      });
       const blob = await zip.generateAsync({ type: 'blob' });
       const name = `results_${(job.modelName || 'run').replace(/[^a-z0-9]+/gi, '_').toLowerCase()}.zip`;
       saveAs(blob, name);
