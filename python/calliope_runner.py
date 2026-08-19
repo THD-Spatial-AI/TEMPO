@@ -2355,6 +2355,28 @@ def _run_model_impl(model_data, work_dir):
         except Exception as e:
             log(f"  Could not extract demand timeseries: {e}")
 
+    # Demand MWh by location (choropleth)
+    if 'carrier_con' in ds:
+        try:
+            import numpy as np
+            con = ds['carrier_con']
+            lt_dim_con2 = next((d for d in con.dims if 'loc_tech' in d), None)
+            if lt_dim_con2:
+                demand_by_loc = {}
+                for coord_val in con[lt_dim_con2].values:
+                    parts = str(coord_val).split('::')
+                    loc  = parts[0] if len(parts) >= 2 else ''
+                    tech = parts[1] if len(parts) >= 2 else parts[0]
+                    tech_base = tech.split(':')[0]
+                    if 'demand' in tech_base.lower() and loc:
+                        vals = con.sel({lt_dim_con2: coord_val}).values.astype(float)
+                        vals = np.abs(np.where(np.isnan(vals), 0.0, vals))
+                        demand_by_loc[loc] = demand_by_loc.get(loc, 0.0) + float(vals.sum())
+                if demand_by_loc:
+                    results['demand_by_location'] = {k: round(v, 3) for k, v in demand_by_loc.items()}
+        except Exception as e:
+            log(f"  Could not extract demand by location: {e}")
+
     # Unmet demand (G1) — carrier_prod for unmet_demand slack techs.
     # Calliope injects these automatically when ensure_feasibility=True.
     # Without extracting them, an infeasible-but-slack-padded run looks healthy.

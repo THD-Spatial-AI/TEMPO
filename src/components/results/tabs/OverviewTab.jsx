@@ -1,27 +1,40 @@
 // OverviewTab — the "overview" result tab, extracted verbatim from Results.jsx.
 // Renders the pre-computed chart options / data passed as props.
+import { useState } from 'react';
 import { FiAlertTriangle, FiBarChart2, FiChevronDown, FiMap, FiMapPin, FiPieChart, FiShare2, FiTrendingUp, FiZap } from 'react-icons/fi';
 import ReactECharts from 'echarts-for-react';
 import { ResultsMap, TransmissionFlowMap } from '../ResultMaps';
 import { autoScale, axisNameStyle, fmtCost, fmtEnergy, fmtPower, scaledFmt } from '../../../utils/resultFormat';
 
+const CHORO_OPTIONS = [
+  { id: 'demand',    label: 'Demand',       ramp: 'blue'  },
+  { id: 'unmet',     label: 'Unmet Demand', ramp: 'amber' },
+  { id: 'demandMet', label: 'Demand Met %', ramp: 'green' },
+];
+
 export default function OverviewTab({
   capBarOption,
   capLocOption,
+  choroMetrics = null,
   derivedData,
   genDonutOption,
   hasFlow,
   mapView,
   modelLocations,
+  RegionChoroplethComponent,
   result,
   sectionOpen,
   selectedJobId,
   setMapView,
   techColorFn,
+  techMixByLoc = {},
   toggleSection,
   transmissionFlowData,
   transmissionLinks,
 }) {
+  const [choroSel, setChoroSel] = useState('demand');
+  const hasRegions = choroMetrics && Object.keys(choroMetrics.demand || {}).length > 0;
+
   return (
               <div className="space-y-4">
                 {/* Map — full width, main visual */}
@@ -29,11 +42,13 @@ export default function OverviewTab({
                     <div className="px-4 pt-3 pb-2 flex items-center gap-2 flex-wrap">
                       <FiMap size={14} className="text-gray-600 flex-shrink-0" />
                       <span className="font-semibold text-slate-800 text-sm">Location Map</span>
-                      <div className="ml-auto flex gap-1">
+                      <div className="ml-auto flex gap-1 flex-wrap">
                         {[
                           { id: 'capacity',     label: 'Capacity',     icon: FiBarChart2 },
                           ...(hasFlow ? [{ id: 'generation', label: 'Gen Heatmap', icon: FiZap }] : []),
+                          ...(Object.keys(techMixByLoc).length > 0 ? [{ id: 'mix', label: 'Tech Mix', icon: FiPieChart }] : []),
                           { id: 'transmission', label: 'Transmission', icon: FiShare2 },
+                          ...(hasRegions ? [{ id: 'regions', label: 'Regions', icon: FiMap }] : []),
                         ].map(({ id, label, icon: Icon }) => (
                           <button key={id} onClick={() => setMapView(id)}
                             className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium transition-all ${
@@ -44,8 +59,35 @@ export default function OverviewTab({
                         ))}
                       </div>
                     </div>
+                    {/* Choropleth metric selector — only shown in regions view */}
+                    {mapView === 'regions' && hasRegions && (
+                      <div className="px-4 pb-2 flex items-center gap-2">
+                        <span className="text-xs text-slate-500">Show:</span>
+                        {CHORO_OPTIONS.map(opt => (
+                          <button key={opt.id} onClick={() => setChoroSel(opt.id)}
+                            className={`px-2 py-0.5 rounded text-[11px] font-medium transition-all ${
+                              choroSel === opt.id ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                            }`}>
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                     <div style={{ height: mapView === 'transmission' ? 560 : 480 }}>
-                      {modelLocations.length > 0 ? (
+                      {mapView === 'regions' && hasRegions ? (
+                        (() => {
+                          const opt = CHORO_OPTIONS.find(o => o.id === choroSel) || CHORO_OPTIONS[0];
+                          const metricData = choroMetrics[opt.id] || {};
+                          return RegionChoroplethComponent ? (
+                            <RegionChoroplethComponent
+                              key={selectedJobId + '-choro-' + choroSel}
+                              metric={metricData}
+                              metricLabel={opt.label}
+                              colorRamp={opt.ramp}
+                            />
+                          ) : null;
+                        })()
+                      ) : modelLocations.length > 0 ? (
                         mapView === 'transmission' ? (
                           <TransmissionFlowMap
                             key={selectedJobId + '-transmission'}
@@ -60,6 +102,7 @@ export default function OverviewTab({
                             capacitiesByLoc={derivedData?.capByLoc || {}}
                             dominantTechByLoc={derivedData?.domTech || {}}
                             generationByLoc={derivedData?.genByLoc || {}}
+                            techMixByLoc={techMixByLoc}
                             viewMode={mapView}
                             colorFn={techColorFn}
                             transmissionLinks={transmissionLinks}

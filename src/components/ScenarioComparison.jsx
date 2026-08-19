@@ -103,6 +103,10 @@ function extractKPIs(result) {
   const avgCF = Object.values(genCF).reduce((s, v) => s + v, 0) / Math.max(1, Object.keys(genCF).length);
 
   const lcoe = totalGen > 0 ? totalCost / totalGen : 0;
+  const totalUnmetMWh = result.total_unmet_demand_mwh || 0;
+  const totalImportsMWh = result.imports_by_location
+    ? Object.values(result.imports_by_location).reduce((s, v) => s + v, 0)
+    : 0;
 
   return {
     capByTech, genByTech, costByTech, allTechs,
@@ -116,6 +120,8 @@ function extractKPIs(result) {
     avgCF,
     costPerMW: totalCap > 0 ? totalCost / totalCap : 0,
     peakGen: Math.max(0, ...Object.values(genByTech)),
+    totalUnmetMWh,
+    totalImportsMWh,
   };
 }
 
@@ -212,8 +218,10 @@ function buildParallelOption(kpisPerJob, colorMap) {
     { dim: 4, name: 'Renewable\nCap (%)',   key: 'renewableCapShare', scale: 100, fmt: v => v.toFixed(0) + '%' },
     { dim: 5, name: 'LCOE\n(€/MWh)',        key: 'lcoe',              scale: 1,   fmt: v => fmtNum(v) },
     { dim: 6, name: 'Avg CF\n(%)',          key: 'avgCF',             scale: 100, fmt: v => v.toFixed(0) + '%' },
-    { dim: 7, name: 'Locations',            key: 'locationCount',     scale: 1,   fmt: v => String(Math.round(v)) },
-    { dim: 8, name: 'Technologies',         key: 'techCount',         scale: 1,   fmt: v => String(Math.round(v)) },
+    { dim: 7, name: 'Unmet\n(MWh)',         key: 'totalUnmetMWh',     scale: 1,   fmt: v => fmtNum(v) },
+    { dim: 8, name: 'Imports\n(MWh)',       key: 'totalImportsMWh',   scale: 1,   fmt: v => fmtNum(v) },
+    { dim: 9, name: 'Locations',            key: 'locationCount',     scale: 1,   fmt: v => String(Math.round(v)) },
+    { dim: 10,name: 'Technologies',         key: 'techCount',         scale: 1,   fmt: v => String(Math.round(v)) },
   ];
 
   // Drop axes where all values are zero (e.g. no costs defined)
@@ -277,6 +285,8 @@ const SCATTER_METRICS = [
   { key: 'lcoe',             label: 'LCOE (€/MWh)',             scale: 1 },
   { key: 'avgCF',            label: 'Avg Cap. Factor (%)',      scale: 100 },
   { key: 'costPerMW',        label: 'Cost per MW (€/MW)',       scale: 1 },
+  { key: 'totalUnmetMWh',   label: 'Unmet Demand (MWh)',       scale: 1 },
+  { key: 'totalImportsMWh', label: 'Net Imports (MWh)',        scale: 1 },
   { key: 'locationCount',    label: 'Locations',                scale: 1 },
   { key: 'techCount',        label: 'Technologies',             scale: 1 },
   { key: 'timestepCount',    label: 'Timesteps',                scale: 1 },
@@ -361,6 +371,8 @@ const KPI_ROWS = [
   { key: 'lcoe',            label: 'LCOE',                    fmt: v => '€\u202f' + fmtNum(v) + '/MWh', best: 'min' },
   { key: 'avgCF',           label: 'Avg Cap. Factor',         fmt: v => (v * 100).toFixed(1) + '%', best: 'max' },
   { key: 'costPerMW',       label: 'Cost per MW',             fmt: v => '€\u202f' + fmtNum(v) + '/MW', best: 'min' },
+  { key: 'totalUnmetMWh',  label: 'Unmet Demand',            fmt: v => v > 0 ? fmtNum(v) + ' MWh' : '—', best: 'min' },
+  { key: 'totalImportsMWh',label: 'Net Imports',             fmt: v => v > 0 ? fmtNum(v) + ' MWh' : '—', best: 'none' },
   { key: 'locationCount',   label: 'Locations',               fmt: v => v.toLocaleString(), best: 'none' },
   { key: 'techCount',       label: 'Technologies',            fmt: v => String(v), best: 'none' },
   { key: 'timestepCount',   label: 'Timesteps',               fmt: v => v.toLocaleString(), best: 'none' },
@@ -391,6 +403,8 @@ function exportCSV(kpisPerJob) {
     kpis.lcoe.toFixed(2),
     (kpis.avgCF * 100).toFixed(2),
     kpis.costPerMW.toFixed(2),
+    kpis.totalUnmetMWh.toFixed(2),
+    kpis.totalImportsMWh.toFixed(2),
     kpis.locationCount,
     kpis.techCount,
     kpis.timestepCount,

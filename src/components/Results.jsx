@@ -17,7 +17,7 @@ import {
   linkTechBase, calliopeLocName, parseLTC,
 } from '../utils/resultFormat';
 
-import { ResultsMap, TransmissionFlowMap, GroupedCorrMatrixSVG } from './results/ResultMaps';
+import { ResultsMap, TransmissionFlowMap, GroupedCorrMatrixSVG, RegionChoropleth } from './results/ResultMaps';
 import OverviewTab from './results/tabs/OverviewTab';
 import FlowTab from './results/tabs/FlowTab';
 import DispatchTab from './results/tabs/DispatchTab';
@@ -248,6 +248,17 @@ const Results = () => {
       if (val > 0) genByLoc[loc] = (genByLoc[loc] || 0) + val;
     });
 
+    // Tech-mix by location: loc → { tech: MWh } (for pie markers)
+    const techMixByLoc = {};
+    Object.entries(result.generation || {}).forEach(([k, v]) => {
+      const { loc, tech } = parseLTC(k);
+      const val = Number(v) || 0;
+      if (val > 0 && loc && tech) {
+        if (!techMixByLoc[loc]) techMixByLoc[loc] = {};
+        techMixByLoc[loc][tech] = (techMixByLoc[loc][tech] || 0) + val;
+      }
+    });
+
     const totalGen = Object.values(genByTech).reduce((s, v) => s + v, 0);
     const totalCap = Object.values(capByTech).reduce((s, v) => s + v, 0);
 
@@ -258,8 +269,23 @@ const Results = () => {
       return d.toLocaleDateString('en-GB', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
     });
 
-    return { capByTech, txCapByTech, txLinks, capByLoc, domTech, genByTech, genByLoc, totalGen, totalCap, timestamps };
+    return { capByTech, txCapByTech, txLinks, capByLoc, domTech, genByTech, genByLoc, techMixByLoc, totalGen, totalCap, timestamps };
   }, [result, isGenTech]);
+
+  // ── Choropleth metrics (for RegionChoropleth) ─────────────────────────────
+  const choroMetrics = useMemo(() => {
+    if (!result) return null;
+    const demand = result.demand_by_location || {};
+    const unmet  = result.unmet_demand_by_location || {};
+    if (!Object.keys(demand).length) return null;
+    const demandMet = {};
+    Object.keys(demand).forEach(loc => {
+      const d = demand[loc] || 0;
+      const u = unmet[loc] || 0;
+      if (d > 0) demandMet[loc] = Math.max(0, (d - u) / d * 100);
+    });
+    return { demand, unmet, demandMet };
+  }, [result]);
 
   // ── Transmission link pairs (for map) ─────────────────────────────────────
   const transmissionLinks = useMemo(() => {
@@ -1086,6 +1112,9 @@ const Results = () => {
                 selectedJobId={selectedJobId}
                 setMapView={setMapView}
                 techColorFn={techColorFn}
+                techMixByLoc={derivedData?.techMixByLoc || {}}
+                choroMetrics={choroMetrics}
+                RegionChoroplethComponent={RegionChoropleth}
                 toggleSection={toggleSection}
                 transmissionFlowData={transmissionFlowData}
                 transmissionLinks={transmissionLinks}
