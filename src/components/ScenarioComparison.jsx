@@ -4,8 +4,9 @@ import ReactECharts from 'echarts-for-react';
 import {
   FiSearch, FiBarChart2, FiGrid, FiTrendingUp, FiZap,
   FiDollarSign, FiSliders, FiLayers, FiInfo, FiCheckSquare,
-  FiSquare, FiDownload, FiFilter, FiChevronDown,
+  FiSquare, FiDownload, FiFilter, FiChevronDown, FiMap,
 } from 'react-icons/fi';
+import { RegionChoropleth } from './results/ResultMaps';
 
 // ─── Qualitative colour palette (20 perceptually-distinct colours) ────────────
 const PALETTE = [
@@ -386,6 +387,14 @@ const CHART_VIEWS = [
   { id: 'costs',    label: 'Costs',      icon: FiDollarSign },
   { id: 'parallel', label: 'Parallel',   icon: FiTrendingUp },
   { id: 'scatter',  label: 'Scatter',    icon: FiSliders },
+  { id: 'maps',     label: 'Maps',       icon: FiMap },
+];
+
+// ─── Choropleth metric options ─────────────────────────────────────────────
+const CHORO_MAP_OPTIONS = [
+  { id: 'demand',    label: 'Demand (MWh)',      ramp: 'blue',  fmt: v => { const n = Math.abs(Number(v)); if (n >= 1e6) return (n/1e6).toFixed(1)+'G'; if (n >= 1e3) return (n/1e3).toFixed(1)+'k'; return n.toFixed(0); } },
+  { id: 'unmet',     label: 'Unmet Demand (MWh)',ramp: 'amber', fmt: v => { const n = Math.abs(Number(v)); if (n >= 1e6) return (n/1e6).toFixed(1)+'G'; if (n >= 1e3) return (n/1e3).toFixed(1)+'k'; return n.toFixed(0); } },
+  { id: 'demandMet', label: 'Demand Met (%)',    ramp: 'green', fmt: v => Number(v).toFixed(1) + '%' },
 ];
 
 // ─── CSV export ────────────────────────────────────────────────────────────
@@ -431,6 +440,7 @@ export default function ScenarioComparison() {
   const [scatterX,    setScatterX]    = useState('renewableShare');
   const [scatterY,    setScatterY]    = useState('totalCost');
   const [techFilter,  setTechFilter]  = useState(new Set());
+  const [mapMetric,   setMapMetric]   = useState('demand');
 
   // Jobs with a usable result
   const validJobs = useMemo(
@@ -465,6 +475,25 @@ export default function ScenarioComparison() {
       .filter(x => x.kpis),
     [selectedJobs]
   );
+
+  // Choropleth data per selected job (null if job has no demand_by_location)
+  const choroPerJob = useMemo(() =>
+    selectedJobs.map(job => {
+      const r = job.result;
+      const demand = r.demand_by_location || {};
+      const unmet  = r.unmet_demand_by_location || {};
+      if (!Object.keys(demand).length) return null;
+      const demandMet = {};
+      Object.keys(demand).forEach(loc => {
+        const d = demand[loc] || 0;
+        const u = unmet[loc] || 0;
+        if (d > 0) demandMet[loc] = Math.max(0, (d - u) / d * 100);
+      });
+      return { demand, unmet, demandMet };
+    }),
+    [selectedJobs]
+  );
+  const hasAnyChoro = choroPerJob.some(c => c !== null);
 
   // Union of all tech names across selected jobs
   const allTechs = useMemo(() => {
@@ -672,7 +701,7 @@ export default function ScenarioComparison() {
               </button>
             </div>
 
-            {allTechs.length > 1 && (
+            {allTechs.length > 1 && chartView !== 'maps' && (
               <div className="flex-shrink-0 flex items-center gap-1.5 flex-wrap mb-3 px-3 py-2 bg-white rounded-xl border border-slate-200 shadow-sm">
                 <FiFilter size={11} className="text-slate-400 flex-shrink-0" />
                 <button onClick={clearTechFilter}
@@ -839,6 +868,74 @@ export default function ScenarioComparison() {
                       <p className="text-slate-400 text-sm text-center py-14">Select at least 2 runs.</p>
                     ) : (
                       <ReactECharts option={scatterOption} style={{ height: '100%' }} notMerge />
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {chartView === 'maps' && (
+                <div className="h-full bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+                  {/* Header + metric selector */}
+                  <div className="flex-shrink-0 px-4 pt-3 pb-2 border-b border-slate-100 flex items-center gap-3 flex-wrap">
+                    <div>
+                      <p className="font-semibold text-slate-800 text-sm">Region Maps</p>
+                      <p className="text-xs text-slate-400">Side-by-side choropleth by commune</p>
+                    </div>
+                    {hasAnyChoro && (
+                      <div className="ml-auto flex items-center gap-1.5">
+                        <span className="text-xs text-slate-500">Show:</span>
+                        {CHORO_MAP_OPTIONS.map(opt => (
+                          <button key={opt.id} onClick={() => setMapMetric(opt.id)}
+                            className={`px-2 py-0.5 rounded text-[11px] font-medium transition-all ${
+                              mapMetric === opt.id ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                            }`}>
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {/* Map grid */}
+                  <div className="flex-1 min-h-0 overflow-auto p-3">
+                    {!hasAnyChoro ? (
+                      <div className="h-full flex items-center justify-center text-slate-400 text-sm text-center px-8">
+                        <div>
+                          <FiMap size={32} className="mx-auto mb-3 opacity-30" />
+                          <p>No demand data available.</p>
+                          <p className="text-xs mt-1">Run models with the updated Calliope runner to see region maps.</p>
+                        </div>
+                      </div>
+                    ) : (
+                      (() => {
+                        const opt = CHORO_MAP_OPTIONS.find(o => o.id === mapMetric) || CHORO_MAP_OPTIONS[0];
+                        const jobsWithChoro = selectedJobs
+                          .map((job, i) => ({ job, i, choro: choroPerJob[i] }))
+                          .filter(x => x.choro !== null);
+                        const cols = jobsWithChoro.length <= 2 ? jobsWithChoro.length : jobsWithChoro.length <= 4 ? 2 : 3;
+                        return (
+                          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 12, height: jobsWithChoro.length <= cols ? '100%' : 'auto', minHeight: '100%' }}>
+                            {jobsWithChoro.map(({ job, i, choro }) => (
+                              <div key={job.id} style={{ display: 'flex', flexDirection: 'column', minHeight: 320 }}>
+                                {/* Job label */}
+                                <div className="flex items-center gap-1.5 mb-1.5 flex-shrink-0">
+                                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                    style={{ background: colorMap[job.id] || jobColor(i) }} />
+                                  <span className="text-xs font-medium text-slate-700 truncate" title={job.modelName}>{job.modelName}</span>
+                                </div>
+                                <div style={{ flex: 1, borderRadius: 10, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+                                  <RegionChoropleth
+                                    key={job.id + '-choro-' + mapMetric}
+                                    metric={choro[opt.id] || {}}
+                                    metricLabel={opt.label}
+                                    colorRamp={opt.ramp}
+                                    fmtValue={opt.fmt}
+                                  />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()
                     )}
                   </div>
                 </div>

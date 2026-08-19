@@ -1008,11 +1008,12 @@ const CHORO_RAMPS = {
   green:  ['#dcfce7', '#15803d'],
 };
 
-const RegionChoropleth = ({ metric = {}, metricLabel = 'Value', colorRamp = 'blue' }) => {
+const RegionChoropleth = ({ metric = {}, metricLabel = 'Value', colorRamp = 'blue', fmtValue = null }) => {
   const mapRef    = useRef(null);
   const mapInstRef = useRef(null);
   const [error, setError] = useState(null);
 
+  const fmt = fmtValue || ((v) => fmtEnergy(v));
   const [lo, hi] = CHORO_RAMPS[colorRamp] || CHORO_RAMPS.blue;
 
   useEffect(() => {
@@ -1085,7 +1086,7 @@ const RegionChoropleth = ({ metric = {}, metricLabel = 'Value', colorRamp = 'blu
           if (!e.features?.length) return;
           const f = e.features[0];
           const val = f.properties._val || 0;
-          const label = val > 0 ? `${fmtEnergy(val)}` : '—';
+          const label = val > 0 ? fmt(val) : '—';
           popup.setLngLat(e.lngLat)
             .setHTML(`<div style="font-size:12px;line-height:1.6"><strong>${f.properties.comuna}</strong><br/>${metricLabel}: ${label}</div>`)
             .addTo(map);
@@ -1124,7 +1125,7 @@ const RegionChoropleth = ({ metric = {}, metricLabel = 'Value', colorRamp = 'blu
       destroyed = true;
       if (mapInstRef.current) { mapInstRef.current.remove(); mapInstRef.current = null; }
     };
-  }, [metric, metricLabel, lo, hi]);
+  }, [metric, metricLabel, lo, hi, fmt]);
 
   if (error) {
     return (
@@ -1143,7 +1144,7 @@ const RegionChoropleth = ({ metric = {}, metricLabel = 'Value', colorRamp = 'blu
         <div style={{ width: 100, height: 8, borderRadius: 4, background: `linear-gradient(to right, ${lo}, ${hi})`, marginBottom: 3 }} />
         <div style={{ display: 'flex', justifyContent: 'space-between', color: '#94a3b8', fontSize: 9.5 }}>
           <span>0</span>
-          <span>{fmtEnergy(Math.max(1, ...Object.values(metric)))}</span>
+          <span>{fmt(Math.max(1, ...Object.values(metric)))}</span>
         </div>
       </div>
     </div>
