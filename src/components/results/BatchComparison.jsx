@@ -144,6 +144,33 @@ function buildCapacityOption(sortedJobs, kpisMap) {
   };
 }
 
+// ─── Matrix KPI definitions ───────────────────────────────────────────────────
+const MATRIX_KPIS = [
+  { id: 'objective',      label: 'Objective',   fn: (job)       => job?.objective ?? null,                        lowerBetter: true,  fmt: v => fmtNum(v) },
+  { id: 'totalCap',       label: 'Cap (MW)',     fn: (_, kpis)  => kpis?.totalCap ?? null,                        lowerBetter: false, fmt: v => fmtNum(v) },
+  { id: 'renewableShare', label: 'RE %',         fn: (_, kpis)  => kpis ? kpis.renewableShare * 100 : null,       lowerBetter: false, fmt: v => v != null ? v.toFixed(1) + '%' : '—' },
+  { id: 'lcoe',           label: 'LCOE',         fn: (_, kpis)  => kpis?.lcoe ?? null,                            lowerBetter: true,  fmt: v => fmtNum(v, 2) },
+  { id: 'totalUnmetMWh',  label: 'Unmet (MWh)',  fn: (_, kpis)  => kpis?.totalUnmetMWh ?? null,                   lowerBetter: true,  fmt: v => fmtNum(v) },
+];
+
+function heatColor(t, lowerBetter) {
+  // t = 0..1 (0 = min, 1 = max); normalise so 0 = best
+  const n = lowerBetter ? t : 1 - t;
+  let r, g, b;
+  if (n < 0.5) {
+    const f = n * 2;
+    r = Math.round(34  + (234 - 34)  * f);
+    g = Math.round(197 + (179 - 197) * f);
+    b = Math.round(94  + (8   - 94)  * f);
+  } else {
+    const f = (n - 0.5) * 2;
+    r = Math.round(234 + (239 - 234) * f);
+    g = Math.round(179 + (68  - 179) * f);
+    b = Math.round(8   + (68  - 8)   * f);
+  }
+  return `rgba(${r},${g},${b},0.20)`;
+}
+
 // ─── CSV export ───────────────────────────────────────────────────────────────
 function exportBatchCSV(sortedJobs, kpisMap, baseName) {
   const cols = [
@@ -187,6 +214,7 @@ export default function BatchComparison({ completedJobs }) {
   const [selectedBatchId, setSelectedBatchId] = useState(null);
   const [trajectoryKpi, setTrajectoryKpi] = useState('objective');
   const [showTable, setShowTable] = useState(true);
+  const [matrixKpi, setMatrixKpi] = useState('objective');
 
   // Group jobs by batchId; only include batch-tagged jobs
   const batches = useMemo(() => {
@@ -294,52 +322,104 @@ export default function BatchComparison({ completedJobs }) {
       )}
 
       {/* ── Multi-model matrix view ── */}
-      {isMultiModel && (
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden mb-3">
-          <div className="px-3 py-2 border-b border-slate-100 flex items-center gap-2">
-            <FiLayers size={13} className="text-electric-500" />
-            <span className="text-xs font-semibold text-slate-700">Model × Variant matrix</span>
-            <span className="ml-auto text-xs text-slate-400">{modelLabels.length} models · {variantLabels.length} variants</span>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200">
-                  <th className="text-left px-3 py-1.5 font-semibold text-slate-600 whitespace-nowrap min-w-[140px]">Model</th>
-                  {variantLabels.map(vl => (
-                    <th key={vl} className="text-right px-3 py-1.5 font-semibold text-slate-600 whitespace-nowrap">{vl}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {modelLabels.map((ml, ri) => (
-                  <tr key={ml} className={ri % 2 === 1 ? 'bg-slate-50' : ''}>
-                    <td className="px-3 py-1.5 font-medium text-slate-700 whitespace-nowrap max-w-[200px] truncate" title={ml}>{ml}</td>
-                    {variantLabels.map(vl => {
-                      const job = matrixCells[ml]?.[vl];
-                      if (!job) return <td key={vl} className="px-3 py-1.5 text-right text-slate-300">—</td>;
-                      if (job.status === 'failed') return (
-                        <td key={vl} className="px-3 py-1.5 text-right">
-                          <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-600">failed</span>
-                        </td>
-                      );
-                      const kpis = kpisMap[job.id];
-                      return (
-                        <td key={vl} className="px-3 py-1.5 text-right font-mono text-slate-700">
-                          <span title={`Cap: ${fmtNum(kpis?.totalCap)} MW · RE: ${kpis ? (kpis.renewableShare*100).toFixed(0) : '—'}%`}>
-                            {fmtNum(job.objective)}
-                          </span>
-                        </td>
-                      );
-                    })}
+      {isMultiModel && (() => {
+        const kpiDef = MATRIX_KPIS.find(k => k.id === matrixKpi) || MATRIX_KPIS[0];
+
+        // Per-column min/max for heat ramp (one scale per variant column)
+        const colStats = Object.fromEntries(variantLabels.map(vl => {
+          const vals = modelLabels.map(ml => {
+            const job = matrixCells[ml]?.[vl];
+            if (!job || job.status !== 'completed') return null;
+            return kpiDef.fn(job, kpisMap[job.id]);
+          }).filter(v => v != null);
+          const min = vals.length ? Math.min(...vals) : null;
+          const max = vals.length ? Math.max(...vals) : null;
+          return [vl, { min, max }];
+        }));
+
+        // Best model per column (index into modelLabels)
+        const bestPerCol = Object.fromEntries(variantLabels.map(vl => {
+          let bestIdx = null, bestVal = null;
+          modelLabels.forEach((ml, i) => {
+            const job = matrixCells[ml]?.[vl];
+            if (!job || job.status !== 'completed') return;
+            const v = kpiDef.fn(job, kpisMap[job.id]);
+            if (v == null) return;
+            if (bestVal === null || (kpiDef.lowerBetter ? v < bestVal : v > bestVal)) {
+              bestVal = v; bestIdx = i;
+            }
+          });
+          return [vl, bestIdx];
+        }));
+
+        return (
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden mb-3">
+            <div className="px-3 py-2 border-b border-slate-100 flex items-center gap-2 flex-wrap">
+              <FiLayers size={13} className="text-electric-500" />
+              <span className="text-xs font-semibold text-slate-700">Model × Variant matrix</span>
+              <span className="text-xs text-slate-400">{modelLabels.length} models · {variantLabels.length} variants</span>
+              <div className="ml-auto flex items-center gap-1.5">
+                <span className="text-[10px] text-slate-400">KPI:</span>
+                <select
+                  value={matrixKpi} onChange={e => setMatrixKpi(e.target.value)}
+                  className="text-[11px] border border-slate-200 rounded-md px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-electric-400"
+                >
+                  {MATRIX_KPIS.map(k => <option key={k.id} value={k.id}>{k.label}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="text-left px-3 py-1.5 font-semibold text-slate-600 whitespace-nowrap min-w-[140px]">Model</th>
+                    {variantLabels.map(vl => (
+                      <th key={vl} className="text-right px-3 py-1.5 font-semibold text-slate-600 whitespace-nowrap">{vl}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {modelLabels.map((ml, ri) => (
+                    <tr key={ml}>
+                      <td className="px-3 py-1.5 font-medium text-slate-700 whitespace-nowrap max-w-[200px] truncate border-b border-slate-100" title={ml}>{ml}</td>
+                      {variantLabels.map(vl => {
+                        const job = matrixCells[ml]?.[vl];
+                        if (!job) return <td key={vl} className="px-3 py-1.5 text-right text-slate-300 border-b border-slate-100">—</td>;
+                        if (job.status === 'failed') return (
+                          <td key={vl} className="px-3 py-1.5 text-right border-b border-slate-100">
+                            <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-600">failed</span>
+                          </td>
+                        );
+                        const kpis = kpisMap[job.id];
+                        const val = kpiDef.fn(job, kpis);
+                        const { min, max } = colStats[vl] || {};
+                        const isBest = bestPerCol[vl] === ri;
+                        let bg = 'transparent';
+                        if (val != null && min != null && max != null && max > min) {
+                          const t = (val - min) / (max - min);
+                          bg = heatColor(t, kpiDef.lowerBetter);
+                        }
+                        const tooltip = `Obj: ${fmtNum(job.objective)} · Cap: ${fmtNum(kpis?.totalCap)} MW · RE: ${kpis ? (kpis.renewableShare*100).toFixed(0) : '—'}%`;
+                        return (
+                          <td key={vl} className="px-3 py-1.5 text-right font-mono border-b border-slate-100" style={{ background: bg }}>
+                            <span title={tooltip} className={isBest ? 'font-bold text-slate-900' : 'text-slate-700'}>
+                              {val != null ? kpiDef.fmt(val) : '—'}
+                              {isBest && <span className="ml-1 text-[9px] font-semibold text-green-600">★</span>}
+                            </span>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="px-3 py-1.5 text-[10px] text-slate-400 border-t border-slate-100">
+              Heat ramp is per-column (variant). ★ = best model for that variant. {kpiDef.lowerBetter ? 'Lower is better (green).' : 'Higher is better (green).'}
+            </p>
           </div>
-          <p className="px-3 py-1.5 text-[10px] text-slate-400 border-t border-slate-100">Cells show objective value. Hover for capacity and RE share.</p>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Trajectory chart — single-model batches only */}
       {!isMultiModel && trajectoryOption && (
