@@ -1,14 +1,17 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
-  FiTrendingUp, FiSun, FiCloud, FiDollarSign,
-  FiPlay, FiStopCircle, FiAlertCircle,
-  FiChevronDown, FiInfo, FiZap, FiClock,
+  FiTrendingUp, FiSun, FiCloud, FiDollarSign, FiSliders,
+  FiPlay, FiStopCircle, FiAlertCircle, FiAlertTriangle,
+  FiChevronDown, FiInfo, FiZap, FiClock, FiPlus, FiTrash2, FiDownload,
 } from 'react-icons/fi';
 import { useData } from '../context/DataContext';
 import { checkCalliopeService, runCalliopeModel } from '../services/calliopeClient';
+import { checkEngineRunService, runEngineModel } from '../services/engineClient';
 import { applyOps } from '../services/scenarioStudio/transform.js';
 import { expandRecipe } from '../services/scenarioStudio/recipes/index.js';
 import { autoDetectTechs, FOSSIL_KEYWORDS, RENEWABLE_KEYWORDS, buildCalliope06GroupConstraintsOverride } from '../services/scenarioStudio/utils.js';
+import { importLegacyScenario } from '../services/scenarioStudio/legacyImport.js';
+import { getCapabilityWarnings, engineKeyFromModel, ENGINE_LABELS, ENGINE_FRAMEWORK } from '../services/scenarioStudio/capabilities.js';
 import BatchComparison from './results/BatchComparison.jsx';
 
 // ─── Recipe catalogue (UI metadata) ─────────────────────────────────────────
@@ -41,6 +44,13 @@ const RECIPE_CARDS = [
     description: 'Sweep a key cost parameter to see how the optimal energy mix shifts with prices.',
     Icon: FiDollarSign,
     color: 'from-purple-500 to-violet-600',
+  },
+  {
+    id: 'custom',
+    label: 'Custom ops',
+    description: 'Compose your own ops manually or import from a saved legacy scenario.',
+    Icon: FiSliders,
+    color: 'from-slate-500 to-slate-600',
   },
 ];
 
@@ -89,6 +99,11 @@ const DEFAULT_PARAMS = {
     steps: 5,
     unit: '€/kW',
     level: 'global',
+  },
+  custom: {
+    ops: [],
+    variantLabel: 'Custom',
+    selectedScenario: '',
   },
 };
 
@@ -158,6 +173,9 @@ function buildRecipeParams(recipeId, ui, model) {
       unit: ui.unit,
       level: ui.level,
     };
+  }
+  if (recipeId === 'custom') {
+    return { ops: ui.ops || [], variantLabel: ui.variantLabel || 'Custom' };
   }
   return {};
 }
@@ -470,6 +488,193 @@ function CostSensitivityConfig({ params, setParam, model }) {
 
 // ─── Config panel router ──────────────────────────────────────────────────────
 
+// ─── Custom op editor ─────────────────────────────────────────────────────────
+
+const OP_TYPES = [
+  { id: 'setParam',         label: 'Set parameter' },
+  { id: 'scaleParam',       label: 'Scale parameter' },
+  { id: 'disableTech',      label: 'Disable technology' },
+  { id: 'systemConstraint', label: 'System constraint' },
+];
+
+const SYS_KINDS = ['co2_cap', 'renewable_min', 'reserve_margin'];
+
+function defaultOp(type) {
+  if (type === 'setParam')         return { op: 'setParam',         techMatch: '', path: 'constraints.energy_cap_max', value: 0,    level: 'global' };
+  if (type === 'scaleParam')       return { op: 'scaleParam',       techMatch: '', path: 'constraints.resource_scale',  factor: 1.0, level: 'global' };
+  if (type === 'disableTech')      return { op: 'disableTech',      techMatch: '' };
+  if (type === 'systemConstraint') return { op: 'systemConstraint', kind: 'co2_cap', value: 0 };
+  return { op: type };
+}
+
+function OpRow({ op, index, onChange, onDelete }) {
+  const set = (k, v) => onChange(index, { ...op, [k]: v });
+  return (
+    <div className="flex flex-col gap-1.5 p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
+      <div className="flex items-center gap-2">
+        <select value={op.op} onChange={e => onChange(index, defaultOp(e.target.value))}
+          className="flex-1 px-2 py-1 border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-electric-400">
+          {OP_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+        </select>
+        <button onClick={() => onDelete(index)} className="p-1 text-red-400 hover:text-red-600 rounded transition-colors">
+          <FiTrash2 size={12} />
+        </button>
+      </div>
+
+      {(op.op === 'setParam' || op.op === 'scaleParam' || op.op === 'disableTech') && (
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <span className="text-slate-500 block mb-0.5">Tech name</span>
+            <input value={op.techMatch} onChange={e => set('techMatch', e.target.value)} placeholder="solar_pv"
+              className="w-full px-2 py-1 border border-slate-200 rounded-md font-mono focus:outline-none focus:ring-1 focus:ring-electric-400" />
+          </div>
+          {op.op !== 'disableTech' && (
+            <div className="flex-1">
+              <span className="text-slate-500 block mb-0.5">Param path</span>
+              <input value={op.path} onChange={e => set('path', e.target.value)} placeholder="constraints.energy_cap_max"
+                className="w-full px-2 py-1 border border-slate-200 rounded-md font-mono focus:outline-none focus:ring-1 focus:ring-electric-400" />
+            </div>
+          )}
+        </div>
+      )}
+
+      {op.op === 'setParam' && (
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <span className="text-slate-500 block mb-0.5">Value</span>
+            <input type="number" value={op.value} onChange={e => set('value', parseFloat(e.target.value) || 0)}
+              className="w-full px-2 py-1 border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-electric-400" />
+          </div>
+          <div>
+            <span className="text-slate-500 block mb-0.5">Apply to</span>
+            <select value={op.level || 'global'} onChange={e => set('level', e.target.value)}
+              className="px-2 py-1 border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-electric-400">
+              <option value="global">Global tech</option>
+              <option value="location">Location overrides</option>
+              <option value="both">Both</option>
+            </select>
+          </div>
+        </div>
+      )}
+
+      {op.op === 'scaleParam' && (
+        <div className="flex gap-2">
+          <div className="w-28">
+            <span className="text-slate-500 block mb-0.5">Factor</span>
+            <input type="number" step="0.01" value={op.factor} onChange={e => set('factor', parseFloat(e.target.value) || 1)}
+              className="w-full px-2 py-1 border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-electric-400" />
+          </div>
+          <div>
+            <span className="text-slate-500 block mb-0.5">Apply to</span>
+            <select value={op.level || 'global'} onChange={e => set('level', e.target.value)}
+              className="px-2 py-1 border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-electric-400">
+              <option value="global">Global tech</option>
+              <option value="location">Location overrides</option>
+              <option value="both">Both</option>
+            </select>
+          </div>
+        </div>
+      )}
+
+      {op.op === 'systemConstraint' && (
+        <div className="flex gap-2">
+          <div>
+            <span className="text-slate-500 block mb-0.5">Kind</span>
+            <select value={op.kind} onChange={e => set('kind', e.target.value)}
+              className="px-2 py-1 border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-electric-400">
+              {SYS_KINDS.map(k => <option key={k} value={k}>{k}</option>)}
+            </select>
+          </div>
+          <div className="flex-1">
+            <span className="text-slate-500 block mb-0.5">Value</span>
+            <input type="number" value={typeof op.value === 'number' ? op.value : 0}
+              onChange={e => set('value', parseFloat(e.target.value) || 0)}
+              className="w-full px-2 py-1 border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-electric-400" />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CustomConfigPanel({ params, setParam, model }) {
+  const modelOverrides = model?.overrides || {};
+  const modelScenarios = model?.scenarios || {};
+  const scenarioNames = Object.keys(modelScenarios);
+
+  const ops = params.ops || [];
+  const setOps = newOps => setParam('ops', newOps);
+
+  const addOp = () => setOps([...ops, defaultOp('setParam')]);
+  const deleteOp = (i) => setOps(ops.filter((_, idx) => idx !== i));
+  const updateOp = (i, updated) => setOps(ops.map((o, idx) => idx === i ? updated : o));
+
+  const handleImport = () => {
+    const scenName = params.selectedScenario;
+    if (!scenName || !modelScenarios[scenName]) return;
+    const { ops: imported, skippedKeys, missingOverrides } = importLegacyScenario(modelOverrides, modelScenarios[scenName]);
+    setOps([...ops, ...imported]);
+    if (skippedKeys.length || missingOverrides.length) {
+      console.warn('[Scenario Studio] Import skipped:', { skippedKeys, missingOverrides });
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Variant label */}
+      <div>
+        <Label>Variant label</Label>
+        <input value={params.variantLabel || 'Custom'}
+          onChange={e => setParam('variantLabel', e.target.value)}
+          className="w-48 px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-electric-400" />
+      </div>
+
+      {/* Legacy import */}
+      {scenarioNames.length > 0 && (
+        <div>
+          <Label>Import from saved scenario</Label>
+          <div className="flex gap-2 items-center">
+            <select value={params.selectedScenario || ''}
+              onChange={e => setParam('selectedScenario', e.target.value)}
+              className="flex-1 px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-electric-400 bg-white">
+              <option value="">— choose scenario —</option>
+              {scenarioNames.map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+            <button onClick={handleImport} disabled={!params.selectedScenario}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-300 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+              <FiDownload size={12} /> Import ops
+            </button>
+          </div>
+          <Hint>Appends the scenario's overrides as setParam ops.</Hint>
+        </div>
+      )}
+      {scenarioNames.length === 0 && (
+        <p className="text-xs text-slate-400 italic">No saved scenarios found on this model.</p>
+      )}
+
+      {/* Op list */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <Label>Operations ({ops.length})</Label>
+          <button onClick={addOp}
+            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-electric-600 hover:bg-electric-50 rounded-lg transition-colors border border-electric-200">
+            <FiPlus size={12} /> Add op
+          </button>
+        </div>
+        {ops.length === 0 ? (
+          <p className="text-xs text-slate-400 italic">No ops yet. Add one above or import from a saved scenario.</p>
+        ) : (
+          <div className="space-y-2 max-h-80 overflow-y-auto pr-0.5">
+            {ops.map((op, i) => (
+              <OpRow key={i} op={op} index={i} onChange={updateOp} onDelete={deleteOp} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ConfigPanel({ recipeId, params, setParam, model }) {
   if (!model) {
     return (
@@ -483,6 +688,7 @@ function ConfigPanel({ recipeId, params, setParam, model }) {
     case 'renewableTransition':return <RenewableTransitionConfig params={params} setParam={setParam} model={model} />;
     case 'carbonCap':          return <CarbonCapConfig params={params} setParam={setParam} />;
     case 'costSensitivity':    return <CostSensitivityConfig params={params} setParam={setParam} model={model} />;
+    case 'custom':             return <CustomConfigPanel params={params} setParam={setParam} model={model} />;
     default: return <p className="text-sm text-slate-500 italic">Configuration not available.</p>;
   }
 }
@@ -581,18 +787,30 @@ export default function ScenarioStudio() {
   const [selectedRecipe, setSelectedRecipe] = useState('demandGrowth');
   const [params, setParams] = useState(DEFAULT_PARAMS['demandGrowth']);
   const [serviceStatus, setServiceStatus] = useState(null);
+  const [selectedEngine, setSelectedEngine] = useState('calliope06');
   const [runningJobs, setRunningJobs] = useState([]);
   const cancelFnsRef = useRef({});
   const completedIdsRef = useRef(new Set());
 
   useEffect(() => {
     const cur = getCurrentModel();
-    if (cur) setSelectedModel(cur);
+    if (cur) {
+      setSelectedModel(cur);
+      setSelectedEngine(engineKeyFromModel(cur));
+    }
   }, [getCurrentModel]);
 
+  // Re-check service status when engine changes
   useEffect(() => {
-    checkCalliopeService().then(up => setServiceStatus(up)).catch(() => setServiceStatus(false));
-  }, []);
+    setServiceStatus(null);
+    if (selectedEngine === 'calliope06' || selectedEngine === 'calliope07') {
+      const ver = selectedEngine === 'calliope07' ? '0.7' : undefined;
+      checkCalliopeService(ver).then(up => setServiceStatus(up)).catch(() => setServiceStatus(false));
+    } else {
+      const engineName = selectedEngine; // pypsa | osemosys | adoptnet0
+      checkEngineRunService(engineName).then(up => setServiceStatus(up)).catch(() => setServiceStatus(false));
+    }
+  }, [selectedEngine]);
 
   const setParam = (key, value) => setParams(p => ({ ...p, [key]: value }));
 
@@ -618,6 +836,12 @@ export default function ScenarioStudio() {
     [model, recipeParams]
   );
 
+  const capabilityWarnings = useMemo(() => {
+    if (!variants.length) return [];
+    const allOps = variants.flatMap(v => v.ops);
+    return getCapabilityWarnings(selectedEngine, allOps);
+  }, [variants, selectedEngine]);
+
   // ── Job completion ────────────────────────────────────────────────────────
 
   const _handleDone = (jobId, batchId, variantLabel, result) => {
@@ -630,7 +854,7 @@ export default function ScenarioStudio() {
         const duration = ms < 60000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms / 60000)}m`;
         setTimeout(() => {
           addCompletedJob({
-            id: jobId, modelName: job.displayName, framework: 'calliope', solver: 'highs', mode: 'plan',
+            id: jobId, modelName: job.displayName, framework: ENGINE_FRAMEWORK[job.engine] || 'calliope', solver: 'highs', mode: 'plan',
             status: result?.success === false ? 'failed' : 'completed',
             completedAt: new Date().toISOString(), duration,
             objective: result?.objective || null,
@@ -656,7 +880,7 @@ export default function ScenarioStudio() {
       if (job) {
         setTimeout(() => {
           addCompletedJob({
-            id: jobId, modelName: job.displayName, framework: 'calliope', solver: 'highs', mode: 'plan',
+            id: jobId, modelName: job.displayName, framework: ENGINE_FRAMEWORK[job.engine] || 'calliope', solver: 'highs', mode: 'plan',
             status: 'failed', completedAt: new Date().toISOString(), duration: 'N/A',
             objective: null, terminationCondition: 'error',
             result: { success: false, error }, logs: [...job.logs, `[ERROR] ${error}`],
@@ -675,11 +899,20 @@ export default function ScenarioStudio() {
   const handleRun = async () => {
     if (!model) { showNotification('Select a model first.', 'error'); return; }
     if (variants.length === 0) { showNotification('No variants to run — check configuration.', 'error'); return; }
-    if (serviceStatus === false) { showNotification('Calliope service is offline. Start it from Settings → Calliope Engine.', 'error'); return; }
+
+    const engineLabel = ENGINE_LABELS[selectedEngine] || selectedEngine;
+    if (serviceStatus === false) {
+      showNotification(`${engineLabel} service is offline. Start it from Settings.`, 'error'); return;
+    }
     if (serviceStatus === null) {
-      const up = await checkCalliopeService();
+      let up;
+      if (selectedEngine === 'calliope06' || selectedEngine === 'calliope07') {
+        up = await checkCalliopeService(selectedEngine === 'calliope07' ? '0.7' : undefined);
+      } else {
+        up = await checkEngineRunService(selectedEngine);
+      }
       setServiceStatus(up);
-      if (!up) { showNotification('Cannot reach Calliope service.', 'error'); return; }
+      if (!up) { showNotification(`Cannot reach ${engineLabel} service.`, 'error'); return; }
     }
 
     const batchId = `batch_${Date.now()}`;
@@ -687,7 +920,7 @@ export default function ScenarioStudio() {
     const techsForRun = isCurrentModel && technologies?.length ? technologies : (model.technologies || technologies || []);
     const tsForRun = (timeSeries || []).filter(ts => ts.modelId === model.id);
 
-    showNotification(`Starting ${variants.length} scenario run${variants.length > 1 ? 's' : ''}…`, 'info');
+    showNotification(`Starting ${variants.length} scenario run${variants.length > 1 ? 's' : ''} on ${engineLabel}…`, 'info');
 
     for (const variant of variants) {
       const jobId = `job_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -699,27 +932,45 @@ export default function ScenarioStudio() {
       };
       const concreteModel = applyOps(baseModelData, variant.ops);
 
-      // Convert system constraints to native Calliope override if needed
-      const gc = concreteModel.modelConfig?.groupConstraints;
-      const nativeGC = gc ? buildCalliope06GroupConstraintsOverride(gc) : null;
-      if (nativeGC) {
-        concreteModel.overrides = { ...(concreteModel.overrides || {}), _studio_sys: { group_constraints: nativeGC } };
-        concreteModel.override = '_studio_sys';
+      // Calliope: inject system constraints as native override
+      if (selectedEngine === 'calliope06' || selectedEngine === 'calliope07') {
+        const gc = concreteModel.modelConfig?.groupConstraints;
+        const nativeGC = gc ? buildCalliope06GroupConstraintsOverride(gc) : null;
+        if (nativeGC) {
+          concreteModel.overrides = { ...(concreteModel.overrides || {}), _studio_sys: { group_constraints: nativeGC } };
+          concreteModel.override = '_studio_sys';
+        }
+        // Calliope 0.7: set calliopeVersion in modelConfig
+        if (selectedEngine === 'calliope07') {
+          concreteModel.modelConfig = { ...(concreteModel.modelConfig || {}), calliopeVersion: '0.7.0' };
+        }
       }
 
       setRunningJobs(prev => [...prev, {
-        id: jobId, displayName, startTime: new Date().toISOString(),
-        logs: [`[TEMPO] Scenario Studio — ${displayName}`],
+        id: jobId, displayName, startTime: new Date().toISOString(), engine: selectedEngine,
+        logs: [`[TEMPO] Scenario Studio — ${displayName} [${engineLabel}]`],
       }]);
 
       try {
-        const { cancel } = await runCalliopeModel({
-          modelData: concreteModel,
-          onLog: line => setRunningJobs(prev => prev.map(j => j.id === jobId ? { ...j, logs: [...j.logs, line] } : j)),
-          onStats: () => {},
-          onDone: result => _handleDone(jobId, batchId, variant.label, result),
-          onError: error => _handleError(jobId, batchId, variant.label, error),
-        });
+        let runPromise;
+        if (selectedEngine === 'calliope06' || selectedEngine === 'calliope07') {
+          runPromise = runCalliopeModel({
+            modelData: concreteModel,
+            onLog: line => setRunningJobs(prev => prev.map(j => j.id === jobId ? { ...j, logs: [...j.logs, line] } : j)),
+            onStats: () => {},
+            onDone: result => _handleDone(jobId, batchId, variant.label, result),
+            onError: error => _handleError(jobId, batchId, variant.label, error),
+          });
+        } else {
+          runPromise = runEngineModel(selectedEngine, {
+            modelData: concreteModel,
+            onLog: line => setRunningJobs(prev => prev.map(j => j.id === jobId ? { ...j, logs: [...j.logs, line] } : j)),
+            onStats: () => {},
+            onDone: result => _handleDone(jobId, batchId, variant.label, result),
+            onError: error => _handleError(jobId, batchId, variant.label, error),
+          });
+        }
+        const { cancel } = await runPromise;
         cancelFnsRef.current[jobId] = cancel;
       } catch (err) {
         setRunningJobs(prev => prev.filter(j => j.id !== jobId));
@@ -753,16 +1004,29 @@ export default function ScenarioStudio() {
           </p>
         </div>
 
-        {/* Model selector */}
+        {/* Model + engine selector */}
         <div className="bg-white border border-slate-200 rounded-xl p-4 flex items-center gap-4 flex-wrap shadow-sm">
           <div className="flex items-center gap-2 flex-1 min-w-0">
             <FiZap size={15} className="text-electric-500 shrink-0" />
             <span className="text-sm font-medium text-slate-600 shrink-0">Model</span>
             <select value={selectedModel?.id || ''}
-              onChange={e => setSelectedModel(models.find(m => m.id === e.target.value) || null)}
+              onChange={e => {
+                const m = models.find(m => m.id === e.target.value) || null;
+                setSelectedModel(m);
+                if (m) setSelectedEngine(engineKeyFromModel(m));
+              }}
               className="flex-1 min-w-0 px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-electric-400 bg-white">
               <option value="">— select a model —</option>
               {models.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-slate-600 shrink-0">Engine</span>
+            <select value={selectedEngine} onChange={e => setSelectedEngine(e.target.value)}
+              className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-electric-400 bg-white">
+              {Object.entries(ENGINE_LABELS).map(([k, label]) => (
+                <option key={k} value={k}>{label}</option>
+              ))}
             </select>
           </div>
           <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${
@@ -774,14 +1038,14 @@ export default function ScenarioStudio() {
               serviceStatus === true ? 'bg-green-500' :
               serviceStatus === false ? 'bg-red-500' : 'bg-slate-400 animate-pulse'
             }`} />
-            Calliope {serviceStatus === true ? 'ready' : serviceStatus === false ? 'offline' : 'checking…'}
+            {ENGINE_LABELS[selectedEngine]} {serviceStatus === true ? 'ready' : serviceStatus === false ? 'offline' : 'checking…'}
           </div>
         </div>
 
         {/* Recipe gallery */}
         <div>
           <h2 className="text-sm font-semibold text-slate-700 mb-3">1 — Choose a recipe</h2>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             {RECIPE_CARDS.map(card => (
               <RecipeCard key={card.id} card={card} selected={selectedRecipe} onSelect={handleSelectRecipe} />
             ))}
@@ -814,6 +1078,18 @@ export default function ScenarioStudio() {
                       {variants.map(v => <VariantBadge key={v.label} variant={v} recipeId={selectedRecipe} />)}
                     </div>
                   </div>
+
+                  {/* Capability warnings */}
+                  {capabilityWarnings.length > 0 && (
+                    <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 space-y-1">
+                      <p className="text-xs font-semibold text-amber-700 flex items-center gap-1.5">
+                        <FiAlertTriangle size={12} /> Engine compatibility warnings
+                      </p>
+                      {capabilityWarnings.map((w, i) => (
+                        <p key={i} className="text-xs text-amber-700">{w}</p>
+                      ))}
+                    </div>
+                  )}
 
                   {selectedRecipe === 'demandGrowth' && affectedTechs.length > 0 && (
                     <div>

@@ -38,6 +38,20 @@ export const RECIPES = {
   },
 };
 
+// Custom op builder: ops are provided directly in params; generates a single variant.
+RECIPES.custom = {
+  id: 'custom',
+  label: 'Custom ops',
+  description: 'Compose your own set of operations, or import from a saved legacy scenario.',
+  icon: 'FiSliders',
+  paramSchema: {},
+  expand: (_model, params = {}) => {
+    const { ops = [], variantLabel = 'Custom' } = params;
+    if (ops.length === 0) return [];
+    return [{ label: variantLabel, ops }];
+  },
+};
+
 /**
  * Expand a recipe into a list of variants.
  * Each variant: { label, ops: TransformOp[] }
