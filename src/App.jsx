@@ -13,6 +13,8 @@ const MapView = lazy(() => import("./components/MapView"));
 const Creation = lazy(() => import("./components/Creation"));
 const Locations = lazy(() => import("./components/Locations"));
 const Links = lazy(() => import("./components/Links"));
+const ScenarioStudio = lazy(() => import("./components/ScenarioStudio"));
+// Legacy views kept for back-compat (saved bookmarks / deep links)
 const Overrides = lazy(() => import("./components/Overrides"));
 const Scenarios = lazy(() => import("./components/Scenarios"));
 const Parameters = lazy(() => import("./components/Parameters"));
@@ -33,7 +35,7 @@ function AppContent() {
   // Screens that carry editable model data — navigating away always asks to save
   // when a model is loaded (currentModelId is set).
   const EDITING_VIEWS = new Set([
-    'Locations', 'Links', 'TimeSeries', 'Overrides', 'Scenarios', 'Technologies',
+    'Locations', 'Links', 'TimeSeries', 'Scenarios', 'Overrides', 'Technologies',
     'Tech Database', 'Parameters', 'Creation',
   ]);
 
@@ -93,8 +95,10 @@ function AppContent() {
       case "Creation":       return <Creation />;
       case "Locations":      return <Locations />;
       case "Links":          return <Links />;
+      case "Scenarios":      return <ScenarioStudio onNavigate={handleNavigation} />;
+      // Legacy routes — kept so old saved state / direct links still work
       case "Overrides":      return <Overrides />;
-      case "Scenarios":      return <Scenarios />;
+      case "Scenarios (legacy)": return <Scenarios />;
       case "Parameters":     return <Parameters />;
       case "Technologies":   return <Technologies />;
       case "Tech Database":  return <Technologies />;
