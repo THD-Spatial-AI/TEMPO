@@ -17,10 +17,12 @@ import {
   techColor, TECH_GROUPS, classifyTech,
   linkTechBase, calliopeLocName, parseLTC,
 } from '../utils/resultFormat';
+import {
+  buildCapBarOption, buildGenDonutOption, buildCostsTechOption, buildCostsLocOption,
+  buildDispatchOption, buildCapLocOption, buildSankeyOption, buildCfOption, buildCostPerMwhOption,
+} from '../utils/resultCharts';
 
-import { ResultsMap, TransmissionFlowMap, GroupedCorrMatrixSVG } from './results/ResultMaps';
-import { choroMetricsFromResult } from '../utils/choroMetrics';
-import { buildCapBarOption, buildGenDonutOption, buildCostsTechOption, buildDispatchOption, buildCapLocOption, buildCostsLocOption, buildSankeyOption, buildCfOption, buildCostPerMwhOption } from '../utils/resultCharts';
+import { ResultsMap, TransmissionFlowMap, GroupedCorrMatrixSVG, RegionChoropleth } from './results/ResultMaps';
 import OverviewTab from './results/tabs/OverviewTab';
 import FlowTab from './results/tabs/FlowTab';
 import DispatchTab from './results/tabs/DispatchTab';
@@ -277,12 +279,19 @@ const Results = () => {
       if (val > 0) genByLoc[loc] = (genByLoc[loc] || 0) + val;
     });
 
+    // Tech-mix by location: loc → { tech: MWh } (for pie markers)
+    const techMixByLoc = {};
+    Object.entries(result.generation || {}).forEach(([k, v]) => {
+      const { loc, tech } = parseLTC(k);
+      const val = Number(v) || 0;
+      if (val > 0 && loc && tech) {
+        if (!techMixByLoc[loc]) techMixByLoc[loc] = {};
+        techMixByLoc[loc][tech] = (techMixByLoc[loc][tech] || 0) + val;
+      }
+    });
+
     const totalGen = Object.values(genByTech).reduce((s, v) => s + v, 0);
     const totalCap = Object.values(capByTech).reduce((s, v) => s + v, 0);
-
-    // Per-commune demand-side metrics for the region choropleth (from the frozen
-    // contract; requires the runner's G1 extraction — see choroMetricsFromResult).
-    const choroMetrics = choroMetricsFromResult(result);
 
     // Dispatch timestamps → compact labels
     const timestamps = (result.timestamps || []).map(t => {
@@ -291,8 +300,23 @@ const Results = () => {
       return d.toLocaleDateString('en-GB', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
     });
 
-    return { capByTech, txCapByTech, txLinks, capByLoc, domTech, techMixByLoc, genByTech, genByLoc, choroMetrics, totalGen, totalCap, timestamps };
+    return { capByTech, txCapByTech, txLinks, capByLoc, domTech, genByTech, genByLoc, techMixByLoc, totalGen, totalCap, timestamps };
   }, [result, isGenTech]);
+
+  // ── Choropleth metrics (for RegionChoropleth) ─────────────────────────────
+  const choroMetrics = useMemo(() => {
+    if (!result) return null;
+    const demand = result.demand_by_location || {};
+    const unmet  = result.unmet_demand_by_location || {};
+    if (!Object.keys(demand).length) return null;
+    const demandMet = {};
+    Object.keys(demand).forEach(loc => {
+      const d = demand[loc] || 0;
+      const u = unmet[loc] || 0;
+      if (d > 0) demandMet[loc] = Math.max(0, (d - u) / d * 100);
+    });
+    return { demand, unmet, demandMet };
+  }, [result]);
 
   // ── Transmission link pairs (for map) ─────────────────────────────────────
   const transmissionLinks = useMemo(() => {
@@ -492,61 +516,24 @@ const Results = () => {
     setDownloadOpen(false);
   };
 
-  // ── ECharts options ────────────────────────────────────────────────────────
+  // ── ECharts options (built by shared resultCharts.js) ─────────────────────
+  const _chartOpts = useMemo(() => ({
+    colorFn: techColorFn,
+    isVisible: isTechVisible,
+    isGenTech,
+    isLargeModel,
+    locLimit: LOC_CHART_LIMIT,
+  }), [techColorFn, isTechVisible, isGenTech, isLargeModel]);
 
-  // Horizontal bar: capacities by tech (shared builder — same as Export)
-  const capBarOption = useMemo(
-    () => buildCapBarOption(derivedData, { colorFn: techColorFn, isVisible: isTechVisible }),
-    [derivedData, techFilter, techColorFn] // eslint-disable-line react-hooks/exhaustive-deps
-  );
-
-  // Donut: generation mix
-  const genDonutOption = useMemo(
-    () => buildGenDonutOption(derivedData, { colorFn: techColorFn, isVisible: isTechVisible }),
-    [derivedData, techFilter, techColorFn] // eslint-disable-line react-hooks/exhaustive-deps
-  );
-
-  // Bar: costs by tech
-  const costsTechOption = useMemo(
-    () => buildCostsTechOption(result, { colorFn: techColorFn, isVisible: isTechVisible }),
-    [result, techFilter, techColorFn] // eslint-disable-line react-hooks/exhaustive-deps
-  );
-
-  // Stacked bar: costs by location × tech (top-N for large models)
-  const costsLocOption = useMemo(
-    () => buildCostsLocOption(result, { colorFn: techColorFn, isVisible: isTechVisible, isGenTech, isLargeModel, locLimit: LOC_CHART_LIMIT }),
-    [result, isLargeModel, techFilter, techColorFn] // eslint-disable-line react-hooks/exhaustive-deps
-  );
-
-  // Stacked area: dispatch timeseries (shared builder — same as Export)
-  const dispatchOption = useMemo(
-    () => buildDispatchOption(result, derivedData, { colorFn: techColorFn, isVisible: isTechVisible }),
-    [result, derivedData, techFilter, techColorFn] // eslint-disable-line react-hooks/exhaustive-deps
-  );
-
-  // Grouped bar: capacity per location per tech (shared builder — same as Export)
-  const capLocOption = useMemo(
-    () => buildCapLocOption(result, derivedData, { colorFn: techColorFn, isVisible: isTechVisible, isGenTech, isLargeModel, locLimit: LOC_CHART_LIMIT }),
-    [result, derivedData, isLargeModel, techFilter, techColorFn] // eslint-disable-line react-hooks/exhaustive-deps
-  );
-
-  // Sankey: energy flow Tech → Carrier → Demand (shared builder — same as Export)
-  const sankeyOption = useMemo(
-    () => buildSankeyOption(result, { isGenTech }),
-    [result] // eslint-disable-line react-hooks/exhaustive-deps
-  );
-
-  // Capacity factor: heatmap (small) / ranked bar (large) — shared builder
-  const cfHeatmapOption = useMemo(
-    () => buildCfOption(result, derivedData, { colorFn: techColorFn, isVisible: isTechVisible, isGenTech, isLargeModel }),
-    [result, derivedData, isLargeModel, techFilter] // eslint-disable-line react-hooks/exhaustive-deps
-  );
-
-  // Cost per MWh by technology (shared builder — same as Export)
-  const costPerMwhOption = useMemo(
-    () => buildCostPerMwhOption(result, derivedData, { colorFn: techColorFn, isVisible: isTechVisible }),
-    [result, derivedData, techFilter, techColorFn] // eslint-disable-line react-hooks/exhaustive-deps
-  );
+  const capBarOption     = useMemo(() => buildCapBarOption(derivedData, _chartOpts),     [derivedData, techFilter, _chartOpts]);
+  const genDonutOption   = useMemo(() => buildGenDonutOption(derivedData, _chartOpts),   [derivedData, techFilter, _chartOpts]);
+  const costsTechOption  = useMemo(() => buildCostsTechOption(result, _chartOpts),       [result, techFilter, _chartOpts]);
+  const costsLocOption   = useMemo(() => buildCostsLocOption(result, _chartOpts),        [result, isLargeModel, techFilter, _chartOpts]);
+  const dispatchOption   = useMemo(() => buildDispatchOption(result, derivedData, _chartOpts), [result, derivedData, techFilter, _chartOpts]);
+  const capLocOption     = useMemo(() => buildCapLocOption(result, derivedData, _chartOpts),   [result, derivedData, isLargeModel, techFilter, _chartOpts]);
+  const sankeyOption     = useMemo(() => buildSankeyOption(result, _chartOpts),          [result, _chartOpts]);
+  const cfHeatmapOption  = useMemo(() => buildCfOption(result, derivedData, _chartOpts), [result, derivedData, isLargeModel, techFilter, _chartOpts]);
+  const costPerMwhOption = useMemo(() => buildCostPerMwhOption(result, derivedData, _chartOpts), [result, derivedData, techFilter, _chartOpts]);
 
   // ── TABS ───────────────────────────────────────────────────────────────────
   const isSporesRun = selectedJob?.mode === 'spores';
@@ -881,6 +868,9 @@ const Results = () => {
                 selectedJobId={selectedJobId}
                 setMapView={setMapView}
                 techColorFn={techColorFn}
+                techMixByLoc={derivedData?.techMixByLoc || {}}
+                choroMetrics={choroMetrics}
+                RegionChoroplethComponent={RegionChoropleth}
                 toggleSection={toggleSection}
                 transmissionFlowData={transmissionFlowData}
                 transmissionLinks={transmissionLinks}

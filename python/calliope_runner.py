@@ -2308,6 +2308,28 @@ def _run_model_impl(model_data, work_dir):
             log(f"  Could not extract transmission flow timeseries: {e}")
             log(_tb.format_exc())
 
+    # Net imports/exports by location (G2) — derived from transmission_flow already extracted.
+    # For each pair "a::b": net > 0 means net flow a→b (a exports, b imports).
+    if 'transmission_flow' in results:
+        try:
+            import numpy as np
+            imports_by_loc = {}
+            exports_by_loc = {}
+            for flow in results['transmission_flow'].values():
+                from_loc = flow['from']
+                to_loc   = flow['to']
+                ts = np.array(flow['timeseries'], dtype=float)
+                pos = np.maximum(ts,  0.0)   # a→b: from_loc exports, to_loc imports
+                neg = np.maximum(-ts, 0.0)   # b→a: to_loc exports, from_loc imports
+                imports_by_loc[to_loc]   = imports_by_loc.get(to_loc,   0.0) + float(pos.sum())
+                imports_by_loc[from_loc] = imports_by_loc.get(from_loc, 0.0) + float(neg.sum())
+                exports_by_loc[from_loc] = exports_by_loc.get(from_loc, 0.0) + float(pos.sum())
+                exports_by_loc[to_loc]   = exports_by_loc.get(to_loc,   0.0) + float(neg.sum())
+            results['imports_by_location'] = {k: round(v, 3) for k, v in imports_by_loc.items() if v > 1e-3}
+            results['exports_by_location'] = {k: round(v, 3) for k, v in exports_by_loc.items() if v > 1e-3}
+        except Exception as e:
+            log(f"  Could not extract imports/exports by location: {e}")
+
     # Demand timeseries from carrier_con (demand techs consume electricity)
     if 'carrier_con' in ds:
         try:
@@ -2348,27 +2370,61 @@ def _run_model_impl(model_data, work_dir):
         except Exception as e:
             log(f"  Could not extract demand timeseries: {e}")
 
-    # Unmet demand slack (present when ensure_feasibility=True). Calliope 0.6.8
-    # exposes an 'unmet_demand' variable over (loc_carriers, timesteps). We total
-    # it per location — the core signal of an infeasible/isolated region.
-    if 'unmet_demand' in ds:
+    # Demand MWh by location (choropleth)
+    if 'carrier_con' in ds:
         try:
             import numpy as np
-            ud = ds['unmet_demand']
-            lt_dim_ud = next((d for d in ud.dims if 'loc' in d), None)
-            if lt_dim_ud:
+            con = ds['carrier_con']
+            lt_dim_con2 = next((d for d in con.dims if 'loc_tech' in d), None)
+            if lt_dim_con2:
+                demand_by_loc = {}
+                for coord_val in con[lt_dim_con2].values:
+                    parts = str(coord_val).split('::')
+                    loc  = parts[0] if len(parts) >= 2 else ''
+                    tech = parts[1] if len(parts) >= 2 else parts[0]
+                    tech_base = tech.split(':')[0]
+                    if 'demand' in tech_base.lower() and loc:
+                        vals = con.sel({lt_dim_con2: coord_val}).values.astype(float)
+                        vals = np.abs(np.where(np.isnan(vals), 0.0, vals))
+                        demand_by_loc[loc] = demand_by_loc.get(loc, 0.0) + float(vals.sum())
+                if demand_by_loc:
+                    results['demand_by_location'] = {k: round(v, 3) for k, v in demand_by_loc.items()}
+        except Exception as e:
+            log(f"  Could not extract demand by location: {e}")
+
+    # Unmet demand (G1) — carrier_prod for unmet_demand slack techs.
+    # Calliope injects these automatically when ensure_feasibility=True.
+    # Without extracting them, an infeasible-but-slack-padded run looks healthy.
+    if 'carrier_prod' in ds:
+        try:
+            import numpy as np
+            prod = ds['carrier_prod']
+            lt_dim = next((d for d in prod.dims if 'loc_tech' in d), None)
+            if lt_dim:
+                timestamps = results.get('timestamps') or [str(t) for t in prod['timesteps'].values]
+                unmet_total = np.zeros(len(timestamps))
                 unmet_by_loc = {}
-                total_unmet = 0.0
-                summed = ud.sum(dim='timesteps') if 'timesteps' in ud.dims else ud
-                for coord_val, val in zip(summed[lt_dim_ud].values, np.atleast_1d(summed.values)):
-                    v = float(val) if val == val else 0.0
-                    if abs(v) < 1e-6:
+                has_unmet = False
+                for coord_val in prod[lt_dim].values:
+                    parts = str(coord_val).split('::')
+                    loc       = parts[0] if len(parts) >= 2 else ''
+                    tech_base = (parts[1] if len(parts) >= 2 else parts[0]).split(':')[0]
+                    if 'unmet_demand' not in tech_base.lower():
                         continue
-                    loc = str(coord_val).split('::')[0]
-                    unmet_by_loc[loc] = unmet_by_loc.get(loc, 0.0) + abs(v)
-                    total_unmet += abs(v)
-                results['unmet_demand_by_location'] = {k: round(v, 3) for k, v in unmet_by_loc.items()}
-                results['unmet_demand_total'] = round(total_unmet, 3)
+                    vals = prod.sel({lt_dim: coord_val}).values.astype(float)
+                    vals = np.maximum(np.where(np.isnan(vals), 0.0, vals), 0.0)
+                    unmet_total += vals
+                    if loc:
+                        unmet_by_loc[loc] = unmet_by_loc.get(loc, 0.0) + float(vals.sum())
+                    has_unmet = True
+                if has_unmet:
+                    total_unmet = float(unmet_total.sum())
+                    results['unmet_demand_timeseries'] = [round(float(v), 3) for v in unmet_total.tolist()]
+                    results['unmet_demand_by_location'] = {
+                        k: round(v, 3) for k, v in unmet_by_loc.items() if v > 1e-3
+                    }
+                    results['total_unmet_demand_mwh'] = round(total_unmet, 3)
+                    log(f"  Extracted unmet demand: {total_unmet:.1f} MWh across {len(unmet_by_loc)} location(s)")
         except Exception as e:
             log(f"  Could not extract unmet demand: {e}")
 
@@ -2385,6 +2441,7 @@ def _run_model_impl(model_data, work_dir):
             results['coordinates'] = loc_coords
     except Exception as e:
         log(f"  Could not extract coordinates: {e}")
+
 
     # Cost breakdown by technology
     # Calliope 0.6 uses a MultiIndex dimension 'loc_techs_cost' shaped as

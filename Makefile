@@ -3,12 +3,18 @@
 #
 # One-command local install on a fresh machine (Linux or Windows via Git Bash/WSL):
 #
+#   Docker path (recommended — no Python setup needed):
 #     make install     # install Node/Go/Docker if missing, .env, npm deps, Go backend, all images
 #     make up          # start every Docker service (optimization engines + sims + db)
 #     make dev         # launch the desktop app (Electron)
 #
-# Run `make help` for the full target list. Docker provides all Python services on
-# fixed ports; the frontend, Go backend and Electron shell run natively on the host.
+#   Native path (no Docker — Python venvs in .venv-*/):
+#     make install-native   # same as above but builds local venvs instead of images
+#     make dev              # Electron discovers .venv-calliope/ etc. automatically
+#
+# Run `make help` for the full target list.
+# Docker provides all Python services on fixed ports; the frontend, Go backend
+# and Electron shell always run natively on the host.
 # ─────────────────────────────────────────────────────────────────────────────
 
 SHELL := bash
@@ -22,9 +28,19 @@ NODE_MAJOR := 22
 UNAME_S := $(shell uname -s 2>/dev/null || echo Unknown)
 ifneq (,$(filter MINGW% MSYS% CYGWIN%,$(UNAME_S)))
   GO_BIN := backend.exe
+  VBIN   := Scripts
 else
   GO_BIN := backend
+  VBIN   := bin
 endif
+
+# ── Python interpreters for native venvs ────────────────────────────────────
+# Override on the command line if your interpreter names differ, e.g.:
+#   make venv-calliope PY311="py -3.11"    (Windows Python Launcher)
+#   make venv-calliope PY311=/opt/bin/python3.11
+PY311 ?= python3.11
+PY310 ?= python3.10
+PY312 ?= python3.12
 
 # ── Docker Compose invocation and file sets ─────────────────────────────────
 DC          := docker compose
@@ -42,7 +58,9 @@ OPENTECH_DIR := ../opentech-db
         env npm-install go-build frontend-build docker-build install \
         up up-engines up-geoserver up-sims up-opentech \
         down down-engines down-geoserver down-sims down-opentech \
-        ps logs dev web backend-run test clean clean-docker
+        ps logs dev web backend-run test clean clean-docker \
+        venv-calliope venv-calliope07 venv-pypsa venv-osemosys venv-adoptnet0 \
+        venv-ccssim venv-hydrogensim venv-osm venvs install-native clean-venvs
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Help
@@ -255,12 +273,115 @@ test: ## Run the JS format module tests (vitest)
 	@npm test
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Native Python venvs  (alternative to Docker — useful for development / CI)
+#
+# Python version constraints:
+#   Calliope 0.6.8 → Python 3.9–3.11   (incompatible with numpy ≥ 1.24 / Py ≥ 3.12)
+#   Calliope 0.7   → Python 3.10+
+#   PyPSA          → Python 3.10+
+#   OSeMOSYS       → Python 3.10+
+#   AdOpT-NET0     → Python 3.12+
+#   CCS sim        → Python 3.10+
+#   Hydrogen sim   → Python 3.10+
+#   OSM            → Python 3.10+
+#
+# Each venv is created in .venv-<name>/ at the repo root.
+# Override interpreter with: make venv-calliope PY311="py -3.11"
+# ─────────────────────────────────────────────────────────────────────────────
+CALLIOPE_VENV   := .venv-calliope
+CALLIOPE07_VENV := .venv-calliope07
+PYPSA_VENV      := .venv-pypsa
+OSEMOSYS_VENV   := .venv-osemosys
+ADOPTNET0_VENV  := .venv-adoptnet0
+CCSSIM_VENV     := .venv-ccssim
+HYDROSIM_VENV   := .venv-hydrogensim
+OSM_VENV        := .venv-osm
+
+venv-calliope: ## Create Calliope 0.6.8 venv in .venv-calliope/ — needs Python 3.9–3.11
+	@echo "── Calliope 0.6.8 venv ($(CALLIOPE_VENV)) ──"
+	$(PY311) -m venv $(CALLIOPE_VENV)
+	$(CALLIOPE_VENV)/$(VBIN)/python -m pip install --upgrade pip --quiet
+	$(CALLIOPE_VENV)/$(VBIN)/python -m pip install -r python/requirements.service.txt --quiet
+	$(CALLIOPE_VENV)/$(VBIN)/python -m pip install -r python/requirements.calliope.txt --quiet
+	$(CALLIOPE_VENV)/$(VBIN)/python -m pip install calliope==0.6.8 --no-deps --quiet
+	$(CALLIOPE_VENV)/$(VBIN)/python -m pip install "highspy>=1.5,<1.8" --quiet
+	@echo "  ✓ $(CALLIOPE_VENV)/ ready"
+
+venv-calliope07: ## Create Calliope 0.7 venv in .venv-calliope07/ — needs Python 3.10+
+	@echo "── Calliope 0.7 venv ($(CALLIOPE07_VENV)) ──"
+	$(PY310) -m venv $(CALLIOPE07_VENV)
+	$(CALLIOPE07_VENV)/$(VBIN)/python -m pip install --upgrade pip --quiet
+	$(CALLIOPE07_VENV)/$(VBIN)/python -m pip install -r python/requirements.service.txt --quiet
+	$(CALLIOPE07_VENV)/$(VBIN)/python -m pip install -r python/requirements.calliope07.txt --quiet
+	@echo "  ✓ $(CALLIOPE07_VENV)/ ready"
+
+venv-pypsa: ## Create PyPSA venv in .venv-pypsa/ — needs Python 3.10+
+	@echo "── PyPSA venv ($(PYPSA_VENV)) ──"
+	$(PY310) -m venv $(PYPSA_VENV)
+	$(PYPSA_VENV)/$(VBIN)/python -m pip install --upgrade pip --quiet
+	$(PYPSA_VENV)/$(VBIN)/python -m pip install -r python/requirements.service.txt --quiet
+	$(PYPSA_VENV)/$(VBIN)/python -m pip install -r python/requirements.pypsa.txt --quiet
+	@echo "  ✓ $(PYPSA_VENV)/ ready"
+
+venv-osemosys: ## Create OSeMOSYS venv in .venv-osemosys/ — needs Python 3.10+; glpsol.exe must be in solvers/windows/
+	@echo "── OSeMOSYS venv ($(OSEMOSYS_VENV)) ──"
+	$(PY310) -m venv $(OSEMOSYS_VENV)
+	$(OSEMOSYS_VENV)/$(VBIN)/python -m pip install --upgrade pip --quiet
+	$(OSEMOSYS_VENV)/$(VBIN)/python -m pip install -r python/requirements.service.txt --quiet
+	$(OSEMOSYS_VENV)/$(VBIN)/python -m pip install -r python/requirements.osemosys.txt --quiet
+	@echo "  ✓ $(OSEMOSYS_VENV)/ ready (ensure solvers/windows/glpsol.exe is present)"
+
+venv-adoptnet0: ## Create AdOpT-NET0 venv in .venv-adoptnet0/ — needs Python 3.12+
+	@echo "── AdOpT-NET0 venv ($(ADOPTNET0_VENV)) ──"
+	$(PY312) -m venv $(ADOPTNET0_VENV)
+	$(ADOPTNET0_VENV)/$(VBIN)/python -m pip install --upgrade pip --quiet
+	$(ADOPTNET0_VENV)/$(VBIN)/python -m pip install -r python/requirements.service.txt --quiet
+	$(ADOPTNET0_VENV)/$(VBIN)/python -m pip install -r python/requirements.adoptnet0.txt --quiet
+	@echo "  ✓ $(ADOPTNET0_VENV)/ ready"
+
+venv-ccssim: ## Create CCS simulator venv in .venv-ccssim/
+	@echo "── CCS simulator venv ($(CCSSIM_VENV)) ──"
+	$(PY310) -m venv $(CCSSIM_VENV)
+	$(CCSSIM_VENV)/$(VBIN)/python -m pip install --upgrade pip --quiet
+	$(CCSSIM_VENV)/$(VBIN)/python -m pip install -r python/requirements.ccssim.txt --quiet
+	@echo "  ✓ $(CCSSIM_VENV)/ ready"
+
+venv-hydrogensim: ## Create Hydrogen simulator venv in .venv-hydrogensim/
+	@echo "── Hydrogen simulator venv ($(HYDROSIM_VENV)) ──"
+	$(PY310) -m venv $(HYDROSIM_VENV)
+	$(HYDROSIM_VENV)/$(VBIN)/python -m pip install --upgrade pip --quiet
+	$(HYDROSIM_VENV)/$(VBIN)/python -m pip install -r python/requirements.hydrogensim.txt --quiet
+	@echo "  ✓ $(HYDROSIM_VENV)/ ready"
+
+venv-osm: ## Create OSM processing venv in .venv-osm/ (numpy ≥ 1.24 — isolated from Calliope venv)
+	@echo "── OSM processing venv ($(OSM_VENV)) ──"
+	$(PY310) -m venv $(OSM_VENV)
+	$(OSM_VENV)/$(VBIN)/python -m pip install --upgrade pip --quiet
+	$(OSM_VENV)/$(VBIN)/python -m pip install -r python/requirements.osm.txt --quiet
+	@echo "  ✓ $(OSM_VENV)/ ready"
+
+venvs: venv-calliope venv-calliope07 venv-pypsa venv-osemosys venv-adoptnet0 venv-ccssim venv-hydrogensim venv-osm ## Create all native Python venvs (needs Python 3.11, 3.10, and 3.12 on PATH)
+
+install-native: bootstrap env npm-install go-build venvs ## Full install without Docker — native Python venvs in .venv-*/ instead of containers
+	@echo
+	@echo "Native install complete."
+	@echo "  make dev    # launch the desktop app (Electron manages service startup)"
+	@echo
+	@echo "Electron will pick up .venv-calliope/ (and siblings) automatically."
+	@echo "To also run the Go backend standalone: make backend-run"
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Cleanup
 # ─────────────────────────────────────────────────────────────────────────────
 clean: ## Remove build artifacts (dist/, Go binary)
 	@rm -rf dist
 	@rm -f backend-go/backend backend-go/backend.exe backend-go/backend-linux
 	@echo "Removed dist/ and Go backend binaries."
+
+clean-venvs: ## Remove all native Python venvs (.venv-*/)
+	@rm -rf $(CALLIOPE_VENV) $(CALLIOPE07_VENV) $(PYPSA_VENV) $(OSEMOSYS_VENV) \
+	         $(ADOPTNET0_VENV) $(CCSSIM_VENV) $(HYDROSIM_VENV) $(OSM_VENV)
+	@echo "Removed all .venv-*/ directories."
 
 clean-docker: ## Stop all services and remove their volumes (destroys GeoServer/PostGIS data)
 	$(DC) $(REPO_FILES) down -v

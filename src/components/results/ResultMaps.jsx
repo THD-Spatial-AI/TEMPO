@@ -1,34 +1,34 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { techColor, fmtPower, fmtEnergy, OSM_STYLE, osmTransformRequest } from '../../utils/resultFormat';
-import { loadCommunesGeo, normComuna } from '../../utils/loadCommunesGeo';
+import { loadCommunesGeo } from '../../utils/loadCommunesGeo';
 
 // ── Capacity / Generation map ───────────────────────────────────────────────
-// Build an SVG pie/donut string for a technology mix.
-// slices: [{ tech, value }] (already sorted desc); r: outer radius (px).
-const buildPieSVG = (slices, r, colorFn) => {
-  const total = slices.reduce((s, d) => s + (d.value || 0), 0);
-  const size = r * 2;
-  const cx = r, cy = r;
-  // Single tech (or degenerate) → solid disc
-  if (total <= 0 || slices.length === 1) {
-    const color = slices.length ? colorFn(slices[0].tech) : '#cbd5e1';
-    return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="${cx}" cy="${cy}" r="${r - 1}" fill="${color}" stroke="#ffffff" stroke-width="1.5"/></svg>`;
+// ─── Pie SVG builder (for tech-mix markers) ──────────────────────────────────
+function buildPieSVG(mix, colorFn, r) {
+  const entries = Object.entries(mix).filter(([, v]) => v > 0).sort(([, a], [, b]) => b - a);
+  if (!entries.length) return `<circle r="${r}" fill="#94a3b8" stroke="white" stroke-width="1.5"/>`;
+  const total = entries.reduce((s, [, v]) => s + v, 0);
+  if (entries.length === 1) {
+    return `<circle r="${r}" fill="${colorFn(entries[0][0])}" stroke="white" stroke-width="1.5"/>`;
   }
-  let a0 = 0;
-  const paths = slices.map(({ tech, value }) => {
-    const frac = value / total;
-    const a1 = a0 + frac * Math.PI * 2;
-    const x0 = cx + (r - 1) * Math.sin(a0), y0 = cy - (r - 1) * Math.cos(a0);
-    const x1 = cx + (r - 1) * Math.sin(a1), y1 = cy - (r - 1) * Math.cos(a1);
-    const large = (a1 - a0) > Math.PI ? 1 : 0;
-    a0 = a1;
-    return `<path d="M${cx} ${cy} L${x0.toFixed(2)} ${y0.toFixed(2)} A${r - 1} ${r - 1} 0 ${large} 1 ${x1.toFixed(2)} ${y1.toFixed(2)} Z" fill="${colorFn(tech)}"/>`;
-  }).join('');
-  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">${paths}<circle cx="${cx}" cy="${cy}" r="${r - 1}" fill="none" stroke="#ffffff" stroke-width="1.5"/></svg>`;
-};
+  let startAngle = -Math.PI / 2;
+  const slices = entries.map(([tech, val]) => {
+    const sweep = (val / total) * 2 * Math.PI;
+    const endAngle = startAngle + sweep;
+    const x1 = r + r * Math.cos(startAngle);
+    const y1 = r + r * Math.sin(startAngle);
+    const x2 = r + r * Math.cos(endAngle);
+    const y2 = r + r * Math.sin(endAngle);
+    const large = sweep > Math.PI ? 1 : 0;
+    const d = `M${r},${r} L${x1},${y1} A${r},${r} 0 ${large} 1 ${x2},${y2} Z`;
+    startAngle = endAngle;
+    return `<path d="${d}" fill="${colorFn(tech)}" stroke="white" stroke-width="0.8"/>`;
+  });
+  return slices.join('');
+}
 
-const ResultsMap = ({ locations, capacitiesByLoc, dominantTechByLoc, techMixByLoc = {}, generationByLoc, viewMode, colorFn = techColor, transmissionLinks = [] }) => {
+const ResultsMap = ({ locations, capacitiesByLoc, dominantTechByLoc, generationByLoc, techMixByLoc = {}, viewMode, colorFn = techColor, transmissionLinks = [] }) => {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markersRef = useRef([]);
@@ -154,47 +154,36 @@ const ResultsMap = ({ locations, capacitiesByLoc, dominantTechByLoc, techMixByLo
     });
   };
 
-  // ── Technology-mix view: pie-chart markers sized by total capacity ──
   const drawTechMixView = (map, mgl, locs) => {
     const lk = (loc) => loc.calliopeName || loc.name;
-    const maxCap = Math.max(1, ...locs.map(l => capacitiesByLoc[lk(l)] || 0));
+    const maxCap = Math.max(1, ...locs.map(l => capacitiesByLoc?.[lk(l)] || 0));
 
-    // Transmission lines for network context (same neutral style as other views)
-    if (transmissionLinks.length > 0) {
-      const locMap = Object.fromEntries(locs.map(l => [lk(l), l]));
-      const features = transmissionLinks.flatMap(({ fromLoc, toLoc, cap }) => {
-        const from = locMap[fromLoc]; const to = locMap[toLoc];
-        if (!from || !to) return [];
-        return [{ type: 'Feature', geometry: { type: 'LineString', coordinates: [[from.longitude, from.latitude], [to.longitude, to.latitude]] }, properties: { lineWidth: Math.max(1.5, Math.min(6, 1.5 + cap / 500)) } }];
-      });
-      if (features.length > 0) {
-        map.addSource('mix-links', { type: 'geojson', data: { type: 'FeatureCollection', features } });
-        map.addLayer({ id: 'mix-links-casing', type: 'line', source: 'mix-links',
-          layout: { 'line-cap': 'round', 'line-join': 'round' },
-          paint: { 'line-color': '#ffffff', 'line-width': ['+', ['get', 'lineWidth'], 3], 'line-opacity': 0.7 } });
-        map.addLayer({ id: 'mix-links-fill', type: 'line', source: 'mix-links',
-          layout: { 'line-cap': 'round', 'line-join': 'round' },
-          paint: { 'line-color': '#94a3b8', 'line-width': ['get', 'lineWidth'], 'line-opacity': 0.8 } });
-      }
-    }
-
-    // Pie markers — radius by sqrt(total capacity), slices by tech mix
     locs.forEach(loc => {
       const key = lk(loc);
-      const cap = capacitiesByLoc[key] || 0;
-      const slices = techMixByLoc[key] || [];
-      if (!slices.length) return;
-      const r = 10 + Math.sqrt(cap / maxCap) * 30;
+      const mix = techMixByLoc[key] || {};
+      const cap = capacitiesByLoc?.[key] || 0;
+      const r = Math.round(10 + Math.sqrt(cap / maxCap) * 26);
+      const totalMWh = Object.values(mix).reduce((s, v) => s + v, 0);
+      const svgContent = buildPieSVG(mix, colorFn, r);
+      const size = r * 2;
+      const svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svgEl.setAttribute('width', size);
+      svgEl.setAttribute('height', size);
+      svgEl.setAttribute('viewBox', `0 0 ${size} ${size}`);
+      svgEl.style.cssText = 'display:block;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.25));';
+      svgEl.innerHTML = svgContent;
+
       const el = document.createElement('div');
-      el.style.cssText = `filter:drop-shadow(0 1px 4px rgba(0,0,0,0.28));cursor:pointer;`;
-      el.innerHTML = buildPieSVG(slices, r, colorFn);
-      const rows = slices.map(({ tech, value }) => {
-        const pct = cap > 0 ? (value / cap * 100) : 0;
-        return `<div style="display:flex;align-items:center;gap:6px;margin-top:2px"><span style="width:9px;height:9px;border-radius:2px;background:${colorFn(tech)};flex-shrink:0"></span><span style="flex:1;color:#475569">${tech.replace(/_/g,' ')}</span><span style="color:#94a3b8">${pct.toFixed(0)}%</span></div>`;
-      }).join('');
+      el.style.cssText = `width:${size}px;height:${size}px;cursor:pointer;`;
+      el.appendChild(svgEl);
+
+      const topTechs = Object.entries(mix).sort(([, a], [, b]) => b - a).slice(0, 4);
+      const popupRows = topTechs.map(([t, v]) =>
+        `<div style="display:flex;align-items:center;gap:6px"><span style="width:10px;height:10px;border-radius:50%;background:${colorFn(t)};flex-shrink:0"></span><span style="color:#475569">${t.replace(/_/g, ' ')}: <b>${fmtEnergy(v, 1)}</b></span></div>`
+      ).join('');
       const popup = new mgl.Popup({ offset: r + 4, closeButton: false, maxWidth: '240px' })
-        .setHTML(`<div style="font-family:'DM Sans',system-ui;padding:4px 2px;min-width:170px"><b style="font-size:13px;color:#1e293b">${loc.name}</b><br/><small style="color:#64748b">Total capacity: <b>${fmtPower(cap, 2)}</b></small><div style="margin-top:6px;font-size:11px">${rows}</div></div>`);
-      const m = new mgl.Marker({ element: el, anchor: 'center' }).setLngLat([loc.longitude, loc.latitude]).setPopup(popup).addTo(map);
+        .setHTML(`<div style="font-family:'DM Sans',system-ui;padding:4px"><b style="color:#1e293b">${loc.name}</b><br/><small style="color:#64748b">Cap: ${fmtPower(cap)} · Gen: ${fmtEnergy(totalMWh, 1)}</small><div style="margin-top:4px">${popupRows}</div></div>`);
+      const m = new mgl.Marker({ element: el }).setLngLat([loc.longitude, loc.latitude]).setPopup(popup).addTo(map);
       markersRef.current.push(m);
     });
   };
@@ -221,9 +210,9 @@ const ResultsMap = ({ locations, capacitiesByLoc, dominantTechByLoc, techMixByLo
           map.fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], { padding: 60, duration: 0 });
         }
         map.resize();
-        if (viewMode === 'generation')     drawGenerationView(map, mgl, locs);
-        else if (viewMode === 'mix')       drawTechMixView(map, mgl, locs);
-        else                               drawCapacityView(map, mgl, locs);
+        if (viewMode === 'generation') drawGenerationView(map, mgl, locs);
+        else if (viewMode === 'mix')   drawTechMixView(map, mgl, locs);
+        else                           drawCapacityView(map, mgl, locs);
       });
     });
     return () => {
@@ -1025,283 +1014,155 @@ const GroupedCorrMatrixSVG = ({ ltGroups, ltCorrMap }) => {
   );
 };
 
-// ── Region / commune choropleth ─────────────────────────────────────────────
-// Shades commune polygons by a demand-side metric. Data comes from the run's
-// frozen contract: demand_by_location, unmet_demand_by_location (both keyed by
-// location/commune name). "Demand met" is derived = (demand − unmet) / demand.
-const CHORO_METRICS = [
-  { key: 'demand',    label: 'Demand',      kind: 'seq', ramp: ['#fff7ec', '#fdbb84', '#d7301f'] },
-  { key: 'unmet',     label: 'Unmet demand', kind: 'seq', ramp: ['#fff5f0', '#fb6a4a', '#a50f15'] },
-  { key: 'demandMet', label: 'Demand met',  kind: 'pct', ramp: ['#d73027', '#fee08b', '#1a9850'] },
-];
+// ── Choropleth map (commune boundaries filled by metric value) ───────────────
 
-// Bounding box [[minLng,minLat],[maxLng,maxLat]] over a set of GeoJSON features.
-const featureBounds = (features) => {
-  let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity;
-  const walk = (coords) => {
-    if (typeof coords[0] === 'number') {
-      const [lng, lat] = coords;
-      if (lng < minLng) minLng = lng; if (lng > maxLng) maxLng = lng;
-      if (lat < minLat) minLat = lat; if (lat > maxLat) maxLat = lat;
-    } else coords.forEach(walk);
-  };
-  features.forEach(f => f.geometry && walk(f.geometry.coordinates));
-  return minLng === Infinity ? null : [[minLng, minLat], [maxLng, maxLat]];
+const CHORO_RAMPS = {
+  blue:   ['#e0f2fe', '#0369a1'],
+  amber:  ['#fef9c3', '#b45309'],
+  green:  ['#dcfce7', '#15803d'],
 };
 
-const RegionChoropleth = ({ metrics, compact = false, metric: controlledMetric = null }) => {
-  const mapRef  = useRef(null);
-  const mapInst = useRef(null);
-  const [geo, setGeo]     = useState(null);
-  const [err, setErr]     = useState(null);
-  const [internalMetric, setInternalMetric] = useState(null);
-  const metric = controlledMetric || internalMetric;
+const RegionChoropleth = ({ metric = {}, metricLabel = 'Value', colorRamp = 'blue', fmtValue = null }) => {
+  const mapRef    = useRef(null);
+  const mapInstRef = useRef(null);
+  const [error, setError] = useState(null);
 
-  // Which metrics actually carry data in this run
-  const available = useMemo(
-    () => CHORO_METRICS.filter(m => metrics?.[m.key] && Object.keys(metrics[m.key]).length > 0),
-    [metrics]
-  );
-  useEffect(() => { if (available.length && !internalMetric) setInternalMetric(available[0].key); }, [available, internalMetric]);
+  const fmt = fmtValue || ((v) => fmtEnergy(v));
+  const [lo, hi] = CHORO_RAMPS[colorRamp] || CHORO_RAMPS.blue;
 
-  // Load bundled commune GeoJSON once
   useEffect(() => {
-    let dead = false;
-    loadCommunesGeo().then(g => { if (!dead) setGeo(g); }).catch(e => { if (!dead) setErr(e.message); });
-    return () => { dead = true; };
-  }, []);
+    let destroyed = false;
+    const container = mapRef.current;
+    if (!container) return;
 
-  // Commune name set derived from the metric keys themselves (works from a result
-  // contract alone — no location coordinates needed).
-  const communeSet = useMemo(() => {
-    const s = new Set();
-    CHORO_METRICS.forEach(m => Object.keys(metrics?.[m.key] || {}).forEach(n => s.add(normComuna(n))));
-    return s;
-  }, [metrics]);
+    (async () => {
+      let geoJSON;
+      try {
+        geoJSON = await loadCommunesGeo();
+      } catch {
+        if (!destroyed) setError('Could not load region boundaries.');
+        return;
+      }
+      if (destroyed) return;
 
-  // Commune polygons present in this model, tagged with all metric values
-  const fc = useMemo(() => {
-    if (!geo) return null;
-    const feats = geo.features
-      .filter(f => communeSet.has(normComuna(f.properties.comuna)))
-      .map(f => {
-        const key = normComuna(f.properties.comuna);
-        const props = { comuna: f.properties.comuna };
-        CHORO_METRICS.forEach(m => {
-          const map = metrics?.[m.key] || {};
-          let v = 0;
-          for (const [ln, val] of Object.entries(map)) { if (normComuna(ln) === key) { v = val; break; } }
-          props[m.key] = v;
-        });
-        return { type: 'Feature', properties: props, geometry: f.geometry };
-      });
-    return { type: 'FeatureCollection', features: feats };
-  }, [geo, communeSet, metrics]);
+      const maxVal = Math.max(1, ...Object.values(metric));
 
-  const activeMeta = CHORO_METRICS.find(m => m.key === metric);
-  const maxVal = useMemo(() => {
-    if (!fc || !metric) return 0;
-    return Math.max(0, ...fc.features.map(f => f.properties[metric] || 0));
-  }, [fc, metric]);
+      // Enrich features with metric value
+      const enriched = {
+        ...geoJSON,
+        features: geoJSON.features.map(f => {
+          const name = f.properties.comuna;
+          const val = metric[name] ?? metric[name?.toLowerCase()] ?? 0;
+          return { ...f, properties: { ...f.properties, _val: val } };
+        }),
+      };
 
-  const fillExpr = useMemo(() => {
-    if (!activeMeta) return '#cbd5e1';
-    if (activeMeta.kind === 'pct') {
-      return ['interpolate', ['linear'], ['coalesce', ['get', metric], 0],
-        0, activeMeta.ramp[0], 0.5, activeMeta.ramp[1], 1, activeMeta.ramp[2]];
-    }
-    if (maxVal <= 0) return activeMeta.ramp[0];
-    return ['interpolate', ['linear'], ['coalesce', ['get', metric], 0],
-      0, activeMeta.ramp[0], maxVal * 0.5, activeMeta.ramp[1], maxVal, activeMeta.ramp[2]];
-  }, [activeMeta, metric, maxVal]);
+      const mgl = await import('maplibre-gl');
+      if (destroyed) return;
 
-  // Initialise map once polygons are ready
-  useEffect(() => {
-    if (!mapRef.current || mapInst.current || !fc) return;
-    let dead = false;
-    import('maplibre-gl').then(({ default: mgl }) => {
-      if (dead || !mapRef.current) return;
-      const bounds = featureBounds(fc.features);
-      const center = bounds
-        ? [(bounds[0][0] + bounds[1][0]) / 2, (bounds[0][1] + bounds[1][1]) / 2]
-        : [-71, -35];
       const map = new mgl.Map({
-        container: mapRef.current, style: OSM_STYLE, center, zoom: 4,
-        attributionControl: { compact: true }, failIfMajorPerformanceCaveat: false,
+        container,
+        style: OSM_STYLE,
         transformRequest: osmTransformRequest,
+        center: [-70.6, -33.5],
+        zoom: 4,
+        attributionControl: false,
       });
-      mapInst.current = map;
-      const hover = new mgl.Popup({ closeButton: false, maxWidth: '240px', offset: 8 });
+      mapInstRef.current = map;
+
       map.on('load', () => {
-        if (dead) return;
-        map.resize();
-        map.addSource('communes', { type: 'geojson', data: fc });
-        map.addLayer({ id: 'communes-fill', type: 'fill', source: 'communes',
-          paint: { 'fill-color': fillExpr, 'fill-opacity': 0.72 } });
-        map.addLayer({ id: 'communes-line', type: 'line', source: 'communes',
-          paint: { 'line-color': '#334155', 'line-width': 0.6, 'line-opacity': 0.55 } });
-        if (bounds) map.fitBounds(bounds, { padding: compact ? 16 : 50, duration: 0 });
+        if (destroyed) return;
+        map.addSource('communes', { type: 'geojson', data: enriched });
+
+        map.addLayer({
+          id: 'communes-fill',
+          type: 'fill',
+          source: 'communes',
+          paint: {
+            'fill-color': [
+              'interpolate', ['linear'], ['get', '_val'],
+              0, lo,
+              maxVal, hi,
+            ],
+            'fill-opacity': 0.72,
+          },
+        });
+        map.addLayer({
+          id: 'communes-outline',
+          type: 'line',
+          source: 'communes',
+          paint: { 'line-color': '#ffffff', 'line-width': 0.6, 'line-opacity': 0.7 },
+        });
+
+        // Popup on hover
+        const popup = new mgl.Popup({ closeButton: false, closeOnClick: false });
         map.on('mousemove', 'communes-fill', (e) => {
-          const p = e.features[0]?.properties || {};
+          if (!e.features?.length) return;
+          const f = e.features[0];
+          const val = f.properties._val || 0;
+          const label = val > 0 ? fmt(val) : '—';
+          popup.setLngLat(e.lngLat)
+            .setHTML(`<div style="font-size:12px;line-height:1.6"><strong>${f.properties.comuna}</strong><br/>${metricLabel}: ${label}</div>`)
+            .addTo(map);
           map.getCanvas().style.cursor = 'pointer';
-          const rows = available.map(m => {
-            const v = Number(p[m.key]) || 0;
-            const disp = m.kind === 'pct' ? `${(v * 100).toFixed(0)}%` : fmtEnergy(v, 1);
-            return `<span>${m.label}</span><strong style="color:#1e293b">${disp}</strong>`;
-          }).join('');
-          hover.setLngLat(e.lngLat).setHTML(
-            `<div style="font-family:'DM Sans',system-ui;padding:5px 3px;min-width:160px"><b style="font-size:12px;color:#1e293b">${p.comuna || ''}</b><div style="margin-top:5px;display:grid;grid-template-columns:1fr auto;gap:2px 12px;font-size:11px;color:#64748b">${rows}</div></div>`
-          ).addTo(map);
         });
-        map.on('mouseleave', 'communes-fill', () => { map.getCanvas().style.cursor = ''; hover.remove(); });
-      });
-    });
-    return () => { dead = true; if (mapInst.current) { mapInst.current.remove(); mapInst.current = null; } };
-  }, [fc]); // eslint-disable-line react-hooks/exhaustive-deps
+        map.on('mouseleave', 'communes-fill', () => {
+          popup.remove();
+          map.getCanvas().style.cursor = '';
+        });
 
-  // Recolour on metric change without rebuilding the map
-  useEffect(() => {
-    const map = mapInst.current;
-    if (!map || !map.isStyleLoaded()) return;
-    try { if (map.getLayer('communes-fill')) map.setPaintProperty('communes-fill', 'fill-color', fillExpr); } catch { /* style not ready */ }
-  }, [fillExpr]);
-
-  if (err) {
-    return <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: 13, fontFamily: "'DM Sans',system-ui" }}>Could not load region boundaries: {err}</div>;
-  }
-  if (available.length === 0) {
-    return <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: 13, textAlign: 'center', padding: 20, fontFamily: "'DM Sans',system-ui" }}>No commune-level demand data in this run.<br />Re-run the model (with unmet-demand enabled) to populate the region layers.</div>;
-  }
-
-  const legendStops = activeMeta?.kind === 'pct' ? ['0%', '50%', '100%'] : ['0', fmtEnergy(maxVal / 2, 0), fmtEnergy(maxVal, 0)];
-  const legendGrad = activeMeta ? `linear-gradient(to right, ${activeMeta.ramp[0]}, ${activeMeta.ramp[1]}, ${activeMeta.ramp[2]})` : '';
-
-  return (
-    <div style={{ width: '100%', height: '100%', position: 'relative', borderRadius: 12, overflow: 'hidden' }}>
-      <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
-      {/* Metric selector — hidden when the metric is controlled externally */}
-      {!controlledMetric && (
-        <div style={{ position: 'absolute', top: 10, left: 10, display: 'flex', gap: 3, background: 'rgba(255,255,255,0.92)', padding: 3, borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.12)', border: '1px solid #e2e8f0' }}>
-          {available.map(m => (
-            <button key={m.key} onClick={() => setInternalMetric(m.key)}
-              style={{ background: metric === m.key ? '#111827' : 'transparent', color: metric === m.key ? '#fff' : '#64748b', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans',system-ui" }}>
-              {m.label}
-            </button>
-          ))}
-        </div>
-      )}
-      {/* Legend */}
-      {activeMeta && (
-        <div style={{ position: 'absolute', bottom: compact ? 6 : 12, left: compact ? 6 : 10, background: 'rgba(255,255,255,0.95)', borderRadius: 8, padding: compact ? '5px 7px' : '8px 10px', boxShadow: '0 2px 8px rgba(0,0,0,0.12)', border: '1px solid #e2e8f0', fontFamily: "'DM Sans',system-ui", minWidth: compact ? 110 : 150 }}>
-          <div style={{ fontWeight: 700, color: '#475569', marginBottom: 5, fontSize: 9.5, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{activeMeta.label}{activeMeta.kind === 'seq' ? ' · MWh' : ''}</div>
-          <div style={{ width: '100%', height: 8, borderRadius: 4, background: legendGrad, marginBottom: 3 }} />
-          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#94a3b8', fontSize: 9.5 }}>
-            {legendStops.map((s, i) => <span key={i}>{s}</span>)}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-// ── Combined cross-region choropleth ────────────────────────────────────────
-// One national map: each run shades its own communes by a single aggregate value
-// (e.g. renewable share, cost, unmet). Intended for one run per region — on
-// commune overlap the later run wins. runs: [{ communes:[names], value, label, color }].
-const MultiRegionChoropleth = ({ runs = [], kind = 'seq', ramp = ['#fff7ec', '#fdbb84', '#d7301f'], unit = '' }) => {
-  const mapRef = useRef(null);
-  const mapInst = useRef(null);
-  const [geo, setGeo] = useState(null);
-  const [err, setErr] = useState(null);
-
-  useEffect(() => {
-    let dead = false;
-    loadCommunesGeo().then(g => { if (!dead) setGeo(g); }).catch(e => { if (!dead) setErr(e.message); });
-    return () => { dead = true; };
-  }, []);
-
-  // commune (normalized) → { value, label } ; later run wins on overlap
-  const communeToRun = useMemo(() => {
-    const m = new Map();
-    runs.forEach(r => (r.communes || []).forEach(c => m.set(normComuna(c), { value: r.value, label: r.label })));
-    return m;
-  }, [runs]);
-
-  const values = useMemo(() => runs.map(r => Number(r.value) || 0), [runs]);
-  const vMin = kind === 'pct' ? 0 : Math.min(0, ...values);
-  const vMax = kind === 'pct' ? 1 : Math.max(...values, 0);
-
-  const fc = useMemo(() => {
-    if (!geo) return null;
-    const feats = geo.features
-      .filter(f => communeToRun.has(normComuna(f.properties.comuna)))
-      .map(f => {
-        const hit = communeToRun.get(normComuna(f.properties.comuna));
-        return { type: 'Feature', properties: { comuna: f.properties.comuna, v: Number(hit.value) || 0, label: hit.label }, geometry: f.geometry };
-      });
-    return { type: 'FeatureCollection', features: feats };
-  }, [geo, communeToRun]);
-
-  const fillExpr = useMemo(() => {
-    if (vMax <= vMin) return ramp[1];
-    const mid = (vMin + vMax) / 2;
-    return ['interpolate', ['linear'], ['coalesce', ['get', 'v'], 0], vMin, ramp[0], mid, ramp[1], vMax, ramp[2]];
-  }, [vMin, vMax, ramp]);
-
-  useEffect(() => {
-    if (!mapRef.current || mapInst.current || !fc) return;
-    let dead = false;
-    import('maplibre-gl').then(({ default: mgl }) => {
-      if (dead || !mapRef.current) return;
-      const bounds = featureBounds(fc.features);
-      const center = bounds ? [(bounds[0][0] + bounds[1][0]) / 2, (bounds[0][1] + bounds[1][1]) / 2] : [-71, -35];
-      const map = new mgl.Map({ container: mapRef.current, style: OSM_STYLE, center, zoom: 3.5, attributionControl: { compact: true }, transformRequest: osmTransformRequest });
-      mapInst.current = map;
-      const hover = new mgl.Popup({ closeButton: false, maxWidth: '220px', offset: 8 });
-      map.on('load', () => {
-        if (dead) return;
+        // Fit to data communes with values
+        const populated = enriched.features.filter(f => f.properties._val > 0);
+        if (populated.length > 0) {
+          const coords = populated.flatMap(f => {
+            const geom = f.geometry;
+            if (!geom) return [];
+            const rings = geom.type === 'MultiPolygon'
+              ? geom.coordinates.flat(1)
+              : geom.coordinates;
+            return rings.flat();
+          });
+          if (coords.length) {
+            const lngs = coords.map(c => c[0]);
+            const lats = coords.map(c => c[1]);
+            map.fitBounds(
+              [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
+              { padding: 40, duration: 0, maxZoom: 9 }
+            );
+          }
+        }
         map.resize();
-        map.addSource('regions', { type: 'geojson', data: fc });
-        map.addLayer({ id: 'regions-fill', type: 'fill', source: 'regions', paint: { 'fill-color': fillExpr, 'fill-opacity': 0.78 } });
-        map.addLayer({ id: 'regions-line', type: 'line', source: 'regions', paint: { 'line-color': '#334155', 'line-width': 0.4, 'line-opacity': 0.45 } });
-        if (bounds) map.fitBounds(bounds, { padding: 30, duration: 0 });
-        map.on('mousemove', 'regions-fill', (e) => {
-          const p = e.features[0]?.properties || {};
-          map.getCanvas().style.cursor = 'pointer';
-          const v = Number(p.v) || 0;
-          const disp = kind === 'pct' ? `${(v * 100).toFixed(0)}%` : `${fmtEnergy(v, 1)}${unit ? ' ' + unit : ''}`;
-          hover.setLngLat(e.lngLat).setHTML(
-            `<div style="font-family:'DM Sans',system-ui;padding:5px 3px"><b style="font-size:12px;color:#1e293b">${p.comuna || ''}</b><div style="margin-top:3px;font-size:11px;color:#64748b">${p.label || ''}<br/><b style="color:#1e293b">${disp}</b></div></div>`
-          ).addTo(map);
-        });
-        map.on('mouseleave', 'regions-fill', () => { map.getCanvas().style.cursor = ''; hover.remove(); });
       });
-    });
-    return () => { dead = true; if (mapInst.current) { mapInst.current.remove(); mapInst.current = null; } };
-  }, [fc]); // eslint-disable-line react-hooks/exhaustive-deps
+    })();
 
-  useEffect(() => {
-    const map = mapInst.current;
-    if (!map || !map.isStyleLoaded()) return;
-    try { if (map.getLayer('regions-fill')) map.setPaintProperty('regions-fill', 'fill-color', fillExpr); } catch { /* not ready */ }
-  }, [fillExpr]);
+    return () => {
+      destroyed = true;
+      if (mapInstRef.current) { mapInstRef.current.remove(); mapInstRef.current = null; }
+    };
+  }, [metric, metricLabel, lo, hi, fmt]);
 
-  if (err) return <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: 13 }}>Could not load region boundaries: {err}</div>;
-
-  const legendGrad = `linear-gradient(to right, ${ramp[0]}, ${ramp[1]}, ${ramp[2]})`;
-  const legendStops = kind === 'pct' ? ['0%', '50%', '100%'] : [fmtEnergy(vMin, 0), fmtEnergy((vMin + vMax) / 2, 0), fmtEnergy(vMax, 0)];
+  if (error) {
+    return (
+      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: 13 }}>
+        {error}
+      </div>
+    );
+  }
 
   return (
-    <div style={{ width: '100%', height: '100%', position: 'relative', borderRadius: 12, overflow: 'hidden' }}>
+    <div style={{ width: '100%', height: '100%', position: 'relative' }}>
       <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
-      <div style={{ position: 'absolute', bottom: 12, left: 10, background: 'rgba(255,255,255,0.95)', borderRadius: 8, padding: '8px 10px', boxShadow: '0 2px 8px rgba(0,0,0,0.12)', border: '1px solid #e2e8f0', fontFamily: "'DM Sans',system-ui", minWidth: 150 }}>
-        <div style={{ width: '100%', height: 8, borderRadius: 4, background: legendGrad, marginBottom: 3 }} />
+      {/* Legend */}
+      <div style={{ position: 'absolute', bottom: 24, right: 10, background: 'rgba(255,255,255,0.95)', borderRadius: 8, padding: '8px 10px', fontSize: 11, boxShadow: '0 2px 8px rgba(0,0,0,0.12)', border: '1px solid #e2e8f0' }}>
+        <div style={{ fontWeight: 700, color: '#475569', marginBottom: 5, fontSize: 9.5, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{metricLabel}</div>
+        <div style={{ width: 100, height: 8, borderRadius: 4, background: `linear-gradient(to right, ${lo}, ${hi})`, marginBottom: 3 }} />
         <div style={{ display: 'flex', justifyContent: 'space-between', color: '#94a3b8', fontSize: 9.5 }}>
-          {legendStops.map((s, i) => <span key={i}>{s}{kind !== 'pct' && unit ? ` ${unit}` : ''}</span>)}
+          <span>0</span>
+          <span>{fmt(Math.max(1, ...Object.values(metric)))}</span>
         </div>
       </div>
     </div>
   );
 };
 
-export { ResultsMap, TransmissionFlowMap, GroupedCorrMatrixSVG, RegionChoropleth, MultiRegionChoropleth };
+export { ResultsMap, TransmissionFlowMap, GroupedCorrMatrixSVG, RegionChoropleth };

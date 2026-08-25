@@ -1,6 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import ReactECharts from 'echarts-for-react';
 import { useData } from '../context/DataContext';
-import { FiDownload, FiFolder, FiFile, FiCheckCircle, FiAlertCircle, FiPackage, FiZap, FiActivity, FiCpu, FiSettings, FiBox, FiBarChart2 } from 'react-icons/fi';
+import { FiDownload, FiFolder, FiFile, FiCheckCircle, FiAlertCircle, FiPackage, FiZap, FiActivity, FiCpu, FiSettings, FiDatabase, FiLayers, FiMap, FiBarChart2 } from 'react-icons/fi';
+import { loadCommunesGeo, normComuna } from '../utils/loadCommunesGeo';
+import { choroMetricsFromResult } from '../utils/choroMetrics';
+import { buildChoroplethSVG, buildNodeMapSVG, buildTransmissionMapSVG, buildTechPieMapSVG } from '../utils/choroSvg';
+import { techColor, parseLTC } from '../utils/resultFormat';
+import { buildAllResultCharts, RESULT_CHARTS } from '../utils/resultCharts';
+import { renderChartPng, dataUrlToBase64, techMixByLocFromResult } from '../utils/resultExports';
+import { ResultsMap, TransmissionFlowMap, RegionChoropleth } from './results/ResultMaps';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { dump } from 'js-yaml';
@@ -9,15 +17,9 @@ import { internalTo07Yaml } from '../services/calliope07Format';
 import { exportModelArchive, checkEngineRunService } from '../services/engineClient';
 import { resolveScenario } from '../services/scenarioResolver';
 import TranslationReport from './TranslationReport';
-import ReactECharts from 'echarts-for-react';
 import { FiCheck } from 'react-icons/fi';
-import { buildResultDataFiles, renderChartPng, dataUrlToBase64, techMixByLocFromResult, aggregateResult } from '../utils/resultExports';
-import { buildAllResultCharts } from '../utils/resultCharts';
-import { choroMetricsFromResult } from '../utils/choroMetrics';
-import { loadCommunesGeo, normComuna } from '../utils/loadCommunesGeo';
-import { buildChoroplethSVG, buildTechPieMapSVG, buildNodeMapSVG, buildTransmissionMapSVG } from '../utils/choroSvg';
-import { techColor, fmtNum, fmtPower, fmtEnergy, fmtCost, calliopeLocName, parseLTC } from '../utils/resultFormat';
-import { ResultsMap, TransmissionFlowMap, RegionChoropleth } from './results/ResultMaps';
+import { buildResultDataFiles, aggregateResult } from '../utils/resultExports';
+import { fmtNum, fmtPower, fmtEnergy, fmtCost, calliopeLocName } from '../utils/resultFormat';
 
 const TECH_PIE_ID = 'techpie';
 // Charts with many x-categories / timeline → render full width
@@ -560,14 +562,551 @@ const EXPORT_FORMATS = [
   }
 ];
 
+// ── Results export helpers ───────────────────────────────────────────────────
+function parseLTCExport(key) {
+  const parts = key.split('::');
+  return parts.length >= 2 ? { loc: parts[0], tech: parts[1] } : { loc: '', tech: parts[0] };
+}
+
+// Derive everything the spatial maps need from a result's frozen contract
+// (coordinates come from result.coordinates — embedded by new runs).
+function spatialFromResult(r) {
+  const coords = {};
+  Object.entries(r?.coordinates || {}).forEach(([n, ll]) => { if (Array.isArray(ll) && ll.length === 2) coords[normComuna(n)] = { lat: +ll[0], lon: +ll[1] }; });
+  const coordOf = (name) => coords[normComuna(name)];
+
+  const capByLocTech = {}, capByLoc = {}, genByLoc = {}, domTech = {}, locTechCap = {};
+  Object.entries(r?.capacities || {}).forEach(([k, v]) => {
+    const { loc, tech } = parseLTC(k); const val = Number(v) || 0;
+    if (val <= 0 || tech.includes(':')) return;
+    const t = tech.split(':')[0];
+    (capByLocTech[loc] || (capByLocTech[loc] = {}))[t] = (capByLocTech[loc][t] || 0) + val;
+    capByLoc[loc] = (capByLoc[loc] || 0) + val;
+    if (!locTechCap[loc] || locTechCap[loc].value < val) locTechCap[loc] = { tech: t, value: val };
+  });
+  Object.entries(locTechCap).forEach(([loc, { tech }]) => { domTech[loc] = tech; });
+  Object.entries(r?.generation || {}).forEach(([k, v]) => { const { loc } = parseLTC(k); const val = Number(v) || 0; if (val > 0) genByLoc[loc] = (genByLoc[loc] || 0) + val; });
+  const techMixByLoc = techMixByLocFromResult(r);
+
+  const legendMap = new Map(), nodeCap = [], nodeGen = [], pies = [];
+  Object.entries(capByLocTech).forEach(([loc, techs]) => {
+    const c = coordOf(loc); if (!c) return;
+    const total = Object.values(techs).reduce((s, x) => s + x, 0);
+    const dom = Object.entries(techs).sort((a, b) => b[1] - a[1])[0][0];
+    if (!legendMap.has(dom)) legendMap.set(dom, techColor(dom));
+    nodeCap.push({ name: loc, lat: c.lat, lon: c.lon, value: total, color: techColor(dom) });
+  });
+  Object.entries(genByLoc).forEach(([loc, g]) => { const c = coordOf(loc); if (c) nodeGen.push({ name: loc, lat: c.lat, lon: c.lon, value: g }); });
+  Object.entries(techMixByLoc).forEach(([loc, slices]) => { const c = coordOf(loc); if (c) pies.push({ name: loc, lat: c.lat, lon: c.lon, slices: slices.map(x => ({ tech: x.tech, color: techColor(x.tech), value: x.value })) }); });
+
+  const txEntries = Object.entries(r?.capacities || {}).filter(([k]) => parseLTC(k).tech.includes(':')).map(([k, v]) => ({ ...parseLTC(k), value: Number(v) || 0 })).filter(e => e.value > 0);
+  const links = [], usedLinks = new Set(), subSet = new Set();
+  txEntries.forEach(entry => {
+    const key = `${entry.loc}::${entry.tech}`; if (usedLinks.has(key)) return;
+    const parts = entry.tech.split(':'); let dest = parts.length > 1 ? parts[parts.length - 1] : null;
+    if (!dest) { const opp = txEntries.find(e => e.loc !== entry.loc && e.tech === entry.tech && !usedLinks.has(`${e.loc}::${e.tech}`)); if (!opp) return; dest = opp.loc; usedLinks.add(`${opp.loc}::${opp.tech}`); }
+    usedLinks.add(key); subSet.add(entry.loc); subSet.add(dest);
+    const a = coordOf(entry.loc), b = coordOf(dest); if (!a || !b) return;
+    links.push({ from: entry.loc, to: dest, cap: entry.value, ax: a.lon, ay: a.lat, bx: b.lon, by: b.lat });
+  });
+  const flowPeak = {};
+  Object.values(r?.transmission_flow || {}).forEach(f => { const key = [f.from, f.to].sort().join('|'); const peak = (f.timeseries || []).reduce((m, x) => Math.max(m, Math.abs(Number(x) || 0)), 0); flowPeak[key] = Math.max(flowPeak[key] || 0, peak); });
+  links.forEach(l => { const p = flowPeak[[l.from, l.to].sort().join('|')]; if (p != null && l.cap > 0) l.util = p / l.cap; });
+  const substations = [...subSet].map(loc => { const c = coordOf(loc); return c ? { name: loc, lat: c.lat, lon: c.lon } : null; }).filter(Boolean);
+
+  const rmLinks = links.map(l => ({ fromLoc: l.from, toLoc: l.to, cap: l.cap }));
+  let flow = [];
+  if (r?.transmission_flow && Object.keys(r.transmission_flow).length) {
+    flow = Object.values(r.transmission_flow).map(({ from: fromLoc, to: toLoc, timeseries }) => {
+      const vals = (timeseries || []).map(v => Number(v) || 0);
+      const cap = rmLinks.find(t => (t.fromLoc === fromLoc && t.toLoc === toLoc) || (t.fromLoc === toLoc && t.toLoc === fromLoc))?.cap || (vals.length ? Math.max(1, ...vals.map(Math.abs)) : 1);
+      return { fromLoc, toLoc, timeseries: vals, cap };
+    });
+  }
+  const timestamps = (r?.timestamps || []).map(t => { const d = new Date(t); return isNaN(d) ? t : d.toLocaleDateString('en-GB', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); });
+  const locNames = new Set([...Object.keys(capByLoc), ...Object.keys(genByLoc), ...subSet]);
+  const locations = [...locNames].map(n => { const c = coordOf(n); return c ? { name: n, calliopeName: n, latitude: c.lat, longitude: c.lon } : null; }).filter(Boolean);
+
+  return { hasCoords: Object.keys(coords).length > 0, coords, locations, capByLoc, domTech, genByLoc, techMixByLoc, nodeCap, nodeGen, pies, links, substations, legend: [...legendMap.entries()], rmLinks, flow, timestamps };
+}
+
+const RESULT_OUTPUT_DEFS = [
+  {
+    id: 'summary', group: 'data', label: 'Summary KPIs', filename: 'summary_kpis.csv',
+    hasData: (r) => !!r,
+    build: (r) => {
+      const totalCap = Object.values(r.capacities || {}).reduce((s, v) => s + v, 0);
+      const totalGen = Object.values(r.generation || {}).reduce((s, v) => s + v, 0);
+      const totalCost = Object.values(r.costs_by_tech || {}).reduce((s, v) => s + v, 0);
+      const totalImports = r.imports_by_location ? Object.values(r.imports_by_location).reduce((s, v) => s + v, 0) : 0;
+      const rows = [
+        ['Metric', 'Value'],
+        ['Termination Condition', r.termination_condition ?? ''],
+        ['Objective', r.objective ?? ''],
+        ['Total Capacity (MW)', totalCap.toFixed(3)],
+        ['Total Generation (MWh)', totalGen.toFixed(3)],
+        ['Total Cost', totalCost.toFixed(3)],
+        ['LCOE (cost/MWh)', totalGen > 0 ? (totalCost / totalGen).toFixed(6) : ''],
+        ['Unmet Demand (MWh)', (r.total_unmet_demand_mwh ?? 0).toFixed(3)],
+        ['Net Imports (MWh)', totalImports.toFixed(3)],
+      ];
+      return rows.map(r2 => r2.join(',')).join('\n');
+    },
+  },
+  {
+    id: 'capacities', group: 'data', label: 'Capacities', filename: 'capacities.csv',
+    hasData: (r) => !!Object.keys(r.capacities || {}).length,
+    build: (r) => {
+      const rows = [['Location', 'Technology', 'Capacity_MW']];
+      Object.entries(r.capacities || {}).sort(([a], [b]) => a.localeCompare(b)).forEach(([k, v]) => {
+        const { loc, tech } = parseLTCExport(k);
+        rows.push([`"${loc}"`, `"${tech}"`, v]);
+      });
+      return rows.map(r2 => r2.join(',')).join('\n');
+    },
+  },
+  {
+    id: 'generation', group: 'data', label: 'Generation', filename: 'generation.csv',
+    hasData: (r) => !!Object.keys(r.generation || {}).length,
+    build: (r) => {
+      const rows = [['Location', 'Technology', 'Generation_MWh']];
+      Object.entries(r.generation || {}).sort(([a], [b]) => a.localeCompare(b)).forEach(([k, v]) => {
+        const { loc, tech } = parseLTCExport(k);
+        rows.push([`"${loc}"`, `"${tech}"`, v]);
+      });
+      return rows.map(r2 => r2.join(',')).join('\n');
+    },
+  },
+  {
+    id: 'costs_tech', group: 'data', label: 'Costs by Technology', filename: 'costs_by_tech.csv',
+    hasData: (r) => !!Object.keys(r.costs_by_tech || {}).length,
+    build: (r) => {
+      const rows = [['Technology', 'Cost']];
+      Object.entries(r.costs_by_tech || {}).sort(([a], [b]) => a.localeCompare(b)).forEach(([k, v]) => rows.push([`"${k}"`, v]));
+      return rows.map(r2 => r2.join(',')).join('\n');
+    },
+  },
+  {
+    id: 'costs_loc', group: 'data', label: 'Costs by Location', filename: 'costs_by_location.csv',
+    hasData: (r) => !!r.costs_by_location && !!Object.keys(r.costs_by_location).length,
+    build: (r) => {
+      const rows = [['Location', 'Cost']];
+      Object.entries(r.costs_by_location || {}).sort(([a], [b]) => a.localeCompare(b)).forEach(([k, v]) => rows.push([`"${k}"`, v]));
+      return rows.map(r2 => r2.join(',')).join('\n');
+    },
+  },
+  {
+    id: 'demand_loc', group: 'data', label: 'Demand by Location', filename: 'demand_by_location.csv',
+    hasData: (r) => !!r.demand_by_location && !!Object.keys(r.demand_by_location).length,
+    build: (r) => {
+      const rows = [['Location', 'Demand_MWh']];
+      Object.entries(r.demand_by_location || {}).sort(([a], [b]) => a.localeCompare(b)).forEach(([k, v]) => rows.push([`"${k}"`, v]));
+      return rows.map(r2 => r2.join(',')).join('\n');
+    },
+  },
+  {
+    id: 'unmet', group: 'data', label: 'Unmet Demand by Location', filename: 'unmet_demand.csv',
+    hasData: (r) => !!r.unmet_demand_by_location && !!Object.keys(r.unmet_demand_by_location).length,
+    build: (r) => {
+      const rows = [['Location', 'Unmet_MWh']];
+      Object.entries(r.unmet_demand_by_location || {}).sort(([a], [b]) => a.localeCompare(b)).forEach(([k, v]) => rows.push([`"${k}"`, v]));
+      return rows.map(r2 => r2.join(',')).join('\n');
+    },
+  },
+  {
+    id: 'imports', group: 'data', label: 'Imports / Exports', filename: 'imports_exports.csv',
+    hasData: (r) => !!r.imports_by_location && !!Object.keys(r.imports_by_location).length,
+    build: (r) => {
+      const locs = new Set([...Object.keys(r.imports_by_location || {}), ...Object.keys(r.exports_by_location || {})]);
+      const rows = [['Location', 'Imports_MWh', 'Exports_MWh']];
+      [...locs].sort().forEach(loc => rows.push([`"${loc}"`, r.imports_by_location?.[loc] ?? 0, r.exports_by_location?.[loc] ?? 0]));
+      return rows.map(r2 => r2.join(',')).join('\n');
+    },
+  },
+  {
+    id: 'dispatch', group: 'data', label: 'Dispatch timeseries', filename: 'dispatch.csv',
+    hasData: (r) => !!(r.dispatch && r.timestamps?.length),
+    build: (r) => {
+      const keys = Object.keys(r.dispatch || {}).sort();
+      if (!keys.length || !r.timestamps?.length) return null;
+      const header = ['Timestamp', ...keys.map(k => `"${k}"`)].join(',');
+      const rows = r.timestamps.map((t, i) =>
+        [`"${t}"`, ...keys.map(k => { const v = r.dispatch[k]?.[i]; return v != null ? Number(v).toFixed(3) : '0'; })].join(',')
+      );
+      return [header, ...rows].join('\n');
+    },
+  },
+  {
+    id: 'json', group: 'raw', label: 'Full Result (JSON)', filename: 'full_result.json',
+    hasData: (r) => !!r,
+    build: (r) => JSON.stringify(r, null, 2),
+  },
+  {
+    id: 'svg_node_capacity', group: 'svg', label: 'Map — Capacity (SVG)', filename: 'map_capacity.svg',
+    hasData: (r) => !!r.coordinates && !!Object.keys(r.coordinates).length && !!Object.keys(r.capacities || {}).length,
+    build: async (r) => {
+      const geo = await loadCommunesGeo(); const s = spatialFromResult(r);
+      const communeNames = r.demand_by_location ? Object.keys(r.demand_by_location) : [];
+      return buildNodeMapSVG({ geo, communeNames, nodes: s.nodeCap, links: s.links, colorMode: 'tech', legend: s.legend, label: 'Installed capacity', unit: 'MW' });
+    },
+  },
+  {
+    id: 'svg_node_generation', group: 'svg', label: 'Map — Generation (SVG)', filename: 'map_generation.svg',
+    hasData: (r) => !!r.coordinates && !!Object.keys(r.coordinates).length && !!Object.keys(r.generation || {}).length,
+    build: async (r) => {
+      const geo = await loadCommunesGeo(); const s = spatialFromResult(r);
+      const communeNames = r.demand_by_location ? Object.keys(r.demand_by_location) : [];
+      return buildNodeMapSVG({ geo, communeNames, nodes: s.nodeGen, links: s.links, colorMode: 'value', ramp: ['#fbbf24', '#f59e0b', '#dc2626'], label: 'Generation', unit: 'MWh' });
+    },
+  },
+  {
+    id: 'svg_techpie', group: 'svg', label: 'Map — Tech Mix (SVG)', filename: 'map_tech_mix.svg',
+    hasData: (r) => !!r.coordinates && !!Object.keys(r.coordinates).length && !!Object.keys(r.capacities || {}).length,
+    build: async (r) => {
+      const geo = await loadCommunesGeo(); const s = spatialFromResult(r);
+      const communeNames = r.demand_by_location ? Object.keys(r.demand_by_location) : [];
+      return buildTechPieMapSVG({ geo, communeNames, pies: s.pies, label: 'Technology mix' });
+    },
+  },
+  {
+    id: 'svg_transmission', group: 'svg', label: 'Map — Transmission (SVG)', filename: 'map_transmission.svg',
+    hasData: (r) => !!r.coordinates && !!Object.keys(r.coordinates).length && Object.keys(r.capacities || {}).some(k => (k.split('::')[1] || '').includes(':')),
+    build: async (r) => {
+      const geo = await loadCommunesGeo(); const s = spatialFromResult(r);
+      const communeNames = r.demand_by_location ? Object.keys(r.demand_by_location) : [];
+      return buildTransmissionMapSVG({ geo, communeNames, nodes: s.substations, links: s.links, label: 'Transmission utilisation' });
+    },
+  },
+  {
+    id: 'svg_demand', group: 'svg', label: 'Map — Demand (SVG)', filename: 'map_demand.svg',
+    hasData: (r) => !!r.demand_by_location && !!Object.keys(r.demand_by_location).length,
+    build: async (r) => {
+      const geo = await loadCommunesGeo();
+      const choro = choroMetricsFromResult(r);
+      return buildChoroplethSVG(geo, choro, 'demand', { ramp: ['#fff7ec', '#fdbb84', '#d7301f'], label: 'Demand (MWh)', unit: 'MWh' });
+    },
+  },
+  {
+    id: 'svg_unmet', group: 'svg', label: 'Map — Unmet Demand (SVG)', filename: 'map_unmet_demand.svg',
+    hasData: (r) => !!r.demand_by_location && !!Object.keys(r.demand_by_location).length,
+    build: async (r) => {
+      const geo = await loadCommunesGeo();
+      const choro = choroMetricsFromResult(r);
+      return buildChoroplethSVG(geo, choro, 'unmet', { ramp: ['#fff5f0', '#fb6a4a', '#a50f15'], label: 'Unmet Demand (MWh)', unit: 'MWh' });
+    },
+  },
+  {
+    id: 'svg_demand_met', group: 'svg', label: 'Map — Demand Met % (SVG)', filename: 'map_demand_met.svg',
+    hasData: (r) => !!r.demand_by_location && !!Object.keys(r.demand_by_location).length,
+    build: async (r) => {
+      const geo = await loadCommunesGeo();
+      const choro = choroMetricsFromResult(r);
+      return buildChoroplethSVG(geo, choro, 'demandMet', { kind: 'pct', ramp: ['#d73027', '#fee08b', '#1a9850'], label: 'Demand Met (%)' });
+    },
+  },
+  // Chart PNGs — one entry per chart in the RESULT_CHARTS catalogue
+  ...RESULT_CHARTS.map(c => ({
+    id: `chart_${c.id}`,
+    group: 'charts',
+    label: `Chart — ${c.label}`,
+    filename: `chart_${c.id}.png`,
+    hasData: (r) => !!r,
+    build: async (r) => {
+      const all = buildAllResultCharts(r, { colorFn: techColor });
+      const entry = all[c.id];
+      if (!entry?.option) return null;
+      const url = await renderChartPng(entry.option);
+      return dataUrlToBase64(url);
+    },
+  })),
+];
+
+const OUTPUT_GROUPS = [
+  { id: 'data',   label: 'Data Files', icon: FiDatabase },
+  { id: 'raw',    label: 'Raw',        icon: FiFile },
+  { id: 'charts', label: 'Chart PNGs', icon: FiBarChart2 },
+  { id: 'svg',    label: 'Map SVGs',   icon: FiMap },
+];
+
+function ResultsExportPanel({ completedJobs }) {
+  const validJobs = useMemo(() => completedJobs.filter(j => j.result && j.result.success !== false), [completedJobs]);
+  const [selJobId, setSelJobId] = useState(null);
+  const [checked, setChecked] = useState(() => new Set(RESULT_OUTPUT_DEFS.filter(o => o.group !== 'svg' && o.group !== 'charts').map(o => o.id)));
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState(null);
+  const [previewMapId, setPreviewMapId] = useState(null); // which live map is shown
+
+  useEffect(() => {
+    if (validJobs.length > 0 && !selJobId) setSelJobId(validJobs[0].id);
+  }, [validJobs, selJobId]);
+
+  const job = useMemo(() => validJobs.find(j => j.id === selJobId) || null, [validJobs, selJobId]);
+  const result = job?.result || null;
+
+  const outputs = useMemo(() =>
+    RESULT_OUTPUT_DEFS.map(def => ({ ...def, available: result ? def.hasData(result) : false })),
+    [result]
+  );
+
+  // Live chart options (same builders as the Results view) for the right-column previews
+  const chartOpts = useMemo(() => (result ? buildAllResultCharts(result, { colorFn: techColor }) : {}), [result]);
+
+  // First few rows of each data/raw file, for the left-column preview
+  const dataPreview = (o) => {
+    if (!o.available) return '';
+    try {
+      const content = o.build(result);
+      if (typeof content !== 'string') return '';
+      return content.split('\n').slice(0, 5).join('\n');
+    } catch { return ''; }
+  };
+  const WIDE_CHART_IDS = new Set(['dispatch', 'energy_flow_sankey', 'capacity_factor', 'capacity_by_location', 'costs_by_location']);
+
+  // Live dashboard maps (the SAME components as the Results view) for the preview.
+  const mp = useMemo(() => (result ? spatialFromResult(result) : null), [result]);
+  const spatialViews = useMemo(() => {
+    const views = [];
+    if (mp?.hasCoords) {
+      const rmProps = { locations: mp.locations, capacitiesByLoc: mp.capByLoc, dominantTechByLoc: mp.domTech, techMixByLoc: mp.techMixByLoc, generationByLoc: mp.genByLoc, colorFn: techColor, transmissionLinks: mp.rmLinks };
+      if (mp.locations.length && Object.keys(mp.capByLoc).length) {
+        views.push({ id: 'svg_node_capacity', label: 'Capacity', node: <ResultsMap key={selJobId + '-cap'} {...rmProps} viewMode="capacity" /> });
+        views.push({ id: 'svg_techpie', label: 'Tech mix', node: <ResultsMap key={selJobId + '-mix'} {...rmProps} viewMode="mix" /> });
+      }
+      if (Object.keys(mp.genByLoc).length) views.push({ id: 'svg_node_generation', label: 'Generation', node: <ResultsMap key={selJobId + '-gen'} {...rmProps} viewMode="generation" /> });
+      if (mp.rmLinks.length) views.push({ id: 'svg_transmission', label: 'Transmission', node: <TransmissionFlowMap key={selJobId + '-tx'} locations={mp.locations} transmissionFlowData={mp.flow} capacitiesByLoc={mp.capByLoc} timestamps={mp.timestamps} /> });
+    }
+    if (result?.demand_by_location && Object.keys(result.demand_by_location).length) {
+      const choro = choroMetricsFromResult(result);
+      views.push({ id: 'svg_demand', label: 'Demand', node: <RegionChoropleth key={selJobId + '-demand'} metrics={choro} metric="demand" compact /> });
+      views.push({ id: 'svg_unmet', label: 'Unmet', node: <RegionChoropleth key={selJobId + '-unmet'} metrics={choro} metric="unmet" compact /> });
+      views.push({ id: 'svg_demand_met', label: 'Demand met', node: <RegionChoropleth key={selJobId + '-dm'} metrics={choro} metric="demandMet" compact /> });
+    }
+    return views;
+  }, [mp, result, selJobId]);
+  useEffect(() => {
+    if (spatialViews.length && !spatialViews.some(v => v.id === previewMapId)) setPreviewMapId(spatialViews[0].id);
+  }, [spatialViews, previewMapId]);
+  const previewMap = spatialViews.find(v => v.id === previewMapId) || spatialViews[0] || null;
+
+  const toggleOutput = (id) => setChecked(prev => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+
+  const readyCount = outputs.filter(o => checked.has(o.id) && o.available).length;
+
+  const handleExport = async () => {
+    if (!result) return;
+    setBusy(true);
+    setStatus(null);
+    try {
+      const zip = new JSZip();
+      const selected = outputs.filter(o => checked.has(o.id) && o.available);
+      const built = await Promise.all(selected.map(async (o) => {
+        const content = await Promise.resolve(o.build(result));
+        return { filename: o.filename, content };
+      }));
+      built.forEach(({ filename, content }) => {
+        if (content) zip.file(filename, content, filename.endsWith('.png') ? { base64: true } : {});
+      });
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const name = `results_${(job.modelName || 'run').replace(/[^a-z0-9]+/gi, '_').toLowerCase()}.zip`;
+      saveAs(blob, name);
+      setStatus({ type: 'success', message: `Downloaded ${name}` });
+    } catch (e) {
+      setStatus({ type: 'error', message: `Export failed: ${e.message}` });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (validJobs.length === 0) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
+        <FiActivity size={36} className="mx-auto text-gray-300 mb-3" />
+        <p className="font-semibold text-gray-700 mb-1">No completed runs</p>
+        <p className="text-sm text-gray-400">Run a model first to export its results.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Run selector */}
+      <div className="bg-white rounded-xl shadow-lg p-5">
+        <h2 className="text-base font-semibold text-slate-800 mb-3">Select Run</h2>
+        <select
+          value={selJobId || ''}
+          onChange={e => { setSelJobId(e.target.value); setStatus(null); }}
+          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-gray-400"
+        >
+          {validJobs.map(j => (
+            <option key={j.id} value={j.id}>
+              {j.modelName} — {new Date(j.completedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+            </option>
+          ))}
+        </select>
+        {result && (
+          <p className="text-xs text-slate-400 mt-2">
+            Objective: <span className="text-slate-600 font-medium">{result.objective != null ? Number(result.objective).toLocaleString(undefined, { maximumFractionDigits: 0 }) : '—'}</span>
+            {' · '}
+            Termination: <span className="text-slate-600 font-medium">{result.termination_condition ?? '—'}</span>
+          </p>
+        )}
+      </div>
+
+      {/* Toolbar: select-all / export */}
+      <div className="bg-white rounded-xl shadow-lg px-5 py-3 flex items-center gap-3 flex-wrap sticky top-0 z-10">
+        <span className="text-sm text-slate-600">Click any item to include or exclude it. <span className="text-slate-400">{readyCount} selected.</span></span>
+        <div className="ml-auto flex items-center gap-2">
+          <button onClick={() => setChecked(new Set(outputs.filter(o => o.available).map(o => o.id)))}
+            className="text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition">All</button>
+          <button onClick={() => setChecked(new Set())}
+            className="text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition">None</button>
+          <button onClick={handleExport} disabled={busy || !result || readyCount === 0}
+            className="px-4 py-2 bg-gray-700 text-white rounded-lg font-semibold text-sm hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors">
+            <FiDownload size={15} />
+            {busy ? 'Building ZIP…' : `Export ${readyCount} as ZIP`}
+          </button>
+        </div>
+        {status && (
+          <div className={`w-full px-3 py-2 rounded-lg flex items-center gap-2 text-sm ${
+            status.type === 'success' ? 'bg-gray-50 text-gray-700 border border-gray-200' : 'bg-red-50 text-red-700 border border-red-100'
+          }`}>
+            {status.type === 'success' ? <FiCheckCircle size={14} className="flex-shrink-0" /> : <FiAlertCircle size={14} className="flex-shrink-0" />}
+            <span>{status.message}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Two columns: CSV/values on the LEFT, graphs (charts + maps) on the RIGHT */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+
+        {/* LEFT — data / values */}
+        <div className="lg:col-span-4 bg-white rounded-xl shadow-lg p-4">
+          <div className="flex items-center gap-1.5 mb-2">
+            <FiDatabase size={12} className="text-slate-400" />
+            <h3 className="text-sm font-semibold text-slate-700">Data &amp; values</h3>
+          </div>
+          <div className="space-y-2">
+            {outputs.filter(o => o.group === 'data' || o.group === 'raw').map(o => {
+              const on = checked.has(o.id) && o.available;
+              const preview = o.group === 'data' ? dataPreview(o) : (o.available ? 'full result contract' : '');
+              return (
+                <div key={o.id} role="button" tabIndex={0}
+                  onClick={() => o.available && toggleOutput(o.id)}
+                  className={`rounded-xl border transition-all ${!o.available ? 'opacity-40 border-slate-200' : on ? 'border-gray-700 ring-1 ring-gray-300 bg-white cursor-pointer' : 'border-slate-200 bg-slate-50 opacity-70 hover:opacity-100 cursor-pointer'}`}>
+                  <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-100">
+                    <span className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 ${on ? 'bg-gray-800 text-white' : 'bg-white border border-slate-300 text-transparent'}`}>
+                      <FiCheckCircle size={11} />
+                    </span>
+                    <span className="text-xs font-medium text-slate-700 flex-1 truncate">{o.label}</span>
+                    <span className="text-[9px] font-mono text-slate-400">{o.filename.endsWith('.json') ? 'JSON' : 'CSV'}</span>
+                    {!o.available && <span className="text-[9px] text-slate-300 border border-slate-200 rounded px-1">n/a</span>}
+                  </div>
+                  {preview && (
+                    <pre className="text-[10px] leading-tight text-slate-500 font-mono whitespace-pre overflow-hidden max-h-20 p-2">{preview}</pre>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* RIGHT — graphs (charts + maps) */}
+        <div className="lg:col-span-8 bg-white rounded-xl shadow-lg p-4 space-y-5">
+
+          {/* Charts */}
+          <div>
+            <div className="flex items-center gap-1.5 mb-2">
+              <FiBarChart2 size={12} className="text-slate-400" />
+              <h3 className="text-sm font-semibold text-slate-700">Charts</h3>
+            </div>
+            <div className="grid grid-cols-1 2xl:grid-cols-2 gap-3">
+              {outputs.filter(o => o.group === 'charts').map(o => {
+                const cid = o.id.replace(/^chart_/, '');
+                const option = chartOpts[cid]?.option;
+                if (!option) return null;
+                const on = checked.has(o.id) && o.available;
+                return (
+                  <div key={o.id} role="button" tabIndex={0}
+                    onClick={() => o.available && toggleOutput(o.id)}
+                    className={`rounded-xl border cursor-pointer transition-all ${WIDE_CHART_IDS.has(cid) ? '2xl:col-span-2' : ''} ${on ? 'border-gray-700 ring-1 ring-gray-300 bg-white' : 'border-slate-200 bg-slate-50 opacity-60 hover:opacity-90'}`}>
+                    <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-100">
+                      <span className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 ${on ? 'bg-gray-800 text-white' : 'bg-white border border-slate-300 text-transparent'}`}>
+                        <FiCheckCircle size={11} />
+                      </span>
+                      <span className="text-xs font-medium text-slate-700 flex-1 truncate">{chartOpts[cid]?.label || o.label}</span>
+                      <span className="text-[9px] font-mono text-slate-400">PNG</span>
+                    </div>
+                    <div className="p-2 pointer-events-none">
+                      <ReactECharts option={option} style={{ height: 240 }} notMerge lazyUpdate />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Maps — the real Results map components (basemap + points + connections) */}
+          {spatialViews.length > 0 && (
+            <div>
+              <div className="flex items-center gap-1.5 mb-2">
+                <FiMap size={12} className="text-slate-400" />
+                <h3 className="text-sm font-semibold text-slate-700">Maps</h3>
+              </div>
+              {/* view tabs */}
+              <div className="flex gap-1 flex-wrap mb-2">
+                {spatialViews.map(v => (
+                  <button key={v.id} onClick={() => setPreviewMapId(v.id)}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${
+                      previewMap?.id === v.id ? 'bg-gray-900 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                    }`}>
+                    {v.label}
+                  </button>
+                ))}
+              </div>
+              {/* one large, properly-sized live map */}
+              <div style={{ height: 460 }} className="rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
+                {previewMap?.node}
+              </div>
+              {/* include-in-export chips */}
+              <div className="mt-3">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Include in export (SVG)</div>
+                <div className="flex flex-wrap gap-2">
+                  {spatialViews.map(v => {
+                    const on = checked.has(v.id);
+                    return (
+                      <button key={v.id} onClick={() => toggleOutput(v.id)}
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all ${
+                          on ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
+                        }`}>
+                        <span className={`w-3.5 h-3.5 rounded flex items-center justify-center ${on ? 'bg-white/20' : 'border border-slate-300'}`}>
+                          {on && <FiCheckCircle size={10} />}
+                        </span>
+                        {v.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const Export = () => {
   const { getCurrentModel, technologies, timeSeries, overrides, scenarios, completedJobs } = useData();
   const currentModel = getCurrentModel();
-  const [exportKind, setExportKind] = useState('model'); // 'model' | 'results'
   const [exporting, setExporting] = useState(false);
   const [exportStatus, setExportStatus] = useState(null);
   const [exportReport, setExportReport] = useState([]);
   const [selectedFormat, setSelectedFormat] = useState('calliope');
+  const [exportMode, setExportMode] = useState('model');
 
   useEffect(() => {
     if (!currentModel) return;
@@ -1119,80 +1658,9 @@ calliope run model.yaml --scenario=Main
     }
   };
 
-  const TreeRow = ({ indent = 0, icon: Icon, name, note, isDir, dim }) => (
-    <div className={`flex items-center gap-1.5 py-0.5 ${dim ? 'text-gray-400' : 'text-gray-700'}`}
-         style={{ paddingLeft: `${indent * 16}px` }}>
-      {indent > 0 && <span className="text-gray-300 select-none flex-shrink-0">{'└─'}</span>}
-      <Icon size={11} className={`flex-shrink-0 ${isDir ? 'text-amber-400' : 'text-blue-400'}`} />
-      <span className="font-mono text-xs">{name}</span>
-      {note && <span className="font-sans text-[10px] text-gray-400 ml-1">{note}</span>}
-    </div>
-  );
-
-  const KIND_TABS = [
-    { id: 'model',   label: 'Model',   icon: FiBox },
-    { id: 'results', label: 'Results', icon: FiBarChart2 },
-  ];
-
-  const kindToggle = (
-    <div className="flex gap-1 bg-slate-100 rounded-xl p-1">
-      {KIND_TABS.map(({ id, label, icon: Icon }) => (
-        <button key={id} onClick={() => setExportKind(id)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-            exportKind === id ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-          }`}>
-          <Icon size={12} /> {label}
-        </button>
-      ))}
-    </div>
-  );
-
-  const header = (
-    <div className="flex items-center justify-between gap-3 flex-wrap">
-      <div className="flex items-center gap-3">
-        <FiDownload size={18} className="text-gray-500" />
-        <div>
-          <h1 className="text-xl font-semibold text-slate-800">Export</h1>
-          <p className="text-xs text-slate-500">
-            {exportKind === 'model'
-              ? 'Export your active model as a framework-ready ZIP archive'
-              : 'Export values and charts from a completed run'}
-          </p>
-        </div>
-      </div>
-      {kindToggle}
-    </div>
-  );
-
-  if (exportKind === 'results') {
-    return (
-      <div className="flex-1 p-6 overflow-y-auto">
-        <div className="space-y-5">
-          {header}
-          <ResultsExportPanel completedJobs={completedJobs} modelLocations={currentModel?.locations || []} />
-        </div>
-      </div>
-    );
-  }
-
-  if (!currentModel) {
-    return (
-      <div className="flex-1 p-6 overflow-y-auto">
-        <div className="space-y-5">
-          {header}
-          <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
-            <FiPackage size={36} className="mx-auto text-gray-300 mb-3" />
-            <p className="font-semibold text-gray-700 mb-1">No model selected</p>
-            <p className="text-sm text-gray-400">Select a model from the Models section to export it.</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const modelTs = timeSeries.filter(ts => ts.modelId === currentModel.id);
-  const locs = currentModel.locations || [];
-  const lnks = currentModel.links || [];
+  const modelTs = currentModel ? timeSeries.filter(ts => ts.modelId === currentModel.id) : [];
+  const locs = currentModel?.locations || [];
+  const lnks = currentModel?.links || [];
   const techs = technologies || [];
   const modelOverrides = Object.keys(overrides || {});
   const modelScenarios = Object.keys(scenarios || {});
@@ -1205,7 +1673,42 @@ calliope run model.yaml --scenario=Main
     <div className="flex-1 p-6 overflow-y-auto">
       <div className="space-y-5">
 
-        {header}
+        {/* Page header + mode toggle */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <FiDownload size={18} className="text-gray-500" />
+          <div className="flex-1">
+            <h1 className="text-xl font-semibold text-slate-800">Export</h1>
+            <p className="text-xs text-slate-500">
+              {exportMode === 'model' ? 'Export your active model as a framework-ready ZIP archive' : 'Download results data from a completed run'}
+            </p>
+          </div>
+          <div className="flex gap-1 bg-slate-100 rounded-xl p-1">
+            {[{ id: 'model', label: 'Model', icon: FiPackage }, { id: 'results', label: 'Results', icon: FiLayers }].map(({ id, label, icon: Icon }) => (
+              <button key={id} onClick={() => setExportMode(id)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  exportMode === id ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}>
+                <Icon size={12} /> {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Results mode */}
+        {exportMode === 'results' && (
+          <ResultsExportPanel completedJobs={completedJobs || []} />
+        )}
+
+        {/* Model mode */}
+        {exportMode === 'model' && !currentModel && (
+          <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
+            <FiPackage size={36} className="mx-auto text-gray-300 mb-3" />
+            <p className="font-semibold text-gray-700 mb-1">No model selected</p>
+            <p className="text-sm text-gray-400">Select a model from the Models section to export it.</p>
+          </div>
+        )}
+
+        {exportMode === 'model' && currentModel && (<>
 
         {/* Active model card */}
         <div className="bg-white rounded-xl shadow-lg p-5">
@@ -1409,6 +1912,9 @@ calliope run model.yaml --scenario=Main
           </div>
 
         </div>
+
+        </>
+        )}
       </div>
     </div>
   );

@@ -14,7 +14,6 @@ import {
   FiCpu,
   FiBarChart2,
   FiEdit,
-  FiEdit3,
   FiBook,
   FiDownload,
   FiPlay,
@@ -110,21 +109,13 @@ const Sidebar = ({ selected, setSelected }) => {
             isNested
           />
           <Option
-            Icon={FiEdit3}
-            title="Overrides"
-            selected={selected}
-            setSelected={setSelected}
-            open={open}
-            isNested
-          />
-          <Option
             Icon={FiLayers}
             title="Scenarios"
             selected={selected}
             setSelected={setSelected}
             open={open}
             isNested
-          />        
+          />
         </DropdownSection>
 
         <Option
