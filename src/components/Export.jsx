@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import ReactECharts from 'echarts-for-react';
 import { useData } from '../context/DataContext';
 import { FiDownload, FiFolder, FiFile, FiCheckCircle, FiAlertCircle, FiPackage, FiZap, FiActivity, FiCpu, FiSettings, FiDatabase, FiLayers, FiMap, FiBarChart2 } from 'react-icons/fi';
-import { loadCommunesGeo } from '../utils/loadCommunesGeo';
+import { loadCommunesGeo, normComuna } from '../utils/loadCommunesGeo';
 import { choroMetricsFromResult } from '../utils/choroMetrics';
-import { buildChoroplethSVG } from '../utils/choroSvg';
-import { techColor } from '../utils/resultFormat';
+import { buildChoroplethSVG, buildNodeMapSVG, buildTransmissionMapSVG, buildTechPieMapSVG } from '../utils/choroSvg';
+import { techColor, parseLTC } from '../utils/resultFormat';
 import { buildAllResultCharts, RESULT_CHARTS } from '../utils/resultCharts';
-import { renderChartPng, dataUrlToBase64 } from '../utils/resultExports';
+import { renderChartPng, dataUrlToBase64, techMixByLocFromResult } from '../utils/resultExports';
+import { ResultsMap, TransmissionFlowMap, RegionChoropleth } from './results/ResultMaps';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { dump } from 'js-yaml';
@@ -63,6 +65,68 @@ const EXPORT_FORMATS = [
 function parseLTCExport(key) {
   const parts = key.split('::');
   return parts.length >= 2 ? { loc: parts[0], tech: parts[1] } : { loc: '', tech: parts[0] };
+}
+
+// Derive everything the spatial maps need from a result's frozen contract
+// (coordinates come from result.coordinates — embedded by new runs).
+function spatialFromResult(r) {
+  const coords = {};
+  Object.entries(r?.coordinates || {}).forEach(([n, ll]) => { if (Array.isArray(ll) && ll.length === 2) coords[normComuna(n)] = { lat: +ll[0], lon: +ll[1] }; });
+  const coordOf = (name) => coords[normComuna(name)];
+
+  const capByLocTech = {}, capByLoc = {}, genByLoc = {}, domTech = {}, locTechCap = {};
+  Object.entries(r?.capacities || {}).forEach(([k, v]) => {
+    const { loc, tech } = parseLTC(k); const val = Number(v) || 0;
+    if (val <= 0 || tech.includes(':')) return;
+    const t = tech.split(':')[0];
+    (capByLocTech[loc] || (capByLocTech[loc] = {}))[t] = (capByLocTech[loc][t] || 0) + val;
+    capByLoc[loc] = (capByLoc[loc] || 0) + val;
+    if (!locTechCap[loc] || locTechCap[loc].value < val) locTechCap[loc] = { tech: t, value: val };
+  });
+  Object.entries(locTechCap).forEach(([loc, { tech }]) => { domTech[loc] = tech; });
+  Object.entries(r?.generation || {}).forEach(([k, v]) => { const { loc } = parseLTC(k); const val = Number(v) || 0; if (val > 0) genByLoc[loc] = (genByLoc[loc] || 0) + val; });
+  const techMixByLoc = techMixByLocFromResult(r);
+
+  const legendMap = new Map(), nodeCap = [], nodeGen = [], pies = [];
+  Object.entries(capByLocTech).forEach(([loc, techs]) => {
+    const c = coordOf(loc); if (!c) return;
+    const total = Object.values(techs).reduce((s, x) => s + x, 0);
+    const dom = Object.entries(techs).sort((a, b) => b[1] - a[1])[0][0];
+    if (!legendMap.has(dom)) legendMap.set(dom, techColor(dom));
+    nodeCap.push({ name: loc, lat: c.lat, lon: c.lon, value: total, color: techColor(dom) });
+  });
+  Object.entries(genByLoc).forEach(([loc, g]) => { const c = coordOf(loc); if (c) nodeGen.push({ name: loc, lat: c.lat, lon: c.lon, value: g }); });
+  Object.entries(techMixByLoc).forEach(([loc, slices]) => { const c = coordOf(loc); if (c) pies.push({ name: loc, lat: c.lat, lon: c.lon, slices: slices.map(x => ({ tech: x.tech, color: techColor(x.tech), value: x.value })) }); });
+
+  const txEntries = Object.entries(r?.capacities || {}).filter(([k]) => parseLTC(k).tech.includes(':')).map(([k, v]) => ({ ...parseLTC(k), value: Number(v) || 0 })).filter(e => e.value > 0);
+  const links = [], usedLinks = new Set(), subSet = new Set();
+  txEntries.forEach(entry => {
+    const key = `${entry.loc}::${entry.tech}`; if (usedLinks.has(key)) return;
+    const parts = entry.tech.split(':'); let dest = parts.length > 1 ? parts[parts.length - 1] : null;
+    if (!dest) { const opp = txEntries.find(e => e.loc !== entry.loc && e.tech === entry.tech && !usedLinks.has(`${e.loc}::${e.tech}`)); if (!opp) return; dest = opp.loc; usedLinks.add(`${opp.loc}::${opp.tech}`); }
+    usedLinks.add(key); subSet.add(entry.loc); subSet.add(dest);
+    const a = coordOf(entry.loc), b = coordOf(dest); if (!a || !b) return;
+    links.push({ from: entry.loc, to: dest, cap: entry.value, ax: a.lon, ay: a.lat, bx: b.lon, by: b.lat });
+  });
+  const flowPeak = {};
+  Object.values(r?.transmission_flow || {}).forEach(f => { const key = [f.from, f.to].sort().join('|'); const peak = (f.timeseries || []).reduce((m, x) => Math.max(m, Math.abs(Number(x) || 0)), 0); flowPeak[key] = Math.max(flowPeak[key] || 0, peak); });
+  links.forEach(l => { const p = flowPeak[[l.from, l.to].sort().join('|')]; if (p != null && l.cap > 0) l.util = p / l.cap; });
+  const substations = [...subSet].map(loc => { const c = coordOf(loc); return c ? { name: loc, lat: c.lat, lon: c.lon } : null; }).filter(Boolean);
+
+  const rmLinks = links.map(l => ({ fromLoc: l.from, toLoc: l.to, cap: l.cap }));
+  let flow = [];
+  if (r?.transmission_flow && Object.keys(r.transmission_flow).length) {
+    flow = Object.values(r.transmission_flow).map(({ from: fromLoc, to: toLoc, timeseries }) => {
+      const vals = (timeseries || []).map(v => Number(v) || 0);
+      const cap = rmLinks.find(t => (t.fromLoc === fromLoc && t.toLoc === toLoc) || (t.fromLoc === toLoc && t.toLoc === fromLoc))?.cap || (vals.length ? Math.max(1, ...vals.map(Math.abs)) : 1);
+      return { fromLoc, toLoc, timeseries: vals, cap };
+    });
+  }
+  const timestamps = (r?.timestamps || []).map(t => { const d = new Date(t); return isNaN(d) ? t : d.toLocaleDateString('en-GB', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); });
+  const locNames = new Set([...Object.keys(capByLoc), ...Object.keys(genByLoc), ...subSet]);
+  const locations = [...locNames].map(n => { const c = coordOf(n); return c ? { name: n, calliopeName: n, latitude: c.lat, longitude: c.lon } : null; }).filter(Boolean);
+
+  return { hasCoords: Object.keys(coords).length > 0, coords, locations, capByLoc, domTech, genByLoc, techMixByLoc, nodeCap, nodeGen, pies, links, substations, legend: [...legendMap.entries()], rmLinks, flow, timestamps };
 }
 
 const RESULT_OUTPUT_DEFS = [
@@ -177,6 +241,42 @@ const RESULT_OUTPUT_DEFS = [
     build: (r) => JSON.stringify(r, null, 2),
   },
   {
+    id: 'svg_node_capacity', group: 'svg', label: 'Map — Capacity (SVG)', filename: 'map_capacity.svg',
+    hasData: (r) => !!r.coordinates && !!Object.keys(r.coordinates).length && !!Object.keys(r.capacities || {}).length,
+    build: async (r) => {
+      const geo = await loadCommunesGeo(); const s = spatialFromResult(r);
+      const communeNames = r.demand_by_location ? Object.keys(r.demand_by_location) : [];
+      return buildNodeMapSVG({ geo, communeNames, nodes: s.nodeCap, links: s.links, colorMode: 'tech', legend: s.legend, label: 'Installed capacity', unit: 'MW' });
+    },
+  },
+  {
+    id: 'svg_node_generation', group: 'svg', label: 'Map — Generation (SVG)', filename: 'map_generation.svg',
+    hasData: (r) => !!r.coordinates && !!Object.keys(r.coordinates).length && !!Object.keys(r.generation || {}).length,
+    build: async (r) => {
+      const geo = await loadCommunesGeo(); const s = spatialFromResult(r);
+      const communeNames = r.demand_by_location ? Object.keys(r.demand_by_location) : [];
+      return buildNodeMapSVG({ geo, communeNames, nodes: s.nodeGen, links: s.links, colorMode: 'value', ramp: ['#fbbf24', '#f59e0b', '#dc2626'], label: 'Generation', unit: 'MWh' });
+    },
+  },
+  {
+    id: 'svg_techpie', group: 'svg', label: 'Map — Tech Mix (SVG)', filename: 'map_tech_mix.svg',
+    hasData: (r) => !!r.coordinates && !!Object.keys(r.coordinates).length && !!Object.keys(r.capacities || {}).length,
+    build: async (r) => {
+      const geo = await loadCommunesGeo(); const s = spatialFromResult(r);
+      const communeNames = r.demand_by_location ? Object.keys(r.demand_by_location) : [];
+      return buildTechPieMapSVG({ geo, communeNames, pies: s.pies, label: 'Technology mix' });
+    },
+  },
+  {
+    id: 'svg_transmission', group: 'svg', label: 'Map — Transmission (SVG)', filename: 'map_transmission.svg',
+    hasData: (r) => !!r.coordinates && !!Object.keys(r.coordinates).length && Object.keys(r.capacities || {}).some(k => (k.split('::')[1] || '').includes(':')),
+    build: async (r) => {
+      const geo = await loadCommunesGeo(); const s = spatialFromResult(r);
+      const communeNames = r.demand_by_location ? Object.keys(r.demand_by_location) : [];
+      return buildTransmissionMapSVG({ geo, communeNames, nodes: s.substations, links: s.links, label: 'Transmission utilisation' });
+    },
+  },
+  {
     id: 'svg_demand', group: 'svg', label: 'Map — Demand (SVG)', filename: 'map_demand.svg',
     hasData: (r) => !!r.demand_by_location && !!Object.keys(r.demand_by_location).length,
     build: async (r) => {
@@ -233,7 +333,7 @@ function ResultsExportPanel({ completedJobs }) {
   const [checked, setChecked] = useState(() => new Set(RESULT_OUTPUT_DEFS.filter(o => o.group !== 'svg' && o.group !== 'charts').map(o => o.id)));
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState(null);
-  const [previewSvgs, setPreviewSvgs] = useState(null); // null | false (loading) | { demand, unmet, demandMet }
+  const [previewMapId, setPreviewMapId] = useState(null); // which live map is shown
 
   useEffect(() => {
     if (validJobs.length > 0 && !selJobId) setSelJobId(validJobs[0].id);
@@ -242,31 +342,50 @@ function ResultsExportPanel({ completedJobs }) {
   const job = useMemo(() => validJobs.find(j => j.id === selJobId) || null, [validJobs, selJobId]);
   const result = job?.result || null;
 
-  useEffect(() => {
-    if (!result?.demand_by_location || !Object.keys(result.demand_by_location).length) {
-      setPreviewSvgs(null);
-      return;
-    }
-    setPreviewSvgs(false);
-    let cancelled = false;
-    loadCommunesGeo()
-      .then(geo => {
-        if (cancelled) return;
-        const choro = choroMetricsFromResult(result);
-        setPreviewSvgs({
-          demand:    buildChoroplethSVG(geo, choro, 'demand',    { ramp: ['#fff7ec', '#fdbb84', '#d7301f'], label: 'Demand (MWh)',        unit: 'MWh', width: 300, height: 370 }),
-          unmet:     buildChoroplethSVG(geo, choro, 'unmet',     { ramp: ['#fff5f0', '#fb6a4a', '#a50f15'], label: 'Unmet Demand (MWh)',  unit: 'MWh', width: 300, height: 370 }),
-          demandMet: buildChoroplethSVG(geo, choro, 'demandMet', { kind: 'pct', ramp: ['#d73027', '#fee08b', '#1a9850'], label: 'Demand Met (%)', width: 300, height: 370 }),
-        });
-      })
-      .catch(() => { if (!cancelled) setPreviewSvgs(null); });
-    return () => { cancelled = true; };
-  }, [result]);
-
   const outputs = useMemo(() =>
     RESULT_OUTPUT_DEFS.map(def => ({ ...def, available: result ? def.hasData(result) : false })),
     [result]
   );
+
+  // Live chart options (same builders as the Results view) for the right-column previews
+  const chartOpts = useMemo(() => (result ? buildAllResultCharts(result, { colorFn: techColor }) : {}), [result]);
+
+  // First few rows of each data/raw file, for the left-column preview
+  const dataPreview = (o) => {
+    if (!o.available) return '';
+    try {
+      const content = o.build(result);
+      if (typeof content !== 'string') return '';
+      return content.split('\n').slice(0, 5).join('\n');
+    } catch { return ''; }
+  };
+  const WIDE_CHART_IDS = new Set(['dispatch', 'energy_flow_sankey', 'capacity_factor', 'capacity_by_location', 'costs_by_location']);
+
+  // Live dashboard maps (the SAME components as the Results view) for the preview.
+  const mp = useMemo(() => (result ? spatialFromResult(result) : null), [result]);
+  const spatialViews = useMemo(() => {
+    const views = [];
+    if (mp?.hasCoords) {
+      const rmProps = { locations: mp.locations, capacitiesByLoc: mp.capByLoc, dominantTechByLoc: mp.domTech, techMixByLoc: mp.techMixByLoc, generationByLoc: mp.genByLoc, colorFn: techColor, transmissionLinks: mp.rmLinks };
+      if (mp.locations.length && Object.keys(mp.capByLoc).length) {
+        views.push({ id: 'svg_node_capacity', label: 'Capacity', node: <ResultsMap key={selJobId + '-cap'} {...rmProps} viewMode="capacity" /> });
+        views.push({ id: 'svg_techpie', label: 'Tech mix', node: <ResultsMap key={selJobId + '-mix'} {...rmProps} viewMode="mix" /> });
+      }
+      if (Object.keys(mp.genByLoc).length) views.push({ id: 'svg_node_generation', label: 'Generation', node: <ResultsMap key={selJobId + '-gen'} {...rmProps} viewMode="generation" /> });
+      if (mp.rmLinks.length) views.push({ id: 'svg_transmission', label: 'Transmission', node: <TransmissionFlowMap key={selJobId + '-tx'} locations={mp.locations} transmissionFlowData={mp.flow} capacitiesByLoc={mp.capByLoc} timestamps={mp.timestamps} /> });
+    }
+    if (result?.demand_by_location && Object.keys(result.demand_by_location).length) {
+      const choro = choroMetricsFromResult(result);
+      views.push({ id: 'svg_demand', label: 'Demand', node: <RegionChoropleth key={selJobId + '-demand'} metrics={choro} metric="demand" compact /> });
+      views.push({ id: 'svg_unmet', label: 'Unmet', node: <RegionChoropleth key={selJobId + '-unmet'} metrics={choro} metric="unmet" compact /> });
+      views.push({ id: 'svg_demand_met', label: 'Demand met', node: <RegionChoropleth key={selJobId + '-dm'} metrics={choro} metric="demandMet" compact /> });
+    }
+    return views;
+  }, [mp, result, selJobId]);
+  useEffect(() => {
+    if (spatialViews.length && !spatialViews.some(v => v.id === previewMapId)) setPreviewMapId(spatialViews[0].id);
+  }, [spatialViews, previewMapId]);
+  const previewMap = spatialViews.find(v => v.id === previewMapId) || spatialViews[0] || null;
 
   const toggleOutput = (id) => setChecked(prev => {
     const next = new Set(prev);
@@ -336,103 +455,144 @@ function ResultsExportPanel({ completedJobs }) {
         )}
       </div>
 
-      {/* Output checklist */}
-      <div className="bg-white rounded-xl shadow-lg p-5">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-base font-semibold text-slate-800">Select Outputs</h2>
-          <div className="flex gap-2">
-            <button onClick={() => setChecked(new Set(outputs.filter(o => o.available).map(o => o.id)))}
-              className="text-[11px] px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-500 transition">All</button>
-            <button onClick={() => setChecked(new Set())}
-              className="text-[11px] px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-500 transition">None</button>
-          </div>
+      {/* Toolbar: select-all / export */}
+      <div className="bg-white rounded-xl shadow-lg px-5 py-3 flex items-center gap-3 flex-wrap sticky top-0 z-10">
+        <span className="text-sm text-slate-600">Click any item to include or exclude it. <span className="text-slate-400">{readyCount} selected.</span></span>
+        <div className="ml-auto flex items-center gap-2">
+          <button onClick={() => setChecked(new Set(outputs.filter(o => o.available).map(o => o.id)))}
+            className="text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition">All</button>
+          <button onClick={() => setChecked(new Set())}
+            className="text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition">None</button>
+          <button onClick={handleExport} disabled={busy || !result || readyCount === 0}
+            className="px-4 py-2 bg-gray-700 text-white rounded-lg font-semibold text-sm hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors">
+            <FiDownload size={15} />
+            {busy ? 'Building ZIP…' : `Export ${readyCount} as ZIP`}
+          </button>
         </div>
-        <div className="space-y-4">
-          {OUTPUT_GROUPS.map(grp => {
-            const grpOutputs = outputs.filter(o => o.group === grp.id);
-            if (!grpOutputs.length) return null;
-            const GrpIcon = grp.icon;
-            return (
-              <div key={grp.id}>
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  <GrpIcon size={11} className="text-slate-400" />
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{grp.label}</span>
-                </div>
-                <div className="space-y-0.5">
-                  {grpOutputs.map(o => (
-                    <label key={o.id} className={`flex items-center gap-3 px-2 py-1.5 rounded-lg cursor-pointer transition-all ${
-                      o.available ? 'hover:bg-slate-50' : 'opacity-40 cursor-not-allowed'
-                    }`}>
-                      <input
-                        type="checkbox"
-                        checked={checked.has(o.id) && o.available}
-                        disabled={!o.available}
-                        onChange={() => o.available && toggleOutput(o.id)}
-                        className="w-3.5 h-3.5 rounded accent-gray-700 flex-shrink-0"
-                      />
-                      <span className="flex-1 text-sm text-slate-700">{o.label}</span>
-                      <span className="font-mono text-[10px] text-slate-400">{o.filename}</span>
-                      {!o.available && (
-                        <span className="text-[9px] text-slate-300 border border-slate-200 rounded px-1">n/a</span>
-                      )}
-                    </label>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Map preview — shown when the selected run has commune-level demand data */}
-      {previewSvgs === false && (
-        <div className="bg-white rounded-xl shadow-lg p-5 text-center text-slate-400 text-sm">
-          Loading map preview…
-        </div>
-      )}
-      {previewSvgs && (
-        <div className="bg-white rounded-xl shadow-lg p-5">
-          <h2 className="text-base font-semibold text-slate-800 mb-3">Map Preview</h2>
-          <div className="grid grid-cols-3 gap-3">
-            {[
-              { key: 'demand',    label: 'Demand' },
-              { key: 'unmet',     label: 'Unmet Demand' },
-              { key: 'demandMet', label: 'Demand Met %' },
-            ].map(({ key, label }) => (
-              <div key={key} className="text-center">
-                <p className="text-[10px] font-medium text-slate-500 mb-1">{label}</p>
-                <img
-                  src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(previewSvgs[key])}`}
-                  alt={label}
-                  className="w-full rounded border border-slate-100"
-                />
-              </div>
-            ))}
-          </div>
-          <p className="text-[10px] text-slate-400 mt-2 text-center">Enable "Map SVGs" in the checklist above to include these as vector exports</p>
-        </div>
-      )}
-
-      {/* Export action */}
-      <div className="bg-white rounded-xl shadow-lg p-5">
-        <button
-          onClick={handleExport}
-          disabled={busy || !result || readyCount === 0}
-          className="w-full py-2.5 bg-gray-700 text-white rounded-lg font-semibold text-sm hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
-        >
-          <FiDownload size={15} />
-          {busy ? 'Building ZIP…' : `Export ${readyCount} file${readyCount !== 1 ? 's' : ''} as ZIP`}
-        </button>
         {status && (
-          <div className={`mt-3 px-4 py-2.5 rounded-lg flex items-center gap-2 text-sm ${
-            status.type === 'success'
-              ? 'bg-gray-50 text-gray-700 border border-gray-200'
-              : 'bg-red-50 text-red-700 border border-red-100'
+          <div className={`w-full px-3 py-2 rounded-lg flex items-center gap-2 text-sm ${
+            status.type === 'success' ? 'bg-gray-50 text-gray-700 border border-gray-200' : 'bg-red-50 text-red-700 border border-red-100'
           }`}>
             {status.type === 'success' ? <FiCheckCircle size={14} className="flex-shrink-0" /> : <FiAlertCircle size={14} className="flex-shrink-0" />}
             <span>{status.message}</span>
           </div>
         )}
+      </div>
+
+      {/* Two columns: CSV/values on the LEFT, graphs (charts + maps) on the RIGHT */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+
+        {/* LEFT — data / values */}
+        <div className="lg:col-span-4 bg-white rounded-xl shadow-lg p-4">
+          <div className="flex items-center gap-1.5 mb-2">
+            <FiDatabase size={12} className="text-slate-400" />
+            <h3 className="text-sm font-semibold text-slate-700">Data &amp; values</h3>
+          </div>
+          <div className="space-y-2">
+            {outputs.filter(o => o.group === 'data' || o.group === 'raw').map(o => {
+              const on = checked.has(o.id) && o.available;
+              const preview = o.group === 'data' ? dataPreview(o) : (o.available ? 'full result contract' : '');
+              return (
+                <div key={o.id} role="button" tabIndex={0}
+                  onClick={() => o.available && toggleOutput(o.id)}
+                  className={`rounded-xl border transition-all ${!o.available ? 'opacity-40 border-slate-200' : on ? 'border-gray-700 ring-1 ring-gray-300 bg-white cursor-pointer' : 'border-slate-200 bg-slate-50 opacity-70 hover:opacity-100 cursor-pointer'}`}>
+                  <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-100">
+                    <span className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 ${on ? 'bg-gray-800 text-white' : 'bg-white border border-slate-300 text-transparent'}`}>
+                      <FiCheckCircle size={11} />
+                    </span>
+                    <span className="text-xs font-medium text-slate-700 flex-1 truncate">{o.label}</span>
+                    <span className="text-[9px] font-mono text-slate-400">{o.filename.endsWith('.json') ? 'JSON' : 'CSV'}</span>
+                    {!o.available && <span className="text-[9px] text-slate-300 border border-slate-200 rounded px-1">n/a</span>}
+                  </div>
+                  {preview && (
+                    <pre className="text-[10px] leading-tight text-slate-500 font-mono whitespace-pre overflow-hidden max-h-20 p-2">{preview}</pre>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* RIGHT — graphs (charts + maps) */}
+        <div className="lg:col-span-8 bg-white rounded-xl shadow-lg p-4 space-y-5">
+
+          {/* Charts */}
+          <div>
+            <div className="flex items-center gap-1.5 mb-2">
+              <FiBarChart2 size={12} className="text-slate-400" />
+              <h3 className="text-sm font-semibold text-slate-700">Charts</h3>
+            </div>
+            <div className="grid grid-cols-1 2xl:grid-cols-2 gap-3">
+              {outputs.filter(o => o.group === 'charts').map(o => {
+                const cid = o.id.replace(/^chart_/, '');
+                const option = chartOpts[cid]?.option;
+                if (!option) return null;
+                const on = checked.has(o.id) && o.available;
+                return (
+                  <div key={o.id} role="button" tabIndex={0}
+                    onClick={() => o.available && toggleOutput(o.id)}
+                    className={`rounded-xl border cursor-pointer transition-all ${WIDE_CHART_IDS.has(cid) ? '2xl:col-span-2' : ''} ${on ? 'border-gray-700 ring-1 ring-gray-300 bg-white' : 'border-slate-200 bg-slate-50 opacity-60 hover:opacity-90'}`}>
+                    <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-100">
+                      <span className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 ${on ? 'bg-gray-800 text-white' : 'bg-white border border-slate-300 text-transparent'}`}>
+                        <FiCheckCircle size={11} />
+                      </span>
+                      <span className="text-xs font-medium text-slate-700 flex-1 truncate">{chartOpts[cid]?.label || o.label}</span>
+                      <span className="text-[9px] font-mono text-slate-400">PNG</span>
+                    </div>
+                    <div className="p-2 pointer-events-none">
+                      <ReactECharts option={option} style={{ height: 240 }} notMerge lazyUpdate />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Maps — the real Results map components (basemap + points + connections) */}
+          {spatialViews.length > 0 && (
+            <div>
+              <div className="flex items-center gap-1.5 mb-2">
+                <FiMap size={12} className="text-slate-400" />
+                <h3 className="text-sm font-semibold text-slate-700">Maps</h3>
+              </div>
+              {/* view tabs */}
+              <div className="flex gap-1 flex-wrap mb-2">
+                {spatialViews.map(v => (
+                  <button key={v.id} onClick={() => setPreviewMapId(v.id)}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${
+                      previewMap?.id === v.id ? 'bg-gray-900 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                    }`}>
+                    {v.label}
+                  </button>
+                ))}
+              </div>
+              {/* one large, properly-sized live map */}
+              <div style={{ height: 460 }} className="rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
+                {previewMap?.node}
+              </div>
+              {/* include-in-export chips */}
+              <div className="mt-3">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Include in export (SVG)</div>
+                <div className="flex flex-wrap gap-2">
+                  {spatialViews.map(v => {
+                    const on = checked.has(v.id);
+                    return (
+                      <button key={v.id} onClick={() => toggleOutput(v.id)}
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all ${
+                          on ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
+                        }`}>
+                        <span className={`w-3.5 h-3.5 rounded flex items-center justify-center ${on ? 'bg-white/20' : 'border border-slate-300'}`}>
+                          {on && <FiCheckCircle size={10} />}
+                        </span>
+                        {v.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
