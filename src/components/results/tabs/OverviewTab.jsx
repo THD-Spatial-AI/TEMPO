@@ -1,7 +1,7 @@
 // OverviewTab — the "overview" result tab, extracted verbatim from Results.jsx.
 // Renders the pre-computed chart options / data passed as props.
 import { useState } from 'react';
-import { FiAlertTriangle, FiBarChart2, FiChevronDown, FiMap, FiMapPin, FiPieChart, FiShare2, FiTrendingUp, FiZap } from 'react-icons/fi';
+import { FiAlertTriangle, FiBarChart2, FiChevronDown, FiGrid, FiMap, FiMapPin, FiPieChart, FiShare2, FiTrendingUp, FiZap } from 'react-icons/fi';
 import ReactECharts from 'echarts-for-react';
 import { ResultsMap, TransmissionFlowMap, RegionChoropleth } from '../ResultMaps';
 import { autoScale, axisNameStyle, fmtCost, fmtEnergy, fmtPower, scaledFmt } from '../../../utils/resultFormat';

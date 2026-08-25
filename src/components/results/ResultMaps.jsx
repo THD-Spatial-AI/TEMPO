@@ -43,8 +43,8 @@ const ResultsMap = ({ locations, capacitiesByLoc, dominantTechByLoc, generationB
 
   const mixLegendEntries = useMemo(() => {
     const seen = new Map();
-    Object.values(techMixByLoc || {}).forEach(slices => {
-      (slices || []).forEach(({ tech }) => { if (tech && !seen.has(tech)) seen.set(tech, colorFn(tech)); });
+    Object.values(techMixByLoc || {}).forEach(mix => {
+      Object.keys(mix || {}).forEach(tech => { if (tech && !seen.has(tech)) seen.set(tech, colorFn(tech)); });
     });
     return [...seen.entries()];
   }, [techMixByLoc, colorFn]);

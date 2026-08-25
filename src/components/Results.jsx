@@ -250,19 +250,6 @@ const Results = () => {
     });
     Object.entries(locTechCap).forEach(([loc, { tech }]) => { domTech[loc] = tech; });
 
-    // Full technology mix per location (capacity-based) — for pie-chart map markers.
-    // { loc: [{ tech, value }] } sorted descending by capacity.
-    const mixAccum = {};
-    capEntries.forEach(({ loc, tech, value }) => {
-      (mixAccum[loc] || (mixAccum[loc] = {}))[tech] = (mixAccum[loc]?.[tech] || 0) + value;
-    });
-    const techMixByLoc = {};
-    Object.entries(mixAccum).forEach(([loc, techs]) => {
-      techMixByLoc[loc] = Object.entries(techs)
-        .map(([tech, value]) => ({ tech, value }))
-        .sort((a, b) => b.value - a.value);
-    });
-
     // Generation by tech (summed over locations)
     const genByTech = {};
     Object.entries(result.generation || {}).forEach(([k, v]) => {

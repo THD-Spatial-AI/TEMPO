@@ -315,9 +315,14 @@ ipcMain.handle('services:urls', async () => {
   };
 });
 
-// Route opentech-db through the Go backend proxy to avoid CORS in the renderer.
-// The Go proxy (techproxy.go) forwards /tech/* → https://otdb.th-deg.de.
-ipcMain.handle('tech:api-url', () => `http://localhost:${BACKEND_PORT}/tech`);
+// In production, proxy through Go backend. In dev, fetch directly from the
+// public API — otdb.th-deg.de sends `access-control-allow-origin: http://localhost:5173`
+// so CORS is satisfied without any proxy.
+ipcMain.handle('tech:api-url', () =>
+  app.isPackaged
+    ? `http://localhost:${BACKEND_PORT}/tech`
+    : 'https://otdb.th-deg.de'
+);
 
 // Backward compat — calliopeClient.js calls this
 ipcMain.handle('calliope:service-url', async () => ({
