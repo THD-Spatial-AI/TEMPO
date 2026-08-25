@@ -27,7 +27,19 @@ Desktop and web application for building, running, and visualizing Calliope ener
 
 ## Installation (development)
 
-**Prerequisites:** Node.js ≥ 16, Go ≥ 1.21, Python ≥ 3.9
+**Prerequisites:** Node.js ≥ 16, Go ≥ 1.21, Python 3.9–3.11 (Calliope 0.6.8 constraint)
+
+### Quick install (Makefile)
+
+```bash
+make install          # npm deps + Go binary + all Python venvs
+make dev              # start Vite dev server + Go backend
+```
+
+Individual venv targets: `make venv-calliope`, `make venv-pypsa`, `make venv-osemosys`, etc.  
+See `make help` for the full list.
+
+### Manual steps
 
 ### 1. Frontend
 
