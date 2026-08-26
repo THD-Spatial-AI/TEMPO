@@ -13,7 +13,7 @@
 const { app, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { spawn, execFileSync } = require('child_process');
+const { spawn, execFile, execFileSync } = require('child_process');
 
 const IS_WIN = process.platform === 'win32';
 const MAX_RESTARTS = 5;
@@ -334,10 +334,12 @@ function createEngineService(spec) {
 
     let importOk = false;
     if (exists && fs.existsSync(python)) {
-      try {
-        execFileSync(python, ['-c', checkSnippet], { timeout: 30000, stdio: ['ignore', 'pipe', 'pipe'] });
-        importOk = true;
-      } catch { importOk = false; }
+      // Async spawn (NOT execFileSync): importing the engine package takes several
+      // seconds; a sync call blocks the main-process event loop and freezes the app
+      // while Settings opens (each engine accordion runs its check on mount).
+      importOk = await new Promise((resolve) => {
+        execFile(python, ['-c', checkSnippet], { timeout: 30000, windowsHide: true }, (err) => resolve(!err));
+      });
     }
 
     return {

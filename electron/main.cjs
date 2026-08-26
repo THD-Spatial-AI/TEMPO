@@ -1051,15 +1051,17 @@ ipcMain.handle('calliope:check', async () => {
   // when calliope reads a YAML file, not at module import time.
   let importOk = false;
   if (exists && fs.existsSync(python)) {
-    try {
-      execFileSync(python, ['-c',
+    // Async spawn (NOT execFileSync): importing calliope takes several seconds.
+    // A synchronous call blocks the main-process event loop and freezes the whole
+    // app while Settings opens (every engine accordion runs its check on mount).
+    importOk = await new Promise((resolve) => {
+      execFile(python, ['-c',
         'import calliope, jinja2, ruamel.yaml as ry;' +
         'assert hasattr(ry, "safe_load"), ' +
           'f"ruamel.yaml {ry.version_info} incompatible (>= 0.18, safe_load removed)";' +
         'print("ok", calliope.__version__)'
-      ], { timeout: 20000, stdio: ['ignore', 'pipe', 'pipe'] });
-      importOk = true;
-    } catch { importOk = false; }
+      ], { timeout: 20000, windowsHide: true }, (err) => resolve(!err));
+    });
   }
 
   return { envExists: importOk, venvPath: importOk ? venvDir : null, serviceRunning, platform: process.platform };

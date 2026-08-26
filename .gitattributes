@@ -1,0 +1,3 @@
+# Keep shell scripts LF so they run under WSL/Linux bash.
+# CRLF breaks `#!/usr/bin/env bash` scripts ("$'\r': command not found").
+*.sh text eol=lf
