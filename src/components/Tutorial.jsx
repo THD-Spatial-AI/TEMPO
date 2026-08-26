@@ -139,8 +139,8 @@ const Tutorial = () => {
                   },
                   {
                     n: 2, icon: FiMapPin, title: 'Place Locations',
-                    desc: 'Choose "Single" or "Multiple" mode in the left panel, then click the map to add nodes — city demand centers, substations, power plants.',
-                    badge: 'Left panel → Mode → click map'
+                    desc: 'Click "Add Location" in the left panel, then click the map to drop nodes — city demand centers, substations, power plants. Each click adds another node.',
+                    badge: 'Left panel → Add Location → click map'
                   },
                   {
                     n: 3, icon: FiZap, title: 'Assign Technologies',
@@ -313,7 +313,7 @@ const Tutorial = () => {
 
                   <Step n={2} title="Add Locations — 4 Nodes">
                     <p className="text-slate-600 text-sm mb-2">
-                      In the left panel, select <strong>Multiple</strong> mode. Click four spots on the map:
+                      In the left panel, click <strong>Add Location</strong>. Then click four spots on the map — each click drops another node:
                     </p>
                     <div className="overflow-x-auto">
                       <table className="text-xs w-full border-collapse">
@@ -365,6 +365,7 @@ const Tutorial = () => {
                       ))}
                     </div>
                     <p className="text-slate-500 text-xs mt-3">Repeat for each location. Assign <strong>power_demand</strong> to Munich_Demand, <strong>Wind Onshore</strong> to Wind_Frankfurt, and <strong>Gas CCGT</strong> to Dresden as a backup plant.</p>
+                    <Tip>Each technology has a <strong>Common parameters</strong> panel — engine-neutral values (capacity, efficiency, lifetime, CAPEX…) defined once and translated automatically to whichever engine you run (Calliope, PyPSA, OSeMOSYS, AdOpT-NET0). Expand <strong>Engine-specific parameters</strong> only when you need a raw field unique to one framework.</Tip>
                   </Step>
 
                   <Step n={4} title="Connect with Transmission Links">

@@ -55,7 +55,7 @@ export default function Features() {
               </p>
               <div className="flex flex-col border-l border-outline-variant/30 pl-8 space-y-2">
                 <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-outline">
-                  v2.0.0 Stable
+                  v3.0.0 Stable
                 </span>
                 <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-outline">
                   Architecture: x64 / ARM64
@@ -68,50 +68,50 @@ export default function Features() {
           </div>
         </section>
 
-        {/* ── What's New in v2 ── */}
+        {/* ── What's New in v3 ── */}
         <section className="py-32 px-8 bg-black text-white">
           <div className="max-w-7xl mx-auto">
             <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-8">
               <div>
                 <span className="text-[0.6875rem] font-bold uppercase tracking-[0.3em] text-white/40 mb-4 block">
-                  Release 2.0.0
+                  Release 3.0.0
                 </span>
                 <h2 className="text-[2.75rem] md:text-[3.5rem] font-bold tracking-tighter leading-none">
-                  WHAT&rsquo;S NEW IN V2
+                  WHAT&rsquo;S NEW IN V3
                 </h2>
               </div>
               <p className="max-w-md text-white/60 font-medium">
-                v2 turns TEMPO from a single-engine editor into a multi-engine energy
-                optimization platform — run one model on four local solvers or push it
-                to a remote server, with a rebuilt results dashboard and smarter imports.
+                v3 builds a scenario-analysis and reporting layer on the multi-engine
+                core — design policy scenarios from reusable recipes, compare many runs
+                side by side, and export publication-ready maps, charts, and data.
               </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {[
                 {
-                  icon: 'hub',
-                  tag: 'New Engines',
-                  title: 'PyPSA & OSeMOSYS — now fully supported',
-                  desc: 'Both adapters graduate from "in progress" to production. Run any model on Calliope 0.6.8 / 0.7, PyPSA, or OSeMOSYS locally — all four return the same result contract, so every dashboard just works.',
+                  icon: 'science',
+                  tag: 'Scenario Design',
+                  title: 'Scenario Studio — policy recipes',
+                  desc: 'A recipe library replaces hand-built overrides for common studies: demand growth, renewable transition, carbon cap, and cost sensitivity — configured through a guided UI and applied across every engine.',
                 },
                 {
-                  icon: 'cloud_sync',
-                  tag: 'Remote Execution',
-                  title: 'MEME — remote multi-engine runs',
-                  desc: 'Send one canonical model to a remote MEME (Multi Energy Model Execution) server and have it translated and solved on PyPSA, Calliope 0.7, or AdOpT-NET0 — no local Python venv required.',
+                  icon: 'tune',
+                  tag: 'Parameters',
+                  title: 'Engine-neutral technology parameters',
+                  desc: 'Set common technology values — capacity, efficiency, lifetime, CAPEX — once, and TEMPO translates them to each engine automatically. One shared ontology drives both the UI and the PyPSA / OSeMOSYS / AdOpT-NET0 translators, with opt-in engine-specific fields.',
                 },
                 {
-                  icon: 'insights',
-                  tag: 'Analysis',
-                  title: 'Rebuilt results dashboard',
-                  desc: 'New tabbed analysis — Overview, Dispatch, Flow, Costs, Shadow prices, Analysis, Logs, and SPORES — plus transmission flow drawn on the results map and KPI cards.',
+                  icon: 'grid_view',
+                  tag: 'Comparison',
+                  title: 'Multi-model comparison matrix',
+                  desc: 'A multi-model matrix view with selectable KPIs and a heatmap, plus a batch-comparison panel — line up unmet-demand, imports, cost and capacity metrics across many runs at once.',
                 },
                 {
-                  icon: 'upload_file',
-                  tag: 'Imports',
-                  title: 'Smarter YAML & CSV import',
-                  desc: 'The Calliope YAML importer resolves imports recursively and warns on missing timeseries in detail. A new multi-step CSV wizard builds a full model — locations, links, technologies, scenarios, and resource profiles — from spreadsheets.',
+                  icon: 'map',
+                  tag: 'Export',
+                  title: 'Publication-ready map & chart export',
+                  desc: 'A dedicated results export panel with live map previews: SVG node/transmission maps, capacity / generation / technology-mix maps, demand choropleths, and downloadable charts and data (JSON / CSV).',
                 },
               ].map((item) => (
                 <div key={item.title} className="bg-white/5 border border-white/10 p-10 flex flex-col justify-between min-h-[260px]">
@@ -408,7 +408,7 @@ export default function Features() {
                   <h3 className="text-2xl font-bold uppercase">Multi-Framework Export</h3>
                   <p className="text-neutral-300 mt-3 max-w-md">
                     Export the full model as a Calliope ZIP archive or run it on any integrated
-                    engine — Calliope 0.6.8 / 0.7, PyPSA, OSeMOSYS, and AdOpT-NET0 all ship in v2.
+                    engine — Calliope 0.6.8 / 0.7, PyPSA, OSeMOSYS, and AdOpT-NET0 all ship in v3.
                   </p>
                 </div>
               </div>

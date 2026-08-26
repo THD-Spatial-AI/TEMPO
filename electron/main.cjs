@@ -1401,11 +1401,15 @@ ipcMain.handle('calliope:install', async (_event, selectedModules = ['calliope']
         await runChild(osmVenvPy, ['-m', 'pip', 'install', '--prefer-binary', '--no-cache-dir', '-r', osmReqFile], 'osm deps');
       }
 
-      await runChild(osmVenvPy, ['-c', 'import psycopg2, requests; print("osm-ok")'], 'osm verify');
+      // Verify every dependency the download pipeline imports at startup
+      // (download_world_osm → requests/tqdm, extract_osm_region → osmium,
+      // upload_to_postgis → psycopg2). Checking only psycopg2/requests let a
+      // broken osmium wheel pass here and then fail at extract time.
+      await runChild(osmVenvPy, ['-c', 'import psycopg2, requests, osmium, tqdm; print("osm-ok")'], 'osm verify');
       sendProgress({ type: 'log', line: '✓ OSM processing tools installed' });
     } catch (osmErr) {
       sendProgress({ type: 'log', line: `⚠ OSM tools install failed: ${(osmErr.message || String(osmErr)).split('\n')[0]}` });
-      sendProgress({ type: 'log', line: '  OSM download will fall back to Overpass API — no action needed' });
+      sendProgress({ type: 'log', line: '  Region download will be unavailable; the map still shows live OSM via Overpass. Re-run setup to retry.' });
     }
 
     sendProgress({ type: 'done' });

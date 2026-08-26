@@ -3,7 +3,7 @@ import DeckGL from '@deck.gl/react';
 import { ScatterplotLayer, IconLayer, LineLayer } from '@deck.gl/layers';
 import { Map as MapGL } from 'react-map-gl/maplibre';
 import { useData } from '../context/DataContext';
-import { FiLayers, FiPlus, FiLink, FiEye, FiEdit2, FiMapPin, FiTrash2, FiCpu, FiChevronDown, FiChevronRight, FiChevronLeft, FiZoomIn, FiZoomOut, FiMaximize2, FiX, FiCheck, FiHelpCircle, FiArrowRight, FiActivity, FiZap, FiCircle, FiNavigation, FiSave, FiFolder } from 'react-icons/fi';
+import { FiLayers, FiLink, FiEye, FiEdit2, FiMapPin, FiTrash2, FiCpu, FiChevronDown, FiChevronRight, FiChevronLeft, FiZoomIn, FiZoomOut, FiMaximize2, FiX, FiCheck, FiHelpCircle, FiArrowRight, FiActivity, FiZap, FiCircle, FiNavigation, FiSave, FiFolder } from 'react-icons/fi';
 import ChangeHistoryIcon from '@mui/icons-material/ChangeHistory';
 import { TECH_TEMPLATES, useLiveTechTemplates } from './TechnologiesData';
 import { canCreateWebGLContext, webglUnavailableMessage } from '../utils/webglSupport';
@@ -734,7 +734,7 @@ const MapDeckGL = () => {
     if (!event.coordinate) return;
     const [longitude, latitude] = event.coordinate;
 
-    if (mode === 'single' || mode === 'add-location') {
+    if (mode === 'add-location') {
       const newLocation = {
         name: `Location ${locations.length + 1}`,
         latitude,
@@ -745,19 +745,6 @@ const MapDeckGL = () => {
       const newLocations = [...locations, newLocation];
       setLocations(newLocations);
       handleEditLocation(newLocation, newLocations.length - 1, true);
-      return;
-    }
-
-    if (mode === 'multiple') {
-      const newLocation = {
-        name: `Location ${locations.length + 1}`,
-        latitude,
-        longitude,
-        techs: {},
-        isNode: false
-      };
-      setLocations([...locations, newLocation]);
-      showNotification('Location added!', 'success');
       return;
     }
 
@@ -869,7 +856,7 @@ const MapDeckGL = () => {
   const getCursorStyle = useCallback(({isHovering, isDragging}) => {
     if (isDragging) return 'grabbing';
     if (isHovering) return 'pointer';
-    if (mode === 'add-location' || mode === 'single' || mode === 'multiple' || mode === 'polyline') return 'crosshair';
+    if (mode === 'add-location' || mode === 'polyline') return 'crosshair';
     return 'grab';
   }, [mode]);
   
@@ -967,8 +954,7 @@ const MapDeckGL = () => {
             <div className="flex flex-col items-center gap-1.5">
               {[
                 { m: 'view', Icon: FiEye, title: 'View' },
-                { m: 'single', Icon: FiMapPin, title: 'Single' },
-                { m: 'multiple', Icon: FiPlus, title: 'Multiple' },
+                { m: 'add-location', Icon: FiMapPin, title: 'Add Location' },
                 { m: 'add-link', Icon: FiLink, title: 'Link' },
                 { m: 'polyline', Icon: FiNavigation, title: 'Polyline' },
               ].map(({ m, Icon, title }) => (
@@ -1005,8 +991,7 @@ const MapDeckGL = () => {
               {/* 2×2: Single / Multiple / Link / Polyline */}
               <div className="grid grid-cols-2 gap-1.5">
                 {[
-                  { m: 'single', Icon: FiMapPin, label: 'Single' },
-                  { m: 'multiple', Icon: FiPlus, label: 'Multiple' },
+                  { m: 'add-location', Icon: FiMapPin, label: 'Add Location' },
                   { m: 'add-link', Icon: FiLink, label: 'Link' },
                   { m: 'polyline', Icon: FiNavigation, label: 'Polyline' },
                 ].map(({ m, Icon, label }) => (
@@ -1027,8 +1012,7 @@ const MapDeckGL = () => {
               {/* Hint text */}
               <div className="mt-2 p-2 bg-slate-100 rounded text-xs text-slate-600">
                 {mode === 'view' && 'Click a location on the map to view details'}
-                {(mode === 'single' || mode === 'add-location') && 'Click the map to add a location and edit it'}
-                {mode === 'multiple' && 'Click the map to quickly add multiple locations'}
+                {mode === 'add-location' && 'Click the map to add a location and edit it'}
                 {mode === 'add-link' && (linkStart ? `Select destination for link from "${linkStart.name}"` : 'Click a location to start a link')}
                 {mode === 'polyline' && (lastPolylineLocation ? `Continue from "${lastPolylineLocation.name}" — click to extend` : 'Click the map to start a polyline chain')}
               </div>
@@ -1045,7 +1029,7 @@ const MapDeckGL = () => {
             links={links}
             linksExpanded={linksExpanded}
             locations={locations}
-            locationsExpanded={locationsExpanded}
+            locationsExpanded={locationsExpanded}
             selectedLocation={selectedLocation}
             setLinks={setLinks}
             setLinksExpanded={setLinksExpanded}
@@ -1650,7 +1634,7 @@ const MapDeckGL = () => {
           setSelectedCostGroup={setSelectedCostGroup}
           setShowEditDialog={setShowEditDialog}
           techCsvFiles={techCsvFiles}
-          techMap={techMap}
+          techMap={techMap}
           toggleTechConstraints={toggleTechConstraints}
           updateDialogConstraint={updateDialogConstraint}
           updateDialogCost={updateDialogCost}

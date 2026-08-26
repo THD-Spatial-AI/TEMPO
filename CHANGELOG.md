@@ -32,9 +32,18 @@ runs side by side, and export publication-ready maps, charts, and data.
 - **Custom operations editor** with per-engine capability warnings.
 - **Tech Library panel** — enhanced technology management backed by the public
   tech database API.
+- **Engine-neutral technology parameters** — a new parameter-ontology editor in
+  the Creation view lets you set common technology values (capacity, efficiency,
+  lifetime, CAPEX…) once and have them translated automatically to each engine.
+  A single source of truth (`parameterOntology.json`) is shared by the JS UI and
+  the Python translators (PyPSA / OSeMOSYS / AdOpT-NET0), with an opt-in
+  Engine-specific panel for raw fields unique to one framework.
 - **Shared running-jobs management** across the Run and Scenario Studio views.
 
 ### Changed
+
+- **Simplified Creation sidebar** — location placement is now a single
+  "Add Location" action (the separate Single/Multiple modes were removed).
 
 - **MEME remote execution** — added a MEME server proxy and engine-specific
   handling (e.g. `allow_unmet_demand`) in the canonical model conversion, with
