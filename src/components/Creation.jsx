@@ -68,7 +68,7 @@ const Creation = () => {
   } = useData();
   
   // Mode state
-  const [mode, setMode] = useState(null); // null (no mode), 'single', 'multiple', 'link', 'polyline'
+  const [mode, setMode] = useState(null); // null (no mode), 'add', 'link', 'polyline'
   const [currentLinkType, setCurrentLinkType] = useState('hvac_overhead'); // link type used when drawing new links
   const [showTechLibrary, setShowTechLibrary] = useState(false);
   
@@ -119,18 +119,18 @@ const Creation = () => {
       return;
     }
     
-    // Only create points when explicitly in single, multiple, or polyline mode
-    if (mode !== 'single' && mode !== 'multiple' && mode !== 'polyline') {
+    // Only create points when explicitly in add or polyline mode
+    if (mode !== 'add' && mode !== 'polyline') {
       return;
     }
-    
+
     const { coordinate } = info;
     if (coordinate) {
       // Polyline mode: create location instantly without dialog
       if (mode === 'polyline') {
         polylineMode.handlePolylineClick(coordinate);
       } else {
-        // Single/Multiple modes: open dialog
+        // Add mode: open the location dialog
         const newLocation = {
           // Don't set ID here - let it be assigned during save
           latitude: coordinate[1],
@@ -194,7 +194,19 @@ const Creation = () => {
   const [isNode, setIsNode] = useState(false);
   const [pendingLocation, setPendingLocation] = useState(null);
   const [originalLocationData, setOriginalLocationData] = useState(null);
-  
+
+  // Escape exits Add mode (only when no location dialog is open)
+  useEffect(() => {
+    if (mode !== 'add') return;
+    const onKey = (e) => {
+      if (e.key === 'Escape' && !showLocationDialog) {
+        setMode(null);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [mode, showLocationDialog]);
+
   // UI states
   const [expandedTechConstraints, setExpandedTechConstraints] = useState({});
   const [expandedCategories, setExpandedCategories] = useState({});
@@ -1699,8 +1711,7 @@ const Creation = () => {
         <div className="absolute bottom-4 left-4 bg-white px-4 py-2 rounded-lg shadow-lg">
           <div className="text-xs text-gray-600 mb-1">Current Mode</div>
           <div className="font-semibold text-gray-800">
-            {mode === 'single' && 'Single Location'}
-            {mode === 'multiple' && 'Multiple Locations'}
+            {mode === 'add' && 'Add Location'}
             {mode === 'link' && (locationManager.linkStart ? 'Link: Select End Location' : 'Link: Select Start Location')}
             {mode === 'polyline' && 'Polyline Mode'}
           </div>
@@ -1780,7 +1791,7 @@ const Creation = () => {
             locationManager.updateLocation(savedLocation.id, savedLocation);
             showNotification(`Updated location: ${savedLocation.name}`, 'success');
           } else {
-            // Add new location with generated ID (for Single/Multiple modes)
+            // Add new location with generated ID
             const newLocationWithId = {
               ...savedLocation,
               id: Date.now()
@@ -1791,7 +1802,6 @@ const Creation = () => {
           setShowLocationDialog(false);
           setPendingLocation(null);
         }}
-        onModeChange={setMode}
       />
     </div>
   );

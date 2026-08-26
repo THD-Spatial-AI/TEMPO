@@ -1,0 +1,152 @@
+{
+  "_comment": "Single source of truth for engine-neutral (common/ontology) technology parameters and their per-engine mappings. Consumed by BOTH the JS editor (src/services/parameterOntology.js) and the Python translators. Do NOT duplicate this mapping logic in either consumer. Common values are stored in canonical (Calliope) units; each common param maps to exactly one Calliope constraint or cost, so existing models reverse-map with no data loss. The `engines` blocks are the informational/target mapping the UI shows and the translators may use; where a mapping is an approximation or handled indirectly by a translator it carries a `note`.",
+  "version": 1,
+  "common": {
+    "capacity_max": {
+      "label": "Maximum installed capacity",
+      "description": "Upper limit on installed power capacity of the technology.",
+      "unit": "kW",
+      "category": "Capacity",
+      "oeoField": "typical_capacity_mw",
+      "calliope": { "kind": "constraint", "name": "energy_cap_max" },
+      "appliesTo": ["supply", "supply_plus", "storage", "conversion", "conversion_plus", "transmission"],
+      "engines": {
+        "pypsa": { "name": "p_nom_max", "unit": "kW", "scale": 1 },
+        "osemosys": { "name": "TotalAnnualMaxCapacity", "unit": "GW", "scale": 1e-6 }
+      }
+    },
+    "efficiency": {
+      "label": "Efficiency",
+      "description": "Energy conversion efficiency (output/input), 0-1.",
+      "unit": "fraction",
+      "category": "Efficiency",
+      "oeoField": "efficiency_percent",
+      "calliope": { "kind": "constraint", "name": "energy_eff" },
+      "appliesTo": ["supply", "supply_plus", "storage", "conversion", "conversion_plus", "transmission"],
+      "engines": {
+        "pypsa": { "name": "efficiency", "unit": "fraction", "scale": 1 },
+        "osemosys": { "name": "InputActivityRatio", "unit": "fraction", "note": "Encoded via input/output activity ratios, not a single field." }
+      }
+    },
+    "lifetime": {
+      "label": "Lifetime",
+      "description": "Economic lifetime of the technology, in years.",
+      "unit": "years",
+      "category": "Operation",
+      "oeoField": "lifetime_years",
+      "calliope": { "kind": "constraint", "name": "lifetime" },
+      "appliesTo": ["supply", "supply_plus", "storage", "conversion", "conversion_plus", "transmission"],
+      "engines": {
+        "pypsa": { "name": "capital_cost", "unit": "years", "note": "Feeds the annuity used for capital_cost; no standalone field." },
+        "osemosys": { "name": "OperationalLife", "unit": "years", "scale": 1 }
+      }
+    },
+    "ramp_rate": {
+      "label": "Ramp rate",
+      "description": "Maximum change in output per hour, as a fraction of capacity.",
+      "unit": "fraction/hour",
+      "category": "Operation",
+      "oeoField": "ramp_rate_percent_per_min",
+      "calliope": { "kind": "constraint", "name": "energy_ramping" },
+      "appliesTo": ["supply", "supply_plus", "storage", "conversion", "conversion_plus"],
+      "engines": {
+        "pypsa": { "name": "ramp_limit_up", "unit": "fraction", "note": "Also sets ramp_limit_down." }
+      }
+    },
+    "capex": {
+      "label": "Capital cost (per capacity)",
+      "description": "One-time investment cost per unit of power capacity.",
+      "unit": "USD/kW",
+      "category": "Investment",
+      "oeoField": "capex_usd_per_kw",
+      "calliope": { "kind": "cost", "name": "energy_cap" },
+      "appliesTo": ["supply", "supply_plus", "storage", "conversion", "conversion_plus", "transmission"],
+      "engines": {
+        "pypsa": { "name": "capital_cost", "unit": "USD/kW", "note": "Annualised with interest_rate + lifetime." },
+        "osemosys": { "name": "CapitalCost", "unit": "MUSD/GW", "scale": 1 }
+      }
+    },
+    "opex_fixed": {
+      "label": "Fixed O&M cost",
+      "description": "Annual fixed operations & maintenance cost per unit of capacity.",
+      "unit": "USD/kW/year",
+      "category": "O&M",
+      "oeoField": "opex_fixed_usd_per_kw_year",
+      "calliope": { "kind": "cost", "name": "om_annual" },
+      "appliesTo": ["supply", "supply_plus", "storage", "conversion", "conversion_plus", "transmission"],
+      "engines": {
+        "pypsa": { "name": "capital_cost", "unit": "USD/kW/year", "note": "Added into capital_cost." },
+        "osemosys": { "name": "FixedCost", "unit": "MUSD/GW", "scale": 1 }
+      }
+    },
+    "opex_variable": {
+      "label": "Variable O&M cost",
+      "description": "Operations & maintenance cost per unit of energy produced.",
+      "unit": "USD/kWh",
+      "category": "O&M",
+      "oeoField": "opex_variable_usd_per_kwh",
+      "calliope": { "kind": "cost", "name": "om_prod" },
+      "appliesTo": ["supply", "supply_plus", "storage", "conversion", "conversion_plus", "transmission"],
+      "engines": {
+        "pypsa": { "name": "marginal_cost", "unit": "USD/kWh", "scale": 1 },
+        "osemosys": { "name": "VariableCost", "unit": "MUSD/PJ", "scale": 277.778 }
+      }
+    },
+    "interest_rate": {
+      "label": "Interest rate",
+      "description": "Discount / interest rate used to annualise investment costs.",
+      "unit": "fraction",
+      "category": "Financial",
+      "oeoField": "interest_rate",
+      "calliope": { "kind": "cost", "name": "interest_rate" },
+      "appliesTo": ["supply", "supply_plus", "storage", "conversion", "conversion_plus", "transmission"],
+      "engines": {}
+    },
+    "storage_capacity_max": {
+      "label": "Maximum storage capacity",
+      "description": "Upper limit on stored energy capacity.",
+      "unit": "kWh",
+      "category": "Capacity",
+      "oeoField": "storage_capacity_kwh",
+      "calliope": { "kind": "constraint", "name": "storage_cap_max" },
+      "appliesTo": ["supply_plus", "storage"],
+      "engines": {
+        "pypsa": { "name": "e_nom_max", "unit": "kWh", "scale": 1 }
+      }
+    },
+    "storage_capex": {
+      "label": "Storage capital cost (per energy)",
+      "description": "Investment cost per unit of stored energy capacity.",
+      "unit": "USD/kWh",
+      "category": "Investment",
+      "oeoField": "capex_usd_per_kwh",
+      "calliope": { "kind": "cost", "name": "storage_cap" },
+      "appliesTo": ["supply_plus", "storage"],
+      "engines": {
+        "pypsa": { "name": "capital_cost", "unit": "USD/kWh", "note": "Applied to the PyPSA Store." }
+      }
+    },
+    "storage_loss": {
+      "label": "Storage standing loss",
+      "description": "Fraction of stored energy lost per hour.",
+      "unit": "fraction/hour",
+      "category": "Operation",
+      "oeoField": "self_discharge_rate",
+      "calliope": { "kind": "constraint", "name": "storage_loss" },
+      "appliesTo": ["supply_plus", "storage"],
+      "engines": {
+        "pypsa": { "name": "standing_loss", "unit": "fraction", "scale": 1 }
+      }
+    },
+    "c_rate": {
+      "label": "C-rate (power/energy)",
+      "description": "Ratio of power capacity to storage energy capacity.",
+      "unit": "ratio",
+      "category": "Capacity",
+      "oeoField": "c_rate",
+      "calliope": { "kind": "constraint", "name": "energy_cap_per_storage_cap_equals" },
+      "appliesTo": ["supply_plus", "storage"],
+      "engines": {}
+    }
+  }
+}

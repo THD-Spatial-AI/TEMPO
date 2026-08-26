@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { FiX, FiTrash2, FiCheck, FiChevronDown, FiChevronRight, FiHelpCircle, FiCpu, FiArrowRight, FiPlus } from 'react-icons/fi';
-import { CONSTRAINT_DEFINITIONS, COST_DEFINITIONS, ESSENTIAL_DEFINITIONS, PARENT_CONSTRAINTS } from '../utils/constraintDefinitions';
+import { FiX, FiTrash2, FiCheck, FiChevronDown, FiChevronRight, FiHelpCircle, FiArrowRight, FiPlus } from 'react-icons/fi';
 import { CARRIERS_BY_GROUP } from '../config/carriers';
+import TechParameterEditor from './creation/TechParameterEditor';
 
 // Format technology name: capitalize first letter only and replace underscores and hyphens
 const formatTechName = (techName) => {
@@ -12,82 +12,21 @@ const formatTechName = (techName) => {
   return formatted.charAt(0).toUpperCase() + formatted.slice(1).toLowerCase();
 };
 
-// Common cost names tech templates use
-const COMMON_COST_KEYS = ['energy_cap', 'om_annual', 'om_prod', 'om_con', 'purchase', 'resource_cap', 'storage_cap'];
-
-// Inline helper: select an available constraint from the parent's list and add it
-const AddConstraintInline = ({ techTemplate, existing, onAdd }) => {
-  const parentType = techTemplate?.parent;
-  const available = (PARENT_CONSTRAINTS[parentType] || []).filter(c => !(c in existing));
-  const [selected, setSelected] = useState('');
-  if (available.length === 0) return null;
-  return (
-    <div className="flex gap-1 mt-1.5">
-      <select
-        value={selected}
-        onChange={(e) => setSelected(e.target.value)}
-        className="flex-1 text-xs border border-slate-200 rounded px-2 py-0.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-1 focus:ring-gray-400"
-      >
-        <option value="">+ Add constraint…</option>
-        {available.map(c => (
-          <option key={c} value={c}>{c}</option>
-        ))}
-      </select>
-      <button
-        onClick={() => { if (selected) { onAdd(selected); setSelected(''); } }}
-        disabled={!selected}
-        className="px-2 py-0.5 text-xs bg-gray-600 text-white rounded disabled:bg-gray-300"
-      >
-        Add
-      </button>
-    </div>
-  );
-};
-
-// Inline helper: select a common cost key and add it
-const AddCostInline = ({ existing, onAdd }) => {
-  const available = COMMON_COST_KEYS.filter(k => !(k in existing));
-  const [selected, setSelected] = useState('');
-  if (available.length === 0) return null;
-  return (
-    <div className="flex gap-1 mt-1.5">
-      <select
-        value={selected}
-        onChange={(e) => setSelected(e.target.value)}
-        className="flex-1 text-xs border border-slate-200 rounded px-2 py-0.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-1 focus:ring-gray-400"
-      >
-        <option value="">+ Add cost…</option>
-        {available.map(k => (
-          <option key={k} value={k}>{k}</option>
-        ))}
-      </select>
-      <button
-        onClick={() => { if (selected) { onAdd(selected); setSelected(''); } }}
-        disabled={!selected}
-        className="px-2 py-0.5 text-xs bg-gray-600 text-white rounded disabled:bg-gray-300"
-      >
-        Add
-      </button>
-    </div>
-  );
-};
-
 const LocationEditDialog = ({
   isOpen,
   onClose,
   location,
-  mode,
   techMap,
-  onSave,
-  onModeChange
+  onSave
 }) => {
   // Dialog-specific state
   const [pendingLocation, setPendingLocation] = useState(null);
-  const [isNode, setIsNode] = useState(false);
   const [dialogTechs, setDialogTechs] = useState([]);
   const [editingConstraints, setEditingConstraints] = useState({});
   const [editingEssentials, setEditingEssentials] = useState({});
   const [editingCosts, setEditingCosts] = useState({});
+  // Per-tech engine-specific params: { [techName]: { [engineId]: { param: value } } }
+  const [editingEngineParams, setEditingEngineParams] = useState({});
   const [techCsvFiles, setTechCsvFiles] = useState({});
   const [constraintCsvFiles, setConstraintCsvFiles] = useState({});
   const [expandedTechConstraints, setExpandedTechConstraints] = useState({});
@@ -97,7 +36,6 @@ const LocationEditDialog = ({
   const [costSearch, setCostSearch] = useState({});
   const [selectedConstraintGroup, setSelectedConstraintGroup] = useState({});
   const [selectedCostGroup, setSelectedCostGroup] = useState({});
-  const [showNodeConfirmDialog, setShowNodeConfirmDialog] = useState(false);
   const [originalLocationData, setOriginalLocationData] = useState(null);
   // Instance selection state: key = techName, value = selected index
   const [selectedInstances, setSelectedInstances] = useState({});
@@ -106,29 +44,31 @@ const LocationEditDialog = ({
   useEffect(() => {
     if (isOpen && location) {
       setPendingLocation(location);
-      setIsNode(location.isNode || false);
-      
+
       // Extract technologies from existing location
       const techs = Object.keys(location.techs || {});
       setDialogTechs(techs);
       
-      // Extract constraints, essentials, and costs
+      // Extract constraints, essentials, costs, and engine-specific params
       const constraints = {};
       const essentials = {};
       const costs = {};
-      
+      const engineParams = {};
+
       techs.forEach(techName => {
         const tech = location.techs[techName];
         if (tech) {
           constraints[techName] = tech.constraints || {};
           essentials[techName] = tech.essentials || {};
           costs[techName] = tech.costs?.monetary || {};
+          if (tech.engineParams) engineParams[techName] = tech.engineParams;
         }
       });
-      
+
       setEditingConstraints(constraints);
       setEditingEssentials(essentials);
       setEditingCosts(costs);
+      setEditingEngineParams(engineParams);
       
       // Store original data for change detection
       if (location.id) {
@@ -140,7 +80,11 @@ const LocationEditDialog = ({
         setOriginalLocationData(null);
       }
     }
-  }, [isOpen, location]);
+    // Re-initialize only when the dialog opens or targets a different location.
+    // Depending on `location` object identity would wipe in-progress edits on
+    // every parent re-render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, location?.id]);
 
   // Add technology to dialog, optionally with instance params pre-filled
   const addTechToDialog = (techName, instanceParams) => {
@@ -195,6 +139,10 @@ const LocationEditDialog = ({
     const newCsvFiles = { ...techCsvFiles };
     delete newCsvFiles[techName];
     setTechCsvFiles(newCsvFiles);
+
+    const newEngineParams = { ...editingEngineParams };
+    delete newEngineParams[techName];
+    setEditingEngineParams(newEngineParams);
   };
 
   // Update constraint for a technology
@@ -205,6 +153,45 @@ const LocationEditDialog = ({
         ...(editingConstraints[techName] || {}),
         [key]: isNaN(value) || value === '' ? value : parseFloat(value)
       }
+    });
+  };
+
+  // Remove a constraint key from a technology
+  const removeDialogConstraint = (techName, key) => {
+    const next = { ...(editingConstraints[techName] || {}) };
+    delete next[key];
+    setEditingConstraints({ ...editingConstraints, [techName]: next });
+  };
+
+  // Remove a cost key from a technology
+  const removeDialogCost = (techName, key) => {
+    const next = { ...(editingCosts[techName] || {}) };
+    delete next[key];
+    setEditingCosts({ ...editingCosts, [techName]: next });
+  };
+
+  // Set/clear an engine-specific parameter for a technology
+  const updateEngineParam = (techName, engineId, key, value) => {
+    setEditingEngineParams(prev => ({
+      ...prev,
+      [techName]: {
+        ...(prev[techName] || {}),
+        [engineId]: {
+          ...((prev[techName] || {})[engineId] || {}),
+          [key]: value
+        }
+      }
+    }));
+  };
+
+  const removeEngineParam = (techName, engineId, key) => {
+    setEditingEngineParams(prev => {
+      const forTech = { ...(prev[techName] || {}) };
+      const forEngine = { ...(forTech[engineId] || {}) };
+      delete forEngine[key];
+      if (Object.keys(forEngine).length === 0) delete forTech[engineId];
+      else forTech[engineId] = forEngine;
+      return { ...prev, [techName]: forTech };
     });
   };
 
@@ -267,28 +254,6 @@ const LocationEditDialog = ({
     });
   };
 
-  // Handle node checkbox change
-  const handleNodeCheckboxChange = (checked) => {
-    if (checked && dialogTechs.length > 0) {
-      setShowNodeConfirmDialog(true);
-    } else {
-      setIsNode(checked);
-    }
-  };
-
-  // Confirm node conversion
-  const confirmNodeConversion = () => {
-    setIsNode(true);
-    setDialogTechs([]);
-    setEditingConstraints({});
-    setEditingEssentials({});
-    setEditingCosts({});
-    setTechCsvFiles({});
-    setConstraintCsvFiles({});
-    setPendingLocation({ ...pendingLocation, techs: {} });
-    setShowNodeConfirmDialog(false);
-  };
-
   // Check if location has been modified
   const hasLocationChanged = () => {
     if (!originalLocationData) return true;
@@ -296,7 +261,6 @@ const LocationEditDialog = ({
     if (pendingLocation.latitude !== originalLocationData.latitude) return true;
     if (pendingLocation.longitude !== originalLocationData.longitude) return true;
     if (pendingLocation.name !== originalLocationData.name) return true;
-    if (isNode !== originalLocationData.isNode) return true;
     
     const currentTechs = [...dialogTechs].sort();
     const originalTechs = [...originalLocationData.dialogTechs].sort();
@@ -312,6 +276,7 @@ const LocationEditDialog = ({
         if (JSON.stringify(currentConstraints) !== JSON.stringify(originalTech.constraints || {})) return true;
         if (JSON.stringify(currentEssentials) !== JSON.stringify(originalTech.essentials || {})) return true;
         if (JSON.stringify(currentCosts) !== JSON.stringify(originalTech.costs?.monetary || {})) return true;
+        if (JSON.stringify(editingEngineParams[techName] || {}) !== JSON.stringify(originalTech.engineParams || {})) return true;
       } else {
         return true;
       }
@@ -323,15 +288,15 @@ const LocationEditDialog = ({
   // Confirm location creation/update
   const confirmLocationCreation = () => {
     if (!pendingLocation) return;
-    
-    const locationType = mode === 'single' ? 'single' : mode === 'multiple' ? 'multiple' : (pendingLocation.locationType || 'single');
-    
+
     const finalLocation = {
       ...pendingLocation,
-      isNode: isNode,
-      locationType: locationType,
+      // A location with no technologies is a node (connection point).
+      isNode: dialogTechs.length === 0,
       techs: {}
     };
+    // Drop the legacy single/multiple marker if present on older models.
+    delete finalLocation.locationType;
 
     // Add selected technologies with their configurations
     dialogTechs.forEach(techName => {
@@ -339,7 +304,8 @@ const LocationEditDialog = ({
       const customConstraints = editingConstraints[techName] || {};
       const customEssentials = editingEssentials[techName] || {};
       const customCosts = editingCosts[techName] || {};
-      
+      const customEngineParams = editingEngineParams[techName] || {};
+
       finalLocation.techs[techName] = {
         parent: techTemplate?.parent || 'unknown',
         essentials: { ...techTemplate?.essentials, ...customEssentials },
@@ -349,13 +315,11 @@ const LocationEditDialog = ({
         },
         csvFile: techCsvFiles[techName] || null
       };
+      // Only persist engineParams when the user set at least one override.
+      if (Object.keys(customEngineParams).length > 0) {
+        finalLocation.techs[techName].engineParams = customEngineParams;
+      }
     });
-
-    // Validate based on location type
-    if (locationType === 'single' && dialogTechs.length > 1 && !isNode) {
-      alert('Single location can only have one technology');
-      return;
-    }
 
     // Call parent save handler
     onSave(finalLocation, originalLocationData !== null);
@@ -367,11 +331,11 @@ const LocationEditDialog = ({
   const handleClose = () => {
     // Reset all state
     setPendingLocation(null);
-    setIsNode(false);
     setDialogTechs([]);
     setEditingConstraints({});
     setEditingEssentials({});
     setEditingCosts({});
+    setEditingEngineParams({});
     setTechCsvFiles({});
     setConstraintCsvFiles({});
     setExpandedTechConstraints({});
@@ -396,7 +360,7 @@ const LocationEditDialog = ({
           {/* Header */}
           <div className="p-6 border-b border-slate-200 sticky top-0 bg-white">
             <h3 className="text-xl font-bold text-slate-800">
-              Configure {mode === 'single' ? 'Single' : mode === 'multiple' ? 'Multiple' : ''} Location
+              Configure Location
             </h3>
             <div className="flex items-center gap-3 mt-2">
               <span className="text-sm text-slate-600">📍</span>
@@ -433,39 +397,20 @@ const LocationEditDialog = ({
               />
             </div>
 
-            {/* Node Option - Only for Single Location Mode */}
-            {mode === 'single' && (
-              <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-lg">
-                <input
-                  type="checkbox"
-                  id="isNode"
-                  checked={isNode}
-                  onChange={(e) => handleNodeCheckboxChange(e.target.checked)}
-                  className="w-4 h-4 text-gray-600 border-slate-300 rounded focus:ring-gray-500"
-                />
-                <label htmlFor="isNode" className="text-sm font-medium text-slate-700">
-                  This is a node (connection point without technologies)
-                </label>
-              </div>
-            )}
-
             {/* Technologies Selection */}
-            {!isNode && (
-              <div>
+            <div>
                 <div className="flex items-center justify-between mb-3">
                   <label className="block text-sm font-medium text-slate-700">
                     Technologies ({dialogTechs.length} selected)
                   </label>
-                  {mode === 'single' && dialogTechs.length === 1 && onModeChange && (
-                    <button
-                      onClick={() => onModeChange('multiple')}
-                      className="px-3 py-1 text-xs bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors flex items-center gap-1"
-                    >
-                      <FiCpu size={12} />
-                      Add More Techs
-                    </button>
-                  )}
                 </div>
+                {dialogTechs.length === 0 && (
+                  <p className="text-xs text-slate-500 mb-3">
+                    A location with no technologies acts as a node (a connection
+                    point for links). Add one or more technologies below to make
+                    it a substation, power plant, storage, demand, etc.
+                  </p>
+                )}
                 
                 {/* Selected Technologies List */}
                 {dialogTechs.length > 0 && (
@@ -621,76 +566,20 @@ const LocationEditDialog = ({
                                   );
                                 })()}
                               </div>
-                              {/* Constraints */}
-                              <div>
-                                <p className="text-xs font-semibold text-slate-600 mb-1">Constraints</p>
-                                {Object.entries(editingConstraints[techName] || {}).length === 0 && (
-                                  <p className="text-xs text-slate-400 italic mb-1">No constraints set</p>
-                                )}
-                                <div className="space-y-1">
-                                  {Object.entries(editingConstraints[techName] || {}).map(([key, val]) => (
-                                    <div key={key} className="flex items-center gap-1">
-                                      <span className="text-[11px] text-slate-500 w-36 flex-shrink-0 font-mono">{key}</span>
-                                      <input
-                                        type="text"
-                                        value={val ?? ''}
-                                        onChange={(e) => updateDialogConstraint(techName, key, e.target.value)}
-                                        className="flex-1 px-2 py-0.5 text-xs border border-slate-200 rounded focus:ring-1 focus:ring-gray-400 font-mono"
-                                      />
-                                      <button
-                                        onClick={() => {
-                                          const c = { ...editingConstraints[techName] };
-                                          delete c[key];
-                                          setEditingConstraints({ ...editingConstraints, [techName]: c });
-                                        }}
-                                        className="text-slate-400 hover:text-gray-600"
-                                      >
-                                        <FiX size={12} />
-                                      </button>
-                                    </div>
-                                  ))}
-                                </div>
-                                {/* Quick-add common constraint */}
-                                <AddConstraintInline
-                                  techTemplate={techTemplate}
-                                  existing={editingConstraints[techName] || {}}
-                                  onAdd={(key) => updateDialogConstraint(techName, key, '')}
-                                />
-                              </div>
-                              {/* Costs */}
-                              <div>
-                                <p className="text-xs font-semibold text-slate-600 mb-1">Costs (monetary)</p>
-                                {Object.entries(editingCosts[techName] || {}).length === 0 && (
-                                  <p className="text-xs text-slate-400 italic mb-1">No costs set</p>
-                                )}
-                                <div className="space-y-1">
-                                  {Object.entries(editingCosts[techName] || {}).map(([key, val]) => (
-                                    <div key={key} className="flex items-center gap-1">
-                                      <span className="text-[11px] text-slate-500 w-36 flex-shrink-0 font-mono">{key}</span>
-                                      <input
-                                        type="text"
-                                        value={val ?? ''}
-                                        onChange={(e) => updateDialogCost(techName, key, e.target.value)}
-                                        className="flex-1 px-2 py-0.5 text-xs border border-slate-200 rounded focus:ring-1 focus:ring-gray-400 font-mono"
-                                      />
-                                      <button
-                                        onClick={() => {
-                                          const c = { ...editingCosts[techName] };
-                                          delete c[key];
-                                          setEditingCosts({ ...editingCosts, [techName]: c });
-                                        }}
-                                        className="text-slate-400 hover:text-gray-600"
-                                      >
-                                        <FiX size={12} />
-                                      </button>
-                                    </div>
-                                  ))}
-                                </div>
-                                <AddCostInline
-                                  existing={editingCosts[techName] || {}}
-                                  onAdd={(key) => updateDialogCost(techName, key, '')}
-                                />
-                              </div>
+                              {/* Common + engine-specific parameters */}
+                              <TechParameterEditor
+                                parent={techTemplate?.parent}
+                                techUuid={techTemplate?.uuid}
+                                constraints={editingConstraints[techName] || {}}
+                                costs={editingCosts[techName] || {}}
+                                engineParams={editingEngineParams[techName] || {}}
+                                onConstraintChange={(k, v) => updateDialogConstraint(techName, k, v)}
+                                onConstraintRemove={(k) => removeDialogConstraint(techName, k)}
+                                onCostChange={(k, v) => updateDialogCost(techName, k, v)}
+                                onCostRemove={(k) => removeDialogCost(techName, k)}
+                                onEngineParamChange={(engine, k, v) => updateEngineParam(techName, engine, k, v)}
+                                onEngineParamRemove={(engine, k) => removeEngineParam(techName, engine, k)}
+                              />
                             </div>
                           )}
                         </div>
@@ -850,8 +739,7 @@ const LocationEditDialog = ({
                     </div>
                   )}
                 </div>
-              </div>
-            )}
+            </div>
           </div>
 
           {/* Footer */}
@@ -873,55 +761,6 @@ const LocationEditDialog = ({
           </div>
         </div>
       </div>
-
-      {/* Node Conversion Confirmation Dialog */}
-      {showNodeConfirmDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10001]">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="p-6 border-b border-slate-200">
-              <div className="flex items-center gap-3">
-                <div className="flex-shrink-0 w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                  <span className="text-2xl">⚠️</span>
-                </div>
-                <h3 className="text-xl font-bold text-slate-800">Convert to Node?</h3>
-              </div>
-            </div>
-            <div className="p-6 space-y-4">
-              <p className="text-sm text-slate-700">
-                A node is a connection point without technologies.
-              </p>
-              <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                <p className="text-sm font-semibold text-gray-800 mb-2">
-                  This will permanently remove {dialogTechs.length} technolog{dialogTechs.length === 1 ? 'y' : 'ies'}:
-                </p>
-                <ul className="space-y-1 max-h-40 overflow-y-auto">
-                  {dialogTechs.map(techName => (
-                    <li key={techName} className="text-sm text-gray-700 flex items-start gap-2">
-                      <span className="text-gray-500 mt-0.5">•</span>
-                      <span>{formatTechName(techName)}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-            <div className="p-6 border-t border-slate-200 flex gap-3 justify-end">
-              <button
-                onClick={() => setShowNodeConfirmDialog(false)}
-                className="px-4 py-2 border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmNodeConversion}
-                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors flex items-center gap-2"
-              >
-                <FiTrash2 size={16} />
-                Convert to Node
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 };

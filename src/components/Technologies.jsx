@@ -13,8 +13,8 @@ import { CARRIERS, CARRIERS_BY_GROUP, getCarrierColor, getCarrierLabel } from '.
 import {
   CONSTRAINT_DEFINITIONS,
   COST_DEFINITIONS,
-  PARENT_CONSTRAINTS,
 } from '../utils/constraintDefinitions';
+import TechParameterEditor from './creation/TechParameterEditor';
 
 // ── Carrier helpers ──────────────────────────────────────────────────────────
 function CarrierPill({ carrierId }) {
@@ -900,10 +900,6 @@ function Technologies() {
 
   const { techTemplates: liveTechTemplates, isLive: isApiLive, isLoading: isApiLoading } = useLiveTechTemplates();
 
-  const [constraintSearch, setConstraintSearch]               = useState({});
-  const [costSearch, setCostSearch]                           = useState({});
-  const [selectedConstraintGroup, setSelectedConstraintGroup] = useState({});
-  const [selectedCostGroup, setSelectedCostGroup]             = useState({});
 
   // All template technologies (live or static fallback)
   const allTechnologies = useMemo(() => {
@@ -959,18 +955,6 @@ function Technologies() {
     if (window.confirm(`Are you sure you want to delete "${techName}"?`)) {
       setTechnologies(technologies.filter(t => t.name !== techName));
     }
-  };
-
-  const addConstraint = (constraintKey, defaultValue = '') => {
-    if (!editForm) return;
-    setEditForm({ ...editForm, constraints: { ...editForm.constraints, [constraintKey]: defaultValue } });
-    setConstraintSearch({});
-  };
-
-  const addCost = (costKey, defaultValue = 0) => {
-    if (!editForm) return;
-    setEditForm({ ...editForm, costs: { ...editForm.costs, monetary: { ...(editForm.costs?.monetary || {}), [costKey]: defaultValue } } });
-    setCostSearch({});
   };
 
   const matchesTerm = (name) => !searchTerm || name.toLowerCase().includes(searchTerm.toLowerCase());
@@ -1400,115 +1384,27 @@ function Technologies() {
                   );
                 })()}
 
-                {/* Constraints */}
+                {/* Parameters — common (ontology) + engine-specific */}
                 <section>
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-semibold text-slate-700">
-                      Constraints ({Object.keys(editForm.constraints || {}).length})
-                    </h3>
-                    <button
-                      onClick={() => setConstraintSearch({ main: 'open' })}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-slate-200 hover:bg-slate-700 hover:text-white text-slate-700 rounded-full transition-colors"
-                    >
-                      <FiArrowRight size={11} /> Add Constraint
-                    </button>
-                  </div>
-                  {editForm.constraints && Object.keys(editForm.constraints).length > 0 ? (
-                    <div className="space-y-2">
-                      {Object.entries(editForm.constraints).map(([key, value]) => {
-                        const def = CONSTRAINT_DEFINITIONS[key];
-                        return (
-                          <div key={key} className="flex gap-2 items-start">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-1.5 mb-1">
-                                <label className="text-xs font-medium text-slate-700">{key}</label>
-                                {def && (
-                                  <div className="group relative">
-                                    <FiHelpCircle className="text-slate-400 hover:text-slate-600 cursor-help" size={12} />
-                                    <div className="absolute left-0 top-5 w-56 p-2 bg-slate-800 text-white text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
-                                      <strong>{def.group}:</strong> {def.desc}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                              <input
-                                type="text"
-                                value={typeof value === 'object' ? JSON.stringify(value) : value}
-                                onChange={e => {
-                                  let v = e.target.value;
-                                  if (!isNaN(v) && v !== '') v = parseFloat(v);
-                                  setEditForm({ ...editForm, constraints: { ...editForm.constraints, [key]: v } });
-                                }}
-                                className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-gray-400 focus:outline-none font-mono"
-                              />
-                            </div>
-                            <button
-                              onClick={() => { const c = { ...editForm.constraints }; delete c[key]; setEditForm({ ...editForm, constraints: c }); }}
-                              className="mt-5 p-1.5 text-slate-400 hover:text-gray-600 hover:bg-gray-100 rounded"
-                            >
-                              <FiTrash2 size={14} />
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-slate-400 italic">No constraints defined.</p>
-                  )}
-                </section>
-
-                {/* Costs */}
-                <section>
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-semibold text-slate-700">
-                      Costs ({Object.keys(editForm.costs?.monetary || {}).length})
-                    </h3>
-                    <button
-                      onClick={() => setCostSearch({ main: 'open' })}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-slate-200 hover:bg-slate-700 hover:text-white text-slate-700 rounded-full transition-colors"
-                    >
-                      <FiArrowRight size={11} /> Add Cost
-                    </button>
-                  </div>
-                  {editForm.costs?.monetary && Object.keys(editForm.costs.monetary).length > 0 ? (
-                    <div className="space-y-2">
-                      {Object.entries(editForm.costs.monetary).map(([key, value]) => {
-                        const def = COST_DEFINITIONS[key];
-                        return (
-                          <div key={key} className="flex gap-2 items-start">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-1.5 mb-1">
-                                <label className="text-xs font-medium text-slate-700">{key}</label>
-                                {def && (
-                                  <div className="group relative">
-                                    <FiHelpCircle className="text-slate-400 hover:text-slate-600 cursor-help" size={12} />
-                                    <div className="absolute left-0 top-5 w-56 p-2 bg-slate-800 text-white text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
-                                      <strong>{def.group}:</strong> {def.desc}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                              <input
-                                type="number"
-                                step="any"
-                                value={value}
-                                onChange={e => setEditForm({ ...editForm, costs: { ...editForm.costs, monetary: { ...(editForm.costs?.monetary || {}), [key]: parseFloat(e.target.value) || 0 } } })}
-                                className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-gray-400 focus:outline-none font-mono"
-                              />
-                            </div>
-                            <button
-                              onClick={() => { const m = { ...(editForm.costs?.monetary || {}) }; delete m[key]; setEditForm({ ...editForm, costs: { ...editForm.costs, monetary: m } }); }}
-                              className="mt-5 p-1.5 text-slate-400 hover:text-gray-600 hover:bg-gray-100 rounded"
-                            >
-                              <FiTrash2 size={14} />
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-slate-400 italic">No costs defined.</p>
-                  )}
+                  <TechParameterEditor
+                    parent={editForm.essentials?.parent}
+                    techUuid={editForm.uuid}
+                    constraints={editForm.constraints || {}}
+                    costs={editForm.costs?.monetary || {}}
+                    engineParams={editForm.engineParams || {}}
+                    onConstraintChange={(k, v) => setEditForm({ ...editForm, constraints: { ...editForm.constraints, [k]: v } })}
+                    onConstraintRemove={(k) => { const c = { ...editForm.constraints }; delete c[k]; setEditForm({ ...editForm, constraints: c }); }}
+                    onCostChange={(k, v) => setEditForm({ ...editForm, costs: { ...editForm.costs, monetary: { ...(editForm.costs?.monetary || {}), [k]: v } } })}
+                    onCostRemove={(k) => { const m = { ...(editForm.costs?.monetary || {}) }; delete m[k]; setEditForm({ ...editForm, costs: { ...editForm.costs, monetary: m } }); }}
+                    onEngineParamChange={(engine, k, v) => setEditForm({ ...editForm, engineParams: { ...(editForm.engineParams || {}), [engine]: { ...((editForm.engineParams || {})[engine] || {}), [k]: v } } })}
+                    onEngineParamRemove={(engine, k) => {
+                      const eng = { ...(editForm.engineParams || {}) };
+                      eng[engine] = { ...(eng[engine] || {}) };
+                      delete eng[engine][k];
+                      if (Object.keys(eng[engine]).length === 0) delete eng[engine];
+                      setEditForm({ ...editForm, engineParams: eng });
+                    }}
+                  />
                 </section>
               </div>
 
@@ -1532,94 +1428,6 @@ function Technologies() {
           </div>
         )}
 
-        {/* ── Constraint search modal ───────────────────────────────────────── */}
-        {constraintSearch.main === 'open' && editForm && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[200]" onClick={() => setConstraintSearch({})}>
-            <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
-              <div className="px-5 py-3 bg-slate-800 text-white rounded-t-xl">
-                <h3 className="font-semibold text-sm">
-                  Add Constraint — {PARENT_TYPES[editForm.essentials?.parent] || 'Technology'}
-                </h3>
-              </div>
-              <div className="overflow-y-auto max-h-[calc(80vh-56px)] custom-scrollbar">
-                {(() => {
-                  const available = (PARENT_CONSTRAINTS[editForm.essentials?.parent] || []).filter(c => !editForm.constraints?.[c]);
-                  if (available.length === 0) return <div className="p-8 text-center text-sm text-slate-400">All constraints already added.</div>;
-                  const grouped = {};
-                  available.forEach(c => { const g = CONSTRAINT_DEFINITIONS[c]?.group || 'Other'; if (!grouped[g]) grouped[g] = []; grouped[g].push(c); });
-                  return Object.entries(grouped).map(([group, constraints]) => {
-                    const expanded = selectedConstraintGroup[group];
-                    return (
-                      <div key={group} className="border-b border-slate-100 last:border-0">
-                        <button
-                          onClick={() => setSelectedConstraintGroup({ ...selectedConstraintGroup, [group]: !expanded })}
-                          className="w-full flex items-center justify-between px-5 py-3 bg-slate-50 hover:bg-slate-100 text-sm font-semibold text-slate-700"
-                        >
-                          {group} ({constraints.length})
-                          {expanded ? <FiChevronDown size={14} /> : <FiChevronRightIcon size={14} />}
-                        </button>
-                        {expanded && (
-                          <div className="divide-y divide-slate-100">
-                            {constraints.map(c => (
-                              <button key={c} onClick={() => addConstraint(c, '')} className="w-full text-left px-8 py-3 hover:bg-gray-50 transition-colors">
-                                <div className="text-sm font-medium text-slate-800">{c}</div>
-                                <div className="text-xs text-slate-500 mt-0.5">{CONSTRAINT_DEFINITIONS[c]?.desc || ''}</div>
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  });
-                })()}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── Cost search modal ─────────────────────────────────────────────── */}
-        {costSearch.main === 'open' && editForm && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[200]" onClick={() => setCostSearch({})}>
-            <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
-              <div className="px-5 py-3 bg-slate-800 text-white rounded-t-xl">
-                <h3 className="font-semibold text-sm">Add Cost</h3>
-              </div>
-              <div className="overflow-y-auto max-h-[calc(80vh-56px)] custom-scrollbar">
-                {(() => {
-                  const existing = editForm.costs?.monetary || {};
-                  const available = Object.keys(COST_DEFINITIONS).filter(c => !existing[c]);
-                  if (available.length === 0) return <div className="p-8 text-center text-sm text-slate-400">All costs already added.</div>;
-                  const grouped = {};
-                  available.forEach(c => { const g = COST_DEFINITIONS[c]?.group || 'Other'; if (!grouped[g]) grouped[g] = []; grouped[g].push(c); });
-                  return Object.entries(grouped).map(([group, costs]) => {
-                    const expanded = selectedCostGroup[group];
-                    return (
-                      <div key={group} className="border-b border-slate-100 last:border-0">
-                        <button
-                          onClick={() => setSelectedCostGroup({ ...selectedCostGroup, [group]: !expanded })}
-                          className="w-full flex items-center justify-between px-5 py-3 bg-slate-50 hover:bg-slate-100 text-sm font-semibold text-slate-700"
-                        >
-                          {group} ({costs.length})
-                          {expanded ? <FiChevronDown size={14} /> : <FiChevronRightIcon size={14} />}
-                        </button>
-                        {expanded && (
-                          <div className="divide-y divide-slate-100">
-                            {costs.map(c => (
-                              <button key={c} onClick={() => addCost(c, 0)} className="w-full text-left px-8 py-3 hover:bg-gray-50 transition-colors">
-                                <div className="text-sm font-medium text-slate-800">{c}</div>
-                                <div className="text-xs text-slate-500 mt-0.5">{COST_DEFINITIONS[c]?.desc || ''}</div>
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  });
-                })()}
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

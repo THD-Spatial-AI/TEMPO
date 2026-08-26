@@ -5,6 +5,46 @@ All notable changes to TEMPO are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2026-08-25
+
+TEMPO v3 builds a scenario-analysis and reporting layer on top of the v2
+multi-engine core: design policy scenarios from reusable recipes, compare many
+runs side by side, and export publication-ready maps, charts, and data.
+
+### Added
+
+- **Scenario Studio** — a policy-recipe library that replaces hand-built
+  overrides for common studies. Ships demand growth, renewable transition,
+  carbon cap, and cost sensitivity recipes (each with tests), configured through
+  a guided UI and applied across engines.
+- **Multi-model comparison** — a multi-model matrix view with selectable KPIs and
+  a heatmap, plus a BatchComparison panel for visualising results across many
+  jobs at once.
+- **New results metrics** — unmet-demand and imports metrics extracted into the
+  frozen contract and surfaced as KPIs, including demand metrics broken down by
+  location.
+- **Choropleth maps** — RegionChoropleth visualisation of demand metrics with
+  bundled commune GeoJSON for regional (e.g. Chile) models.
+- **Export overhaul** — a dedicated results export panel with live map previews;
+  SVG generation for node/transmission maps and capacity, generation, and
+  technology-mix maps; choropleth SVG export; and resultCharts / resultExports
+  utilities for downloadable charts and data (JSON / CSV).
+- **Custom operations editor** with per-engine capability warnings.
+- **Tech Library panel** — enhanced technology management backed by the public
+  tech database API.
+- **Shared running-jobs management** across the Run and Scenario Studio views.
+
+### Changed
+
+- **MEME remote execution** — added a MEME server proxy and engine-specific
+  handling (e.g. `allow_unmet_demand`) in the canonical model conversion, with
+  improved contract fetching and time handling.
+- **Calliope 0.7 importer** — root detection and user selection when a ZIP
+  contains multiple models, plus translation/import fixes.
+- Native Python virtual-environment setup and installation commands.
+- Backend PID handling and production/development API URL resolution.
+- Go toolchain updated to 1.26.6 with refreshed module dependencies.
+
 ## [2.0.0] - 2026-07-24
 
 TEMPO v2 turns the single-engine modelling tool into a multi-engine energy
@@ -63,5 +103,6 @@ Initial public release.
 - Timeseries editor, override/scenario engine, and SPORES mode.
 - H₂ and CCS plant simulation services.
 
+[3.0.0]: https://github.com/THD-Spatial-AI/TEMPO/releases/tag/v3.0.0
 [2.0.0]: https://github.com/THD-Spatial-AI/TEMPO/releases/tag/v2.0.0
 [1.0.0]: https://github.com/THD-Spatial-AI/TEMPO/releases/tag/release

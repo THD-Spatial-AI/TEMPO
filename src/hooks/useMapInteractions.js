@@ -23,8 +23,8 @@ export const useMapInteractions = (mode, addLocation, handleLocationClickForLink
       return; // Ignore right-click and middle-click
     }
     
-    // Only create points when explicitly in single or multiple mode
-    if (mode !== 'single' && mode !== 'multiple') {
+    // Only create points when explicitly in add mode
+    if (mode !== 'add') {
       return;
     }
     

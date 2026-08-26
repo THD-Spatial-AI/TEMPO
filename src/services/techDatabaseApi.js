@@ -787,3 +787,29 @@ export async function fetchTechFramework(techUuid, framework, instanceIndex = 0)
     `/api/v1/technologies/${encodeURIComponent(techUuid)}/${framework}?instance_index=${instanceIndex}`
   );
 }
+
+/**
+ * Extract the addable engine-native parameter names from a /{framework} export.
+ *
+ * The endpoint returns a flat dict of that engine's parameters. We keep only
+ * scalar fields (number/string/boolean) and drop metadata (`_*`), identity keys
+ * (TECHNOLOGY, name), carrier/structural keys, and nested dicts (e.g. OSeMOSYS
+ * InputActivityRatio). Used to populate the engine-specific "add parameter"
+ * picker in TechParameterEditor.
+ *
+ * @param {object} resp - raw /{framework} response
+ * @returns {string[]} parameter names
+ */
+export function frameworkParamNames(resp) {
+  if (!resp || typeof resp !== 'object') return [];
+  const SKIP = new Set([
+    'TECHNOLOGY', 'name', 'carrier', 'carrier_in', 'carrier_out',
+    'bus0_carrier', 'bus1_carrier',
+  ]);
+  return Object.entries(resp)
+    .filter(([k, v]) =>
+      !k.startsWith('_') &&
+      !SKIP.has(k) &&
+      (typeof v === 'number' || typeof v === 'string' || typeof v === 'boolean'))
+    .map(([k]) => k);
+}

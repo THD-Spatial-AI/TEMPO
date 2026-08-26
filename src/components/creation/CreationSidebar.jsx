@@ -1,7 +1,7 @@
 // Left sidebar (mode selection, locations list, links section, link-type
 // picker) for the Creation map view. Extracted verbatim from Creation.jsx;
 // all state/handlers are passed as props.
-import { FiActivity, FiArrowRight, FiChevronDown, FiChevronLeft, FiChevronRight, FiCpu, FiEdit2, FiLink, FiMapPin, FiSave, FiTrash2 } from 'react-icons/fi';
+import { FiActivity, FiArrowRight, FiChevronDown, FiChevronLeft, FiChevronRight, FiEdit2, FiLink, FiMapPin, FiSave, FiTrash2 } from 'react-icons/fi';
 import { LINK_TYPES, LINK_TYPES_BY_GROUP, getLinkTypeColor } from '../../config/linkTypes';
 import { getCarrierColor } from '../../config/carriers';
 import { formatTechName } from '../../utils/nameUtils';
@@ -48,34 +48,20 @@ export default function CreationSidebar({
             {/* Mode Selection */}
             <div className="p-4 border-b border-gray-200">
               <label className="block text-sm font-semibold text-gray-700 mb-2">Mode</label>
-              <div className="grid grid-cols-2 gap-2 mb-2">
+              <div className="mb-2">
                 <button
                   onClick={() => {
-                    setMode('single');
+                    setMode(mode === 'add' ? null : 'add');
                     polylineMode.resetPolyline();
                   }}
-                  className={`p-3 rounded-lg border-2 transition-all ${
-                    mode === 'single'
+                  className={`w-full p-3 rounded-lg border-2 transition-all ${
+                    mode === 'add'
                       ? 'border-gray-500 bg-gray-50 text-gray-700'
                       : 'border-gray-200 hover:border-gray-300'
                   }`}
                 >
                   <FiMapPin className="mx-auto mb-1" size={20} />
-                  <div className="text-xs font-medium">Single</div>
-                </button>
-                <button
-                  onClick={() => {
-                    setMode('multiple');
-                    polylineMode.resetPolyline();
-                  }}
-                  className={`p-3 rounded-lg border-2 transition-all ${
-                    mode === 'multiple'
-                      ? 'border-gray-500 bg-gray-50 text-gray-700'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <FiCpu className="mx-auto mb-1" size={20} />
-                  <div className="text-xs font-medium">Multiple</div>
+                  <div className="text-xs font-medium">Add Location</div>
                 </button>
               </div>
               <div className="grid grid-cols-2 gap-2">
