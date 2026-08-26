@@ -549,7 +549,7 @@ function AIPanel() {
     const r = await window.electronAPI?.ai?.testKey?.({ provider: cfg.provider, model: cfg.model || meta.defaultModel, baseUrl: cfg.baseUrl })
       .catch(err => ({ ok: false, error: err.message }));
     setTesting(false);
-    setTestResult(r || { ok: false, error: 'AI bridge unavailable.' });
+    setTestResult(r || { ok: false, error: 'LLM bridge unavailable.' });
   };
 
   const desktop = Boolean(window.electronAPI?.ai);
@@ -557,11 +557,11 @@ function AIPanel() {
   return (
     <div>
       <h3 className="text-lg font-semibold text-slate-800 mb-1 flex items-center gap-2">
-        <FiMessageSquare className="w-5 h-5 text-slate-400" /> AI Assistant
+        <FiMessageSquare className="w-5 h-5 text-slate-400" /> Model Advisor
         <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-600">Bring your own key</span>
       </h3>
       <p className="text-sm text-slate-500 mb-5 max-w-2xl">
-        Powers the <span className="font-medium text-slate-600">AI Analysis</span> tab in Results —
+        Powers the <span className="font-medium text-slate-600">Model Advisor</span> tab in Results —
         an auto-generated report and a chat to ask questions about a run. TEMPO uses your own API
         key and never provides one. Your key is stored encrypted on this device.
       </p>
@@ -569,7 +569,7 @@ function AIPanel() {
       {!desktop && (
         <div className="mb-5 flex items-start gap-2 p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-700">
           <FiAlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-          AI settings are only available in the TEMPO desktop app.
+          Model Advisor is only available in the TEMPO desktop app.
         </div>
       )}
 
@@ -577,7 +577,7 @@ function AIPanel() {
       <div className="mb-5 flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 max-w-2xl">
         <FiShield className="w-4 h-4 mt-0.5 shrink-0" />
         <span>
-          Using this feature sends your selected run's results to your chosen AI provider
+          Using this feature sends your selected run's results to your chosen LLM provider
           ({meta.label}). This is the only case where TEMPO transmits model data off this device.
           Review the provider's data-handling terms before use.
         </span>
@@ -734,7 +734,7 @@ const SECTIONS = [
   { id: 'general', label: 'General',              icon: FiSliders },
   { id: 'engines', label: 'Optimization Engines', icon: FiCpu },
   { id: 'remote',  label: 'Remote Execution',     icon: FiServer },
-  { id: 'ai',      label: 'AI Assistant',          icon: FiMessageSquare },
+  { id: 'ai',      label: 'Model Advisor',         icon: FiMessageSquare },
   { id: 'data',    label: 'Privacy & Data',       icon: FiShield },
   { id: 'about',   label: 'About',                icon: FiInfo },
 ];

@@ -543,7 +543,7 @@ const Results = ({ onNavigate }) => {
     ...(hasShadowPrices ? [{ id: 'shadow', label: 'Shadow Prices', icon: FiTrendingUp }] : []),
     ...(hasFlow     ? [{ id: 'analysis', label: 'Analysis',      icon: FiGrid      }] : []),
     ...((isSporesRun || hasSpores) ? [{ id: 'spores', label: 'SPORES', icon: FiGitMerge }] : []),
-    { id: 'ai',        label: 'AI Analysis', icon: FiCpu },
+    { id: 'ai',        label: 'Model Advisor', icon: FiCpu },
     { id: 'logs',      label: 'Logs',        icon: FiTerminal },
   ];
 

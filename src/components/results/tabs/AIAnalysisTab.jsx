@@ -138,7 +138,7 @@ export default function AIAnalysisTab({ result, selectedJob, model, onOpenSettin
     return (
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-10 text-center text-slate-400">
         <FiCpu size={40} className="mx-auto mb-3 opacity-20" />
-        <p className="text-sm">AI analysis is only available in the TEMPO desktop app.</p>
+        <p className="text-sm">Model Advisor is only available in the TEMPO desktop app.</p>
       </div>
     );
   }
@@ -151,14 +151,14 @@ export default function AIAnalysisTab({ result, selectedJob, model, onOpenSettin
         <FiCpu size={40} className="mx-auto mb-3 text-slate-300" />
         <h3 className="text-lg font-semibold text-slate-700 mb-1">No API key configured</h3>
         <p className="text-sm text-slate-500 mb-5 max-w-md mx-auto">
-          AI analysis uses your own {meta.label} API key. Add one in Settings → AI Assistant. Your
+          Model Advisor uses your own {meta.label} API key. Add one in Settings → Model Advisor. Your
           key is stored encrypted on this device; results are sent to your chosen provider only.
         </p>
         <button
           onClick={() => onOpenSettings?.()}
           className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-gray-700 hover:bg-gray-800 transition-colors"
         >
-          <FiSettings size={14} /> Open AI settings
+          <FiSettings size={14} /> Open Model Advisor settings
         </button>
       </div>
     );
@@ -223,7 +223,7 @@ export default function AIAnalysisTab({ result, selectedJob, model, onOpenSettin
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="flex items-center gap-2 px-5 py-3 border-b border-slate-100">
           <FiCpu size={14} className="text-gray-600" />
-          <span className="font-semibold text-slate-800 text-sm flex-1">AI Analysis</span>
+          <span className="font-semibold text-slate-800 text-sm flex-1">Model Advisor</span>
           {reportBusy ? (
             <button onClick={() => reportHandle.current?.cancel()} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 border border-slate-200 hover:bg-slate-50">
               <FiStopCircle size={12} /> Stop

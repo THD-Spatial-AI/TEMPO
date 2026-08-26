@@ -1,7 +1,7 @@
 {
   "name": "tempo",
   "private": true,
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "Tool for Energy Model Preparation and Optimization",
   "homepage": "https://github.com/TH-Deggendorf/TEMPO",
   "author": {

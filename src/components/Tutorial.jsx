@@ -181,8 +181,8 @@ const Tutorial = () => {
                   { label: 'Structure → Overrides / Scenarios', desc: 'Define named parameter overrides and scenario combinations for sensitivity runs',                   group: 'Structure' },
                   { label: 'Export',                         desc: 'Download the active model as Calliope 0.6/0.7, PyPSA, OSeMOSYS, or AdOpT-NET0 archive',              group: null },
                   { label: 'Run',                            desc: 'Launch optimisation. Search, filter and bulk-manage completed runs by name or status.',                group: null },
-                  { label: 'Results',                        desc: 'Dispatch, costs, capacity maps, shadow prices — plus AI Analysis tab for LLM-powered insights',       group: null },
-                  { label: 'Settings',                       desc: 'Engine install panels, AI assistant API key, backend connection, solver paths',                        group: null },
+                  { label: 'Results',                        desc: 'Dispatch, costs, capacity maps, shadow prices — plus Model Advisor tab for LLM-powered insights',    group: null },
+                  { label: 'Settings',                       desc: 'Engine install panels, Model Advisor API key, backend connection, solver paths',                     group: null },
                 ].map((item, i, arr) => {
                   const isStructureFirst = item.group === 'Structure' && (!arr[i - 1] || arr[i - 1].group !== 'Structure');
                   return (
