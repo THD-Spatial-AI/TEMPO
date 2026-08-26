@@ -3,6 +3,7 @@ package api
 import (
 	"io"
 	"net/http"
+	"os"
 	"path"
 	"strings"
 	"time"
@@ -10,7 +11,14 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const techAPIURL = "http://localhost:8000"
+// techAPIURL is the upstream opentech-db base URL.
+// Override with TEMPO_TECH_UPSTREAM_URL env var (e.g. for a local dev instance).
+var techAPIURL = func() string {
+	if u := os.Getenv("TEMPO_TECH_UPSTREAM_URL"); u != "" {
+		return strings.TrimRight(u, "/")
+	}
+	return "https://otdb.th-deg.de"
+}()
 
 // proxyTechAPI forwards /tech/api/v1/* requests to the opentech-db Python API on port 8000.
 func (s *Server) proxyTechAPI(c *gin.Context) {

@@ -307,7 +307,7 @@ ipcMain.handle('services:urls', async () => {
     adoptnet0:  { url: `http://localhost:${ADOPTNET0_PORT}`, running: a   },
     pypsa:      { url: `http://localhost:${PYPSA_PORT}`,     running: py  },
     osemosys:   { url: `http://localhost:${OSEMOSYS_PORT}`,  running: osm },
-    opentech:   { url: 'http://localhost:8000',              running: o   },
+    opentech:   { url: 'https://otdb.th-deg.de',             running: o   },
     hydrogen:   { url: 'http://localhost:8765',              running: h2  },
     ccs:        { url: 'http://localhost:8766',              running: ccs },
     geoserver:  { url: 'http://localhost:8081',              running: gs  },
@@ -315,9 +315,14 @@ ipcMain.handle('services:urls', async () => {
   };
 });
 
-// opentech-db base URL — override by setting TEMPO_TECH_API_URL at build/launch time
-const TECH_API_URL = process.env.TEMPO_TECH_API_URL || 'http://localhost:8000';
-ipcMain.handle('tech:api-url', () => TECH_API_URL);
+// In production, proxy through Go backend. In dev, fetch directly from the
+// public API — otdb.th-deg.de sends `access-control-allow-origin: http://localhost:5173`
+// so CORS is satisfied without any proxy.
+ipcMain.handle('tech:api-url', () =>
+  app.isPackaged
+    ? `http://localhost:${BACKEND_PORT}/tech`
+    : 'https://otdb.th-deg.de'
+);
 
 // Backward compat — calliopeClient.js calls this
 ipcMain.handle('calliope:service-url', async () => ({
@@ -503,6 +508,43 @@ ipcMain.handle('ai:cancel', (_e, reqId) => {
   const c = aiAbortControllers.get(reqId);
   if (c) c.abort();
   return { success: true };
+});
+
+// ─── IPC: MEME server proxy (avoids CORS from renderer) ──────────────────
+ipcMain.handle('meme:check', async (_event, rawUrl) => {
+  if (!rawUrl || typeof rawUrl !== 'string') return null;
+  const base = rawUrl.trim().replace(/\/+$/, '');
+  try {
+    const { net } = require('electron');
+    const res = await net.fetch(`${base}/capabilities`, {
+      signal: AbortSignal.timeout(5000),
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+});
+
+// General-purpose MEME HTTP proxy — renderer calls this for all MEME requests
+// so they bypass CORS (main process has no origin restrictions).
+// Returns { ok, status, data } where data is the parsed JSON body (or null).
+ipcMain.handle('meme:fetch', async (_event, { url, method = 'GET', body, timeoutMs = 30000 }) => {
+  try {
+    const { net } = require('electron');
+    const opts = { method, signal: AbortSignal.timeout(timeoutMs), cache: 'no-store' };
+    if (body) {
+      opts.headers = { 'Content-Type': 'application/json' };
+      opts.body = body;
+    }
+    const res = await net.fetch(url, opts);
+    let data = null;
+    try { data = await res.json(); } catch { /* non-JSON body */ }
+    return { ok: res.ok, status: res.status, data };
+  } catch (err) {
+    return { ok: false, status: 0, data: null, networkError: err.message };
+  }
 });
 
 // ─── Python venv resolver ─────────────────────────────────────────────────
@@ -1424,11 +1466,15 @@ ipcMain.handle('calliope:install', async (_event, selectedModules = ['calliope']
         await runChild(osmVenvPy, ['-m', 'pip', 'install', '--prefer-binary', '--no-cache-dir', '-r', osmReqFile], 'osm deps');
       }
 
-      await runChild(osmVenvPy, ['-c', 'import psycopg2, requests; print("osm-ok")'], 'osm verify');
+      // Verify every dependency the download pipeline imports at startup
+      // (download_world_osm → requests/tqdm, extract_osm_region → osmium,
+      // upload_to_postgis → psycopg2). Checking only psycopg2/requests let a
+      // broken osmium wheel pass here and then fail at extract time.
+      await runChild(osmVenvPy, ['-c', 'import psycopg2, requests, osmium, tqdm; print("osm-ok")'], 'osm verify');
       sendProgress({ type: 'log', line: '✓ OSM processing tools installed' });
     } catch (osmErr) {
       sendProgress({ type: 'log', line: `⚠ OSM tools install failed: ${(osmErr.message || String(osmErr)).split('\n')[0]}` });
-      sendProgress({ type: 'log', line: '  OSM download will fall back to Overpass API — no action needed' });
+      sendProgress({ type: 'log', line: '  Region download will be unavailable; the map still shows live OSM via Overpass. Re-run setup to retry.' });
     }
 
     sendProgress({ type: 'done' });

@@ -1,5 +1,6 @@
 // CompletedRunsSection — extracted verbatim from Run.jsx.
-import { FiActivity, FiAlertTriangle, FiBarChart2, FiCheckCircle, FiClock, FiCpu, FiDownload, FiList, FiTerminal, FiTrash2, FiZap } from 'react-icons/fi';
+import { useState } from 'react';
+import { FiActivity, FiAlertTriangle, FiBarChart2, FiCheckCircle, FiClock, FiCpu, FiDownload, FiList, FiSearch, FiTerminal, FiTrash2, FiX, FiZap } from 'react-icons/fi';
 
 export default function CompletedRunsSection({
   onNavigate,
@@ -10,6 +11,46 @@ export default function CompletedRunsSection({
   setActiveResultJobId,
   setExpandedCompletedLog,
 }) {
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
+
+  const filteredJobs = completedJobs.filter(job => {
+    const matchesSearch = !searchQuery || job.modelName?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = filterStatus === 'all' || (filterStatus === 'failed' ? job.status === 'failed' : job.status !== 'failed');
+    return matchesSearch && matchesStatus;
+  });
+  const allSelected = filteredJobs.length > 0 && filteredJobs.every(j => selectedIds.has(j.id));
+  const someSelected = selectedIds.size > 0;
+
+  const toggleSelect = (id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedIds(prev => { const next = new Set(prev); filteredJobs.forEach(j => next.delete(j.id)); return next; });
+    } else {
+      setSelectedIds(prev => { const next = new Set(prev); filteredJobs.forEach(j => next.add(j.id)); return next; });
+    }
+  };
+
+  const handleBulkDelete = () => {
+    const count = selectedIds.size;
+    if (!window.confirm(`Delete ${count} run${count > 1 ? 's' : ''}?`)) return;
+    selectedIds.forEach(id => removeCompletedJob(id));
+    setSelectedIds(new Set());
+  };
+
+  const handleBulkDownload = () => {
+    completedJobs.filter(j => selectedIds.has(j.id)).forEach(job => downloadJob(job));
+    setSelectedIds(new Set());
+  };
+
   return (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200">
           <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
@@ -17,7 +58,9 @@ export default function CompletedRunsSection({
               <FiList size={16} className="text-electric-500" />
               Completed Runs
               <span className="ml-1 px-2 py-0.5 bg-electric-100 text-electric-700 rounded-full text-xs font-bold">
-                {completedJobs.length}
+                {filteredJobs.length !== completedJobs.length
+                  ? `${filteredJobs.length} of ${completedJobs.length}`
+                  : completedJobs.length}
               </span>
             </h2>
             {completedJobs.length > 0 && (
@@ -25,21 +68,91 @@ export default function CompletedRunsSection({
             )}
           </div>
 
+          {completedJobs.length > 0 && (
+            <div className="flex gap-2 px-6 py-3 border-b border-slate-100">
+              <div className="relative flex-1">
+                <FiSearch size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Search by model name…"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300"
+                />
+              </div>
+              <select
+                value={filterStatus}
+                onChange={e => setFilterStatus(e.target.value)}
+                className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-600 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300"
+              >
+                <option value="all">All statuses</option>
+                <option value="done">Done</option>
+                <option value="failed">Failed</option>
+              </select>
+            </div>
+          )}
+
+          {someSelected && (
+            <div className="flex items-center gap-2 mx-6 my-3 px-3 py-2 bg-gray-800 text-white rounded-lg text-sm">
+              <span className="flex-1 font-medium">{selectedIds.size} selected</span>
+              <button
+                onClick={handleBulkDownload}
+                className="px-3 py-1 bg-white/10 hover:bg-white/20 rounded text-xs font-medium flex items-center gap-1.5 transition-colors"
+              >
+                <FiDownload size={13} />
+                Download
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                className="px-3 py-1 bg-red-500/70 hover:bg-red-500 rounded text-xs font-medium flex items-center gap-1.5 transition-colors"
+              >
+                <FiTrash2 size={13} />
+                Delete
+              </button>
+              <button
+                onClick={() => setSelectedIds(new Set())}
+                className="p-1 hover:bg-white/10 rounded transition-colors"
+                title="Clear selection"
+              >
+                <FiX size={15} />
+              </button>
+            </div>
+          )}
+
           {completedJobs.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-slate-300">
               <FiCheckCircle size={48} className="mb-3 opacity-30" />
               <p className="text-base font-medium">No completed runs yet</p>
               <p className="text-sm mt-1 opacity-70">Run a model above to see results here</p>
             </div>
+          ) : filteredJobs.length === 0 ? (
+            <p className="text-center py-10 text-sm text-slate-400">No runs match your search.</p>
           ) : (
             <div className="divide-y divide-slate-50">
-              {completedJobs.map(job => {
+              <div className="flex items-center gap-4 px-6 py-2 text-xs text-gray-500 border-b border-gray-100">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={toggleSelectAll}
+                  className="rounded w-3.5 h-3.5 cursor-pointer"
+                />
+                <span>Select all ({filteredJobs.length})</span>
+              </div>
+              {filteredJobs.map(job => {
                 const failed = job.status === 'failed';
                 const isLogOpen = expandedCompletedLog === job.id;
 
                 return (
                   <div key={job.id} className="px-6 py-4 hover:bg-slate-50/60 transition-colors">
                     <div className="flex items-center gap-4 flex-wrap">
+
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(job.id)}
+                        onChange={() => toggleSelect(job.id)}
+                        onClick={e => e.stopPropagation()}
+                        className="rounded w-3.5 h-3.5 cursor-pointer flex-shrink-0"
+                      />
 
                       {/* Status icon */}
                       <div className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center bg-gray-100">
@@ -156,4 +269,3 @@ export default function CompletedRunsSection({
         </div>
   );
 }
-

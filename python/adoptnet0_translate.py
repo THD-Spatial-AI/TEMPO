@@ -16,6 +16,8 @@ import os
 import re
 from pathlib import Path
 
+from engine_overlay import engine_overlay, coerce_overlay
+
 # ---------------------------------------------------------------------------
 # Numeric helpers
 # ---------------------------------------------------------------------------
@@ -649,6 +651,16 @@ def _write_node_data(period_dir: str, locations: list, technologies: list,
             tech_json = _build_tech_json(tech)
             if tech_json is None:
                 continue
+            # Engine-specific (AdOpT-NET0) overrides on top of the translation.
+            # assigned_refs may be ids, so resolve the per-location config by
+            # ref_key or the tech's name/id.
+            _loc_techs = loc.get("techs") or {}
+            _loc_cfg = (_loc_techs.get(ref_key)
+                        or _loc_techs.get(tech.get("name"))
+                        or _loc_techs.get(tech.get("id")))
+            _ep = coerce_overlay(engine_overlay(tech, _loc_cfg, "adoptnet0"))
+            if _ep:
+                tech_json.update(_ep)
 
             tid = _safe_id(tech.get("name") or tech.get("id") or f"tech_{i}")
             _write_json(os.path.join(tech_data_dir, f"{tid}.json"), tech_json)

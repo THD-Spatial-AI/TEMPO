@@ -40,6 +40,7 @@ import { MAP_STYLES, MAP_STYLE_NAMES } from '../config/mapStyles';
 import LayerSelector from './creation/LayerSelector';
 import SearchBar from './creation/SearchBar';
 import MapZoomControls from './creation/MapZoomControls';
+import TechLibraryPanel from './creation/TechLibraryPanel';
 
 const Creation = () => {
   const { 
@@ -67,12 +68,13 @@ const Creation = () => {
   } = useData();
   
   // Mode state
-  const [mode, setMode] = useState(null); // null (no mode), 'single', 'multiple', 'link', 'polyline'
+  const [mode, setMode] = useState(null); // null (no mode), 'add', 'link', 'polyline'
   const [currentLinkType, setCurrentLinkType] = useState('hvac_overhead'); // link type used when drawing new links
+  const [showTechLibrary, setShowTechLibrary] = useState(false);
   
   // Initialize custom hooks
   const locationManager = useLocationManager();
-  const techManager = useTechnologyManager();
+  const techManager = useTechnologyManager(technologies);
   const polylineMode = usePolylineMode(locationManager, showNotification);
   
   // OSM Filters (local state - not persisted)
@@ -117,18 +119,18 @@ const Creation = () => {
       return;
     }
     
-    // Only create points when explicitly in single, multiple, or polyline mode
-    if (mode !== 'single' && mode !== 'multiple' && mode !== 'polyline') {
+    // Only create points when explicitly in add or polyline mode
+    if (mode !== 'add' && mode !== 'polyline') {
       return;
     }
-    
+
     const { coordinate } = info;
     if (coordinate) {
       // Polyline mode: create location instantly without dialog
       if (mode === 'polyline') {
         polylineMode.handlePolylineClick(coordinate);
       } else {
-        // Single/Multiple modes: open dialog
+        // Add mode: open the location dialog
         const newLocation = {
           // Don't set ID here - let it be assigned during save
           latitude: coordinate[1],
@@ -192,7 +194,19 @@ const Creation = () => {
   const [isNode, setIsNode] = useState(false);
   const [pendingLocation, setPendingLocation] = useState(null);
   const [originalLocationData, setOriginalLocationData] = useState(null);
-  
+
+  // Escape exits Add mode (only when no location dialog is open)
+  useEffect(() => {
+    if (mode !== 'add') return;
+    const onKey = (e) => {
+      if (e.key === 'Escape' && !showLocationDialog) {
+        setMode(null);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [mode, showLocationDialog]);
+
   // UI states
   const [expandedTechConstraints, setExpandedTechConstraints] = useState({});
   const [expandedCategories, setExpandedCategories] = useState({});
@@ -233,7 +247,7 @@ const Creation = () => {
   const [modelResults, setModelResults] = useState(null);
   
   // Create technology map — live API catalog first, then static fallback, then model-specific overrides
-  const { techTemplates: liveTechTemplates } = useLiveTechTemplates();
+  const { techTemplates: liveTechTemplates, isLive: isApiLive } = useLiveTechTemplates();
   const techMap = useMemo(() => {
     const map = {};
 
@@ -1664,12 +1678,40 @@ const Creation = () => {
           />
         )}
 
+        {/* Tech Library toggle button */}
+        <button
+          onClick={() => setShowTechLibrary(v => !v)}
+          className={`absolute top-4 left-4 z-30 flex items-center gap-1.5 px-3 py-1.5 rounded-lg shadow-md text-[11px] font-semibold transition-colors border ${
+            showTechLibrary
+              ? 'bg-indigo-600 text-white border-indigo-700'
+              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          <FiCpu size={12} />
+          Tech Library
+          {technologies.filter(t => t.uuid).length > 0 && (
+            <span className={`text-[9px] font-bold px-1 py-0.5 rounded-full ml-0.5 ${
+              showTechLibrary ? 'bg-indigo-500 text-white' : 'bg-indigo-50 text-indigo-600'
+            }`}>
+              {technologies.filter(t => t.uuid).length}
+            </span>
+          )}
+        </button>
+
+        {/* Tech Library panel */}
+        {showTechLibrary && (
+          <TechLibraryPanel
+            onClose={() => setShowTechLibrary(false)}
+            liveTechTemplates={liveTechTemplates}
+            isApiLive={isApiLive}
+          />
+        )}
+
         {/* Mode Indicator */}
         <div className="absolute bottom-4 left-4 bg-white px-4 py-2 rounded-lg shadow-lg">
           <div className="text-xs text-gray-600 mb-1">Current Mode</div>
           <div className="font-semibold text-gray-800">
-            {mode === 'single' && 'Single Location'}
-            {mode === 'multiple' && 'Multiple Locations'}
+            {mode === 'add' && 'Add Location'}
             {mode === 'link' && (locationManager.linkStart ? 'Link: Select End Location' : 'Link: Select Start Location')}
             {mode === 'polyline' && 'Polyline Mode'}
           </div>
@@ -1749,7 +1791,7 @@ const Creation = () => {
             locationManager.updateLocation(savedLocation.id, savedLocation);
             showNotification(`Updated location: ${savedLocation.name}`, 'success');
           } else {
-            // Add new location with generated ID (for Single/Multiple modes)
+            // Add new location with generated ID
             const newLocationWithId = {
               ...savedLocation,
               id: Date.now()
@@ -1760,7 +1802,6 @@ const Creation = () => {
           setShowLocationDialog(false);
           setPendingLocation(null);
         }}
-        onModeChange={setMode}
       />
     </div>
   );

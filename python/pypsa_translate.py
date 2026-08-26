@@ -39,6 +39,8 @@ import re
 from datetime import datetime, timedelta
 from itertools import cycle, islice
 
+from engine_overlay import engine_overlay, coerce_overlay
+
 HOURS_PER_YEAR = 8760.0
 _INF_SENTINEL = 1e14
 UNMET_DEMAND_COST = 1e6  # mirrors calliope's ensure_feasibility bigM slack
@@ -269,6 +271,9 @@ def translate_model(model_data: dict) -> tuple[dict, list]:
             constraints, costs = _merged_tech_def(tech, loc_cfg)
             comp_name = f"{lid}::{tid}"
             ctx = comp_name
+            # Engine-specific overrides for this tech (applied to its primary
+            # component and forwarded to PyPSA in build_network()).
+            ep_pypsa = coerce_overlay(engine_overlay(tech, loc_cfg, 'pypsa'))
 
             cap_max = _finite(constraints.get('energy_cap_max'))
             eff = _finite(constraints.get('energy_eff')) or 1.0
@@ -298,6 +303,8 @@ def translate_model(model_data: dict) -> tuple[dict, list]:
                     report.append(f"{ctx}: force_resource mapped to p_min_pu = p_max_pu")
                 if parent == 'supply_plus':
                     report.append(f"{ctx}: supply_plus treated as supply (resource storage/area not mapped)")
+                if ep_pypsa:
+                    gen['_engine_params'] = ep_pypsa
                 spec['generators'].append(gen)
 
             elif parent == 'demand':
@@ -334,6 +341,8 @@ def translate_model(model_data: dict) -> tuple[dict, list]:
                     'standing_loss': standing_loss,
                     'capital_cost': (cap_storage * annuity + om_annual) * year_frac,
                 })
+                if ep_pypsa:
+                    spec['stores'][-1]['_engine_params'] = ep_pypsa
                 spec['links'].append({
                     'name': f"{comp_name}::charge", 'bus0': bus, 'bus1': store_bus,
                     'efficiency': eff, 'p_nom_max': cap_max,
@@ -366,6 +375,8 @@ def translate_model(model_data: dict) -> tuple[dict, list]:
                     'capital_cost': (capex * annuity + om_annual) * year_frac * eff,
                     'marginal_cost': (om_var * eff) + om_con,
                 })
+                if ep_pypsa:
+                    spec['links'][-1]['_engine_params'] = ep_pypsa
                 if parent == 'conversion_plus':
                     report.append(f"{ctx}: conversion_plus treated as single-carrier conversion")
 
@@ -388,6 +399,7 @@ def translate_model(model_data: dict) -> tuple[dict, list]:
         ess = tech.get('essentials') or {}
         carrier = ess.get('carrier') or ess.get('carrier_out') or 'electricity'
         constraints, costs = _merged_tech_def(tech, None)
+        ep_pypsa = coerce_overlay(engine_overlay(tech, None, 'pypsa'))
 
         cap_max = _finite(constraints.get('energy_cap_max'))
         eff = _finite(constraints.get('energy_eff')) or 1.0
@@ -410,6 +422,8 @@ def translate_model(model_data: dict) -> tuple[dict, list]:
                 'capital_cost': pair_cost / 2.0,
                 'marginal_cost': om_var * eff,
             })
+            if ep_pypsa:
+                spec['links'][-1]['_engine_params'] = ep_pypsa
         report.append(f"link {a}↔{b} ({tid}): mapped to two directed Links, half pair cost each")
 
     # ── ensure_feasibility slack (mirrors calliope's unmet-demand bigM) ─────
@@ -474,6 +488,7 @@ def build_network(spec: dict):
             kwargs['p_max_pu'] = pd.Series(gen['p_max_pu'], index=n.snapshots)
         if gen.get('p_min_pu') is not None:
             kwargs['p_min_pu'] = pd.Series(gen['p_min_pu'], index=n.snapshots)
+        kwargs.update(gen.get('_engine_params') or {})  # engine-specific overrides
         n.add('Generator', gen['name'], **kwargs)
 
     for load in spec['loads']:
@@ -490,6 +505,7 @@ def build_network(spec: dict):
         }
         if store.get('e_nom_max') is not None:
             kwargs['e_nom_max'] = store['e_nom_max']
+        kwargs.update(store.get('_engine_params') or {})  # engine-specific overrides
         n.add('Store', store['name'], **kwargs)
 
     for link in spec['links']:
@@ -503,6 +519,7 @@ def build_network(spec: dict):
         }
         if link.get('p_nom_max') is not None:
             kwargs['p_nom_max'] = link['p_nom_max']
+        kwargs.update(link.get('_engine_params') or {})  # engine-specific overrides
         n.add('Link', link['name'], **kwargs)
 
     return n

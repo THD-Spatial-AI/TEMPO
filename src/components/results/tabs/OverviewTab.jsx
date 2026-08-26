@@ -1,27 +1,40 @@
 // OverviewTab — the "overview" result tab, extracted verbatim from Results.jsx.
 // Renders the pre-computed chart options / data passed as props.
-import { FiBarChart2, FiChevronDown, FiMap, FiMapPin, FiPieChart, FiShare2, FiTrendingUp, FiZap } from 'react-icons/fi';
+import { useState } from 'react';
+import { FiAlertTriangle, FiBarChart2, FiChevronDown, FiGrid, FiMap, FiMapPin, FiPieChart, FiShare2, FiTrendingUp, FiZap } from 'react-icons/fi';
 import ReactECharts from 'echarts-for-react';
-import { ResultsMap, TransmissionFlowMap } from '../ResultMaps';
+import { ResultsMap, TransmissionFlowMap, RegionChoropleth } from '../ResultMaps';
 import { autoScale, axisNameStyle, fmtCost, fmtEnergy, fmtPower, scaledFmt } from '../../../utils/resultFormat';
+
+const CHORO_OPTIONS = [
+  { id: 'demand',    label: 'Demand',       ramp: 'blue'  },
+  { id: 'unmet',     label: 'Unmet Demand', ramp: 'amber' },
+  { id: 'demandMet', label: 'Demand Met %', ramp: 'green' },
+];
 
 export default function OverviewTab({
   capBarOption,
   capLocOption,
+  choroMetrics = null,
   derivedData,
   genDonutOption,
   hasFlow,
   mapView,
   modelLocations,
+  RegionChoroplethComponent,
   result,
   sectionOpen,
   selectedJobId,
   setMapView,
   techColorFn,
+  techMixByLoc = {},
   toggleSection,
   transmissionFlowData,
   transmissionLinks,
 }) {
+  const [choroSel, setChoroSel] = useState('demand');
+  const hasRegions = choroMetrics && Object.keys(choroMetrics.demand || {}).length > 0;
+
   return (
               <div className="space-y-4">
                 {/* Map — full width, main visual */}
@@ -29,11 +42,15 @@ export default function OverviewTab({
                     <div className="px-4 pt-3 pb-2 flex items-center gap-2 flex-wrap">
                       <FiMap size={14} className="text-gray-600 flex-shrink-0" />
                       <span className="font-semibold text-slate-800 text-sm">Location Map</span>
-                      <div className="ml-auto flex gap-1">
+                      <div className="ml-auto flex gap-1 flex-wrap">
                         {[
                           { id: 'capacity',     label: 'Capacity',     icon: FiBarChart2 },
+                          { id: 'mix',          label: 'Tech Mix',     icon: FiPieChart },
+                          { id: 'regions',      label: 'Regions',      icon: FiGrid },
                           ...(hasFlow ? [{ id: 'generation', label: 'Gen Heatmap', icon: FiZap }] : []),
+                          ...(Object.keys(techMixByLoc).length > 0 ? [{ id: 'mix', label: 'Tech Mix', icon: FiPieChart }] : []),
                           { id: 'transmission', label: 'Transmission', icon: FiShare2 },
+                          ...(hasRegions ? [{ id: 'regions', label: 'Regions', icon: FiMap }] : []),
                         ].map(({ id, label, icon: Icon }) => (
                           <button key={id} onClick={() => setMapView(id)}
                             className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium transition-all ${
@@ -44,8 +61,35 @@ export default function OverviewTab({
                         ))}
                       </div>
                     </div>
+                    {/* Choropleth metric selector — only shown in regions view */}
+                    {mapView === 'regions' && hasRegions && (
+                      <div className="px-4 pb-2 flex items-center gap-2">
+                        <span className="text-xs text-slate-500">Show:</span>
+                        {CHORO_OPTIONS.map(opt => (
+                          <button key={opt.id} onClick={() => setChoroSel(opt.id)}
+                            className={`px-2 py-0.5 rounded text-[11px] font-medium transition-all ${
+                              choroSel === opt.id ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                            }`}>
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                     <div style={{ height: mapView === 'transmission' ? 560 : 480 }}>
-                      {modelLocations.length > 0 ? (
+                      {mapView === 'regions' && hasRegions ? (
+                        (() => {
+                          const opt = CHORO_OPTIONS.find(o => o.id === choroSel) || CHORO_OPTIONS[0];
+                          const metricData = choroMetrics[opt.id] || {};
+                          return RegionChoroplethComponent ? (
+                            <RegionChoroplethComponent
+                              key={selectedJobId + '-choro-' + choroSel}
+                              metric={metricData}
+                              metricLabel={opt.label}
+                              colorRamp={opt.ramp}
+                            />
+                          ) : null;
+                        })()
+                      ) : modelLocations.length > 0 ? (
                         mapView === 'transmission' ? (
                           <TransmissionFlowMap
                             key={selectedJobId + '-transmission'}
@@ -54,12 +98,19 @@ export default function OverviewTab({
                             capacitiesByLoc={derivedData?.capByLoc || {}}
                             timestamps={derivedData?.timestamps || []}
                           />
+                        ) : mapView === 'regions' ? (
+                          <RegionChoropleth
+                            key={selectedJobId + '-regions'}
+                            metrics={derivedData?.choroMetrics || {}}
+                          />
                         ) : (
                           <ResultsMap key={selectedJobId + '-' + mapView}
                             locations={modelLocations}
                             capacitiesByLoc={derivedData?.capByLoc || {}}
                             dominantTechByLoc={derivedData?.domTech || {}}
+                            techMixByLoc={derivedData?.techMixByLoc || {}}
                             generationByLoc={derivedData?.genByLoc || {}}
+                            techMixByLoc={techMixByLoc}
                             viewMode={mapView}
                             colorFn={techColorFn}
                             transmissionLinks={transmissionLinks}
@@ -115,6 +166,50 @@ export default function OverviewTab({
                     </div>}
                   </div>
                 </div>
+
+                {/* Unmet demand — shown only when model has unmet demand */}
+                {(result?.total_unmet_demand_mwh > 0) && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-2xl overflow-hidden">
+                    <button onClick={() => toggleSection('unmet-demand')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-amber-100/60 transition text-left">
+                      <FiAlertTriangle size={14} className="text-amber-500 flex-shrink-0" />
+                      <span className="font-semibold text-amber-900 text-sm flex-1">Unmet Demand</span>
+                      <span className="text-xs text-amber-600 mr-1">· {fmtEnergy(result.total_unmet_demand_mwh)}</span>
+                      <FiChevronDown size={12} className={`text-amber-400 transition-transform duration-150 ${sectionOpen('unmet-demand') ? '' : '-rotate-90'}`} />
+                    </button>
+                    {sectionOpen('unmet-demand') && (
+                      <div className="px-5 pb-5">
+                        <p className="text-xs text-amber-700 mb-3">
+                          The solver used <span className="font-semibold">{fmtEnergy(result.total_unmet_demand_mwh)}</span> of unmet-demand slack to remain feasible.
+                          Consider relaxing demand constraints or adding generation capacity.
+                        </p>
+                        {result.unmet_demand_by_location && Object.keys(result.unmet_demand_by_location).length > 0 && (
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="border-b border-amber-200">
+                                <th className="text-left py-1.5 font-semibold text-amber-700 uppercase tracking-wide">Location</th>
+                                <th className="text-right py-1.5 font-semibold text-amber-700 uppercase tracking-wide">Unmet (MWh)</th>
+                                <th className="text-right py-1.5 font-semibold text-amber-700 uppercase tracking-wide">Share</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {Object.entries(result.unmet_demand_by_location)
+                                .sort(([, a], [, b]) => b - a)
+                                .map(([loc, mwh]) => (
+                                  <tr key={loc} className="border-b border-amber-100">
+                                    <td className="py-1.5 text-amber-900 font-mono">{loc}</td>
+                                    <td className="py-1.5 text-right font-mono text-amber-800">{fmtEnergy(mwh)}</td>
+                                    <td className="py-1.5 text-right font-mono text-amber-600">
+                                      {(mwh / result.total_unmet_demand_mwh * 100).toFixed(1)}%
+                                    </td>
+                                  </tr>
+                                ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Technology summary table */}
                 {derivedData?.capByTech && (

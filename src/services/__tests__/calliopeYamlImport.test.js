@@ -1,6 +1,51 @@
 import { describe, it, expect } from 'vitest';
 import jsyaml from 'js-yaml';
-import { translateCalliopeModel } from '../calliopeYamlImport';
+import { translateCalliopeModel, parseFilesMap } from '../calliopeYamlImport';
+
+// ── Root detection by structure (not filename) ──────────────────────────────
+describe('parseFilesMap — root detection', () => {
+  const techsYaml = 'techs:\n  grid:\n    base_tech: supply\n    carrier_out: electricity\n';
+  const nodesYaml = 'nodes:\n  a:\n    techs:\n      grid:\n';
+  const scenariosYaml = 'overrides:\n  o1:\n    config:\n      init.name: x\n';
+  const mkMap = (entries) => {
+    const m = new Map();
+    for (const [k, v] of entries) { m.set(k, v); m.set(k.split('/').pop(), v); }
+    return m;
+  };
+
+  it('identifies a structurally-detected root when no model.yaml exists', async () => {
+    const rootYaml = 'import:\n  - model_config/techs.yaml\n  - model_config/nodes.yaml\nconfig:\n  init:\n    name: THD\n';
+    const map = mkMap([
+      ['proj/model_main.yaml', rootYaml],
+      ['proj/model_config/techs.yaml', techsYaml],
+      ['proj/model_config/nodes.yaml', nodesYaml],
+      ['proj/scenarios.yaml', scenariosYaml],
+    ]);
+    const merged = await parseFilesMap(map, () => {});
+    expect(merged.config?.init?.name).toBe('THD');
+    expect(merged.techs.grid).toBeDefined();  // import resolved
+    expect(merged.nodes.a).toBeDefined();
+  });
+
+  it('picks the shortest-named root when several candidates exist', async () => {
+    const main = 'import:\n  - t.yaml\nconfig:\n  init:\n    name: main\n';
+    const incr = 'import:\n  - t.yaml\nconfig:\n  init:\n    name: incremental\n';
+    const map = mkMap([
+      ['p/model_main.yaml', main],
+      ['p/model_incremental.yaml', incr],
+      ['p/t.yaml', techsYaml],
+    ]);
+    const logs = [];
+    const merged = await parseFilesMap(map, (m) => logs.push(m));
+    expect(merged.config.init.name).toBe('main');
+    expect(logs.some(l => /Multiple model roots/.test(l))).toBe(true);
+  });
+
+  it('still throws helpfully when only sub-configs are present', async () => {
+    const map = mkMap([['p/techs.yaml', techsYaml], ['p/scenarios.yaml', scenariosYaml]]);
+    await expect(parseFilesMap(map, () => {})).rejects.toThrow(/root model file/i);
+  });
+});
 
 describe('translateCalliopeModel — location coordinates', () => {
   it('reads geographic coordinates: {lat, lon}', () => {

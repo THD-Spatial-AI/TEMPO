@@ -242,6 +242,16 @@ def _to_frozen_contract(extracted: dict, timestamps: list, model_data: dict, nam
                 "color": tech.get("color", ""),
             }
 
+    # generation: sum per-node dispatch arrays to get energy totals (MWh)
+    # Populates {node::tech: total_MWh} so the Energy Flow tab becomes available.
+    generation = {}
+    for node, techs in raw_dispatch.items():
+        for tech, arr in techs.items():
+            if isinstance(arr, list) and arr:
+                total = sum(v for v in arr if isinstance(v, (int, float)))
+                if total > 0:
+                    generation[f"{node}::{tech}"] = total
+
     return {
         "success": True,
         "framework": "adoptnet0",
@@ -251,7 +261,7 @@ def _to_frozen_contract(extracted: dict, timestamps: list, model_data: dict, nam
         "objective": extracted.get("objective"),
         "termination_condition": term_cond,
         "capacities": capacities,
-        "generation": {},
+        "generation": generation,
         "dispatch": dispatch,
         "timestamps": timestamps,
         "transmission_flow": {},

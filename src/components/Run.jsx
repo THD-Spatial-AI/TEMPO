@@ -23,7 +23,11 @@ import SporesConfigPanel from './run/SporesConfigPanel';
 
 
 const Run = ({ onNavigate }) => {
-  const { models, getCurrentModel, showNotification, addCompletedJob, removeCompletedJob, completedJobs, setActiveResultJobId, timeSeries, technologies, overrides, scenarios } = useData();
+  const {
+    models, getCurrentModel, showNotification, addCompletedJob, removeCompletedJob, completedJobs,
+    setActiveResultJobId, timeSeries, technologies, overrides, scenarios,
+    runningJobs, addRunningJob, removeRunningJob, appendRunningJobLog, updateRunningJobStats, getRunningJob,
+  } = useData();
 
   const [selectedModel, setSelectedModel]       = useState(null);
   const [selectedFramework, setSelectedFramework] = useState('calliope');
@@ -103,8 +107,7 @@ const Run = ({ onNavigate }) => {
   const [showScenariosDropdown, setShowScenariosDropdown] = useState(false);
   const scenariosDropdownRef = useRef(null);
 
-  // Active (running) jobs: { id, modelName, solver, startTime, logs: [] }
-  const [runningJobs, setRunningJobs] = useState([]);
+  // runningJobs is now in DataContext (shared with ScenarioStudio)
 
   // Log panel state
   const [expandedLog, setExpandedLog] = useState(null); // jobId whose log is visible
@@ -162,6 +165,10 @@ const Run = ({ onNavigate }) => {
       ...(runCfg.mode               != null ? { mode:               runCfg.mode               } : {}),
       ...(runCfg.ensure_feasibility != null ? { ensureFeasibility:  !!runCfg.ensure_feasibility } : {}),
       ...(runCfg.cyclic_storage     != null ? { cyclicStorage:      !!runCfg.cyclic_storage     } : {}),
+      // Imported Calliope 0.7 models carry their engine version so the correct
+      // engine is preselected. (Imported named math travels via metadata.mathModules,
+      // not the customMath textarea, to preserve conditional activation.)
+      ...(meta.modelConfig?.calliopeVersion ? { calliopeVersion: meta.modelConfig.calliopeVersion } : {}),
     }));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedModel?.id]);
@@ -308,85 +315,59 @@ const Run = ({ onNavigate }) => {
   // ─── Internal helpers for job completion ─────────────────────────────────────
 
   const _handleJobDone = (jobId, result) => {
-    // Prevent double-fire from React StrictMode or duplicate SSE events
     if (completedIdsRef.current.has(jobId)) return;
     completedIdsRef.current.add(jobId);
 
-    setRunningJobs(prev => {
-      const job = prev.find(j => j.id === jobId);
-      if (job) {
-        const durationMs = Date.now() - new Date(job.startTime).getTime();
-        const duration = durationMs < 60000
-          ? `${(durationMs / 1000).toFixed(1)}s`
-          : `${Math.round(durationMs / 60000)}m ${Math.round((durationMs % 60000) / 1000)}s`;
-        // Schedule addCompletedJob outside the updater to avoid side-effects inside it
-        setTimeout(() => {
-          // Count how many times this model has been run before → append version
-          const prevRuns = completedJobs.filter(j => {
-            const base = j.modelName.replace(/ \(version \d+\)$/, '');
-            return base === job.modelName;
-          }).length;
-          const labeledName = prevRuns > 0 ? `${job.modelName} (version ${prevRuns + 1})` : job.modelName;
-          addCompletedJob({
-            id: jobId,
-            modelName: labeledName,
-            framework: job.framework,
-            solver: job.solver,
-            mode: job.mode || 'plan',
-            status: result?.success === false ? 'failed' : 'completed',
-            completedAt: new Date().toISOString(),
-            duration,
-            objective: result?.objective || null,
-            terminationCondition: result?.termination_condition || 'optimal',
-            result: result || {},
-            logs: job.logs,
-          });
-          showNotification(
-            result?.success === false
-              ? `Model run failed: ${result.error}`
-              : `Model run completed in ${duration}`,
-            result?.success === false ? 'error' : 'success'
-          );
-        }, 0);
-      }
-      return prev.filter(j => j.id !== jobId);
-    });
+    const job = getRunningJob(jobId);
+    removeRunningJob(jobId);
+    if (job) {
+      const durationMs = Date.now() - new Date(job.startTime).getTime();
+      const duration = durationMs < 60000
+        ? `${(durationMs / 1000).toFixed(1)}s`
+        : `${Math.round(durationMs / 60000)}m ${Math.round((durationMs % 60000) / 1000)}s`;
+      setTimeout(() => {
+        const prevRuns = completedJobs.filter(j => {
+          const base = j.modelName.replace(/ \(version \d+\)$/, '');
+          return base === job.modelName;
+        }).length;
+        const labeledName = prevRuns > 0 ? `${job.modelName} (version ${prevRuns + 1})` : job.modelName;
+        addCompletedJob({
+          id: jobId, modelName: labeledName, framework: job.framework, solver: job.solver,
+          mode: job.mode || 'plan', status: result?.success === false ? 'failed' : 'completed',
+          completedAt: new Date().toISOString(), duration, objective: result?.objective || null,
+          terminationCondition: result?.termination_condition || 'optimal', result: result || {}, logs: job.logs,
+        });
+        showNotification(
+          result?.success === false ? `Model run failed: ${result.error}` : `Model run completed in ${duration}`,
+          result?.success === false ? 'error' : 'success'
+        );
+      }, 0);
+    }
     delete cancelFnsRef.current[jobId];
   };
 
   const _handleJobError = (jobId, error) => {
-    // Prevent double-fire from React StrictMode or duplicate SSE events
     if (completedIdsRef.current.has(jobId)) return;
     completedIdsRef.current.add(jobId);
 
-    setRunningJobs(prev => {
-      const job = prev.find(j => j.id === jobId);
-      if (job) {
-        setTimeout(() => {
-          const prevRuns = completedJobs.filter(j => {
-            const base = j.modelName.replace(/ \(version \d+\)$/, '');
-            return base === job.modelName;
-          }).length;
-          const labeledName = prevRuns > 0 ? `${job.modelName} (version ${prevRuns + 1})` : job.modelName;
-          addCompletedJob({
-            id: jobId,
-            modelName: labeledName,
-            framework: job.framework,
-            solver: job.solver,
-            mode: job.mode || 'plan',
-            status: 'failed',
-            completedAt: new Date().toISOString(),
-            duration: 'N/A',
-            objective: null,
-            terminationCondition: 'error',
-            result: { success: false, error },
-            logs: [...job.logs, `[ERROR] ${error}`],
-          });
-          showNotification(`Run failed: ${error}`, 'error');
-        }, 0);
-      }
-      return prev.filter(j => j.id !== jobId);
-    });
+    const job = getRunningJob(jobId);
+    removeRunningJob(jobId);
+    if (job) {
+      setTimeout(() => {
+        const prevRuns = completedJobs.filter(j => {
+          const base = j.modelName.replace(/ \(version \d+\)$/, '');
+          return base === job.modelName;
+        }).length;
+        const labeledName = prevRuns > 0 ? `${job.modelName} (version ${prevRuns + 1})` : job.modelName;
+        addCompletedJob({
+          id: jobId, modelName: labeledName, framework: job.framework, solver: job.solver,
+          mode: job.mode || 'plan', status: 'failed', completedAt: new Date().toISOString(),
+          duration: 'N/A', objective: null, terminationCondition: 'error',
+          result: { success: false, error }, logs: [...job.logs, `[ERROR] ${error}`],
+        });
+        showNotification(`Run failed: ${error}`, 'error');
+      }, 0);
+    }
     delete cancelFnsRef.current[jobId];
   };
 
@@ -526,7 +507,7 @@ const Run = ({ onNavigate }) => {
         stats: null,
       };
 
-      setRunningJobs(prev => [...prev, newJob]);
+      addRunningJob(newJob);
       // Only expand log for the first job to avoid UI flicker
       if (started.length === 0) setExpandedLog(jobId);
 
@@ -560,21 +541,15 @@ const Run = ({ onNavigate }) => {
       try {
         const { cancel } = await runFn({
           modelData,
-          onLog: (line) =>
-            setRunningJobs(prev =>
-              prev.map(j => j.id === jobId ? { ...j, logs: [...j.logs, line] } : j)
-            ),
-          onStats: (s) =>
-            setRunningJobs(prev =>
-              prev.map(j => j.id === jobId ? { ...j, stats: s } : j)
-            ),
+          onLog: (line) => appendRunningJobLog(jobId, line),
+          onStats: (s) => updateRunningJobStats(jobId, s),
           onDone: (result) => _handleJobDone(jobId, result),
           onError: (error) => _handleJobError(jobId, error),
         });
         cancelFnsRef.current[jobId] = cancel;
         started.push(displayName);
       } catch (err) {
-        setRunningJobs(prev => prev.filter(j => j.id !== jobId));
+        removeRunningJob(jobId);
         failed.push(displayName);
         showNotification(`Failed to start "${displayName}": ${err.message}`, 'error');
       }
@@ -596,7 +571,7 @@ const Run = ({ onNavigate }) => {
       cancel();
       delete cancelFnsRef.current[jobId];
     }
-    setRunningJobs(prev => prev.filter(j => j.id !== jobId));
+    removeRunningJob(jobId);
     showNotification('Model run stopped', 'info');
   };
 

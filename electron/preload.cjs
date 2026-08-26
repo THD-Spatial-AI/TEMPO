@@ -195,8 +195,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   /**
    * Get the opentech-db API base URL.
-   * Reads TEMPO_TECH_API_URL env var in main process; falls back to localhost:8000.
-   * Set TEMPO_TECH_API_URL to point at the deployed public opentech-db instance.
+   * Returns the Go backend proxy path so requests go through /tech/* → https://otdb.th-deg.de.
+   * Override the upstream with TEMPO_TECH_UPSTREAM_URL env var (see techproxy.go).
    * @returns Promise<string>
    */
   getTechApiURL: () => ipcRenderer.invoke('tech:api-url'),
@@ -259,6 +259,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
       return () => ipcRenderer.removeListener('ai:stream', handler);
     },
   },
+
+  // ── MEME remote server ────────────────────────────────────────────────────
+
+  /**
+   * Probe a MEME server's /capabilities endpoint from the main process
+   * (avoids CORS when called from the renderer).
+   * @param {string} url  Base URL of the MEME server (e.g. "http://localhost:8081")
+   * @returns Promise<object|null>  Parsed /capabilities JSON, or null if unreachable.
+   */
+  memeCheck: (url) => ipcRenderer.invoke('meme:check', url),
+
+  /**
+   * General-purpose MEME HTTP proxy. Bypasses CORS — all MEME run traffic
+   * goes through the main process, not the renderer.
+   * @param {{ url: string, method?: string, body?: string, timeoutMs?: number }} opts
+   * @returns Promise<{ ok: boolean, status: number, data: object|null, networkError?: string }>
+   */
+  memeFetch: (opts) => ipcRenderer.invoke('meme:fetch', opts),
 });
 
 

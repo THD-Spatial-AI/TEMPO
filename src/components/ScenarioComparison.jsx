@@ -1,11 +1,12 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import ReactECharts from 'echarts-for-react';
 import {
   FiSearch, FiBarChart2, FiGrid, FiTrendingUp, FiZap,
   FiDollarSign, FiSliders, FiLayers, FiInfo, FiCheckSquare,
-  FiSquare, FiDownload, FiFilter, FiChevronDown,
+  FiSquare, FiDownload, FiFilter, FiChevronDown, FiMap,
 } from 'react-icons/fi';
+import { RegionChoropleth } from './results/ResultMaps';
 
 // ─── Qualitative colour palette (20 perceptually-distinct colours) ────────────
 const PALETTE = [
@@ -103,6 +104,10 @@ function extractKPIs(result) {
   const avgCF = Object.values(genCF).reduce((s, v) => s + v, 0) / Math.max(1, Object.keys(genCF).length);
 
   const lcoe = totalGen > 0 ? totalCost / totalGen : 0;
+  const totalUnmetMWh = result.total_unmet_demand_mwh || 0;
+  const totalImportsMWh = result.imports_by_location
+    ? Object.values(result.imports_by_location).reduce((s, v) => s + v, 0)
+    : 0;
 
   return {
     capByTech, genByTech, costByTech, allTechs,
@@ -116,6 +121,8 @@ function extractKPIs(result) {
     avgCF,
     costPerMW: totalCap > 0 ? totalCost / totalCap : 0,
     peakGen: Math.max(0, ...Object.values(genByTech)),
+    totalUnmetMWh,
+    totalImportsMWh,
   };
 }
 
@@ -212,8 +219,10 @@ function buildParallelOption(kpisPerJob, colorMap) {
     { dim: 4, name: 'Renewable\nCap (%)',   key: 'renewableCapShare', scale: 100, fmt: v => v.toFixed(0) + '%' },
     { dim: 5, name: 'LCOE\n(€/MWh)',        key: 'lcoe',              scale: 1,   fmt: v => fmtNum(v) },
     { dim: 6, name: 'Avg CF\n(%)',          key: 'avgCF',             scale: 100, fmt: v => v.toFixed(0) + '%' },
-    { dim: 7, name: 'Locations',            key: 'locationCount',     scale: 1,   fmt: v => String(Math.round(v)) },
-    { dim: 8, name: 'Technologies',         key: 'techCount',         scale: 1,   fmt: v => String(Math.round(v)) },
+    { dim: 7, name: 'Unmet\n(MWh)',         key: 'totalUnmetMWh',     scale: 1,   fmt: v => fmtNum(v) },
+    { dim: 8, name: 'Imports\n(MWh)',       key: 'totalImportsMWh',   scale: 1,   fmt: v => fmtNum(v) },
+    { dim: 9, name: 'Locations',            key: 'locationCount',     scale: 1,   fmt: v => String(Math.round(v)) },
+    { dim: 10,name: 'Technologies',         key: 'techCount',         scale: 1,   fmt: v => String(Math.round(v)) },
   ];
 
   // Drop axes where all values are zero (e.g. no costs defined)
@@ -277,6 +286,8 @@ const SCATTER_METRICS = [
   { key: 'lcoe',             label: 'LCOE (€/MWh)',             scale: 1 },
   { key: 'avgCF',            label: 'Avg Cap. Factor (%)',      scale: 100 },
   { key: 'costPerMW',        label: 'Cost per MW (€/MW)',       scale: 1 },
+  { key: 'totalUnmetMWh',   label: 'Unmet Demand (MWh)',       scale: 1 },
+  { key: 'totalImportsMWh', label: 'Net Imports (MWh)',        scale: 1 },
   { key: 'locationCount',    label: 'Locations',                scale: 1 },
   { key: 'techCount',        label: 'Technologies',             scale: 1 },
   { key: 'timestepCount',    label: 'Timesteps',                scale: 1 },
@@ -361,6 +372,8 @@ const KPI_ROWS = [
   { key: 'lcoe',            label: 'LCOE',                    fmt: v => '€\u202f' + fmtNum(v) + '/MWh', best: 'min' },
   { key: 'avgCF',           label: 'Avg Cap. Factor',         fmt: v => (v * 100).toFixed(1) + '%', best: 'max' },
   { key: 'costPerMW',       label: 'Cost per MW',             fmt: v => '€\u202f' + fmtNum(v) + '/MW', best: 'min' },
+  { key: 'totalUnmetMWh',  label: 'Unmet Demand',            fmt: v => v > 0 ? fmtNum(v) + ' MWh' : '—', best: 'min' },
+  { key: 'totalImportsMWh',label: 'Net Imports',             fmt: v => v > 0 ? fmtNum(v) + ' MWh' : '—', best: 'none' },
   { key: 'locationCount',   label: 'Locations',               fmt: v => v.toLocaleString(), best: 'none' },
   { key: 'techCount',       label: 'Technologies',            fmt: v => String(v), best: 'none' },
   { key: 'timestepCount',   label: 'Timesteps',               fmt: v => v.toLocaleString(), best: 'none' },
@@ -369,11 +382,37 @@ const KPI_ROWS = [
 // ─── Chart-view tabs ───────────────────────────────────────────────────────
 const CHART_VIEWS = [
   { id: 'table',    label: 'Summary',    icon: FiGrid },
+  { id: 'maps',     label: 'Maps',       icon: FiMap },
   { id: 'capacity', label: 'Capacity',   icon: FiBarChart2 },
   { id: 'gen',      label: 'Generation', icon: FiZap },
   { id: 'costs',    label: 'Costs',      icon: FiDollarSign },
   { id: 'parallel', label: 'Parallel',   icon: FiTrendingUp },
   { id: 'scatter',  label: 'Scatter',    icon: FiSliders },
+  { id: 'maps',     label: 'Maps',       icon: FiMap },
+];
+
+// ─── Choropleth metric options ─────────────────────────────────────────────
+const CHORO_MAP_OPTIONS = [
+  { id: 'demand',    label: 'Demand (MWh)',      ramp: 'blue',  fmt: v => { const n = Math.abs(Number(v)); if (n >= 1e6) return (n/1e6).toFixed(1)+'G'; if (n >= 1e3) return (n/1e3).toFixed(1)+'k'; return n.toFixed(0); } },
+  { id: 'unmet',     label: 'Unmet Demand (MWh)',ramp: 'amber', fmt: v => { const n = Math.abs(Number(v)); if (n >= 1e6) return (n/1e6).toFixed(1)+'G'; if (n >= 1e3) return (n/1e3).toFixed(1)+'k'; return n.toFixed(0); } },
+  { id: 'demandMet', label: 'Demand Met (%)',    ramp: 'green', fmt: v => Number(v).toFixed(1) + '%' },
+];
+
+// Shared metric options for the side-by-side region maps
+const MAP_METRICS = [
+  { key: 'demand',    label: 'Demand' },
+  { key: 'unmet',     label: 'Unmet demand' },
+  { key: 'demandMet', label: 'Demand met' },
+];
+const MAX_MAPS = 6; // WebGL contexts are costly — cap the small-multiples grid
+
+// Aggregate KPIs for the combined cross-region map (one value shades a whole region)
+const REGION_KPIS = [
+  { key: 'renewableShare', label: 'Renewable share', kind: 'pct', ramp: ['#d73027', '#fee08b', '#1a9850'] },
+  { key: 'renewableCapShare', label: 'Renewable cap.', kind: 'pct', ramp: ['#d73027', '#fee08b', '#1a9850'] },
+  { key: 'totalCost',      label: 'System cost',     kind: 'seq', ramp: ['#fff7ec', '#fdbb84', '#d7301f'], unit: '€' },
+  { key: 'lcoe',           label: 'LCOE',            kind: 'seq', ramp: ['#fff7ec', '#fdbb84', '#d7301f'], unit: '€/MWh' },
+  { key: 'unmetTotal',     label: 'Unmet demand',    kind: 'seq', ramp: ['#fff5f0', '#fb6a4a', '#a50f15'], unit: 'MWh' },
 ];
 
 // ─── CSV export ────────────────────────────────────────────────────────────
@@ -391,6 +430,8 @@ function exportCSV(kpisPerJob) {
     kpis.lcoe.toFixed(2),
     (kpis.avgCF * 100).toFixed(2),
     kpis.costPerMW.toFixed(2),
+    kpis.totalUnmetMWh.toFixed(2),
+    kpis.totalImportsMWh.toFixed(2),
     kpis.locationCount,
     kpis.techCount,
     kpis.timestepCount,
@@ -417,6 +458,7 @@ export default function ScenarioComparison() {
   const [scatterX,    setScatterX]    = useState('renewableShare');
   const [scatterY,    setScatterY]    = useState('totalCost');
   const [techFilter,  setTechFilter]  = useState(new Set());
+  const [mapMetric,   setMapMetric]   = useState('demand');
 
   // Jobs with a usable result
   const validJobs = useMemo(
@@ -451,6 +493,25 @@ export default function ScenarioComparison() {
       .filter(x => x.kpis),
     [selectedJobs]
   );
+
+  // Choropleth data per selected job (null if job has no demand_by_location)
+  const choroPerJob = useMemo(() =>
+    selectedJobs.map(job => {
+      const r = job.result;
+      const demand = r.demand_by_location || {};
+      const unmet  = r.unmet_demand_by_location || {};
+      if (!Object.keys(demand).length) return null;
+      const demandMet = {};
+      Object.keys(demand).forEach(loc => {
+        const d = demand[loc] || 0;
+        const u = unmet[loc] || 0;
+        if (d > 0) demandMet[loc] = Math.max(0, (d - u) / d * 100);
+      });
+      return { demand, unmet, demandMet };
+    }),
+    [selectedJobs]
+  );
+  const hasAnyChoro = choroPerJob.some(c => c !== null);
 
   // Union of all tech names across selected jobs
   const allTechs = useMemo(() => {
@@ -658,7 +719,7 @@ export default function ScenarioComparison() {
               </button>
             </div>
 
-            {allTechs.length > 1 && (
+            {allTechs.length > 1 && chartView !== 'maps' && (
               <div className="flex-shrink-0 flex items-center gap-1.5 flex-wrap mb-3 px-3 py-2 bg-white rounded-xl border border-slate-200 shadow-sm">
                 <FiFilter size={11} className="text-slate-400 flex-shrink-0" />
                 <button onClick={clearTechFilter}
@@ -825,6 +886,74 @@ export default function ScenarioComparison() {
                       <p className="text-slate-400 text-sm text-center py-14">Select at least 2 runs.</p>
                     ) : (
                       <ReactECharts option={scatterOption} style={{ height: '100%' }} notMerge />
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {chartView === 'maps' && (
+                <div className="h-full bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+                  {/* Header + metric selector */}
+                  <div className="flex-shrink-0 px-4 pt-3 pb-2 border-b border-slate-100 flex items-center gap-3 flex-wrap">
+                    <div>
+                      <p className="font-semibold text-slate-800 text-sm">Region Maps</p>
+                      <p className="text-xs text-slate-400">Side-by-side choropleth by commune</p>
+                    </div>
+                    {hasAnyChoro && (
+                      <div className="ml-auto flex items-center gap-1.5">
+                        <span className="text-xs text-slate-500">Show:</span>
+                        {CHORO_MAP_OPTIONS.map(opt => (
+                          <button key={opt.id} onClick={() => setMapMetric(opt.id)}
+                            className={`px-2 py-0.5 rounded text-[11px] font-medium transition-all ${
+                              mapMetric === opt.id ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                            }`}>
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {/* Map grid */}
+                  <div className="flex-1 min-h-0 overflow-auto p-3">
+                    {!hasAnyChoro ? (
+                      <div className="h-full flex items-center justify-center text-slate-400 text-sm text-center px-8">
+                        <div>
+                          <FiMap size={32} className="mx-auto mb-3 opacity-30" />
+                          <p>No demand data available.</p>
+                          <p className="text-xs mt-1">Run models with the updated Calliope runner to see region maps.</p>
+                        </div>
+                      </div>
+                    ) : (
+                      (() => {
+                        const opt = CHORO_MAP_OPTIONS.find(o => o.id === mapMetric) || CHORO_MAP_OPTIONS[0];
+                        const jobsWithChoro = selectedJobs
+                          .map((job, i) => ({ job, i, choro: choroPerJob[i] }))
+                          .filter(x => x.choro !== null);
+                        const cols = jobsWithChoro.length <= 2 ? jobsWithChoro.length : jobsWithChoro.length <= 4 ? 2 : 3;
+                        return (
+                          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 12, height: jobsWithChoro.length <= cols ? '100%' : 'auto', minHeight: '100%' }}>
+                            {jobsWithChoro.map(({ job, i, choro }) => (
+                              <div key={job.id} style={{ display: 'flex', flexDirection: 'column', minHeight: 320 }}>
+                                {/* Job label */}
+                                <div className="flex items-center gap-1.5 mb-1.5 flex-shrink-0">
+                                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                    style={{ background: colorMap[job.id] || jobColor(i) }} />
+                                  <span className="text-xs font-medium text-slate-700 truncate" title={job.modelName}>{job.modelName}</span>
+                                </div>
+                                <div style={{ flex: 1, borderRadius: 10, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+                                  <RegionChoropleth
+                                    key={job.id + '-choro-' + mapMetric}
+                                    metric={choro[opt.id] || {}}
+                                    metricLabel={opt.label}
+                                    colorRamp={opt.ramp}
+                                    fmtValue={opt.fmt}
+                                  />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()
                     )}
                   </div>
                 </div>

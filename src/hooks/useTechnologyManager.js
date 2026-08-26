@@ -5,13 +5,13 @@ import { TECH_TEMPLATES } from '../components/TechnologiesData';
  * Custom hook for managing technologies in locations
  * Handles adding, removing, and configuring technologies
  */
-export const useTechnologyManager = () => {
+export const useTechnologyManager = (modelTechnologies = []) => {
   const [dialogTechs, setDialogTechs] = useState([]);
   const [editingConstraints, setEditingConstraints] = useState({});
   const [editingEssentials, setEditingEssentials] = useState({});
   const [editingCosts, setEditingCosts] = useState({});
   
-  // Create a flat techMap from TECH_TEMPLATES for easy lookup
+  // Create a flat techMap from TECH_TEMPLATES + model-specific technologies
   const techMap = useMemo(() => {
     const map = {};
     Object.values(TECH_TEMPLATES).forEach(categoryArray => {
@@ -26,8 +26,19 @@ export const useTechnologyManager = () => {
         });
       }
     });
+    // Merge model-specific technologies (e.g. from OEO catalog); model values win
+    modelTechnologies.forEach(tech => {
+      if (tech?.name) {
+        map[tech.name] = {
+          ...tech,
+          defaultEssentials: tech.essentials || {},
+          defaultConstraints: tech.constraints || {},
+          defaultCosts: tech.costs?.monetary || {}
+        };
+      }
+    });
     return map;
-  }, []);
+  }, [modelTechnologies]);
   
   // Add technology to location
   const addTechToLocation = useCallback((location, techName, updateLocation) => {
@@ -44,21 +55,21 @@ export const useTechnologyManager = () => {
           }
         }
       };
-      
+
       if (updateLocation) {
         updateLocation(updatedLocation.id, { techs: updatedLocation.techs });
       }
-      
+
       return updatedLocation;
     }
     return location;
-  }, []);
-  
+  }, [techMap]);
+
   // Add technology to dialog (for new location creation)
   const addTechToDialog = useCallback((techName) => {
     if (!dialogTechs.includes(techName)) {
       setDialogTechs(prev => [...prev, techName]);
-      
+
       const techTemplate = techMap[techName];
       setEditingConstraints(prev => ({
         ...prev,
@@ -73,7 +84,7 @@ export const useTechnologyManager = () => {
         [techName]: { ...techTemplate.defaultCosts }
       }));
     }
-  }, [dialogTechs]);
+  }, [dialogTechs, techMap]);
   
   // Remove technology from dialog
   const removeTechFromDialog = useCallback((techName) => {

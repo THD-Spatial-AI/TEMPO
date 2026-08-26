@@ -122,6 +122,22 @@ describe('runMemeModel – poll loop', () => {
     expect(calls.some((c) => c.url.includes('/result.json'))).toBe(false);
   });
 
+  it('reads the contract from runs[].contract (MEME job-view shape)', async () => {
+    const { calls } = installFetch({
+      submit: { body: { id: 'j2b', state: 'queued' } },
+      statuses: [{
+        state: 'succeeded', target: 'calliope', log: '',
+        runs: [{ target: 'calliope', index: 0, exit_code: 0, contract }],
+      }],
+    });
+    const onDone = vi.fn();
+    await runMemeModel('calliope07', { server, modelData, onDone, pollMs: 500 });
+    await vi.advanceTimersByTimeAsync(500);
+
+    expect(onDone).toHaveBeenCalledWith(contract);
+    expect(calls.some((c) => c.url.includes('/result.json'))).toBe(false);
+  });
+
   it('reports a failed job via onError', async () => {
     installFetch({
       submit: { body: { id: 'j3', state: 'queued' } },

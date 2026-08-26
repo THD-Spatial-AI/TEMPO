@@ -122,6 +122,17 @@ def test_non_monetary_cost_class_warns():
     assert any('spores_score' in w for w in warnings)
 
 
+def test_raw07_cost_class_emitted_verbatim():
+    """Carrier/multi-indexed 0.7 costs preserved on import (__raw07__) must be
+    re-emitted unchanged, not dropped or re-wrapped."""
+    warnings = []
+    raw = {'cost_flow_cap': {'data': 1000, 'index': [['monetary', 'heat']],
+                             'dims': ['costs', 'carriers']}}
+    out = t.translate_costs({'__raw07__': raw}, warnings, 'heat_pump')
+    assert out == raw
+    assert warnings == []
+
+
 # ---------------------------------------------------------------------------
 # Tech translation (base_tech, carriers, supply_plus)
 # ---------------------------------------------------------------------------

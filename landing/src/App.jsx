@@ -7,6 +7,7 @@ import Docs from './pages/Docs'
 import ApiRef from './pages/ApiRef'
 import License from './pages/License'
 import Privacy from './pages/Privacy'
+import Impressum from './pages/Impressum'
 import CodeOfConduct from './pages/CodeOfConduct'
 
 export default function App() {
@@ -21,6 +22,7 @@ export default function App() {
         <Route path="/docs/api" element={<ApiRef />} />
         <Route path="/license" element={<License />} />
         <Route path="/privacy" element={<Privacy />} />
+        <Route path="/impressum" element={<Impressum />} />
         <Route path="/code-of-conduct" element={<CodeOfConduct />} />
       </Routes>
     </HashRouter>

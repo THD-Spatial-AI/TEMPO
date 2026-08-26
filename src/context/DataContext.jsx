@@ -170,6 +170,21 @@ export const DataProvider = ({ children }) => {
   // Which completed job the Results view should open (set from Run section)
   const [activeResultJobId, setActiveResultJobId] = useState(null);
 
+  // Active (running) jobs — shared across Run and ScenarioStudio so both views see the same list
+  const [runningJobs, setRunningJobs] = useState([]);
+  const runningJobsRef = useRef([]);
+  useEffect(() => { runningJobsRef.current = runningJobs; }, [runningJobs]);
+
+  const addRunningJob = useCallback((job) => setRunningJobs(prev => [...prev, job]), []);
+  const removeRunningJob = useCallback((jobId) => setRunningJobs(prev => prev.filter(j => j.id !== jobId)), []);
+  const appendRunningJobLog = useCallback((jobId, line) => setRunningJobs(prev =>
+    prev.map(j => j.id === jobId ? { ...j, logs: [...j.logs, line] } : j)
+  ), []);
+  const updateRunningJobStats = useCallback((jobId, stats) => setRunningJobs(prev =>
+    prev.map(j => j.id === jobId ? { ...j, stats } : j)
+  ), []);
+  const getRunningJob = useCallback((jobId) => runningJobsRef.current.find(j => j.id === jobId) ?? null, []);
+
   // Completed Calliope jobs – shared between Run and Results views
   const [completedJobs, setCompletedJobs] = useState(() => {
     try {
@@ -681,6 +696,12 @@ export const DataProvider = ({ children }) => {
     links, setLinks,
     parameters, setParameters,
     technologies, setTechnologies,
+    addTechToModel: (tech) => setTechnologies(prev =>
+      prev.some(t => t.name === tech.name) ? prev : [...prev, tech]
+    ),
+    removeTechFromModel: (techName) => setTechnologies(prev =>
+      prev.filter(t => t.name !== techName)
+    ),
     timeSeries, setTimeSeries,
     overrides, setOverrides,
     scenarios, setScenarios,
@@ -695,6 +716,7 @@ export const DataProvider = ({ children }) => {
     setModels,
     navigationWarning,
     setNavigationWarning,
+    runningJobs, addRunningJob, removeRunningJob, appendRunningJobLog, updateRunningJobStats, getRunningJob,
     completedJobs,
     addCompletedJob,
     removeCompletedJob,

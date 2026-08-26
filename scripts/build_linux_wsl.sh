@@ -31,19 +31,20 @@ set -u
 echo "[setup] node $(node --version) at $(which node)"
 echo "[setup] npm  $(npm --version)  at $(which npm)"
 
-# ── 2. Ensure Go is available ─────────────────────────────────────────────────
-if ! command -v go &>/dev/null; then
-  echo "[setup] Installing Go 1.22..."
-  GO_VER="1.22.4"
-  curl -fsSL "https://go.dev/dl/go${GO_VER}.linux-amd64.tar.gz" -o /tmp/go.tar.gz
-  sudo rm -rf /usr/local/go
-  sudo tar -C /usr/local -xzf /tmp/go.tar.gz
-  export PATH="/usr/local/go/bin:$PATH"
-  echo 'export PATH="/usr/local/go/bin:$PATH"' >> "$HOME/.bashrc"
-else
-  export PATH="/usr/local/go/bin:$PATH"
-  echo "[setup] Go $(go version | awk '{print $3}')"
+# ── 2. Ensure Go >= required version is available (user-local, no sudo) ────────
+# Installs into $HOME so no sudo/password prompt is needed (which would hang a
+# non-interactive `wsl -- bash ...` invocation). Version must satisfy go.mod.
+GO_REQUIRED="1.26.6"
+GO_HOME="$HOME/.local/go-${GO_REQUIRED}"
+if [ ! -x "$GO_HOME/bin/go" ]; then
+  echo "[setup] Installing Go ${GO_REQUIRED} to ${GO_HOME} (no sudo)..."
+  curl -fsSL "https://go.dev/dl/go${GO_REQUIRED}.linux-amd64.tar.gz" -o /tmp/go.tar.gz
+  rm -rf "$GO_HOME"
+  mkdir -p "$GO_HOME"
+  tar -C "$GO_HOME" --strip-components=1 -xzf /tmp/go.tar.gz
 fi
+export PATH="$GO_HOME/bin:$PATH"
+echo "[setup] Go $(go version | awk '{print $3}') at $(command -v go)"
 
 # ── 3. System dependencies ────────────────────────────────────────────────────
 MISSING=()
@@ -60,15 +61,19 @@ WIN_PROJECT="$(dirname "$0")/.."
 WIN_PROJECT="$(cd "$WIN_PROJECT" && pwd)"   # resolves to /mnt/c/...
 BUILD_DIR="/tmp/tempo-build"
 
-echo "[build] Syncing project to $BUILD_DIR (excluding node_modules, .venv, release)..."
+echo "[build] Syncing project to $BUILD_DIR (excluding node_modules, .venv, release, dist)..."
+# dist/ is excluded because this script regenerates it with its own `npm run build`
+# below; copying it also races a concurrent Windows `vite build` rewriting dist/.
+# rsync exit 24 (source files vanished mid-copy) is benign here — tolerate it.
 rsync -a --delete \
   --exclude='node_modules/' \
   --exclude='release/' \
+  --exclude='dist/' \
   --exclude='.venv*/' \
   --exclude='*.pyc' \
   --exclude='__pycache__/' \
   --exclude='.git/' \
-  "$WIN_PROJECT/" "$BUILD_DIR/"
+  "$WIN_PROJECT/" "$BUILD_DIR/" || { rc=$?; [ "$rc" -eq 24 ] || exit "$rc"; }
 
 cd "$BUILD_DIR"
 

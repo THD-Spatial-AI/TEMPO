@@ -224,6 +224,316 @@ describe('from07ToInternal – data table sink sign flip', () => {
     expect(vals[0]).toBe(-100);
     expect(vals[1]).toBe(-120);
   });
+
+  it('stores csvContent so timeseries survive the save/reload cycle', () => {
+    const csv = 'timesteps,north\n2005-01-01 00:00:00,100\n2005-01-01 01:00:00,120\n';
+    const filesMap = new Map([['demand.csv', csv]]);
+    const doc = {
+      techs: { power_demand: { base_tech: 'demand', carrier_in: 'electricity' } },
+      nodes: { north: { techs: { power_demand: null } } },
+      config: {},
+      data_tables: {
+        demand_data: {
+          data: 'demand.csv', rows: 'timesteps', columns: 'nodes',
+          add_dims: { parameters: 'sink_use_equals', techs: 'power_demand' },
+        },
+      },
+    };
+    const { timeSeries } = from07ToInternal(doc, filesMap, papa);
+    const ts = timeSeries[0];
+    expect(typeof ts.csvContent).toBe('string');
+    expect(ts.csvContent.length).toBeGreaterThan(0);
+    // csvContent reflects the internal (sign-flipped) values, so a reload
+    // rebuilds the exact same negative-demand data — not the positive source.
+    expect(ts.csvContent).toContain('-100');
+    expect(ts.csvContent).not.toMatch(/,100(\D|$)/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// from07ToInternal – data tables: 0.7.0 release "inputs" dim + columns:techs
+// ---------------------------------------------------------------------------
+
+describe('from07ToInternal – 0.7.0 release data-table shapes (THD model)', () => {
+  it('reads add_dims.inputs (0.7.0) and columns:techs with scalar node for demand', () => {
+    const csv = 'timesteps,demand_electricity\n2025-01-01 00:00:00,180\n2025-01-01 01:00:00,200\n';
+    const filesMap = new Map([['electricity_demand.csv', csv]]);
+    const doc = {
+      techs: { demand_electricity: { base_tech: 'demand', carrier_in: 'electricity' } },
+      nodes: { campus: { techs: { demand_electricity: null } } },
+      config: {},
+      data_tables: {
+        electricity_demand: {
+          table: 'data_tables/electricity_demand.csv',
+          rows: 'timesteps',
+          columns: 'techs',
+          add_dims: { nodes: 'campus', inputs: 'sink_use_equals' },
+        },
+      },
+    };
+    const { locations, timeSeries } = from07ToInternal(doc, filesMap, papa);
+    // demand values flipped negative for internal convention
+    expect(timeSeries[0].data.map(r => r.demand_electricity)).toEqual([-180, -200]);
+    // resource file ref injected on campus.demand_electricity with force_resource
+    const campus = locations.find(l => l.name === 'campus');
+    expect(campus.techs.demand_electricity.constraints.resource)
+      .toBe('file=electricity_demand.csv:demand_electricity');
+    expect(campus.techs.demand_electricity.constraints.force_resource).toBe(true);
+  });
+
+  it('links columns:techs source_use_max to every hosting node (PV capacity factor)', () => {
+    const csv = 'timesteps,pv_a,pv_b\n2025-01-01 00:00:00,0.1,0.2\n';
+    const filesMap = new Map([['pv.csv', csv]]);
+    const doc = {
+      techs: {
+        pv_a: { base_tech: 'supply', carrier_out: 'electricity', source_unit: 'per_cap' },
+        pv_b: { base_tech: 'supply', carrier_out: 'electricity', source_unit: 'per_cap' },
+      },
+      nodes: { n1: { techs: { pv_a: null } }, n2: { techs: { pv_b: null } } },
+      config: {},
+      data_tables: {
+        pv_capacity_factor: {
+          table: 'pv.csv', rows: 'timesteps', columns: 'techs',
+          add_dims: { inputs: 'source_use_max' },
+        },
+      },
+    };
+    const { locations, technologies } = from07ToInternal(doc, filesMap, papa);
+    expect(locations.find(l => l.name === 'n1').techs.pv_a.constraints.resource)
+      .toBe('file=pv.csv:pv_a');
+    expect(locations.find(l => l.name === 'n2').techs.pv_b.constraints.resource)
+      .toBe('file=pv.csv:pv_b');
+    // source_unit passes through on the tech (not dropped)
+    expect(technologies.find(t => t.name === 'pv_a').constraints.source_unit).toBe('per_cap');
+    // supply source refs are NOT forced and NOT sign-flipped
+    expect(locations.find(l => l.name === 'n1').techs.pv_a.constraints.force_resource).toBeUndefined();
+  });
+
+  it('keeps columns:inputs tables (custom-math params) as passthrough data_table', () => {
+    const csv = 'timesteps,battery_charge_baseline,battery_discharge_baseline\n2025-01-01 00:00:00,5,0\n';
+    const filesMap = new Map([['batt.csv', csv]]);
+    const doc = {
+      techs: { batt: { base_tech: 'storage', carrier_in: 'electricity', carrier_out: 'electricity' } },
+      nodes: { n1: { techs: { batt: null } } },
+      config: {},
+      data_tables: {
+        existing_battery: {
+          table: 'batt.csv', rows: 'timesteps', columns: 'inputs',
+          add_dims: { nodes: 'n1', techs: 'batt', carriers: 'electricity' },
+        },
+      },
+    };
+    const { timeSeries } = from07ToInternal(doc, filesMap, papa);
+    const ts = timeSeries[0];
+    expect(ts.type).toBe('data_table');
+    expect(ts.dataTableConfig.columns).toBe('parameters');   // normalised for TEMPO's engine
+    expect(ts.dataTableConfig.add_dims).toMatchObject({ nodes: 'n1', techs: 'batt', carriers: 'electricity' });
+    // values untouched (not sign-flipped)
+    expect(ts.data[0].battery_charge_baseline).toBe(5);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// from07ToInternal – passthrough params, node available_area, math, params
+// ---------------------------------------------------------------------------
+
+describe('from07ToInternal – 0.7-native passthrough + node/model metadata', () => {
+  it('keeps flow_in_eff and cyclic_storage verbatim on a storage tech', () => {
+    const { technologies } = from07ToInternal(
+      makeDoc07({ base_tech: 'storage', carrier_in: 'electricity', carrier_out: 'electricity',
+        flow_in_eff: 0.95, flow_out_eff: 0.95, cyclic_storage: true }),
+      new Map(), papa,
+    );
+    const c = technologies[0].constraints;
+    expect(c.flow_in_eff).toBe(0.95);
+    expect(c.energy_eff).toBe(0.95);   // flow_out_eff still maps to energy_eff
+    expect(c.cyclic_storage).toBe(true);
+  });
+
+  it('captures node available_area', () => {
+    const doc = { techs: {}, nodes: { parking: { available_area: 2800, techs: {} } }, config: {} };
+    const { locations } = from07ToInternal(doc, new Map(), papa);
+    expect(locations[0].available_area).toBe(2800);
+  });
+
+  it('assigns distinct placeholder coords when the model has no node coordinates', () => {
+    const doc = { techs: {}, nodes: { a: { techs: {} }, b: { techs: {} }, c: { techs: {} } }, config: {} };
+    const { locations } = from07ToInternal(doc, new Map(), papa);
+    // none at 0,0 (which the map filters out), all distinct, all flagged
+    expect(locations.every(l => !(l.latitude === 0 && l.longitude === 0))).toBe(true);
+    expect(new Set(locations.map(l => `${l.latitude},${l.longitude}`)).size).toBe(3);
+    expect(locations.every(l => l.placeholderCoords === true)).toBe(true);
+    // lat/lon mirrored onto lat/lng-style fields the map reads
+    expect(locations[0].lat).toBe(locations[0].latitude);
+    expect(locations[0].lon).toBe(locations[0].longitude);
+  });
+
+  it('does NOT override real node coordinates with placeholders', () => {
+    const doc = {
+      techs: {},
+      nodes: { a: { latitude: 48.8, longitude: 12.9, techs: {} }, b: { techs: {} } },
+      config: {},
+    };
+    const { locations } = from07ToInternal(doc, new Map(), papa);
+    const a = locations.find(l => l.name === 'a');
+    expect(a.latitude).toBe(48.8);
+    expect(a.placeholderCoords).toBeUndefined();
+  });
+
+  it('loads named conditional math and top-level data_definitions', () => {
+    const mathYaml = 'constraints:\n  fix_x:\n    where: battery_charge_baseline\n';
+    const filesMap = new Map([['additional_math.yaml', mathYaml]]);
+    const doc = {
+      techs: {}, nodes: {},
+      config: { init: { math_paths: { baseline_calibration: 'additional_math.yaml' } } },
+      data_definitions: { cost_interest_rate: { data: 0.05, index: 'monetary', dims: 'costs' } },
+    };
+    const { mathModules, modelParameters, overridesFormat } = from07ToInternal(doc, filesMap, papa);
+    expect(mathModules).toHaveLength(1);
+    expect(mathModules[0]).toMatchObject({ name: 'baseline_calibration', unconditional: false });
+    expect(mathModules[0].text).toContain('fix_x');
+    expect(modelParameters.cost_interest_rate).toBeDefined();
+    expect(overridesFormat).toBe('0.7');
+  });
+
+  it('marks extra_math modules as unconditional', () => {
+    const filesMap = new Map([['additional_math.yaml', 'constraints: {}\n']]);
+    const doc = {
+      techs: {}, nodes: {},
+      config: { init: {
+        math_paths: { additional_math: 'additional_math.yaml' },
+        extra_math: ['additional_math'],
+      } },
+    };
+    const { mathModules } = from07ToInternal(doc, filesMap, papa);
+    expect(mathModules[0].unconditional).toBe(true);
+  });
+
+  it('normalizes override-embedded data_tables and loads their CSVs', () => {
+    const csv = 'timesteps,pv_x\n2025-01-01 00:00:00,0.1\n';
+    const filesMap = new Map([['pv_profile.csv', csv]]);
+    const doc = {
+      techs: { pv_x: { base_tech: 'supply', carrier_out: 'electricity' } },
+      nodes: { n1: { techs: { pv_x: null } } },
+      config: {},
+      overrides: {
+        swap_pv: {
+          data_tables: {
+            pv_profile: {
+              table: 'data_tables/pv_profile.csv',   // 0.7.0-release key
+              rows: 'timesteps', columns: 'techs',
+              add_dims: { inputs: 'source_use_max' }, // 0.7.0-release dim
+            },
+          },
+        },
+      },
+    };
+    const { overrides, timeSeries } = from07ToInternal(doc, filesMap, papa);
+    const tbl = overrides.swap_pv.data_tables.pv_profile;
+    expect(tbl.data).toBe('model_config/pv_profile.csv');
+    expect(tbl.table).toBeUndefined();
+    expect(tbl.add_dims.parameters).toBe('source_use_max');
+    expect(tbl.add_dims.inputs).toBeUndefined();
+    expect(timeSeries.some(t => t.fileName === 'pv_profile.csv')).toBe(true);
+  });
+
+  it('drops a redundant override data table that re-declares the base CSV', () => {
+    // Base loads heat_demand.csv for demand_heat; the override re-declares the
+    // SAME csv → redundant, so the override table is dropped (base keeps it),
+    // avoiding a double sink that would make the model infeasible.
+    const csv = 'timesteps,demand_heat\n2025-01-01 00:00:00,250\n';
+    const filesMap = new Map([['heat_demand.csv', csv]]);
+    const doc = {
+      techs: { demand_heat: { base_tech: 'demand', carrier_in: 'heat' } },
+      nodes: { campus: { techs: { demand_heat: null } } },
+      config: {},
+      data_tables: {
+        heat_demand: {
+          table: 'data_tables/heat_demand.csv', rows: 'timesteps', columns: 'techs',
+          add_dims: { nodes: 'campus', inputs: 'sink_use_equals' },
+        },
+      },
+      overrides: {
+        heat_profile: {
+          data_tables: {
+            heat_demand: {
+              table: 'data_tables/heat_demand.csv', rows: 'timesteps', columns: 'techs',
+              add_dims: { nodes: 'campus', inputs: 'sink_use_equals' },
+            },
+          },
+        },
+      },
+    };
+    const { overrides, locations } = from07ToInternal(doc, filesMap, papa);
+    // override table removed (redundant); base ref retained on campus.demand_heat
+    expect(overrides.heat_profile.data_tables).toBeUndefined();
+    const campus = locations.find(l => l.name === 'campus');
+    expect(campus.techs.demand_heat.constraints.resource).toContain('file=heat_demand.csv');
+  });
+
+  it('supersedes the base ref when an override table uses a different CSV', () => {
+    // Base loads pv_base.csv for pv_x; override swaps in pv_alt.csv → genuine
+    // supersede: base ref cleared, override table kept & normalized.
+    const base = 'timesteps,pv_x\n2025-01-01 00:00:00,0.1\n';
+    const alt = 'timesteps,pv_x\n2025-01-01 00:00:00,0.9\n';
+    const filesMap = new Map([['pv_base.csv', base], ['pv_alt.csv', alt]]);
+    const doc = {
+      techs: { pv_x: { base_tech: 'supply', carrier_out: 'electricity' } },
+      nodes: { n1: { techs: { pv_x: null } } },
+      config: {},
+      data_tables: {
+        pv_base: { table: 'pv_base.csv', rows: 'timesteps', columns: 'techs', add_dims: { inputs: 'source_use_max' } },
+      },
+      overrides: {
+        swap: {
+          data_tables: {
+            pv_alt: { table: 'pv_alt.csv', rows: 'timesteps', columns: 'techs', add_dims: { inputs: 'source_use_max' } },
+          },
+        },
+      },
+    };
+    const { overrides, locations } = from07ToInternal(doc, filesMap, papa);
+    expect(overrides.swap.data_tables.pv_alt.data).toBe('model_config/pv_alt.csv');
+    // base ref cleared so the override owns pv_x's timeseries
+    const n1 = locations.find(l => l.name === 'n1');
+    expect(n1.techs.pv_x.constraints.resource).toBeUndefined();
+  });
+
+  it('imports a conversion tech and preserves carrier-indexed cost verbatim', () => {
+    const heatPumpCost = { data: 1000, index: [['monetary', 'heat']], dims: ['costs', 'carriers'] };
+    const { technologies } = from07ToInternal(
+      makeDoc07({
+        base_tech: 'conversion', carrier_in: 'electricity', carrier_out: 'heat',
+        flow_out_eff: { data: 2.8, index: 'heat', dims: 'carriers' },
+        cost_flow_cap: heatPumpCost,
+      }),
+      new Map(), papa,
+    );
+    const t = technologies[0];
+    expect(t.parent).toBe('conversion');
+    expect(t.essentials.carrier_in).toBe('electricity');
+    expect(t.essentials.carrier_out).toBe('heat');
+    // carrier-indexed efficiency round-trips as an opaque object
+    expect(t.constraints.energy_eff).toMatchObject({ data: 2.8, index: 'heat' });
+    // multi-carrier cost preserved (not dropped) under the __raw07__ class
+    expect(t.costs.__raw07__.cost_flow_cap).toEqual(heatPumpCost);
+  });
+});
+
+describe('carrier-indexed cost survives internal → 0.7 export', () => {
+  it('re-emits a preserved __raw07__ cost verbatim', () => {
+    const heatPumpCost = { data: 1000, index: [['monetary', 'heat']], dims: ['costs', 'carriers'] };
+    const model = baseModel({
+      technologies: [{
+        name: 'heat_pump',
+        essentials: { parent: 'conversion', carrier_in: 'electricity', carrier_out: 'heat' },
+        constraints: {},
+        costs: { __raw07__: { cost_flow_cap: heatPumpCost } },
+      }],
+    });
+    const { modelDoc } = internalTo07Yaml(model, []);
+    expect(modelDoc.techs.heat_pump.cost_flow_cap).toEqual(heatPumpCost);
+  });
 });
 
 // ---------------------------------------------------------------------------

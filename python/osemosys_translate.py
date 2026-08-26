@@ -45,6 +45,7 @@ if _this_dir not in sys.path:
     sys.path.insert(0, _this_dir)
 
 import osemosys_timeslices as timeslices
+from engine_overlay import engine_overlay, coerce_overlay
 
 # ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -226,6 +227,9 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None) 
     avail: list[dict] = []
     resid_cap: list[dict] = []
     cap_factor: list[dict] = []
+    # Engine-specific overrides, applied to the tables below after the main loop:
+    # each entry is (base_technology_id, {osemosys_table_name: value}).
+    engine_overlays: list = []
 
     # ── Process each location × tech ──────────────────────────────────────────
     for loc in locations:
@@ -247,6 +251,9 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None) 
             tid_s = _sid(tid)
             constr = tech.get("constraints") or {}
             costs = (tech.get("costs") or {}).get("monetary") or {}
+            _ep = coerce_overlay(engine_overlay(tech, loc_techs.get(tech_ref), "osemosys"))
+            if _ep:
+                engine_overlays.append((f"{loc_s}_{tid_s}", _ep))
 
             cap_max_kw = _float(constr.get("energy_cap_max"), 1e13)
             cap_max_gw = min(cap_max_kw / 1e6, _LARGE_CAP_GW)
@@ -461,6 +468,35 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None) 
     # ── Write CSV files ───────────────────────────────────────────────────────
     def _p(name: str) -> str:
         return os.path.join(csv_dir, name)
+
+    # ── Apply engine-specific (OSeMOSYS) overrides to the built tables ─────────
+    _osemosys_tables = {
+        "CapitalCost": cap_cost,
+        "FixedCost": fix_cost,
+        "VariableCost": var_cost,
+        "OperationalLife": op_life,
+        "TotalAnnualMaxCapacity": cap_max,
+        "CapacityToActivityUnit": cap2act,
+        "AvailabilityFactor": avail,
+        "ResidualCapacity": resid_cap,
+        "CapacityFactor": cap_factor,
+        "InputActivityRatio": inp_act,
+        "OutputActivityRatio": out_act,
+    }
+    for base_id, params in engine_overlays:
+        for pname, pval in params.items():
+            table = _osemosys_tables.get(pname)
+            if table is None:
+                report.append(f"OSeMOSYS override '{pname}' for {base_id}: unknown table — skipped.")
+                continue
+            hit = False
+            for row in table:
+                tech_id = row.get("TECHNOLOGY", "")
+                if tech_id == base_id or tech_id.startswith(base_id + "_"):
+                    row["VALUE"] = pval
+                    hit = True
+            if not hit:
+                report.append(f"OSeMOSYS override '{pname}' for {base_id}: no matching rows — skipped.")
 
     # Sets
     _write_csv(_p("REGION.csv"), ["VALUE"], [{"VALUE": REGION}])

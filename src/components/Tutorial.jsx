@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { 
-  FiDownload, 
+import {
+  FiDownload,
   FiMapPin,
   FiLink,
   FiZap,
@@ -16,7 +16,11 @@ import {
   FiTerminal,
   FiEye,
   FiServer,
-  FiSliders
+  FiSliders,
+  FiPackage,
+  FiBarChart2,
+  FiSearch,
+  FiTrash2,
 } from 'react-icons/fi';
 import { ENTITY_TYPES } from '../config/domainModel';
 import { generateCSVDownload, generateJSONDownload } from '../config/dataTemplates';
@@ -25,13 +29,13 @@ import { ModelStructureTutorial } from './ModelStructureTutorial';
 
 // Screenshot caption component with a number badge
 const Step = ({ n, title, children }) => (
-  <div className="bg-white rounded-2xl p-6 shadow-md">
+  <div className="bg-white rounded-xl p-5 border border-slate-200">
     <div className="flex items-start gap-4">
-      <div className="w-10 h-10 bg-slate-800 text-white rounded-xl flex items-center justify-center font-bold text-lg flex-shrink-0">
+      <div className="w-8 h-8 bg-slate-800 text-white rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0">
         {n}
       </div>
       <div className="flex-1">
-        <h4 className="text-lg font-bold text-slate-800 mb-2">{title}</h4>
+        <h4 className="text-base font-bold text-slate-800 mb-2">{title}</h4>
         {children}
       </div>
     </div>
@@ -47,7 +51,7 @@ const Tip = ({ children }) => (
 
 // Inline code / CSV preview
 const CodeBlock = ({ children }) => (
-  <pre className="bg-slate-900 text-green-300 rounded-lg p-4 text-xs overflow-x-auto mt-3 font-mono leading-relaxed">
+  <pre className="bg-slate-900 text-slate-300 rounded-lg p-4 text-xs overflow-x-auto mt-3 font-mono leading-relaxed">
     {children}
   </pre>
 );
@@ -91,7 +95,7 @@ const Tutorial = () => {
               <h1 className="text-4xl font-bold text-slate-900 mb-3">Welcome to TEMPO</h1>
               <p className="text-xl text-slate-600 mb-4">Tool for Energy Model Planning and Optimization</p>
               <div className="flex items-center justify-center gap-4 text-sm font-medium text-slate-500 flex-wrap">
-                {['Calliope-based', 'Visual Interface', 'Real GIS Data', 'No Coding'].map(l => (
+                {['Multi-engine', 'Visual Interface', 'Real GIS Data', 'Multi-format'].map(l => (
                   <div key={l} className="flex items-center gap-1.5">
                     <FiCheckCircle className="text-gray-500" />
                     <span>{l}</span>
@@ -135,8 +139,8 @@ const Tutorial = () => {
                   },
                   {
                     n: 2, icon: FiMapPin, title: 'Place Locations',
-                    desc: 'Choose "Single" or "Multiple" mode in the left panel, then click the map to add nodes — city demand centers, substations, power plants.',
-                    badge: 'Left panel → Mode → click map'
+                    desc: 'Click "Add Location" in the left panel, then click the map to drop nodes — city demand centers, substations, power plants. Each click adds another node.',
+                    badge: 'Left panel → Add Location → click map'
                   },
                   {
                     n: 3, icon: FiZap, title: 'Assign Technologies',
@@ -149,7 +153,7 @@ const Tutorial = () => {
                     badge: 'Left panel → Link mode'
                   },
                 ].map(({ n, icon: Icon, title, desc, badge }) => (
-                  <div key={n} className="bg-white border-2 border-slate-200 rounded-2xl p-5 hover:border-slate-400 transition-all">
+                  <div key={n} className="bg-white border border-slate-200 rounded-xl p-5 hover:border-slate-300 transition-colors">
                     <div className="flex items-center gap-3 mb-3">
                       <div className="w-9 h-9 bg-slate-800 text-white rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0">{n}</div>
                       <Icon className="text-slate-500" size={20} />
@@ -165,46 +169,92 @@ const Tutorial = () => {
             {/* Left sidebar navigation guide */}
             <div>
               <h2 className="text-2xl font-bold text-slate-800 mb-4">Where to Find Everything</h2>
-              <div className="bg-slate-800 text-white rounded-2xl p-6">
-                <div className="grid md:grid-cols-2 gap-4">
-                  {[
-                    { icon: '🏠', label: 'Dashboard', desc: 'Model overview, KPIs, location map, technology donut' },
-                    { icon: '✏️', label: 'Creation', desc: 'Visual map editor — place locations, draw links, select region' },
-                    { icon: '📋', label: 'Structure → Models', desc: 'Manage multiple saved models' },
-                    { icon: '📍', label: 'Structure → Locations', desc: 'Table view of all nodes with coordinates' },
-                    { icon: '🔗', label: 'Structure → Links', desc: 'Transmission line table — from/to, capacity, type' },
-                    { icon: '📈', label: 'Structure → TimeSeries', desc: 'Upload CSV demand & resource profiles' },
-                    { icon: '▶️', label: 'Run / Results', desc: 'Execute Calliope solver and view optimisation output' },
-                    { icon: '⚙️', label: 'Configuration', desc: 'Backend connection, Python venv, solver settings' },
-                  ].map(item => (
-                    <div key={item.label} className="flex items-start gap-3">
-                      <span className="text-lg">{item.icon}</span>
-                      <div>
-                        <span className="font-semibold text-slate-100 text-sm">{item.label}</span>
-                        <p className="text-slate-400 text-xs mt-0.5">{item.desc}</p>
+              <div className="border border-slate-200 rounded-xl overflow-hidden">
+                {[
+                  { label: 'Dashboard',                      desc: 'Model KPIs, location map, capacity overview and cost summary',                                        group: null },
+                  { label: 'Creation',                       desc: 'Visual map editor — place locations, draw links, load OSM infrastructure layers',                      group: null },
+                  { label: 'Structure → Models',             desc: 'Import, search and filter models. Multi-select for bulk delete or JSON export.',                       group: 'Structure' },
+                  { label: 'Structure → Map View',           desc: 'Interactive map of active model locations and transmission links',                                     group: 'Structure' },
+                  { label: 'Structure → Locations',          desc: 'Table view of all nodes with coordinates and assigned technologies',                                   group: 'Structure' },
+                  { label: 'Structure → Links',              desc: 'Transmission line table — from/to, capacity, voltage, type',                                           group: 'Structure' },
+                  { label: 'Structure → TimeSeries',         desc: 'Upload and manage CSV demand & resource capacity-factor profiles',                                     group: 'Structure' },
+                  { label: 'Structure → Overrides / Scenarios', desc: 'Define named parameter overrides and scenario combinations for sensitivity runs',                   group: 'Structure' },
+                  { label: 'Export',                         desc: 'Download the active model as Calliope 0.6/0.7, PyPSA, OSeMOSYS, or AdOpT-NET0 archive',              group: null },
+                  { label: 'Run',                            desc: 'Launch optimisation. Search, filter and bulk-manage completed runs by name or status.',                group: null },
+                  { label: 'Results',                        desc: 'Dispatch, costs, capacity maps, shadow prices — plus AI Analysis tab for LLM-powered insights',       group: null },
+                  { label: 'Settings',                       desc: 'Engine install panels, AI assistant API key, backend connection, solver paths',                        group: null },
+                ].map((item, i, arr) => {
+                  const isStructureFirst = item.group === 'Structure' && (!arr[i - 1] || arr[i - 1].group !== 'Structure');
+                  return (
+                    <div
+                      key={item.label}
+                      className={`flex items-baseline gap-0 border-b border-slate-100 last:border-0 ${
+                        item.group === 'Structure' ? 'bg-slate-50' : 'bg-white'
+                      } ${isStructureFirst ? 'mt-0' : ''}`}
+                    >
+                      {item.group === 'Structure' && (
+                        <div className="w-1 self-stretch bg-slate-300 flex-shrink-0" />
+                      )}
+                      <div className="flex items-baseline gap-4 px-5 py-3 flex-1 min-w-0">
+                        <span className="font-mono text-xs font-semibold text-slate-800 whitespace-nowrap flex-shrink-0 w-52">{item.label}</span>
+                        <span className="text-xs text-slate-500 leading-snug">{item.desc}</span>
                       </div>
                     </div>
-                  ))}
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Model & run management features */}
+            <div>
+              <h2 className="text-2xl font-bold text-slate-800 mb-4">Managing Models &amp; Runs</h2>
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="bg-white border border-slate-200 rounded-2xl p-5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <FiSearch size={18} className="text-slate-500" />
+                    <h3 className="font-bold text-slate-800">Models (Structure → Models)</h3>
+                  </div>
+                  <ul className="text-sm text-slate-600 space-y-1.5">
+                    <li className="flex gap-2"><FiCheckCircle size={14} className="text-gray-500 mt-0.5 flex-shrink-0" /><span>Search models by name; filter by engine type (Calliope, PyPSA, OSeMOSYS, AdOpT-NET0)</span></li>
+                    <li className="flex gap-2"><FiCheckCircle size={14} className="text-gray-500 mt-0.5 flex-shrink-0" /><span>Tick the "Select all" checkbox or pick individual models</span></li>
+                    <li className="flex gap-2"><FiTrash2 size={14} className="text-gray-500 mt-0.5 flex-shrink-0" /><span>Bulk delete or export selected models as JSON backup files</span></li>
+                  </ul>
+                </div>
+                <div className="bg-white border border-slate-200 rounded-2xl p-5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <FiBarChart2 size={18} className="text-slate-500" />
+                    <h3 className="font-bold text-slate-800">Completed Runs (Run tab)</h3>
+                  </div>
+                  <ul className="text-sm text-slate-600 space-y-1.5">
+                    <li className="flex gap-2"><FiCheckCircle size={14} className="text-gray-500 mt-0.5 flex-shrink-0" /><span>Search runs by model name; filter by status (Done / Failed)</span></li>
+                    <li className="flex gap-2"><FiCheckCircle size={14} className="text-gray-500 mt-0.5 flex-shrink-0" /><span>Tick the "Select all" checkbox or pick individual runs</span></li>
+                    <li className="flex gap-2"><FiTrash2 size={14} className="text-gray-500 mt-0.5 flex-shrink-0" /><span>Bulk download as JSON or bulk delete selected runs</span></li>
+                  </ul>
                 </div>
               </div>
             </div>
 
-            {/* two method cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <div className="bg-slate-50 border-2 border-slate-200 rounded-2xl p-6 hover:shadow-lg transition-all cursor-pointer" onClick={() => setActiveTab('methods')}>
-                <FiEdit className="text-slate-600 mb-3" size={32} />
-                <h3 className="text-xl font-bold text-slate-800 mb-2">Manual Creation</h3>
-                <p className="text-slate-600 text-sm mb-4">Click-and-build on the map. Great for learning and small models.</p>
-                <div className="flex items-center gap-2 text-slate-600 font-semibold text-sm">
-                  <span>Step-by-step guide</span><FiArrowRight />
+            {/* three method cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-white border border-slate-200 rounded-xl p-5 hover:border-slate-300 transition-colors cursor-pointer" onClick={() => { setActiveTab('methods'); setSelectedMethod('manual'); }}>
+                <h3 className="font-bold text-slate-800 mb-1">Manual Creation</h3>
+                <p className="text-slate-500 text-sm mb-3">Click-and-build on the map. Great for learning and small models.</p>
+                <div className="flex items-center gap-1.5 text-slate-700 font-semibold text-xs">
+                  <span>Step-by-step guide</span><FiArrowRight size={12} />
                 </div>
               </div>
-              <div className="bg-slate-50 border-2 border-slate-200 rounded-2xl p-6 hover:shadow-lg transition-all cursor-pointer" onClick={() => setActiveTab('templates')}>
-                <FiUpload className="text-slate-600 mb-3" size={32} />
-                <h3 className="text-xl font-bold text-slate-800 mb-2">Bulk Import</h3>
-                <p className="text-slate-600 text-sm mb-4">Upload CSV/JSON with hundreds of locations at once.</p>
-                <div className="flex items-center gap-2 text-slate-600 font-semibold text-sm">
-                  <span>Download templates</span><FiArrowRight />
+              <div className="bg-white border border-slate-200 rounded-xl p-5 hover:border-slate-300 transition-colors cursor-pointer" onClick={() => { setActiveTab('methods'); setSelectedMethod('import'); }}>
+                <h3 className="font-bold text-slate-800 mb-1">Import a Model</h3>
+                <p className="text-slate-500 text-sm mb-3">YAML archive, CSV wizard, or framework archive — TEMPO auto-detects the format.</p>
+                <div className="flex items-center gap-1.5 text-slate-700 font-semibold text-xs">
+                  <span>Import guide</span><FiArrowRight size={12} />
+                </div>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-xl p-5 hover:border-slate-300 transition-colors cursor-pointer" onClick={() => setActiveTab('templates')}>
+                <h3 className="font-bold text-slate-800 mb-1">Download Templates</h3>
+                <p className="text-slate-500 text-sm mb-3">CSV/JSON starter files with real example data — ready to populate and import.</p>
+                <div className="flex items-center gap-1.5 text-slate-700 font-semibold text-xs">
+                  <span>Browse templates</span><FiArrowRight size={12} />
                 </div>
               </div>
             </div>
@@ -220,36 +270,39 @@ const Tutorial = () => {
             </div>
 
             {/* Method Selector */}
-            <div className="flex justify-center gap-4">
+            <div className="flex justify-center gap-3 flex-wrap">
               <button
                 onClick={() => setSelectedMethod('manual')}
-                className={`px-6 py-3 rounded-xl font-bold transition-all flex items-center gap-2 ${
+                className={`px-5 py-3 rounded-xl font-bold transition-all flex items-center gap-2 ${
                   selectedMethod === 'manual' ? 'bg-slate-800 text-white shadow-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
-                <FiEdit size={20} /> Manual Creation
+                <FiEdit size={18} /> Manual Creation
+              </button>
+              <button
+                onClick={() => setSelectedMethod('import')}
+                className={`px-5 py-3 rounded-xl font-bold transition-all flex items-center gap-2 ${
+                  selectedMethod === 'import' ? 'bg-slate-800 text-white shadow-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                <FiPackage size={18} /> YAML / Archive Import
               </button>
               <button
                 onClick={() => setSelectedMethod('bulk')}
-                className={`px-6 py-3 rounded-xl font-bold transition-all flex items-center gap-2 ${
+                className={`px-5 py-3 rounded-xl font-bold transition-all flex items-center gap-2 ${
                   selectedMethod === 'bulk' ? 'bg-slate-800 text-white shadow-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
-                <FiUpload size={20} /> Bulk Import
+                <FiUpload size={18} /> CSV Wizard
               </button>
             </div>
 
             {/* Manual Creation Steps */}
             {(selectedMethod === 'manual' || !selectedMethod) && (
-              <div className="bg-slate-50 rounded-3xl p-8 border-2 border-slate-200">
-                <div className="flex items-center gap-4 mb-8">
-                  <div className="w-14 h-14 bg-slate-700 rounded-2xl flex items-center justify-center">
-                    <FiEdit className="text-white text-3xl" />
-                  </div>
-                  <div>
-                    <h3 className="text-2xl font-bold text-slate-800">Manual Creation — Germany Example</h3>
-                    <p className="text-slate-500">12 locations · 12 links · solar + wind + gas + nuclear + hydro + coal + biomass + battery + demand system</p>
-                  </div>
+              <div className="bg-white rounded-xl p-6 border border-slate-200">
+                <div className="mb-6 pb-4 border-b border-slate-100">
+                  <h3 className="text-lg font-bold text-slate-800 mb-1">Manual Creation — Germany Example</h3>
+                  <p className="text-sm text-slate-500">12 locations · 12 links · solar + wind + gas + nuclear + hydro + coal + biomass + battery + demand system</p>
                 </div>
 
                 <div className="space-y-5">
@@ -260,7 +313,7 @@ const Tutorial = () => {
 
                   <Step n={2} title="Add Locations — 4 Nodes">
                     <p className="text-slate-600 text-sm mb-2">
-                      In the left panel, select <strong>Multiple</strong> mode. Click four spots on the map:
+                      In the left panel, click <strong>Add Location</strong>. Then click four spots on the map — each click drops another node:
                     </p>
                     <div className="overflow-x-auto">
                       <table className="text-xs w-full border-collapse">
@@ -312,6 +365,7 @@ const Tutorial = () => {
                       ))}
                     </div>
                     <p className="text-slate-500 text-xs mt-3">Repeat for each location. Assign <strong>power_demand</strong> to Munich_Demand, <strong>Wind Onshore</strong> to Wind_Frankfurt, and <strong>Gas CCGT</strong> to Dresden as a backup plant.</p>
+                    <Tip>Each technology has a <strong>Common parameters</strong> panel — engine-neutral values (capacity, efficiency, lifetime, CAPEX…) defined once and translated automatically to whichever engine you run (Calliope, PyPSA, OSeMOSYS, AdOpT-NET0). Expand <strong>Engine-specific parameters</strong> only when you need a raw field unique to one framework.</Tip>
                   </Step>
 
                   <Step n={4} title="Connect with Transmission Links">
@@ -364,17 +418,71 @@ const Tutorial = () => {
               </div>
             )}
 
-            {/* Bulk Import Steps */}
+            {/* YAML / Archive Import */}
+            {(selectedMethod === 'import' || !selectedMethod) && (
+              <div className="bg-white rounded-xl p-6 border border-slate-200">
+                <div className="mb-6 pb-4 border-b border-slate-100">
+                  <h3 className="text-lg font-bold text-slate-800 mb-1">Import a Model — Three Paths</h3>
+                  <p className="text-sm text-slate-500">Go to <strong className="text-slate-700">Structure → Models</strong> and click <strong className="text-slate-700">Import Calliope Model</strong> (or drag a ZIP onto the archive target)</p>
+                </div>
+
+                <div className="space-y-5">
+                  <Step n={1} title="YAML Archive (Calliope 0.6.8 or 0.7)">
+                    <p className="text-slate-600 text-sm mb-2">
+                      Click <strong>YAML Archive</strong> in the import chooser. Drop a Calliope <code className="bg-slate-100 px-1 rounded">.zip</code> bundle — the file must contain a <code className="bg-slate-100 px-1 rounded">model.yaml</code> (or similar entry point) and any referenced CSV time-series files.
+                    </p>
+                    <p className="text-slate-600 text-sm">TEMPO auto-detects the Calliope version (0.6 vs 0.7), applies the parameter mapping, and opens the <strong>YAML Importer</strong> dialog where you can review locations, technologies and time-series before confirming.</p>
+                    <Tip>If the archive has multiple models (e.g. a parent <code>model.yaml</code> importing regional sub-models), TEMPO lists all detected roots so you can choose which one to load.</Tip>
+                  </Step>
+
+                  <Step n={2} title="CSV Wizard (Locations + Links CSVs)">
+                    <p className="text-slate-600 text-sm mb-2">
+                      Click <strong>CSV Wizard</strong>. Upload your locations CSV (required) and optionally links, demand timeseries, technologies, and scenarios files — the wizard steps you through each one in order and validates each before moving on.
+                    </p>
+                    <p className="text-slate-500 text-xs">See the <strong>Templates</strong> tab for downloadable CSV examples with the exact column format expected.</p>
+                  </Step>
+
+                  <Step n={3} title="Framework Archive — auto-detect (PyPSA / OSeMOSYS / AdOpT-NET0)">
+                    <p className="text-slate-600 text-sm mb-2">
+                      Click <strong>Framework Archive (auto-detect)</strong> and drop a <code className="bg-slate-100 px-1 rounded">.zip</code>. TEMPO inspects the file listing and routes it to the correct engine's Python service (PyPSA, OSeMOSYS, or AdOpT-NET0) to translate it into the internal TEMPO format.
+                    </p>
+                    <div className="bg-slate-100 rounded-lg p-3 mt-2 text-xs text-slate-700">
+                      <p className="font-semibold mb-1">Requirements:</p>
+                      <ul className="space-y-0.5">
+                        <li>• The matching engine venv must be installed (Settings → Engine panels)</li>
+                        <li>• PyPSA: netCDF or CSV network folder · OSeMOSYS: otoole-compatible CSV set · AdOpT-NET0: case-directory ZIP</li>
+                        <li>• A translation report is shown after import listing any unrecognised parameters</li>
+                      </ul>
+                    </div>
+                  </Step>
+                </div>
+
+                <div className="border border-slate-200 rounded-lg p-4 mt-5">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Supported engines</p>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+                    {[
+                      ['Calliope 0.6.8', 'Multi-carrier LP (HiGHS)'],
+                      ['Calliope 0.7', 'Dev-series 0.7 (CBC)'],
+                      ['PyPSA', 'Power flow + capacity (HiGHS)'],
+                      ['OSeMOSYS', 'Long-run planning (GLPK)'],
+                      ['AdOpT-NET0', 'Net-zero pathway (LP)'],
+                    ].map(([name, desc]) => (
+                      <div key={name} className="bg-slate-50 border border-slate-200 rounded-lg p-2">
+                        <div className="font-semibold text-slate-800">{name}</div>
+                        <div className="text-slate-500">{desc}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* CSV Wizard Steps */}
             {(selectedMethod === 'bulk' || !selectedMethod) && (
-              <div className="bg-slate-50 rounded-3xl p-8 border-2 border-slate-200 mt-6">
-                <div className="flex items-center gap-4 mb-8">
-                  <div className="w-14 h-14 bg-slate-700 rounded-2xl flex items-center justify-center">
-                    <FiUpload className="text-white text-3xl" />
-                  </div>
-                  <div>
-                    <h3 className="text-2xl font-bold text-slate-800">Bulk Import Workflow</h3>
-                    <p className="text-slate-500">Import a 12-node German grid from CSV in under 2 minutes</p>
-                  </div>
+              <div className="bg-white rounded-xl p-6 border border-slate-200">
+                <div className="mb-6 pb-4 border-b border-slate-100">
+                  <h3 className="text-lg font-bold text-slate-800 mb-1">CSV Wizard Workflow</h3>
+                  <p className="text-sm text-slate-500">Import a 12-node German grid from CSV in under 2 minutes</p>
                 </div>
 
                 <div className="space-y-5">
@@ -432,13 +540,13 @@ Node_North,Node_South,450,4000,380,hvdc_transmission`}</CodeBlock>
                   </Step>
                 </div>
 
-                <div className="bg-slate-800 text-white rounded-xl p-5 mt-6">
-                  <h4 className="font-bold text-lg mb-2">After import you can still…</h4>
-                  <ul className="text-slate-300 text-sm space-y-1">
-                    <li>• Click any location marker to add or swap technologies</li>
-                    <li>• Drag markers to adjust positions</li>
-                    <li>• Delete stray links and redraw them in Link mode</li>
-                    <li>• Upload time series (demand.csv, solar_cf.csv) in Structure → TimeSeries</li>
+                <div className="border border-slate-200 rounded-lg p-4 mt-5">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">After import you can still…</p>
+                  <ul className="text-sm text-slate-600 space-y-1">
+                    <li>· Click any location marker to add or swap technologies</li>
+                    <li>· Drag markers to adjust positions</li>
+                    <li>· Delete stray links and redraw them in Link mode</li>
+                    <li>· Upload time series (demand.csv, solar_cf.csv) in Structure → TimeSeries</li>
                   </ul>
                 </div>
               </div>
@@ -500,7 +608,7 @@ Node_North,Node_South,450,4000,380,hvdc_transmission`}</CodeBlock>
             {/* Step-by-step: Download a region */}
             <div>
               <h3 className="text-xl font-bold text-slate-800 mb-4">How to Download a New Region (in-app)</h3>
-              <div className="bg-slate-50 border-2 border-slate-200 rounded-3xl p-6 space-y-4">
+              <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
 
 
                 <Step n={1} title='Open Creation → expand "Download GIS Data"'>
@@ -522,14 +630,14 @@ Node_North,Node_South,450,4000,380,hvdc_transmission`}</CodeBlock>
 
                 <Step n={3} title='Click "Download & Import"'>
                   <p className="text-slate-600 text-sm">A black log terminal appears below the button. You will see live output like:</p>
-                  <div className="bg-slate-900 text-green-300 rounded-lg p-3 text-xs font-mono mt-2 space-y-0.5">
+                  <div className="bg-slate-900 text-slate-300 rounded-lg p-3 text-xs font-mono mt-2 space-y-0.5">
                     <div>Python: .venv-calliope/Scripts/python.exe</div>
                     <div>Script: osm_processing/add_region_to_geoserver.py</div>
-                    <div className="text-yellow-300">Downloading Spain/Asturias from Geofabrik (212 MB)…</div>
+                    <div>Downloading Spain/Asturias from Geofabrik (212 MB)…</div>
                     <div>Extracting power features with osmium…</div>
                     <div>Uploading to PostGIS (calliope-postgis:5432)…</div>
-                    <div className="text-cyan-300">Creating GeoServer layer: spain_asturias_power_lines</div>
-                    <div className="text-emerald-400 font-bold">✓ Done. Region ready in SELECT REGION stepper.</div>
+                    <div>Creating GeoServer layer: spain_asturias_power_lines</div>
+                    <div className="text-slate-100 font-semibold">✓ Done. Region ready in SELECT REGION stepper.</div>
                   </div>
                 </Step>
 
@@ -572,20 +680,20 @@ Node_North,Node_South,450,4000,380,hvdc_transmission`}</CodeBlock>
             {/* Template cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {/* Locations */}
-              <div className="bg-white border-2 border-slate-200 rounded-2xl p-6 hover:shadow-lg transition-all">
+              <div className="bg-white border border-slate-200 rounded-xl p-5 hover:border-slate-300 transition-colors">
                 <div className="flex items-start justify-between mb-3">
                   <div>
-                    <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center mb-3">
-                      <FiMapPin className="text-slate-600 text-xl" />
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <FiMapPin size={13} className="text-slate-500" />
+                      <h3 className="font-semibold text-slate-800 text-sm">Locations</h3>
                     </div>
-                    <h3 className="font-bold text-slate-800 text-lg">Locations</h3>
-                    <p className="text-slate-500 text-sm">Substations, plants, demand sites</p>
+                    <p className="text-slate-400 text-xs">Substations, plants, demand sites</p>
                   </div>
                   <button
                     onClick={() => setExpandedCSV(expandedCSV === 'locations' ? null : 'locations')}
                     className="text-slate-400 hover:text-slate-600 flex items-center gap-1 text-xs"
                   >
-                    <FiEye size={14} /> preview
+                    <FiEye size={13} /> preview
                   </button>
                 </div>
                 {expandedCSV === 'locations' && (
@@ -596,23 +704,23 @@ Gas_Plant_Berlin,power_plant,52.4500,13.3500,500,,gas
 Berlin_City,demand_center,52.5200,13.4050,2000,,mixed
 Battery_Storage_1,storage_facility,52.4800,13.3800,50,,battery_li_ion`}</CodeBlock>
                 )}
-                <button onClick={() => generateCSVDownload('LOCATIONS')} className="mt-4 w-full bg-slate-700 text-white px-4 py-3 rounded-xl font-bold hover:bg-slate-800 transition flex items-center justify-center gap-2">
-                  <FiDownload /> Download locations_template.csv
+                <button onClick={() => generateCSVDownload('LOCATIONS')} className="mt-3 w-full border border-slate-200 text-slate-700 px-3 py-2 rounded-lg text-xs font-medium hover:bg-slate-50 transition flex items-center justify-center gap-1.5">
+                  <FiDownload size={12} /> Download locations_template.csv
                 </button>
               </div>
 
               {/* Transmission */}
-              <div className="bg-white border-2 border-slate-200 rounded-2xl p-6 hover:shadow-lg transition-all">
+              <div className="bg-white border border-slate-200 rounded-xl p-5 hover:border-slate-300 transition-colors">
                 <div className="flex items-start justify-between mb-3">
                   <div>
-                    <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center mb-3">
-                      <FiLink className="text-slate-600 text-xl" />
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <FiLink size={13} className="text-slate-500" />
+                      <h3 className="font-semibold text-slate-800 text-sm">Transmission Lines</h3>
                     </div>
-                    <h3 className="font-bold text-slate-800 text-lg">Transmission Lines</h3>
-                    <p className="text-slate-500 text-sm">Power lines & connections between locations</p>
+                    <p className="text-slate-400 text-xs">Power lines & connections between locations</p>
                   </div>
                   <button onClick={() => setExpandedCSV(expandedCSV === 'tx' ? null : 'tx')} className="text-slate-400 hover:text-slate-600 flex items-center gap-1 text-xs">
-                    <FiEye size={14} /> preview
+                    <FiEye size={13} /> preview
                   </button>
                 </div>
                 {expandedCSV === 'tx' && (
@@ -621,23 +729,23 @@ Berlin_Main,Hamburg_Main,ac_transmission,2000,380,255,0.97
 Solar_Farm_1,Berlin_Main,ac_transmission,120,110,35,0.98
 Gas_Plant_Berlin,Berlin_Main,ac_transmission,550,220,15,0.99`}</CodeBlock>
                 )}
-                <button onClick={() => generateCSVDownload('TRANSMISSION_LINES')} className="mt-4 w-full bg-slate-700 text-white px-4 py-3 rounded-xl font-bold hover:bg-slate-800 transition flex items-center justify-center gap-2">
-                  <FiDownload /> Download transmission_lines_template.csv
+                <button onClick={() => generateCSVDownload('TRANSMISSION_LINES')} className="mt-3 w-full border border-slate-200 text-slate-700 px-3 py-2 rounded-lg text-xs font-medium hover:bg-slate-50 transition flex items-center justify-center gap-1.5">
+                  <FiDownload size={12} /> Download transmission_lines_template.csv
                 </button>
               </div>
 
               {/* Tech Params */}
-              <div className="bg-white border-2 border-slate-200 rounded-2xl p-6 hover:shadow-lg transition-all">
+              <div className="bg-white border border-slate-200 rounded-xl p-5 hover:border-slate-300 transition-colors">
                 <div className="flex items-start justify-between mb-3">
                   <div>
-                    <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center mb-3">
-                      <FiZap className="text-slate-600 text-xl" />
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <FiZap size={13} className="text-slate-500" />
+                      <h3 className="font-semibold text-slate-800 text-sm">Technology Parameters</h3>
                     </div>
-                    <h3 className="font-bold text-slate-800 text-lg">Technology Parameters</h3>
-                    <p className="text-slate-500 text-sm">Capacity, efficiency, constraint values per location</p>
+                    <p className="text-slate-400 text-xs">Capacity, efficiency, constraint values per location</p>
                   </div>
                   <button onClick={() => setExpandedCSV(expandedCSV === 'tech' ? null : 'tech')} className="text-slate-400 hover:text-slate-600 flex items-center gap-1 text-xs">
-                    <FiEye size={14} /> preview
+                    <FiEye size={13} /> preview
                   </button>
                 </div>
                 {expandedCSV === 'tech' && (
@@ -648,23 +756,23 @@ Gas_Plant_Berlin,gas_ccgt,energy_cap_max,500,MW
 Gas_Plant_Berlin,gas_ccgt,energy_eff,0.58,
 Berlin_City,power_demand,resource,file=berlin_demand.csv,`}</CodeBlock>
                 )}
-                <button onClick={() => generateCSVDownload('TECHNOLOGY_PARAMETERS')} className="mt-4 w-full bg-slate-700 text-white px-4 py-3 rounded-xl font-bold hover:bg-slate-800 transition flex items-center justify-center gap-2">
-                  <FiDownload /> Download technology_parameters_template.csv
+                <button onClick={() => generateCSVDownload('TECHNOLOGY_PARAMETERS')} className="mt-3 w-full border border-slate-200 text-slate-700 px-3 py-2 rounded-lg text-xs font-medium hover:bg-slate-50 transition flex items-center justify-center gap-1.5">
+                  <FiDownload size={12} /> Download technology_parameters_template.csv
                 </button>
               </div>
 
               {/* Costs */}
-              <div className="bg-white border-2 border-slate-200 rounded-2xl p-6 hover:shadow-lg transition-all">
+              <div className="bg-white border border-slate-200 rounded-xl p-5 hover:border-slate-300 transition-colors">
                 <div className="flex items-start justify-between mb-3">
                   <div>
-                    <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center mb-3">
-                      <FiDatabase className="text-slate-600 text-xl" />
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <FiDatabase size={13} className="text-slate-500" />
+                      <h3 className="font-semibold text-slate-800 text-sm">Cost Parameters</h3>
                     </div>
-                    <h3 className="font-bold text-slate-800 text-lg">Cost Parameters</h3>
-                    <p className="text-slate-500 text-sm">CAPEX, OPEX, fuel costs per technology</p>
+                    <p className="text-slate-400 text-xs">CAPEX, OPEX, fuel costs per technology</p>
                   </div>
                   <button onClick={() => setExpandedCSV(expandedCSV === 'costs' ? null : 'costs')} className="text-slate-400 hover:text-slate-600 flex items-center gap-1 text-xs">
-                    <FiEye size={14} /> preview
+                    <FiEye size={13} /> preview
                   </button>
                 </div>
                 {expandedCSV === 'costs' && (
@@ -675,23 +783,23 @@ Gas_Plant_Berlin,gas_ccgt,monetary,energy_cap,750,EUR/kW
 Gas_Plant_Berlin,gas_ccgt,monetary,om_var,3.5,EUR/MWh
 Gas_Plant_Berlin,gas_ccgt,monetary,fuel_cost,35,EUR/MWh`}</CodeBlock>
                 )}
-                <button onClick={() => generateCSVDownload('COST_PARAMETERS')} className="mt-4 w-full bg-slate-700 text-white px-4 py-3 rounded-xl font-bold hover:bg-slate-800 transition flex items-center justify-center gap-2">
-                  <FiDownload /> Download cost_parameters_template.csv
+                <button onClick={() => generateCSVDownload('COST_PARAMETERS')} className="mt-3 w-full border border-slate-200 text-slate-700 px-3 py-2 rounded-lg text-xs font-medium hover:bg-slate-50 transition flex items-center justify-center gap-1.5">
+                  <FiDownload size={12} /> Download cost_parameters_template.csv
                 </button>
               </div>
 
               {/* Demand time series */}
-              <div className="bg-white border-2 border-slate-200 rounded-2xl p-6 hover:shadow-lg transition-all">
+              <div className="bg-white border border-slate-200 rounded-xl p-5 hover:border-slate-300 transition-colors">
                 <div className="flex items-start justify-between mb-3">
                   <div>
-                    <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center mb-3">
-                      <FiFileText className="text-slate-600 text-xl" />
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <FiFileText size={13} className="text-slate-500" />
+                      <h3 className="font-semibold text-slate-800 text-sm">Demand Time Series</h3>
                     </div>
-                    <h3 className="font-bold text-slate-800 text-lg">Demand Time Series</h3>
-                    <p className="text-slate-500 text-sm">Hourly consumption profile (8760 rows)</p>
+                    <p className="text-slate-400 text-xs">Hourly consumption profile (8760 rows)</p>
                   </div>
                   <button onClick={() => setExpandedCSV(expandedCSV === 'demand' ? null : 'demand')} className="text-slate-400 hover:text-slate-600 flex items-center gap-1 text-xs">
-                    <FiEye size={14} /> preview
+                    <FiEye size={13} /> preview
                   </button>
                 </div>
                 {expandedCSV === 'demand' && (
@@ -701,23 +809,23 @@ Gas_Plant_Berlin,gas_ccgt,monetary,fuel_cost,35,EUR/MWh`}</CodeBlock>
 2023-01-01 02:00,4700,-4400,-2800
 ...8760 rows — one per hour of the year`}</CodeBlock>
                 )}
-                <button onClick={() => generateCSVDownload('TIMESERIES_DEMAND')} className="mt-4 w-full bg-slate-700 text-white px-4 py-3 rounded-xl font-bold hover:bg-slate-800 transition flex items-center justify-center gap-2">
-                  <FiDownload /> Download demand_timeseries_template.csv
+                <button onClick={() => generateCSVDownload('TIMESERIES_DEMAND')} className="mt-3 w-full border border-slate-200 text-slate-700 px-3 py-2 rounded-lg text-xs font-medium hover:bg-slate-50 transition flex items-center justify-center gap-1.5">
+                  <FiDownload size={12} /> Download demand_timeseries_template.csv
                 </button>
               </div>
 
               {/* Solar CF */}
-              <div className="bg-white border-2 border-slate-200 rounded-2xl p-6 hover:shadow-lg transition-all">
+              <div className="bg-white border border-slate-200 rounded-xl p-5 hover:border-slate-300 transition-colors">
                 <div className="flex items-start justify-between mb-3">
                   <div>
-                    <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center mb-3">
-                      <FiPlay className="text-slate-600 text-xl" />
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <FiPlay size={13} className="text-slate-500" />
+                      <h3 className="font-semibold text-slate-800 text-sm">Solar Capacity Factors</h3>
                     </div>
-                    <h3 className="font-bold text-slate-800 text-lg">Solar Capacity Factors</h3>
-                    <p className="text-slate-500 text-sm">Hourly PV resource factor (0–1)</p>
+                    <p className="text-slate-400 text-xs">Hourly PV resource factor (0–1)</p>
                   </div>
                   <button onClick={() => setExpandedCSV(expandedCSV === 'solar' ? null : 'solar')} className="text-slate-400 hover:text-slate-600 flex items-center gap-1 text-xs">
-                    <FiEye size={14} /> preview
+                    <FiEye size={13} /> preview
                   </button>
                 </div>
                 {expandedCSV === 'solar' && (
@@ -727,21 +835,24 @@ Gas_Plant_Berlin,gas_ccgt,monetary,fuel_cost,35,EUR/MWh`}</CodeBlock>
 2023-01-01 12:00,0.812,0.798,0.835
 2023-06-21 12:00,0.980,0.972,0.991`}</CodeBlock>
                 )}
-                <button onClick={() => generateCSVDownload('TIMESERIES_SOLAR')} className="mt-4 w-full bg-slate-700 text-white px-4 py-3 rounded-xl font-bold hover:bg-slate-800 transition flex items-center justify-center gap-2">
-                  <FiDownload /> Download solar_timeseries_template.csv
+                <button onClick={() => generateCSVDownload('TIMESERIES_SOLAR')} className="mt-3 w-full border border-slate-200 text-slate-700 px-3 py-2 rounded-lg text-xs font-medium hover:bg-slate-50 transition flex items-center justify-center gap-1.5">
+                  <FiDownload size={12} /> Download solar_timeseries_template.csv
                 </button>
               </div>
             </div>
 
             {/* JSON */}
-            <div className="bg-gradient-to-r from-slate-900 to-slate-700 text-white rounded-2xl p-8 shadow-xl">
+            <div className="bg-white border border-slate-200 rounded-xl p-5">
               <div className="flex items-center justify-between flex-wrap gap-4">
                 <div>
-                  <h3 className="font-bold text-2xl mb-1">Complete JSON Template</h3>
-                  <p className="text-slate-300 text-sm">Full model structure — locations, links, technologies, costs, time series — in a single file. Useful for programmatic model generation.</p>
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <FiFileText size={13} className="text-slate-500" />
+                    <h3 className="font-semibold text-slate-800 text-sm">Complete JSON Template</h3>
+                  </div>
+                  <p className="text-slate-400 text-xs">Full model structure — locations, links, technologies, costs, time series — in a single file.</p>
                 </div>
-                <button onClick={generateJSONDownload} className="bg-white text-slate-800 px-8 py-3 rounded-xl font-bold hover:bg-slate-100 transition flex items-center gap-2">
-                  <FiDownload /> Download model_template.json
+                <button onClick={generateJSONDownload} className="border border-slate-200 text-slate-700 px-4 py-2 rounded-lg text-xs font-medium hover:bg-slate-50 transition flex items-center gap-1.5">
+                  <FiDownload size={12} /> Download model_template.json
                 </button>
               </div>
             </div>
@@ -799,35 +910,24 @@ Gas_Plant_Berlin,gas_ccgt,monetary,fuel_cost,35,EUR/MWh`}</CodeBlock>
               {Object.values(ENTITY_TYPES).map((entity) => (
                 <div
                   key={entity.id}
-                  className="bg-white border-2 rounded-2xl p-6 hover:shadow-lg transition-all"
-                  style={{ borderColor: entity.color }}
+                  className="bg-white border border-slate-200 rounded-xl p-5 hover:border-slate-300 transition-colors"
                 >
-                  <div className="flex items-start gap-4 mb-4">
-                    <div
-                      className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0"
-                      style={{ backgroundColor: `${entity.color}20` }}
-                    >
-                      <entity.icon style={{ color: entity.color }} size={28} />
+                  <div className="flex items-start gap-3 mb-4">
+                    <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
+                      <entity.icon className="text-slate-500" size={16} />
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-bold text-slate-800 text-xl mb-1">{entity.name}</h3>
-                      <p className="text-slate-600 text-sm">{entity.description}</p>
+                      <h3 className="font-semibold text-slate-800 text-sm mb-0.5">{entity.name}</h3>
+                      <p className="text-slate-500 text-xs">{entity.description}</p>
                     </div>
                   </div>
 
                   {entity.allowedTechTypes && entity.allowedTechTypes.length > 0 && (
                     <div className="mt-4 pt-4 border-t border-slate-200">
-                      <p className="text-xs font-semibold text-slate-500 mb-2">TECHNOLOGIES:</p>
-                      <div className="flex flex-wrap gap-2">
+                      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Technologies</p>
+                      <div className="flex flex-wrap gap-1.5">
                         {entity.allowedTechTypes.map((tech) => (
-                          <span
-                            key={tech}
-                            className="px-3 py-1 rounded-lg text-xs font-medium"
-                            style={{
-                              backgroundColor: `${entity.color}15`,
-                              color: entity.color
-                            }}
-                          >
+                          <span key={tech} className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-xs font-medium">
                             {tech}
                           </span>
                         ))}
@@ -836,12 +936,12 @@ Gas_Plant_Berlin,gas_ccgt,monetary,fuel_cost,35,EUR/MWh`}</CodeBlock>
                   )}
 
                   <div className="mt-4 pt-4 border-t border-slate-200">
-                    <p className="text-xs font-semibold text-slate-500 mb-2">REQUIRED FIELDS:</p>
-                    <div className="flex flex-wrap gap-2">
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Required fields</p>
+                    <div className="flex flex-wrap gap-1.5">
                       {entity.requiredFields.map((field) => (
                         <span
                           key={field}
-                          className="px-3 py-1 bg-slate-100 text-slate-700 rounded-lg text-xs font-medium"
+                          className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-xs font-mono"
                         >
                           {field}
                         </span>

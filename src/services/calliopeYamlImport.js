@@ -284,22 +284,83 @@ function expandLocations(locationsRaw) {
   return result;
 }
 
+// ─── Root detection ──────────────────────────────────────────────────────────
+
+/**
+ * Rank the YAML files in a filesMap by how much each looks like a Calliope
+ * MODEL ROOT (as opposed to a sub-config). A root defines the model shell:
+ * an explicit `model.yaml`/`model.yml` name, an `import:` list, a top-level
+ * `config:`/`model:`/`run:` section, and/or a model body (`nodes|locations`
+ * + `techs`). Sub-configs (techs.yaml, scenarios.yaml, math…) are excluded.
+ *
+ * @returns {{key, name, score, depth}[]} best-first (deduped by content)
+ */
+export function findModelRoots(filesMap) {
+  const seenContent = new Set();
+  const candidates = [];
+  for (const key of filesMap.keys()) {
+    if (!/\.(ya?ml)$/i.test(key)) continue;
+    const content = filesMap.get(key);
+    if (seenContent.has(content)) continue;   // skip basename duplicate of the same file
+    seenContent.add(content);
+    const base = key.split('/').pop();
+    const isModelName = /^model\.ya?ml$/i.test(base);
+    let doc;
+    try { doc = jsyaml.load(content, { schema: jsyaml.DEFAULT_SCHEMA }); }
+    catch { continue; }
+    const obj = doc && typeof doc === 'object' ? doc : {};
+    const hasImport = Array.isArray(obj.import) && obj.import.length > 0;
+    const hasConfig = !!(obj.config || obj.model || obj.run);
+    const hasBody = !!((obj.nodes || obj.locations) && obj.techs);
+    if (!isModelName && !hasImport && !hasConfig && !hasBody) continue;
+    const score = (isModelName ? 8 : 0) + (hasImport ? 4 : 0) + (hasConfig ? 2 : 0) + (hasBody ? 1 : 0);
+    // The model's declared name: 0.7 → config.init.name, 0.6 → model.name.
+    const title = obj.config?.init?.name || obj.model?.name || null;
+    candidates.push({ key, name: base, title, score, depth: key.split('/').length });
+  }
+  // Best score first; ties → shallowest path, then shortest name, then A→Z.
+  candidates.sort((a, b) =>
+    b.score - a.score || a.depth - b.depth || a.name.length - b.name.length
+    || a.name.localeCompare(b.name));
+  return candidates;
+}
+
 // ─── YAML parser ──────────────────────────────────────────────────────────────
 
-export async function parseFilesMap(filesMap, addLog) {
-  // Find root model.yaml
-  let rootKey = null;
-  for (const key of filesMap.keys()) {
-    const base = key.split('/').pop().toLowerCase();
-    if (base === 'model.yaml' || base === 'model.yml') {
-      if (!rootKey || key.split('/').length < rootKey.split('/').length) rootKey = key;
+/**
+ * @param {Map}      filesMap
+ * @param {Function} addLog
+ * @param {string=}  rootKey   explicit root to use (from the picker); when
+ *                             omitted, the best-scoring root is auto-selected.
+ */
+export async function parseFilesMap(filesMap, addLog, rootKey = null) {
+  // Use the caller's chosen root when valid; otherwise auto-detect.
+  if (rootKey && !filesMap.has(rootKey)) rootKey = null;
+  if (!rootKey) {
+    const roots = findModelRoots(filesMap);
+    if (roots.length) {
+      rootKey = roots[0].key;
+      if (roots.length > 1) {
+        addLog('Multiple model roots found (' + roots.map(c => c.name).join(', ') +
+          "). Using '" + roots[0].name + "'.");
+      } else {
+        addLog('Identified model root: ' + roots[0].name);
+      }
     }
   }
+
+  // Last resort: a lone YAML file, else give up with a helpful message.
   if (!rootKey) {
-    const yamlKeys = [...filesMap.keys()].filter(k => k.endsWith('.yaml') || k.endsWith('.yml'));
-    if (yamlKeys.length === 1) rootKey = yamlKeys[0];
-    else if (yamlKeys.length === 0) throw new Error('No YAML files found. Upload a .zip or use Select Folder / Select Files.');
-    else throw new Error('Could not identify model.yaml.\nFound: ' + yamlKeys.slice(0, 5).join(', ') + '\nRename the main config file to model.yaml.');
+    const yamlKeys = [...new Set([...filesMap.keys()]
+      .filter(k => /\.(ya?ml)$/i.test(k)).map(k => k.split('/').pop()))];
+    if (yamlKeys.length === 1) {
+      rootKey = [...filesMap.keys()].find(k => k.endsWith(yamlKeys[0]));
+    } else if (yamlKeys.length === 0) {
+      throw new Error('No YAML files found. Upload a .zip or use Select Folder / Select Files.');
+    } else {
+      throw new Error('Could not identify the root model file.\nFound: ' + yamlKeys.slice(0, 6).join(', ') +
+        '\nThe root should contain an `import:` list or a top-level `config:`/`model:` section.');
+    }
   }
 
   addLog('Root config: ' + rootKey);

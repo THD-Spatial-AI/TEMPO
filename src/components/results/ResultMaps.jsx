@@ -1,9 +1,34 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { techColor, fmtPower, fmtEnergy, OSM_STYLE, osmTransformRequest } from '../../utils/resultFormat';
+import { loadCommunesGeo } from '../../utils/loadCommunesGeo';
 
 // ── Capacity / Generation map ───────────────────────────────────────────────
-const ResultsMap = ({ locations, capacitiesByLoc, dominantTechByLoc, generationByLoc, viewMode, colorFn = techColor, transmissionLinks = [] }) => {
+// ─── Pie SVG builder (for tech-mix markers) ──────────────────────────────────
+function buildPieSVG(mix, colorFn, r) {
+  const entries = Object.entries(mix).filter(([, v]) => v > 0).sort(([, a], [, b]) => b - a);
+  if (!entries.length) return `<circle r="${r}" fill="#94a3b8" stroke="white" stroke-width="1.5"/>`;
+  const total = entries.reduce((s, [, v]) => s + v, 0);
+  if (entries.length === 1) {
+    return `<circle r="${r}" fill="${colorFn(entries[0][0])}" stroke="white" stroke-width="1.5"/>`;
+  }
+  let startAngle = -Math.PI / 2;
+  const slices = entries.map(([tech, val]) => {
+    const sweep = (val / total) * 2 * Math.PI;
+    const endAngle = startAngle + sweep;
+    const x1 = r + r * Math.cos(startAngle);
+    const y1 = r + r * Math.sin(startAngle);
+    const x2 = r + r * Math.cos(endAngle);
+    const y2 = r + r * Math.sin(endAngle);
+    const large = sweep > Math.PI ? 1 : 0;
+    const d = `M${r},${r} L${x1},${y1} A${r},${r} 0 ${large} 1 ${x2},${y2} Z`;
+    startAngle = endAngle;
+    return `<path d="${d}" fill="${colorFn(tech)}" stroke="white" stroke-width="0.8"/>`;
+  });
+  return slices.join('');
+}
+
+const ResultsMap = ({ locations, capacitiesByLoc, dominantTechByLoc, generationByLoc, techMixByLoc = {}, viewMode, colorFn = techColor, transmissionLinks = [] }) => {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markersRef = useRef([]);
@@ -15,6 +40,14 @@ const ResultsMap = ({ locations, capacitiesByLoc, dominantTechByLoc, generationB
     });
     return [...seen.entries()];
   }, [dominantTechByLoc, colorFn]);
+
+  const mixLegendEntries = useMemo(() => {
+    const seen = new Map();
+    Object.values(techMixByLoc || {}).forEach(mix => {
+      Object.keys(mix || {}).forEach(tech => { if (tech && !seen.has(tech)) seen.set(tech, colorFn(tech)); });
+    });
+    return [...seen.entries()];
+  }, [techMixByLoc, colorFn]);
 
   const maxGenByLoc = useMemo(() => {
     const lk = (loc) => loc.calliopeName || loc.name;
@@ -121,6 +154,40 @@ const ResultsMap = ({ locations, capacitiesByLoc, dominantTechByLoc, generationB
     });
   };
 
+  const drawTechMixView = (map, mgl, locs) => {
+    const lk = (loc) => loc.calliopeName || loc.name;
+    const maxCap = Math.max(1, ...locs.map(l => capacitiesByLoc?.[lk(l)] || 0));
+
+    locs.forEach(loc => {
+      const key = lk(loc);
+      const mix = techMixByLoc[key] || {};
+      const cap = capacitiesByLoc?.[key] || 0;
+      const r = Math.round(10 + Math.sqrt(cap / maxCap) * 26);
+      const totalMWh = Object.values(mix).reduce((s, v) => s + v, 0);
+      const svgContent = buildPieSVG(mix, colorFn, r);
+      const size = r * 2;
+      const svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svgEl.setAttribute('width', size);
+      svgEl.setAttribute('height', size);
+      svgEl.setAttribute('viewBox', `0 0 ${size} ${size}`);
+      svgEl.style.cssText = 'display:block;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.25));';
+      svgEl.innerHTML = svgContent;
+
+      const el = document.createElement('div');
+      el.style.cssText = `width:${size}px;height:${size}px;cursor:pointer;`;
+      el.appendChild(svgEl);
+
+      const topTechs = Object.entries(mix).sort(([, a], [, b]) => b - a).slice(0, 4);
+      const popupRows = topTechs.map(([t, v]) =>
+        `<div style="display:flex;align-items:center;gap:6px"><span style="width:10px;height:10px;border-radius:50%;background:${colorFn(t)};flex-shrink:0"></span><span style="color:#475569">${t.replace(/_/g, ' ')}: <b>${fmtEnergy(v, 1)}</b></span></div>`
+      ).join('');
+      const popup = new mgl.Popup({ offset: r + 4, closeButton: false, maxWidth: '240px' })
+        .setHTML(`<div style="font-family:'DM Sans',system-ui;padding:4px"><b style="color:#1e293b">${loc.name}</b><br/><small style="color:#64748b">Cap: ${fmtPower(cap)} · Gen: ${fmtEnergy(totalMWh, 1)}</small><div style="margin-top:4px">${popupRows}</div></div>`);
+      const m = new mgl.Marker({ element: el }).setLngLat([loc.longitude, loc.latitude]).setPopup(popup).addTo(map);
+      markersRef.current.push(m);
+    });
+  };
+
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return;
     let destroyed = false;
@@ -144,7 +211,8 @@ const ResultsMap = ({ locations, capacitiesByLoc, dominantTechByLoc, generationB
         }
         map.resize();
         if (viewMode === 'generation') drawGenerationView(map, mgl, locs);
-        else                          drawCapacityView(map, mgl, locs);
+        else if (viewMode === 'mix')   drawTechMixView(map, mgl, locs);
+        else                           drawCapacityView(map, mgl, locs);
       });
     });
     return () => {
@@ -185,6 +253,20 @@ const ResultsMap = ({ locations, capacitiesByLoc, dominantTechByLoc, generationB
               <span style={{ color: '#94a3b8', fontSize: 10 }}>TX link</span>
             </div>
           )}
+        </div>
+      )}
+      {viewMode === 'mix' && mixLegendEntries.length > 0 && (
+        <div style={{ position: 'absolute', top: 10, right: 10, background: 'rgba(255,255,255,0.95)', borderRadius: 8, padding: '8px 10px', fontSize: 11, boxShadow: '0 2px 8px rgba(0,0,0,0.12)', fontFamily: "'DM Sans',system-ui", border: '1px solid #e2e8f0', maxWidth: 170 }}>
+          <div style={{ fontWeight: 700, color: '#475569', marginBottom: 5, fontSize: 9.5, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Technology Mix</div>
+          {mixLegendEntries.map(([tech, color]) => (
+            <div key={tech} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+              <div style={{ width: 10, height: 10, borderRadius: 2, background: color, flexShrink: 0 }} />
+              <span style={{ color: '#475569', fontSize: 10.5 }}>{tech.replace(/_/g, ' ')}</span>
+            </div>
+          ))}
+          <div style={{ marginTop: 7, paddingTop: 7, borderTop: '1px solid #f1f5f9', color: '#94a3b8', fontSize: 9.5 }}>
+            Pie size ∝ total capacity · slice ∝ share
+          </div>
         </div>
       )}
       {viewMode === 'generation' && (
@@ -932,4 +1014,155 @@ const GroupedCorrMatrixSVG = ({ ltGroups, ltCorrMap }) => {
   );
 };
 
-export { ResultsMap, TransmissionFlowMap, GroupedCorrMatrixSVG };
+// ── Choropleth map (commune boundaries filled by metric value) ───────────────
+
+const CHORO_RAMPS = {
+  blue:   ['#e0f2fe', '#0369a1'],
+  amber:  ['#fef9c3', '#b45309'],
+  green:  ['#dcfce7', '#15803d'],
+};
+
+const RegionChoropleth = ({ metric = {}, metricLabel = 'Value', colorRamp = 'blue', fmtValue = null }) => {
+  const mapRef    = useRef(null);
+  const mapInstRef = useRef(null);
+  const [error, setError] = useState(null);
+
+  const fmt = fmtValue || ((v) => fmtEnergy(v));
+  const [lo, hi] = CHORO_RAMPS[colorRamp] || CHORO_RAMPS.blue;
+
+  useEffect(() => {
+    let destroyed = false;
+    const container = mapRef.current;
+    if (!container) return;
+
+    (async () => {
+      let geoJSON;
+      try {
+        geoJSON = await loadCommunesGeo();
+      } catch {
+        if (!destroyed) setError('Could not load region boundaries.');
+        return;
+      }
+      if (destroyed) return;
+
+      const maxVal = Math.max(1, ...Object.values(metric));
+
+      // Enrich features with metric value
+      const enriched = {
+        ...geoJSON,
+        features: geoJSON.features.map(f => {
+          const name = f.properties.comuna;
+          const val = metric[name] ?? metric[name?.toLowerCase()] ?? 0;
+          return { ...f, properties: { ...f.properties, _val: val } };
+        }),
+      };
+
+      const mgl = await import('maplibre-gl');
+      if (destroyed) return;
+
+      const map = new mgl.Map({
+        container,
+        style: OSM_STYLE,
+        transformRequest: osmTransformRequest,
+        center: [-70.6, -33.5],
+        zoom: 4,
+        attributionControl: false,
+      });
+      mapInstRef.current = map;
+
+      map.on('load', () => {
+        if (destroyed) return;
+        map.addSource('communes', { type: 'geojson', data: enriched });
+
+        map.addLayer({
+          id: 'communes-fill',
+          type: 'fill',
+          source: 'communes',
+          paint: {
+            'fill-color': [
+              'interpolate', ['linear'], ['get', '_val'],
+              0, lo,
+              maxVal, hi,
+            ],
+            'fill-opacity': 0.72,
+          },
+        });
+        map.addLayer({
+          id: 'communes-outline',
+          type: 'line',
+          source: 'communes',
+          paint: { 'line-color': '#ffffff', 'line-width': 0.6, 'line-opacity': 0.7 },
+        });
+
+        // Popup on hover
+        const popup = new mgl.Popup({ closeButton: false, closeOnClick: false });
+        map.on('mousemove', 'communes-fill', (e) => {
+          if (!e.features?.length) return;
+          const f = e.features[0];
+          const val = f.properties._val || 0;
+          const label = val > 0 ? fmt(val) : '—';
+          popup.setLngLat(e.lngLat)
+            .setHTML(`<div style="font-size:12px;line-height:1.6"><strong>${f.properties.comuna}</strong><br/>${metricLabel}: ${label}</div>`)
+            .addTo(map);
+          map.getCanvas().style.cursor = 'pointer';
+        });
+        map.on('mouseleave', 'communes-fill', () => {
+          popup.remove();
+          map.getCanvas().style.cursor = '';
+        });
+
+        // Fit to data communes with values
+        const populated = enriched.features.filter(f => f.properties._val > 0);
+        if (populated.length > 0) {
+          const coords = populated.flatMap(f => {
+            const geom = f.geometry;
+            if (!geom) return [];
+            const rings = geom.type === 'MultiPolygon'
+              ? geom.coordinates.flat(1)
+              : geom.coordinates;
+            return rings.flat();
+          });
+          if (coords.length) {
+            const lngs = coords.map(c => c[0]);
+            const lats = coords.map(c => c[1]);
+            map.fitBounds(
+              [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
+              { padding: 40, duration: 0, maxZoom: 9 }
+            );
+          }
+        }
+        map.resize();
+      });
+    })();
+
+    return () => {
+      destroyed = true;
+      if (mapInstRef.current) { mapInstRef.current.remove(); mapInstRef.current = null; }
+    };
+  }, [metric, metricLabel, lo, hi, fmt]);
+
+  if (error) {
+    return (
+      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: 13 }}>
+        {error}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+      <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
+      {/* Legend */}
+      <div style={{ position: 'absolute', bottom: 24, right: 10, background: 'rgba(255,255,255,0.95)', borderRadius: 8, padding: '8px 10px', fontSize: 11, boxShadow: '0 2px 8px rgba(0,0,0,0.12)', border: '1px solid #e2e8f0' }}>
+        <div style={{ fontWeight: 700, color: '#475569', marginBottom: 5, fontSize: 9.5, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{metricLabel}</div>
+        <div style={{ width: 100, height: 8, borderRadius: 4, background: `linear-gradient(to right, ${lo}, ${hi})`, marginBottom: 3 }} />
+        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#94a3b8', fontSize: 9.5 }}>
+          <span>0</span>
+          <span>{fmt(Math.max(1, ...Object.values(metric)))}</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export { ResultsMap, TransmissionFlowMap, GroupedCorrMatrixSVG, RegionChoropleth };

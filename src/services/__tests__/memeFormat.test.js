@@ -45,7 +45,11 @@ function assertCanonicalShape(payload) {
     expect(['supply', 'demand', 'conversion', 'storage'], `role of ${id}`).toContain(t.role);
     expect(t.node, `node of ${id}`).toBeDefined();
   }
+  // subset carries a 'THH:MM' component (no seconds) so MEME's unquoted YAML
+  // isn't coerced to a date by PyYAML; still bounded by start/end days.
+  expect(model.time.subset).toEqual([`${model.time.start}T00:00`, `${model.time.end}T23:00`]);
   expect(experiment.mode).toBeTypeOf('string');
+  expect(experiment.allow_unmet_demand.enabled).toBeTypeOf('boolean');
   expect(experiment.solver.name).toBeTypeOf('string');
 }
 
@@ -95,6 +99,13 @@ describe('internalToMemeCanonical – metadata & time', () => {
     expect(payload.model.time.end).toBe('2025-01-03');
   });
 
+  it('emits time.subset so MEME slices the run to the window (not the full series)', () => {
+    const model = baseModel({ metadata: { modelConfig: { startDate: '2025-01-01', endDate: '2025-01-03' }, runConfig: {} } });
+    const { payload } = internalToMemeCanonical(model);
+    // 'THH:MM' (no seconds) keeps PyYAML from coercing the bare date to a date object.
+    expect(payload.model.time.subset).toEqual(['2025-01-01T00:00', '2025-01-03T23:00']);
+  });
+
   it('reads a top-level modelConfig (the Run payload shape)', () => {
     // Run.jsx sends modelConfig at the top level, not under metadata.
     const model = { ...baseModel(), modelConfig: { startDate: '2040-03-01', endDate: '2040-03-02' } };
@@ -119,6 +130,27 @@ describe('internalToMemeCanonical – experiment', () => {
   it('maps internal mode operate → operate', () => {
     const { payload } = internalToMemeCanonical(baseModel({ metadata: { modelConfig: { mode: 'operate' }, runConfig: {} } }));
     expect(payload.experiment.mode).toBe('operate');
+  });
+
+  it('enables allow_unmet_demand by default (matches TEMPO local ensure_feasibility)', () => {
+    const { payload } = internalToMemeCanonical(baseModel());
+    expect(payload.experiment.allow_unmet_demand).toEqual({ enabled: true });
+  });
+
+  it('respects modelConfig.ensureFeasibility === false', () => {
+    const model = baseModel({ metadata: { modelConfig: { ensureFeasibility: false }, runConfig: {} } });
+    const { payload } = internalToMemeCanonical(model);
+    expect(payload.experiment.allow_unmet_demand).toEqual({ enabled: false });
+  });
+
+  it('disables allow_unmet_demand for adoptnet0 regardless of ensureFeasibility (MEME requires penalty_price for enabled=true, which TEMPO cannot supply)', () => {
+    const { payload } = internalToMemeCanonical(baseModel(), { engine: 'adoptnet0' });
+    expect(payload.experiment.allow_unmet_demand).toEqual({ enabled: false });
+  });
+
+  it('keeps allow_unmet_demand enabled by default for pypsa and calliope07', () => {
+    expect(internalToMemeCanonical(baseModel(), { engine: 'pypsa' }).payload.experiment.allow_unmet_demand).toEqual({ enabled: true });
+    expect(internalToMemeCanonical(baseModel(), { engine: 'calliope07' }).payload.experiment.allow_unmet_demand).toEqual({ enabled: true });
   });
 
   it('honours solver and objective opts', () => {
@@ -186,6 +218,19 @@ describe('internalToMemeCanonical – infinite / equals capacity', () => {
     });
     const { payload } = internalToMemeCanonical(model);
     expect(payload.model.technologies.ccgt.capacity).toEqual({ existing: 500, expandable: false });
+  });
+
+  it('treats a supply with resource: "inf" as an unbounded (expandable) source', () => {
+    // The import/slack tech: supply_plus with resource "inf" and no energy_cap_max.
+    // Calliope leaves it unbounded; without an explicit expandable capacity MEME
+    // defaults it to 0 and the slack can never produce → infeasible.
+    const model = baseModel({
+      technologies: [makeTech('import', 'supply', { resource: 'inf', resource_eff: 1 })],
+      locations: [{ name: 'n', latitude: 1, longitude: 2, techs: { import: null } }],
+    });
+    const { payload } = internalToMemeCanonical(model);
+    expect(payload.model.technologies.import.capacity).toEqual({ expandable: true });
+    expect(payload.model.technologies.import.source).toBeUndefined();
   });
 });
 
@@ -335,6 +380,121 @@ describe('internalToMemeCanonical – transmission', () => {
     const { payload } = internalToMemeCanonical(model2);
     const tx = payload.model.transmission[Object.keys(payload.model.transmission)[0]];
     expect(tx.capacity).toEqual({ max: 3000, expandable: true });
+  });
+
+  it('treats a 0 link capacity as unspecified → expandable with no max (not max: 0)', () => {
+    // In TEMPO a link capacity of 0 means "optimize freely"; Calliope treats an
+    // unset link cap as unbounded. Emitting max: 0 would island the node → infeasible.
+    const model2 = baseModel({
+      technologies: [{
+        name: 'ac',
+        essentials: { parent: 'transmission', carrier: 'electricity' },
+        constraints: {}, // no energy_cap_max on the tech either
+        costs: {},
+      }],
+      locations: [
+        { name: 'north', latitude: 52, longitude: 10, techs: {} },
+        { name: 'south', latitude: 48, longitude: 11, techs: {} },
+      ],
+      links: [{ from: 'north', to: 'south', tech: 'ac', capacity: 0, distance: 400 }],
+    });
+    const { payload } = internalToMemeCanonical(model2);
+    const tx = payload.model.transmission[Object.keys(payload.model.transmission)[0]];
+    expect(tx.capacity).toEqual({ expandable: true });
+    expect(tx.capacity.max).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Node coordinates: all-or-nothing
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// AdOpT-NET0: infinite-resource supply_plus → trade import
+// ---------------------------------------------------------------------------
+
+describe('internalToMemeCanonical – adoptnet0 trade import', () => {
+  const importTech = {
+    name: 'import',
+    essentials: { parent: 'supply_plus', carrier_out: 'electricity' },
+    constraints: { resource: 'inf', lifetime: 40 },
+    costs: { monetary: { om_prod: 0.104, interest_rate: 0.1 } },
+  };
+  const battTech = makeTech('batt', 'storage',
+    { storage_cap_max: 500, energy_cap_max: 200, energy_eff: 0.95, lifetime: 15 },
+    { monetary: { energy_cap: 1000, interest_rate: 0.05 } },
+    { carrier_in: 'electricity', carrier_out: 'electricity' },
+  );
+  const demandTech = makeTech('load', 'demand', { resource: -100, force_resource: true });
+
+  const model = baseModel({
+    technologies: [importTech, battTech, demandTech],
+    locations: [{ name: 'n1', latitude: -18.5, longitude: -70.3,
+      techs: { import: null, batt: null, load: null } }],
+  });
+
+  it('routes infinite-resource supply_plus to model.trade (not technologies) for adoptnet0', () => {
+    const { payload } = internalToMemeCanonical(model, { engine: 'adoptnet0' });
+    expect(payload.model.technologies.import).toBeUndefined();
+    expect(payload.model.trade).toBeDefined();
+    const entry = Object.values(payload.model.trade)[0];
+    expect(entry.node).toBe('n1');
+    expect(entry.carrier).toBe('electricity');
+    expect(entry.import).toBeDefined();
+  });
+
+  it('carries the om_prod cost as the import price', () => {
+    const { payload } = internalToMemeCanonical(model, { engine: 'adoptnet0' });
+    const entry = Object.values(payload.model.trade)[0];
+    expect(entry.import.price).toBeCloseTo(0.104);
+  });
+
+  it('uses INF limit when energy_cap_max is absent', () => {
+    const { payload } = internalToMemeCanonical(model, { engine: 'adoptnet0' });
+    const entry = Object.values(payload.model.trade)[0];
+    expect(entry.import.limit).toBeGreaterThan(1e10);
+  });
+
+  it('uses energy_cap_max as the import limit when set', () => {
+    const m2 = baseModel({
+      technologies: [{
+        ...importTech,
+        constraints: { resource: 'inf', energy_cap_max: 500 },
+      }],
+      locations: [{ name: 'n1', latitude: 0, longitude: 0, techs: { import: null } }],
+    });
+    const { payload } = internalToMemeCanonical(m2, { engine: 'adoptnet0' });
+    const entry = Object.values(payload.model.trade)[0];
+    expect(entry.import.limit).toBe(500);
+  });
+
+  it('leaves the import tech as a supply role for non-adoptnet0 engines', () => {
+    const { payload } = internalToMemeCanonical(model, { engine: 'calliope07' });
+    expect(payload.model.technologies.import).toBeDefined();
+    expect(payload.model.technologies.import.role).toBe('supply');
+    expect(payload.model.trade).toBeUndefined();
+  });
+
+  it('emits trade entry per node when the tech is on multiple nodes', () => {
+    const m2 = baseModel({
+      technologies: [importTech],
+      locations: [
+        { name: 'n1', latitude: 0, longitude: 0, techs: { import: null } },
+        { name: 'n2', latitude: 1, longitude: 1, techs: { import: null } },
+      ],
+    });
+    const { payload } = internalToMemeCanonical(m2, { engine: 'adoptnet0' });
+    const entries = Object.values(payload.model.trade);
+    const nodeSet = new Set(entries.map((e) => e.node));
+    expect(entries).toHaveLength(2);
+    expect(nodeSet).toContain('n1');
+    expect(nodeSet).toContain('n2');
+  });
+
+  it('storage and demand techs still appear in model.technologies for adoptnet0', () => {
+    const { payload } = internalToMemeCanonical(model, { engine: 'adoptnet0' });
+    expect(payload.model.technologies.batt).toBeDefined();
+    expect(payload.model.technologies.load).toBeDefined();
   });
 });
 
