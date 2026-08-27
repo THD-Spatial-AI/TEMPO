@@ -452,6 +452,8 @@ ipcMain.handle('setup:mark-complete', () => {
 const aiKeystore = require('./ai/keystore.cjs');
 const { streamChat: aiStreamChat } = require('./ai/providers.cjs');
 const aiAbortControllers = new Map();
+// Local providers run on the user's machine and need no API key.
+const AI_KEYLESS_PROVIDERS = new Set(['ollama']);
 
 ipcMain.handle('ai:set-key',    (_e, provider, key) => aiKeystore.setKey(provider, key));
 ipcMain.handle('ai:clear-key',  (_e, provider)      => aiKeystore.clearKey(provider));
@@ -459,7 +461,7 @@ ipcMain.handle('ai:key-status', (_e, provider)      => ({ hasKey: aiKeystore.has
 
 ipcMain.handle('ai:test-key', async (_e, { provider, model, baseUrl } = {}) => {
   const apiKey = aiKeystore.getKey(provider);
-  if (!apiKey) return { ok: false, error: 'No API key stored for this provider.' };
+  if (!apiKey && !AI_KEYLESS_PROVIDERS.has(provider)) return { ok: false, error: 'No API key stored for this provider.' };
   try {
     let got = '';
     await aiStreamChat({
@@ -476,7 +478,7 @@ ipcMain.handle('ai:test-key', async (_e, { provider, model, baseUrl } = {}) => {
 ipcMain.handle('ai:send', async (_e, payload = {}) => {
   const { reqId, provider, model, baseUrl, system, messages, maxTokens } = payload;
   const apiKey = aiKeystore.getKey(provider);
-  if (!apiKey) return { ok: false, error: `No API key configured for ${provider}. Add one in Settings → AI Assistant.` };
+  if (!apiKey && !AI_KEYLESS_PROVIDERS.has(provider)) return { ok: false, error: `No API key configured for ${provider}. Add one in Settings → Model Advisor.` };
 
   const controller = new AbortController();
   aiAbortControllers.set(reqId, controller);

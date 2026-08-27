@@ -574,14 +574,24 @@ function AIPanel() {
       )}
 
       {/* Privacy disclaimer */}
-      <div className="mb-5 flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 max-w-2xl">
-        <FiShield className="w-4 h-4 mt-0.5 shrink-0" />
-        <span>
-          Using this feature sends your selected run's results to your chosen LLM provider
-          ({meta.label}). This is the only case where TEMPO transmits model data off this device.
-          Review the provider's data-handling terms before use.
-        </span>
-      </div>
+      {meta.local ? (
+        <div className="mb-5 flex items-start gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 max-w-2xl">
+          <FiShield className="w-4 h-4 mt-0.5 shrink-0" />
+          <span>
+            {meta.label} runs on your own hardware — model data goes only to your Ollama server,
+            never to a third-party service.
+          </span>
+        </div>
+      ) : (
+        <div className="mb-5 flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 max-w-2xl">
+          <FiShield className="w-4 h-4 mt-0.5 shrink-0" />
+          <span>
+            Using this feature sends your selected run's results to your chosen LLM provider
+            ({meta.label}). This is the only case where TEMPO transmits model data off this device.
+            Review the provider's data-handling terms before use.
+          </span>
+        </div>
+      )}
 
       <div className="space-y-5 max-w-md">
         {/* Provider */}
@@ -596,18 +606,22 @@ function AIPanel() {
           </select>
         </div>
 
-        {/* Base URL (compatible only) */}
+        {/* Base URL (compatible + Ollama) */}
         {meta.needsBaseUrl && (
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">Base URL</label>
+            <label className="block text-sm font-medium text-slate-700 mb-2">{meta.local ? 'Ollama server URL' : 'Base URL'}</label>
             <input
               type="text"
               value={cfg.baseUrl}
               onChange={(e) => updateCfg({ baseUrl: e.target.value })}
-              placeholder="https://openrouter.ai/api/v1"
+              placeholder={meta.local ? 'http://192.168.1.50:11434' : 'https://openrouter.ai/api/v1'}
               className="w-full px-3 py-2 border border-slate-300 rounded-md font-mono text-sm focus:outline-none focus:ring-2 focus:ring-gray-500"
             />
-            <p className="text-xs text-slate-400 mt-1.5">Any OpenAI-compatible endpoint (OpenRouter, Azure, a local server).</p>
+            <p className="text-xs text-slate-400 mt-1.5">
+              {meta.local
+                ? 'Where Ollama is running. Leave blank for localhost; use the host machine’s IP:11434 when Ollama runs on another computer.'
+                : 'Any OpenAI-compatible endpoint (OpenRouter, Azure, a local server).'}
+            </p>
           </div>
         )}
 
@@ -623,48 +637,58 @@ function AIPanel() {
           />
         </div>
 
-        {/* API key */}
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-2">
-            API key
-            {hasKey && <span className="ml-2 text-xs text-gray-600 font-normal"><FiCheckCircle className="inline w-3.5 h-3.5" /> stored</span>}
-          </label>
-          <div className="flex gap-2">
-            <input
-              type={showKey ? 'text' : 'password'}
-              value={keyInput}
-              onChange={(e) => setKeyInput(e.target.value)}
-              placeholder={hasKey ? '•••••••• (a key is stored)' : 'Paste your API key'}
-              className="flex-1 px-3 py-2 border border-slate-300 rounded-md font-mono text-sm focus:outline-none focus:ring-2 focus:ring-gray-500"
-            />
-            <button type="button" onClick={() => setShowKey(v => !v)} className="px-3 py-2 text-xs font-medium text-slate-500 border border-slate-200 rounded-md hover:bg-slate-50">
-              {showKey ? 'Hide' : 'Show'}
-            </button>
+        {/* API key (remote providers) / local connection note (Ollama) */}
+        {meta.needsKey === false ? (
+          <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+            No API key needed — TEMPO connects to your Ollama server at
+            <span className="font-mono text-slate-500"> {cfg.baseUrl || 'http://localhost:11434'}</span>. Make sure Ollama is
+            running there and the model above is pulled (<span className="font-mono text-slate-500">ollama pull {cfg.model || meta.defaultModel}</span>).
           </div>
-          {meta.keysUrl && (
-            <p className="text-xs text-slate-400 mt-1.5">
-              Get a key at <span className="font-mono text-slate-500">{meta.keysUrl}</span>. Stored encrypted on this device.
-            </p>
-          )}
-        </div>
+        ) : (
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">
+              API key
+              {hasKey && <span className="ml-2 text-xs text-gray-600 font-normal"><FiCheckCircle className="inline w-3.5 h-3.5" /> stored</span>}
+            </label>
+            <div className="flex gap-2">
+              <input
+                type={showKey ? 'text' : 'password'}
+                value={keyInput}
+                onChange={(e) => setKeyInput(e.target.value)}
+                placeholder={hasKey ? '•••••••• (a key is stored)' : 'Paste your API key'}
+                className="flex-1 px-3 py-2 border border-slate-300 rounded-md font-mono text-sm focus:outline-none focus:ring-2 focus:ring-gray-500"
+              />
+              <button type="button" onClick={() => setShowKey(v => !v)} className="px-3 py-2 text-xs font-medium text-slate-500 border border-slate-200 rounded-md hover:bg-slate-50">
+                {showKey ? 'Hide' : 'Show'}
+              </button>
+            </div>
+            {meta.keysUrl && (
+              <p className="text-xs text-slate-400 mt-1.5">
+                Get a key at <span className="font-mono text-slate-500">{meta.keysUrl}</span>. Stored encrypted on this device.
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Actions */}
         <div className="flex items-center gap-2 flex-wrap">
-          <button
-            onClick={saveKey}
-            disabled={!desktop || !keyInput.trim()}
-            className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-gray-700 hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            Save key
-          </button>
+          {meta.needsKey !== false && (
+            <button
+              onClick={saveKey}
+              disabled={!desktop || !keyInput.trim()}
+              className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-gray-700 hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Save key
+            </button>
+          )}
           <button
             onClick={testConnection}
-            disabled={!desktop || testing || !hasKey}
+            disabled={!desktop || testing || (!hasKey && meta.needsKey !== false)}
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {testing
               ? <><span className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" /> Testing…</>
-              : <><FiRefreshCw className="w-4 h-4" /> Test key</>}
+              : <><FiRefreshCw className="w-4 h-4" /> {meta.needsKey === false ? 'Test connection' : 'Test key'}</>}
           </button>
           {hasKey && (
             <button onClick={clearKey} disabled={!desktop} className="px-3 py-2 rounded-lg text-sm font-medium text-slate-500 hover:bg-slate-100 transition-colors">

@@ -53,9 +53,11 @@ export default function AIAnalysisTab({ result, selectedJob, model, onOpenSettin
   const [cfg] = useState(() => getAIConfig());
   useEffect(() => {
     let alive = true;
+    // Local providers (e.g. Ollama) need no key — the tab is ready immediately.
+    if (providerMeta(cfg.provider).needsKey === false) { setKeyReady(true); return () => { alive = false; }; }
     hasKey().then((r) => { if (alive) setKeyReady(r); }).catch(() => { if (alive) setKeyReady(false); });
     return () => { alive = false; };
-  }, []);
+  }, [cfg.provider]);
 
   // ── Context cap controls ────────────────────────────────────────────────
   const [includeDispatch, setIncludeDispatch] = useState(true);

@@ -151,6 +151,49 @@ ADAPTERS.compatible = {
   },
 };
 
+// Groq — OpenAI-compatible wire format at a fixed base URL (free tier). Base URL
+// is hardcoded so an empty field can't silently fall back to api.openai.com.
+ADAPTERS.groq = {
+  buildRequest({ apiKey, model, system, messages, maxTokens }) {
+    const msgs = system ? [{ role: 'system', content: system }, ...messages] : messages;
+    return {
+      url: 'https://api.groq.com/openai/v1/chat/completions',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${apiKey}`,
+      },
+      body: { model, stream: true, max_tokens: maxTokens, messages: msgs },
+    };
+  },
+  parseDelta: ADAPTERS.openai.parseDelta,
+  parseError(status, text) {
+    return formatHttpError('Groq API', status, text);
+  },
+};
+
+// Ollama — OpenAI-compatible server. Runs on the user's own hardware (local or a
+// LAN host), so no API key is needed; a static Authorization header keeps the
+// wire format happy (Ollama ignores it). The host defaults to localhost; a base
+// URL points it at another machine. Accepts a host root or a full "…/v1" base.
+ADAPTERS.ollama = {
+  buildRequest({ baseUrl, model, system, messages, maxTokens }) {
+    const base = (stripTrailingSlash(baseUrl) || 'http://localhost:11434').replace(/\/v1$/, '');
+    const msgs = system ? [{ role: 'system', content: system }, ...messages] : messages;
+    return {
+      url: `${base}/v1/chat/completions`,
+      headers: {
+        'content-type': 'application/json',
+        authorization: 'Bearer ollama',
+      },
+      body: { model, stream: true, max_tokens: maxTokens, messages: msgs },
+    };
+  },
+  parseDelta: ADAPTERS.openai.parseDelta,
+  parseError(status, text) {
+    return formatHttpError('Ollama', status, text);
+  },
+};
+
 const AI_PROVIDERS = Object.keys(ADAPTERS);
 
 /**

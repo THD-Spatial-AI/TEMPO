@@ -11,6 +11,8 @@ const KEY = 'aiConfig';
 export const AI_PROVIDERS = [
   { id: 'anthropic',  label: 'Anthropic (Claude)',   defaultModel: 'claude-sonnet-4-6',   needsBaseUrl: false, keysUrl: 'https://console.anthropic.com/settings/keys' },
   { id: 'gemini',     label: 'Google (Gemini)',      defaultModel: 'gemini-flash-latest', needsBaseUrl: false, keysUrl: 'https://aistudio.google.com/apikey' },
+  { id: 'groq',       label: 'Groq (free tier)',     defaultModel: 'openai/gpt-oss-20b',  needsBaseUrl: false, keysUrl: 'https://console.groq.com/keys' },
+  { id: 'ollama',     label: 'Ollama',               defaultModel: 'llama3.1:8b',         needsBaseUrl: true,  needsKey: false, local: true, keysUrl: '' },
   { id: 'openai',     label: 'OpenAI (GPT)',         defaultModel: 'gpt-4o',              needsBaseUrl: false, keysUrl: 'https://platform.openai.com/api-keys' },
   { id: 'compatible', label: 'OpenAI-compatible',    defaultModel: '',                    needsBaseUrl: true,  keysUrl: '' },
 ];
