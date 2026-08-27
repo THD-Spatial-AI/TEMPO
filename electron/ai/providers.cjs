@@ -94,7 +94,11 @@ const ADAPTERS = {
             role: m.role === 'assistant' ? 'model' : 'user',
             parts: [{ text: m.content }],
           })),
-          generationConfig: { maxOutputTokens: maxTokens },
+          // Gemini 2.5/3 Flash spend "thinking" tokens from maxOutputTokens, and
+          // Flash thinking can't be fully disabled — too small a budget is spent
+          // entirely on thinking and returns an empty answer. Reserve generous
+          // headroom for thinking so the actual response still fits.
+          generationConfig: { maxOutputTokens: maxTokens + 8192 },
         },
       };
     },
@@ -239,27 +243,50 @@ async function streamChat({
   }
   const cleanup = () => signal?.removeEventListener('abort', onExternalAbort);
 
-  let connectTimer = setTimeout(() => { abortReason = 'connect'; ctrl.abort(); }, connectTimeoutMs);
-
+  // Transient upstream failures (rate-limit / overload / gateway) are retried
+  // with exponential backoff before surfacing — free-tier models 503 briefly
+  // under load. Retries happen before any text is emitted, so they're safe.
+  const RETRYABLE = new Set([429, 500, 502, 503, 504]);
+  const MAX_ATTEMPTS = 4;
   let res;
-  try {
-    res = await fetch(req.url, {
-      method: 'POST',
-      headers: req.headers,
-      body: JSON.stringify(req.body),
-      signal: ctrl.signal,
-    });
-  } catch (err) {
-    clearTimeout(connectTimer);
-    cleanup();
-    if (abortReason === 'connect') throw new Error(`The AI provider did not respond within ${connectTimeoutMs / 1000}s. Check your connection, base URL, or model id.`);
-    if (abortReason === 'user' || err?.name === 'AbortError') throw err;
-    throw new Error(`Could not reach the AI provider: ${err.message}`);
-  }
-  clearTimeout(connectTimer); // response headers received
+  for (let attempt = 1; ; attempt++) {
+    const connectTimer = setTimeout(() => { abortReason = 'connect'; ctrl.abort(); }, connectTimeoutMs);
+    try {
+      res = await fetch(req.url, {
+        method: 'POST',
+        headers: req.headers,
+        body: JSON.stringify(req.body),
+        signal: ctrl.signal,
+      });
+    } catch (err) {
+      clearTimeout(connectTimer);
+      cleanup();
+      if (abortReason === 'connect') throw new Error(`The AI provider did not respond within ${connectTimeoutMs / 1000}s. Check your connection, base URL, or model id.`);
+      if (abortReason === 'user' || err?.name === 'AbortError') throw err;
+      throw new Error(`Could not reach the AI provider: ${err.message}`);
+    }
+    clearTimeout(connectTimer); // response headers received
 
-  if (!res.ok) {
+    if (res.ok) break;
+
     const text = await res.text().catch(() => '');
+    if (RETRYABLE.has(res.status) && attempt < MAX_ATTEMPTS) {
+      // Back off 1s, 2s, 4s… then retry. Abortable via the caller's signal.
+      const backoffMs = 1000 * 2 ** (attempt - 1);
+      try {
+        await new Promise((resolve, reject) => {
+          const t = setTimeout(resolve, backoffMs);
+          const onAb = () => { clearTimeout(t); reject(new Error('aborted')); };
+          if (ctrl.signal.aborted) onAb();
+          else ctrl.signal.addEventListener('abort', onAb, { once: true });
+        });
+      } catch {
+        cleanup();
+        throw new Error('Request cancelled.');
+      }
+      continue;
+    }
+
     cleanup();
     throw new Error(adapter.parseError(res.status, text));
   }

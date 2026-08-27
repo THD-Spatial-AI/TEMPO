@@ -522,8 +522,10 @@ function AIPanel() {
   const updateCfg = (patch) => { setCfg(setAIConfig(patch)); setSaved(false); setTestResult(null); };
 
   const changeProvider = (provider) => {
-    // Reset model to the provider default; clear per-provider test state.
-    updateCfg({ provider, model: providerMeta(provider).defaultModel });
+    // Reset model to the provider default and drop any base URL that belonged to
+    // the previous provider (only compatible/ollama use one). Clear test state.
+    const m = providerMeta(provider);
+    updateCfg({ provider, model: m.defaultModel, baseUrl: m.needsBaseUrl ? cfg.baseUrl : '' });
     setTestResult(null);
     setKeyInput('');
   };
@@ -700,16 +702,29 @@ function AIPanel() {
 
         {/* Test result */}
         {testResult && (
-          <div className={`rounded-xl border p-3 text-sm ${testResult.ok ? 'bg-gray-50 border-gray-200 text-gray-700' : 'bg-gray-50 border-gray-200 text-gray-700'}`}>
+          <div className="rounded-xl border p-3 text-sm bg-gray-50 border-gray-200 text-gray-700">
             {testResult.ok ? (
               <div className="flex items-start gap-2">
                 <FiCheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                <span>Key works. Model replied: <span className="font-mono">{testResult.sample || 'ok'}</span></span>
+                <span>{meta.needsKey === false ? 'Connection works' : 'Key works'}. Model replied: <span className="font-mono">{testResult.sample || 'ok'}</span></span>
               </div>
             ) : (
-              <div className="flex items-start gap-2">
-                <FiAlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                <span className="break-all">{testResult.error}</span>
+              <div className="space-y-2">
+                <div className="flex items-start gap-2">
+                  <FiAlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <span className="break-all">{testResult.error}</span>
+                </div>
+                {meta.local && (
+                  <div className="mt-1 pt-2 border-t border-gray-200 text-xs text-slate-500">
+                    <p className="font-medium text-slate-600 mb-1">Can’t reach Ollama? On the machine running it, check:</p>
+                    <ul className="list-disc pl-4 space-y-1">
+                      <li>Port is published — <span className="font-mono">docker ps</span> shows <span className="font-mono">0.0.0.0:11434-&gt;11434/tcp</span> (else run with <span className="font-mono">-p 11434:11434</span>).</li>
+                      <li>Reachable from here — <span className="font-mono">curl {cfg.baseUrl || 'http://localhost:11434'}/api/tags</span> lists your models.</li>
+                      <li>Firewall allows inbound TCP <span className="font-mono">11434</span> on that host.</li>
+                      <li>Model is pulled — <span className="font-mono">ollama pull {cfg.model || meta.defaultModel}</span>.</li>
+                    </ul>
+                  </div>
+                )}
               </div>
             )}
           </div>

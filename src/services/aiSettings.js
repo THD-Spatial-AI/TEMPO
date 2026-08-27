@@ -10,7 +10,7 @@ const KEY = 'aiConfig';
 
 export const AI_PROVIDERS = [
   { id: 'anthropic',  label: 'Anthropic (Claude)',   defaultModel: 'claude-sonnet-4-6',   needsBaseUrl: false, keysUrl: 'https://console.anthropic.com/settings/keys' },
-  { id: 'gemini',     label: 'Google (Gemini)',      defaultModel: 'gemini-flash-latest', needsBaseUrl: false, keysUrl: 'https://aistudio.google.com/apikey' },
+  { id: 'gemini',     label: 'Google (Gemini)',      defaultModel: 'gemini-3.6-flash',    needsBaseUrl: false, keysUrl: 'https://aistudio.google.com/apikey' },
   { id: 'groq',       label: 'Groq (free tier)',     defaultModel: 'openai/gpt-oss-20b',  needsBaseUrl: false, keysUrl: 'https://console.groq.com/keys' },
   { id: 'ollama',     label: 'Ollama',               defaultModel: 'llama3.1:8b',         needsBaseUrl: true,  needsKey: false, local: true, keysUrl: '' },
   { id: 'openai',     label: 'OpenAI (GPT)',         defaultModel: 'gpt-4o',              needsBaseUrl: false, keysUrl: 'https://platform.openai.com/api-keys' },
@@ -28,6 +28,10 @@ export function getAIConfig() {
   const stored = getSetting(KEY) || {};
   const merged = { ...DEFAULTS, ...stored };
   if (!merged.model) merged.model = providerMeta(merged.provider).defaultModel;
+  // Drop a base URL left over from a previous provider — only compatible/ollama
+  // use one. Without this, a stale baseUrl (e.g. Groq's) hijacks a fixed-endpoint
+  // provider like Gemini and sends its request to the wrong host.
+  if (!providerMeta(merged.provider).needsBaseUrl) merged.baseUrl = '';
   return merged;
 }
 
