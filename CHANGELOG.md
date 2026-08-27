@@ -5,6 +5,53 @@ All notable changes to TEMPO are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.0] - 2026-08-27
+
+TEMPO 3.1 introduces **Model Advisor** — an in-app assistant that turns a run's
+results into a plain-language report and answers follow-up questions, helping
+modellers interpret outcomes and decide what to change next. It runs on an LLM
+provider of your choice (a cloud service or a local model on your own hardware);
+no key or model is bundled, and model data is sent off-device only when you use
+the feature.
+
+### Added
+
+- **Model Advisor** — a new tab in the Results view that auto-generates a
+  structured report (what the solver decided, the key trade-offs, and
+  recommendations) and provides a chat to ask questions about the selected run.
+  Every statement is grounded in the run's frozen result contract, and the
+  assistant also critiques the model's input assumptions (costs, potentials,
+  efficiencies), not just the outcome.
+- **Bring-your-own-key, multi-provider support** — Anthropic (Claude),
+  Google (Gemini), OpenAI, any OpenAI-compatible endpoint, **Groq** (free tier),
+  and **Ollama** for a local model. Provider, model, and key are configured in
+  Settings → Model Advisor.
+- **Local / private inference (Ollama)** — needs no API key and keeps model data
+  on your own hardware; point it at localhost or another machine on your network,
+  with a built-in connection test and troubleshooting hints.
+- **Context controls** — a live token estimate plus "Data sent" caps to
+  downsample the dispatch series, limit to the top-N capacity/cost keys, and
+  include or exclude the model-input digest, so large models fit within a
+  provider's context window.
+
+### Security & Privacy
+
+- API keys are stored **encrypted at rest** in the Electron main process
+  (`safeStorage`); the renderer only ever sees a provider id and a `hasKey` flag.
+  All provider calls run in the main process (no keys in the DOM, no CORS). Model
+  data leaves the device only when the feature is used — and never when a local
+  (Ollama) provider is selected.
+
+### Fixed
+
+- Reports to "thinking" models (Gemini 2.5 / 3 Flash) no longer return an empty
+  response or time out on large contexts: the output-token budget reserves
+  headroom for server-side reasoning and the response timeouts were raised.
+- Transient provider errors (HTTP 429 / 500 / 502 / 503 / 504) are now retried
+  automatically with exponential backoff.
+- A base URL configured for one provider can no longer leak into another —
+  fixed-endpoint providers ignore a stale base URL.
+
 ## [3.0.0] - 2026-08-25
 
 TEMPO v3 builds a scenario-analysis and reporting layer on top of the v2
