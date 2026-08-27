@@ -220,7 +220,9 @@ const AI_PROVIDERS = Object.keys(ADAPTERS);
  */
 async function streamChat({
   provider, baseUrl, apiKey, model, system, messages, maxTokens = 2048, signal, onDelta,
-  connectTimeoutMs = 30000, idleTimeoutMs = 60000,
+  // Thinking models (Gemini 2.5/3 Flash) reason server-side over a large context
+  // before the first byte, so the time-to-first-response can be well over 30s.
+  connectTimeoutMs = 120000, idleTimeoutMs = 90000,
 }) {
   const adapter = ADAPTERS[provider];
   if (!adapter) throw new Error(`Unknown AI provider: ${provider}`);
