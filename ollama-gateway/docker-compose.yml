@@ -1,0 +1,18 @@
+services:
+  ollama-gateway:
+    build: .
+    container_name: ollama-gateway
+    restart: unless-stopped
+    ports:
+      # host:container — 8100 is the port your admin whitelists (like 8081/9000).
+      - "8100:8000"
+    environment:
+      # Reach the already-running Ollama on the host. host.docker.internal is
+      # mapped below; alternatively use http://172.17.0.1:11434 (docker0 gateway).
+      - OLLAMA_URL=http://host.docker.internal:11434
+      - KEYS_FILE=/data/keys.json
+      - RATE_LIMIT_PER_MIN=60
+    volumes:
+      - ./keys.json:/data/keys.json:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
