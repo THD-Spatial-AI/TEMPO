@@ -9,6 +9,7 @@ import { streamAI, aiAvailable, hasKey } from '../../../services/aiClient';
 import { buildResultContextString, summarizeResult, summarizeModelInputs, estimateTokens } from '../../../services/aiContext';
 import { SYSTEM_PROMPT, buildReportMessages, buildChatMessages } from '../../../services/aiPrompts';
 import { getAIConfig, providerMeta } from '../../../services/aiSettings';
+import { getAdvisorCache, setAdvisorCache } from '../../../services/aiAdvisorCache';
 
 // ── Minimal markdown → React (headings, bold, bullets) — avoids a new dep ─────
 function renderMarkdown(text) {
@@ -45,6 +46,12 @@ function renderMarkdown(text) {
 
 export default function AIAnalysisTab({ result, selectedJob, model, onOpenSettings }) {
   const modelName = selectedJob?.modelName || 'model';
+  // The tab is unmounted whenever the user leaves Results entirely (App.jsx only
+  // renders the active top-level view) or switches Results tabs before visiting
+  // this one, which would otherwise wipe the generated report and chat thread.
+  // Persist/restore them via a cache keyed on the run id, outside React's tree.
+  const jobId = selectedJob?.id;
+  const cached = getAdvisorCache(jobId);
 
   // ── Config / key gating ─────────────────────────────────────────────────
   // Config is read once on mount; the tab is remounted (keyed on the run id) by
@@ -84,7 +91,7 @@ export default function AIAnalysisTab({ result, selectedJob, model, onOpenSettin
   const heavy = tokens > 100_000;
 
   // ── Report state ────────────────────────────────────────────────────────
-  const [report, setReport] = useState('');
+  const [report, setReport] = useState(() => cached?.report || '');
   const [reportBusy, setReportBusy] = useState(false);
   const [reportErr, setReportErr] = useState('');
   const reportHandle = useRef(null);
@@ -103,12 +110,16 @@ export default function AIAnalysisTab({ result, selectedJob, model, onOpenSettin
   }, [summary, contextJson, modelName, inputsDigest]);
 
   // ── Chat state ──────────────────────────────────────────────────────────
-  const [messages, setMessages] = useState([]); // {role, content}
+  const [messages, setMessages] = useState(() => cached?.messages || []); // {role, content}
   const [input, setInput] = useState('');
   const [chatBusy, setChatBusy] = useState(false);
   const chatHandle = useRef(null);
   const threadRef = useRef(null);
   useEffect(() => { threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight }); }, [messages]);
+
+  // Mirror report/chat into the cross-mount cache so they survive this tab
+  // being unmounted (Results-tab switch or leaving Results entirely).
+  useEffect(() => { setAdvisorCache(jobId, { report, messages }); }, [jobId, report, messages]);
 
   const sendChat = useCallback(() => {
     const q = input.trim();
