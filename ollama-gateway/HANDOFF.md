@@ -66,35 +66,50 @@ localhost` upstream so Ollama's DNS-rebinding guard doesn't 403.
 
 ---
 
-## What must be done next (the actual TODO)
+## What must be done next (the actual TODO) — ✅ DONE (2026-08-31)
 
-1. **Get this folder onto the workstation** (git pull/clone the repo, or copy it).
-2. **Create keys + run it** (on the workstation):
-   ```bash
-   cd ollama-gateway
-   cp keys.example.json keys.json
-   python3 gen_key.py add "Ricardo"       # prints an sk-tempo-… key — save it
-   docker compose up -d --build
-   ```
-3. **Validate locally on the workstation** (no firewall needed for this):
-   ```bash
-   curl -s localhost:8100/health
-   curl -s localhost:8100/v1/models -H "Authorization: Bearer sk-tempo-…"
-   ```
-   If `/v1/models` lists the Ollama models, the gateway ↔ Ollama link works.
-   - If it fails: check `docker compose logs`. If it can't reach Ollama, set
-     `OLLAMA_URL=http://172.17.0.1:11434` in `docker-compose.yml` (docker0 gateway)
-     instead of `host.docker.internal`.
-4. **Request the firewall whitelist for TCP 8100** — from whoever opened 8081/9000
-   (lab admin / PI / campus IT). This is the one external dependency. (Or reuse a
-   port they prefer and change it in `docker-compose.yml`.)
-5. **Verify remotely** from the laptop once opened:
-   `curl http://10.1.66.52:8100/health`
+Steps 1–3 done as originally planned:
+```bash
+cd ollama-gateway
+cp keys.example.json keys.json
+python3 gen_key.py add "Ricardo"       # -> sk-tempo-KN7iA2S_qcNKzhKByxA4fW6dmWiwcmZZ
+docker compose up -d --build
+```
+Validated locally: `curl localhost:8100/health` and `/v1/models` (with the key)
+both work — gateway ↔ host Ollama (native `ollama serve`, not a container) via
+`host.docker.internal:11434` is confirmed good, no `172.17.0.1` fallback needed.
+
+**Step 4 (firewall whitelist) turned out to be unnecessary — we did not open TCP
+8100.** Instead we reused the *already-whitelisted* port 9000 by adding a
+path-based reverse proxy in front of it, in the separate `feedback_pipeline` repo
+(`/home/spatial-ai/Desktop/feedback_pipeline`, a different project — the
+"wildfire-app" workshop feedback tool, unrelated to TEMPO):
+
+- `feedback_pipeline/docker-compose.yml`: `feedback-pipeline` no longer publishes
+  `9000:8000` directly; a new `gateway-proxy` service (`nginx:alpine`) now
+  publishes `9000:80` and routes by path:
+  - `/ollama/*` → `host.docker.internal:8100` (this gateway), prefix stripped
+  - `/*` (everything else) → `feedback-pipeline:8000` internally, unchanged
+- Config: `feedback_pipeline/gateway-proxy/default.conf`.
+- Verified: `feedback-pipeline`'s own `/health` and `/api/v1/*` routes work
+  identically through the proxy; the gateway's `/health`, `/v1/models`, and both
+  streaming and non-streaming `/v1/chat/completions` all work at `.../ollama/...`.
+- **Uncommitted** in that repo (git diff: `docker-compose.yml` modified,
+  `gateway-proxy/` untracked) — deliberately left for Ricardo to review/commit,
+  since it's a different project's repo with its own GitLab remote
+  (`mygit.th-deg.de/thd-spatial-ai/storcito1/feedback_pipeline`).
+- The direct `ollama-gateway` port 8100 is still published too (harmless,
+  local-only) — TEMPO should NOT use it remotely; use the `/ollama/` path on 9000
+  instead.
+
+5. **Verify remotely** from the laptop (9000 is already open):
+   `curl http://10.1.66.52:9000/ollama/health`
 6. **Configure TEMPO** → Settings → Model Advisor:
    - Provider: **OpenAI-compatible**
-   - Base URL: `http://10.1.66.52:8100/v1`
-   - API key: the `sk-tempo-…` issued
-   - Model: an Ollama model pulled on the workstation (e.g. `llama3.1:8b`)
+   - Base URL: `http://10.1.66.52:9000/ollama/v1`
+   - API key: `sk-tempo-KN7iA2S_qcNKzhKByxA4fW6dmWiwcmZZ`
+   - Model: `qwen2.5:14b` (or `qwen2.5vl:7b` — the two currently pulled on the
+     workstation; no `llama3.1:8b` is pulled)
    - Test connection → Generate report.
 
 ### Later / multi-user hardening (not blocking)

@@ -532,7 +532,7 @@ function AIPanel() {
 
   const saveKey = async () => {
     if (!window.electronAPI?.ai) return;
-    await window.electronAPI.ai.setKey(cfg.provider, keyInput);
+    await window.electronAPI.ai.setKey(cfg.provider, keyInput.trim());
     setKeyInput('');
     setSaved(true);
     refreshKeyStatus(cfg.provider);
