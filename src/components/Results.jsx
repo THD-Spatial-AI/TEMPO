@@ -38,6 +38,10 @@ const Results = ({ onNavigate }) => {
   const { completedJobs, removeCompletedJob, showNotification, models, activeResultJobId, setActiveResultJobId } = useData();
   const [selectedJobId, setSelectedJobId] = useState(null);
   const [tab, setTab] = useState('overview');
+  // Once the Model Advisor tab is opened, keep it mounted (hidden via CSS) so its
+  // generated report and chat thread survive switching to other tabs — see the
+  // 'ai' block below, which renders it outside the usual unmount-on-switch pattern.
+  const [aiTabVisited, setAiTabVisited] = useState(false);
   const [compareMode, setCompareMode] = useState(false);
   const [mapView, setMapView] = useState('capacity');
   // Tech inclusion filter: empty Set = show all; non-empty = show only listed techs.
@@ -549,6 +553,7 @@ const Results = ({ onNavigate }) => {
 
   // Fall back to overview if the active tab was hidden by auto-hide logic
   const activeTab = TABS.some(t => t.id === tab) ? tab : 'overview';
+  if (activeTab === 'ai' && !aiTabVisited) setAiTabVisited(true);
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -964,14 +969,19 @@ const Results = ({ onNavigate }) => {
             )}
 
             {/* ════════════════ AI ANALYSIS TAB ════════════════ */}
-            {activeTab === 'ai' && (
-              <AIAnalysisTab
-                key={selectedJobId}
-                result={result}
-                selectedJob={selectedJob}
-                model={selectedModel}
-                onOpenSettings={() => onNavigate?.('Settings')}
-              />
+            {/* Kept mounted (hidden via CSS) once visited, instead of unmounting on tab
+                switch like the other tabs — its generated report and chat thread are
+                expensive to recreate and should survive navigating away and back. */}
+            {aiTabVisited && (
+              <div className={activeTab === 'ai' ? '' : 'hidden'}>
+                <AIAnalysisTab
+                  key={selectedJobId}
+                  result={result}
+                  selectedJob={selectedJob}
+                  model={selectedModel}
+                  onOpenSettings={() => onNavigate?.('Settings')}
+                />
+              </div>
             )}
 
             {/* ════════════════ LOGS TAB ════════════════ */}
