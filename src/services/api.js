@@ -162,6 +162,19 @@ export const api = {
     });
   },
 
+  // Per-zone, transmission-filtered Overpass fetch for the zonal builder.
+  // kind: 'lines' | 'substations' | 'plants'. Returns a GeoJSON FeatureCollection.
+  async getOverpassPower(bbox, kind, minVoltageKv = 0) {
+    const params = new URLSearchParams({
+      bbox: `${bbox.minLon},${bbox.minLat},${bbox.maxLon},${bbox.maxLat}`,
+      kind,
+      min_voltage: String(minVoltageKv || 0),
+    });
+    const response = await apiFetch(`/api/overpass/power?${params}`);
+    if (!response.ok) return { type: 'FeatureCollection', features: [] };
+    return response.json();
+  },
+
   // Geocode a free-text query via Nominatim (proxied through the backend).
   async geocode(query) {
     if (!query) return [];

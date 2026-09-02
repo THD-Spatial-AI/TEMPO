@@ -177,6 +177,36 @@ func (s *Server) getOSMLayer(c *gin.Context) {
 	c.Data(http.StatusOK, "application/json", data)
 }
 
+// getOverpassPower fetches power infrastructure for the zonal builder, bounded
+// to a bbox and (for lines/substations) filtered to transmission voltages.
+//
+// Query params: bbox=minLon,minLat,maxLon,maxLat  kind=lines|substations|plants
+//               min_voltage=<kV> (optional; applies to lines/substations)
+func (s *Server) getOverpassPower(c *gin.Context) {
+	kind := c.Query("kind")
+	if kind != "lines" && kind != "substations" && kind != "plants" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "kind must be lines|substations|plants"})
+		return
+	}
+	var minLon, minLat, maxLon, maxLat float64
+	if _, err := fmt.Sscanf(c.Query("bbox"), "%f,%f,%f,%f", &minLon, &minLat, &maxLon, &maxLat); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid bbox, use minLon,minLat,maxLon,maxLat"})
+		return
+	}
+	var minV float64
+	if v := c.Query("min_voltage"); v != "" {
+		fmt.Sscanf(v, "%f", &minV)
+	}
+
+	data, err := s.osm.GetPowerFeatures(kind,
+		&overpass.BBox{MinLon: minLon, MinLat: minLat, MaxLon: maxLon, MaxLat: maxLat}, minV)
+	if err != nil {
+		c.Data(http.StatusOK, "application/json", []byte(`{"type":"FeatureCollection","features":[]}`))
+		return
+	}
+	c.Data(http.StatusOK, "application/json", data)
+}
+
 // getLoadedRegions returns the distinct region_paths stored in PostGIS.
 // Falls back to an empty list if GeoServer is unavailable (frontend then uses
 // the static regions_database.json for the selector UI).
@@ -285,100 +315,9 @@ func (s *Server) downloadOSMRegion(c *gin.Context) {
 		return
 	}
 
-	// Resolve project root robustly across dev and packaged installs.
-	// Prefer cwd only if it actually contains osm_processing, otherwise derive
-	// from the backend executable location (resources directory in packaged app).
-	var projectRoot string
-	if cwd, err := os.Getwd(); err == nil {
-		if filepath.Base(cwd) == "backend-go" {
-			projectRoot = filepath.Dir(cwd)
-		} else {
-			projectRoot = cwd
-		}
-	}
-	if projectRoot == "" || func() bool {
-		_, err := os.Stat(filepath.Join(projectRoot, "osm_processing", "add_region_to_geoserver.py"))
-		return err != nil
-	}() {
-		if exe, err := os.Executable(); err == nil {
-			projectRoot = filepath.Dir(filepath.Dir(exe))
-		}
-	}
-	if projectRoot == "" {
-		projectRoot = filepath.Join(".", "..")
-	}
-
-	// Prefer the osm-venv python injected by Electron via TEMPO_OSM_PYTHON.
-	// Fall back to .venv-calliope, then system python.
-	var pythonBin string
-	if envPy := os.Getenv("TEMPO_OSM_PYTHON"); envPy != "" {
-		if _, err := os.Stat(envPy); err == nil {
-			pythonBin = envPy
-			log.Printf("[OSM] Using TEMPO_OSM_PYTHON: %s", pythonBin)
-		} else {
-			log.Printf("[OSM] TEMPO_OSM_PYTHON set but not found (%s), falling back", envPy)
-		}
-	}
-	if pythonBin == "" {
-		venvPython := filepath.Join(projectRoot, ".venv-calliope", "Scripts", "python.exe")
-		if runtime.GOOS != "windows" {
-			venvPython = filepath.Join(projectRoot, ".venv-calliope", "bin", "python")
-		}
-		if _, err := os.Stat(venvPython); err == nil {
-			pythonBin = venvPython
-			log.Printf("[OSM] Using venv python at %s", pythonBin)
-		} else {
-			if runtime.GOOS == "windows" {
-				pythonBin = "python"
-			} else {
-				pythonBin = "python3"
-			}
-			log.Printf("[OSM] venv python not found, falling back to system python: %s", pythonBin)
-		}
-	}
-
-	// Resolve osm_processing root.
-	// TEMPO_OSM_SCRIPTS may point to:
-	//   - root containing osm_processing/
-	//   - osm_processing/ directory itself
-	//   - add_region_to_geoserver.py file path
-	osmScriptsDir := projectRoot
-	if envScripts := os.Getenv("TEMPO_OSM_SCRIPTS"); envScripts != "" {
-		if st, err := os.Stat(envScripts); err == nil {
-			if st.IsDir() {
-				// If it is already the osm_processing dir, use its parent as root.
-				if filepath.Base(envScripts) == "osm_processing" {
-					osmScriptsDir = filepath.Dir(envScripts)
-				} else {
-					osmScriptsDir = envScripts
-				}
-			} else {
-				// File path provided; use containing directory or its parent if file is in osm_processing.
-				parent := filepath.Dir(envScripts)
-				if filepath.Base(parent) == "osm_processing" {
-					osmScriptsDir = filepath.Dir(parent)
-				} else {
-					osmScriptsDir = parent
-				}
-			}
-		}
-	}
-
-	scriptPath := filepath.Join(osmScriptsDir, "osm_processing", "add_region_to_geoserver.py")
-	if _, err := os.Stat(scriptPath); err != nil {
-		alt := filepath.Join(osmScriptsDir, "resources", "osm_processing", "add_region_to_geoserver.py")
-		if _, altErr := os.Stat(alt); altErr == nil {
-			scriptPath = alt
-			osmScriptsDir = filepath.Join(osmScriptsDir, "resources")
-		}
-	}
-	log.Printf("[OSM] projectRoot=%s scriptPath=%s", osmScriptsDir, scriptPath)
-
-	// Verify the resolved script path is inside the expected osm_processing directory.
-	expectedScriptDir := filepath.Clean(filepath.Join(osmScriptsDir, "osm_processing"))
-	if !strings.HasPrefix(filepath.Clean(scriptPath), expectedScriptDir+string(filepath.Separator)) &&
-		filepath.Clean(scriptPath) != expectedScriptDir {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "script path resolution error"})
+	pythonBin, scriptPath, workDir, rerr := resolveOSMScript("add_region_to_geoserver.py")
+	if rerr != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": rerr.Error()})
 		return
 	}
 
@@ -404,7 +343,7 @@ func (s *Server) downloadOSMRegion(c *gin.Context) {
 	sendMsg("log", fmt.Sprintf("Args: %s %s %s", req.Continent, req.Country, req.Region))
 
 	cmd := exec.CommandContext(c.Request.Context(), pythonBin, args...)
-	cmd.Dir = filepath.Join(osmScriptsDir, "osm_processing")
+	cmd.Dir = workDir
 	cmd.Env = append(os.Environ(),
 		"PYTHONIOENCODING=utf-8",
 		"PYTHONUTF8=1",
@@ -443,4 +382,99 @@ func (s *Server) downloadOSMRegion(c *gin.Context) {
 		fmt.Fprintf(c.Writer, "data: %s\n\n", msg)
 	}
 	c.Writer.Flush()
+}
+
+// resolveOSMScript locates the osm-venv python and an osm_processing script,
+// robust across dev and packaged installs. workDir is the osm_processing dir to
+// run the script from. It enforces that the resolved script stays inside
+// osm_processing (path-traversal guard). Shared by the OSM download and the
+// boundary-seeding handlers.
+func resolveOSMScript(scriptName string) (pythonBin, scriptPath, workDir string, err error) {
+	// Resolve project root robustly across dev and packaged installs. Prefer cwd
+	// only if it actually contains osm_processing, otherwise derive from the
+	// backend executable location (resources directory in packaged app).
+	var projectRoot string
+	if cwd, e := os.Getwd(); e == nil {
+		if filepath.Base(cwd) == "backend-go" {
+			projectRoot = filepath.Dir(cwd)
+		} else {
+			projectRoot = cwd
+		}
+	}
+	if projectRoot == "" || func() bool {
+		_, e := os.Stat(filepath.Join(projectRoot, "osm_processing", scriptName))
+		return e != nil
+	}() {
+		if exe, e := os.Executable(); e == nil {
+			projectRoot = filepath.Dir(filepath.Dir(exe))
+		}
+	}
+	if projectRoot == "" {
+		projectRoot = filepath.Join(".", "..")
+	}
+
+	// Prefer the osm-venv python injected by Electron via TEMPO_OSM_PYTHON.
+	// Fall back to .venv-calliope, then system python.
+	if envPy := os.Getenv("TEMPO_OSM_PYTHON"); envPy != "" {
+		if _, e := os.Stat(envPy); e == nil {
+			pythonBin = envPy
+			log.Printf("[OSM] Using TEMPO_OSM_PYTHON: %s", pythonBin)
+		} else {
+			log.Printf("[OSM] TEMPO_OSM_PYTHON set but not found (%s), falling back", envPy)
+		}
+	}
+	if pythonBin == "" {
+		venvPython := filepath.Join(projectRoot, ".venv-calliope", "Scripts", "python.exe")
+		if runtime.GOOS != "windows" {
+			venvPython = filepath.Join(projectRoot, ".venv-calliope", "bin", "python")
+		}
+		if _, e := os.Stat(venvPython); e == nil {
+			pythonBin = venvPython
+			log.Printf("[OSM] Using venv python at %s", pythonBin)
+		} else if runtime.GOOS == "windows" {
+			pythonBin = "python"
+		} else {
+			pythonBin = "python3"
+		}
+	}
+
+	// Resolve osm_processing root. TEMPO_OSM_SCRIPTS may point to a root
+	// containing osm_processing/, the osm_processing/ dir itself, or a file path.
+	osmScriptsDir := projectRoot
+	if envScripts := os.Getenv("TEMPO_OSM_SCRIPTS"); envScripts != "" {
+		if st, e := os.Stat(envScripts); e == nil {
+			if st.IsDir() {
+				if filepath.Base(envScripts) == "osm_processing" {
+					osmScriptsDir = filepath.Dir(envScripts)
+				} else {
+					osmScriptsDir = envScripts
+				}
+			} else {
+				parent := filepath.Dir(envScripts)
+				if filepath.Base(parent) == "osm_processing" {
+					osmScriptsDir = filepath.Dir(parent)
+				} else {
+					osmScriptsDir = parent
+				}
+			}
+		}
+	}
+
+	scriptPath = filepath.Join(osmScriptsDir, "osm_processing", scriptName)
+	if _, e := os.Stat(scriptPath); e != nil {
+		alt := filepath.Join(osmScriptsDir, "resources", "osm_processing", scriptName)
+		if _, altErr := os.Stat(alt); altErr == nil {
+			scriptPath = alt
+			osmScriptsDir = filepath.Join(osmScriptsDir, "resources")
+		}
+	}
+	log.Printf("[OSM] projectRoot=%s scriptPath=%s", osmScriptsDir, scriptPath)
+
+	// Verify the resolved script path is inside the expected osm_processing dir.
+	expectedScriptDir := filepath.Clean(filepath.Join(osmScriptsDir, "osm_processing"))
+	if !strings.HasPrefix(filepath.Clean(scriptPath), expectedScriptDir+string(filepath.Separator)) &&
+		filepath.Clean(scriptPath) != expectedScriptDir {
+		return "", "", "", fmt.Errorf("script path resolution error")
+	}
+	return pythonBin, scriptPath, filepath.Join(osmScriptsDir, "osm_processing"), nil
 }

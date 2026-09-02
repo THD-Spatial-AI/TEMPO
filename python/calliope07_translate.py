@@ -375,6 +375,14 @@ def build_transmission_techs_07(links: list, techs_07: dict,
                 entry['distance'] = float(distance)
             except (TypeError, ValueError):
                 pass
+        capacity = link.get('capacity')  # per-link MW → flow_cap_max (0.7 rename of energy_cap_max)
+        if capacity is not None:
+            try:
+                cap = float(capacity)
+                if cap > 0:
+                    entry['flow_cap_max'] = cap
+            except (TypeError, ValueError):
+                pass
         out[link_tech_id] = entry
     return out
 

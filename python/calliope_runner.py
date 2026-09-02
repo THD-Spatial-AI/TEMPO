@@ -549,21 +549,30 @@ def build_links_config(links):
                 tech_field = (old_techs[0] if old_techs else None) or 'ac_transmission'
         tech_key = tech_field.replace(' ', '_').lower()
 
-        link_entry = {'techs': {tech_key: None}}
-
-        # Include distance inside the tech entry (Calliope 0.6 format):
+        # Per-link tech entry (Calliope 0.6 format):
         # links:
         #   A,B:
         #     techs:
         #       my_transmission_tech:
         #         distance: 500
+        #         constraints: { energy_cap_max: 2400 }
+        entry = {}
         distance = link.get('distance')
         if distance is not None:
             try:
-                link_entry['techs'][tech_key] = {'distance': float(distance)}
+                entry['distance'] = float(distance)
+            except (ValueError, TypeError):
+                pass
+        capacity = link.get('capacity')
+        if capacity is not None:
+            try:
+                cap = float(capacity)
+                if cap > 0:
+                    entry['constraints'] = {'energy_cap_max': cap}
             except (ValueError, TypeError):
                 pass
 
+        link_entry = {'techs': {tech_key: entry if entry else None}}
         calliope_links[f"{from_loc},{to_loc}"] = link_entry
     return calliope_links
 

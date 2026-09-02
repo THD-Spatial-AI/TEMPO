@@ -25,6 +25,10 @@ import { CONSTRAINT_DEFINITIONS, COST_DEFINITIONS, ESSENTIAL_DEFINITIONS, PARENT
 import api from '../services/api';
 import { LINK_TYPES, getLinkTypeColorRgb } from '../config/linkTypes';
 import { CARRIERS, getCarrierColorRgb, getCarrierLabel } from '../config/carriers';
+import { fetchPowerLayers, fetchNeighborCandidates } from '../services/overpassClient';
+import { fetchGeometries } from '../services/nominatim';
+import { parseSource, parseCapacityMW } from '../services/zonalInfraExtract';
+import { OSM_SOURCE_TO_TECH } from '../services/zonalModelBuilder';
 
 // Import new custom hooks
 import { useLocationManager } from '../hooks/useLocationManager';
@@ -56,12 +60,16 @@ const Creation = () => {
     osmSubstations, setOsmSubstations,
     osmPowerPlants, setOsmPowerPlants,
     osmPowerLines, setOsmPowerLines,
+    osmLoading, setOsmLoading,
+    osmLoadingStage, setOsmLoadingStage,
+    candidateBoundaries, setCandidateBoundaries,
     osmCommunes, setOsmCommunes,
     osmDistricts, setOsmDistricts,
     osmRegionPath, setOsmRegionPath,
     selectedRegionBoundary, setSelectedRegionBoundary,
     selectedRegionInfo, setSelectedRegionInfo,
     currentBbox, setCurrentBbox,
+    studyArea, setStudyArea,
     // Mesh generation (from context - persisted)
     generatedMesh, setGeneratedMesh,
     meshVisible, setMeshVisible,
@@ -162,7 +170,7 @@ const Creation = () => {
   const [linksExpanded, setLinksExpanded] = useState(true);
   
   // GeoServer data hook
-  const { loadRegionData, loading: geoServerLoading } = useGeoServerData();
+  const { loading: geoServerLoading } = useGeoServerData();
   const [showOsmLayers, setShowOsmLayers] = useState({
     substations: true,
     powerPlants: true,
@@ -289,6 +297,8 @@ const Creation = () => {
   const deckRef = useRef(null);
   const leafletMapRef = useRef(null);
   const leafletContainerRef = useRef(null);
+  const leafletOsmLayerRef = useRef(null);
+  const leafletCandidateLayerRef = useRef(null);
   const iconCache = useRef(new Map());
   const selectedForDragRef = useRef(null);
   
@@ -460,24 +470,10 @@ const Creation = () => {
         }).addTo(map);
       });
 
-      if (selectedRegionBoundary?.features?.length > 0) {
-        const boundaryLayer = L.geoJSON(selectedRegionBoundary, {
-          style: {
-            color: '#1d4ed8',
-            weight: 2,
-            fillColor: '#60a5fa',
-            fillOpacity: 0.08,
-          },
-        }).addTo(map);
-        try {
-          const boundaryBounds = boundaryLayer.getBounds();
-          if (boundaryBounds.isValid()) {
-            map.fitBounds(boundaryBounds, { padding: [30, 30], maxZoom: 14 });
-          }
-        } catch {
-          // ignore invalid bounds
-        }
-      } else if (boundsPoints.length === 1) {
+      // NOTE: the selected-region boundary is NOT drawn here — it's managed by a
+      // separate incremental effect so a boundary/view change doesn't rebuild the
+      // whole map (which was wiping the power layers right after they loaded).
+      if (boundsPoints.length === 1) {
         map.setView(boundsPoints[0], 6);
       } else if (boundsPoints.length > 1) {
         map.fitBounds(boundsPoints, { padding: [40, 40], maxZoom: 14 });
@@ -500,7 +496,73 @@ const Creation = () => {
       destroyed = true;
       clearLeafletMap();
     };
-  }, [webglAvailable, mapReady, locationManager.tempLocations, locationManager.tempLinks, selectedRegionBoundary, viewState.latitude, viewState.longitude, viewState.zoom, handleMapClickWithModal]);
+    // Boundary + viewState intentionally excluded — they're handled by separate
+    // incremental effects so they don't rebuild (and wipe) the whole map.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [webglAvailable, mapReady, locationManager.tempLocations, locationManager.tempLinks, handleMapClickWithModal]);
+
+  // Draw the selected-region boundary on the Leaflet map incrementally (its own
+  // layer, so updating it doesn't rebuild the base map / wipe other overlays).
+  const leafletBoundaryLayerRef = useRef(null);
+  useEffect(() => {
+    if (webglAvailable !== false) return undefined;
+    let cancelled = false;
+    import('leaflet').then(({ default: L }) => {
+      const map = leafletMapRef.current;
+      if (cancelled || !map) return;
+      if (leafletBoundaryLayerRef.current) {
+        leafletBoundaryLayerRef.current.remove();
+        leafletBoundaryLayerRef.current = null;
+      }
+      if (showOsmLayers.boundaries === false) return;
+      if (!selectedRegionBoundary?.features?.length) return;
+      const layer = L.geoJSON(selectedRegionBoundary, {
+        style: { color: '#1d4ed8', weight: 2.5, fillColor: '#3b82f6', fillOpacity: 0.22 },
+      }).addTo(map);
+      leafletBoundaryLayerRef.current = layer;
+      try {
+        const bnds = layer.getBounds();
+        if (bnds.isValid()) map.fitBounds(bnds, { padding: [30, 30], maxZoom: 14 });
+      } catch { /* ignore invalid bounds */ }
+    }).catch(() => { /* leaflet import handled elsewhere */ });
+    return () => { cancelled = true; };
+  }, [webglAvailable, selectedRegionBoundary, showOsmLayers.boundaries]);
+
+  // Draw OSM power layers on the Leaflet fallback map (the deck.gl path renders
+  // them via its own layers). Without this, Leaflet-mode users saw the boundary
+  // but no lines/substations/plants.
+  useEffect(() => {
+    if (webglAvailable !== false) return;
+    let cancelled = false;
+    import('leaflet').then(({ default: L }) => {
+      const map = leafletMapRef.current;
+      console.info(`[leaflet] OSM layer effect: map=${!!map}, lines=${osmPowerLines?.features?.length ?? 0}, subs=${osmSubstations?.features?.length ?? 0}, plants=${osmPowerPlants?.features?.length ?? 0}`);
+      if (cancelled || !map) return;
+      if (leafletOsmLayerRef.current) {
+        leafletOsmLayerRef.current.remove();
+        leafletOsmLayerRef.current = null;
+      }
+      const group = L.layerGroup();
+      if (osmPowerLines?.features?.length && layerVisibility.powerLines) {
+        L.geoJSON(osmPowerLines, { style: { color: '#f59e0b', weight: 1.5, opacity: 0.85 } }).addTo(group);
+      }
+      if (osmSubstations?.features?.length && layerVisibility.substations) {
+        L.geoJSON(osmSubstations, {
+          pointToLayer: (f, ll) => L.circleMarker(ll, { radius: 4, color: '#b91c1c', fillColor: '#ef4444', fillOpacity: 0.9, weight: 1 }),
+          style: { color: '#b91c1c', weight: 1, fillColor: '#ef4444', fillOpacity: 0.4 },
+        }).addTo(group);
+      }
+      if (osmPowerPlants?.features?.length && layerVisibility.powerPlants) {
+        L.geoJSON(osmPowerPlants, {
+          pointToLayer: (f, ll) => L.circleMarker(ll, { radius: 5, color: '#15803d', fillColor: '#22c55e', fillOpacity: 0.9, weight: 1 }),
+          style: { color: '#15803d', weight: 1, fillColor: '#22c55e', fillOpacity: 0.4 },
+        }).addTo(group);
+      }
+      group.addTo(map);
+      leafletOsmLayerRef.current = group;
+    }).catch(() => { /* leaflet import failed elsewhere already */ });
+    return () => { cancelled = true; };
+  }, [webglAvailable, osmPowerLines, osmSubstations, osmPowerPlants, layerVisibility]);
   
   // Map toolbar handlers
   const handleFitBounds = useCallback(() => {
@@ -577,7 +639,10 @@ const Creation = () => {
   }, []);
   
   // Load OSM infrastructure data from GeoServer when bbox changes
+  const voltageMin = studyArea?.voltageThreshold ?? 110;
   useEffect(() => {
+    let cancelled = false;
+    const controller = new AbortController();
     const loadOsmData = async () => {
       if (!currentBbox) {
         setOsmSubstations(null);
@@ -587,31 +652,60 @@ const Creation = () => {
         setOsmDistricts(null);
         return;
       }
-
+      setOsmLoading(true);
+      setOsmLoadingStage('Querying OpenStreetMap for the power grid…');
       try {
-        // Load data prioritising GeoServer (curated local data) with Overpass as fallback.
-        // Pass the region path so GeoServer can use its CQL_FILTER on region_path column.
-        const data = await loadRegionData(osmRegionPath, showOsmLayers, currentBbox);
-        
-        if (data) {
+        // Fetch power infrastructure directly from Overpass (no backend / PostGIS),
+        // clipped to the selected territory polygon(s) so bbox-corner features
+        // outside the actual area are dropped.
+        const clip = (selectedRegionBoundary?.features || [])
+          .map(f => f.geometry)
+          .filter(Boolean);
+        const data = await fetchPowerLayers(currentBbox, { voltageMin, signal: controller.signal, clip });
+        if (cancelled) return;
+        const nLines = data.powerLines?.features?.length || 0;
+        const nSubs = data.substations?.features?.length || 0;
+        const nPlants = data.powerPlants?.features?.length || 0;
+        const hadData = (osmPowerLines?.features?.length || 0)
+          + (osmSubstations?.features?.length || 0)
+          + (osmPowerPlants?.features?.length || 0) > 0;
+        // An all-zero result after we already had data almost always means a
+        // transient Overpass failure (a mirror returned empty) — keep what we
+        // have rather than blanking the map.
+        if (nLines + nSubs + nPlants === 0 && hadData) {
+          showNotification('Could not refresh the grid (OpenStreetMap returned nothing) — kept the previous data. Try again.', 'warning');
+        } else {
+          setOsmLoadingStage('Rendering grid on the map…');
           setOsmSubstations(data.substations);
           setOsmPowerPlants(data.powerPlants);
           setOsmPowerLines(data.powerLines);
-          setOsmCommunes(data.communes);
-          setOsmDistricts(data.districts);
+          setOsmCommunes(null);
+          setOsmDistricts(null);
+          showNotification(
+            `Grid loaded: ${nLines} lines · ${nSubs} substations · ${nPlants} plants`,
+            nLines + nSubs + nPlants > 0 ? 'success' : 'warning',
+          );
         }
       } catch (error) {
-        console.error('Error loading GeoServer data:', error);
+        if (cancelled || error.name === 'AbortError') return;
+        console.error('Error loading Overpass data:', error);
+        const timedOut = /50\d|429|timeout|aborted|connection/i.test(error.message || '');
+        showNotification(
+          timedOut
+            ? 'OpenStreetMap is busy or the area is too large. Try a smaller region or raise the min-voltage, then reselect.'
+            : `Grid load failed: ${error.message}`,
+          'error',
+        );
         setOsmSubstations(null);
         setOsmPowerPlants(null);
         setOsmPowerLines(null);
-        setOsmCommunes(null);
-        setOsmDistricts(null);
+      } finally {
+        if (!cancelled) { setOsmLoading(false); setOsmLoadingStage(''); }
       }
     };
-    
     loadOsmData();
-  }, [currentBbox, osmRegionPath, showOsmLayers, loadRegionData]);
+    return () => { cancelled = true; controller.abort(); };
+  }, [currentBbox, voltageMin]);
   
   // Detect unsaved work and warn before navigation
   useEffect(() => {
@@ -669,7 +763,22 @@ const Creation = () => {
   // Handle region selection from OsmInfrastructurePanel
   const handleRegionSelect = useCallback(async (regionInfo) => {
     setSelectedRegionInfo(regionInfo);
-    
+
+    // Live Study Area path: the panel provides the territory boundary + bbox
+    // directly (Nominatim). Draw the boundary immediately and set the bbox,
+    // which triggers the Overpass grid fetch. Short-circuits the legacy logic.
+    if (regionInfo && (regionInfo.clear || regionInfo.bbox) && !regionInfo.continent) {
+      setOsmRegionPath(null);
+      if (regionInfo.clear) {
+        setSelectedRegionBoundary(null);
+        setCurrentBbox(null);
+        return;
+      }
+      setSelectedRegionBoundary(regionInfo.boundary || null);
+      handleBboxChange(regionInfo.bbox); // sets currentBbox (loads grid) + flies map
+      return;
+    }
+
     // Build the GeoServer region_path from the selection hierarchy.
     // Parts are only added when defined (country selection = "Europe/Germany",
     // subregion selection = "Europe/Germany/Bayern/Niederbayern").
@@ -759,6 +868,13 @@ const Creation = () => {
     
     // Helper function to apply manual zoom (for continents or fallback)
     function applyManualZoom(info) {
+      // Guard against a missing/invalid center (e.g. a selection that provided
+      // no coordinates) — otherwise the map flies to null-island (0,0).
+      if (!Array.isArray(info.center) || info.center.length < 2
+          || info.center[0] == null || info.center[1] == null
+          || Number.isNaN(Number(info.center[0])) || Number.isNaN(Number(info.center[1]))) {
+        return;
+      }
       const [latitude, longitude] = info.center;
       const zoom = info.zoom;
       
@@ -772,17 +888,19 @@ const Creation = () => {
         transitionInterpolator: new FlyToInterpolator()
       });
       
-      // Calculate bbox from center and zoom
-      const factor = 1 / Math.pow(2, zoom - 10);
-      const delta = 0.5 * factor;
-      
-      const bbox = {
-        minLon: longitude - delta,
-        minLat: latitude - delta,
-        maxLon: longitude + delta,
-        maxLat: latitude + delta
-      };
-      
+      // Prefer the caller-provided bbox (the region's real extent) so data
+      // loads for the whole territory; fall back to a square around center.
+      let bbox = info.bbox;
+      if (!bbox) {
+        const factor = 1 / Math.pow(2, zoom - 10);
+        const delta = 0.5 * factor;
+        bbox = {
+          minLon: longitude - delta,
+          minLat: latitude - delta,
+          maxLon: longitude + delta,
+          maxLat: latitude + delta,
+        };
+      }
       handleBboxChange(bbox);
     }
     
@@ -860,10 +978,12 @@ const Creation = () => {
         from: fromLoc.name,
         to: toLoc.name,
         distance: link.distance,
+        // Per-link transmission capacity (MW) → energy_cap_max on Calliope export.
+        capacity: link.capacity ?? null,
         linkType: link.linkType || null,
         carrier: link.carrier || lt?.carrier || 'electricity',
         // Calliope tech key used in techs.yaml and links section
-        tech: lt?.calliopeTech || link.linkType || 'ac_transmission',
+        tech: lt?.calliopeTech || link.tech || link.linkType || 'ac_transmission',
       };
     });
 
@@ -1047,6 +1167,177 @@ const Creation = () => {
     );
   }, [generatedMesh, showNotification, locationManager]);
 
+  // Import the loaded OSM power plants as editable model locations. Each plant
+  // becomes a location (editable via the location dialog) pre-seeded with a
+  // generation tech from its OSM source + capacity. Capacity is editable after.
+  const handleImportPowerPlants = useCallback(() => {
+    const feats = osmPowerPlants?.features || [];
+    if (!feats.length) {
+      showNotification('No power plants loaded — select a region first.', 'warning');
+      return;
+    }
+    // Representative point [lon,lat] for a plant geometry (node or area).
+    const repPoint = (geom) => {
+      if (!geom) return null;
+      if (geom.type === 'Point') return geom.coordinates;
+      const flat = [];
+      const walk = (c) => { if (typeof c[0] === 'number') flat.push(c); else c.forEach(walk); };
+      walk(geom.coordinates);
+      if (!flat.length) return null;
+      const s = flat.reduce((a, p) => [a[0] + p[0], a[1] + p[1]], [0, 0]);
+      return [s[0] / flat.length, s[1] / flat.length];
+    };
+
+    const base = Date.now();
+    const locs = [];
+    feats.forEach((f, i) => {
+      const pt = repPoint(f.geometry);
+      if (!pt) return;
+      const src = parseSource(f.properties);
+      const capMW = parseCapacityMW(f.properties);
+      const techId = OSM_SOURCE_TO_TECH[src] || null;
+      const techs = {};
+      if (techId) {
+        techs[techId] = {
+          constraints: { energy_cap_equals: capMW ?? 0 },
+          essentials: { carrier: 'electricity' },
+          metadata: { fromOSM: true, source: src, estimated: capMW == null },
+        };
+      }
+      locs.push({
+        id: base + i,
+        name: f.properties?.name || `${src} plant`,
+        latitude: pt[1], longitude: pt[0],
+        techs, isNode: false,
+        metadata: { fromOSM: true, source: src, capacityMW: capMW },
+      });
+    });
+
+    locationManager.importMultipleLocations(locs);
+    showNotification(`Imported ${locs.length} power plants as editable locations.`, 'success');
+  }, [osmPowerPlants, locationManager, showNotification]);
+
+  // Add a neighbouring admin unit (hovered/clicked on the map) to the study area.
+  // The panel's unitsKey effect then reloads the boundary + grid for the union.
+  const addStudyAreaUnit = useCallback((props) => {
+    if (!props || props.osm_id == null) return;
+    const osmType = props.osm_type || 'relation';
+    const cur = studyArea?.units || [];
+    if (cur.some(u => u.osmId === props.osm_id && u.osmType === osmType)) return;
+    setStudyArea({
+      units: [...cur, {
+        osmId: props.osm_id, osmType, name: props.name, adminLevel: props.adminLevel ?? null,
+        bbox: props.bbox, centroid: props.centroid, population: null,
+      }],
+      voltageThreshold: studyArea?.voltageThreshold ?? 0,
+    });
+    showNotification(`Added ${props.name} to the study area.`, 'success');
+  }, [studyArea, setStudyArea, showNotification]);
+
+  // Neighbour candidates: a LIGHT Overpass call finds nearby same-level admin
+  // units, then Nominatim fetches their polygons (fillable → hover + click to
+  // add). Runs only when the selected-unit set changes.
+  const studyAreaUnitKey = (studyArea?.units || []).map(u => `${u.osmType}/${u.osmId}`).join(',');
+  useEffect(() => {
+    let cancelled = false;
+    const controller = new AbortController();
+    const units = studyArea?.units || [];
+    if (!units.length) { setCandidateBoundaries(null); return undefined; }
+    // Delay so the primary boundary + grid fetches (Nominatim/Overpass) finish
+    // first — otherwise the candidate lookups race them and hit rate limits,
+    // making even the selected area fail to appear.
+    const timer = setTimeout(() => {
+      (async () => {
+      try {
+        const meta = await fetchNeighborCandidates(units, { signal: controller.signal });
+        if (cancelled) return;
+        if (!meta.length) { setCandidateBoundaries(null); return; }
+        const capped = meta.slice(0, 25);
+        const geoms = await fetchGeometries(capped);
+        if (cancelled) return;
+        const features = capped
+          .map(c => {
+            const g = geoms[`${c.osmType}/${c.osmId}`];
+            return g ? {
+              type: 'Feature',
+              properties: { osm_id: c.osmId, osm_type: c.osmType, name: c.name, adminLevel: c.adminLevel, bbox: c.bbox, centroid: c.centroid },
+              geometry: g,
+            } : null;
+          })
+          .filter(Boolean);
+        setCandidateBoundaries(features.length ? { type: 'FeatureCollection', features } : null);
+      } catch {
+        if (!cancelled) setCandidateBoundaries(null);
+      }
+      })();
+    }, 2500);
+    return () => { cancelled = true; controller.abort(); clearTimeout(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [studyAreaUnitKey]);
+
+  // Draw neighbour candidates as DIAGONAL-HATCHED areas (distinct from the solid
+  // selected region) on the Leaflet map. Hover highlights, click adds.
+  useEffect(() => {
+    if (webglAvailable !== false) return undefined;
+    let cancelled = false;
+    let applyHatch = null;
+    import('leaflet').then(({ default: L }) => {
+      const map = leafletMapRef.current;
+      if (cancelled || !map) return;
+      if (leafletCandidateLayerRef.current) {
+        leafletCandidateLayerRef.current.remove();
+        leafletCandidateLayerRef.current = null;
+      }
+      if (!candidateBoundaries?.features?.length) return;
+
+      // Inject a diagonal-line hatch pattern into the overlay SVG once.
+      try {
+        const svg = map.getPanes()?.overlayPane?.querySelector('svg');
+        if (svg && !svg.querySelector('#candidate-hatch')) {
+          const NS = 'http://www.w3.org/2000/svg';
+          const defs = document.createElementNS(NS, 'defs');
+          defs.innerHTML = '<pattern id="candidate-hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="7" stroke="#6366f1" stroke-width="1.2" stroke-opacity="0.55"/></pattern>';
+          svg.appendChild(defs);
+        }
+      } catch { /* pattern is best-effort; base fill still shows */ }
+
+      const layer = L.geoJSON(candidateBoundaries, {
+        interactive: true,
+        // Faint base fill keeps the interior click/hoverable even if the hatch
+        // pattern isn't applied; the hatch overrides the fill visually.
+        style: { color: '#6366f1', weight: 1, dashArray: '4 4', fillColor: '#6366f1', fillOpacity: 0.05 },
+        onEachFeature: (feature, lyr) => {
+          lyr.bindTooltip(`➕ Click to add ${feature.properties?.name || 'this region'}`, { sticky: true });
+          lyr.on('mouseover', () => lyr.setStyle({ weight: 2.5, color: '#4f46e5' }));
+          lyr.on('mouseout', () => lyr.setStyle({ weight: 1, color: '#6366f1' }));
+          lyr.on('click', (e) => {
+            if (e.originalEvent) e.originalEvent.stopPropagation();
+            addStudyAreaUnit(feature.properties);
+          });
+        },
+      });
+      layer.addTo(map);
+      leafletCandidateLayerRef.current = layer;
+
+      // Point each candidate path's fill at the hatch pattern (re-applied on
+      // zoom because Leaflet recreates the path elements).
+      applyHatch = () => {
+        try {
+          layer.eachLayer(l => {
+            const el = l.getElement && l.getElement();
+            if (el) { el.setAttribute('fill', 'url(#candidate-hatch)'); el.setAttribute('fill-opacity', '1'); }
+          });
+        } catch { /* ignore */ }
+      };
+      applyHatch();
+      map.on('zoomend', applyHatch);
+    }).catch(() => { /* leaflet import handled elsewhere */ });
+    return () => {
+      cancelled = true;
+      try { if (applyHatch && leafletMapRef.current) leafletMapRef.current.off('zoomend', applyHatch); } catch { /* ignore */ }
+    };
+  }, [webglAvailable, candidateBoundaries, addStudyAreaUnit]);
+
   // Handle saving location from modal
   const handleSaveLocation = useCallback((locationData) => {
     if (locationData.id && locationManager.tempLocations.find(l => l.id === locationData.id)) {
@@ -1136,6 +1427,7 @@ const Creation = () => {
   useEffect(() => {
     window.generateMeshFromLines = generateMeshFromLines;
     window.importMeshAsLocations = importMeshAsLocations;
+    window.importPowerPlants = handleImportPowerPlants;
     window.exportMesh = exportMesh;
     window.toggleMeshVisibility = () => setMeshVisible(prev => !prev);
     window.clearMesh = () => {
@@ -1161,13 +1453,14 @@ const Creation = () => {
     return () => {
       delete window.generateMeshFromLines;
       delete window.importMeshAsLocations;
+      delete window.importPowerPlants;
       delete window.exportMesh;
       delete window.toggleMeshVisibility;
       delete window.clearMesh;
       delete window.generatedMeshExists;
       delete window.meshStatistics;
     };
-  }, [generateMeshFromLines, importMeshAsLocations, exportMesh, generatedMesh, showNotification]);
+  }, [generateMeshFromLines, importMeshAsLocations, handleImportPowerPlants, exportMesh, generatedMesh, showNotification]);
 
   // Remove edge from mesh
   const removeMeshEdge = useCallback((edgeId) => {
@@ -1267,6 +1560,37 @@ const Creation = () => {
               console.error('Creation map error:', error);
             }}
             layers={[
+              // Neighbour candidates — filled indigo areas; hover shows a prompt,
+              // click adds the region to the study area.
+              ...(candidateBoundaries && candidateBoundaries.features?.length > 0 ? [
+                new GeoJsonLayer({
+                  id: 'neighbor-candidates',
+                  data: candidateBoundaries,
+                  stroked: true,
+                  filled: true,
+                  getFillColor: [99, 102, 241, 30], // indigo, low opacity
+                  getLineColor: [99, 102, 241, 220],
+                  getLineWidth: 2,
+                  lineWidthUnits: 'pixels',
+                  lineWidthMinPixels: 1.5,
+                  pickable: true,
+                  autoHighlight: true,
+                  highlightColor: [79, 70, 229, 90],
+                  onHover: (info) => {
+                    if (info.object) {
+                      setHoveredInfo({
+                        name: `➕ Click to add ${info.object.properties?.name || 'this region'}`,
+                        layerType: 'Neighbour region',
+                        details: [],
+                        x: info.x, y: info.y,
+                      });
+                    } else {
+                      setHoveredInfo(null);
+                    }
+                  },
+                  onClick: (info) => { if (info.object) addStudyAreaUnit(info.object.properties); },
+                }),
+              ] : []),
               // Selected Region Territory Overlay (shown first so it appears under infrastructure)
               ...(selectedRegionBoundary && selectedRegionBoundary.features?.length > 0 && showOsmLayers.boundaries ? [
                 new GeoJsonLayer({
@@ -1274,8 +1598,8 @@ const Creation = () => {
                   data: selectedRegionBoundary,
                   filled: true,
                   stroked: true,
-                  getFillColor: [100, 149, 237, 40], // Cornflower blue with low opacity (transparent center)
-                  getLineColor: [30, 60, 114, 200], // Dark blue border
+                  getFillColor: [59, 130, 246, 90], // solid-ish blue so the selected shape stands out
+                  getLineColor: [30, 60, 114, 220], // Dark blue border
                   getLineWidth: 3,
                   lineWidthUnits: 'pixels',
                   lineWidthMinPixels: 2,

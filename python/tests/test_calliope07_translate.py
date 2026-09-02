@@ -28,6 +28,18 @@ def test_basic_renames():
     assert warnings == []
 
 
+def test_link_capacity_becomes_flow_cap_max():
+    warnings = []
+    out = t.build_transmission_techs_07(
+        [{'from': 'A', 'to': 'B', 'distance': 50, 'capacity': 2400, 'tech': 'ac_transmission'}],
+        {}, {}, warnings,
+    )
+    entry = out['ac_transmission_a_b']
+    assert entry['link_from'] == 'a' and entry['link_to'] == 'b'
+    assert entry['distance'] == 50.0
+    assert entry['flow_cap_max'] == 2400.0
+
+
 def test_equals_expansion():
     warnings = []
     out = t.translate_constraints({'energy_cap_equals': 1400}, 'supply', warnings)

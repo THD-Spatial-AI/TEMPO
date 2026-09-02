@@ -1,10 +1,39 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { FiMap, FiChevronDown, FiChevronRight, FiLayers, FiX, FiMapPin, FiGlobe, FiDownload } from 'react-icons/fi';
 import RegionSelectionStepper from './RegionSelectionStepper';
+import ZonalStudyAreaPanel from './ZonalStudyAreaPanel';
 import { api } from '../services/api';
+import { calculateMeshStatistics } from '../meshGenerator/MeshUtils.js';
 import { useData } from '../context/DataContext';
 
-const OsmInfrastructurePanel = ({ 
+// Color-coded on/off toggle for a map layer, with an optional filter-expand chevron.
+function LayerToggle({ color, label, checked, onToggle, expandable = false, expanded = false, onExpand }) {
+  return (
+    <div className="flex items-center gap-2">
+      <button onClick={onToggle} className="flex items-center gap-2 flex-1 min-w-0 text-left">
+        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+        <span className="text-sm text-slate-700 font-medium truncate">{label}</span>
+      </button>
+      <button
+        type="button" role="switch" aria-checked={checked} onClick={onToggle}
+        className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors ${checked ? 'bg-electric-500' : 'bg-slate-300'}`}
+      >
+        <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-4' : 'translate-x-0.5'}`} />
+      </button>
+      {expandable && checked && (
+        <button onClick={onExpand} className="text-slate-400 hover:text-slate-700 transition-colors p-1 flex-shrink-0">
+          {expanded ? <FiChevronDown size={16} /> : <FiChevronRight size={16} />}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// The legacy Geofabrik cascade selector is disabled — the live Study Area
+// search replaced it. Kept behind this flag for now; safe to delete the block.
+const SHOW_LEGACY_REGION_SELECTOR = false;
+
+const OsmInfrastructurePanel = ({
   collapsed, 
   onToggleCollapse,
   showOsmLayers,
@@ -25,7 +54,15 @@ const OsmInfrastructurePanel = ({
     selectedRegion, setSelectedRegion,
     selectedSubregion, setSelectedSubregion,
     selectedCommune, setSelectedCommune,
+    generatedMesh,
   } = useData();
+
+  // Reactive mesh statistics (recompute when the mesh changes) — replaces the
+  // non-reactive window.meshStatistics reads.
+  const meshStats = useMemo(
+    () => (generatedMesh ? calculateMeshStatistics(generatedMesh) : null),
+    [generatedMesh],
+  );
   
   const [regionsDatabase, setRegionsDatabase] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -495,8 +532,12 @@ const OsmInfrastructurePanel = ({
 
       {!collapsed && (
         <div className="flex-1 overflow-y-auto">
-          {/* Step-by-Step Region Selection */}
-          <div className="p-4 border-b border-slate-200">
+          {/* Primary flow: boundary-driven zonal Study Area */}
+          <ZonalStudyAreaPanel onRegionSelect={onRegionSelect} />
+
+          {/* Legacy Geofabrik region selector — disabled (see SHOW_LEGACY_REGION_SELECTOR). */}
+          {SHOW_LEGACY_REGION_SELECTOR && (
+          <div className="p-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
                 Select Region
@@ -576,19 +617,20 @@ const OsmInfrastructurePanel = ({
               </div>
             )}
           </div>
+          )}
 
           {/* Infrastructure Layers with Integrated Filters */}
           <div className="p-4 border-b border-slate-200">
-            {/* Download GIS Data collapsible section header */}
+            {/* Advanced · legacy PBF download (demoted; zonal Study Area is primary) */}
             <button
               onClick={handleToggleDownload}
               className="w-full flex items-center justify-between mb-4 group"
             >
               <div className="flex items-center gap-2">
-                <FiDownload className="text-slate-600" size={16} />
-                <h3 className="text-lg font-semibold text-slate-800">Download GIS Data</h3>
+                <FiDownload className="text-slate-400" size={13} />
+                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Advanced · Download GIS Data (legacy)</h3>
               </div>
-              {showDownload ? <FiChevronDown size={16} className="text-slate-500" /> : <FiChevronRight size={16} className="text-slate-500" />}
+              {showDownload ? <FiChevronDown size={14} className="text-slate-400" /> : <FiChevronRight size={14} className="text-slate-400" />}
             </button>
 
             {showDownload && (
@@ -713,25 +755,13 @@ const OsmInfrastructurePanel = ({
             <div className="space-y-4">
               {/* Power Lines */}
               <div>
-                <div className="flex items-center justify-between">
-                  <label className="flex items-center cursor-pointer flex-1">
-                    <input
-                      type="checkbox"
-                      checked={showOsmLayers?.powerLines}
-                      onChange={(e) => onOsmLayersChange?.({ ...showOsmLayers, powerLines: e.target.checked })}
-                      className="w-4 h-4 rounded text-gray-600 focus:ring-2 focus:ring-gray-500"
-                    />
-                    <span className="ml-2 text-sm text-slate-700 font-medium">Power Lines</span>
-                  </label>
-                  {showOsmLayers?.powerLines && (
-                    <button
-                      onClick={() => setExpandedFilters({ ...expandedFilters, powerLines: !expandedFilters.powerLines })}
-                      className="text-slate-400 hover:text-slate-700 transition-colors p-1"
-                    >
-                      {expandedFilters.powerLines ? <FiChevronDown size={16} /> : <FiChevronRight size={16} />}
-                    </button>
-                  )}
-                </div>
+                <LayerToggle
+                  color="#f59e0b" label="Power Lines"
+                  checked={!!showOsmLayers?.powerLines}
+                  onToggle={() => onOsmLayersChange?.({ ...showOsmLayers, powerLines: !showOsmLayers?.powerLines })}
+                  expandable expanded={expandedFilters.powerLines}
+                  onExpand={() => setExpandedFilters({ ...expandedFilters, powerLines: !expandedFilters.powerLines })}
+                />
                 {showOsmLayers?.powerLines && expandedFilters.powerLines && (
                   <div className="ml-6 mt-3">
                     <label className="block text-sm font-medium text-slate-700 mb-2">Voltage Range (kV)</label>
@@ -763,25 +793,13 @@ const OsmInfrastructurePanel = ({
               )}
             </div>              {/* Power Plants */}
               <div className="border-t border-slate-200 pt-4">
-                <div className="flex items-center justify-between">
-                  <label className="flex items-center cursor-pointer flex-1">
-                    <input
-                      type="checkbox"
-                      checked={showOsmLayers?.powerPlants}
-                      onChange={(e) => onOsmLayersChange?.({ ...showOsmLayers, powerPlants: e.target.checked })}
-                      className="w-4 h-4 rounded text-gray-600 focus:ring-2 focus:ring-gray-500"
-                    />
-                    <span className="ml-2 text-sm text-slate-700 font-medium">Power Plants</span>
-                  </label>
-                  {showOsmLayers?.powerPlants && (
-                    <button
-                      onClick={() => setExpandedFilters({ ...expandedFilters, powerPlants: !expandedFilters.powerPlants })}
-                      className="text-slate-400 hover:text-slate-700 transition-colors p-1"
-                    >
-                      {expandedFilters.powerPlants ? <FiChevronDown size={16} /> : <FiChevronRight size={16} />}
-                    </button>
-                  )}
-                </div>
+                <LayerToggle
+                  color="#22c55e" label="Power Plants"
+                  checked={!!showOsmLayers?.powerPlants}
+                  onToggle={() => onOsmLayersChange?.({ ...showOsmLayers, powerPlants: !showOsmLayers?.powerPlants })}
+                  expandable expanded={expandedFilters.powerPlants}
+                  onExpand={() => setExpandedFilters({ ...expandedFilters, powerPlants: !expandedFilters.powerPlants })}
+                />
                 {showOsmLayers?.powerPlants && expandedFilters.powerPlants && (
                   <div className="ml-6 mt-3 space-y-3">
                     <div>
@@ -823,25 +841,13 @@ const OsmInfrastructurePanel = ({
 
               {/* Substations */}
               <div className="border-t border-slate-200 pt-4">
-                <div className="flex items-center justify-between">
-                  <label className="flex items-center cursor-pointer flex-1">
-                    <input
-                      type="checkbox"
-                      checked={showOsmLayers?.substations}
-                      onChange={(e) => onOsmLayersChange?.({ ...showOsmLayers, substations: e.target.checked })}
-                      className="w-4 h-4 rounded text-gray-600 focus:ring-2 focus:ring-gray-500"
-                    />
-                    <span className="ml-2 text-sm text-slate-700 font-medium">Substations</span>
-                  </label>
-                  {showOsmLayers?.substations && (
-                    <button
-                      onClick={() => setExpandedFilters({ ...expandedFilters, substations: !expandedFilters.substations })}
-                      className="text-slate-400 hover:text-slate-700 transition-colors p-1"
-                    >
-                      {expandedFilters.substations ? <FiChevronDown size={16} /> : <FiChevronRight size={16} />}
-                    </button>
-                  )}
-                </div>
+                <LayerToggle
+                  color="#ef4444" label="Substations"
+                  checked={!!showOsmLayers?.substations}
+                  onToggle={() => onOsmLayersChange?.({ ...showOsmLayers, substations: !showOsmLayers?.substations })}
+                  expandable expanded={expandedFilters.substations}
+                  onExpand={() => setExpandedFilters({ ...expandedFilters, substations: !expandedFilters.substations })}
+                />
                 {showOsmLayers?.substations && expandedFilters.substations && (
                   <div className="ml-6 mt-3 space-y-3">
                     <div>
@@ -898,43 +904,33 @@ const OsmInfrastructurePanel = ({
 
               {/* Region Boundaries */}
               <div className="border-t border-slate-200 pt-4">
-                <div className="flex items-center justify-between">
-                  <label className="flex items-center cursor-pointer flex-1">
-                    <input
-                      type="checkbox"
-                      checked={showOsmLayers?.boundaries !== false}
-                      onChange={(e) => onOsmLayersChange?.({ ...showOsmLayers, boundaries: e.target.checked })}
-                      className="w-4 h-4 rounded text-gray-600 focus:ring-2 focus:ring-gray-500"
-                    />
-                    <span className="ml-2 text-sm text-slate-700 font-medium">Region Boundaries</span>
-                  </label>
-                </div>
+                <LayerToggle
+                  color="#3b82f6" label="Region Boundaries"
+                  checked={showOsmLayers?.boundaries !== false}
+                  onToggle={() => onOsmLayersChange?.({ ...showOsmLayers, boundaries: !(showOsmLayers?.boundaries !== false) })}
+                />
                 {showOsmLayers?.boundaries !== false && (
                   <p className="ml-6 mt-2 text-xs text-slate-500">Show selected region & subregion shapes on map</p>
                 )}
               </div>
 
-              {/* Mesh Generation Section */}
+              {/* Advanced · legacy substation mesh (demoted; zonal Study Area is primary) */}
               <div className="border-t border-slate-200 pt-4 mt-4">
-                <div className="bg-gradient-to-r from-slate-50 to-gray-50 rounded-lg p-4 border border-gray-200">
+                <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
                   <div className="flex items-center gap-2 mb-3">
-                    <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                     </svg>
-                    <h3 className="text-sm font-bold text-gray-900">Power Mesh Generator</h3>
+                    <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Advanced · Power Mesh (legacy)</h3>
                   </div>
-                  <p className="text-xs text-gray-700 mb-3">
-                    Generate and manage network mesh from power lines
+                  <p className="text-xs text-slate-500 mb-3">
+                    Snaps the loaded power lines into a network of nodes &amp; links you can import as editable model locations. Load a region first.
                   </p>
-                  
+
                   {/* Generate Button */}
                   <button
-                    onClick={() => {
-                      if (window.generateMeshFromLines) {
-                        window.generateMeshFromLines();
-                      }
-                    }}
-                    className="w-full px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-800 transition-colors text-sm font-medium flex items-center justify-center gap-2 mb-3"
+                    onClick={() => window.generateMeshFromLines?.()}
+                    className="w-full px-4 py-2.5 bg-slate-700 text-white rounded-lg hover:bg-slate-800 active:bg-slate-900 transition-colors text-sm font-semibold flex items-center justify-center gap-2 mb-3 shadow-sm"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -942,8 +938,8 @@ const OsmInfrastructurePanel = ({
                     Generate Mesh Network
                   </button>
 
-                  {/* Mesh Statistics - Only show if mesh exists */}
-                  {window.generatedMeshExists && window.meshStatistics && (
+                  {/* Mesh Statistics - Only show if mesh exists (reactive) */}
+                  {generatedMesh && meshStats && (
                     <div className="space-y-3 pt-3 border-t border-gray-300">
                       {/* Statistics Display */}
                       <div className="bg-white rounded-lg p-3 border border-gray-200">
@@ -951,19 +947,19 @@ const OsmInfrastructurePanel = ({
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                             <div className="text-[10px] text-gray-600 uppercase tracking-wide">Nodes</div>
-                            <div className="text-lg font-bold text-slate-700">{window.meshStatistics.nodeCount}</div>
+                            <div className="text-lg font-bold text-slate-700">{meshStats.nodeCount}</div>
                           </div>
                           <div>
                             <div className="text-[10px] text-gray-600 uppercase tracking-wide">Edges</div>
-                            <div className="text-lg font-bold text-slate-700">{window.meshStatistics.edgeCount}</div>
+                            <div className="text-lg font-bold text-slate-700">{meshStats.edgeCount}</div>
                           </div>
                           <div>
                             <div className="text-[10px] text-gray-600 uppercase tracking-wide">Avg Connectivity</div>
-                            <div className="text-lg font-bold text-slate-700">{window.meshStatistics.avgConnectivity}</div>
+                            <div className="text-lg font-bold text-slate-700">{meshStats.avgConnectivity}</div>
                           </div>
                           <div>
                             <div className="text-[10px] text-gray-600 uppercase tracking-wide">Isolated</div>
-                            <div className="text-lg font-bold text-slate-700">{window.meshStatistics.isolatedNodes}</div>
+                            <div className="text-lg font-bold text-slate-700">{meshStats.isolatedNodes}</div>
                           </div>
                         </div>
                       </div>
