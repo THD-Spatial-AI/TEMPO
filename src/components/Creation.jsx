@@ -592,6 +592,7 @@ const Creation = () => {
         }).addTo(group);
       }
       group.addTo(map);
+      try { group.bringToFront(); } catch { /* keep infra above the boundary fill */ }
       leafletOsmLayerRef.current = group;
     }).catch(() => { /* leaflet import failed elsewhere already */ });
     return () => { cancelled = true; };
@@ -1641,6 +1642,7 @@ const Creation = () => {
                   getLineWidth: 12 + contourPulse * 26, // 12→38 px (mostly masked inside)
                   lineWidthUnits: 'pixels',
                   updateTriggers: { getLineColor: contourPulse, getLineWidth: contourPulse },
+                  parameters: { depthTest: false },
                   pickable: false,
                 }),
               ] : []),
@@ -1657,6 +1659,7 @@ const Creation = () => {
                   getLineWidth: 2,
                   lineWidthUnits: 'pixels',
                   lineWidthMinPixels: 1.5,
+                  parameters: { depthTest: false },
                   pickable: true,
                   autoHighlight: true,
                   highlightColor: [79, 70, 229, 90],
@@ -1682,12 +1685,15 @@ const Creation = () => {
                   data: selectedRegionBoundary,
                   filled: true,
                   stroked: true,
-                  getFillColor: [59, 130, 246, 130], // opaque enough to mask the glow's inner half
+                  getFillColor: [59, 130, 246, 110], // masks the glow's inner half
                   getLineColor: [30, 60, 114, 220], // Dark blue border
                   getLineWidth: 3,
                   lineWidthUnits: 'pixels',
                   lineWidthMinPixels: 2,
                   lineWidthMaxPixels: 5,
+                  // Don't write depth — otherwise this filled polygon occludes the
+                  // point/line layers drawn after it (plants/substations look faded).
+                  parameters: { depthTest: false },
                   pickable: true,
                   autoHighlight: false,
                   onHover: (info) => {
@@ -1820,15 +1826,16 @@ const Creation = () => {
                   onHover: (info) => {
                     if (info.object) {
                       const props = info.object.properties;
-                      const source = props.plant_source || props.source;
+                      const source = props.plant_source || props.source || 'unknown';
+                      const cap = props.capacity_mw;
                       setHoveredInfo({
                         name: props.name || 'Power Plant',
                         layerType: 'Power Plant',
-                        accentColor: source ? getFuelColor(source) : '#6B7280',
+                        accentColor: source && source !== 'unknown' ? getFuelColor(source) : '#6B7280',
                         details: [
-                          source             && { label: 'Source',   value: source.charAt(0).toUpperCase() + source.slice(1) },
-                          props.plant_type   && { label: 'Type',     value: props.plant_type },
-                          props.capacity__MW_&& { label: 'Capacity', value: `${props.capacity__MW_} MW` },
+                          { label: 'Source', value: source === 'unknown' ? 'Unknown ⚠' : source.charAt(0).toUpperCase() + source.slice(1) },
+                          props.plant_method && { label: 'Method', value: props.plant_method },
+                          { label: 'Capacity', value: (cap != null) ? `${cap} MW` : 'unknown ⚠' },
                           props.operator     && { label: 'Operator', value: props.operator },
                           props.start_date   && { label: 'Since',    value: props.start_date },
                           props.ref          && { label: 'Ref',      value: props.ref },
@@ -1874,19 +1881,18 @@ const Creation = () => {
                   onHover: (info) => {
                     if (info.object) {
                       const props = info.object.properties;
-                      let voltageLabel = null;
-                      if (props.voltage) {
-                        let v = parseFloat(String(props.voltage).replace(/[^0-9.]/g, '')) || 0;
-                        if (v > 1000) v = v / 1000;
-                        if (v > 0) voltageLabel = `${v.toFixed(0)} kV`;
-                      }
+                      const kv = props.voltage_kv || null;
+                      const grid = props.substation; // classified: transmission | distribution | …
+                      const gridLabel = grid === 'transmission' ? 'Transmission (HV)'
+                        : grid === 'distribution' ? 'Distribution (MV/LV)'
+                        : grid ? grid.charAt(0).toUpperCase() + grid.slice(1)
+                        : 'Unknown ⚠';
                       setHoveredInfo({
                         name: props.name || 'Substation',
                         layerType: 'Substation',
                         details: [
-                          props.substation      && { label: 'Type',      value: props.substation.charAt(0).toUpperCase() + props.substation.slice(1) },
-                          voltageLabel          && { label: 'Voltage',   value: voltageLabel },
-                          props.voltage_primary && { label: 'Primary V', value: props.voltage_primary },
+                          { label: 'Grid', value: gridLabel },
+                          kv                    && { label: 'Voltage',   value: `${kv} kV` },
                           props.operator        && { label: 'Operator',  value: props.operator },
                           props.frequency       && { label: 'Frequency', value: `${props.frequency} Hz` },
                           props.ref             && { label: 'Ref',       value: props.ref },

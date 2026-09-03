@@ -10,7 +10,9 @@
  *   { powerLines, substations, powerPlants }
  */
 
-import { parseVoltageKv, geometryTouchesPolygons } from './zonalInfraExtract';
+import {
+  parseVoltageKv, geometryTouchesPolygons, parseSource, parseCapacityMW, classifySubstation,
+} from './zonalInfraExtract';
 
 // Public Overpass mirrors, tried in order. kumi.systems / osm.ch are usually the
 // most responsive; overpass-api.de frequently 504s / connection-times-out.
@@ -153,9 +155,23 @@ export async function fetchPowerLayers(bbox, { voltageMin = 0, signal, clip = nu
       rawLines++;
       if (parseVoltageKv(f.properties) >= voltageMin) lines.push(f);
     } else if (power === 'substation') {
-      const v = parseVoltageKv(f.properties);
-      if (v === 0 || v >= voltageMin) subs.push(f); // keep untagged substations
+      // Keep ALL substations (both grids) — classify into transmission /
+      // distribution / traction / converter so the map & filters can tell them
+      // apart. (No voltageMin filter here; the substation-type filter controls it.)
+      const p = f.properties;
+      p.substation = classifySubstation(p);      // normalized grid role
+      p.voltage_kv = parseVoltageKv(p) || null;  // parsed kV for display
+      subs.push(f);
     } else if (power === 'plant' || power === 'generator') {
+      // Enrich with a normalized source + parsed capacity so colour/tooltip/
+      // import work even when the raw OSM tags are messy or missing.
+      const p = f.properties;
+      const src = parseSource(p);
+      const cap = parseCapacityMW(p);
+      p.plant_source = src;                       // drives colour + tooltip
+      p.capacity_mw = cap;                        // number | null
+      if (cap != null) p.capacity__MW_ = Math.round(cap * 100) / 100;
+      p.plant_method = p['plant:method'] || p['generator:method'] || p['generator:type'] || null;
       plants.push(f);
     }
   }

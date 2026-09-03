@@ -30,26 +30,82 @@ const SOURCE_ALIASES = {
   oil: 'oil', diesel: 'oil',
 };
 
-/** Normalise an OSM plant:source / generator:source value to our vocabulary. */
+// OSM plant:method / generator:method → source (used when source tag is missing).
+const METHOD_TO_SOURCE = {
+  photovoltaic: 'solar', 'solar-photovoltaic': 'solar',
+  wind_turbine: 'wind',
+  'run-of-the-river': 'hydro', 'run-of-river': 'hydro', 'water-storage': 'hydro',
+  'water-pumped-storage': 'hydro', barrage: 'hydro', stream: 'hydro', tidal: 'hydro',
+  fission: 'nuclear',
+  anaerobic_digestion: 'biomass', gasification: 'biomass',
+  geothermal: 'geothermal',
+};
+// OSM generator:type → source (last resort).
+const GENTYPE_TO_SOURCE = {
+  solar_photovoltaic_panel: 'solar', solar_thermal_collector: 'solar',
+  wind_turbine: 'wind', water_turbine: 'hydro',
+  gas_turbine: 'gas',
+};
+
+/**
+ * Normalise an OSM plant/generator source to our vocabulary, inferring from
+ * `*:method` and `generator:type` when the `*:source` tag is missing. Returns
+ * 'unknown' when nothing identifiable (so the UI can flag it), else a source.
+ */
 export function parseSource(props = {}) {
   const raw = String(
     props['plant:source'] ?? props['generator:source'] ?? props.source ?? '',
   ).toLowerCase().split(';')[0].trim();
-  return SOURCE_ALIASES[raw] || (raw ? 'other' : 'other');
+  if (raw && SOURCE_ALIASES[raw]) return SOURCE_ALIASES[raw];
+  if (raw) {
+    for (const k of Object.keys(SOURCE_ALIASES)) if (raw.includes(k)) return SOURCE_ALIASES[k];
+  }
+  const method = String(props['plant:method'] ?? props['generator:method'] ?? '')
+    .toLowerCase().split(';')[0].trim();
+  if (method && METHOD_TO_SOURCE[method]) return METHOD_TO_SOURCE[method];
+  const gtype = String(props['generator:type'] ?? '').toLowerCase().trim();
+  if (gtype && GENTYPE_TO_SOURCE[gtype]) return GENTYPE_TO_SOURCE[gtype];
+  return raw ? 'other' : 'unknown';
 }
 
-/** Parse installed capacity in MW from OSM output tags; null when absent. */
+/**
+ * Parse installed capacity in MW from OSM output/rating tags (several fallbacks);
+ * null when absent or non-numeric (e.g. the common `...=yes`).
+ */
 export function parseCapacityMW(props = {}) {
-  const raw = props['plant:output:electricity'] ?? props['generator:output:electricity'] ?? props.output;
+  const raw = props['plant:output:electricity'] ?? props['generator:output:electricity']
+    ?? props['output:electricity'] ?? props['plant:output'] ?? props.rating
+    ?? props['generator:rating'] ?? props.output;
   if (raw == null) return null;
   const s = String(raw).trim().toLowerCase();
+  if (!s || s === 'yes' || s === 'auto') return null;
   const num = parseFloat(s.replace(/,/g, ''));
   if (!Number.isFinite(num)) return null;
   if (s.includes('gw')) return num * 1000;
-  if (s.includes('kw')) return num / 1000;
   if (s.includes('mw')) return num;
+  if (s.includes('kw')) return num / 1000;
+  if (s.includes('w')) return num / 1e6; // plain watts
   // Bare number: OSM convention is watts when untagged with a unit.
   return num > 100000 ? num / 1e6 : num;
+}
+
+/**
+ * Classify a `power=substation` (or transformer) into a grid role, from the
+ * `substation` tag and voltage. Returns one of: transmission | distribution |
+ * traction | converter | other. Voltage ≥110 kV ⇒ transmission when the tag
+ * is absent.
+ */
+export function classifySubstation(props = {}) {
+  const st = String(props.substation ?? props['substation:type'] ?? '').toLowerCase();
+  if (st.includes('transmission')) return 'transmission';
+  if (st.includes('traction')) return 'traction';
+  if (st.includes('converter')) return 'converter';
+  if (st.includes('distribution')) return 'distribution'; // incl. minor_distribution
+  if (st.includes('industrial')) return 'other';
+  const v = parseVoltageKv(props);
+  if (v >= 110) return 'transmission';
+  if (v >= 1) return 'distribution';
+  return 'other';
 }
 
 /**

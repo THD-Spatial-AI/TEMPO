@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   parseSource, parseCapacityMW, parseVoltageKv, parseCircuits,
-  zoneOfPoint, assignPlantsToZones, extractCrossings,
+  zoneOfPoint, assignPlantsToZones, extractCrossings, classifySubstation,
 } from '../zonalInfraExtract';
 import { buildZonalModel } from '../zonalModelBuilder';
 
@@ -18,18 +18,31 @@ const line = (coords, props = {}) => ({ type: 'Feature', properties: props, geom
 const plant = (pt, props) => ({ type: 'Feature', properties: props, geometry: { type: 'Point', coordinates: pt } });
 
 describe('OSM tag parsers', () => {
-  it('parseSource normalises aliases and defaults to other', () => {
+  it('parseSource normalises aliases, infers from method/type, flags unknown', () => {
     expect(parseSource({ 'plant:source': 'photovoltaic' })).toBe('solar');
     expect(parseSource({ 'generator:source': 'wind' })).toBe('wind');
     expect(parseSource({ source: 'natural_gas' })).toBe('gas');
-    expect(parseSource({})).toBe('other');
+    expect(parseSource({ 'plant:method': 'run-of-the-river' })).toBe('hydro'); // inferred
+    expect(parseSource({ 'generator:type': 'solar_photovoltaic_panel' })).toBe('solar');
+    expect(parseSource({})).toBe('unknown');
   });
 
-  it('parseCapacityMW handles units and bare watts', () => {
+  it('parseCapacityMW handles units, fallbacks, and non-numeric', () => {
     expect(parseCapacityMW({ 'plant:output:electricity': '1360 MW' })).toBe(1360);
     expect(parseCapacityMW({ 'plant:output:electricity': '1.2 GW' })).toBe(1200);
     expect(parseCapacityMW({ 'plant:output:electricity': '500000' })).toBe(0.5); // watts
+    expect(parseCapacityMW({ 'generator:output:electricity': '50 kW' })).toBe(0.05);
+    expect(parseCapacityMW({ 'plant:output:electricity': 'yes' })).toBeNull(); // common junk value
     expect(parseCapacityMW({})).toBeNull();
+  });
+
+  it('classifySubstation uses the tag then falls back to voltage', () => {
+    expect(classifySubstation({ substation: 'transmission' })).toBe('transmission');
+    expect(classifySubstation({ substation: 'minor_distribution' })).toBe('distribution');
+    expect(classifySubstation({ substation: 'traction' })).toBe('traction');
+    expect(classifySubstation({ voltage: '220000' })).toBe('transmission'); // no tag → by kV
+    expect(classifySubstation({ voltage: '20000' })).toBe('distribution');
+    expect(classifySubstation({})).toBe('other');
   });
 
   it('parseVoltageKv takes the max of a ;-list, tolerating volts or kV', () => {

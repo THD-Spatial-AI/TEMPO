@@ -32,6 +32,12 @@ export default function ZonalStudyAreaPanel({ onRegionSelect }) {
     osmLoading, osmLoadingStage, osmPowerLines, osmSubstations, osmPowerPlants,
   } = useData();
   const plantCount = osmPowerPlants?.features?.length ?? 0;
+  // Classification breakdown (from the enriched OSM features).
+  const subFeatures = osmSubstations?.features || [];
+  const subTransmission = subFeatures.filter(f => f.properties?.substation === 'transmission').length;
+  const subDistribution = subFeatures.filter(f => f.properties?.substation === 'distribution').length;
+  const plantsWithCap = (osmPowerPlants?.features || []).filter(f => f.properties?.capacity_mw != null).length;
+  const plantsUnknownCap = plantCount - plantsWithCap;
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
@@ -241,6 +247,22 @@ export default function ZonalStudyAreaPanel({ onRegionSelect }) {
                   <div className="text-[9px] text-slate-400 uppercase tracking-wide">Plants</div>
                 </div>
               </div>
+              {(subFeatures.length > 0 || plantCount > 0) && (
+                <div className="text-[10px] text-slate-500 space-y-0.5 border-t border-slate-200 pt-1.5">
+                  {subFeatures.length > 0 && (
+                    <div>
+                      Substations: <span className="text-red-600 font-medium">{subTransmission} transmission</span>
+                      {' · '}{subDistribution} distribution
+                    </div>
+                  )}
+                  {plantCount > 0 && (
+                    <div>
+                      Plants: {plantsWithCap} with capacity
+                      {plantsUnknownCap > 0 && <span className="text-amber-600">{' · '}{plantsUnknownCap} unknown ⚠</span>}
+                    </div>
+                  )}
+                </div>
+              )}
               {plantCount > 0 && (
                 <button
                   onClick={() => window.importPowerPlants?.()}
