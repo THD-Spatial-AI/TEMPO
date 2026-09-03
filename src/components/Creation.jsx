@@ -27,7 +27,7 @@ import { LINK_TYPES, getLinkTypeColorRgb } from '../config/linkTypes';
 import { CARRIERS, getCarrierColorRgb, getCarrierLabel } from '../config/carriers';
 import { fetchPowerLayers, fetchNeighborCandidates } from '../services/overpassClient';
 import { fetchGeometries } from '../services/nominatim';
-import { parseSource, parseCapacityMW } from '../services/zonalInfraExtract';
+import { parseSource, parseCapacityMW, parseVoltageKv } from '../services/zonalInfraExtract';
 import { OSM_SOURCE_TO_TECH } from '../services/zonalModelBuilder';
 
 // Import new custom hooks
@@ -94,7 +94,7 @@ const Creation = () => {
     showOverhead: true
   });
   const [powerPlantFilters, setPowerPlantFilters] = useState({
-    selectedSources: ['solar', 'wind', 'hydro', 'nuclear', 'gas', 'coal', 'biomass', 'geothermal', 'oil', 'other'],
+    selectedSources: ['solar', 'wind', 'hydro', 'nuclear', 'gas', 'coal', 'biomass', 'geothermal', 'oil', 'other', 'unknown'],
     minCapacity: 0
   });
   const [substationFilters, setSubstationFilters] = useState({
@@ -103,11 +103,26 @@ const Creation = () => {
     maxVoltage: 1000
   });
   
+  // Restrict displayed power lines to the voltage levels selected in the panel
+  // (auto-detected). When none selected yet, show all.
+  const linesForDisplay = useMemo(() => {
+    const levels = studyArea?.voltageLevels;
+    if (!osmPowerLines?.features || !Array.isArray(levels) || levels.length === 0) return osmPowerLines;
+    const set = new Set(levels);
+    return {
+      ...osmPowerLines,
+      features: osmPowerLines.features.filter(f => {
+        const kv = f.properties?.voltage_kv ?? parseVoltageKv(f.properties);
+        return set.has(Math.round(kv));
+      }),
+    };
+  }, [osmPowerLines, studyArea]);
+
   // Use OSM layer filters hook
   const { filteredSubstations, filteredPowerPlants, filteredPowerLines } = useOSMLayerFilters(
     osmSubstations,
     osmPowerPlants,
-    osmPowerLines,
+    linesForDisplay,
     substationFilters,
     powerPlantFilters,
     powerLineFilters
@@ -576,17 +591,17 @@ const Creation = () => {
         leafletOsmLayerRef.current = null;
       }
       const group = L.layerGroup();
-      if (osmPowerLines?.features?.length && layerVisibility.powerLines) {
-        L.geoJSON(osmPowerLines, { style: { color: '#f59e0b', weight: 1.5, opacity: 0.85 } }).addTo(group);
+      if (filteredPowerLines?.features?.length && layerVisibility.powerLines) {
+        L.geoJSON(filteredPowerLines, { style: { color: '#f59e0b', weight: 1.5, opacity: 0.85 } }).addTo(group);
       }
-      if (osmSubstations?.features?.length && layerVisibility.substations) {
-        L.geoJSON(osmSubstations, {
+      if (filteredSubstations?.features?.length && layerVisibility.substations) {
+        L.geoJSON(filteredSubstations, {
           pointToLayer: (f, ll) => L.circleMarker(ll, { radius: 4, color: '#b91c1c', fillColor: '#ef4444', fillOpacity: 0.9, weight: 1 }),
           style: { color: '#b91c1c', weight: 1, fillColor: '#ef4444', fillOpacity: 0.4 },
         }).addTo(group);
       }
-      if (osmPowerPlants?.features?.length && layerVisibility.powerPlants) {
-        L.geoJSON(osmPowerPlants, {
+      if (filteredPowerPlants?.features?.length && layerVisibility.powerPlants) {
+        L.geoJSON(filteredPowerPlants, {
           pointToLayer: (f, ll) => L.circleMarker(ll, { radius: 5, color: '#15803d', fillColor: '#22c55e', fillOpacity: 0.9, weight: 1 }),
           style: { color: '#15803d', weight: 1, fillColor: '#22c55e', fillOpacity: 0.4 },
         }).addTo(group);
@@ -596,7 +611,7 @@ const Creation = () => {
       leafletOsmLayerRef.current = group;
     }).catch(() => { /* leaflet import failed elsewhere already */ });
     return () => { cancelled = true; };
-  }, [webglAvailable, osmPowerLines, osmSubstations, osmPowerPlants, layerVisibility]);
+  }, [webglAvailable, filteredPowerLines, filteredSubstations, filteredPowerPlants, layerVisibility]);
   
   // Map toolbar handlers
   const handleFitBounds = useCallback(() => {
@@ -673,7 +688,6 @@ const Creation = () => {
   }, []);
   
   // Load OSM infrastructure data from GeoServer when bbox changes
-  const voltageMin = studyArea?.voltageThreshold ?? 110;
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
@@ -695,7 +709,7 @@ const Creation = () => {
         const clip = (selectedRegionBoundary?.features || [])
           .map(f => f.geometry)
           .filter(Boolean);
-        const data = await fetchPowerLayers(currentBbox, { voltageMin, signal: controller.signal, clip });
+        const data = await fetchPowerLayers(currentBbox, { signal: controller.signal, clip });
         if (cancelled) return;
         const nLines = data.powerLines?.features?.length || 0;
         const nSubs = data.substations?.features?.length || 0;
@@ -739,7 +753,7 @@ const Creation = () => {
     };
     loadOsmData();
     return () => { cancelled = true; controller.abort(); };
-  }, [currentBbox, voltageMin]);
+  }, [currentBbox]);
   
   // Detect unsaved work and warn before navigation
   useEffect(() => {
@@ -1143,14 +1157,15 @@ const Creation = () => {
   }, [osmPowerLines, powerLineFilters, showNotification]);
 
   // Convert mesh to Calliope locations
-  const importMeshAsLocations = useCallback(() => {
-    if (!generatedMesh) {
+  const importMeshAsLocations = useCallback((meshArg) => {
+    const mesh = (meshArg && meshArg.nodes) ? meshArg : generatedMesh;
+    if (!mesh) {
       showNotification('No mesh generated yet', 'warning');
       return;
     }
 
     const baseTimestamp = Date.now();
-    const meshLocations = generatedMesh.nodes.map((node, index) => ({
+    const meshLocations = mesh.nodes.map((node, index) => ({
       id: baseTimestamp + index,
       name: node.name,
       latitude: node.latitude,
@@ -1169,15 +1184,15 @@ const Creation = () => {
     locationManager.importMultipleLocations(meshLocations);
     
     const nodeIdToLocationId = {};
-    generatedMesh.nodes.forEach((node, index) => {
+    mesh.nodes.forEach((node, index) => {
       nodeIdToLocationId[node.id] = baseTimestamp + index;
     });
-    
-    const meshLinks = generatedMesh.edges.map((edge, index) => {
+
+    const meshLinks = mesh.edges.map((edge, index) => {
       const fromLocationId = nodeIdToLocationId[edge.from];
       const toLocationId = nodeIdToLocationId[edge.to];
-      const fromNode = generatedMesh.nodes.find(n => n.id === edge.from);
-      const toNode = generatedMesh.nodes.find(n => n.id === edge.to);
+      const fromNode = mesh.nodes.find(n => n.id === edge.from);
+      const toNode = mesh.nodes.find(n => n.id === edge.to);
       const linkDistance = edge.realDistance || edge.distance;
       return {
         id: baseTimestamp + 100000 + index,
@@ -1201,16 +1216,12 @@ const Creation = () => {
     );
   }, [generatedMesh, showNotification, locationManager]);
 
-  // Import the loaded OSM power plants as editable model locations. Each plant
-  // becomes a location (editable via the location dialog) pre-seeded with a
-  // generation tech from its OSM source + capacity. Capacity is editable after.
-  const handleImportPowerPlants = useCallback(() => {
-    const feats = osmPowerPlants?.features || [];
-    if (!feats.length) {
-      showNotification('No power plants loaded — select a region first.', 'warning');
-      return;
-    }
-    // Representative point [lon,lat] for a plant geometry (node or area).
+  // Import the whole study area into the model: the selected layer types
+  // (plants / substations / lines), respecting the current voltage-level and
+  // type filters. Plants & substations → editable locations; lines → a
+  // node+link mesh. `sel` = { plants, substations, lines } booleans.
+  const handleImportStudyArea = useCallback((sel = {}) => {
+    // Representative point [lon,lat] for a geometry (node or area).
     const repPoint = (geom) => {
       if (!geom) return null;
       if (geom.type === 'Point') return geom.coordinates;
@@ -1223,33 +1234,72 @@ const Creation = () => {
     };
 
     const base = Date.now();
+    let seq = 0;
     const locs = [];
-    feats.forEach((f, i) => {
-      const pt = repPoint(f.geometry);
-      if (!pt) return;
-      const src = parseSource(f.properties);
-      const capMW = parseCapacityMW(f.properties);
-      const techId = OSM_SOURCE_TO_TECH[src] || null;
-      const techs = {};
-      if (techId) {
-        techs[techId] = {
-          constraints: { energy_cap_equals: capMW ?? 0 },
-          essentials: { carrier: 'electricity' },
-          metadata: { fromOSM: true, source: src, estimated: capMW == null },
-        };
-      }
-      locs.push({
-        id: base + i,
-        name: f.properties?.name || `${src} plant`,
-        latitude: pt[1], longitude: pt[0],
-        techs, isNode: false,
-        metadata: { fromOSM: true, source: src, capacityMW: capMW },
-      });
-    });
+    let nPlants = 0; let nSubs = 0;
 
-    locationManager.importMultipleLocations(locs);
-    showNotification(`Imported ${locs.length} power plants as editable locations.`, 'success');
-  }, [osmPowerPlants, locationManager, showNotification]);
+    if (sel.plants) {
+      (filteredPowerPlants?.features || []).forEach(f => {
+        const pt = repPoint(f.geometry); if (!pt) return;
+        const src = f.properties?.plant_source || parseSource(f.properties);
+        const capMW = f.properties?.capacity_mw ?? parseCapacityMW(f.properties);
+        const techId = OSM_SOURCE_TO_TECH[src] || null;
+        const techs = {};
+        if (techId) {
+          techs[techId] = {
+            constraints: { energy_cap_equals: capMW ?? 0 },
+            essentials: { carrier: 'electricity' },
+            metadata: { fromOSM: true, source: src, estimated: capMW == null },
+          };
+        }
+        locs.push({
+          id: base + (seq++), name: f.properties?.name || `${src} plant`,
+          latitude: pt[1], longitude: pt[0], techs, isNode: false,
+          metadata: { fromOSM: true, kind: 'plant', source: src, capacityMW: capMW },
+        });
+        nPlants++;
+      });
+    }
+
+    if (sel.substations) {
+      (filteredSubstations?.features || []).forEach(f => {
+        const pt = repPoint(f.geometry); if (!pt) return;
+        const grid = f.properties?.substation || 'substation';
+        locs.push({
+          id: base + (seq++), name: f.properties?.name || `${grid} substation`,
+          latitude: pt[1], longitude: pt[0], techs: {}, isNode: true,
+          metadata: { fromOSM: true, kind: 'substation', grid, voltageKv: f.properties?.voltage_kv ?? null },
+        });
+        nSubs++;
+      });
+    }
+
+    if (locs.length) locationManager.importMultipleLocations(locs);
+
+    let nLinks = 0;
+    if (sel.lines && linesForDisplay?.features?.length) {
+      try {
+        const result = generatePowerMesh(linesForDisplay, {
+          deduplicationThreshold: 0.5, snapThreshold: 0.5, minVoltage: 0, maxVoltage: 1000,
+        });
+        if (result?.success && result.nodes?.length) {
+          importMeshAsLocations(result); // node+link mesh from the lines
+          nLinks = result.edges?.length || 0;
+        }
+      } catch (e) {
+        console.error('Line mesh import failed:', e);
+      }
+    }
+
+    const parts = [];
+    if (nPlants) parts.push(`${nPlants} plants`);
+    if (nSubs) parts.push(`${nSubs} substations`);
+    if (nLinks) parts.push(`${nLinks} links (from lines)`);
+    showNotification(
+      parts.length ? `Imported ${parts.join(', ')} into the model.` : 'Nothing selected to import.',
+      parts.length ? 'success' : 'warning',
+    );
+  }, [filteredPowerPlants, filteredSubstations, linesForDisplay, locationManager, importMeshAsLocations, showNotification]);
 
   // Add a neighbouring admin unit (hovered/clicked on the map) to the study area.
   // The panel's unitsKey effect then reloads the boundary + grid for the union.
@@ -1484,7 +1534,7 @@ const Creation = () => {
   useEffect(() => {
     window.generateMeshFromLines = generateMeshFromLines;
     window.importMeshAsLocations = importMeshAsLocations;
-    window.importPowerPlants = handleImportPowerPlants;
+    window.importStudyArea = handleImportStudyArea;
     window.exportMesh = exportMesh;
     window.toggleMeshVisibility = () => setMeshVisible(prev => !prev);
     window.clearMesh = () => {
@@ -1510,14 +1560,14 @@ const Creation = () => {
     return () => {
       delete window.generateMeshFromLines;
       delete window.importMeshAsLocations;
-      delete window.importPowerPlants;
+      delete window.importStudyArea;
       delete window.exportMesh;
       delete window.toggleMeshVisibility;
       delete window.clearMesh;
       delete window.generatedMeshExists;
       delete window.meshStatistics;
     };
-  }, [generateMeshFromLines, importMeshAsLocations, handleImportPowerPlants, exportMesh, generatedMesh, showNotification]);
+  }, [generateMeshFromLines, importMeshAsLocations, handleImportStudyArea, exportMesh, generatedMesh, showNotification]);
 
   // Remove edge from mesh
   const removeMeshEdge = useCallback((edgeId) => {

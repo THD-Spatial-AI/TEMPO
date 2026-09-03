@@ -119,7 +119,7 @@ const fc = features => ({ type: 'FeatureCollection', features });
  * Lines and substations are kept only at/above `voltageMin` (kV); plants kept all.
  * @returns {Promise<{powerLines:object, substations:object, powerPlants:object}>}
  */
-export async function fetchPowerLayers(bbox, { voltageMin = 0, signal, clip = null } = {}) {
+export async function fetchPowerLayers(bbox, { signal, clip = null } = {}) {
   if (!bbox) return { powerLines: fc([]), substations: fc([]), powerPlants: fc([]) };
   const clipGeoms = Array.isArray(clip) && clip.length ? clip : null; // clip to selected polygons
   const b = clampBbox(bbox);
@@ -139,11 +139,11 @@ export async function fetchPowerLayers(bbox, { voltageMin = 0, signal, clip = nu
     + `way["power"="generator"](${bb});`
     + ');out geom;';
 
-  console.info(`[grid] querying bbox ${bb} (clamped from ${bbox.minLon.toFixed(2)},${bbox.minLat.toFixed(2)},${bbox.maxLon.toFixed(2)},${bbox.maxLat.toFixed(2)}), minV=${voltageMin}kV`);
+  console.info(`[grid] querying bbox ${bb} (clamped from ${bbox.minLon.toFixed(2)},${bbox.minLat.toFixed(2)},${bbox.maxLon.toFixed(2)},${bbox.maxLat.toFixed(2)})`);
   const json = await runOverpass(query, signal);
 
   const lines = []; const subs = []; const plants = [];
-  let rawLines = 0; let clippedOut = 0;
+  let clippedOut = 0;
   for (const el of json.elements || []) {
     const power = el.tags && el.tags.power;
     const f = toFeature(el);
@@ -152,8 +152,10 @@ export async function fetchPowerLayers(bbox, { voltageMin = 0, signal, clip = nu
     // real area, so drop anything that doesn't fall in / touch it.
     if (clipGeoms && !geometryTouchesPolygons(f.geometry, clipGeoms)) { clippedOut++; continue; }
     if (power === 'line' || power === 'cable') {
-      rawLines++;
-      if (parseVoltageKv(f.properties) >= voltageMin) lines.push(f);
+      // Keep ALL voltage-tagged lines — the panel auto-detects the distinct
+      // voltage levels present and lets the user pick which to show/import.
+      f.properties.voltage_kv = parseVoltageKv(f.properties) || null;
+      lines.push(f);
     } else if (power === 'substation') {
       // Keep ALL substations (both grids) — classify into transmission /
       // distribution / traction / converter so the map & filters can tell them
@@ -175,7 +177,7 @@ export async function fetchPowerLayers(bbox, { voltageMin = 0, signal, clip = nu
       plants.push(f);
     }
   }
-  console.info(`[grid] result: ${lines.length}/${rawLines} lines ≥${voltageMin}kV, ${subs.length} substations, ${plants.length} plants${clipGeoms ? ` (${clippedOut} outside area clipped)` : ''}`);
+  console.info(`[grid] result: ${lines.length} lines, ${subs.length} substations, ${plants.length} plants${clipGeoms ? ` (${clippedOut} outside area clipped)` : ''}`);
   return { powerLines: fc(lines), substations: fc(subs), powerPlants: fc(plants) };
 }
 

@@ -533,7 +533,13 @@ const OsmInfrastructurePanel = ({
       {!collapsed && (
         <div className="flex-1 overflow-y-auto">
           {/* Primary flow: boundary-driven zonal Study Area */}
-          <ZonalStudyAreaPanel onRegionSelect={onRegionSelect} />
+          <ZonalStudyAreaPanel
+            onRegionSelect={onRegionSelect}
+            substationFilters={substationFilters}
+            onSubstationFiltersChange={onSubstationFiltersChange}
+            powerPlantFilters={powerPlantFilters}
+            onPowerPlantFiltersChange={onPowerPlantFiltersChange}
+          />
 
           {/* Legacy Geofabrik region selector — disabled (see SHOW_LEGACY_REGION_SELECTOR). */}
           {SHOW_LEGACY_REGION_SELECTOR && (
@@ -621,134 +627,6 @@ const OsmInfrastructurePanel = ({
 
           {/* Infrastructure Layers with Integrated Filters */}
           <div className="p-4 border-b border-slate-200">
-            {/* Advanced · legacy PBF download (demoted; zonal Study Area is primary) */}
-            <button
-              onClick={handleToggleDownload}
-              className="w-full flex items-center justify-between mb-4 group"
-            >
-              <div className="flex items-center gap-2">
-                <FiDownload className="text-slate-400" size={13} />
-                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Advanced · Download GIS Data (legacy)</h3>
-              </div>
-              {showDownload ? <FiChevronDown size={14} className="text-slate-400" /> : <FiChevronRight size={14} className="text-slate-400" />}
-            </button>
-
-            {showDownload && (
-              <div className="mb-6 space-y-3">
-                {geoDBLoading ? (
-                  <div className="text-center py-4">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-600 mx-auto"></div>
-                    <p className="text-xs text-slate-500 mt-2">Loading available regions...</p>
-                  </div>
-                ) : geoRegionsDB?.error ? (
-                  <div className="text-center py-4 space-y-2">
-                    <p className="text-xs text-gray-500">Failed to load: {geoRegionsDB.error}</p>
-                    <button
-                      onClick={() => { setGeoRegionsDB(null); loadGeoRegionsDB(); }}
-                      className="text-xs text-slate-600 underline hover:text-slate-900"
-                    >Retry</button>
-                  </div>
-                ) : (
-                  <>
-                    {/* Continent selector */}
-                    <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1">
-                        <FiGlobe className="inline mr-1" size={11} />Continent
-                      </label>
-                      <select
-                        value={dlContinent}
-                        onChange={e => handleDlContinentChange(e.target.value)}
-                        className="w-full px-2 py-1.5 text-sm border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-gray-400"
-                      >
-                        <option value="">Select continent...</option>
-                        {geoRegionsDB?.continents && Object.keys(geoRegionsDB.continents).sort().map(c => (
-                          <option key={c} value={c}>{c.replace(/_/g, ' ')}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Country selector */}
-                    {dlContinent && (
-                      <div>
-                        <label className="block text-xs font-medium text-slate-700 mb-1">Country</label>
-                        <select
-                          value={dlCountry}
-                          onChange={e => handleDlCountryChange(e.target.value)}
-                          className="w-full px-2 py-1.5 text-sm border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-gray-400"
-                        >
-                          <option value="">Select country...</option>
-                          {dlCountries.map(c => (
-                            <option key={c} value={c}>{c.replace(/_/g, ' ')}</option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-
-                    {/* Region selector */}
-                    {dlCountry && dlRegions.length > 0 && (
-                      <div>
-                        <label className="block text-xs font-medium text-slate-700 mb-1">
-                          Region <span className="text-slate-400 font-normal">(optional)</span>
-                        </label>
-                        <select
-                          value={dlRegion}
-                          onChange={e => setDlRegion(e.target.value)}
-                          className="w-full px-2 py-1.5 text-sm border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-gray-400"
-                        >
-                          <option value="">Whole country</option>
-                          {dlRegions.map(r => (
-                            <option key={r} value={r}>{r.replace(/_/g, ' ')}</option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-
-                    {/* Action buttons */}
-                    <div className="flex gap-2 pt-1">
-                      {!downloading ? (
-                        <button
-                          onClick={handleDownload}
-                          disabled={!dlContinent || !dlCountry}
-                          className="flex-1 px-3 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-xs font-medium flex items-center justify-center gap-1.5"
-                        >
-                          <FiDownload size={13} />
-                          Download &amp; Import
-                        </button>
-                      ) : (
-                        <button
-                          onClick={handleCancelDownload}
-                          className="flex-1 px-3 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 transition-colors text-xs font-medium flex items-center justify-center gap-1.5"
-                        >
-                          <FiX size={13} />
-                          Cancel
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Log output */}
-                    {downloadLogs.length > 0 && (
-                      <div className="bg-slate-900 rounded-lg p-3 max-h-48 overflow-y-auto font-mono text-xs">
-                        {downloadLogs.map((log, i) => (
-                          <div
-                            key={i}
-                            className={
-                              log.type === 'error' ? 'text-red-400' :
-                              log.type === 'success' ? 'text-green-400' :
-                              log.type === 'warn' ? 'text-yellow-400' :
-                              'text-slate-300'
-                            }
-                          >
-                            {log.message}
-                          </div>
-                        ))}
-                        <div ref={logsEndRef} />
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
-
             <h3 className="text-lg font-semibold text-slate-800 mb-4">
               Infrastructure Layers
             </h3>
