@@ -299,6 +299,29 @@ const Creation = () => {
   const leafletContainerRef = useRef(null);
   const leafletOsmLayerRef = useRef(null);
   const leafletCandidateLayerRef = useRef(null);
+  // True while neighbour candidates are being fetched — drives the breathing
+  // "calculating surrounding areas" contour + badge.
+  const [candidatesLoading, setCandidatesLoading] = useState(false);
+  // "Calculating" = fetching the grid OR the surrounding areas. Drives the
+  // breathing/glowing contour + badge.
+  const calculating = osmLoading || candidatesLoading;
+  const candidatesLoadingRef = useRef(false);
+  candidatesLoadingRef.current = calculating;
+  // 0..1 pulse for the animated deck.gl glow contour (Leaflet uses CSS instead).
+  const [contourPulse, setContourPulse] = useState(0);
+  useEffect(() => {
+    if (!calculating) { setContourPulse(0); return undefined; }
+    let raf; let last = 0; const start = performance.now();
+    const tick = (t) => {
+      if (t - last >= 50) { // ~20fps is plenty for a breathing effect
+        setContourPulse((Math.sin(((t - start) / 1000) * Math.PI) + 1) / 2);
+        last = t;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [calculating]);
   const iconCache = useRef(new Map());
   const selectedForDragRef = useRef(null);
   
@@ -517,9 +540,19 @@ const Creation = () => {
       if (showOsmLayers.boundaries === false) return;
       if (!selectedRegionBoundary?.features?.length) return;
       const layer = L.geoJSON(selectedRegionBoundary, {
-        style: { color: '#1d4ed8', weight: 2.5, fillColor: '#3b82f6', fillOpacity: 0.22 },
+        style: { color: '#1d4ed8', weight: 2.5, fillColor: '#3b82f6', fillOpacity: 0.32 },
       }).addTo(map);
       leafletBoundaryLayerRef.current = layer;
+      // If we're already calculating surrounding areas, start the breathing glow
+      // now (the layer is created async, after the toggle effect may have run).
+      if (candidatesLoadingRef.current) {
+        try {
+          layer.eachLayer(l => {
+            const el = l.getElement && l.getElement();
+            if (el) el.classList.add('tempo-breathing-contour');
+          });
+        } catch { /* ignore */ }
+      }
       try {
         const bnds = layer.getBounds();
         if (bnds.isValid()) map.fitBounds(bnds, { padding: [30, 30], maxZoom: 14 });
@@ -1242,7 +1275,10 @@ const Creation = () => {
     let cancelled = false;
     const controller = new AbortController();
     const units = studyArea?.units || [];
-    if (!units.length) { setCandidateBoundaries(null); return undefined; }
+    if (!units.length) { setCandidateBoundaries(null); setCandidatesLoading(false); return undefined; }
+    // Show the "calculating surrounding areas" state from the moment of
+    // selection (covers the delay below + the fetch).
+    setCandidatesLoading(true);
     // Delay so the primary boundary + grid fetches (Nominatim/Overpass) finish
     // first — otherwise the candidate lookups race them and hit rate limits,
     // making even the selected area fail to appear.
@@ -1268,12 +1304,32 @@ const Creation = () => {
         setCandidateBoundaries(features.length ? { type: 'FeatureCollection', features } : null);
       } catch {
         if (!cancelled) setCandidateBoundaries(null);
+      } finally {
+        if (!cancelled) setCandidatesLoading(false);
       }
       })();
     }, 2500);
     return () => { cancelled = true; controller.abort(); clearTimeout(timer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studyAreaUnitKey]);
+
+  // Toggle the breathing/glowing contour on the Leaflet boundary paths while
+  // surrounding areas are being calculated.
+  useEffect(() => {
+    if (webglAvailable !== false) return undefined;
+    const layer = leafletBoundaryLayerRef.current;
+    if (!layer) return undefined;
+    const setBreath = (on) => {
+      try {
+        layer.eachLayer(l => {
+          const el = l.getElement && l.getElement();
+          if (el) el.classList.toggle('tempo-breathing-contour', on);
+        });
+      } catch { /* ignore */ }
+    };
+    setBreath(calculating);
+    return () => setBreath(false);
+  }, [calculating, selectedRegionBoundary, webglAvailable]);
 
   // Draw neighbour candidates as DIAGONAL-HATCHED areas (distinct from the solid
   // selected region) on the Leaflet map. Hover highlights, click adds.
@@ -1525,6 +1581,18 @@ const Creation = () => {
 
       {/* Main Map View */}
       <div className="flex-1 relative">
+        {/* Breathing badge while calculating; the contour glows around the area */}
+        {calculating && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[500] pointer-events-none">
+            <div className="tempo-calc-badge flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-600/95 text-white text-xs font-medium shadow-lg">
+              <span className="inline-block w-2 h-2 rounded-full bg-white animate-ping" />
+              {osmLoading
+                ? 'Calculating power lines, substations & plants…'
+                : 'Getting the surrounding regions…'}
+            </div>
+          </div>
+        )}
+
         {/* Loading Overlay */}
         {geoServerLoading && (
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
@@ -1560,6 +1628,22 @@ const Creation = () => {
               console.error('Creation map error:', error);
             }}
             layers={[
+              // Breathing/glowing contour while calculating (grid + surrounding).
+              // A SINGLE rounded ring (no stacked rings → uniform colour, no
+              // darker patches where segments overlap). Drawn under the region
+              // fill, which masks its inner half so the halo reads OUTSIDE the
+              // perimeter. Width/opacity pulse to "breathe".
+              ...(calculating && selectedRegionBoundary?.features?.length > 0 ? [
+                new GeoJsonLayer({
+                  id: 'calc-glow', data: selectedRegionBoundary,
+                  stroked: true, filled: false, lineJointRounded: true, lineCapRounded: true,
+                  getLineColor: [59, 130, 246, Math.round(80 + contourPulse * 90)], // uniform blue
+                  getLineWidth: 12 + contourPulse * 26, // 12→38 px (mostly masked inside)
+                  lineWidthUnits: 'pixels',
+                  updateTriggers: { getLineColor: contourPulse, getLineWidth: contourPulse },
+                  pickable: false,
+                }),
+              ] : []),
               // Neighbour candidates — filled indigo areas; hover shows a prompt,
               // click adds the region to the study area.
               ...(candidateBoundaries && candidateBoundaries.features?.length > 0 ? [
@@ -1598,7 +1682,7 @@ const Creation = () => {
                   data: selectedRegionBoundary,
                   filled: true,
                   stroked: true,
-                  getFillColor: [59, 130, 246, 90], // solid-ish blue so the selected shape stands out
+                  getFillColor: [59, 130, 246, 130], // opaque enough to mask the glow's inner half
                   getLineColor: [30, 60, 114, 220], // Dark blue border
                   getLineWidth: 3,
                   lineWidthUnits: 'pixels',
