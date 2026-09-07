@@ -29,6 +29,7 @@ import { fetchPowerLayers, fetchNeighborCandidates } from '../services/overpassC
 import { fetchGeometries } from '../services/nominatim';
 import { parseSource, parseCapacityMW, parseVoltageKv } from '../services/zonalInfraExtract';
 import { OSM_SOURCE_TO_TECH } from '../services/zonalModelBuilder';
+import { generateHourlyDemand } from '../services/demandProfiles';
 
 // Import new custom hooks
 import { useLocationManager } from '../hooks/useLocationManager';
@@ -57,12 +58,31 @@ const PLAN_COLORS = {
   plant_to_transmission: [13, 148, 136],       // teal
 };
 
+// Grid technologies attached on import (see the wizard's substation step).
+// Links use the existing HVAC-overhead link type → `hvac_overhead_lines`
+// transmission tech (enriched from opentech-db on the Technologies page).
+const GRID_LINK_TYPE = 'hvac_overhead';
+// Substation nodes get a Calliope-valid conversion tech (electricity → electricity
+// with transformer losses) so they aren't empty. Registered in `technologies`
+// on commit if missing; enrichable from opentech-db later like the other techs.
+const SUBSTATION_TECH_ID = 'electricity_substation';
+const SUBSTATION_TECH_DEF = {
+  id: SUBSTATION_TECH_ID,
+  name: 'Electricity Substation',
+  parent: 'conversion',
+  description: 'Substation / transformer node (electricity in → electricity out, with losses).',
+  essentials: { name: 'Electricity Substation', color: '#4A148C', parent: 'conversion', carrier_in: 'electricity', carrier_out: 'electricity' },
+  constraints: { energy_cap_max: 'inf', energy_eff: 0.995, lifetime: 40 },
+  costs: { monetary: { interest_rate: 0.05, energy_cap: 50 } },
+};
+const HOURS_PER_YEAR = 8760;
+
 const Creation = () => {
-  const { 
-    locations, setLocations, 
-    links, setLinks, 
-    technologies, 
-    showNotification, 
+  const {
+    locations, setLocations,
+    links, setLinks,
+    technologies, setTechnologies,
+    showNotification,
     createModel, 
     timeSeries, setTimeSeries, 
     setNavigationWarning, 
@@ -1362,7 +1382,7 @@ const Creation = () => {
             const dist = edge.realDistance || edge.distance;
             links.push({
               id: nextId(), from, to, fromName: fromNode?.name, toName: toNode?.name,
-              distance: dist.toFixed(2), techs: {},
+              distance: dist.toFixed(2), linkType: GRID_LINK_TYPE, carrier: 'electricity',
               metadata: { kind: 'transmission_link' },
             });
           });
@@ -1372,10 +1392,11 @@ const Creation = () => {
       }
     }
 
-    // 2) Substations → nodes, connected to the nearest transmission node (if asked).
+    // 2) Substations → nodes (with a transformer tech), wired to the grid if asked.
     if (su.include !== false) {
       const target = su.target || 'transmission';
       let subCounter = 0;
+      const subLocs = [];
       (filteredSubstations?.features || []).forEach(f => {
         const pt = repPoint(f.geometry); if (!pt) return;
         const grid = f.properties?.substation || 'substation';
@@ -1384,20 +1405,51 @@ const Creation = () => {
         // Prefer the real OSM name; otherwise an identifier "<what it is>_<n>".
         const gridLabel = grid && grid !== 'substation' ? `${cap(grid)}_substation` : 'Substation';
         const name = f.properties?.name || `${gridLabel}_${subCounter}`;
-        locations.push({
-          id, name, latitude: pt[1], longitude: pt[0], techs: {}, isNode: true,
+        // Substation node carries a transformer/conversion tech so it isn't empty.
+        const techs = {
+          [SUBSTATION_TECH_ID]: {
+            constraints: {},
+            essentials: { carrier_in: 'electricity', carrier_out: 'electricity' },
+            metadata: { fromOSM: true, grid },
+          },
+        };
+        const loc = {
+          id, name, latitude: pt[1], longitude: pt[0], techs, isNode: true,
           metadata: { fromOSM: true, kind: 'substation', grid, voltageKv: f.properties?.voltage_kv ?? null },
-        });
+        };
+        locations.push(loc);
+        subLocs.push(loc);
         subNodes.push({ id, name, lat: pt[1], lon: pt[0] });
         if (target === 'transmission' && transNodes.length) {
           const near = nearestWithin(pt[1], pt[0], transNodes, su.maxKm);
           if (near) links.push({
             id: nextId(), from: id, to: near.id, fromName: name, toName: near.name,
-            distance: near.d.toFixed(2), techs: {},
+            distance: near.d.toFixed(2), linkType: GRID_LINK_TYPE, carrier: 'electricity',
             metadata: { kind: 'substation_to_transmission' },
           });
         }
       });
+      // Optional: estimate an electricity demand from the study-area population and
+      // split it evenly across the substations (they're the withdrawal points).
+      const dm = su.demand || {};
+      if (dm.enabled && subLocs.length) {
+        const population = (studyArea?.units || []).reduce((s, u) => s + (Number(u.population) || 0), 0);
+        const perCapita = Number(dm.perCapitaKWh) || 0;
+        if (population > 0 && perCapita > 0) {
+          // kWh/yr → average MW, then per substation.
+          const perSubMW = (population * perCapita) / 1000 / HOURS_PER_YEAR / subLocs.length;
+          if (perSubMW > 0) {
+            const resource = -Number(perSubMW.toFixed(3));
+            subLocs.forEach(loc => {
+              loc.techs.power_demand = {
+                constraints: { resource, force_resource: true },
+                essentials: { carrier: 'electricity' },
+                metadata: { estimatedFromPopulation: true, perCapitaKWh: perCapita, avgMW: -resource },
+              };
+            });
+          }
+        }
+      }
     }
 
     // 3) Plants → nodes, connected to the nearest substation / transmission node.
@@ -1432,7 +1484,7 @@ const Creation = () => {
           const near = nearestWithin(pt[1], pt[0], anchors, pl.maxKm);
           if (near) links.push({
             id: nextId(), from: id, to: near.id, fromName: name, toName: near.name,
-            distance: near.d.toFixed(2), techs: {},
+            distance: near.d.toFixed(2), linkType: GRID_LINK_TYPE, carrier: 'electricity',
             metadata: { kind: linkKind },
           });
         }
@@ -1440,7 +1492,7 @@ const Creation = () => {
     }
 
     return { locations, links };
-  }, [linesForDisplay, filteredSubstations, filteredPowerPlants]);
+  }, [linesForDisplay, filteredSubstations, filteredPowerPlants, studyArea]);
 
   // Wizard: recompute the preview plan + per-layer counts whenever the wizard
   // config OR the underlying dropdown-filtered layers change. The panel writes
@@ -1471,13 +1523,47 @@ const Creation = () => {
       showNotification('Nothing to import — every step was skipped or empty.', 'warning');
       return;
     }
+    // Register the substation conversion tech in the model if any node uses it.
+    const usesSub = plan.locations.some(l => l.techs && l.techs[SUBSTATION_TECH_ID]);
+    if (usesSub && !technologies.some(t => t.id === SUBSTATION_TECH_ID)) {
+      setTechnologies(prev => [...prev, SUBSTATION_TECH_DEF]);
+    }
+
+    // If a non-flat demand shape was chosen, turn each substation's flat demand
+    // into a generated hourly timeseries (daily + weekly + seasonal) written as a
+    // persistent CSV the model references via `resource: file=…`.
+    const profileKey = studyBuildConfig?.substations?.demand?.profile || 'flat';
+    const demandSubs = plan.locations.filter(l => l.techs?.power_demand?.metadata?.estimatedFromPopulation);
+    let demandNote = '';
+    if (profileKey !== 'flat' && demandSubs.length) {
+      const avgMW = demandSubs[0].techs.power_demand.metadata.avgMW || 0;
+      const latitude = demandSubs.reduce((s, l) => s + (l.latitude || 0), 0) / demandSubs.length;
+      const { datetimes, values } = generateHourlyDemand({
+        startDate: modelConfig.startDate, endDate: modelConfig.endDate,
+        profileKey, annualMWh: avgMW * HOURS_PER_YEAR, latitude,
+      });
+      if (values.length) {
+        const fileName = 'osm_substation_demand.csv';
+        const col = 'demand';
+        // Negative values = Calliope demand convention. Shared column (even split).
+        const data = datetimes.map((dt, i) => ({ datetime: dt, [col]: -values[i] }));
+        const tsEntry = { name: fileName, fileName, columns: ['datetime', col], dateColumn: 'datetime', data };
+        setTimeSeries(prev => [...(prev || []).filter(t => (t.fileName || t.name) !== fileName), tsEntry]);
+        demandSubs.forEach(l => {
+          l.techs.power_demand.constraints = { resource: `file=${fileName}:${col}`, force_resource: true };
+          l.techs.power_demand.metadata = { ...l.techs.power_demand.metadata, profile: profileKey, timeseriesFile: fileName };
+        });
+        demandNote = ` · generated a ${profileKey} demand timeseries (${values.length} h) on ${demandSubs.length} substations`;
+      }
+    }
+
     locationManager.importMultipleLocations(plan.locations);
     if (plan.links.length) locationManager.importMultipleLinks(plan.links);
     setPlanPreview(null);
     setPlanSummary(null);
     setStudyBuildConfig(null);
-    showNotification(`Imported ${plan.locations.length} nodes and ${plan.links.length} links into the model.`, 'success');
-  }, [planPreview, locationManager, showNotification, setPlanSummary, setStudyBuildConfig]);
+    showNotification(`Imported ${plan.locations.length} nodes and ${plan.links.length} links into the model${demandNote}.`, 'success');
+  }, [planPreview, locationManager, showNotification, setPlanSummary, setStudyBuildConfig, technologies, setTechnologies, studyBuildConfig, modelConfig, setTimeSeries]);
 
   // Add a neighbouring admin unit (hovered/clicked on the map) to the study area.
   // The panel's unitsKey effect then reloads the boundary + grid for the union.

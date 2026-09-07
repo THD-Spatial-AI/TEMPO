@@ -4,6 +4,7 @@ import {
 } from 'react-icons/fi';
 import { useData } from '../context/DataContext';
 import { searchPlaces, fetchGeometries } from '../services/nominatim';
+import { DEMAND_PROFILES } from '../services/demandProfiles';
 
 // Network-builder wizard steps (order matters — later steps wire into earlier ones).
 const WIZARD_STEPS = [
@@ -217,6 +218,9 @@ export default function ZonalStudyAreaPanel({
   // Connections are OPT-IN: default to "don't connect" so nothing is auto-wired.
   const [subTarget, setSubTarget] = useState('none'); // 'transmission' | 'none'
   const [subMaxKm, setSubMaxKm] = useState('');
+  const [subDemand, setSubDemand] = useState(false);      // estimate demand on substations?
+  const [perCapitaKWh, setPerCapitaKWh] = useState('3500'); // kWh/person/year
+  const [demandProfile, setDemandProfile] = useState('mixed'); // load-shape preset
   const [plantInclude, setPlantInclude] = useState(true);
   const [plantTarget, setPlantTarget] = useState('none'); // 'substation' | 'transmission' | 'none'
   const [plantMaxKm, setPlantMaxKm] = useState('');
@@ -225,9 +229,18 @@ export default function ZonalStudyAreaPanel({
   // plant sources) flow through the dropdown filters, which Creation reads live.
   const wizardConfig = useMemo(() => ({
     transmission: { include: txInclude },
-    substations: { include: subInclude, target: subTarget, maxKm: subMaxKm ? Number(subMaxKm) : 0 },
+    substations: {
+      include: subInclude, target: subTarget, maxKm: subMaxKm ? Number(subMaxKm) : 0,
+      demand: { enabled: subDemand, perCapitaKWh: Number(perCapitaKWh) || 0, profile: demandProfile },
+    },
     plants: { include: plantInclude, target: plantTarget, maxKm: plantMaxKm ? Number(plantMaxKm) : 0 },
-  }), [txInclude, subInclude, subTarget, subMaxKm, plantInclude, plantTarget, plantMaxKm]);
+  }), [txInclude, subInclude, subTarget, subMaxKm, subDemand, perCapitaKWh, demandProfile, plantInclude, plantTarget, plantMaxKm]);
+
+  // Study-area population (from Nominatim extratags) drives the demand estimate.
+  const areaPopulation = useMemo(
+    () => (studyArea?.units || []).reduce((s, u) => s + (Number(u.population) || 0), 0),
+    [studyArea],
+  );
 
   const wizardActive = units.length > 0 && !osmLoading && !boundaryLoading;
 
@@ -512,6 +525,56 @@ export default function ZonalStudyAreaPanel({
                       options={[['none', "Don't connect (import as-is)"], ['transmission', 'Nearest transmission node']]}
                     />
                     {subTarget !== 'none' && <MaxKmField value={subMaxKm} onChange={setSubMaxKm} />}
+                    <p className="text-[10px] text-slate-400 -mt-1">
+                      Each substation gets a transformer tech; connection lines use HVAC-overhead.
+                    </p>
+
+                    {/* Optional population-based electricity demand on the substations */}
+                    <div className="pt-1.5 border-t border-slate-100">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-medium text-slate-600">Add estimated demand</span>
+                        <button
+                          type="button" role="switch" aria-checked={subDemand}
+                          onClick={() => setSubDemand(v => !v)}
+                          className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors ${subDemand ? 'bg-electric-500' : 'bg-slate-300'}`}
+                        >
+                          <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${subDemand ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                        </button>
+                      </div>
+                      {subDemand && (
+                        <div className="mt-1.5 space-y-1.5">
+                          <label className="block">
+                            <span className="block text-[11px] font-medium text-slate-600 mb-1">Per-capita demand (kWh/person·year)</span>
+                            <input
+                              type="number" min="0" value={perCapitaKWh} onChange={e => setPerCapitaKWh(e.target.value)}
+                              className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-electric-400"
+                            />
+                          </label>
+                          <label className="block">
+                            <span className="block text-[11px] font-medium text-slate-600 mb-1">Load shape</span>
+                            <select
+                              value={demandProfile} onChange={e => setDemandProfile(e.target.value)}
+                              className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-electric-400"
+                            >
+                              {Object.entries(DEMAND_PROFILES).map(([k, p]) => (
+                                <option key={k} value={k}>{p.label}</option>
+                              ))}
+                            </select>
+                          </label>
+                          {areaPopulation > 0 ? (
+                            <p className="text-[10px] text-slate-400">
+                              Population {areaPopulation.toLocaleString()} × {Number(perCapitaKWh) || 0} kWh, split across the substations.
+                              {demandProfile === 'flat'
+                                ? ' Flat constant load.'
+                                : ' An hourly timeseries (daily + weekly + seasonal) is generated on import.'}
+                            </p>
+                          ) : (
+                            <p className="text-[10px] text-amber-600">No population found for this area — demand can’t be estimated. Add a place that reports population, or set it later.</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
                     <p className="text-[11px] text-slate-500">
                       Preview: <b>{planSummary?.subNodes ?? 0}</b> substations · <b>{planSummary?.subLinks ?? 0}</b> links
                     </p>
