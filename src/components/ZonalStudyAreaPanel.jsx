@@ -4,7 +4,27 @@ import {
 } from 'react-icons/fi';
 import { useData } from '../context/DataContext';
 import { searchPlaces, fetchGeometries } from '../services/nominatim';
-import { DEMAND_PROFILES } from '../services/demandProfiles';
+import { DEMAND_PROFILES, generateHourlyDemand } from '../services/demandProfiles';
+
+// Tiny dependency-free SVG sparkline for the demand-shape preview.
+function Sparkline({ values, color = '#0369a1', height = 40 }) {
+  if (!values || values.length < 2) return null;
+  const width = 260;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const span = max - min || 1;
+  const n = values.length;
+  const pts = values.map((v, i) => {
+    const x = (i / (n - 1)) * width;
+    const y = height - ((v - min) / span) * (height - 4) - 2;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  return (
+    <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="block">
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
 
 // Network-builder wizard steps (order matters — later steps wire into earlier ones).
 const WIZARD_STEPS = [
@@ -221,6 +241,7 @@ export default function ZonalStudyAreaPanel({
   const [subDemand, setSubDemand] = useState(false);      // estimate demand on substations?
   const [perCapitaKWh, setPerCapitaKWh] = useState('3500'); // kWh/person/year
   const [demandProfile, setDemandProfile] = useState('mixed'); // load-shape preset
+  const [demandWeight, setDemandWeight] = useState('even');    // 'even' | 'voltage'
   const [plantInclude, setPlantInclude] = useState(true);
   const [plantTarget, setPlantTarget] = useState('none'); // 'substation' | 'transmission' | 'none'
   const [plantMaxKm, setPlantMaxKm] = useState('');
@@ -231,16 +252,28 @@ export default function ZonalStudyAreaPanel({
     transmission: { include: txInclude },
     substations: {
       include: subInclude, target: subTarget, maxKm: subMaxKm ? Number(subMaxKm) : 0,
-      demand: { enabled: subDemand, perCapitaKWh: Number(perCapitaKWh) || 0, profile: demandProfile },
+      demand: { enabled: subDemand, perCapitaKWh: Number(perCapitaKWh) || 0, profile: demandProfile, weightBy: demandWeight },
     },
     plants: { include: plantInclude, target: plantTarget, maxKm: plantMaxKm ? Number(plantMaxKm) : 0 },
-  }), [txInclude, subInclude, subTarget, subMaxKm, subDemand, perCapitaKWh, demandProfile, plantInclude, plantTarget, plantMaxKm]);
+  }), [txInclude, subInclude, subTarget, subMaxKm, subDemand, perCapitaKWh, demandProfile, demandWeight, plantInclude, plantTarget, plantMaxKm]);
 
   // Study-area population (from Nominatim extratags) drives the demand estimate.
   const areaPopulation = useMemo(
     () => (studyArea?.units || []).reduce((s, u) => s + (Number(u.population) || 0), 0),
     [studyArea],
   );
+  // Mean latitude of the selected area → hemisphere for the seasonal shape.
+  const areaLat = useMemo(() => {
+    const lats = (studyArea?.units || []).map(u => u.centroid?.[1]).filter(Number.isFinite);
+    return lats.length ? lats.reduce((a, b) => a + b, 0) / lats.length : 0;
+  }, [studyArea]);
+  // A representative (equinox, seasonal≈1) week of the selected shape for preview.
+  const previewCurve = useMemo(() => {
+    if (!subDemand || demandProfile === 'flat') return null;
+    return generateHourlyDemand({
+      startDate: '2024-04-08', endDate: '2024-04-14', profileKey: demandProfile, annualMWh: 8760, latitude: areaLat,
+    }).values;
+  }, [subDemand, demandProfile, areaLat]);
 
   const wizardActive = units.length > 0 && !osmLoading && !boundaryLoading;
 
@@ -559,6 +592,25 @@ export default function ZonalStudyAreaPanel({
                               {Object.entries(DEMAND_PROFILES).map(([k, p]) => (
                                 <option key={k} value={k}>{p.label}</option>
                               ))}
+                            </select>
+                          </label>
+                          {previewCurve && (
+                            <div className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5">
+                              <div className="flex items-center justify-between text-[10px] text-slate-400 mb-0.5">
+                                <span>Shape preview · representative week</span>
+                                <span>Mon–Sun</span>
+                              </div>
+                              <Sparkline values={previewCurve} />
+                            </div>
+                          )}
+                          <label className="block">
+                            <span className="block text-[11px] font-medium text-slate-600 mb-1">Split demand across substations</span>
+                            <select
+                              value={demandWeight} onChange={e => setDemandWeight(e.target.value)}
+                              className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-electric-400"
+                            >
+                              <option value="even">Evenly</option>
+                              <option value="voltage">Weighted by voltage (size proxy)</option>
                             </select>
                           </label>
                           {areaPopulation > 0 ? (

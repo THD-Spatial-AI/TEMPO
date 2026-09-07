@@ -1429,25 +1429,30 @@ const Creation = () => {
           });
         }
       });
-      // Optional: estimate an electricity demand from the study-area population and
-      // split it evenly across the substations (they're the withdrawal points).
+      // Optional: estimate an electricity demand from the study-area population,
+      // split across the substations (evenly, or weighted by voltage as a size
+      // proxy). They're the withdrawal points. A flat scalar is set here; a shaped
+      // timeseries replaces it on commit (commitStudyAreaPlan).
       const dm = su.demand || {};
       if (dm.enabled && subLocs.length) {
         const population = (studyArea?.units || []).reduce((s, u) => s + (Number(u.population) || 0), 0);
         const perCapita = Number(dm.perCapitaKWh) || 0;
         if (population > 0 && perCapita > 0) {
-          // kWh/yr → average MW, then per substation.
-          const perSubMW = (population * perCapita) / 1000 / HOURS_PER_YEAR / subLocs.length;
-          if (perSubMW > 0) {
-            const resource = -Number(perSubMW.toFixed(3));
-            subLocs.forEach(loc => {
+          const totalAvgMW = (population * perCapita) / 1000 / HOURS_PER_YEAR; // kWh/yr → avg MW
+          const byVoltage = (dm.weightBy || 'even') === 'voltage';
+          let weights = subLocs.map(l => (byVoltage ? (Number(l.metadata?.voltageKv) || 0) : 1));
+          if (weights.reduce((a, b) => a + b, 0) <= 0) weights = subLocs.map(() => 1); // no voltages → even
+          const sumW = weights.reduce((a, b) => a + b, 0);
+          subLocs.forEach((loc, i) => {
+            const mw = totalAvgMW * weights[i] / sumW;
+            if (mw > 0) {
               loc.techs.power_demand = {
-                constraints: { resource, force_resource: true },
+                constraints: { resource: -Number(mw.toFixed(4)), force_resource: true },
                 essentials: { carrier: 'electricity' },
-                metadata: { estimatedFromPopulation: true, perCapitaKWh: perCapita, avgMW: -resource },
+                metadata: { estimatedFromPopulation: true, perCapitaKWh: perCapita, avgMW: Number(mw.toFixed(4)) },
               };
-            });
-          }
+            }
+          });
         }
       }
     }
@@ -1536,21 +1541,25 @@ const Creation = () => {
     const demandSubs = plan.locations.filter(l => l.techs?.power_demand?.metadata?.estimatedFromPopulation);
     let demandNote = '';
     if (profileKey !== 'flat' && demandSubs.length) {
-      const avgMW = demandSubs[0].techs.power_demand.metadata.avgMW || 0;
       const latitude = demandSubs.reduce((s, l) => s + (l.latitude || 0), 0) / demandSubs.length;
+      // ONE shared NORMALISED shape (mean ≈ 1). Per-substation magnitude comes from
+      // `resource_scale`, so weighting works with a single light CSV column.
       const { datetimes, values } = generateHourlyDemand({
         startDate: modelConfig.startDate, endDate: modelConfig.endDate,
-        profileKey, annualMWh: avgMW * HOURS_PER_YEAR, latitude,
+        profileKey, annualMWh: HOURS_PER_YEAR, latitude,
       });
       if (values.length) {
         const fileName = 'osm_substation_demand.csv';
-        const col = 'demand';
-        // Negative values = Calliope demand convention. Shared column (even split).
-        const data = datetimes.map((dt, i) => ({ datetime: dt, [col]: -values[i] }));
+        const col = 'shape';
+        const data = datetimes.map((dt, i) => ({ datetime: dt, [col]: values[i] }));
         const tsEntry = { name: fileName, fileName, columns: ['datetime', col], dateColumn: 'datetime', data };
         setTimeSeries(prev => [...(prev || []).filter(t => (t.fileName || t.name) !== fileName), tsEntry]);
         demandSubs.forEach(l => {
-          l.techs.power_demand.constraints = { resource: `file=${fileName}:${col}`, force_resource: true };
+          const mw = l.techs.power_demand.metadata.avgMW || 0;
+          // resource_scale negative → demand = shape × (−avgMW).
+          l.techs.power_demand.constraints = {
+            resource: `file=${fileName}:${col}`, resource_scale: -Number(mw.toFixed(4)), force_resource: true,
+          };
           l.techs.power_demand.metadata = { ...l.techs.power_demand.metadata, profile: profileKey, timeseriesFile: fileName };
         });
         demandNote = ` · generated a ${profileKey} demand timeseries (${values.length} h) on ${demandSubs.length} substations`;
