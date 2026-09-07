@@ -82,7 +82,7 @@ export const createLocationIcon = (location, techMap, cache) => {
     const icon = {
       url: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`
         <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" shape-rendering="geometricPrecision">
-          <path d="M12 4 L20 18 L4 18 Z" fill="${color}" stroke="#000000" stroke-width="1.5"/>
+          <circle cx="12" cy="12" r="10" fill="${color}" stroke="#000000" stroke-width="2"/>
         </svg>
       `)}`,
       width: 32,

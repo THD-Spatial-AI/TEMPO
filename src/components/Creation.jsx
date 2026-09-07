@@ -46,6 +46,17 @@ import SearchBar from './creation/SearchBar';
 import MapZoomControls from './creation/MapZoomControls';
 import TechLibraryPanel from './creation/TechLibraryPanel';
 
+// Colour of each Study Area wizard preview element, keyed by metadata.kind.
+// The transmission mesh is amber (matches the OSM lines); each wiring type gets a
+// DISTINCT colour so you can tell plant→substation from substation→grid at a glance.
+const PLAN_COLORS = {
+  transmission_node: [245, 158, 11], transmission_link: [245, 158, 11], // amber
+  substation: [239, 68, 68], plant: [34, 197, 94],
+  substation_to_transmission: [79, 70, 229],  // indigo
+  plant_to_substation: [219, 39, 119],         // rose
+  plant_to_transmission: [13, 148, 136],       // teal
+};
+
 const Creation = () => {
   const { 
     locations, setLocations, 
@@ -70,6 +81,7 @@ const Creation = () => {
     selectedRegionInfo, setSelectedRegionInfo,
     currentBbox, setCurrentBbox,
     studyArea, setStudyArea,
+    studyBuildConfig, setStudyBuildConfig, setPlanSummary,
     // Mesh generation (from context - persisted)
     generatedMesh, setGeneratedMesh,
     meshVisible, setMeshVisible,
@@ -192,6 +204,29 @@ const Creation = () => {
     powerLines: true,
     boundaries: true
   });
+  // Study Area wizard preview: a { locations, links } plan drawn on the map but
+  // not yet committed to the model. Null when the wizard isn't previewing.
+  const [planPreview, setPlanPreview] = useState(null);
+  // Map geometry for the preview overlay (endpoints resolved from plan node ids).
+  // Declared here (before the Leaflet/deck.gl layer effects that read it).
+  const planPreviewGeo = useMemo(() => {
+    if (!planPreview) return null;
+    const byId = {};
+    planPreview.locations.forEach(l => { byId[l.id] = l; });
+    const nodes = planPreview.locations.map(l => ({
+      position: [l.longitude, l.latitude], kind: l.metadata.kind, name: l.name,
+    }));
+    const links = [];
+    planPreview.links.forEach(k => {
+      const a = byId[k.from]; const b = byId[k.to];
+      if (!a || !b) return;
+      links.push({
+        path: [[a.longitude, a.latitude], [b.longitude, b.latitude]],
+        kind: k.metadata.kind,
+      });
+    });
+    return { nodes, links };
+  }, [planPreview]);
   
   // Sync layerVisibility with showOsmLayers
   useEffect(() => {
@@ -575,6 +610,39 @@ const Creation = () => {
     }).catch(() => { /* leaflet import handled elsewhere */ });
     return () => { cancelled = true; };
   }, [webglAvailable, selectedRegionBoundary, showOsmLayers.boundaries]);
+
+  // Draw the Study Area wizard preview plan on the Leaflet map (its own layer).
+  const leafletPlanPreviewLayerRef = useRef(null);
+  useEffect(() => {
+    if (webglAvailable !== false) return undefined;
+    let cancelled = false;
+    import('leaflet').then(({ default: L }) => {
+      const map = leafletMapRef.current;
+      if (cancelled || !map) return;
+      if (leafletPlanPreviewLayerRef.current) {
+        leafletPlanPreviewLayerRef.current.remove();
+        leafletPlanPreviewLayerRef.current = null;
+      }
+      if (!planPreviewGeo) return;
+      const rgb = c => `rgb(${(c || [148, 163, 184]).join(',')})`;
+      const group = L.layerGroup();
+      planPreviewGeo.links.forEach(k => {
+        L.polyline(k.path.map(([lon, lat]) => [lat, lon]), {
+          color: rgb(PLAN_COLORS[k.kind]), weight: 3, opacity: 0.95,
+        }).addTo(group);
+      });
+      // Only the new transmission junctions get a dot; substation/plant nodes sit
+      // on the existing OSM markers.
+      planPreviewGeo.nodes.filter(n => n.kind === 'transmission_node').forEach(n => {
+        L.circleMarker([n.position[1], n.position[0]], {
+          radius: 3.5, color: rgb(PLAN_COLORS[n.kind]), weight: 2, fillColor: '#fff', fillOpacity: 0.95,
+        }).addTo(group);
+      });
+      group.addTo(map);
+      leafletPlanPreviewLayerRef.current = group;
+    }).catch(() => { /* leaflet import handled elsewhere */ });
+    return () => { cancelled = true; };
+  }, [webglAvailable, planPreviewGeo]);
 
   // Draw OSM power layers on the Leaflet fallback map (the deck.gl path renders
   // them via its own layers). Without this, Leaflet-mode users saw the boundary
@@ -1216,11 +1284,17 @@ const Creation = () => {
     );
   }, [generatedMesh, showNotification, locationManager]);
 
-  // Import the whole study area into the model: the selected layer types
-  // (plants / substations / lines), respecting the current voltage-level and
-  // type filters. Plants & substations → editable locations; lines → a
-  // node+link mesh. `sel` = { plants, substations, lines } booleans.
-  const handleImportStudyArea = useCallback((sel = {}) => {
+  // Staged network builder driven by the Study Area wizard. Builds a CONNECTED
+  // network plan (nodes + links) from the live dropdown-filtered layers, WITHOUT
+  // touching the model — the wizard previews it on the map and only commits at
+  // the end. `config` = { transmission:{include}, substations:{include,target,maxKm},
+  // plants:{include,target,maxKm} }. Categories (voltages / substation types /
+  // plant sources) come from the filters already applied to linesForDisplay /
+  // filteredSubstations / filteredPowerPlants.
+  //   substations.target: 'transmission' | 'none'
+  //   plants.target:      'substation' | 'transmission' | 'none'
+  //   *.maxKm:            skip a connection if the nearest target is farther (0/undef = no limit)
+  const buildStudyAreaPlan = useCallback((config = {}) => {
     // Representative point [lon,lat] for a geometry (node or area).
     const repPoint = (geom) => {
       if (!geom) return null;
@@ -1232,13 +1306,106 @@ const Creation = () => {
       const s = flat.reduce((a, p) => [a[0] + p[0], a[1] + p[1]], [0, 0]);
       return [s[0] / flat.length, s[1] / flat.length];
     };
+    // Nearest node in `arr` ({ id, name, lat, lon }) within maxKm, or null.
+    const nearestWithin = (lat, lon, arr, maxKm) => {
+      let best = null; let bd = Infinity;
+      for (const n of arr) {
+        const d = calculateDistance(lat, lon, n.lat, n.lon);
+        if (d < bd) { bd = d; best = n; }
+      }
+      if (!best) return null;
+      if (maxKm && bd > maxKm) return null;
+      return { id: best.id, name: best.name, d: bd };
+    };
+    const cap = s => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+
+    const tx = config.transmission || {};
+    const su = config.substations || {};
+    const pl = config.plants || {};
 
     const base = Date.now();
     let seq = 0;
-    const locs = [];
-    let nPlants = 0; let nSubs = 0;
+    const nextId = () => base + (seq++);
+    const locations = [];
+    const links = [];
+    const transNodes = [];  // { id, name, lat, lon }
+    const subNodes = [];    // { id, name, lat, lon }
 
-    if (sel.plants) {
+    // 1) Transmission backbone from the selected voltage lines.
+    if (tx.include !== false && linesForDisplay?.features?.length) {
+      try {
+        const mesh = generatePowerMesh(linesForDisplay, {
+          deduplicationThreshold: 0.5, snapThreshold: 0.5, minVoltage: 0, maxVoltage: 1000,
+        });
+        if (mesh?.success && mesh.nodes?.length) {
+          const nodeIdToLoc = {};
+          let txCounter = 0;
+          mesh.nodes.forEach(node => {
+            const id = nextId();
+            txCounter += 1;
+            // Keep a real OSM name if the mesh found one; otherwise "Grid_node_N".
+            const named = node.name && node.name !== 'Unknown' && !/^Node_/.test(node.name);
+            const name = named ? node.name : `Grid_node_${txCounter}`;
+            nodeIdToLoc[node.id] = id;
+            locations.push({
+              id, name, latitude: node.latitude, longitude: node.longitude,
+              techs: {}, isNode: true,
+              metadata: { fromOSM: true, kind: 'transmission_node', voltage: node.voltage, clusterSize: node.clusterSize },
+            });
+            transNodes.push({ id, name, lat: node.latitude, lon: node.longitude });
+          });
+          mesh.edges.forEach(edge => {
+            const from = nodeIdToLoc[edge.from]; const to = nodeIdToLoc[edge.to];
+            if (from == null || to == null) return;
+            const fromNode = mesh.nodes.find(n => n.id === edge.from);
+            const toNode = mesh.nodes.find(n => n.id === edge.to);
+            const dist = edge.realDistance || edge.distance;
+            links.push({
+              id: nextId(), from, to, fromName: fromNode?.name, toName: toNode?.name,
+              distance: dist.toFixed(2), techs: {},
+              metadata: { kind: 'transmission_link' },
+            });
+          });
+        }
+      } catch (e) {
+        console.error('Line mesh build failed:', e);
+      }
+    }
+
+    // 2) Substations → nodes, connected to the nearest transmission node (if asked).
+    if (su.include !== false) {
+      const target = su.target || 'transmission';
+      let subCounter = 0;
+      (filteredSubstations?.features || []).forEach(f => {
+        const pt = repPoint(f.geometry); if (!pt) return;
+        const grid = f.properties?.substation || 'substation';
+        const id = nextId();
+        subCounter += 1;
+        // Prefer the real OSM name; otherwise an identifier "<what it is>_<n>".
+        const gridLabel = grid && grid !== 'substation' ? `${cap(grid)}_substation` : 'Substation';
+        const name = f.properties?.name || `${gridLabel}_${subCounter}`;
+        locations.push({
+          id, name, latitude: pt[1], longitude: pt[0], techs: {}, isNode: true,
+          metadata: { fromOSM: true, kind: 'substation', grid, voltageKv: f.properties?.voltage_kv ?? null },
+        });
+        subNodes.push({ id, name, lat: pt[1], lon: pt[0] });
+        if (target === 'transmission' && transNodes.length) {
+          const near = nearestWithin(pt[1], pt[0], transNodes, su.maxKm);
+          if (near) links.push({
+            id: nextId(), from: id, to: near.id, fromName: name, toName: near.name,
+            distance: near.d.toFixed(2), techs: {},
+            metadata: { kind: 'substation_to_transmission' },
+          });
+        }
+      });
+    }
+
+    // 3) Plants → nodes, connected to the nearest substation / transmission node.
+    if (pl.include !== false) {
+      const target = pl.target || 'substation';
+      const anchors = target === 'transmission' ? transNodes : target === 'substation' ? subNodes : [];
+      const linkKind = target === 'transmission' ? 'plant_to_transmission' : 'plant_to_substation';
+      let plantCounter = 0;
       (filteredPowerPlants?.features || []).forEach(f => {
         const pt = repPoint(f.geometry); if (!pt) return;
         const src = f.properties?.plant_source || parseSource(f.properties);
@@ -1252,54 +1419,65 @@ const Creation = () => {
             metadata: { fromOSM: true, source: src, estimated: capMW == null },
           };
         }
-        locs.push({
-          id: base + (seq++), name: f.properties?.name || `${src} plant`,
-          latitude: pt[1], longitude: pt[0], techs, isNode: false,
+        const id = nextId();
+        plantCounter += 1;
+        // Prefer the real OSM name; otherwise an identifier "<source>_plant_<n>".
+        const srcLabel = src && src !== 'unknown' ? cap(src) : 'Unknown';
+        const name = f.properties?.name || `${srcLabel}_plant_${plantCounter}`;
+        locations.push({
+          id, name, latitude: pt[1], longitude: pt[0], techs, isNode: false,
           metadata: { fromOSM: true, kind: 'plant', source: src, capacityMW: capMW },
         });
-        nPlants++;
-      });
-    }
-
-    if (sel.substations) {
-      (filteredSubstations?.features || []).forEach(f => {
-        const pt = repPoint(f.geometry); if (!pt) return;
-        const grid = f.properties?.substation || 'substation';
-        locs.push({
-          id: base + (seq++), name: f.properties?.name || `${grid} substation`,
-          latitude: pt[1], longitude: pt[0], techs: {}, isNode: true,
-          metadata: { fromOSM: true, kind: 'substation', grid, voltageKv: f.properties?.voltage_kv ?? null },
-        });
-        nSubs++;
-      });
-    }
-
-    if (locs.length) locationManager.importMultipleLocations(locs);
-
-    let nLinks = 0;
-    if (sel.lines && linesForDisplay?.features?.length) {
-      try {
-        const result = generatePowerMesh(linesForDisplay, {
-          deduplicationThreshold: 0.5, snapThreshold: 0.5, minVoltage: 0, maxVoltage: 1000,
-        });
-        if (result?.success && result.nodes?.length) {
-          importMeshAsLocations(result); // node+link mesh from the lines
-          nLinks = result.edges?.length || 0;
+        if (anchors.length) {
+          const near = nearestWithin(pt[1], pt[0], anchors, pl.maxKm);
+          if (near) links.push({
+            id: nextId(), from: id, to: near.id, fromName: name, toName: near.name,
+            distance: near.d.toFixed(2), techs: {},
+            metadata: { kind: linkKind },
+          });
         }
-      } catch (e) {
-        console.error('Line mesh import failed:', e);
-      }
+      });
     }
 
-    const parts = [];
-    if (nPlants) parts.push(`${nPlants} plants`);
-    if (nSubs) parts.push(`${nSubs} substations`);
-    if (nLinks) parts.push(`${nLinks} links (from lines)`);
-    showNotification(
-      parts.length ? `Imported ${parts.join(', ')} into the model.` : 'Nothing selected to import.',
-      parts.length ? 'success' : 'warning',
-    );
-  }, [filteredPowerPlants, filteredSubstations, linesForDisplay, locationManager, importMeshAsLocations, showNotification]);
+    return { locations, links };
+  }, [linesForDisplay, filteredSubstations, filteredPowerPlants]);
+
+  // Wizard: recompute the preview plan + per-layer counts whenever the wizard
+  // config OR the underlying dropdown-filtered layers change. The panel writes
+  // `studyBuildConfig` into context; here we build the plan (drawn on the map,
+  // not yet committed) and publish `planSummary` back for the panel to show.
+  useEffect(() => {
+    if (!studyBuildConfig) { setPlanPreview(null); setPlanSummary(null); return; }
+    const plan = buildStudyAreaPlan(studyBuildConfig);
+    setPlanPreview((plan.locations.length || plan.links.length) ? plan : null);
+    const c = { txNodes: 0, txLinks: 0, subNodes: 0, subLinks: 0, plantNodes: 0, plantLinks: 0 };
+    for (const l of plan.locations) {
+      if (l.metadata.kind === 'transmission_node') c.txNodes++;
+      else if (l.metadata.kind === 'substation') c.subNodes++;
+      else if (l.metadata.kind === 'plant') c.plantNodes++;
+    }
+    for (const k of plan.links) {
+      if (k.metadata.kind === 'transmission_link') c.txLinks++;
+      else if (k.metadata.kind === 'substation_to_transmission') c.subLinks++;
+      else c.plantLinks++;
+    }
+    setPlanSummary(c);
+  }, [studyBuildConfig, buildStudyAreaPlan, setPlanSummary]);
+
+  // Wizard: commit the previewed plan into the model (final step) and reset.
+  const commitStudyAreaPlan = useCallback(() => {
+    const plan = planPreview;
+    if (!plan || !plan.locations.length) {
+      showNotification('Nothing to import — every step was skipped or empty.', 'warning');
+      return;
+    }
+    locationManager.importMultipleLocations(plan.locations);
+    if (plan.links.length) locationManager.importMultipleLinks(plan.links);
+    setPlanPreview(null);
+    setPlanSummary(null);
+    setStudyBuildConfig(null);
+    showNotification(`Imported ${plan.locations.length} nodes and ${plan.links.length} links into the model.`, 'success');
+  }, [planPreview, locationManager, showNotification, setPlanSummary, setStudyBuildConfig]);
 
   // Add a neighbouring admin unit (hovered/clicked on the map) to the study area.
   // The panel's unitsKey effect then reloads the boundary + grid for the union.
@@ -1534,7 +1712,7 @@ const Creation = () => {
   useEffect(() => {
     window.generateMeshFromLines = generateMeshFromLines;
     window.importMeshAsLocations = importMeshAsLocations;
-    window.importStudyArea = handleImportStudyArea;
+    window.commitStudyAreaPlan = commitStudyAreaPlan;
     window.exportMesh = exportMesh;
     window.toggleMeshVisibility = () => setMeshVisible(prev => !prev);
     window.clearMesh = () => {
@@ -1560,14 +1738,14 @@ const Creation = () => {
     return () => {
       delete window.generateMeshFromLines;
       delete window.importMeshAsLocations;
-      delete window.importStudyArea;
+      delete window.commitStudyAreaPlan;
       delete window.exportMesh;
       delete window.toggleMeshVisibility;
       delete window.clearMesh;
       delete window.generatedMeshExists;
       delete window.meshStatistics;
     };
-  }, [generateMeshFromLines, importMeshAsLocations, handleImportStudyArea, exportMesh, generatedMesh, showNotification]);
+  }, [generateMeshFromLines, importMeshAsLocations, commitStudyAreaPlan, exportMesh, generatedMesh, showNotification]);
 
   // Remove edge from mesh
   const removeMeshEdge = useCallback((edgeId) => {
@@ -1964,8 +2142,13 @@ const Creation = () => {
                   data: locationManager.tempLocations,
                   getPosition: d => [d.longitude, d.latitude],
                   getIcon: d => createLocationIcon(d, techMap, iconCache.current),
-                  getSize: 40,
+                  // Zoom-adaptive in PIXELS: small & non-overlapping when zoomed out
+                  // (~6px), growing as you zoom in (~30px). Works for any region size
+                  // (a metres footprint would pin to max on small areas). updateTriggers
+                  // forces a recompute whenever the zoom changes.
+                  getSize: () => Math.max(6, Math.min(30, (viewState.zoom - 5) * 3)),
                   sizeUnits: 'pixels',
+                  updateTriggers: { getSize: viewState.zoom },
                   pickable: true,
                   onClick: (info) => {
                     if (info.object) {
@@ -2109,6 +2292,42 @@ const Creation = () => {
                       setSelectedMeshNode(info.object);
                     }
                   }
+                })
+              ] : []),
+
+              // Study Area wizard preview — plan not yet committed to the model.
+              // Draw the connection wiring clearly (solid, thick); show dots ONLY
+              // for the genuinely-new transmission junctions (substation/plant
+              // nodes sit on the existing OSM markers, so drawing them would just
+              // double up).
+              ...(planPreviewGeo ? [
+                new PathLayer({
+                  id: 'plan-preview-links',
+                  data: planPreviewGeo.links,
+                  getPath: d => d.path,
+                  getColor: d => [...(PLAN_COLORS[d.kind] || [148, 163, 184]), 255],
+                  getWidth: 3,
+                  widthUnits: 'pixels',
+                  widthMinPixels: 2,
+                  capRounded: true,
+                  jointRounded: true,
+                  parameters: { depthTest: false },
+                  updateTriggers: { getColor: planPreviewGeo },
+                }),
+                new ScatterplotLayer({
+                  id: 'plan-preview-nodes',
+                  data: planPreviewGeo.nodes.filter(n => n.kind === 'transmission_node'),
+                  getPosition: d => d.position,
+                  getRadius: 4,
+                  radiusUnits: 'pixels',
+                  radiusMinPixels: 2,
+                  radiusMaxPixels: 7,
+                  getFillColor: [255, 255, 255, 230],
+                  getLineColor: [...PLAN_COLORS.transmission_node, 255],
+                  lineWidthMinPixels: 2,
+                  stroked: true,
+                  parameters: { depthTest: false },
+                  updateTriggers: { data: planPreviewGeo },
                 })
               ] : [])
             ]}

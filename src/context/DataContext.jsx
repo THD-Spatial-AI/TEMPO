@@ -169,6 +169,10 @@ export const DataProvider = ({ children }) => {
   // Zonal Study Area (boundary-driven selection, persisted with the model)
   // Shape: { units: [{ id, name, level }], voltageThreshold } | null
   const [studyArea, setStudyArea] = useState(null);
+  // Study Area network-builder wizard (transient, NOT persisted): the current
+  // build config drives a live map preview; planSummary holds per-layer counts.
+  const [studyBuildConfig, setStudyBuildConfig] = useState(null);
+  const [planSummary, setPlanSummary] = useState(null);
 
   // Generated mesh data (persisted across navigation)
   const [generatedMesh, setGeneratedMesh] = useState(null);
@@ -753,6 +757,8 @@ export const DataProvider = ({ children }) => {
     selectedCommune, setSelectedCommune,
     // Zonal study area (boundary-driven)
     studyArea, setStudyArea,
+    studyBuildConfig, setStudyBuildConfig,
+    planSummary, setPlanSummary,
     // Mesh generation
     generatedMesh, setGeneratedMesh,
     meshVisible, setMeshVisible,

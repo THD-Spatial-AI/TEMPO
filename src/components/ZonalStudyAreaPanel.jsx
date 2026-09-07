@@ -1,9 +1,16 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
-  FiMapPin, FiPlus, FiX, FiSearch, FiLayers, FiLoader, FiCheck, FiDownload, FiChevronDown,
+  FiMapPin, FiPlus, FiX, FiSearch, FiLayers, FiLoader, FiCheck, FiChevronDown,
 } from 'react-icons/fi';
 import { useData } from '../context/DataContext';
 import { searchPlaces, fetchGeometries } from '../services/nominatim';
+
+// Network-builder wizard steps (order matters — later steps wire into earlier ones).
+const WIZARD_STEPS = [
+  { key: 'transmission', label: 'Transmission network', color: '#f59e0b' },
+  { key: 'substations', label: 'Substations', color: '#ef4444' },
+  { key: 'plants', label: 'Power plants', color: '#22c55e' },
+];
 
 // Compact multi-select dropdown: a button ("Label · 2/3 ▾") that opens a checklist.
 function CategoryDropdown({ label, color, options, selected, onToggle, onSetAll }) {
@@ -49,6 +56,64 @@ function CategoryDropdown({ label, color, options, selected, onToggle, onSetAll 
   );
 }
 
+// Step title row with an include/skip switch.
+function StepHeader({ label, desc, include, onToggle }) {
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-semibold text-slate-800">{label}</span>
+        <button
+          type="button" role="switch" aria-checked={include} onClick={onToggle}
+          className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors ${include ? 'bg-electric-500' : 'bg-slate-300'}`}
+          title={include ? 'Included — click to skip' : 'Skipped — click to include'}
+        >
+          <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${include ? 'translate-x-4' : 'translate-x-0.5'}`} />
+        </button>
+      </div>
+      <p className="text-[11px] text-slate-500 mt-0.5">{include ? desc : 'Skipped — this layer won’t be built.'}</p>
+    </div>
+  );
+}
+
+// "Connect each X to …" dropdown. options = [[value, label], …].
+function TargetSelect({ label, value, onChange, options }) {
+  return (
+    <label className="block">
+      <span className="block text-[11px] font-medium text-slate-600 mb-1">{label}</span>
+      <select
+        value={value} onChange={e => onChange(e.target.value)}
+        className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-electric-400"
+      >
+        {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+      </select>
+    </label>
+  );
+}
+
+// One entry in the preview colour legend (a short coloured bar + label).
+function LegendItem({ color, label }) {
+  return (
+    <span className="inline-flex items-center gap-1 text-[10px] text-slate-500">
+      <span className="inline-block w-3.5 h-[3px] rounded-full" style={{ backgroundColor: color }} />
+      {label}
+    </span>
+  );
+}
+
+// Optional max-connection-distance input (km). Empty = no limit.
+function MaxKmField({ value, onChange }) {
+  return (
+    <label className="block">
+      <span className="block text-[11px] font-medium text-slate-600 mb-1">Max connection distance (km)</span>
+      <input
+        type="number" min="0" value={value} onChange={e => onChange(e.target.value)}
+        placeholder="no limit"
+        className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-electric-400"
+      />
+    </label>
+  );
+}
+
 // Union bbox of the selected territories (drives the map view + data fetch).
 function unionBbox(units) {
   let out = null;
@@ -74,6 +139,7 @@ export default function ZonalStudyAreaPanel({
   const {
     studyArea, setStudyArea,
     osmLoading, osmLoadingStage, osmPowerLines, osmSubstations, osmPowerPlants,
+    setStudyBuildConfig, planSummary,
   } = useData();
   const plantCount = osmPowerPlants?.features?.length ?? 0;
 
@@ -143,6 +209,34 @@ export default function ZonalStudyAreaPanel({
   const abortRef = useRef(null);
 
   const units = studyArea?.units || [];
+
+  // ── Network-builder wizard (stepped; commit at end) ──────────────────────
+  const [step, setStep] = useState(0);
+  const [txInclude, setTxInclude] = useState(true);
+  const [subInclude, setSubInclude] = useState(true);
+  // Connections are OPT-IN: default to "don't connect" so nothing is auto-wired.
+  const [subTarget, setSubTarget] = useState('none'); // 'transmission' | 'none'
+  const [subMaxKm, setSubMaxKm] = useState('');
+  const [plantInclude, setPlantInclude] = useState(true);
+  const [plantTarget, setPlantTarget] = useState('none'); // 'substation' | 'transmission' | 'none'
+  const [plantMaxKm, setPlantMaxKm] = useState('');
+
+  // Only the connection choices live here; the categories (voltages / sub types /
+  // plant sources) flow through the dropdown filters, which Creation reads live.
+  const wizardConfig = useMemo(() => ({
+    transmission: { include: txInclude },
+    substations: { include: subInclude, target: subTarget, maxKm: subMaxKm ? Number(subMaxKm) : 0 },
+    plants: { include: plantInclude, target: plantTarget, maxKm: plantMaxKm ? Number(plantMaxKm) : 0 },
+  }), [txInclude, subInclude, subTarget, subMaxKm, plantInclude, plantTarget, plantMaxKm]);
+
+  const wizardActive = units.length > 0 && !osmLoading && !boundaryLoading;
+
+  // Publish the config to context so Creation rebuilds the live map preview.
+  useEffect(() => {
+    setStudyBuildConfig(wizardActive ? wizardConfig : null);
+  }, [wizardActive, wizardConfig, setStudyBuildConfig]);
+  // Clear the preview when leaving the panel.
+  useEffect(() => () => setStudyBuildConfig(null), [setStudyBuildConfig]);
 
   // Default-select the transmission levels (≥110 kV) once the grid loads; the
   // user can toggle any detected level on/off.
@@ -352,41 +446,137 @@ export default function ZonalStudyAreaPanel({
         </div>
       )}
 
-      {/* Layers & categories — dropdown per parameter; drives display + import */}
-      {units.length > 0 && !osmLoading && !boundaryLoading && (
-        <div className="rounded-lg border border-slate-200 px-3 py-2.5 space-y-2">
-          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Layers &amp; categories</span>
-          <div className="space-y-1.5">
-            <CategoryDropdown
-              label="Transmission lines" color="#f59e0b"
-              options={levels.map(kv => ({ value: kv, label: `${kv} kV` }))}
-              selected={selectedLevels}
-              onToggle={toggleLevel} onSetAll={setAllLevels}
-            />
-            <CategoryDropdown
-              label="Substations" color="#ef4444"
-              options={subTypes.map(t => ({ value: t, label: cap(t) }))}
-              selected={substationFilters?.selectedTypes || []}
-              onToggle={toggleSubType} onSetAll={setAllSubTypes}
-            />
-            <CategoryDropdown
-              label="Power plants" color="#22c55e"
-              options={plantSources.map(s => ({ value: s, label: cap(s) }))}
-              selected={powerPlantFilters?.selectedSources || []}
-              onToggle={togglePlantSource} onSetAll={setAllPlantSources}
-            />
+      {/* Network builder — stepped wizard. Each step previews live on the map;
+          nothing is committed until "Import all" on the last step. */}
+      {wizardActive && (
+        <div className="rounded-lg border border-slate-200 overflow-hidden">
+          {/* Step progress (clickable to jump) */}
+          <div className="flex items-center gap-1 px-3 py-2 bg-slate-50 border-b border-slate-200">
+            {WIZARD_STEPS.map((s, i) => (
+              <React.Fragment key={s.key}>
+                <button
+                  onClick={() => setStep(i)}
+                  className={`flex items-center gap-1.5 ${i === step ? 'text-slate-900' : 'text-slate-400 hover:text-slate-600'}`}
+                >
+                  <span
+                    className="w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center flex-shrink-0"
+                    style={{ background: i === step ? s.color : '#e2e8f0', color: i === step ? '#fff' : '#64748b' }}
+                  >{i + 1}</span>
+                  {i === step && <span className="text-[11px] font-semibold">{s.label}</span>}
+                </button>
+                {i < WIZARD_STEPS.length - 1 && <span className="text-slate-300 text-xs">›</span>}
+              </React.Fragment>
+            ))}
           </div>
-          <button
-            onClick={() => window.importStudyArea?.({
-              plants: (powerPlantFilters?.selectedSources || []).length > 0,
-              substations: (substationFilters?.selectedTypes || []).length > 0,
-              lines: (selectedLevels || []).length > 0,
-            })}
-            className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-semibold rounded-lg bg-slate-800 text-white hover:bg-slate-900 transition-colors"
-          >
-            <FiDownload size={14} /> Import study area to model
-          </button>
-          <p className="text-[10px] text-slate-400">Pick the types per layer. The map &amp; import use your selection.</p>
+
+          <div className="p-3 space-y-2.5">
+            {step === 0 && (
+              <>
+                <StepHeader
+                  label="Transmission network"
+                  desc="TEMPO meshes the OpenStreetMap power lines into grid nodes + links (unchanged)."
+                  include={txInclude} onToggle={() => setTxInclude(v => !v)}
+                />
+                {txInclude && (
+                  <>
+                    <CategoryDropdown
+                      label="Voltage levels" color="#f59e0b"
+                      options={levels.map(kv => ({ value: kv, label: `${kv} kV` }))}
+                      selected={selectedLevels} onToggle={toggleLevel} onSetAll={setAllLevels}
+                    />
+                    <p className="text-[11px] text-slate-500">
+                      Preview: <b>{planSummary?.txNodes ?? 0}</b> nodes · <b>{planSummary?.txLinks ?? 0}</b> links
+                    </p>
+                  </>
+                )}
+              </>
+            )}
+
+            {step === 1 && (
+              <>
+                <StepHeader
+                  label="Substations"
+                  desc="Import substations. Optionally wire each to the nearest grid node."
+                  include={subInclude} onToggle={() => setSubInclude(v => !v)}
+                />
+                {subInclude && (
+                  <>
+                    <CategoryDropdown
+                      label="Types" color="#ef4444"
+                      options={subTypes.map(t => ({ value: t, label: cap(t) }))}
+                      selected={substationFilters?.selectedTypes || []}
+                      onToggle={toggleSubType} onSetAll={setAllSubTypes}
+                    />
+                    <TargetSelect
+                      label="Wire each substation to" value={subTarget} onChange={setSubTarget}
+                      options={[['none', "Don't connect (import as-is)"], ['transmission', 'Nearest transmission node']]}
+                    />
+                    {subTarget !== 'none' && <MaxKmField value={subMaxKm} onChange={setSubMaxKm} />}
+                    <p className="text-[11px] text-slate-500">
+                      Preview: <b>{planSummary?.subNodes ?? 0}</b> substations · <b>{planSummary?.subLinks ?? 0}</b> links
+                    </p>
+                  </>
+                )}
+              </>
+            )}
+
+            {step === 2 && (
+              <>
+                <StepHeader
+                  label="Power plants"
+                  desc="Import plants. Optionally wire each to the nearest substation or grid node."
+                  include={plantInclude} onToggle={() => setPlantInclude(v => !v)}
+                />
+                {plantInclude && (
+                  <>
+                    <CategoryDropdown
+                      label="Sources" color="#22c55e"
+                      options={plantSources.map(s => ({ value: s, label: cap(s) }))}
+                      selected={powerPlantFilters?.selectedSources || []}
+                      onToggle={togglePlantSource} onSetAll={setAllPlantSources}
+                    />
+                    <TargetSelect
+                      label="Wire each plant to" value={plantTarget} onChange={setPlantTarget}
+                      options={[['none', "Don't connect (import as-is)"], ['substation', 'Nearest substation'], ['transmission', 'Nearest transmission node']]}
+                    />
+                    {plantTarget !== 'none' && <MaxKmField value={plantMaxKm} onChange={setPlantMaxKm} />}
+                    <p className="text-[11px] text-slate-500">
+                      Preview: <b>{planSummary?.plantNodes ?? 0}</b> plants · <b>{planSummary?.plantLinks ?? 0}</b> links
+                    </p>
+                  </>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Footer: Back / Next / Import */}
+          <div className="flex items-center justify-between gap-2 px-3 py-2.5 bg-slate-50 border-t border-slate-200">
+            <button
+              onClick={() => setStep(s => Math.max(0, s - 1))} disabled={step === 0}
+              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg text-slate-600 hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed"
+            >◂ Back</button>
+            {step < WIZARD_STEPS.length - 1 ? (
+              <button
+                onClick={() => setStep(s => Math.min(WIZARD_STEPS.length - 1, s + 1))}
+                className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-800 text-white hover:bg-slate-900"
+              >Next ▸</button>
+            ) : (
+              <button
+                onClick={() => { window.commitStudyAreaPlan?.(); setStep(0); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-electric-600 text-white hover:bg-electric-700"
+              ><FiCheck size={14} /> Import all</button>
+            )}
+          </div>
+          {/* Colour legend for whatever wiring is currently chosen */}
+          <div className="px-3 pt-1.5 flex flex-wrap gap-x-3 gap-y-1">
+            {txInclude && <LegendItem color="#f59e0b" label="Transmission grid" />}
+            {subInclude && subTarget !== 'none' && <LegendItem color="#4f46e5" label="Substation → grid" />}
+            {plantInclude && plantTarget === 'substation' && <LegendItem color="#db2777" label="Plant → substation" />}
+            {plantInclude && plantTarget === 'transmission' && <LegendItem color="#0d9488" label="Plant → grid" />}
+          </div>
+          <p className="px-3 pb-2 pt-1 text-[10px] text-slate-400">
+            The coloured lines on the map are a live preview of the wiring you chose — nothing is added to the model until you press Import.
+          </p>
         </div>
       )}
     </div>
