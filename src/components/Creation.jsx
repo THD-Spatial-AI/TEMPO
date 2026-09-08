@@ -29,7 +29,7 @@ import { fetchPowerLayers, fetchNeighborCandidates } from '../services/overpassC
 import { fetchGeometries } from '../services/nominatim';
 import { parseSource, parseCapacityMW, parseVoltageKv } from '../services/zonalInfraExtract';
 import { OSM_SOURCE_TO_TECH } from '../services/zonalModelBuilder';
-import { generateHourlyDemand } from '../services/demandProfiles';
+import { getDemandShape } from '../services/demandlibClient';
 
 // Import new custom hooks
 import { useLocationManager } from '../hooks/useLocationManager';
@@ -401,6 +401,7 @@ const Creation = () => {
     calliopeVersion: '0.6.8',
     startDate: '2024-01-01',
     endDate: '2024-12-31',
+    resolution: '60min',
     solver: 'highs',
     ensureFeasibility: true,
     cyclicStorage: false,
@@ -1188,6 +1189,7 @@ const Creation = () => {
           calliopeVersion: modelConfig.calliopeVersion,
           startDate: modelConfig.startDate,
           endDate: modelConfig.endDate,
+          resolution: modelConfig.resolution,
           solver: modelConfig.solver,
           ensureFeasibility: modelConfig.ensureFeasibility,
           cyclicStorage: modelConfig.cyclicStorage,
@@ -1522,7 +1524,7 @@ const Creation = () => {
   }, [studyBuildConfig, buildStudyAreaPlan, setPlanSummary]);
 
   // Wizard: commit the previewed plan into the model (final step) and reset.
-  const commitStudyAreaPlan = useCallback(() => {
+  const commitStudyAreaPlan = useCallback(async () => {
     const plan = planPreview;
     if (!plan || !plan.locations.length) {
       showNotification('Nothing to import — every step was skipped or empty.', 'warning');
@@ -1534,35 +1536,59 @@ const Creation = () => {
       setTechnologies(prev => [...prev, SUBSTATION_TECH_DEF]);
     }
 
-    // If a non-flat demand shape was chosen, turn each substation's flat demand
-    // into a generated hourly timeseries (daily + weekly + seasonal) written as a
-    // persistent CSV the model references via `resource: file=…`.
-    const profileKey = studyBuildConfig?.substations?.demand?.profile || 'flat';
+    // Turn the substation demand into a generated timeseries when a non-flat load
+    // shape (or sector mix) was chosen. The shape comes from demandlib (BDEW SLPs)
+    // when installed, else a synthetic fallback — both NORMALISED (mean ≈ 1). We
+    // write ABSOLUTE demand (shape × avgMW, negative MW) so every engine that
+    // resolves a `file=` ref gets the right magnitude without engine-specific
+    // scaling; substations sharing a magnitude share one CSV column (even split →
+    // 1 column; voltage split → a few).
+    const demandCfg = studyBuildConfig?.substations?.demand || {};
+    const sectors = demandCfg.sectors && Object.keys(demandCfg.sectors).length
+      ? demandCfg.sectors
+      : (demandCfg.profile && demandCfg.profile !== 'flat' ? { [demandCfg.profile]: 1 } : null);
+    const resolution = demandCfg.resolution || modelConfig.resolution || '60min';
     const demandSubs = plan.locations.filter(l => l.techs?.power_demand?.metadata?.estimatedFromPopulation);
     let demandNote = '';
-    if (profileKey !== 'flat' && demandSubs.length) {
+    if (sectors && demandSubs.length) {
       const latitude = demandSubs.reduce((s, l) => s + (l.latitude || 0), 0) / demandSubs.length;
-      // ONE shared NORMALISED shape (mean ≈ 1). Per-substation magnitude comes from
-      // `resource_scale`, so weighting works with a single light CSV column.
-      const { datetimes, values } = generateHourlyDemand({
-        startDate: modelConfig.startDate, endDate: modelConfig.endDate,
-        profileKey, annualMWh: HOURS_PER_YEAR, latitude,
+      const { datetimes, values, source } = await getDemandShape({
+        start: modelConfig.startDate, end: modelConfig.endDate,
+        resolution, sectors, country: demandCfg.country, latitude,
       });
-      if (values.length) {
+      if (values?.length) {
         const fileName = 'osm_substation_demand.csv';
-        const col = 'shape';
-        const data = datetimes.map((dt, i) => ({ datetime: dt, [col]: values[i] }));
-        const tsEntry = { name: fileName, fileName, columns: ['datetime', col], dateColumn: 'datetime', data };
-        setTimeSeries(prev => [...(prev || []).filter(t => (t.fileName || t.name) !== fileName), tsEntry]);
-        demandSubs.forEach(l => {
-          const mw = l.techs.power_demand.metadata.avgMW || 0;
-          // resource_scale negative → demand = shape × (−avgMW).
-          l.techs.power_demand.constraints = {
-            resource: `file=${fileName}:${col}`, resource_scale: -Number(mw.toFixed(4)), force_resource: true,
-          };
-          l.techs.power_demand.metadata = { ...l.techs.power_demand.metadata, profile: profileKey, timeseriesFile: fileName };
+        // Group substations by rounded avg-MW so identical magnitudes share a column.
+        const groups = new Map(); // key → { col, mw }
+        const colFor = (mw) => {
+          const key = Number(mw).toPrecision(3);
+          if (!groups.has(key)) groups.set(key, { col: `dem_${groups.size + 1}`, mw: Number(mw) });
+          return groups.get(key).col;
+        };
+        const colBySub = demandSubs.map(l => colFor(l.techs.power_demand.metadata.avgMW || 0));
+        const groupCols = [...groups.values()];
+        const columns = ['datetime', ...groupCols.map(g => g.col)];
+        const data = datetimes.map((dt, i) => {
+          const row = { datetime: dt };
+          for (const g of groupCols) row[g.col] = Number((-(values[i] * g.mw)).toFixed(4)); // negative MW
+          return row;
         });
-        demandNote = ` · generated a ${profileKey} demand timeseries (${values.length} h) on ${demandSubs.length} substations`;
+        const tsEntry = {
+          name: 'osm_substation_demand', fileName,
+          columns, dateColumn: 'datetime', dataColumns: groupCols.map(g => g.col), data,
+        };
+        setTimeSeries(prev => [...(prev || []).filter(t => (t.fileName || t.name) !== fileName), tsEntry]);
+        demandSubs.forEach((l, i) => {
+          // Absolute series → no resource_scale (portable across Calliope & PyPSA).
+          l.techs.power_demand.constraints = { resource: `file=${fileName}:${colBySub[i]}`, force_resource: true };
+          l.techs.power_demand.metadata = {
+            ...l.techs.power_demand.metadata, sectors, source, resolution, timeseriesFile: fileName,
+          };
+        });
+        // Record the resolution on the model so later timeseries share it.
+        if (modelConfig.resolution !== resolution) setModelConfig(prev => ({ ...prev, resolution }));
+        const nCols = groupCols.length;
+        demandNote = ` · generated a ${source} demand timeseries (${values.length} steps, ${nCols} column${nCols > 1 ? 's' : ''}) on ${demandSubs.length} substations`;
       }
     }
 
@@ -1572,7 +1598,7 @@ const Creation = () => {
     setPlanSummary(null);
     setStudyBuildConfig(null);
     showNotification(`Imported ${plan.locations.length} nodes and ${plan.links.length} links into the model${demandNote}.`, 'success');
-  }, [planPreview, locationManager, showNotification, setPlanSummary, setStudyBuildConfig, technologies, setTechnologies, studyBuildConfig, modelConfig, setTimeSeries]);
+  }, [planPreview, locationManager, showNotification, setPlanSummary, setStudyBuildConfig, technologies, setTechnologies, studyBuildConfig, modelConfig, setModelConfig, setTimeSeries]);
 
   // Add a neighbouring admin unit (hovered/clicked on the map) to the study area.
   // The panel's unitsKey effect then reloads the boundary + grid for the union.

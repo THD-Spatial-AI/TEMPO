@@ -1,10 +1,14 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
   FiMapPin, FiPlus, FiX, FiSearch, FiLayers, FiLoader, FiCheck, FiChevronDown,
 } from 'react-icons/fi';
 import { useData } from '../context/DataContext';
 import { searchPlaces, fetchGeometries } from '../services/nominatim';
-import { DEMAND_PROFILES, generateHourlyDemand } from '../services/demandProfiles';
+import { SLP_CATALOGUE } from '../services/demandProfiles';
+import {
+  checkDemandlib, listSlpProfiles, installDemandlib, onDemandInstallProgress,
+  fetchDemandlibShape, syntheticShape,
+} from '../services/demandlibClient';
 
 // Tiny dependency-free SVG sparkline for the demand-shape preview.
 function Sparkline({ values, color = '#0369a1', height = 40 }) {
@@ -32,6 +36,18 @@ const WIZARD_STEPS = [
   { key: 'substations', label: 'Substations', color: '#ef4444' },
   { key: 'plants', label: 'Power plants', color: '#22c55e' },
 ];
+
+// Representative BDEW sectors for the "sector mix" advanced mode.
+const MIX_SECTORS = [
+  { code: 'h0_dyn', label: 'Household' },
+  { code: 'g0', label: 'Commercial' },
+  { code: 'g3', label: 'Industry (24/7)' },
+  { code: 'l0', label: 'Agriculture' },
+];
+
+// Curated holiday-calendar countries (BDEW curves are German → DE default).
+const DEMAND_COUNTRIES = ['DE', 'CL', 'US', 'GB', 'FR', 'ES', 'IT', 'PL', 'NL', 'SE', 'NO', 'DK', 'BR', 'AR', 'MX', 'ZA', 'IN', 'CN', 'AU'];
+const DEMAND_RESOLUTIONS = [['60min', 'Hourly (60 min)'], ['30min', '30 min'], ['15min', '15 min']];
 
 // Compact multi-select dropdown: a button ("Label · 2/3 ▾") that opens a checklist.
 function CategoryDropdown({ label, color, options, selected, onToggle, onSetAll }) {
@@ -240,11 +256,33 @@ export default function ZonalStudyAreaPanel({
   const [subMaxKm, setSubMaxKm] = useState('');
   const [subDemand, setSubDemand] = useState(false);      // estimate demand on substations?
   const [perCapitaKWh, setPerCapitaKWh] = useState('3500'); // kWh/person/year
-  const [demandProfile, setDemandProfile] = useState('mixed'); // load-shape preset
-  const [demandWeight, setDemandWeight] = useState('even');    // 'even' | 'voltage'
+  const [demandProfile, setDemandProfile] = useState('h0_dyn'); // BDEW SLP code (single)
+  const [useMix, setUseMix] = useState(false);                  // sector-mix mode?
+  const [mixWeights, setMixWeights] = useState({ h0_dyn: 50, g0: 35, g3: 10, l0: 5 });
+  const [demandCountry, setDemandCountry] = useState('DE');     // holidays calendar
+  const [demandResolution, setDemandResolution] = useState('60min');
+  const [demandWeight, setDemandWeight] = useState('even');     // 'even' | 'voltage'
+  // demandlib availability + SLP list (renderer falls back to synthetic when absent).
+  const [dlInstalled, setDlInstalled] = useState(false);
+  const [slpCodes, setSlpCodes] = useState(null);
+  const [dlInstalling, setDlInstalling] = useState(false);
+  const [dlInstallMsg, setDlInstallMsg] = useState('');
   const [plantInclude, setPlantInclude] = useState(true);
   const [plantTarget, setPlantTarget] = useState('none'); // 'substation' | 'transmission' | 'none'
   const [plantMaxKm, setPlantMaxKm] = useState('');
+
+  // BDEW SLP sectors for the demand shape: a single code, or a normalised mix.
+  // null = flat / disabled (no timeseries generated).
+  const demandSectors = useMemo(() => {
+    if (!subDemand) return null;
+    if (useMix) {
+      const s = {};
+      for (const [c, w] of Object.entries(mixWeights)) if (Number(w) > 0) s[c] = Number(w);
+      return Object.keys(s).length ? s : null;
+    }
+    return demandProfile === 'flat' ? null : { [demandProfile]: 1 };
+  }, [subDemand, useMix, mixWeights, demandProfile]);
+  const demandSectorsKey = JSON.stringify(demandSectors);
 
   // Only the connection choices live here; the categories (voltages / sub types /
   // plant sources) flow through the dropdown filters, which Creation reads live.
@@ -252,10 +290,13 @@ export default function ZonalStudyAreaPanel({
     transmission: { include: txInclude },
     substations: {
       include: subInclude, target: subTarget, maxKm: subMaxKm ? Number(subMaxKm) : 0,
-      demand: { enabled: subDemand, perCapitaKWh: Number(perCapitaKWh) || 0, profile: demandProfile, weightBy: demandWeight },
+      demand: {
+        enabled: subDemand, perCapitaKWh: Number(perCapitaKWh) || 0, weightBy: demandWeight,
+        profile: demandProfile, sectors: demandSectors, country: demandCountry, resolution: demandResolution,
+      },
     },
     plants: { include: plantInclude, target: plantTarget, maxKm: plantMaxKm ? Number(plantMaxKm) : 0 },
-  }), [txInclude, subInclude, subTarget, subMaxKm, subDemand, perCapitaKWh, demandProfile, demandWeight, plantInclude, plantTarget, plantMaxKm]);
+  }), [txInclude, subInclude, subTarget, subMaxKm, subDemand, perCapitaKWh, demandWeight, demandProfile, demandSectors, demandCountry, demandResolution, plantInclude, plantTarget, plantMaxKm]);
 
   // Study-area population (from Nominatim extratags) drives the demand estimate.
   const areaPopulation = useMemo(
@@ -267,13 +308,69 @@ export default function ZonalStudyAreaPanel({
     const lats = (studyArea?.units || []).map(u => u.centroid?.[1]).filter(Number.isFinite);
     return lats.length ? lats.reduce((a, b) => a + b, 0) / lats.length : 0;
   }, [studyArea]);
-  // A representative (equinox, seasonal≈1) week of the selected shape for preview.
-  const previewCurve = useMemo(() => {
-    if (!subDemand || demandProfile === 'flat') return null;
-    return generateHourlyDemand({
-      startDate: '2024-04-08', endDate: '2024-04-14', profileKey: demandProfile, annualMWh: 8760, latitude: areaLat,
-    }).values;
-  }, [subDemand, demandProfile, areaLat]);
+  // Detect whether demandlib is installed and read its SLP list (once on mount).
+  useEffect(() => {
+    let alive = true;
+    checkDemandlib().then(async ok => {
+      if (!alive) return;
+      setDlInstalled(ok);
+      if (ok) { const codes = await listSlpProfiles(); if (alive && codes) setSlpCodes(codes); }
+    });
+    return () => { alive = false; };
+  }, []);
+
+  // Install demandlib on demand (lazy path), streaming progress to a status line.
+  const handleInstallDemandlib = useCallback(async () => {
+    setDlInstalling(true); setDlInstallMsg('Starting…');
+    const off = onDemandInstallProgress(d => {
+      if (d?.type === 'stage' || d?.type === 'log') setDlInstallMsg(d.label || d.line || '');
+      if (d?.type === 'error') setDlInstallMsg(`Failed: ${d.error}`);
+    });
+    const res = await installDemandlib();
+    off();
+    setDlInstalling(false);
+    if (res?.success) {
+      setDlInstalled(true);
+      const codes = await listSlpProfiles(); if (codes) setSlpCodes(codes);
+      setDlInstallMsg('Installed ✓');
+    } else if (!/Failed:/.test(dlInstallMsg)) {
+      setDlInstallMsg(`Failed: ${res?.error || 'unknown error'}`);
+    }
+  }, [dlInstallMsg]);
+
+  // SLP dropdown options, grouped; restricted to what the installed demandlib
+  // ships when known, else the full static catalogue.
+  const slpOptions = useMemo(() => {
+    const avail = slpCodes ? new Set([...slpCodes, 'flat']) : null;
+    const groups = {};
+    for (const it of SLP_CATALOGUE) {
+      if (avail && !avail.has(it.code)) continue;
+      (groups[it.group] ||= []).push(it);
+    }
+    return groups;
+  }, [slpCodes]);
+
+  // A representative (equinox, seasonal≈1) week of the selected shape for preview:
+  // synthetic instantly, upgraded to the real demandlib curve when installed.
+  const [previewCurve, setPreviewCurve] = useState(null);
+  const [previewSource, setPreviewSource] = useState('synthetic');
+  useEffect(() => {
+    if (!subDemand || !demandSectors) { setPreviewCurve(null); return undefined; }
+    const week = { start: '2024-04-08', end: '2024-04-14', resolution: '60min', sectors: demandSectors };
+    const syn = syntheticShape({ ...week, latitude: areaLat });
+    setPreviewCurve(syn.values);
+    setPreviewSource(dlInstalled ? 'loading' : 'synthetic');
+    if (!dlInstalled) return undefined;
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      const dl = await fetchDemandlibShape({ ...week, country: demandCountry });
+      if (cancelled) return;
+      if (dl?.values?.length) { setPreviewCurve(dl.values); setPreviewSource('demandlib'); }
+      else { setPreviewCurve(syn.values); setPreviewSource('synthetic'); }
+    }, 400);
+    return () => { cancelled = true; clearTimeout(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subDemand, demandSectorsKey, areaLat, dlInstalled, demandCountry]);
 
   const wizardActive = units.length > 0 && !osmLoading && !boundaryLoading;
 
@@ -583,21 +680,89 @@ export default function ZonalStudyAreaPanel({
                               className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-electric-400"
                             />
                           </label>
-                          <label className="block">
-                            <span className="block text-[11px] font-medium text-slate-600 mb-1">Load shape</span>
+                          {/* demandlib install banner (lazy path) */}
+                          {!dlInstalled && (
+                            <div className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 space-y-1">
+                              <p className="text-[10px] text-amber-700">
+                                Using a synthetic approximation. Install BDEW load profiles (demandlib) for real curves.
+                              </p>
+                              <button
+                                type="button" disabled={dlInstalling} onClick={handleInstallDemandlib}
+                                className="w-full px-2 py-1 text-[11px] font-medium rounded-md bg-amber-500 text-white disabled:opacity-60 hover:bg-amber-600"
+                              >
+                                {dlInstalling ? 'Installing…' : 'Install demand profiles'}
+                              </button>
+                              {dlInstallMsg && <p className="text-[9px] text-amber-600 truncate">{dlInstallMsg}</p>}
+                            </div>
+                          )}
+
+                          {/* Single SLP vs sector mix */}
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[11px] font-medium text-slate-600">
+                              {useMix ? 'Sector mix' : 'Load shape (BDEW SLP)'}
+                            </span>
+                            <label className="flex items-center gap-1 text-[10px] text-slate-500">
+                              <input type="checkbox" checked={useMix} onChange={e => setUseMix(e.target.checked)} />
+                              Mix
+                            </label>
+                          </div>
+
+                          {useMix ? (
+                            <div className="space-y-1">
+                              {MIX_SECTORS.map(s => (
+                                <div key={s.code} className="flex items-center gap-2">
+                                  <span className="text-[11px] text-slate-600 w-24">{s.label}</span>
+                                  <input
+                                    type="number" min="0" value={mixWeights[s.code] ?? 0}
+                                    onChange={e => setMixWeights(w => ({ ...w, [s.code]: e.target.value === '' ? 0 : Number(e.target.value) }))}
+                                    className="flex-1 px-2 py-1 text-xs border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-electric-400"
+                                  />
+                                  <span className="text-[10px] text-slate-400 w-4 text-right">%</span>
+                                </div>
+                              ))}
+                              <p className="text-[9px] text-slate-400">Weights are normalised; a 0 drops the sector.</p>
+                            </div>
+                          ) : (
                             <select
                               value={demandProfile} onChange={e => setDemandProfile(e.target.value)}
                               className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-electric-400"
                             >
-                              {Object.entries(DEMAND_PROFILES).map(([k, p]) => (
-                                <option key={k} value={k}>{p.label}</option>
+                              {Object.entries(slpOptions).map(([g, items]) => (
+                                <optgroup key={g} label={g}>
+                                  {items.map(o => <option key={o.code} value={o.code}>{o.label}</option>)}
+                                </optgroup>
                               ))}
                             </select>
-                          </label>
+                          )}
+
+                          {/* Holiday calendar + timeseries resolution */}
+                          <div className="grid grid-cols-2 gap-1.5">
+                            <label className="block">
+                              <span className="block text-[10px] font-medium text-slate-500 mb-0.5">Calendar</span>
+                              <select
+                                value={demandCountry} onChange={e => setDemandCountry(e.target.value)}
+                                className="w-full px-2 py-1 text-xs border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-electric-400"
+                              >
+                                {DEMAND_COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+                              </select>
+                            </label>
+                            <label className="block">
+                              <span className="block text-[10px] font-medium text-slate-500 mb-0.5">Resolution</span>
+                              <select
+                                value={demandResolution} onChange={e => setDemandResolution(e.target.value)}
+                                className="w-full px-2 py-1 text-xs border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-electric-400"
+                              >
+                                {DEMAND_RESOLUTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                              </select>
+                            </label>
+                          </div>
+
                           {previewCurve && (
                             <div className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5">
                               <div className="flex items-center justify-between text-[10px] text-slate-400 mb-0.5">
-                                <span>Shape preview · representative week</span>
+                                <span>
+                                  Shape preview · {previewSource === 'demandlib' ? 'BDEW (demandlib)' : previewSource === 'loading' ? 'loading…' : 'synthetic (approx.)'}
+                                </span>
                                 <span>Mon–Sun</span>
                               </div>
                               <Sparkline values={previewCurve} />
@@ -616,9 +781,9 @@ export default function ZonalStudyAreaPanel({
                           {areaPopulation > 0 ? (
                             <p className="text-[10px] text-slate-400">
                               Population {areaPopulation.toLocaleString()} × {Number(perCapitaKWh) || 0} kWh, split across the substations.
-                              {demandProfile === 'flat'
+                              {!demandSectors
                                 ? ' Flat constant load.'
-                                : ' An hourly timeseries (daily + weekly + seasonal) is generated on import.'}
+                                : ` A ${demandResolution} timeseries is generated on import.`}
                             </p>
                           ) : (
                             <p className="text-[10px] text-amber-600">No population found for this area — demand can’t be estimated. Add a place that reports population, or set it later.</p>
