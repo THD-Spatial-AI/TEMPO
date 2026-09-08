@@ -950,6 +950,110 @@ ipcMain.handle('sim:restart', async () => {
   return { ccssim: ccsPort, hydrogensim: h2Port };
 });
 
+// ─── Demandlib one-shot (BDEW load shapes for OSM Study-Area demand) ──────────
+// A dedicated venv holds oemof demandlib; it's invoked one-shot (no service, no
+// port) to generate a normalised demand shape at import time. Installed lazily
+// on first use, or eagerly via the setup wizard; the renderer falls back to a
+// synthetic JS shape when the venv is absent.
+
+function resolveDemandlibVenv() {
+  const binDir = IS_WIN ? 'Scripts' : 'bin';
+  const pyExe  = IS_WIN ? 'python.exe' : 'python3';
+  const venvDir = path.join(app.getPath('userData'), 'demandlib-venv');
+  const python  = path.join(venvDir, binDir, pyExe);
+  return { venvDir, python, exists: fs.existsSync(python) };
+}
+
+/**
+ * Run demandlib_profile.py one-shot. `args` are CLI args; `stdinStr` (or null)
+ * is written to stdin. Resolves { ok:true, data } | { ok:false, error }.
+ */
+function runDemandlibOneShot(args, stdinStr, timeoutMs = 60000) {
+  return new Promise((resolve) => {
+    const { python, exists } = resolveDemandlibVenv();
+    if (!exists) { resolve({ ok: false, error: 'demandlib venv not installed' }); return; }
+    const { pythonDir } = getServicePaths();
+    const script = path.join(pythonDir, 'demandlib_profile.py');
+    let out = ''; let err = '';
+    const child = spawn(python, [script, ...args], { shell: false });
+    const timer = setTimeout(() => {
+      try { child.kill(); } catch { /* already gone */ }
+      resolve({ ok: false, error: `timed out after ${timeoutMs} ms` });
+    }, timeoutMs);
+    child.stdout.on('data', d => { out += d.toString(); });
+    child.stderr.on('data', d => { err += d.toString(); });
+    child.on('error', e => { clearTimeout(timer); resolve({ ok: false, error: e.message }); });
+    child.on('close', code => {
+      clearTimeout(timer);
+      let parsed = null;
+      const lines = out.trim().split('\n').filter(Boolean);
+      try { parsed = JSON.parse(lines[lines.length - 1]); } catch { /* not JSON */ }
+      if (code === 0 && parsed && !parsed.error) resolve({ ok: true, data: parsed });
+      else resolve({ ok: false, error: (parsed && parsed.error) || err.trim() || `exited ${code}` });
+    });
+    if (stdinStr != null) child.stdin.write(stdinStr);
+    child.stdin.end();
+  });
+}
+
+/**
+ * Create (or recreate) the demandlib venv and install requirements, streaming
+ * progress via sendProgress({type,label|line}). Reuses an already-resolved
+ * systemPython when given (setup-wizard path), else resolves one.
+ */
+async function installDemandlibVenv(sendProgress, systemPython) {
+  const binDir = IS_WIN ? 'Scripts' : 'bin';
+  const pyExe  = IS_WIN ? 'python.exe' : 'python3';
+  const venvDir = path.join(app.getPath('userData'), 'demandlib-venv');
+  const venvPy  = path.join(venvDir, binDir, pyExe);
+  const { pythonDir } = getServicePaths();
+  const reqFile = path.join(pythonDir, 'requirements.demandlib.txt');
+  const pipEnv = { ...process.env, PIP_PREFER_BINARY: '1', PIP_NO_CACHE_DIR: '1' };
+  const recent = [];
+  const runChild = (cmd, cargs, label) => new Promise((resolve, reject) => {
+    const child = spawn(cmd, cargs, { shell: false, env: pipEnv });
+    const onLine = l => { recent.push(l); if (recent.length > 30) recent.shift(); sendProgress({ type: 'log', line: l }); };
+    child.stdout.on('data', d => { for (const l of d.toString().split('\n').filter(x => x.trim())) onLine(l); });
+    child.stderr.on('data', d => { for (const l of d.toString().split('\n').filter(x => x.trim())) onLine(l); });
+    child.on('close', c => (c === 0 ? resolve() : reject(new Error(`${label} failed (exit ${c})\n${recent.slice(-8).join('\n')}`))));
+    child.on('error', e => reject(new Error(`${label} could not start: ${e.message}`)));
+  });
+
+  const sysPy = systemPython || await ensureCompatiblePython(sendProgress);
+  sendProgress({ type: 'stage', label: 'Creating demand-profiles environment…' });
+  await runChild(sysPy, ['-m', 'venv', '--clear', venvDir], 'demandlib venv creation');
+  try { await runChild(venvPy, ['-m', 'ensurepip', '--upgrade'], 'demandlib ensurepip'); } catch { /* non-fatal */ }
+  await runChild(venvPy, ['-m', 'pip', 'install', '--upgrade', '--quiet', 'pip', 'setuptools', 'wheel'], 'demandlib pip upgrade');
+  sendProgress({ type: 'stage', label: 'Installing demandlib (BDEW load profiles)…' });
+  if (fs.existsSync(reqFile)) {
+    await runChild(venvPy, ['-m', 'pip', 'install', '--prefer-binary', '--no-cache-dir', '-r', reqFile], 'demandlib deps');
+  }
+  await runChild(venvPy, ['-c', 'from demandlib import bdew; print("demandlib-ok")'], 'demandlib verify');
+}
+
+ipcMain.handle('demand:check', async () => ({ venvExists: resolveDemandlibVenv().exists }));
+
+ipcMain.handle('demand:list-profiles', async (_event, year) => {
+  const y = Number(year) || new Date().getFullYear();
+  return runDemandlibOneShot(['--list-profiles', '--year', String(y)], '', 20000);
+});
+
+ipcMain.handle('demand:profile', async (_event, payload) =>
+  runDemandlibOneShot([], JSON.stringify(payload || {}), 90000));
+
+ipcMain.handle('demand:install', async () => {
+  const sendProgress = (data) => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('demand:install-progress', data); };
+  try {
+    await installDemandlibVenv(sendProgress);
+    sendProgress({ type: 'done' });
+    return { success: true };
+  } catch (err) {
+    const msg = err.message || String(err);
+    sendProgress({ type: 'error', error: msg });
+    return { success: false, error: msg };
+  }
+});
+
 // ─── Calliope service (FastAPI / uvicorn) ────────────────────────────────────
 let _svcIntentionalStop = false;  // set true before deliberate kills so no restart happens
 let _svcRestartCount    = 0;
@@ -1067,7 +1171,7 @@ ipcMain.handle('calliope:check', async () => {
   return { envExists: importOk, venvPath: importOk ? venvDir : null, serviceRunning, platform: process.platform };
 });
 
-ipcMain.handle('calliope:install', async (_event, selectedModules = ['calliope'], downloadSolvers = false) => {
+ipcMain.handle('calliope:install', async (_event, selectedModules = ['calliope'], downloadSolvers = false, installDemandlib = false) => {
   const sendProgress = (data) => {
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('calliope:install-progress', data);
   };
@@ -1412,6 +1516,19 @@ ipcMain.handle('calliope:install', async (_event, selectedModules = ['calliope']
     } catch (osmErr) {
       sendProgress({ type: 'log', line: `⚠ OSM tools install failed: ${(osmErr.message || String(osmErr)).split('\n')[0]}` });
       sendProgress({ type: 'log', line: '  Region download will be unavailable; the map still shows live OSM via Overpass. Re-run setup to retry.' });
+    }
+
+    // ── Install demandlib venv (optional: BDEW load profiles) ─────────────
+    // Opt-in from the setup wizard; otherwise installed lazily on first use.
+    if (installDemandlib) {
+      sendProgress({ type: 'stage', label: 'Installing demand profiles (demandlib)…' });
+      try {
+        await installDemandlibVenv(sendProgress, systemPython);
+        sendProgress({ type: 'log', line: '✓ Demand profiles (demandlib) installed' });
+      } catch (dlErr) {
+        sendProgress({ type: 'log', line: `⚠ demandlib install failed: ${(dlErr.message || String(dlErr)).split('\n')[0]}` });
+        sendProgress({ type: 'log', line: '  Study-Area demand will use the synthetic fallback — install later from the wizard.' });
+      }
     }
 
     sendProgress({ type: 'done' });

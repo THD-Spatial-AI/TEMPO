@@ -76,8 +76,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
    * @param {boolean}  [downloadSolvers=false] Download CBC binary for Windows
    * @returns Promise<{ success: bool, error?: string }>
    */
-  installCalliopeEnv: (modules = ['calliope'], downloadSolvers = false) =>
-    ipcRenderer.invoke('calliope:install', modules, downloadSolvers),
+  installCalliopeEnv: (modules = ['calliope'], downloadSolvers = false, installDemandlib = false) =>
+    ipcRenderer.invoke('calliope:install', modules, downloadSolvers, installDemandlib),
 
   /**
    * Subscribe to Calliope install progress events.
@@ -246,6 +246,44 @@ contextBridge.exposeInMainWorld('electronAPI', {
    * @returns Promise<{ ok: boolean, status: number, data: object|null, networkError?: string }>
    */
   memeFetch: (opts) => ipcRenderer.invoke('meme:fetch', opts),
+
+  // ── Demandlib (BDEW load shapes for OSM Study-Area demand) ─────────────────
+
+  /**
+   * Whether the demandlib venv is installed.
+   * @returns Promise<{ venvExists: bool }>
+   */
+  checkDemandlib: () => ipcRenderer.invoke('demand:check'),
+
+  /**
+   * List the BDEW SLP codes the installed demandlib ships (feeds the wizard).
+   * @param {number} [year]
+   * @returns Promise<{ ok: bool, data?: { profiles: string[] }, error?: string }>
+   */
+  listDemandProfiles: (year) => ipcRenderer.invoke('demand:list-profiles', year),
+
+  /**
+   * Generate a normalised demand shape (mean ≈ 1 over a full year) via demandlib.
+   * @param {{ start:string, end:string, resolution:string, sectors:Record<string,number>, country?:string }} payload
+   * @returns Promise<{ ok: bool, data?: { datetimes:string[], values:number[], slp_columns:string[] }, error?: string }>
+   */
+  generateDemandProfile: (payload) => ipcRenderer.invoke('demand:profile', payload),
+
+  /**
+   * Install the demandlib venv on demand. Streams via onDemandInstallProgress.
+   * @returns Promise<{ success: bool, error?: string }>
+   */
+  installDemandlib: () => ipcRenderer.invoke('demand:install'),
+
+  /**
+   * Subscribe to demandlib install progress events.
+   * @returns {Function} unsubscribe
+   */
+  onDemandInstallProgress: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('demand:install-progress', handler);
+    return () => ipcRenderer.removeListener('demand:install-progress', handler);
+  },
 });
 
 
