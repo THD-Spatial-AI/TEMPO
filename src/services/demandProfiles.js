@@ -172,6 +172,36 @@ export function generateDemandShape({
 }
 
 /**
+ * Build magnitude-grouped ABSOLUTE demand columns from a normalised shape.
+ *
+ * Substations sharing a rounded avg-MW magnitude share one CSV column, so an
+ * even split collapses to a single column and a voltage split to a few. Values
+ * are NEGATIVE MW (Calliope demand convention) and are already absolute — no
+ * `resource_scale` is needed, which keeps the series portable across engines.
+ *
+ * @param {{ datetimes:string[], values:number[], magnitudes:number[] }} opts
+ *   `values` is the normalised shape (mean ≈ 1); `magnitudes[i]` is substation
+ *   i's avg MW (aligned to the substation order).
+ * @returns {{ columns:string[], dataColumns:string[], data:object[], colBySub:string[] }}
+ */
+export function buildDemandColumns({ datetimes, values, magnitudes }) {
+  const groups = new Map(); // rounded-magnitude key → { col, mw }
+  const colBySub = (magnitudes || []).map(mw => {
+    const key = Number(mw).toPrecision(3);
+    if (!groups.has(key)) groups.set(key, { col: `dem_${groups.size + 1}`, mw: Number(mw) });
+    return groups.get(key).col;
+  });
+  const groupCols = [...groups.values()];
+  const dataColumns = groupCols.map(g => g.col);
+  const data = (datetimes || []).map((dt, i) => {
+    const row = { datetime: dt };
+    for (const g of groupCols) row[g.col] = Number((-(values[i] * g.mw)).toFixed(4));
+    return row;
+  });
+  return { columns: ['datetime', ...dataColumns], dataColumns, data, colBySub };
+}
+
+/**
  * Backward-compatible hourly wrapper around {@link generateDemandShape}.
  *
  * @param {{startDate:string, endDate:string, profileKey?:string, annualMWh?:number, latitude?:number}} opts

@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   generateHourlyDemand, generateDemandShape, DEMAND_PROFILES,
-  syntheticKeyForSlp, buildBlendedProfile, SLP_CATALOGUE, SLP_TO_SYNTHETIC,
+  syntheticKeyForSlp, buildBlendedProfile, buildDemandColumns,
+  SLP_CATALOGUE, SLP_TO_SYNTHETIC,
 } from '../demandProfiles';
 
 const mean = a => a.reduce((s, v) => s + v, 0) / a.length;
@@ -149,5 +150,35 @@ describe('generateDemandShape (resolution + blend)', () => {
 
   it('returns empty for an invalid range', () => {
     expect(generateDemandShape({ start: 'nope', end: 'nope', sectors: { mixed: 1 } }).values).toHaveLength(0);
+  });
+});
+
+describe('buildDemandColumns', () => {
+  const datetimes = ['2024-01-01 00:00:00', '2024-01-01 01:00:00'];
+  const values = [1.0, 2.0]; // normalised shape
+
+  it('collapses equal magnitudes to a single shared column (even split)', () => {
+    const r = buildDemandColumns({ datetimes, values, magnitudes: [5, 5, 5] });
+    expect(r.dataColumns).toEqual(['dem_1']);
+    expect(r.colBySub).toEqual(['dem_1', 'dem_1', 'dem_1']);
+    expect(r.columns).toEqual(['datetime', 'dem_1']);
+  });
+
+  it('emits one column per distinct magnitude (voltage split)', () => {
+    const r = buildDemandColumns({ datetimes, values, magnitudes: [5, 10, 5, 20] });
+    expect(r.dataColumns).toEqual(['dem_1', 'dem_2', 'dem_3']);
+    expect(r.colBySub).toEqual(['dem_1', 'dem_2', 'dem_1', 'dem_3']);
+  });
+
+  it('writes absolute NEGATIVE MW = shape × magnitude', () => {
+    const r = buildDemandColumns({ datetimes, values, magnitudes: [5] });
+    expect(r.data[0]).toEqual({ datetime: datetimes[0], dem_1: -5 });   // 1.0 × 5
+    expect(r.data[1]).toEqual({ datetime: datetimes[1], dem_1: -10 });  // 2.0 × 5
+  });
+
+  it('groups by rounded (3 sig-fig) magnitude', () => {
+    // 5.001 and 5.002 round to the same key at 3 sig figs → one column.
+    const r = buildDemandColumns({ datetimes, values, magnitudes: [5.001, 5.002] });
+    expect(r.dataColumns).toEqual(['dem_1']);
   });
 });

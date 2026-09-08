@@ -30,6 +30,7 @@ import { fetchGeometries } from '../services/nominatim';
 import { parseSource, parseCapacityMW, parseVoltageKv } from '../services/zonalInfraExtract';
 import { OSM_SOURCE_TO_TECH } from '../services/zonalModelBuilder';
 import { getDemandShape } from '../services/demandlibClient';
+import { buildDemandColumns } from '../services/demandProfiles';
 
 // Import new custom hooks
 import { useLocationManager } from '../hooks/useLocationManager';
@@ -1558,25 +1559,10 @@ const Creation = () => {
       });
       if (values?.length) {
         const fileName = 'osm_substation_demand.csv';
-        // Group substations by rounded avg-MW so identical magnitudes share a column.
-        const groups = new Map(); // key → { col, mw }
-        const colFor = (mw) => {
-          const key = Number(mw).toPrecision(3);
-          if (!groups.has(key)) groups.set(key, { col: `dem_${groups.size + 1}`, mw: Number(mw) });
-          return groups.get(key).col;
-        };
-        const colBySub = demandSubs.map(l => colFor(l.techs.power_demand.metadata.avgMW || 0));
-        const groupCols = [...groups.values()];
-        const columns = ['datetime', ...groupCols.map(g => g.col)];
-        const data = datetimes.map((dt, i) => {
-          const row = { datetime: dt };
-          for (const g of groupCols) row[g.col] = Number((-(values[i] * g.mw)).toFixed(4)); // negative MW
-          return row;
+        const { columns, dataColumns, data, colBySub } = buildDemandColumns({
+          datetimes, values, magnitudes: demandSubs.map(l => l.techs.power_demand.metadata.avgMW || 0),
         });
-        const tsEntry = {
-          name: 'osm_substation_demand', fileName,
-          columns, dateColumn: 'datetime', dataColumns: groupCols.map(g => g.col), data,
-        };
+        const tsEntry = { name: 'osm_substation_demand', fileName, columns, dateColumn: 'datetime', dataColumns, data };
         setTimeSeries(prev => [...(prev || []).filter(t => (t.fileName || t.name) !== fileName), tsEntry]);
         demandSubs.forEach((l, i) => {
           // Absolute series → no resource_scale (portable across Calliope & PyPSA).
@@ -1587,7 +1573,7 @@ const Creation = () => {
         });
         // Record the resolution on the model so later timeseries share it.
         if (modelConfig.resolution !== resolution) setModelConfig(prev => ({ ...prev, resolution }));
-        const nCols = groupCols.length;
+        const nCols = dataColumns.length;
         demandNote = ` · generated a ${source} demand timeseries (${values.length} steps, ${nCols} column${nCols > 1 ? 's' : ''}) on ${demandSubs.length} substations`;
       }
     }
