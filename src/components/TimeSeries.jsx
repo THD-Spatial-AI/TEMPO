@@ -19,6 +19,8 @@ import TimeSeriesChart from './timeseries/TimeSeriesChart';
 import Papa from 'papaparse';
 import { fetchTemplate } from '../utils/templateFetch';
 import { useData } from '../context/DataContext';
+import { regenerateDemandSeries } from '../services/demandlibClient';
+import { expectedTimestepCount } from '../services/demandProfiles';
 import SaveBar from './ui/SaveBar';
 
 const TimeSeries = () => {
@@ -27,6 +29,7 @@ const TimeSeries = () => {
   const chartRef = useRef(null);
   
   const [selectedTimeSeries, setSelectedTimeSeries] = useState(null);
+  const [regeneratingDemand, setRegeneratingDemand] = useState(false);
   const [chartType, setChartType] = useState('line'); // 'line', 'bar', 'scatter'
   const [showStats, setShowStats] = useState(true);
   const [selectedColumns, setSelectedColumns] = useState([]);
@@ -638,6 +641,33 @@ const TimeSeries = () => {
     updateDataTableConfig(id, { add_dims });
   };
 
+  // Generated-demand entries (osm_substation_demand) carry a demandConfig so they
+  // can be regenerated when the model dates/resolution change. Flag staleness by
+  // comparing the row count to the expected number of timesteps.
+  const demandMeta = useMemo(() => {
+    const dc = selectedTimeSeries?.demandConfig;
+    if (!dc) return null;
+    const mc = currentModel?.modelConfig || {};
+    const expected = expectedTimestepCount({
+      start: mc.startDate, end: mc.endDate, resolution: mc.resolution || dc.resolution || '60min',
+    });
+    const rows = selectedTimeSeries.data?.length || 0;
+    return { expected, rows, stale: expected > 0 && rows !== expected, source: dc.source };
+  }, [selectedTimeSeries, currentModel]);
+
+  const handleRegenerateDemand = async () => {
+    const mc = currentModel?.modelConfig;
+    if (!selectedTimeSeries?.demandConfig || !mc) return;
+    setRegeneratingDemand(true);
+    try {
+      const updated = await regenerateDemandSeries(selectedTimeSeries, mc);
+      const key = updated.fileName || updated.name;
+      setTimeSeries(prev => prev.map(ts => ((ts.fileName || ts.name) === key ? updated : ts)));
+      setSelectedTimeSeries(updated);
+    } finally {
+      setRegeneratingDemand(false);
+    }
+  };
 
   return (
     <div className="flex-1 flex flex-col h-screen bg-gray-50">
@@ -783,6 +813,24 @@ const TimeSeries = () => {
                 </div>
 
               </div>
+
+              {/* Generated-demand banner: regenerate against current model dates/resolution */}
+              {demandMeta && (
+                <div className={`px-4 py-1.5 border-b flex items-center justify-between gap-2 ${demandMeta.stale ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-200'}`}>
+                  <span className={`text-[11px] ${demandMeta.stale ? 'text-amber-700' : 'text-slate-500'}`}>
+                    {demandMeta.stale
+                      ? `Demand series out of date — ${demandMeta.rows} rows vs ${demandMeta.expected} model timesteps. Regenerate to match.`
+                      : `Generated demand series (${demandMeta.source || 'synthetic'}). Regenerate after changing model dates or resolution.`}
+                  </span>
+                  <button
+                    onClick={handleRegenerateDemand} disabled={regeneratingDemand}
+                    className={`px-2 py-1 text-[11px] rounded text-white disabled:opacity-60 flex items-center gap-1 ${demandMeta.stale ? 'bg-amber-500 hover:bg-amber-600' : 'bg-slate-600 hover:bg-slate-700'}`}
+                  >
+                    <FiClock size={10} />
+                    {regeneratingDemand ? 'Regenerating…' : 'Regenerate from demandlib'}
+                  </button>
+                </div>
+              )}
 
               {/* Data Table type: show DataTablePanel instead of chart */}
               {selectedTimeSeries.type === 'data_table' && (

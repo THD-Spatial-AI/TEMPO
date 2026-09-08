@@ -88,3 +88,37 @@ export async function getDemandShape({ start, end, resolution, sectors, country,
   if (dl) return dl;
   return syntheticShape({ start, end, resolution, sectors, latitude });
 }
+
+/**
+ * Rebuild a generated demand timeseries entry against the current model dates
+ * and resolution, reusing the entry's stored `demandConfig` (sectors, country,
+ * latitude, magnitude groups). The per-substation `resource` file refs are
+ * unchanged (same columns), so only the CSV data is refreshed.
+ *
+ * @param {object} entry  a timeSeries entry carrying `demandConfig`
+ * @param {{ startDate:string, endDate:string, resolution?:string }} modelConfig
+ * @returns {Promise<object>} the updated entry
+ */
+export async function regenerateDemandSeries(entry, modelConfig) {
+  const dc = entry?.demandConfig || {};
+  const resolution = modelConfig?.resolution || dc.resolution || '60min';
+  const { datetimes, values, source } = await getDemandShape({
+    start: modelConfig.startDate, end: modelConfig.endDate, resolution,
+    sectors: dc.sectors, country: dc.country, latitude: dc.latitude || 0,
+  });
+  const groups = dc.groups || [];
+  const dataColumns = groups.map(g => g.col);
+  const data = datetimes.map((dt, i) => ({
+    datetime: dt,
+    ...Object.fromEntries(groups.map(g => [g.col, Number((-(values[i] * g.mw)).toFixed(4))])),
+  }));
+  return {
+    ...entry,
+    columns: ['datetime', ...dataColumns],
+    dataColumns,
+    data,
+    rowCount: data.length,
+    modified: true,
+    demandConfig: { ...dc, resolution, source },
+  };
+}

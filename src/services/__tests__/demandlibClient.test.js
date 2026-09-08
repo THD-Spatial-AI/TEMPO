@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
   checkDemandlib, fetchDemandlibShape, listSlpProfiles, syntheticShape, getDemandShape,
+  regenerateDemandSeries,
 } from '../demandlibClient';
 
 const mean = a => a.reduce((s, v) => s + v, 0) / a.length;
@@ -63,5 +64,33 @@ describe('demandlibClient — mocked bridge', () => {
     const r = await getDemandShape({ ...week, latitude: 10 });
     expect(r.source).toBe('synthetic');
     expect(r.values.length).toBe(7 * 24);
+  });
+});
+
+describe('regenerateDemandSeries', () => {
+  beforeEach(() => { globalThis.window = undefined; }); // synthetic path
+
+  const entry = {
+    name: 'osm_substation_demand', fileName: 'osm_substation_demand.csv',
+    columns: ['datetime', 'dem_1'], dataColumns: ['dem_1'],
+    data: [{ datetime: 'old', dem_1: -1 }], // stale (1 row)
+    demandConfig: { sectors: { h0: 1 }, country: 'DE', resolution: '60min', latitude: 0, groups: [{ col: 'dem_1', mw: 5 }] },
+  };
+
+  it('rebuilds the data for the current model dates, keeping the same columns', async () => {
+    const updated = await regenerateDemandSeries(entry, { startDate: '2024-01-01', endDate: '2024-01-01', resolution: '60min' });
+    expect(updated.data).toHaveLength(24);       // one day, hourly
+    expect(updated.rowCount).toBe(24);
+    expect(updated.columns).toEqual(['datetime', 'dem_1']);
+    expect(updated.modified).toBe(true);
+    expect(updated.demandConfig.source).toBe('synthetic');
+    // Absolute negative MW = -(shape × 5).
+    expect(updated.data.every(r => r.dem_1 <= 0)).toBe(true);
+  });
+
+  it('honours a changed resolution', async () => {
+    const updated = await regenerateDemandSeries(entry, { startDate: '2024-01-01', endDate: '2024-01-01', resolution: '15min' });
+    expect(updated.data).toHaveLength(96);
+    expect(updated.demandConfig.resolution).toBe('15min');
   });
 });

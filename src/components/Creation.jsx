@@ -1559,10 +1559,16 @@ const Creation = () => {
       });
       if (values?.length) {
         const fileName = 'osm_substation_demand.csv';
-        const { columns, dataColumns, data, colBySub } = buildDemandColumns({
+        const { columns, dataColumns, data, colBySub, groups } = buildDemandColumns({
           datetimes, values, magnitudes: demandSubs.map(l => l.techs.power_demand.metadata.avgMW || 0),
         });
-        const tsEntry = { name: 'osm_substation_demand', fileName, columns, dateColumn: 'datetime', dataColumns, data };
+        // Carry the build config on the entry so it can be regenerated later (from
+        // the TimeSeries panel) when the model dates or resolution change.
+        const tsEntry = {
+          name: 'osm_substation_demand', fileName, columns, dateColumn: 'datetime', dataColumns, data,
+          rowCount: data.length,
+          demandConfig: { sectors, country: demandCfg.country, resolution, latitude, source, groups },
+        };
         setTimeSeries(prev => [...(prev || []).filter(t => (t.fileName || t.name) !== fileName), tsEntry]);
         demandSubs.forEach((l, i) => {
           // Absolute series → no resource_scale (portable across Calliope & PyPSA).

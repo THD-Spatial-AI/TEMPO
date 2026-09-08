@@ -182,7 +182,7 @@ export function generateDemandShape({
  * @param {{ datetimes:string[], values:number[], magnitudes:number[] }} opts
  *   `values` is the normalised shape (mean ≈ 1); `magnitudes[i]` is substation
  *   i's avg MW (aligned to the substation order).
- * @returns {{ columns:string[], dataColumns:string[], data:object[], colBySub:string[] }}
+ * @returns {{ columns:string[], dataColumns:string[], data:object[], colBySub:string[], groups:{col:string,mw:number}[] }}
  */
 export function buildDemandColumns({ datetimes, values, magnitudes }) {
   const groups = new Map(); // rounded-magnitude key → { col, mw }
@@ -193,12 +193,27 @@ export function buildDemandColumns({ datetimes, values, magnitudes }) {
   });
   const groupCols = [...groups.values()];
   const dataColumns = groupCols.map(g => g.col);
-  const data = (datetimes || []).map((dt, i) => {
-    const row = { datetime: dt };
-    for (const g of groupCols) row[g.col] = Number((-(values[i] * g.mw)).toFixed(4));
-    return row;
-  });
-  return { columns: ['datetime', ...dataColumns], dataColumns, data, colBySub };
+  const data = (datetimes || []).map((dt, i) => ({
+    datetime: dt,
+    ...Object.fromEntries(groupCols.map(g => [g.col, Number((-(values[i] * g.mw)).toFixed(4))])),
+  }));
+  return { columns: ['datetime', ...dataColumns], dataColumns, data, colBySub, groups: groupCols };
+}
+
+/**
+ * Number of timesteps a model of [start … end] at `resolution` (15/30/60 min)
+ * expects — used to detect a demand CSV that's out of date after a date/
+ * resolution change. Mirrors the stepping in {@link generateDemandShape}.
+ *
+ * @param {{ start:string, end:string, resolution?:string }} opts
+ * @returns {number}
+ */
+export function expectedTimestepCount({ start, end, resolution = '60min' }) {
+  const stepMs = (RESOLUTION_MINUTES[resolution] || 60) * 60 * 1000;
+  const s = new Date(`${start}T00:00:00Z`).getTime();
+  const e = new Date(`${end}T23:59:59Z`).getTime();
+  if (Number.isNaN(s) || Number.isNaN(e) || e < s) return 0;
+  return Math.floor((e - s) / stepMs) + 1;
 }
 
 /**

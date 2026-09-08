@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   generateHourlyDemand, generateDemandShape, DEMAND_PROFILES,
-  syntheticKeyForSlp, buildBlendedProfile, buildDemandColumns,
+  syntheticKeyForSlp, buildBlendedProfile, buildDemandColumns, expectedTimestepCount,
   SLP_CATALOGUE, SLP_TO_SYNTHETIC,
 } from '../demandProfiles';
 
@@ -180,5 +180,33 @@ describe('buildDemandColumns', () => {
     // 5.001 and 5.002 round to the same key at 3 sig figs → one column.
     const r = buildDemandColumns({ datetimes, values, magnitudes: [5.001, 5.002] });
     expect(r.dataColumns).toEqual(['dem_1']);
+  });
+
+  it('exposes the magnitude groups for later regeneration', () => {
+    const r = buildDemandColumns({ datetimes, values, magnitudes: [5, 10, 5] });
+    expect(r.groups).toEqual([{ col: 'dem_1', mw: 5 }, { col: 'dem_2', mw: 10 }]);
+  });
+});
+
+describe('expectedTimestepCount', () => {
+  it('counts a full leap year at each resolution', () => {
+    expect(expectedTimestepCount({ start: '2024-01-01', end: '2024-12-31', resolution: '60min' })).toBe(8784);
+    expect(expectedTimestepCount({ start: '2024-01-01', end: '2024-12-31', resolution: '30min' })).toBe(8784 * 2);
+    expect(expectedTimestepCount({ start: '2024-01-01', end: '2024-12-31', resolution: '15min' })).toBe(8784 * 4);
+  });
+
+  it('counts a single day', () => {
+    expect(expectedTimestepCount({ start: '2024-03-04', end: '2024-03-04', resolution: '60min' })).toBe(24);
+    expect(expectedTimestepCount({ start: '2024-03-04', end: '2024-03-04', resolution: '15min' })).toBe(96);
+  });
+
+  it('returns 0 for an invalid range', () => {
+    expect(expectedTimestepCount({ start: 'x', end: 'y' })).toBe(0);
+    expect(expectedTimestepCount({ start: '2024-06-01', end: '2024-01-01' })).toBe(0);
+  });
+
+  it('matches the length generateDemandShape actually emits', () => {
+    const { values } = generateDemandShape({ start: '2024-02-01', end: '2024-02-29', resolution: '30min', sectors: { mixed: 1 }, annualMWh: 8760 });
+    expect(values).toHaveLength(expectedTimestepCount({ start: '2024-02-01', end: '2024-02-29', resolution: '30min' }));
   });
 });
