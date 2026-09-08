@@ -35,6 +35,7 @@ function normalize(r) {
     centroid: Number.isFinite(lon) && Number.isFinite(lat) ? [lon, lat] : null,
     population: r.extratags && r.extratags.population ? Number(r.extratags.population) : null,
     adminLevel: r.extratags && r.extratags.admin_level ? Number(r.extratags.admin_level) : null,
+    countryCode: r.address && r.address.country_code ? String(r.address.country_code).toUpperCase() : null,
   };
 }
 

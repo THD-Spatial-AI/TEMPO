@@ -308,6 +308,20 @@ export default function ZonalStudyAreaPanel({
     const lats = (studyArea?.units || []).map(u => u.centroid?.[1]).filter(Number.isFinite);
     return lats.length ? lats.reduce((a, b) => a + b, 0) / lats.length : 0;
   }, [studyArea]);
+  // Country of the selected area (from Nominatim) pre-fills the holiday calendar
+  // until the user overrides it. Include it in the options if it's not curated.
+  const studyAreaCountry = useMemo(
+    () => (studyArea?.units || []).find(u => u.countryCode)?.countryCode || null,
+    [studyArea],
+  );
+  const countryOptions = useMemo(() => (
+    studyAreaCountry && !DEMAND_COUNTRIES.includes(studyAreaCountry)
+      ? [studyAreaCountry, ...DEMAND_COUNTRIES] : DEMAND_COUNTRIES
+  ), [studyAreaCountry]);
+  const countryTouchedRef = useRef(false);
+  useEffect(() => {
+    if (!countryTouchedRef.current && studyAreaCountry) setDemandCountry(studyAreaCountry);
+  }, [studyAreaCountry]);
   // Detect whether demandlib is installed and read its SLP list (once on mount).
   useEffect(() => {
     let alive = true;
@@ -428,7 +442,8 @@ export default function ZonalStudyAreaPanel({
     if (units.some(u => u.osmId === r.osmId && u.osmType === r.osmType)) return;
     writeUnits([...units, {
       osmId: r.osmId, osmType: r.osmType, name: r.name, displayName: r.displayName,
-      level: r.placeRank, adminLevel: r.adminLevel, bbox: r.bbox, centroid: r.centroid, population: r.population,
+      level: r.placeRank, adminLevel: r.adminLevel, bbox: r.bbox, centroid: r.centroid,
+      population: r.population, countryCode: r.countryCode,
     }]);
     setQuery(''); setResults([]);
     // map refresh handled by the unitsKey effect
@@ -740,10 +755,11 @@ export default function ZonalStudyAreaPanel({
                             <label className="block">
                               <span className="block text-[10px] font-medium text-slate-500 mb-0.5">Calendar</span>
                               <select
-                                value={demandCountry} onChange={e => setDemandCountry(e.target.value)}
+                                value={demandCountry}
+                                onChange={e => { countryTouchedRef.current = true; setDemandCountry(e.target.value); }}
                                 className="w-full px-2 py-1 text-xs border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-electric-400"
                               >
-                                {DEMAND_COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+                                {countryOptions.map(c => <option key={c} value={c}>{c}</option>)}
                               </select>
                             </label>
                             <label className="block">

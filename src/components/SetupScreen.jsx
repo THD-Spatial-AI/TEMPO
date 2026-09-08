@@ -44,6 +44,7 @@ export default function SetupScreen({ onComplete, freshInstall = false }) {
   const [errorMsg, setErrorMsg] = useState('');
   // No module selection needed — always install calliope only
   const selectedModules = ['calliope'];
+  const [installDemandlib, setInstallDemandlib] = useState(false);
   // Platform from calliope:check (set during initial status check)
   const [platform, setPlatform] = useState('');
   const logEndRef = useRef(null);
@@ -195,7 +196,7 @@ export default function SetupScreen({ onComplete, freshInstall = false }) {
       }
     });
     unsubRef.current = unsub;
-    window.electronAPI.installCalliopeEnv(selectedModules, false);
+    window.electronAPI.installCalliopeEnv(selectedModules, false, installDemandlib);
   };
 
   // ── Renders ───────────────────────────────────────────────────────────────
@@ -271,6 +272,19 @@ export default function SetupScreen({ onComplete, freshInstall = false }) {
               <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </div>
+          {/* Optional: BDEW load profiles (demandlib). Otherwise installed lazily
+              on first use in the OSM Study-Area demand step. */}
+          <label className="flex items-center justify-between px-4 py-3 cursor-pointer">
+            <div>
+              <p className="text-sm font-semibold text-black">Demand profiles <span className="font-normal text-gray-400">(optional)</span></p>
+              <p className="text-xs text-gray-400 mt-0.5">BDEW load profiles (demandlib) for Study-Area demand — else installed on first use</p>
+            </div>
+            <input
+              type="checkbox" checked={installDemandlib}
+              onChange={e => setInstallDemandlib(e.target.checked)}
+              className="w-4 h-4 accent-black flex-shrink-0"
+            />
+          </label>
         </div>
 
         {/* Error panel */}
