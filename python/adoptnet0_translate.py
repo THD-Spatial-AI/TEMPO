@@ -598,6 +598,32 @@ def _resolve_timeseries_values(ts_ref, time_series: list, column=None) -> list:
     return []
 
 
+def _resolve_demand_ref(ref, time_series: list) -> list:
+    """
+    Resolve a `file=<name.csv>:<column>` demand ref (as written by the OSM
+    study-area importer) → magnitudes (abs). Handles row-object data
+    (`[{datetime, dem_1, ...}]`) and positional rows. Returns [] when not a
+    file ref or not found.
+    """
+    if not (isinstance(ref, str) and ref.startswith("file=")):
+        return []
+    fname, _, col = ref[len("file="):].partition(":")
+    fbase = fname.replace(".csv", "")
+    for ts in time_series:
+        tsf = str(ts.get("fileName") or ts.get("file") or ts.get("name") or "")
+        if fname not in (tsf, tsf.replace(".csv", "")) and fbase not in (tsf, tsf.replace(".csv", "")):
+            continue
+        data = ts.get("data") or []
+        if not data:
+            return []
+        if isinstance(data[0], dict):
+            return [abs(_to_float(row.get(col))) for row in data]
+        columns = ts.get("columns") or []
+        idx = columns.index(col) if col in columns else (1 if len(data[0]) > 1 else 0)
+        return [abs(_to_float(row[idx])) for row in data]
+    return []
+
+
 def _write_node_data(period_dir: str, locations: list, technologies: list,
                      location_tech_assignments: dict, time_series: list,
                      carriers: list, start_date: str, end_date: str) -> None:
@@ -680,6 +706,26 @@ def _write_node_data(period_dir: str, locations: list, technologies: list,
             demand_vals = _resolve_timeseries_values(demand_ts_data, time_series, col)
         else:
             demand_vals = []
+
+        # Fall back to demand-parent techs on the node (OSM study-area importer
+        # attaches a `power_demand` tech whose resource is a `file=name:col`
+        # series or a scalar). The resource lives on the per-location inline tech
+        # config; the parent is resolved from the global tech. Sum across techs.
+        if not demand_vals:
+            for _ref, _loc_tech in (loc.get("techs") or {}).items():
+                _loc_tech = _loc_tech or {}
+                _global = _find_tech(_ref)
+                _is_demand = (_global is not None and _get_parent(_global) == "demand") or _get_parent(_loc_tech) == "demand"
+                if not _is_demand:
+                    continue
+                _res = (_loc_tech.get("constraints") or {}).get("resource")
+                _series = _resolve_demand_ref(_res, time_series)
+                if not _series:
+                    _scalar = abs(_to_float(_res, 0.0))
+                    _series = [_scalar] * n_hours if _scalar > 0 else []
+                if _series:
+                    demand_vals = ([a + b for a, b in zip(demand_vals, _series)]
+                                   if demand_vals else list(_series))
 
         def _tile(vals: list, n: int) -> list:
             if not vals:

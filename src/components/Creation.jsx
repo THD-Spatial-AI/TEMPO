@@ -76,6 +76,19 @@ const SUBSTATION_TECH_DEF = {
   constraints: { energy_cap_max: 'inf', energy_eff: 0.995, lifetime: 40 },
   costs: { monetary: { interest_rate: 0.05, energy_cap: 50 } },
 };
+// Global demand tech for OSM substation demand. Registering it (parent: demand)
+// lets every engine's translator resolve the tech's parent — OSeMOSYS/AdOpT-NET0
+// look it up in the global technologies list, so an inline-only power_demand was
+// invisible to them. Per-location constraints (the `resource` file ref) stay on
+// the location; this only supplies the essentials/parent.
+const POWER_DEMAND_TECH_ID = 'power_demand';
+const POWER_DEMAND_TECH_DEF = {
+  id: POWER_DEMAND_TECH_ID,
+  name: 'Power demand',
+  parent: 'demand',
+  description: 'Electricity withdrawal (demand) attached to substation nodes.',
+  essentials: { name: 'Power demand', color: '#607D8B', parent: 'demand', carrier: 'electricity' },
+};
 const HOURS_PER_YEAR = 8760;
 
 const Creation = () => {
@@ -1531,11 +1544,16 @@ const Creation = () => {
       showNotification('Nothing to import — every step was skipped or empty.', 'warning');
       return;
     }
-    // Register the substation conversion tech in the model if any node uses it.
-    const usesSub = plan.locations.some(l => l.techs && l.techs[SUBSTATION_TECH_ID]);
-    if (usesSub && !technologies.some(t => t.id === SUBSTATION_TECH_ID)) {
-      setTechnologies(prev => [...prev, SUBSTATION_TECH_DEF]);
+    // Register the substation conversion tech + the demand tech in the model if
+    // any node uses them (so every engine can resolve their parent).
+    const toRegister = [];
+    if (plan.locations.some(l => l.techs?.[SUBSTATION_TECH_ID]) && !technologies.some(t => t.id === SUBSTATION_TECH_ID)) {
+      toRegister.push(SUBSTATION_TECH_DEF);
     }
+    if (plan.locations.some(l => l.techs?.[POWER_DEMAND_TECH_ID]) && !technologies.some(t => t.id === POWER_DEMAND_TECH_ID)) {
+      toRegister.push(POWER_DEMAND_TECH_DEF);
+    }
+    if (toRegister.length) setTechnologies(prev => [...prev, ...toRegister]);
 
     // Turn the substation demand into a generated timeseries when a non-flat load
     // shape (or sector mix) was chosen. The shape comes from demandlib (BDEW SLPs)
