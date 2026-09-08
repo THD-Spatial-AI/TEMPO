@@ -1573,7 +1573,7 @@ const Creation = () => {
       const latitude = demandSubs.reduce((s, l) => s + (l.latitude || 0), 0) / demandSubs.length;
       const { datetimes, values, source } = await getDemandShape({
         start: modelConfig.startDate, end: modelConfig.endDate,
-        resolution, sectors, country: demandCfg.country, latitude,
+        resolution, sectors, country: demandCfg.country, family: demandCfg.family, latitude,
       });
       if (values?.length) {
         const fileName = 'osm_substation_demand.csv';
@@ -1585,7 +1585,7 @@ const Creation = () => {
         const tsEntry = {
           name: 'osm_substation_demand', fileName, columns, dateColumn: 'datetime', dataColumns, data,
           rowCount: data.length,
-          demandConfig: { sectors, country: demandCfg.country, resolution, latitude, source, groups },
+          demandConfig: { sectors, country: demandCfg.country, family: demandCfg.family, resolution, latitude, source, groups },
         };
         setTimeSeries(prev => [...(prev || []).filter(t => (t.fileName || t.name) !== fileName), tsEntry]);
         demandSubs.forEach((l, i) => {

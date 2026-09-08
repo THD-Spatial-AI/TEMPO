@@ -52,11 +52,11 @@ export async function listSlpProfiles(year) {
 }
 
 /** Demandlib shape, or null on any failure / outside Electron. */
-export async function fetchDemandlibShape({ start, end, resolution, sectors, country }) {
+export async function fetchDemandlibShape({ start, end, resolution, sectors, country, family }) {
   const api = bridge();
   if (!api?.generateDemandProfile) return null;
   try {
-    const res = await api.generateDemandProfile({ start, end, resolution, sectors, country });
+    const res = await api.generateDemandProfile({ start, end, resolution, sectors, country, family });
     if (res?.ok && Array.isArray(res.data?.values) && res.data.values.length) {
       return { datetimes: res.data.datetimes, values: res.data.values, source: 'demandlib' };
     }
@@ -83,8 +83,8 @@ export function syntheticShape({ start, end, resolution, sectors, latitude }) {
  * Unified normalised shape: demandlib first, synthetic fallback. Always returns
  * `{ datetimes, values, source }` (values mean ≈ 1 over a full year).
  */
-export async function getDemandShape({ start, end, resolution, sectors, country, latitude }) {
-  const dl = await fetchDemandlibShape({ start, end, resolution, sectors, country });
+export async function getDemandShape({ start, end, resolution, sectors, country, family, latitude }) {
+  const dl = await fetchDemandlibShape({ start, end, resolution, sectors, country, family });
   if (dl) return dl;
   return syntheticShape({ start, end, resolution, sectors, latitude });
 }
@@ -104,7 +104,7 @@ export async function regenerateDemandSeries(entry, modelConfig) {
   const resolution = modelConfig?.resolution || dc.resolution || '60min';
   const { datetimes, values, source } = await getDemandShape({
     start: modelConfig.startDate, end: modelConfig.endDate, resolution,
-    sectors: dc.sectors, country: dc.country, latitude: dc.latitude || 0,
+    sectors: dc.sectors, country: dc.country, family: dc.family, latitude: dc.latitude || 0,
   });
   const groups = dc.groups || [];
   const dataColumns = groups.map(g => g.col);

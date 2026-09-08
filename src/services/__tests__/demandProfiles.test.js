@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   generateHourlyDemand, generateDemandShape, DEMAND_PROFILES,
   syntheticKeyForSlp, buildBlendedProfile, buildDemandColumns, expectedTimestepCount,
-  SLP_CATALOGUE, SLP_TO_SYNTHETIC,
+  familyForSlp, SLP_CATALOGUE, SLP_TO_SYNTHETIC,
 } from '../demandProfiles';
 
 const mean = a => a.reduce((s, v) => s + v, 0) / a.length;
@@ -80,6 +80,15 @@ describe('syntheticKeyForSlp', () => {
 
   it('falls back to mixed for unknown codes', () => {
     expect(syntheticKeyForSlp('zzz')).toBe('mixed');
+  });
+
+  it('routes BDEW25 codes to the bdew25 family, classic otherwise', () => {
+    expect(familyForSlp('h25')).toBe('bdew25');
+    expect(familyForSlp('g25')).toBe('bdew25');
+    expect(familyForSlp('l25')).toBe('bdew25');
+    expect(familyForSlp('h0')).toBe('classic');
+    expect(familyForSlp('g3')).toBe('classic');
+    expect(familyForSlp('flat')).toBe('classic');
   });
 
   it('the mapping and catalogue stay in sync', () => {

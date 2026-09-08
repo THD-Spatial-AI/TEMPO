@@ -4,7 +4,7 @@ import {
 } from 'react-icons/fi';
 import { useData } from '../context/DataContext';
 import { searchPlaces, fetchGeometries } from '../services/nominatim';
-import { SLP_CATALOGUE } from '../services/demandProfiles';
+import { SLP_CATALOGUE, familyForSlp } from '../services/demandProfiles';
 import {
   checkDemandlib, listSlpProfiles, installDemandlib, onDemandInstallProgress,
   fetchDemandlibShape, syntheticShape,
@@ -283,6 +283,8 @@ export default function ZonalStudyAreaPanel({
     return demandProfile === 'flat' ? null : { [demandProfile]: 1 };
   }, [subDemand, useMix, mixWeights, demandProfile]);
   const demandSectorsKey = JSON.stringify(demandSectors);
+  // The mix sliders are classic sectors; a single pick may be a BDEW25 code.
+  const demandFamily = useMix ? 'classic' : familyForSlp(demandProfile);
 
   // Only the connection choices live here; the categories (voltages / sub types /
   // plant sources) flow through the dropdown filters, which Creation reads live.
@@ -292,11 +294,12 @@ export default function ZonalStudyAreaPanel({
       include: subInclude, target: subTarget, maxKm: subMaxKm ? Number(subMaxKm) : 0,
       demand: {
         enabled: subDemand, perCapitaKWh: Number(perCapitaKWh) || 0, weightBy: demandWeight,
-        profile: demandProfile, sectors: demandSectors, country: demandCountry, resolution: demandResolution,
+        profile: demandProfile, sectors: demandSectors, family: demandFamily,
+        country: demandCountry, resolution: demandResolution,
       },
     },
     plants: { include: plantInclude, target: plantTarget, maxKm: plantMaxKm ? Number(plantMaxKm) : 0 },
-  }), [txInclude, subInclude, subTarget, subMaxKm, subDemand, perCapitaKWh, demandWeight, demandProfile, demandSectors, demandCountry, demandResolution, plantInclude, plantTarget, plantMaxKm]);
+  }), [txInclude, subInclude, subTarget, subMaxKm, subDemand, perCapitaKWh, demandWeight, demandProfile, demandSectors, demandFamily, demandCountry, demandResolution, plantInclude, plantTarget, plantMaxKm]);
 
   // Study-area population (from Nominatim extratags) drives the demand estimate.
   const areaPopulation = useMemo(
@@ -377,14 +380,14 @@ export default function ZonalStudyAreaPanel({
     if (!dlInstalled) return undefined;
     let cancelled = false;
     const t = setTimeout(async () => {
-      const dl = await fetchDemandlibShape({ ...week, country: demandCountry });
+      const dl = await fetchDemandlibShape({ ...week, country: demandCountry, family: demandFamily });
       if (cancelled) return;
       if (dl?.values?.length) { setPreviewCurve(dl.values); setPreviewSource('demandlib'); }
       else { setPreviewCurve(syn.values); setPreviewSource('synthetic'); }
     }, 400);
     return () => { cancelled = true; clearTimeout(t); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subDemand, demandSectorsKey, areaLat, dlInstalled, demandCountry]);
+  }, [subDemand, demandSectorsKey, areaLat, dlInstalled, demandCountry, demandFamily]);
 
   const wizardActive = units.length > 0 && !osmLoading && !boundaryLoading;
 

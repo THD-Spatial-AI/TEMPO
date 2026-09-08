@@ -71,34 +71,58 @@ def _list_profiles(year):
         cols = list(e_slp.get_profiles().columns)
     except Exception as exc:
         _fail(f"could not read profile list: {exc}")
+    # Append BDEW25 sectors when the installed demandlib ships them.
+    for code, cls in (("h25", "H25"), ("g25", "G25"), ("l25", "L25")):
+        if hasattr(bdew, cls) and code not in cols:
+            cols.append(code)
     print(json.dumps({"profiles": cols}))
 
 
-def _year_shape(bdew, year, sectors, country, minutes):
-    """
-    Blended, resampled relative shape for one full calendar year.
+_BDEW25_CLASSES = ("h25", "g25", "l25")  # H25/G25/L25 — the demand BDEW25 sectors
 
-    Returns a pandas Series indexed at `minutes` resolution over the whole year.
-    Weights in `sectors` are treated as energy shares (each BDEW SLP carries the
+
+def _blend_15min(bdew, year, sectors, holidays, family):
+    """
+    Weighted-blend the requested sectors into one 15-min Series for the year.
+    Weights are treated as energy shares (each normalised profile carries the
     same annual energy), so a normalised weighted average is a valid blend.
     """
-    e_slp = bdew.ElecSlp(year, holidays=_holidays_for(country, year))
-    profiles = e_slp.get_profiles()  # 15-min DataFrame, one column per SLP code
-    available = set(profiles.columns)
-    missing = [c for c in sectors if c not in available]
-    if missing:
-        raise ValueError(f"unknown SLP code(s) {missing}; available: {sorted(available)}")
+    import pandas as pd
 
     total = float(sum(sectors.values()))
     if total <= 0:
         raise ValueError("sector weights sum to zero")
 
+    if family == "bdew25":
+        classes = {"h25": bdew.H25, "g25": bdew.G25, "l25": bdew.L25}
+        unknown = [c for c in sectors if c not in classes]
+        if unknown:
+            raise ValueError(f"unknown BDEW25 sector(s) {unknown}; available: {sorted(classes)}")
+        idx = pd.date_range(f"{year}-01-01", f"{year}-12-31 23:45", freq="15min")
+        blend = None
+        for code, weight in sectors.items():
+            series = pd.Series(classes[code](idx, holidays).to_numpy(dtype=float), index=idx)
+            col = series * (float(weight) / total)
+            blend = col if blend is None else blend + col
+        return blend
+
+    # Classic BDEW standard load profiles via ElecSlp (15-min DataFrame).
+    e_slp = bdew.ElecSlp(year, holidays=holidays)
+    profiles = e_slp.get_profiles()
+    available = set(profiles.columns)
+    missing = [c for c in sectors if c not in available]
+    if missing:
+        raise ValueError(f"unknown SLP code(s) {missing}; available: {sorted(available)}")
     blend = None
     for code, weight in sectors.items():
-        frac = float(weight) / total
-        col = profiles[code] * frac
+        col = profiles[code] * (float(weight) / total)
         blend = col if blend is None else blend + col
+    return blend
 
+
+def _year_shape(bdew, year, sectors, country, minutes, family):
+    """Blended, resampled relative shape for one full calendar year (Series)."""
+    blend = _blend_15min(bdew, year, sectors, _holidays_for(country, year), family)
     if minutes != 15:
         blend = blend.resample(f"{minutes}min").mean()
     return blend
@@ -112,9 +136,12 @@ def _generate(payload):
     resolution = str(payload.get("resolution") or "60min").strip()
     country = payload.get("country")
     sectors = payload.get("sectors") or {}
+    family = str(payload.get("family") or "classic")
 
     if resolution not in _RESOLUTIONS:
         _fail(f"resolution must be one of {sorted(_RESOLUTIONS)}")
+    if family not in ("classic", "bdew25"):
+        _fail("family must be 'classic' or 'bdew25'")
     if not sectors:
         _fail("no sectors given")
     # 'flat' is handled by the caller without a timeseries; nothing to do here.
@@ -135,7 +162,7 @@ def _generate(payload):
 
     years = list(range(start_ts.year, end_ts.year + 1))
     try:
-        per_year = {y: _year_shape(bdew, y, sectors, country, minutes) for y in years}
+        per_year = {y: _year_shape(bdew, y, sectors, country, minutes, family) for y in years}
     except Exception as exc:
         _fail(str(exc))
 
@@ -157,6 +184,7 @@ def _generate(payload):
         "values": values,
         "source": "demandlib",
         "resolution": resolution,
+        "family": family,
         "slp_columns": sorted(sectors.keys()),
     }))
 

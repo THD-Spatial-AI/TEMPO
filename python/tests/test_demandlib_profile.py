@@ -65,6 +65,13 @@ def test_invalid_json_errors():
     assert "error" in _out(proc)
 
 
+def test_bad_family_errors():
+    proc = _run({"start": "2024-01-01", "end": "2024-12-31", "resolution": "60min",
+                 "sectors": {"h25": 1}, "family": "nope"})
+    assert proc.returncode != 0
+    assert "error" in _out(proc)
+
+
 # ---------------------------------------------------------------------------
 # Generation (demandlib required)
 # ---------------------------------------------------------------------------
@@ -110,3 +117,31 @@ def test_sector_mix_blends():
     out = _out(proc)
     assert out["slp_columns"] == ["g0", "h0"]
     assert all(v >= 0 for v in out["values"])
+
+
+# ── BDEW25 (2025 revision) family ────────────────────────────────────────────
+
+@requires_demandlib
+def test_list_profiles_includes_bdew25():
+    proc = _run(args=["--list-profiles", "--year", "2024"])
+    profiles = _out(proc)["profiles"]
+    assert {"h25", "g25", "l25"}.issubset(set(profiles))
+
+
+@requires_demandlib
+def test_bdew25_full_year_mean_is_one():
+    proc = _run({"start": "2024-01-01", "end": "2024-12-31", "resolution": "60min",
+                 "sectors": {"h25": 1}, "country": "DE", "family": "bdew25"})
+    assert proc.returncode == 0, proc.stderr
+    out = _out(proc)
+    assert out["family"] == "bdew25"
+    assert len(out["values"]) == 8784
+    assert abs(sum(out["values"]) / len(out["values"]) - 1.0) < 0.02
+
+
+@requires_demandlib
+def test_bdew25_rejects_classic_sector():
+    proc = _run({"start": "2024-01-01", "end": "2024-01-07", "resolution": "60min",
+                 "sectors": {"h0": 1}, "family": "bdew25"})
+    assert proc.returncode != 0
+    assert "error" in _out(proc)
