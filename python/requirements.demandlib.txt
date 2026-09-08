@@ -1,0 +1,9 @@
+# demandlib one-shot for OSM Study-Area substation demand shapes.
+# Latest demandlib so the full BDEW SLP set is available (classic g0-g6 / h0 /
+# h0_dyn / l0-l2, plus BDEW25 where shipped). Unpinned deliberately — the wizard
+# reads the available profile list from the package, and the feature degrades to
+# the synthetic JS fallback if this venv is absent or a version drifts.
+demandlib
+pandas
+numpy
+holidays
