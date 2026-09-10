@@ -366,9 +366,9 @@ const Creation = ({ onNavigate }) => {
   
   // Deck.gl Map States
   const [viewState, setViewState] = useState({
-    longitude: -70.6693,
-    latitude: -33.4489,
-    zoom: 4,
+    longitude: 12.9576,   // Deggendorf, Germany
+    latitude: 48.8372,
+    zoom: 8,
     pitch: 0,
     bearing: 0
   });
@@ -766,9 +766,9 @@ const Creation = ({ onNavigate }) => {
           console.warn('Geolocation error:', error);
           // Fallback to default location
           setViewState({
-            longitude: -70.6693,
-            latitude: -33.4489,
-            zoom: 4,
+            longitude: 12.961127,
+            latitude: 48.833195,
+            zoom: 3,
             pitch: 0,
             bearing: 0,
             transitionDuration: 1000,
@@ -779,9 +779,9 @@ const Creation = ({ onNavigate }) => {
     } else {
       // Geolocation not supported, use default
       setViewState({
-        longitude: -70.6693,
-        latitude: -33.4489,
-        zoom: 4,
+        longitude: 12.961127,
+        latitude: 48.833195,
+        zoom: 3,
         pitch: 0,
         bearing: 0,
         transitionDuration: 1000,

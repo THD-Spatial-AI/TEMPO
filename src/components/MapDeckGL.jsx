@@ -824,8 +824,6 @@ const MapDeckGL = () => {
     if (fit) setViewState(v => ({ ...v, ...fit, transitionDuration: 1000 }));
   };
 
-  // Auto-fit to the model's locations when a model loads, so the map centres on
-  // the actual model instead of the default (Santiago) view. Fits once per model.
   const fittedModelRef = useRef(null);
   useEffect(() => {
     if (fittedModelRef.current === currentModelId) return;
