@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import DeckGL from '@deck.gl/react';
+import { WebMercatorViewport } from '@deck.gl/core';
 import { ScatterplotLayer, IconLayer, LineLayer } from '@deck.gl/layers';
 import { Map as MapGL } from 'react-map-gl/maplibre';
 import { useData } from '../context/DataContext';
@@ -17,8 +18,11 @@ import {
 } from '../utils/mapVisuals';
 import DragConfirmDialog from './map/DragConfirmDialog';
 import IconSelectorDialog from './map/IconSelectorDialog';
-import MapLocationEditDialog from './map/MapLocationEditDialog';
-import MapSidebarLists from './map/MapSidebarLists';
+import LocationEditDialog from './LocationEditDialog';
+import EntityListsPanel from './shared/EntityListsPanel';
+import HoverTooltip from './creation/HoverTooltip';
+import LayerSelector from './creation/LayerSelector';
+import MapZoomControls from './creation/MapZoomControls';
 
 const MapDeckGL = () => {
   const { locations, setLocations, links, setLinks, showNotification, technologies, models, currentModelId, loadModel, updateCurrentModel, createModel } = useData();
@@ -42,13 +46,7 @@ const MapDeckGL = () => {
   const [lastPolylineLocation, setLastPolylineLocation] = useState(null);
   const [isNewLocation, setIsNewLocation] = useState(false);
   const [showModelPanel, setShowModelPanel] = useState(false);
-  const [showLocationsSection, setShowLocationsSection] = useState(false);
-  const [showLinksSection, setShowLinksSection] = useState(false);
-  const [showTimeseriesSection, setShowTimeseriesSection] = useState(false);
-  const [timeseriesFilter, setTimeseriesFilter] = useState('');
-  const [timeseriesSortBy, setTimeseriesSortBy] = useState('name');
-  const [timeseriesPreview, setTimeseriesPreview] = useState(null);
-  
+
   // Edit dialog states
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingLocation, setEditingLocation] = useState(null);
@@ -59,15 +57,8 @@ const MapDeckGL = () => {
   const [editingConstraints, setEditingConstraints] = useState({});
   const [editingEssentials, setEditingEssentials] = useState({});
   const [editingCosts, setEditingCosts] = useState({});
-  const [constraintSearch, setConstraintSearch] = useState({});
-  const [costSearch, setCostSearch] = useState({});
-  const [selectedConstraintGroup, setSelectedConstraintGroup] = useState({});
-  const [selectedCostGroup, setSelectedCostGroup] = useState({});
   const [techCsvFiles, setTechCsvFiles] = useState({});
   const [constraintCsvFiles, setConstraintCsvFiles] = useState({});
-  const [expandedSections, setExpandedSections] = useState({});
-  const [expandedCategories, setExpandedCategories] = useState({});
-  const [expandedTechSubcategories, setExpandedTechSubcategories] = useState({});
   const [mapReady, setMapReady] = useState(false);
   const [draggedLocation, setDraggedLocation] = useState(null);
   const [draggingPosition, setDraggingPosition] = useState(null);
@@ -536,30 +527,34 @@ const MapDeckGL = () => {
       sizeMinPixels: 10,
       sizeMaxPixels: 80,
       pickable: true,
-      onClick: (info, event) => {
+      onClick: (info) => {
         if (info.object) {
           if (mode === 'add-link') {
             handleLocationClickForLink(info.object);
-          } else if (mode === 'view') {
-            setSelectedLocation(info.object);
-            setIsDraggingEnabled(true);
-            setViewState({
-              ...viewState,
-              longitude: info.object.longitude,
-              latitude: info.object.latitude,
-              zoom: 12,
-              transitionDuration: 1000
-            });
+          } else {
+            // View/inspect: open the tech editor (same as the Creation view).
+            handleEditLocation(info.object, locations.indexOf(info.object));
           }
         }
       },
       onHover: (info) => {
         if (info.object) {
+          const o = info.object;
+          const kind = o.metadata?.kind;
+          const accentColor = kind === 'substation' ? '#ef4444'
+            : kind === 'plant' ? '#22c55e'
+            : kind === 'transmission_node' ? '#f59e0b' : '#6B7280';
+          const details = [{ label: 'Technologies', value: String(Object.keys(o.techs || {}).length) }];
+          if (o.latitude != null && o.longitude != null) {
+            details.push({ label: 'Lat, Lon', value: `${Number(o.latitude).toFixed(3)}, ${Number(o.longitude).toFixed(3)}` });
+          }
           setHoveredInfo({
-            name: info.object.name,
-            techs: Object.keys(info.object.techs || {}).length,
+            name: o.name,
+            layerType: kind ? kind.replace(/_/g, ' ') : (o.isNode ? 'node' : 'location'),
+            details,
+            accentColor,
             x: info.x,
-            y: info.y
+            y: info.y,
           });
         } else {
           setHoveredInfo(null);
@@ -775,6 +770,7 @@ const MapDeckGL = () => {
   
   // Handle location select from sidebar
   const handleLocationSelect = (location) => {
+    setSelectedLocation(location); // keeps the sidebar row highlighted
     setViewState({
       ...viewState,
       longitude: location.longitude,
@@ -796,48 +792,48 @@ const MapDeckGL = () => {
     }
   };
   
-  // Fit bounds to show all locations
-  const fitBounds = () => {
-    if (locations.length === 0) return;
-    
-    // Filter out locations with invalid coordinates
-    const validLocations = locations.filter(loc => 
-      !isNaN(loc.longitude) && !isNaN(loc.latitude) &&
-      isFinite(loc.longitude) && isFinite(loc.latitude)
-    );
-
-    if (validLocations.length === 0) {
-      console.error('No valid locations with coordinates found');
-      return;
-    }
-
-    const lngs = validLocations.map(loc => loc.longitude);
-    const lats = validLocations.map(loc => loc.latitude);
-    
-    const minLng = Math.min(...lngs);
-    const maxLng = Math.max(...lngs);
-    const minLat = Math.min(...lats);
-    const maxLat = Math.max(...lats);
-    
-    // Additional validation
-    if (!isFinite(minLng) || !isFinite(maxLng) || !isFinite(minLat) || !isFinite(maxLat)) {
-      console.error('Invalid bounds calculated:', { minLng, maxLng, minLat, maxLat });
-      return;
-    }
-
+  // Compute a viewState that frames all valid locations (proper zoom from the
+  // bounding box, not a fixed level). Returns null when there's nothing to frame.
+  const computeFitViewState = useCallback((locs) => {
+    const valid = (locs || []).filter(loc =>
+      !isNaN(loc.longitude) && !isNaN(loc.latitude) && isFinite(loc.longitude) && isFinite(loc.latitude));
+    if (valid.length === 0) return null;
+    const lngs = valid.map(l => l.longitude);
+    const lats = valid.map(l => l.latitude);
+    const minLng = Math.min(...lngs); const maxLng = Math.max(...lngs);
+    const minLat = Math.min(...lats); const maxLat = Math.max(...lats);
+    if (![minLng, maxLng, minLat, maxLat].every(isFinite)) return null;
     const centerLng = (minLng + maxLng) / 2;
     const centerLat = (minLat + maxLat) / 2;
-    
-    console.log('Fitting bounds to:', { centerLat, centerLng, locations: validLocations.length });
-    
-    setViewState({
-      ...viewState,
-      longitude: centerLng,
-      latitude: centerLat,
-      zoom: 6,
-      transitionDuration: 1000
-    });
+    if (minLng === maxLng && minLat === maxLat) {
+      return { longitude: centerLng, latitude: centerLat, zoom: 11 }; // single point
+    }
+    try {
+      const vp = new WebMercatorViewport({ width: window.innerWidth || 1200, height: window.innerHeight || 800 });
+      const { longitude, latitude, zoom } = vp.fitBounds(
+        [[minLng, minLat], [maxLng, maxLat]], { padding: 80 });
+      return { longitude, latitude, zoom: Math.min(zoom, 15) };
+    } catch {
+      return { longitude: centerLng, latitude: centerLat, zoom: 6 };
+    }
+  }, []);
+
+  // Fit bounds to show all locations (toolbar button).
+  const fitBounds = () => {
+    const fit = computeFitViewState(locations);
+    if (fit) setViewState(v => ({ ...v, ...fit, transitionDuration: 1000 }));
   };
+
+  // Auto-fit to the model's locations when a model loads, so the map centres on
+  // the actual model instead of the default (Santiago) view. Fits once per model.
+  const fittedModelRef = useRef(null);
+  useEffect(() => {
+    if (fittedModelRef.current === currentModelId) return;
+    const fit = computeFitViewState(locations);
+    if (!fit) return; // wait until locations are available
+    fittedModelRef.current = currentModelId;
+    setViewState(v => ({ ...v, ...fit, transitionDuration: 600 }));
+  }, [locations, currentModelId, computeFitViewState]);
   
   // Zoom controls
   const handleZoomIn = useCallback(() => {
@@ -947,25 +943,21 @@ const MapDeckGL = () => {
           </div>
         )}
 
-        {/* Mode Selection */}
+        {/* Edit tools — add nodes, links, polylines to the imported model */}
         <div className={`border-b border-slate-200 shrink-0 ${leftSidebarCollapsed ? 'p-2' : 'p-3'}`}>
           {leftSidebarCollapsed ? (
-            /* Collapsed: icon-only column */
             <div className="flex flex-col items-center gap-1.5">
               {[
-                { m: 'view', Icon: FiEye, title: 'View' },
                 { m: 'add-location', Icon: FiMapPin, title: 'Add Location' },
                 { m: 'add-link', Icon: FiLink, title: 'Link' },
                 { m: 'polyline', Icon: FiNavigation, title: 'Polyline' },
               ].map(({ m, Icon, title }) => (
                 <button
                   key={m}
-                  onClick={() => { setMode(m); setLinkStart(null); if (m !== 'polyline') setLastPolylineLocation(null); }}
+                  onClick={() => { setMode(mode === m ? 'view' : m); setLinkStart(null); if (m !== 'polyline') setLastPolylineLocation(null); }}
                   title={title}
                   className={`p-2 rounded-lg border-2 w-full flex justify-center transition-all ${
-                    mode === m
-                      ? 'border-gray-900 bg-gray-900 text-white'
-                      : 'border-gray-200 hover:border-gray-400 text-gray-600'
+                    mode === m ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 hover:border-gray-400 text-gray-600'
                   }`}
                 >
                   <Icon size={16} />
@@ -973,45 +965,28 @@ const MapDeckGL = () => {
               ))}
             </div>
           ) : (
-            /* Expanded: full mode grid */
             <>
-              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">Mode</label>
-              {/* View — full width */}
-              <button
-                onClick={() => { setMode('view'); setLinkStart(null); setLastPolylineLocation(null); }}
-                className={`w-full mb-2 p-2 rounded-lg border-2 flex items-center gap-2 transition-all ${
-                  mode === 'view'
-                    ? 'border-gray-900 bg-gray-900 text-white'
-                    : 'border-gray-200 hover:border-gray-400 text-gray-700'
-                }`}
-              >
-                <FiEye size={16} className="shrink-0" />
-                <span className="text-xs font-medium">View</span>
-              </button>
-              {/* 2×2: Single / Multiple / Link / Polyline */}
-              <div className="grid grid-cols-2 gap-1.5">
+              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">Edit tools</label>
+              <div className="grid grid-cols-3 gap-1.5">
                 {[
-                  { m: 'add-location', Icon: FiMapPin, label: 'Add Location' },
+                  { m: 'add-location', Icon: FiMapPin, label: 'Add' },
                   { m: 'add-link', Icon: FiLink, label: 'Link' },
                   { m: 'polyline', Icon: FiNavigation, label: 'Polyline' },
                 ].map(({ m, Icon, label }) => (
                   <button
                     key={m}
-                    onClick={() => { setMode(m); setLinkStart(null); if (m !== 'polyline') setLastPolylineLocation(null); }}
+                    onClick={() => { setMode(mode === m ? 'view' : m); setLinkStart(null); if (m !== 'polyline') setLastPolylineLocation(null); }}
                     className={`p-2.5 rounded-lg border-2 transition-all ${
-                      mode === m
-                        ? 'border-gray-900 bg-gray-900 text-white'
-                        : 'border-gray-200 hover:border-gray-400 text-gray-700'
+                      mode === m ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 hover:border-gray-400 text-gray-700'
                     }`}
                   >
                     <Icon className="mx-auto mb-0.5" size={16} />
-                    <div className="text-xs font-medium">{label}</div>
+                    <div className="text-[11px] font-medium">{label}</div>
                   </button>
                 ))}
               </div>
-              {/* Hint text */}
               <div className="mt-2 p-2 bg-slate-100 rounded text-xs text-slate-600">
-                {mode === 'view' && 'Click a location on the map to view details'}
+                {mode === 'view' && 'Click a location to edit it. Pick a tool to add nodes/links.'}
                 {mode === 'add-location' && 'Click the map to add a location and edit it'}
                 {mode === 'add-link' && (linkStart ? `Select destination for link from "${linkStart.name}"` : 'Click a location to start a link')}
                 {mode === 'polyline' && (lastPolylineLocation ? `Continue from "${lastPolylineLocation.name}" — click to extend` : 'Click the map to start a polyline chain')}
@@ -1022,31 +997,30 @@ const MapDeckGL = () => {
 
         {/* Locations & Links List */}
         {!leftSidebarCollapsed && (
-          <MapSidebarLists
-            handleDeleteLocation={handleDeleteLocation}
-            handleEditLocation={handleEditLocation}
-            handleLocationSelect={handleLocationSelect}
-            links={links}
-            linksExpanded={linksExpanded}
+          <EntityListsPanel
             locations={locations}
+            links={links}
+            selectedLocationId={selectedLocation?.id ?? null}
+            onSelectLocation={(loc) => handleLocationSelect(loc)}
+            onEditLocation={(loc, index) => handleEditLocation(loc, index)}
+            onDeleteLocation={(loc, index) => handleDeleteLocation(index)}
+            onClearLocations={() => {
+              if (window.confirm(`Delete all ${locations.length} locations? This will also remove all links.`)) {
+                setLocations([]); setLinks([]); showNotification('All locations and links deleted', 'success');
+              }
+            }}
+            onClearLinks={() => {
+              if (!links.length) return;
+              if (window.confirm(`Delete all ${links.length} links?`)) {
+                setLinks([]); showNotification('All links deleted', 'success');
+              }
+            }}
+            onUpdateLink={(link, patch, index) => setLinks(prev => prev.map((l, i) => (i === index ? { ...l, ...patch } : l)))}
+            onDeleteLink={(link, index) => setLinks(prev => prev.filter((_, i) => i !== index))}
             locationsExpanded={locationsExpanded}
-            selectedLocation={selectedLocation}
-            setLinks={setLinks}
-            setLinksExpanded={setLinksExpanded}
-            setLocations={setLocations}
             setLocationsExpanded={setLocationsExpanded}
-            setSelectedLocation={setSelectedLocation}
-            setShowTimeseriesSection={setShowTimeseriesSection}
-            setTimeseriesFilter={setTimeseriesFilter}
-            setTimeseriesPreview={setTimeseriesPreview}
-            setTimeseriesSortBy={setTimeseriesSortBy}
-            setViewState={setViewState}
-            showNotification={showNotification}
-            showTimeseriesSection={showTimeseriesSection}
-            timeseriesFilter={timeseriesFilter}
-            timeseriesPreview={timeseriesPreview}
-            timeseriesSortBy={timeseriesSortBy}
-            viewState={viewState}
+            linksExpanded={linksExpanded}
+            setLinksExpanded={setLinksExpanded}
           />
         )}
       </div>
@@ -1114,40 +1088,26 @@ const MapDeckGL = () => {
         
         {/* Map Legend - Dynamic based on model technologies */}
         {(locations.length > 0 || links.length > 0) && (() => {
-          // Extract unique technologies from all locations (not grouped)
+          // Node types by kind (matches the on-map palette) + per-technology colors.
           const techMapEntries = new Map();
-          
-          // Count substations
-          let substationsWithDemand = 0;
-          let substationsWithoutDemand = 0;
-          
+          const kindCounts = { substation: 0, plant: 0, transmission_node: 0 };
+
           locations.forEach(loc => {
-            const locationName = (loc.name || '').toUpperCase();
-            const isSubstation = locationName.includes('S/E') || locationName.includes('SUBSTATION') || locationName.includes('TAP OFF');
-            
-            if (isSubstation) {
-              const techs = loc.techs || {};
-              const hasDemand = Object.keys(techs).some(t => t.toLowerCase().includes('demand'));
-              if (hasDemand) {
-                substationsWithDemand++;
-              } else {
-                substationsWithoutDemand++;
+            const kind = loc.metadata?.kind;
+            if (kind && kindCounts[kind] != null) kindCounts[kind] += 1;
+            const techs = loc.techs || {};
+            Object.keys(techs).forEach(techName => {
+              if (techName.toLowerCase().includes('demand')) return; // demand isn't a colour chip
+              if (!techMapEntries.has(techName)) {
+                const color = getTechColor(techName, techMap);
+                const displayName = techMap[techName]?.essentials?.name || techName;
+                techMapEntries.set(techName, { color, displayName });
               }
-            } else {
-              // Not a substation, add its technologies
-              const techs = loc.techs || {};
-              Object.keys(techs).forEach(techName => {
-                if (!techMapEntries.has(techName)) {
-                  const color = getTechColor(techName, techMap);
-                  const displayName = techMap[techName]?.essentials?.name || techName;
-                  techMapEntries.set(techName, { color, displayName });
-                }
-              });
-            }
+            });
           });
-          
-          const totalSubstations = substationsWithDemand + substationsWithoutDemand;
-          
+
+          const totalNodes = kindCounts.substation + kindCounts.plant + kindCounts.transmission_node;
+
           return (
             <div className="absolute bottom-4 right-4 bg-white rounded-lg shadow-xl p-4 z-50 max-w-xs max-h-96 overflow-y-auto">
               <h4 className="font-bold text-sm text-gray-900 mb-3 flex items-center gap-2">
@@ -1155,25 +1115,27 @@ const MapDeckGL = () => {
                 Map Legend
               </h4>
               
-              {/* Substations */}
-              {totalSubstations > 0 && (
+              {/* Node types — same palette as the map (red subs / green plants / amber transmission) */}
+              {totalNodes > 0 && (
                 <div className="mb-4">
-                  <div className="text-xs font-semibold text-gray-700 mb-2">Substations ({totalSubstations})</div>
+                  <div className="text-xs font-semibold text-gray-700 mb-2">Node types</div>
                   <div className="space-y-1.5 text-xs">
-                    {substationsWithoutDemand > 0 && (
+                    {kindCounts.substation > 0 && (
                       <div className="flex items-center gap-2">
-                        <svg width="16" height="16" viewBox="0 0 24 24" className="flex-shrink-0">
-                          <path fill="#212121" stroke="#000" strokeWidth="1" d="M12 2L22 22L2 22Z"/>
-                        </svg>
-                        <span className="text-gray-700">No demand ({substationsWithoutDemand})</span>
+                        <span className="w-3.5 h-3.5 rounded-full border border-gray-300 flex-shrink-0" style={{ backgroundColor: 'rgb(239, 68, 68)' }} />
+                        <span className="text-gray-700">Substations ({kindCounts.substation})</span>
                       </div>
                     )}
-                    {substationsWithDemand > 0 && (
+                    {kindCounts.plant > 0 && (
                       <div className="flex items-center gap-2">
-                        <svg width="16" height="16" viewBox="0 0 24 24" className="flex-shrink-0">
-                          <path fill="#F44336" stroke="#000" strokeWidth="1" d="M12 2L22 22L2 22Z"/>
-                        </svg>
-                        <span className="text-gray-700">With demand ({substationsWithDemand})</span>
+                        <span className="w-3.5 h-3.5 rounded-full border border-gray-300 flex-shrink-0" style={{ backgroundColor: 'rgb(34, 197, 94)' }} />
+                        <span className="text-gray-700">Power plants ({kindCounts.plant})</span>
+                      </div>
+                    )}
+                    {kindCounts.transmission_node > 0 && (
+                      <div className="flex items-center gap-2">
+                        <span className="w-3.5 h-3.5 rounded-full border border-gray-300 flex-shrink-0" style={{ backgroundColor: 'rgb(245, 158, 11)' }} />
+                        <span className="text-gray-700">Transmission nodes ({kindCounts.transmission_node})</span>
                       </div>
                     )}
                   </div>
@@ -1280,302 +1242,14 @@ const MapDeckGL = () => {
           );
         })()}
         
-        {/* Hover tooltip */}
-        {hoveredInfo && (
-          <div
-            style={{
-              position: 'absolute',
-              left: hoveredInfo.x + 10,
-              top: hoveredInfo.y + 10,
-              pointerEvents: 'none'
-            }}
-            className="bg-white px-3 py-2 rounded shadow-lg text-xs z-50"
-          >
-            <div className="font-semibold">{hoveredInfo.name}</div>
-            {hoveredInfo.isLink ? (
-              <div className="text-slate-600">{hoveredInfo.distance} km</div>
-            ) : (
-              <div className="text-slate-600">Technologies: {hoveredInfo.techs}</div>
-            )}
-          </div>
-        )}
+        {/* Hover tooltip — shared component, same structure as the Creation view */}
+        {hoveredInfo && <HoverTooltip hoveredInfo={hoveredInfo} />}
         
-        {/* Selected Location Panel */}
-        {selectedLocation && (
-          <div className="absolute top-4 left-4 bg-white rounded-lg shadow-xl p-4 w-80 max-h-96 overflow-y-auto z-50">
-            <div className="flex items-start justify-between mb-3">
-              <div className="flex-1">
-                <h3 className="font-bold text-slate-800">
-                  {selectedLocation.isLink ? 'Transmission Link' : selectedLocation.name}
-                </h3>
-                {selectedLocation.isNode && (
-                  <p className="text-xs text-gray-600 mt-1 font-medium">⚡ Substation/Node</p>
-                )}
-              </div>
-              <div className="flex gap-2">
-                {!selectedLocation.isLink && (
-                  <button
-                    onClick={() => {
-                      setSelectedLocationForIcon(selectedLocation);
-                      setShowIconSelector(true);
-                    }}
-                    className="p-1.5 text-gray-600 hover:bg-gray-50 rounded transition-colors"
-                    title="Change Icon"
-                  >
-                    <FiLayers size={18} />
-                  </button>
-                )}
-                <button
-                  onClick={() => {
-                    setSelectedLocation(null);
-                    setIsDraggingEnabled(false);
-                  }}
-                  className="text-slate-400 hover:text-slate-600 text-2xl leading-none"
-                >
-                  ×
-                </button>
-              </div>
-            </div>
-            
-            {selectedLocation.isLink ? (
-              <div className="space-y-2">
-                <div className="text-sm">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="font-medium text-slate-700">{selectedLocation.from}</span>
-                  </div>
-                  <div className="text-center text-slate-400 my-1">↓</div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-slate-700">{selectedLocation.to}</span>
-                  </div>
-                </div>
-                <div className="text-xs border-t border-slate-200 pt-2 space-y-1">
-                  <div>
-                    <span className="text-slate-600">Distance:</span>{' '}
-                    <span className="font-medium">{selectedLocation.distance} km</span>
-                  </div>
-                  {selectedLocation.techName && (
-                    <div>
-                      <span className="text-slate-600">Type:</span>{' '}
-                      <span className="font-medium">
-                        {selectedLocation.techName.replace('_', ' ').toUpperCase()}
-                      </span>
-                      <div className="mt-1 flex items-center gap-2">
-                        <div 
-                          className="w-8 h-1 rounded" 
-                          style={{ 
-                            backgroundColor: `rgb(${getVoltageColor(selectedLocation.techName).join(',')})` 
-                          }}
-                        ></div>
-                        <span className="text-xs text-slate-500">
-                          {selectedLocation.techName.toLowerCase().includes('power_line') 
-                            ? 'Power Plant Connection' 
-                            : 'Transmission Line'}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                {selectedLocation.techs && Object.keys(selectedLocation.techs).length > 0 && (
-                  <div className="border-t border-slate-200 pt-2 mt-2">
-                    <div className="text-xs font-medium text-slate-700 mb-2">Technologies:</div>
-                    {Object.entries(selectedLocation.techs).map(([techName, techData]) => (
-                      <div key={techName} className="text-xs py-2 px-2 bg-gray-50 rounded mb-1 border border-gray-200">
-                        <div className="font-medium text-gray-800">{techName}</div>
-                        {techData.constraints && Object.keys(techData.constraints).length > 0 && (
-                          <div className="text-slate-600 mt-1 space-y-0.5">
-                            {Object.entries(techData.constraints).slice(0, 3).map(([key, value]) => (
-                              <div key={key}>{key}: {value}</div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <div className="text-xs">
-                  <span className="text-slate-600">Coordinates:</span>{' '}
-                  <span className="font-medium">{selectedLocation.latitude.toFixed(4)}, {selectedLocation.longitude.toFixed(4)}</span>
-                </div>
-                
-                <div className="text-xs">
-                  <span className="text-slate-600">Technologies:</span>{' '}
-                  <span className="font-medium">{Object.keys(selectedLocation.techs || {}).length}</span>
-                </div>
-                
-                {/* Always show total demand if available */}
-                {(selectedLocation.totalDemandMWh || selectedLocation.demandProfile) && (
-                  <div className="text-xs bg-gradient-to-r from-gray-100 to-gray-200 p-2 rounded-lg border border-gray-300 my-2">
-                    <span className="text-slate-600 font-semibold">Total Energy Demand:</span>{' '}
-                    <span className="font-bold text-gray-900 text-base">
-                      {selectedLocation.totalDemandMWh || selectedLocation.demandProfile?.totalMWh || 'N/A'} MWh
-                    </span>
-                    {selectedLocation.demandProfile?.totalGWh && (
-                      <span className="text-xs text-slate-600 ml-2">({selectedLocation.demandProfile.totalGWh} GWh)</span>
-                    )}
-                  </div>
-                )}
-                
-                {Object.keys(selectedLocation.techs || {}).length > 0 && (
-                  <div className="border-t border-slate-200 pt-2 mt-2">
-                    <div className="text-xs font-medium text-slate-700 mb-2">Installed Technologies:</div>
-                    {Object.entries(selectedLocation.techs).map(([techName, techData]) => {
-                      // Determine color based on tech type - matching Chile model names
-                      let bgColor = 'bg-gray-50';
-                      let borderColor = 'border-gray-200';
-                      let textColor = 'text-gray-800';
-                      const lower = techName.toLowerCase();
-                      
-                      if (lower.includes('solar') || lower.includes('pv') || lower.includes('csp')) {
-                        bgColor = 'bg-gray-50'; borderColor = 'border-gray-300'; textColor = 'text-gray-900';
-                      } else if (lower.includes('wind')) {
-                        bgColor = 'bg-gray-50'; borderColor = 'border-gray-300'; textColor = 'text-gray-900';
-                      } else if (lower.includes('hydro') || lower.includes('reservoir')) {
-                        bgColor = 'bg-gray-50'; borderColor = 'border-gray-300'; textColor = 'text-gray-900';
-                      } else if (lower.includes('battery') || lower.includes('storage')) {
-                        bgColor = 'bg-gray-50'; borderColor = 'border-gray-200'; textColor = 'text-gray-800';
-                      } else if (lower.includes('coal') || lower.includes('oil') || lower.includes('diesel') || lower.includes('gas') || lower.includes('ccgt') || lower.includes('nuclear')) {
-                        bgColor = 'bg-gray-50'; borderColor = 'border-gray-300'; textColor = 'text-gray-900';
-                      } else if (lower.includes('geo') || lower.includes('geothermal')) {
-                        bgColor = 'bg-gray-50'; borderColor = 'border-gray-300'; textColor = 'text-gray-900';
-                      } else if (lower.includes('bio') || lower.includes('biomass') || lower.includes('biogas')) {
-                        bgColor = 'bg-gray-50'; borderColor = 'border-gray-300'; textColor = 'text-gray-900';
-                      }
-                      
-                      const td = techData || {};
-                      const fmtVal = (v) => {
-                        if (v === null || v === undefined) return '—';
-                        if (typeof v === 'number') return isFinite(v) ? v.toFixed(2) : String(v);
-                        if (typeof v === 'object') return JSON.stringify(v);
-                        return String(v);
-                      };
-                      return (
-                        <div key={techName} className={`text-xs py-2 px-2 ${bgColor} rounded mb-1 border ${borderColor}`}>
-                          <div className={`font-medium ${textColor}`}>{techName}</div>
-                          {td.constraints && Object.keys(td.constraints).length > 0 && (
-                            <div className="text-slate-600 mt-1 space-y-0.5">
-                              {Object.entries(td.constraints).slice(0, 5).map(([key, value]) => (
-                                <div key={key} className="text-xs">
-                                  <span className="font-medium">{key}:</span> {fmtVal(value)}
-                                </div>
-                              ))}
-                              {Object.keys(td.constraints).length > 5 && (
-                                <div className="text-slate-500 italic">+ {Object.keys(td.constraints).length - 5} more...</div>
-                              )}
-                            </div>
-                          )}
-                          {td.costs && Object.keys(td.costs).length > 0 && (
-                            <div className="text-slate-600 mt-1 pt-1 border-t border-slate-200">
-                              <div className="font-medium text-xs">Costs:</div>
-                              {Object.entries(td.costs).slice(0, 3).map(([key, value]) => (
-                                <div key={key} className="text-xs">
-                                  <span className="font-medium">{key}:</span> {fmtVal(value)}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {selectedLocation.demandProfile && (
-                  <div className="border-t border-slate-200 pt-2 mt-2">
-                    <div className="text-xs font-medium text-slate-700 mb-2">Demand Profile Timeseries:</div>
-                    <div className="text-xs text-slate-600 space-y-1.5">
-                      <div className="bg-gradient-to-r from-gray-100 to-gray-200 p-3 rounded-lg border-2 border-gray-300 mb-2">
-                        <div className="text-slate-600 text-xs font-semibold mb-1">Annual Energy Demand</div>
-                        <div className="flex items-baseline gap-2">
-                          <div className="text-2xl font-bold text-gray-900">{selectedLocation.totalDemandMWh}</div>
-                          <div className="text-sm font-semibold text-gray-700">MWh</div>
-                        </div>
-                        <div className="text-xs text-slate-600 mt-1">= {selectedLocation.demandProfile.totalGWh} GWh</div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="bg-gray-50 p-2 rounded">
-                          <div className="text-slate-500 text-xs">Total Energy</div>
-                          <div className="font-bold text-gray-700">{selectedLocation.demandProfile.totalGWh} GWh</div>
-                        </div>
-                        <div className="bg-gray-50 p-2 rounded">
-                          <div className="text-slate-500 text-xs">Average Power</div>
-                          <div className="font-bold text-gray-700">{selectedLocation.demandProfile.avgMW} MW</div>
-                        </div>
-                        <div className="bg-gray-50 p-2 rounded">
-                          <div className="text-slate-500 text-xs">Peak Demand</div>
-                          <div className="font-bold text-gray-700">{selectedLocation.demandProfile.maxMW} MW</div>
-                        </div>
-                        <div className="bg-gray-50 p-2 rounded">
-                          <div className="text-slate-500 text-xs">Min Demand</div>
-                          <div className="font-bold text-gray-700">{selectedLocation.demandProfile.minMW} MW</div>
-                        </div>
-                      </div>
-                      <div className="pt-2 border-t border-slate-200">
-                        <div><span className="font-medium">Data Points:</span> {selectedLocation.demandProfile.hours} hours</div>
-                        <div><span className="font-medium">Source:</span> {selectedLocation.demandProfile.file}</div>
-                        <div><span className="font-medium">Column:</span> {selectedLocation.demandProfile.column}</div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              
-                <button
-                  onClick={() => {
-                    const locationIndex = locations.findIndex(loc => loc.name === selectedLocation.name);
-                    if (locationIndex !== -1) {
-                      handleEditLocation(selectedLocation, locationIndex);
-                      setSelectedLocation(null);
-                    }
-                  }}
-                  className="w-full mt-3 px-3 py-2 bg-gray-600 text-white text-sm rounded hover:bg-gray-700 flex items-center justify-center gap-1"
-                  title="Edit this location and manage technologies"
-                >
-                  <FiEdit2 size={14} />
-                  Edit Location
-                </button>
-              </div>
-            )}
-          </div>
-        )}
         
-        {/* Map Controls */}
+        {/* Map Controls — shared components, same as the Creation view */}
         <div className="absolute top-4 right-4 flex flex-col gap-2 z-10">
-          <select
-            value={currentStyle}
-            onChange={(e) => setCurrentStyle(e.target.value)}
-            className="px-3 py-2 bg-white border border-slate-300 rounded shadow-md text-sm"
-          >
-            <option value="streets">Streets</option>
-            <option value="satellite">Satellite</option>
-            <option value="terrain">Terrain</option>
-            <option value="dark">Dark</option>
-          </select>
-          
-          <button
-            onClick={handleZoomIn}
-            className="p-2 bg-white border border-slate-300 rounded shadow-md hover:bg-slate-50"
-            title="Zoom In"
-          >
-            <FiZoomIn size={20} />
-          </button>
-          
-          <button
-            onClick={handleZoomOut}
-            className="p-2 bg-white border border-slate-300 rounded shadow-md hover:bg-slate-50"
-            title="Zoom Out"
-          >
-            <FiZoomOut size={20} />
-          </button>
-          
-          <button
-            onClick={fitBounds}
-            className="p-2 bg-white border border-slate-300 rounded shadow-md hover:bg-slate-50"
-            title="Fit All Locations"
-          >
-            <FiMaximize2 size={20} />
-          </button>
+          <LayerSelector currentLayer={currentStyle} onLayerChange={setCurrentStyle} />
+          <MapZoomControls onZoomIn={handleZoomIn} onZoomOut={handleZoomOut} onFitBounds={fitBounds} />
         </div>
       </div>
       
@@ -1603,44 +1277,22 @@ const MapDeckGL = () => {
         />
       )}
       
-      {/* Full Edit Location Dialog with Technology Management */}
-      {showEditDialog && editingLocation && (
-        <MapLocationEditDialog
-          addTechToDialog={addTechToDialog}
-          constraintCsvFiles={constraintCsvFiles}
-          constraintSearch={constraintSearch}
-          costSearch={costSearch}
-          dialogTechs={dialogTechs}
-          editingConstraints={editingConstraints}
-          editingCosts={editingCosts}
-          editingEssentials={editingEssentials}
-          editingLocation={editingLocation}
-          expandedSections={expandedSections}
-          expandedTechConstraints={expandedTechConstraints}
-          expandedTechSubcategories={expandedTechSubcategories}
-          handleConstraintCsvUpload={handleConstraintCsvUpload}
-          handleTechCsvUpload={handleTechCsvUpload}
-          hasLocationChanged={hasLocationChanged}
-          removeTechFromDialog={removeTechFromDialog}
-          saveEditedLocation={saveEditedLocation}
-          selectedConstraintGroup={selectedConstraintGroup}
-          selectedCostGroup={selectedCostGroup}
-          setConstraintSearch={setConstraintSearch}
-          setCostSearch={setCostSearch}
-          setEditingLocation={setEditingLocation}
-          setExpandedSections={setExpandedSections}
-          setExpandedTechSubcategories={setExpandedTechSubcategories}
-          setSelectedConstraintGroup={setSelectedConstraintGroup}
-          setSelectedCostGroup={setSelectedCostGroup}
-          setShowEditDialog={setShowEditDialog}
-          techCsvFiles={techCsvFiles}
-          techMap={techMap}
-          toggleTechConstraints={toggleTechConstraints}
-          updateDialogConstraint={updateDialogConstraint}
-          updateDialogCost={updateDialogCost}
-          updateDialogEssential={updateDialogEssential}
-        />
-      )}
+      {/* Shared Location edit popup — identical to the Creation view */}
+      <LocationEditDialog
+        isOpen={showEditDialog && !!editingLocation}
+        onClose={() => setShowEditDialog(false)}
+        location={editingLocation}
+        techMap={techMap}
+        onSave={(updated) => {
+          setLocations(prev => {
+            const copy = [...prev];
+            if (editingIndex != null && editingIndex >= 0 && editingIndex < copy.length) copy[editingIndex] = updated;
+            return copy;
+          });
+          setShowEditDialog(false);
+          showNotification(`Location "${updated.name}" updated`, 'success');
+        }}
+      />
     </div>
   );
 };

@@ -67,10 +67,35 @@ export const createLocationIcon = (location, techMap, cache) => {
   }
 
   const techKeys = Object.keys(location.techs || {}).sort().join(',');
-  const cacheKey = `${location.id}-${location.isNode}-${techKeys}`;
+  const kind = location.metadata?.kind;
+  const cacheKey = `${location.id}-${location.isNode}-${techKeys}-${kind || ''}`;
 
   if (cache.has(cacheKey)) {
     return cache.get(cacheKey);
+  }
+
+  // OSM study-area imports carry an explicit kind — draw them as filled circles
+  // in the SAME palette as the Creation OSM overlay (red substations, green
+  // plants, amber transmission nodes) so imported points match what was shown.
+  const OSM_KIND_COLOR = {
+    substation: 'rgb(239, 68, 68)',
+    plant: 'rgb(34, 197, 94)',
+    transmission_node: 'rgb(245, 158, 11)',
+  };
+  if (kind && OSM_KIND_COLOR[kind]) {
+    const icon = {
+      url: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`
+        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" shape-rendering="geometricPrecision">
+          <circle cx="12" cy="12" r="9" fill="${OSM_KIND_COLOR[kind]}" stroke="#ffffff" stroke-width="2"/>
+        </svg>
+      `)}`,
+      width: 32,
+      height: 32,
+      anchorX: 16,
+      anchorY: 16,
+    };
+    cache.set(cacheKey, icon);
+    return icon;
   }
 
   if (location.isNode) {

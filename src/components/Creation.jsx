@@ -91,7 +91,7 @@ const POWER_DEMAND_TECH_DEF = {
 };
 const HOURS_PER_YEAR = 8760;
 
-const Creation = () => {
+const Creation = ({ onNavigate }) => {
   const {
     locations, setLocations,
     links, setLinks,
@@ -1112,6 +1112,10 @@ const Creation = () => {
       latitude: loc.latitude,
       longitude: loc.longitude,
       type: loc.isNode ? 'node' : 'site',
+      isNode: loc.isNode,
+      // Keep metadata (kind: substation/plant/transmission_node) so the Map View
+      // renders these with the same palette/shape as the Creation OSM overlay.
+      metadata: loc.metadata || {},
       coordinates: {
         lat: loc.latitude,
         lon: loc.longitude
@@ -1188,6 +1192,15 @@ const Creation = () => {
       });
     });
 
+    // Carry forward any generated/session timeSeries (e.g. the OSM substation
+    // demand CSV). createModel does setTimeSeries(newModel.timeSeries), so if we
+    // pass [] here the demand entry is WIPED from context on save. Strip modelId
+    // so createModel assigns the new model's id.
+    const modelTimeSeries = (timeSeries || [])
+      .filter(ts => ts && ts.columns && ts.data && (ts.source === 'osm-demand' || !ts.modelId || ts.modelId === currentModelId))
+      // eslint-disable-next-line no-unused-vars
+      .map(({ modelId, ...rest }) => rest);
+
     // Create new model
     createModel(
       modelConfig.name || modelName.trim(),
@@ -1195,7 +1208,7 @@ const Creation = () => {
       finalLinks,
       [],
       techsToAdd,
-      [],
+      modelTimeSeries,
       {
         description: `Model created in Creation mode with ${locationManager.tempLocations.length} locations and ${locationManager.tempLinks.length} links`,
         createdInCreationMode: true,
@@ -1215,12 +1228,15 @@ const Creation = () => {
     );
     
     showNotification(`Model "${modelConfig.name || modelName}" created successfully!`, 'success');
-    
+
     // Reset creation state
     locationManager.clearAll();
     setModelName('');
     setShowSaveDialog(false);
-  }, [modelName, locationManager, modelConfig, techMap, createModel, showNotification]);
+
+    // Take the user straight to the Map View to inspect the saved model.
+    onNavigate?.('Map View');
+  }, [modelName, locationManager, modelConfig, techMap, createModel, showNotification, timeSeries, currentModelId, onNavigate]);
   
   // Generate power mesh from OSM power lines
   const generateMeshFromLines = useCallback(() => {
@@ -1578,12 +1594,21 @@ const Creation = () => {
       if (values?.length) {
         const fileName = 'osm_substation_demand.csv';
         const { columns, dataColumns, data, colBySub, groups } = buildDemandColumns({
-          datetimes, values, magnitudes: demandSubs.map(l => l.techs.power_demand.metadata.avgMW || 0),
+          datetimes, values,
+          subs: demandSubs.map(l => ({ name: l.name, mw: l.techs.power_demand.metadata.avgMW || 0 })),
         });
         // Carry the build config on the entry so it can be regenerated later (from
         // the TimeSeries panel) when the model dates or resolution change.
+        // modelId/id/source are REQUIRED for the entry to appear in the TimeSeries
+        // panel (which filters by ts.modelId === currentModel.id). csvContent is
+        // REQUIRED to survive a backend save/reload — prepareModelForBackend strips
+        // `data` and re-parses it from csvContent on load.
+        const csvContent = [columns.join(','), ...data.map(r => columns.map(c => r[c]).join(','))].join('\n');
         const tsEntry = {
-          name: 'osm_substation_demand', fileName, columns, dateColumn: 'datetime', dataColumns, data,
+          id: `${currentModelId || 'model'}_osm_substation_demand`,
+          modelId: currentModelId || null,
+          source: 'osm-demand',
+          name: 'osm_substation_demand', fileName, columns, dateColumn: 'datetime', dataColumns, data, csvContent,
           rowCount: data.length,
           demandConfig: { sectors, country: demandCfg.country, family: demandCfg.family, resolution, latitude, source, groups },
         };
@@ -1608,7 +1633,7 @@ const Creation = () => {
     setPlanSummary(null);
     setStudyBuildConfig(null);
     showNotification(`Imported ${plan.locations.length} nodes and ${plan.links.length} links into the model${demandNote}.`, 'success');
-  }, [planPreview, locationManager, showNotification, setPlanSummary, setStudyBuildConfig, technologies, setTechnologies, studyBuildConfig, modelConfig, setModelConfig, setTimeSeries]);
+  }, [planPreview, locationManager, showNotification, setPlanSummary, setStudyBuildConfig, technologies, setTechnologies, studyBuildConfig, modelConfig, setModelConfig, setTimeSeries, currentModelId]);
 
   // Add a neighbouring admin unit (hovered/clicked on the map) to the study area.
   // The panel's unitsKey effect then reloads the boundary + grid for the union.
@@ -1941,6 +1966,21 @@ const Creation = () => {
 
       {/* Main Map View */}
       <div className="flex-1 relative">
+        {/* Prominent, always-visible Save action (shows once there's something to save) */}
+        {locationManager.tempLocations.length > 0 && (
+          <button
+            onClick={() => setShowSaveDialog(true)}
+            className="absolute top-4 right-4 z-[600] flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold shadow-lg ring-1 ring-emerald-700/40 hover:bg-emerald-700 transition-colors"
+            title="Save this model and open it in the Map View"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+              <polyline points="17 21 17 13 7 13 7 21" />
+              <polyline points="7 3 7 8 15 8" />
+            </svg>
+            Save model ({locationManager.tempLocations.length})
+          </button>
+        )}
         {/* Breathing badge while calculating; the contour glows around the area */}
         {calculating && (
           <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[500] pointer-events-none">

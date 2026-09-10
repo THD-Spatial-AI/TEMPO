@@ -186,33 +186,43 @@ export function generateDemandShape({
   return { datetimes, values };
 }
 
+// Sanitise a substation name into a CSV column id, mirroring the Python
+// runner's _safe_id (strip calliope separators + illegal chars, collapse '_').
+function safeColId(name) {
+  const s = String(name || '')
+    .replace(/::/g, '__').replace(/:/g, '_')
+    .replace(/[^A-Za-z0-9_-]/g, '_')
+    .replace(/_+/g, '_').replace(/^_+|_+$/g, '');
+  return s;
+}
+
 /**
- * Build magnitude-grouped ABSOLUTE demand columns from a normalised shape.
+ * Build ONE ABSOLUTE demand column PER SUBSTATION from a normalised shape, so
+ * each substation's individual consumption is visible/editable in the TimeSeries
+ * panel. Column names come from the substation name (safe + unique). Values are
+ * NEGATIVE MW (Calliope demand convention) and already absolute — no
+ * `resource_scale` is needed, keeping the series portable across engines.
  *
- * Substations sharing a rounded avg-MW magnitude share one CSV column, so an
- * even split collapses to a single column and a voltage split to a few. Values
- * are NEGATIVE MW (Calliope demand convention) and are already absolute — no
- * `resource_scale` is needed, which keeps the series portable across engines.
- *
- * @param {{ datetimes:string[], values:number[], magnitudes:number[] }} opts
- *   `values` is the normalised shape (mean ≈ 1); `magnitudes[i]` is substation
- *   i's avg MW (aligned to the substation order).
+ * @param {{ datetimes:string[], values:number[], subs:{name:string, mw:number}[] }} opts
+ *   `values` is the normalised shape (mean ≈ 1); `subs[i]` = substation i.
  * @returns {{ columns:string[], dataColumns:string[], data:object[], colBySub:string[], groups:{col:string,mw:number}[] }}
  */
-export function buildDemandColumns({ datetimes, values, magnitudes }) {
-  const groups = new Map(); // rounded-magnitude key → { col, mw }
-  const colBySub = (magnitudes || []).map(mw => {
-    const key = Number(mw).toPrecision(3);
-    if (!groups.has(key)) groups.set(key, { col: `dem_${groups.size + 1}`, mw: Number(mw) });
-    return groups.get(key).col;
+export function buildDemandColumns({ datetimes, values, subs }) {
+  const used = new Set();
+  const cols = (subs || []).map((s, i) => {
+    let base = safeColId(s.name) || `sub_${i + 1}`;
+    let col = base;
+    let k = 2;
+    while (used.has(col.toLowerCase())) { col = `${base}_${k}`; k += 1; } // unique post-normalisation
+    used.add(col.toLowerCase());
+    return { col, mw: Number(s.mw) || 0 };
   });
-  const groupCols = [...groups.values()];
-  const dataColumns = groupCols.map(g => g.col);
-  const data = (datetimes || []).map((dt, i) => ({
+  const dataColumns = cols.map(c => c.col);
+  const data = (datetimes || []).map((dt, t) => ({
     datetime: dt,
-    ...Object.fromEntries(groupCols.map(g => [g.col, Number((-(values[i] * g.mw)).toFixed(4))])),
+    ...Object.fromEntries(cols.map(c => [c.col, Number((-(values[t] * c.mw)).toFixed(4))])),
   }));
-  return { columns: ['datetime', ...dataColumns], dataColumns, data, colBySub, groups: groupCols };
+  return { columns: ['datetime', ...dataColumns], dataColumns, data, colBySub: dataColumns, groups: cols };
 }
 
 /**

@@ -166,34 +166,36 @@ describe('buildDemandColumns', () => {
   const datetimes = ['2024-01-01 00:00:00', '2024-01-01 01:00:00'];
   const values = [1.0, 2.0]; // normalised shape
 
-  it('collapses equal magnitudes to a single shared column (even split)', () => {
-    const r = buildDemandColumns({ datetimes, values, magnitudes: [5, 5, 5] });
-    expect(r.dataColumns).toEqual(['dem_1']);
-    expect(r.colBySub).toEqual(['dem_1', 'dem_1', 'dem_1']);
-    expect(r.columns).toEqual(['datetime', 'dem_1']);
+  it('emits one named column per substation', () => {
+    const r = buildDemandColumns({ datetimes, values, subs: [
+      { name: 'Arica', mw: 5 }, { name: 'Tacna', mw: 10 },
+    ] });
+    expect(r.dataColumns).toEqual(['Arica', 'Tacna']);
+    expect(r.colBySub).toEqual(['Arica', 'Tacna']);
+    expect(r.columns).toEqual(['datetime', 'Arica', 'Tacna']);
   });
 
-  it('emits one column per distinct magnitude (voltage split)', () => {
-    const r = buildDemandColumns({ datetimes, values, magnitudes: [5, 10, 5, 20] });
-    expect(r.dataColumns).toEqual(['dem_1', 'dem_2', 'dem_3']);
-    expect(r.colBySub).toEqual(['dem_1', 'dem_2', 'dem_1', 'dem_3']);
+  it('writes absolute NEGATIVE MW = shape × the substation magnitude', () => {
+    const r = buildDemandColumns({ datetimes, values, subs: [{ name: 'A', mw: 5 }] });
+    expect(r.data[0]).toEqual({ datetime: datetimes[0], A: -5 });   // 1.0 × 5
+    expect(r.data[1]).toEqual({ datetime: datetimes[1], A: -10 });  // 2.0 × 5
   });
 
-  it('writes absolute NEGATIVE MW = shape × magnitude', () => {
-    const r = buildDemandColumns({ datetimes, values, magnitudes: [5] });
-    expect(r.data[0]).toEqual({ datetime: datetimes[0], dem_1: -5 });   // 1.0 × 5
-    expect(r.data[1]).toEqual({ datetime: datetimes[1], dem_1: -10 });  // 2.0 × 5
+  it('sanitises names and makes duplicates unique (post-normalisation)', () => {
+    const r = buildDemandColumns({ datetimes, values, subs: [
+      { name: 'S. José', mw: 1 }, { name: 'S/José', mw: 2 }, { name: '', mw: 3 },
+    ] });
+    // spaces/punct → underscores; the collision gets a numeric suffix; blank → sub_3.
+    expect(new Set(r.dataColumns).size).toBe(3);
+    expect(r.dataColumns[2]).toBe('sub_3');
+    expect(r.dataColumns.every(c => /^[A-Za-z0-9_-]+$/.test(c))).toBe(true);
   });
 
-  it('groups by rounded (3 sig-fig) magnitude', () => {
-    // 5.001 and 5.002 round to the same key at 3 sig figs → one column.
-    const r = buildDemandColumns({ datetimes, values, magnitudes: [5.001, 5.002] });
-    expect(r.dataColumns).toEqual(['dem_1']);
-  });
-
-  it('exposes the magnitude groups for later regeneration', () => {
-    const r = buildDemandColumns({ datetimes, values, magnitudes: [5, 10, 5] });
-    expect(r.groups).toEqual([{ col: 'dem_1', mw: 5 }, { col: 'dem_2', mw: 10 }]);
+  it('exposes per-substation groups (col + mw) for later regeneration', () => {
+    const r = buildDemandColumns({ datetimes, values, subs: [
+      { name: 'Arica', mw: 5 }, { name: 'Tacna', mw: 10 },
+    ] });
+    expect(r.groups).toEqual([{ col: 'Arica', mw: 5 }, { col: 'Tacna', mw: 10 }]);
   });
 });
 

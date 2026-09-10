@@ -108,15 +108,19 @@ export async function regenerateDemandSeries(entry, modelConfig) {
   });
   const groups = dc.groups || [];
   const dataColumns = groups.map(g => g.col);
+  const columns = ['datetime', ...dataColumns];
   const data = datetimes.map((dt, i) => ({
     datetime: dt,
     ...Object.fromEntries(groups.map(g => [g.col, Number((-(values[i] * g.mw)).toFixed(4))])),
   }));
+  // Keep csvContent in sync so the regenerated series survives a backend reload.
+  const csvContent = [columns.join(','), ...data.map(r => columns.map(c => r[c]).join(','))].join('\n');
   return {
     ...entry,
-    columns: ['datetime', ...dataColumns],
+    columns,
     dataColumns,
     data,
+    csvContent,
     rowCount: data.length,
     modified: true,
     demandConfig: { ...dc, resolution, source },

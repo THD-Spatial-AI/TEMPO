@@ -92,7 +92,7 @@ function AppContent() {
       case "Tutorial":       return <Tutorial />;
       case "Models":         return <Models />;
       case "Map View":       return <MapView />;
-      case "Creation":       return <Creation />;
+      case "Creation":       return <Creation onNavigate={handleNavigation} />;
       case "Locations":      return <Locations />;
       case "Links":          return <Links />;
       case "Scenarios":      return <ScenarioStudio onNavigate={handleNavigation} />;
