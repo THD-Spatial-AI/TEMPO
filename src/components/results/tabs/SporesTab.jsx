@@ -1,23 +1,22 @@
-// SporesTab — extracted from Results.jsx (was an inline IIFE tab).
-// Owns its result-derived computation and renders the tab.
+// SporesTab — self-contained SPORES results view.
+// Owns its result-derived computation, its own view state, and its isGenTech
+// predicate, so it drops into both Results and Scenario Studio with just
+// { result, modelLocations }.
+import { useMemo, useState } from 'react';
 import { FiActivity, FiBarChart2, FiDollarSign, FiFilter, FiGitMerge, FiGrid, FiLayers, FiMap, FiShare2 } from 'react-icons/fi';
 import ReactECharts from 'echarts-for-react';
 import { GroupedCorrMatrixSVG, ResultsMap } from '../ResultMaps';
-import { autoScale, axisNameStyle, fmtCost, fmtPower, techColor } from '../../../utils/resultFormat';
+import { autoScale, axisNameStyle, fmtCost, fmtPower, makeIsGenTech, techColor } from '../../../utils/resultFormat';
 
 export default function SporesTab({
-  corrLocFilter,
-  isGenTech,
-  modelLocations,
   result,
-  selectedSpore,
-  setCorrLocFilter,
-  setSelectedSpore,
-  setSporeScatterA,
-  setSporeScatterB,
-  sporeScatterA,
-  sporeScatterB,
+  modelLocations,
 }) {
+              const isGenTech = useMemo(() => makeIsGenTech(result), [result]);
+              const [selectedSpore, setSelectedSpore] = useState(0);
+              const [sporeScatterA, setSporeScatterA] = useState(null);
+              const [sporeScatterB, setSporeScatterB] = useState(null);
+              const [corrLocFilter, setCorrLocFilter] = useState(() => new Set());
               const sporesData = result.spores_data;
               const optimalCost = sporesData[0]?.cost ?? null;
 

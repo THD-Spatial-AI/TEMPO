@@ -47,12 +47,7 @@ const Results = () => {
   const [filterSearch, setFilterSearch] = useState('');
   // Shadow prices tab: selected carrier:node key
   const [shadowPriceKey, setShadowPriceKey] = useState(null);
-  // SPORES tab interactive state
-  const [sporeScatterA, setSporeScatterA] = useState(null);
-  const [sporeScatterB, setSporeScatterB] = useState(null);
-  const [selectedSpore, setSelectedSpore] = useState(0);
-  // empty Set = nothing selected yet; Set<string> = regions to show
-  const [corrLocFilter, setCorrLocFilter] = useState(new Set());
+  // SPORES view state now lives inside SporesTab (self-contained).
   const [downloadOpen, setDownloadOpen] = useState(false);
   const downloadRef = useRef(null);
 
@@ -63,7 +58,6 @@ const Results = () => {
     setTechFilter(new Set());
     setCollapsedSections(new Set());
     setFilterSearch('');
-    setCorrLocFilter(new Set());
   }, [selectedJobId]);
 
   // When the Run section pushes a specific job to view, open it
@@ -943,19 +937,7 @@ const Results = () => {
               </div>
             )}
             {activeTab === 'spores' && hasSpores && (
-              <SporesTab
-                corrLocFilter={corrLocFilter}
-                isGenTech={isGenTech}
-                modelLocations={modelLocations}
-                result={result}
-                selectedSpore={selectedSpore}
-                setCorrLocFilter={setCorrLocFilter}
-                setSelectedSpore={setSelectedSpore}
-                setSporeScatterA={setSporeScatterA}
-                setSporeScatterB={setSporeScatterB}
-                sporeScatterA={sporeScatterA}
-                sporeScatterB={sporeScatterB}
-              />
+              <SporesTab key={selectedJobId} result={result} modelLocations={modelLocations} />
             )}
 
             {/* ════════════════ LOGS TAB ════════════════ */}

@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   FiTrendingUp, FiSun, FiCloud, FiDollarSign, FiSliders,
   FiPlay, FiStopCircle, FiAlertCircle, FiAlertTriangle, FiActivity,
-  FiChevronDown, FiInfo, FiZap, FiClock, FiPlus, FiTrash2, FiDownload, FiLayers,
+  FiChevronDown, FiInfo, FiZap, FiClock, FiPlus, FiTrash2, FiDownload, FiLayers, FiGitMerge,
 } from 'react-icons/fi';
 import { useData } from '../context/DataContext';
 import { checkCalliopeService, runCalliopeModel } from '../services/calliopeClient';
@@ -15,6 +15,8 @@ import { autoDetectTechs, FOSSIL_KEYWORDS, RENEWABLE_KEYWORDS, buildCalliope06Gr
 import { importLegacyScenario } from '../services/scenarioStudio/legacyImport.js';
 import { getCapabilityWarnings, engineKeyFromModel, ENGINE_LABELS, ENGINE_FRAMEWORK } from '../services/scenarioStudio/capabilities.js';
 import BatchComparison from './results/BatchComparison.jsx';
+import SporesConfigPanel from './run/SporesConfigPanel.jsx';
+import SporesTab from './results/tabs/SporesTab.jsx';
 
 // ─── Recipe catalogue (UI metadata) ─────────────────────────────────────────
 
@@ -46,6 +48,13 @@ const RECIPE_CARDS = [
     description: 'Sweep a key cost parameter to see how the optimal energy mix shifts with prices.',
     Icon: FiDollarSign,
     color: 'from-purple-500 to-violet-600',
+  },
+  {
+    id: 'spores',
+    label: 'Explore alternatives (SPORES)',
+    description: 'Generate N near-optimal, spatially diverse designs at nearly equal cost. Calliope 0.6 only.',
+    Icon: FiGitMerge,
+    color: 'from-teal-500 to-cyan-600',
   },
   {
     id: 'custom',
@@ -106,6 +115,10 @@ const DEFAULT_PARAMS = {
     ops: [],
     variantLabel: 'Custom',
     selectedScenario: '',
+  },
+  spores: {
+    slack: 10,          // integer % cost slack
+    sporesNumber: 20,
   },
 };
 
@@ -751,6 +764,20 @@ function CustomConfigPanel({ params, setParam, model }) {
   );
 }
 
+function SporesRecipeConfig({ params, setParam }) {
+  const opts = { slack: params.slack ?? 10, sporesNumber: params.sporesNumber ?? 20 };
+  return (
+    <SporesConfigPanel
+      modelConfig={{ sporesOptions: opts }}
+      setModelConfig={updater => {
+        const next = updater({ sporesOptions: opts }).sporesOptions;
+        setParam('slack', next.slack);
+        setParam('sporesNumber', next.sporesNumber);
+      }}
+    />
+  );
+}
+
 function ConfigPanel({ recipeId, params, setParam, model }) {
   if (!model) {
     return (
@@ -765,6 +792,7 @@ function ConfigPanel({ recipeId, params, setParam, model }) {
     case 'carbonCap':          return <CarbonCapConfig params={params} setParam={setParam} />;
     case 'costSensitivity':    return <CostSensitivityConfig params={params} setParam={setParam} model={model} />;
     case 'custom':             return <CustomConfigPanel params={params} setParam={setParam} model={model} />;
+    case 'spores':             return <SporesRecipeConfig params={params} setParam={setParam} />;
     default: return <p className="text-sm text-slate-500 italic">Configuration not available.</p>;
   }
 }
@@ -913,7 +941,7 @@ export default function ScenarioStudio({ onNavigate }) {
   // ── Layer stacking (recipe composition) ─────────────────────────────────────
   const addLayer = () => {
     const used = new Set([selectedRecipe, ...extraLayers.map(l => l.recipeId)]);
-    const next = RECIPE_CARDS.map(c => c.id).find(id => !used.has(id)) || 'carbonCap';
+    const next = RECIPE_CARDS.map(c => c.id).filter(id => id !== 'spores').find(id => !used.has(id)) || 'carbonCap';
     setExtraLayers(prev => [...prev, { recipeId: next, ui: DEFAULT_PARAMS[next] || {} }]);
   };
   const removeLayer = (idx) => setExtraLayers(prev => prev.filter((_, i) => i !== idx));
@@ -931,20 +959,33 @@ export default function ScenarioStudio({ onNavigate }) {
   );
   // Compose the primary recipe with any stacked extra layers. A single layer is
   // returned untouched by composeRecipes, so the non-stacked path is unchanged.
+  // SPORES is a recipe that explores the base model as N near-optimal designs;
+  // it produces a single ops-less design point (the run mode does the exploring).
+  const isSpores = selectedRecipe === 'spores';
   const composed = useMemo(() => {
     if (!model || !recipeParams) return { variants: [], warnings: [] };
+    if (isSpores) return { variants: [{ label: 'Alternatives', ops: [] }], warnings: [] };
     const layers = [
       { recipeId: selectedRecipe, params: recipeParams },
       ...extraLayers.map(l => ({ recipeId: l.recipeId, params: buildRecipeParams(l.recipeId, l.ui, model) })),
     ];
     try { return composeRecipes(model, layers); } catch { return { variants: [], warnings: [] }; }
-  }, [model, selectedRecipe, recipeParams, extraLayers]);
+  }, [model, selectedRecipe, recipeParams, extraLayers, isSpores]);
   const variants = composed.variants;
   const composeWarnings = composed.warnings;
   const isStacked = extraLayers.length > 0;
   // Myopic pathway only makes sense for a multi-year, year-based variant set.
-  const isPathwayEligible = variants.length > 1 && variants.every(v => typeof v.year === 'number');
+  const isPathwayEligible = !isSpores && variants.length > 1 && variants.every(v => typeof v.year === 'number');
   const usePathway = pathwayMode && isPathwayEligible;
+  // SPORES needs the Calliope 0.6.8 engine.
+  const sporesEngineOk = selectedEngine === 'calliope06';
+  // Latest Studio-originated SPORES run, for the inline exploration view.
+  const latestSporesJob = useMemo(() => {
+    const jobs = (completedJobs || []).filter(j =>
+      j.source === 'scenario_studio' && j.mode === 'spores' &&
+      Array.isArray(j.result?.spores_data) && j.result.spores_data.length > 0);
+    return jobs.sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt))[0] || null;
+  }, [completedJobs]);
 
   const affectedTechs = useMemo(
     () => recipeParams ? resolveDemandTechNames(model, recipeParams) : [],
@@ -959,7 +1000,7 @@ export default function ScenarioStudio({ onNavigate }) {
 
   // ── Job completion ────────────────────────────────────────────────────────
 
-  const _handleDone = (jobId, batchId, variantLabel, modelLabel, result) => {
+  const _handleDone = (jobId, batchId, variantLabel, modelLabel, result, mode = 'plan') => {
     if (completedIdsRef.current.has(jobId)) return;
     completedIdsRef.current.add(jobId);
 
@@ -971,10 +1012,10 @@ export default function ScenarioStudio({ onNavigate }) {
       setTimeout(() => {
         addCompletedJob({
           id: jobId, modelName: job.displayName, framework: ENGINE_FRAMEWORK[job.engine] || 'calliope',
-          solver: 'highs', mode: 'plan', status: result?.success === false ? 'failed' : 'completed',
+          solver: 'highs', mode, status: result?.success === false ? 'failed' : 'completed',
           completedAt: new Date().toISOString(), duration, objective: result?.objective || null,
           terminationCondition: result?.termination_condition || 'optimal',
-          result: result || {}, logs: job.logs, batchId, variantLabel, modelLabel,
+          result: result || {}, logs: job.logs, batchId, variantLabel, modelLabel, source: job.source,
         });
         showNotification(
           result?.success === false ? `Run failed: ${result.error}` : `Completed: ${job.displayName} (${duration})`,
@@ -985,7 +1026,7 @@ export default function ScenarioStudio({ onNavigate }) {
     delete cancelFnsRef.current[jobId];
   };
 
-  const _handleError = (jobId, batchId, variantLabel, modelLabel, error) => {
+  const _handleError = (jobId, batchId, variantLabel, modelLabel, error, mode = 'plan') => {
     if (completedIdsRef.current.has(jobId)) return;
     completedIdsRef.current.add(jobId);
 
@@ -995,10 +1036,10 @@ export default function ScenarioStudio({ onNavigate }) {
       setTimeout(() => {
         addCompletedJob({
           id: jobId, modelName: job.displayName, framework: ENGINE_FRAMEWORK[job.engine] || 'calliope',
-          solver: 'highs', mode: 'plan', status: 'failed', completedAt: new Date().toISOString(),
+          solver: 'highs', mode, status: 'failed', completedAt: new Date().toISOString(),
           duration: 'N/A', objective: null, terminationCondition: 'error',
           result: { success: false, error }, logs: [...job.logs, `[ERROR] ${error}`],
-          batchId, variantLabel, modelLabel,
+          batchId, variantLabel, modelLabel, source: job.source,
         });
         showNotification(`Run failed: ${error}`, 'error');
       }, 0);
@@ -1034,7 +1075,7 @@ export default function ScenarioStudio({ onNavigate }) {
 
   // Dispatch one variant. Resolves with the result (or { success:false }) when the
   // job settles — so a pathway can await it and feed capacity into the next step.
-  const runVariant = (m, variant, concreteModel, batchId, engineLabel) => new Promise((resolve) => {
+  const runVariant = (m, variant, concreteModel, batchId, engineLabel, mode = 'plan') => new Promise((resolve) => {
     const jobId = `job_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const displayName = `${m.name} — ${variant.label}`;
     addRunningJob({
@@ -1042,8 +1083,8 @@ export default function ScenarioStudio({ onNavigate }) {
       source: 'scenario_studio',
       logs: [`[TEMPO] Scenario Studio — ${displayName} [${engineLabel}]`],
     });
-    const onDone = (result) => { _handleDone(jobId, batchId, variant.label, m.name, result); resolve(result || {}); };
-    const onError = (error) => { _handleError(jobId, batchId, variant.label, m.name, error); resolve({ success: false, error }); };
+    const onDone = (result) => { _handleDone(jobId, batchId, variant.label, m.name, result, mode); resolve(result || {}); };
+    const onError = (error) => { _handleError(jobId, batchId, variant.label, m.name, error, mode); resolve({ success: false, error }); };
     const opts = { modelData: concreteModel, onLog: line => appendRunningJobLog(jobId, line), onStats: () => {}, onDone, onError };
     const start = (selectedEngine === 'calliope06' || selectedEngine === 'calliope07')
       ? runCalliopeModel(opts)
@@ -1072,6 +1113,9 @@ export default function ScenarioStudio({ onNavigate }) {
   const handleRun = async () => {
     if (!model) { showNotification('Select a model first.', 'error'); return; }
     if (variants.length === 0) { showNotification('No variants to run — check configuration.', 'error'); return; }
+    if (isSpores && !sporesEngineOk) {
+      showNotification('SPORES requires the Calliope 0.6 engine — switch the engine above.', 'error'); return;
+    }
 
     const engineLabel = ENGINE_LABELS[selectedEngine] || selectedEngine;
     if (serviceStatus === false) {
@@ -1086,6 +1130,27 @@ export default function ScenarioStudio({ onNavigate }) {
       }
       setServiceStatus(up);
       if (!up) { showNotification(`Cannot reach ${engineLabel} service.`, 'error'); return; }
+    }
+
+    // SPORES: explore the configured design as N near-optimal alternatives.
+    if (isSpores) {
+      const variant = variants[0];
+      const isCurrentModel = model.id === getCurrentModel()?.id;
+      const techsForRun = isCurrentModel && technologies?.length ? technologies : (model.technologies || technologies || []);
+      const tsForRun = (timeSeries || []).filter(ts => ts.modelId === model.id);
+      const concrete = buildConcrete(model, variant, techsForRun, tsForRun, null);
+      concrete.modelConfig = {
+        ...(concrete.modelConfig || {}),
+        mode: 'spores',
+        sporesOptions: { slack: params.slack ?? 10, sporesNumber: params.sporesNumber ?? 20 },
+      };
+      showNotification(
+        `Exploring alternatives — ${params.sporesNumber ?? 20} SPORES (+1 optimal) at ${params.slack ?? 10}% cost slack…`,
+        'info'
+      );
+      onNavigate?.('Run');
+      runVariant(model, variant, concrete, null, engineLabel, 'spores');
+      return;
     }
 
     const batchId = `batch_${Date.now()}`;
@@ -1268,8 +1333,8 @@ export default function ScenarioStudio({ onNavigate }) {
               <h2 className="text-sm font-semibold text-slate-700 mb-4">2 — Configure: {recipeName}</h2>
               <ConfigPanel recipeId={selectedRecipe} params={params} setParam={setParam} model={model} />
 
-              {/* Stacked recipe layers (composition) */}
-              {extraLayers.map((layer, idx) => (
+              {/* Stacked recipe layers (composition) — not applicable to SPORES */}
+              {!isSpores && extraLayers.map((layer, idx) => (
                 <div key={idx} className="mt-5 pt-5 border-t border-dashed border-slate-200">
                   <div className="flex items-center gap-2 mb-3">
                     <span className="text-[10px] font-semibold uppercase tracking-wide text-electric-600 bg-electric-50 px-2 py-0.5 rounded">
@@ -1278,7 +1343,7 @@ export default function ScenarioStudio({ onNavigate }) {
                     <select value={layer.recipeId}
                       onChange={e => setLayerRecipe(idx, e.target.value)}
                       className="flex-1 px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-electric-400 bg-white">
-                      {RECIPE_CARDS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                      {RECIPE_CARDS.filter(c => c.id !== 'spores').map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
                     </select>
                     <button onClick={() => removeLayer(idx)}
                       className="p-1.5 text-red-400 hover:text-red-600 rounded transition-colors" title="Remove layer">
@@ -1290,7 +1355,7 @@ export default function ScenarioStudio({ onNavigate }) {
                 </div>
               ))}
 
-              {model && (
+              {model && !isSpores && (
                 <button onClick={addLayer}
                   className="mt-5 w-full flex items-center justify-center gap-1.5 py-2 text-xs font-medium text-electric-600 border border-dashed border-electric-300 rounded-lg hover:bg-electric-50 transition-colors">
                   <FiPlus size={13} /> Stack another recipe
@@ -1350,15 +1415,22 @@ export default function ScenarioStudio({ onNavigate }) {
                     </div>
                   )}
 
-                  <div>
-                    <p className="text-xs text-slate-500 mb-2">
-                      <span className="font-semibold text-slate-700">{variants.length} run{variants.length > 1 ? 's' : ''}</span>
-                      {usePathway ? ' in a linked pathway:' : ' will be created:'}
-                    </p>
-                    <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
-                      {variants.map(v => <VariantBadge key={v.label} variant={v} recipeId={isStacked ? 'composed' : selectedRecipe} />)}
+                  {isSpores ? (
+                    <div className="text-xs text-slate-600 bg-teal-50 border border-teal-200 rounded-lg px-3 py-2">
+                      Explores <span className="font-semibold">{params.sporesNumber ?? 20}</span> near-optimal alternatives
+                      (+1 cost-optimal) within <span className="font-semibold">{params.slack ?? 10}%</span> of the optimal cost.
                     </div>
-                  </div>
+                  ) : (
+                    <div>
+                      <p className="text-xs text-slate-500 mb-2">
+                        <span className="font-semibold text-slate-700">{variants.length} run{variants.length > 1 ? 's' : ''}</span>
+                        {usePathway ? ' in a linked pathway:' : ' will be created:'}
+                      </p>
+                      <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+                        {variants.map(v => <VariantBadge key={v.label} variant={v} recipeId={isStacked ? 'composed' : selectedRecipe} />)}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Composition warnings */}
                   {composeWarnings.length > 0 && (
@@ -1402,22 +1474,33 @@ export default function ScenarioStudio({ onNavigate }) {
                   )}
 
                   <div className="text-xs text-slate-400 bg-slate-50 rounded-lg px-3 py-2">
-                    {usePathway
-                      ? 'Years run in sequence; each fixes the prior year’s capacity as free residual and only pays for new builds. Results appear in the Results tab grouped by batch.'
-                      : 'Each run is a full independent solve with parameters pre-applied. Results appear in the Results tab grouped by batch.'}
+                    {isSpores
+                      ? 'Runs N + 1 full Calliope 0.6 solves sequentially. Results (must-have vs real-choice, spatial maps) appear below and in the Results tab.'
+                      : usePathway
+                        ? 'Years run in sequence; each fixes the prior year’s capacity as free residual and only pays for new builds. Results appear in the Results tab grouped by batch.'
+                        : 'Each run is a full independent solve with parameters pre-applied. Results appear in the Results tab grouped by batch.'}
                   </div>
 
+                  {isSpores && !sporesEngineOk && (
+                    <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-start gap-1.5">
+                      <FiAlertTriangle size={12} className="mt-0.5 shrink-0" />
+                      SPORES requires the Calliope 0.6 engine — switch the engine selector above.
+                    </div>
+                  )}
+
                   <button onClick={handleRun}
-                    disabled={!model || serviceStatus === false}
+                    disabled={!model || serviceStatus === false || (isSpores && !sporesEngineOk)}
                     className={`w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl font-semibold text-sm transition-all shadow-sm ${
-                      !model || serviceStatus === false
+                      !model || serviceStatus === false || (isSpores && !sporesEngineOk)
                         ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
                         : 'bg-gradient-to-r from-electric-600 to-electric-700 text-white hover:shadow-md hover:scale-[1.01] active:scale-100'
                     }`}>
-                    <FiPlay size={15} />
-                    {usePathway
-                      ? `Run pathway (${variants.length} linked years)`
-                      : `Run ${variants.length} scenario${variants.length > 1 ? 's' : ''}`}
+                    {isSpores ? <FiGitMerge size={15} /> : <FiPlay size={15} />}
+                    {isSpores
+                      ? `Explore with SPORES (${(params.sporesNumber ?? 20) + 1} runs)`
+                      : usePathway
+                        ? `Run pathway (${variants.length} linked years)`
+                        : `Run ${variants.length} scenario${variants.length > 1 ? 's' : ''}`}
                   </button>
 
                   {runningJobs.length > 0 && (
@@ -1437,6 +1520,17 @@ export default function ScenarioStudio({ onNavigate }) {
 
         {/* Batch comparison */}
         <BatchComparison completedJobs={completedJobs} />
+
+        {/* Inline SPORES exploration (latest Studio SPORES run) */}
+        {latestSporesJob && (
+          <div>
+            <h2 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+              <FiGitMerge size={14} className="text-electric-500" />
+              Explored alternatives — {latestSporesJob.modelName}
+            </h2>
+            <SporesTab result={latestSporesJob.result} modelLocations={model?.locations || []} />
+          </div>
+        )}
       </div>
     </div>
   );
