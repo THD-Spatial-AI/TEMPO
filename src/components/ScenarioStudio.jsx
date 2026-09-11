@@ -8,7 +8,9 @@ import { useData } from '../context/DataContext';
 import { checkCalliopeService, runCalliopeModel } from '../services/calliopeClient';
 import { checkEngineRunService, runEngineModel } from '../services/engineClient';
 import { applyOps } from '../services/scenarioStudio/transform.js';
-import { expandRecipe } from '../services/scenarioStudio/recipes/index.js';
+import { composeRecipes } from '../services/scenarioStudio/compose.js';
+import { buildCarryForwardOp, accumulateExistingCaps } from '../services/scenarioStudio/pathway.js';
+import { TECH_TEMPLATES, templateAddTechOp } from '../services/scenarioStudio/techTemplates.js';
 import { autoDetectTechs, FOSSIL_KEYWORDS, RENEWABLE_KEYWORDS, buildCalliope06GroupConstraintsOverride } from '../services/scenarioStudio/utils.js';
 import { importLegacyScenario } from '../services/scenarioStudio/legacyImport.js';
 import { getCapabilityWarnings, engineKeyFromModel, ENGINE_LABELS, ENGINE_FRAMEWORK } from '../services/scenarioStudio/capabilities.js';
@@ -495,6 +497,9 @@ const OP_TYPES = [
   { id: 'scaleParam',       label: 'Scale parameter' },
   { id: 'disableTech',      label: 'Disable technology' },
   { id: 'systemConstraint', label: 'System constraint' },
+  { id: 'addTech',          label: 'Add technology (H₂/CCS…)' },
+  { id: 'scaleLinkCap',     label: 'Scale link capacity' },
+  { id: 'setLinkCap',       label: 'Set link capacity' },
 ];
 
 const SYS_KINDS = ['co2_cap', 'renewable_min', 'reserve_margin'];
@@ -504,6 +509,12 @@ function defaultOp(type) {
   if (type === 'scaleParam')       return { op: 'scaleParam',       techMatch: '', path: 'constraints.resource_scale',  factor: 1.0, level: 'global' };
   if (type === 'disableTech')      return { op: 'disableTech',      techMatch: '' };
   if (type === 'systemConstraint') return { op: 'systemConstraint', kind: 'co2_cap', value: 0 };
+  if (type === 'addTech') {
+    const t = 'electrolyser';
+    return { ...templateAddTechOp(t, t, {}), _template: t, _knobs: {} };
+  }
+  if (type === 'scaleLinkCap')     return { op: 'scaleLinkCap', linkMatch: 'all', factor: 1.5 };
+  if (type === 'setLinkCap')       return { op: 'setLinkCap',   linkMatch: 'all', value: 1000 };
   return { op: type };
 }
 
@@ -591,6 +602,71 @@ function OpRow({ op, index, onChange, onDelete }) {
               onChange={e => set('value', parseFloat(e.target.value) || 0)}
               className="w-full px-2 py-1 border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-electric-400" />
           </div>
+        </div>
+      )}
+
+      {op.op === 'addTech' && (() => {
+        const tpl = TECH_TEMPLATES[op._template] || {};
+        const getPath = (o, p) => p.split('.').reduce((a, k) => (a == null ? undefined : a[k]), o);
+        const setTemplate = tid => onChange(index, { ...templateAddTechOp(tid, tid, {}), _template: tid, _knobs: {} });
+        const setName = name => onChange(index, { ...op, tech: name });
+        const setKnob = (path, value) => {
+          const knobs = { ...(op._knobs || {}), [path]: value };
+          onChange(index, { ...templateAddTechOp(op._template, op.tech, knobs), _template: op._template, _knobs: knobs });
+        };
+        return (
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <span className="text-slate-500 block mb-0.5">Template</span>
+                <select value={op._template} onChange={e => setTemplate(e.target.value)}
+                  className="w-full px-2 py-1 border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-electric-400">
+                  {Object.entries(TECH_TEMPLATES).map(([id, t]) => <option key={id} value={id}>{t.label}</option>)}
+                </select>
+              </div>
+              <div className="flex-1">
+                <span className="text-slate-500 block mb-0.5">Tech name</span>
+                <input value={op.tech} onChange={e => setName(e.target.value)}
+                  className="w-full px-2 py-1 border border-slate-200 rounded-md font-mono focus:outline-none focus:ring-1 focus:ring-electric-400" />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              {(tpl.knobs || []).map(kn => (
+                <div key={kn.path} className="flex-1">
+                  <span className="text-slate-500 block mb-0.5">{kn.label} ({kn.unit})</span>
+                  <input type="number" step="0.01" value={getPath(op.defaults, kn.path) ?? ''}
+                    onChange={e => setKnob(kn.path, e.target.value)}
+                    className="w-full px-2 py-1 border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-electric-400" />
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
+      {(op.op === 'scaleLinkCap' || op.op === 'setLinkCap') && (
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <span className="text-slate-500 block mb-0.5">Link type (or “all”)</span>
+            <input value={typeof op.linkMatch === 'string' ? op.linkMatch : 'all'}
+              onChange={e => set('linkMatch', e.target.value)} placeholder="all"
+              className="w-full px-2 py-1 border border-slate-200 rounded-md font-mono focus:outline-none focus:ring-1 focus:ring-electric-400" />
+          </div>
+          {op.op === 'scaleLinkCap' ? (
+            <div className="w-28">
+              <span className="text-slate-500 block mb-0.5">Factor</span>
+              <input type="number" step="0.1" value={op.factor}
+                onChange={e => set('factor', parseFloat(e.target.value) || 1)}
+                className="w-full px-2 py-1 border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-electric-400" />
+            </div>
+          ) : (
+            <div className="w-28">
+              <span className="text-slate-500 block mb-0.5">MW</span>
+              <input type="number" value={op.value}
+                onChange={e => set('value', parseFloat(e.target.value) || 0)}
+                className="w-full px-2 py-1 border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-electric-400" />
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -738,6 +814,9 @@ function summarizeOps(ops) {
       const lbl = SYS_LABEL[op.kind] || op.kind;
       return `${lbl} ${op.value ?? ''}`;
     }
+    if (op.op === 'addTech') return `+${op.tech}`;
+    if (op.op === 'scaleLinkCap') return `links ×${parseFloat((op.factor ?? 1).toFixed(3))}`;
+    if (op.op === 'setLinkCap') return `links=${op.value ?? ''}`;
     return op.op;
   });
   return parts.length <= 3
@@ -793,6 +872,9 @@ export default function ScenarioStudio({ onNavigate }) {
   const [showModelCompare, setShowModelCompare] = useState(false);
   const [selectedRecipe, setSelectedRecipe] = useState('demandGrowth');
   const [params, setParams] = useState(DEFAULT_PARAMS['demandGrowth']);
+  const [extraLayers, setExtraLayers] = useState([]); // [{ recipeId, ui }] stacked on top of the primary recipe
+  const [pathwayMode, setPathwayMode] = useState(false); // myopic (linked) vs independent snapshots
+  const [pathwayProgress, setPathwayProgress] = useState({}); // { variantLabel: 'pending'|'running'|'done'|'failed'|'skipped' }
   const [serviceStatus, setServiceStatus] = useState(null);
   const [selectedEngine, setSelectedEngine] = useState('calliope06');
   // runningJobs is shared via DataContext; keep a local ref for synchronous reads in callbacks
@@ -828,6 +910,18 @@ export default function ScenarioStudio({ onNavigate }) {
     setParams(DEFAULT_PARAMS[id] || {});
   };
 
+  // ── Layer stacking (recipe composition) ─────────────────────────────────────
+  const addLayer = () => {
+    const used = new Set([selectedRecipe, ...extraLayers.map(l => l.recipeId)]);
+    const next = RECIPE_CARDS.map(c => c.id).find(id => !used.has(id)) || 'carbonCap';
+    setExtraLayers(prev => [...prev, { recipeId: next, ui: DEFAULT_PARAMS[next] || {} }]);
+  };
+  const removeLayer = (idx) => setExtraLayers(prev => prev.filter((_, i) => i !== idx));
+  const setLayerRecipe = (idx, recipeId) =>
+    setExtraLayers(prev => prev.map((l, i) => i === idx ? { recipeId, ui: DEFAULT_PARAMS[recipeId] || {} } : l));
+  const setLayerParam = (idx, key, value) =>
+    setExtraLayers(prev => prev.map((l, i) => i === idx ? { ...l, ui: { ...l.ui, [key]: value } } : l));
+
   // ── Derive variants ───────────────────────────────────────────────────────
 
   const model = selectedModel;
@@ -835,10 +929,22 @@ export default function ScenarioStudio({ onNavigate }) {
     () => model ? buildRecipeParams(selectedRecipe, params, model) : null,
     [selectedRecipe, params, model]
   );
-  const variants = useMemo(() => {
-    if (!model || !recipeParams) return [];
-    try { return expandRecipe(model, selectedRecipe, recipeParams); } catch { return []; }
-  }, [model, selectedRecipe, recipeParams]);
+  // Compose the primary recipe with any stacked extra layers. A single layer is
+  // returned untouched by composeRecipes, so the non-stacked path is unchanged.
+  const composed = useMemo(() => {
+    if (!model || !recipeParams) return { variants: [], warnings: [] };
+    const layers = [
+      { recipeId: selectedRecipe, params: recipeParams },
+      ...extraLayers.map(l => ({ recipeId: l.recipeId, params: buildRecipeParams(l.recipeId, l.ui, model) })),
+    ];
+    try { return composeRecipes(model, layers); } catch { return { variants: [], warnings: [] }; }
+  }, [model, selectedRecipe, recipeParams, extraLayers]);
+  const variants = composed.variants;
+  const composeWarnings = composed.warnings;
+  const isStacked = extraLayers.length > 0;
+  // Myopic pathway only makes sense for a multi-year, year-based variant set.
+  const isPathwayEligible = variants.length > 1 && variants.every(v => typeof v.year === 'number');
+  const usePathway = pathwayMode && isPathwayEligible;
 
   const affectedTechs = useMemo(
     () => recipeParams ? resolveDemandTechNames(model, recipeParams) : [],
@@ -902,6 +1008,67 @@ export default function ScenarioStudio({ onNavigate }) {
 
   // ── Dispatch batch ────────────────────────────────────────────────────────
 
+  // Build the concrete model for one variant, appending an optional carry-forward
+  // (vintageResidual) op last so residual capacity fixes on top of the recipe ops.
+  const buildConcrete = (m, variant, techsForRun, tsForRun, extraOp) => {
+    const baseModelData = {
+      ...m, solver: 'highs', modelConfig: m.modelConfig || {},
+      technologies: techsForRun, timeSeries: tsForRun,
+    };
+    const ops = extraOp ? [...variant.ops, extraOp] : variant.ops;
+    const concreteModel = applyOps(baseModelData, ops);
+
+    if (selectedEngine === 'calliope06' || selectedEngine === 'calliope07') {
+      const gc = concreteModel.modelConfig?.groupConstraints;
+      const nativeGC = gc ? buildCalliope06GroupConstraintsOverride(gc) : null;
+      if (nativeGC) {
+        concreteModel.overrides = { ...(concreteModel.overrides || {}), _studio_sys: { group_constraints: nativeGC } };
+        concreteModel.override = '_studio_sys';
+      }
+      if (selectedEngine === 'calliope07') {
+        concreteModel.modelConfig = { ...(concreteModel.modelConfig || {}), calliopeVersion: '0.7.0' };
+      }
+    }
+    return concreteModel;
+  };
+
+  // Dispatch one variant. Resolves with the result (or { success:false }) when the
+  // job settles — so a pathway can await it and feed capacity into the next step.
+  const runVariant = (m, variant, concreteModel, batchId, engineLabel) => new Promise((resolve) => {
+    const jobId = `job_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const displayName = `${m.name} — ${variant.label}`;
+    addRunningJob({
+      id: jobId, displayName, startTime: new Date().toISOString(), engine: selectedEngine,
+      source: 'scenario_studio',
+      logs: [`[TEMPO] Scenario Studio — ${displayName} [${engineLabel}]`],
+    });
+    const onDone = (result) => { _handleDone(jobId, batchId, variant.label, m.name, result); resolve(result || {}); };
+    const onError = (error) => { _handleError(jobId, batchId, variant.label, m.name, error); resolve({ success: false, error }); };
+    const opts = { modelData: concreteModel, onLog: line => appendRunningJobLog(jobId, line), onStats: () => {}, onDone, onError };
+    const start = (selectedEngine === 'calliope06' || selectedEngine === 'calliope07')
+      ? runCalliopeModel(opts)
+      : runEngineModel(selectedEngine, opts);
+    start
+      .then(({ cancel }) => { cancelFnsRef.current[jobId] = cancel; })
+      .catch((err) => {
+        removeRunningJob(jobId);
+        showNotification(`Failed to start "${displayName}": ${err.message}`, 'error');
+        resolve({ success: false, error: err.message });
+      });
+  });
+
+  const markSkipped = (m, variant, batchId) => {
+    const jobId = `job_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    addCompletedJob({
+      id: jobId, modelName: `${m.name} — ${variant.label}`, framework: ENGINE_FRAMEWORK[selectedEngine] || 'calliope',
+      solver: 'highs', mode: 'plan', status: 'skipped', completedAt: new Date().toISOString(),
+      duration: '—', objective: null, terminationCondition: 'skipped',
+      result: { success: false, skipped: true }, logs: ['[TEMPO] Skipped — myopic pathway broken at an earlier year'],
+      batchId, variantLabel: variant.label, modelLabel: m.name,
+    });
+    setPathwayProgress(p => ({ ...p, [variant.label]: 'skipped' }));
+  };
+
   const handleRun = async () => {
     if (!model) { showNotification('Select a model first.', 'error'); return; }
     if (variants.length === 0) { showNotification('No variants to run — check configuration.', 'error'); return; }
@@ -926,11 +1093,14 @@ export default function ScenarioStudio({ onNavigate }) {
     const totalRuns = modelsToRun.length * variants.length;
 
     showNotification(
-      modelsToRun.length > 1
-        ? `Starting ${totalRuns} runs (${modelsToRun.length} models × ${variants.length} variant${variants.length > 1 ? 's' : ''}) on ${engineLabel}…`
-        : `Starting ${variants.length} scenario run${variants.length > 1 ? 's' : ''} on ${engineLabel}…`,
+      usePathway
+        ? `Starting myopic pathway — ${variants.length} linked year${variants.length > 1 ? 's' : ''}${modelsToRun.length > 1 ? ` × ${modelsToRun.length} models` : ''} on ${engineLabel}…`
+        : modelsToRun.length > 1
+          ? `Starting ${totalRuns} runs (${modelsToRun.length} models × ${variants.length} variant${variants.length > 1 ? 's' : ''}) on ${engineLabel}…`
+          : `Starting ${variants.length} scenario run${variants.length > 1 ? 's' : ''} on ${engineLabel}…`,
       'info'
     );
+    if (usePathway) setPathwayProgress(Object.fromEntries(variants.map(v => [v.label, 'pending'])));
     // Redirect to Run section so the user can monitor progress there
     onNavigate?.('Run');
 
@@ -939,59 +1109,31 @@ export default function ScenarioStudio({ onNavigate }) {
       const techsForRun = isCurrentModel && technologies?.length ? technologies : (m.technologies || technologies || []);
       const tsForRun = (timeSeries || []).filter(ts => ts.modelId === m.id);
 
-      for (const variant of variants) {
-        const jobId = `job_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-        const displayName = `${m.name} — ${variant.label}`;
-
-        const baseModelData = {
-          ...m, solver: 'highs', modelConfig: m.modelConfig || {},
-          technologies: techsForRun, timeSeries: tsForRun,
-        };
-        const concreteModel = applyOps(baseModelData, variant.ops);
-
-        // Calliope: inject system constraints as native override
-        if (selectedEngine === 'calliope06' || selectedEngine === 'calliope07') {
-          const gc = concreteModel.modelConfig?.groupConstraints;
-          const nativeGC = gc ? buildCalliope06GroupConstraintsOverride(gc) : null;
-          if (nativeGC) {
-            concreteModel.overrides = { ...(concreteModel.overrides || {}), _studio_sys: { group_constraints: nativeGC } };
-            concreteModel.override = '_studio_sys';
+      if (usePathway) {
+        // Sequential with feedback: carry each solved year's capacity into the next.
+        let priorCaps = null;
+        let broken = false;
+        for (const variant of variants) {
+          if (broken) { markSkipped(m, variant, batchId); continue; }
+          setPathwayProgress(p => ({ ...p, [variant.label]: 'running' }));
+          const carryOp = priorCaps ? buildCarryForwardOp({ technologies: techsForRun }, priorCaps) : null;
+          const concrete = buildConcrete(m, variant, techsForRun, tsForRun, carryOp);
+          const result = await runVariant(m, variant, concrete, batchId, engineLabel);
+          const ok = result?.success !== false && (result?.capacities && Object.keys(result.capacities).length > 0);
+          if (!ok) {
+            setPathwayProgress(p => ({ ...p, [variant.label]: 'failed' }));
+            showNotification(`Pathway broke at ${variant.label} (${result?.termination_condition || result?.error || 'no solution'}). Later years skipped.`, 'error');
+            broken = true;
+            continue;
           }
-          if (selectedEngine === 'calliope07') {
-            concreteModel.modelConfig = { ...(concreteModel.modelConfig || {}), calliopeVersion: '0.7.0' };
-          }
+          setPathwayProgress(p => ({ ...p, [variant.label]: 'done' }));
+          priorCaps = accumulateExistingCaps(result.capacities);
         }
-
-        addRunningJob({
-          id: jobId, displayName, startTime: new Date().toISOString(), engine: selectedEngine,
-          source: 'scenario_studio',
-          logs: [`[TEMPO] Scenario Studio — ${displayName} [${engineLabel}]`],
-        });
-
-        try {
-          let runPromise;
-          if (selectedEngine === 'calliope06' || selectedEngine === 'calliope07') {
-            runPromise = runCalliopeModel({
-              modelData: concreteModel,
-              onLog: line => appendRunningJobLog(jobId, line),
-              onStats: () => {},
-              onDone: result => _handleDone(jobId, batchId, variant.label, m.name, result),
-              onError: error => _handleError(jobId, batchId, variant.label, m.name, error),
-            });
-          } else {
-            runPromise = runEngineModel(selectedEngine, {
-              modelData: concreteModel,
-              onLog: line => appendRunningJobLog(jobId, line),
-              onStats: () => {},
-              onDone: result => _handleDone(jobId, batchId, variant.label, m.name, result),
-              onError: error => _handleError(jobId, batchId, variant.label, m.name, error),
-            });
-          }
-          const { cancel } = await runPromise;
-          cancelFnsRef.current[jobId] = cancel;
-        } catch (err) {
-          removeRunningJob(jobId);
-          showNotification(`Failed to start "${displayName}": ${err.message}`, 'error');
+      } else {
+        // Independent snapshots: dispatch in parallel (do not await completion).
+        for (const variant of variants) {
+          const concrete = buildConcrete(m, variant, techsForRun, tsForRun, null);
+          runVariant(m, variant, concrete, batchId, engineLabel);
         }
       }
     }
@@ -1125,6 +1267,35 @@ export default function ScenarioStudio({ onNavigate }) {
             <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-5">
               <h2 className="text-sm font-semibold text-slate-700 mb-4">2 — Configure: {recipeName}</h2>
               <ConfigPanel recipeId={selectedRecipe} params={params} setParam={setParam} model={model} />
+
+              {/* Stacked recipe layers (composition) */}
+              {extraLayers.map((layer, idx) => (
+                <div key={idx} className="mt-5 pt-5 border-t border-dashed border-slate-200">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-electric-600 bg-electric-50 px-2 py-0.5 rounded">
+                      + Layer {idx + 2}
+                    </span>
+                    <select value={layer.recipeId}
+                      onChange={e => setLayerRecipe(idx, e.target.value)}
+                      className="flex-1 px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-electric-400 bg-white">
+                      {RECIPE_CARDS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                    </select>
+                    <button onClick={() => removeLayer(idx)}
+                      className="p-1.5 text-red-400 hover:text-red-600 rounded transition-colors" title="Remove layer">
+                      <FiTrash2 size={14} />
+                    </button>
+                  </div>
+                  <ConfigPanel recipeId={layer.recipeId} params={layer.ui}
+                    setParam={(k, v) => setLayerParam(idx, k, v)} model={model} />
+                </div>
+              ))}
+
+              {model && (
+                <button onClick={addLayer}
+                  className="mt-5 w-full flex items-center justify-center gap-1.5 py-2 text-xs font-medium text-electric-600 border border-dashed border-electric-300 rounded-lg hover:bg-electric-50 transition-colors">
+                  <FiPlus size={13} /> Stack another recipe
+                </button>
+              )}
             </div>
 
             {/* Preview + Run */}
@@ -1135,14 +1306,71 @@ export default function ScenarioStudio({ onNavigate }) {
                 <p className="text-sm text-slate-400 italic">Configure the recipe to see a preview.</p>
               ) : (
                 <>
+                  {/* Temporal mode: independent snapshots vs myopic pathway */}
+                  {isPathwayEligible && (
+                    <div className="rounded-lg border border-slate-200 p-2.5">
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <FiClock size={12} className="text-electric-500" />
+                        <span className="text-xs font-semibold text-slate-700">Temporal mode</span>
+                      </div>
+                      <ToggleBtn
+                        value={pathwayMode ? 'pathway' : 'snapshot'}
+                        options={[{ id: 'snapshot', label: 'Independent snapshots' }, { id: 'pathway', label: 'Myopic pathway' }]}
+                        onChange={v => setPathwayMode(v === 'pathway')}
+                      />
+                      <p className="text-[11px] text-slate-400 mt-1.5 leading-snug">
+                        {pathwayMode
+                          ? 'Years solve in sequence; each carries the previous year’s built capacity forward as fixed, capex-free residual. A broken year stops the pathway.'
+                          : 'Each year is solved independently from the base model (greenfield re-optimization).'}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Live pathway progress strip */}
+                  {usePathway && Object.keys(pathwayProgress).length > 0 && (
+                    <div className="rounded-lg bg-slate-50 border border-slate-200 p-2.5">
+                      <p className="text-[11px] font-semibold text-slate-500 mb-1.5">Pathway progress</p>
+                      <div className="flex items-center flex-wrap gap-1">
+                        {variants.map((v, i) => {
+                          const st = pathwayProgress[v.label] || 'pending';
+                          const color = st === 'done' ? 'bg-green-100 text-green-700 border-green-300'
+                            : st === 'running' ? 'bg-electric-100 text-electric-700 border-electric-300 animate-pulse'
+                            : st === 'failed' ? 'bg-red-100 text-red-700 border-red-300'
+                            : st === 'skipped' ? 'bg-slate-100 text-slate-400 border-slate-200'
+                            : 'bg-white text-slate-400 border-slate-200';
+                          const mark = st === 'done' ? ' ✓' : st === 'failed' ? ' ✗' : st === 'skipped' ? ' –' : '';
+                          return (
+                            <React.Fragment key={v.label}>
+                              <span className={`px-2 py-0.5 rounded-md text-[11px] font-medium border ${color}`}>{v.label}{mark}</span>
+                              {i < variants.length - 1 && <span className="text-slate-300 text-xs">→</span>}
+                            </React.Fragment>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   <div>
                     <p className="text-xs text-slate-500 mb-2">
-                      <span className="font-semibold text-slate-700">{variants.length} run{variants.length > 1 ? 's' : ''}</span> will be created:
+                      <span className="font-semibold text-slate-700">{variants.length} run{variants.length > 1 ? 's' : ''}</span>
+                      {usePathway ? ' in a linked pathway:' : ' will be created:'}
                     </p>
                     <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
-                      {variants.map(v => <VariantBadge key={v.label} variant={v} recipeId={selectedRecipe} />)}
+                      {variants.map(v => <VariantBadge key={v.label} variant={v} recipeId={isStacked ? 'composed' : selectedRecipe} />)}
                     </div>
                   </div>
+
+                  {/* Composition warnings */}
+                  {composeWarnings.length > 0 && (
+                    <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 space-y-1">
+                      <p className="text-xs font-semibold text-blue-700 flex items-center gap-1.5">
+                        <FiLayers size={12} /> Layer composition notes
+                      </p>
+                      {composeWarnings.map((w, i) => (
+                        <p key={i} className="text-xs text-blue-700">{w}</p>
+                      ))}
+                    </div>
+                  )}
 
                   {/* Capability warnings */}
                   {capabilityWarnings.length > 0 && (
@@ -1174,8 +1402,9 @@ export default function ScenarioStudio({ onNavigate }) {
                   )}
 
                   <div className="text-xs text-slate-400 bg-slate-50 rounded-lg px-3 py-2">
-                    Each run is a full independent Calliope 0.6.8 solve with parameters pre-applied.
-                    Results appear in the Results tab grouped by batch.
+                    {usePathway
+                      ? 'Years run in sequence; each fixes the prior year’s capacity as free residual and only pays for new builds. Results appear in the Results tab grouped by batch.'
+                      : 'Each run is a full independent solve with parameters pre-applied. Results appear in the Results tab grouped by batch.'}
                   </div>
 
                   <button onClick={handleRun}
@@ -1186,7 +1415,9 @@ export default function ScenarioStudio({ onNavigate }) {
                         : 'bg-gradient-to-r from-electric-600 to-electric-700 text-white hover:shadow-md hover:scale-[1.01] active:scale-100'
                     }`}>
                     <FiPlay size={15} />
-                    Run {variants.length} scenario{variants.length > 1 ? 's' : ''}
+                    {usePathway
+                      ? `Run pathway (${variants.length} linked years)`
+                      : `Run ${variants.length} scenario${variants.length > 1 ? 's' : ''}`}
                   </button>
 
                   {runningJobs.length > 0 && (

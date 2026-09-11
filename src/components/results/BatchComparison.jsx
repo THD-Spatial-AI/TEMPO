@@ -257,6 +257,7 @@ export default function BatchComparison({ completedJobs }) {
   const baseName = sortedJobs[0]?.modelName?.replace(/ — .*$/, '') || '';
   const completedCount = sortedJobs.filter(j => j.status === 'completed').length;
   const failedCount = sortedJobs.filter(j => j.status === 'failed').length;
+  const skippedCount = sortedJobs.filter(j => j.status === 'skipped').length;
   const hasUnmet   = sortedJobs.some(j => (kpisMap[j.id]?.totalUnmetMWh || 0) > 0);
   const hasImports = sortedJobs.some(j => (kpisMap[j.id]?.totalImportsMWh || 0) > 0);
 
@@ -318,6 +319,7 @@ export default function BatchComparison({ completedJobs }) {
           <span>{sortedJobs.length} variant{sortedJobs.length > 1 ? 's' : ''}</span>
           {completedCount > 0 && <span className="text-green-600">{completedCount} completed</span>}
           {failedCount > 0 && <span className="text-red-500">{failedCount} failed</span>}
+          {skippedCount > 0 && <span className="text-slate-400">{skippedCount} skipped</span>}
         </div>
       )}
 
@@ -483,7 +485,9 @@ export default function BatchComparison({ completedJobs }) {
                         <td className="px-3 py-1.5 font-mono text-slate-800 font-semibold whitespace-nowrap">{job.variantLabel}</td>
                         <td className="px-3 py-1.5 text-right whitespace-nowrap">
                           <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                            job.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'
+                            job.status === 'completed' ? 'bg-green-100 text-green-700'
+                              : job.status === 'skipped' ? 'bg-slate-100 text-slate-400'
+                              : 'bg-red-100 text-red-600'
                           }`}>{job.status}</span>
                         </td>
                         <td className="px-3 py-1.5 text-right font-mono text-slate-700">{fmtNum(job.objective)}</td>

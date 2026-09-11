@@ -25,6 +25,23 @@
  *   { op: 'addTech', tech, defaults }
  *     Append a technology to model.technologies if not already present.
  *
+ *   { op: 'scaleLinkCap', linkMatch, factor }   { op: 'setLinkCap', linkMatch, value }
+ *     Transmission / interconnector expansion. Scales or sets link.capacity
+ *     (→ energy_cap_max). scaleLinkCap skips links with no defined capacity.
+ *     linkMatch shapes:
+ *       'all' | undefined        — every link
+ *       string                   — match link.linkType or link.tech
+ *       { linkType }             — by link type
+ *       { from, to }             — a specific pair (undirected)
+ *
+ *   { op: 'vintageResidual', techMatch, existingCaps: { 'loc::tech': MW }, suffix? }
+ *     Myopic carry-forward. For each matched tech with prior installed capacity,
+ *     splits it into a fixed, capex-free `<tech>_existing` shadow (per-location
+ *     energy_cap_equals) while the original stays extendable. The shadow inherits
+ *     the base tech's global def + per-location resource reference so renewables
+ *     keep their capacity-factor profile. Sunk (residual) capacity semantics:
+ *     prior builds are free; only NEW additions pay CAPEX.
+ *
  * techMatch shapes:
  *   string             — exact tech name
  *   string[]           — any of these names
@@ -40,7 +57,10 @@ export function applyOps(model, ops) {
       case 'disableTech':     _disableTech(m, op); break;
       case 'systemConstraint':_systemConstraint(m, op); break;
       case 'addTech':         _addTech(m, op); break;
-      default: break; // unknown ops silently skipped
+      case 'vintageResidual': _vintageResidual(m, op); break;
+      case 'scaleLinkCap':    _scaleLinkCap(m, op); break;
+      case 'setLinkCap':      _setLinkCap(m, op); break;
+      default: break; // unknown ops (and UI-only keys like _template) silently skipped
     }
   }
   return m;
@@ -156,4 +176,110 @@ function _addTech(m, { tech, defaults = {} }) {
   if (!m.technologies) m.technologies = [];
   if (m.technologies.some(t => t.name === tech)) return;
   m.technologies.push({ name: tech, ...defaults });
+}
+
+// One-time investment cost keys zeroed on residual (sunk) capacity. Variable /
+// annual O&M keys (energy_prod, energy_con, om_annual, om_prod, …) are kept —
+// existing plants still cost money to run.
+const INVESTMENT_COST_KEYS = ['energy_cap', 'storage_cap', 'resource_cap', 'resource_area', 'purchase'];
+
+function _zeroCapex(costs) {
+  if (!costs || typeof costs !== 'object') return;
+  for (const cls of Object.keys(costs)) {
+    const c = costs[cls];
+    if (c && typeof c === 'object') {
+      for (const k of INVESTMENT_COST_KEYS) if (k in c) c[k] = 0;
+    }
+  }
+}
+
+// Normalise a location id/name the way the Calliope runner does (_safe_id().lower()),
+// so result-capacity loc tokens (already normalised) match internal-model locations.
+function _normId(s) { return String(s ?? '').replace(/[^a-zA-Z0-9]/g, '_').toLowerCase(); }
+function _locMatches(loc, token) {
+  return [loc.id, loc.name].some(v => v != null && (String(v) === token || _normId(v) === token));
+}
+
+function _linkMatches(link, linkMatch) {
+  if (!linkMatch || linkMatch === 'all') return true;
+  if (typeof linkMatch === 'string') return link.linkType === linkMatch || link.tech === linkMatch;
+  if (linkMatch.linkType) return link.linkType === linkMatch.linkType;
+  if (linkMatch.from && linkMatch.to) {
+    return (link.from === linkMatch.from && link.to === linkMatch.to)
+        || (link.from === linkMatch.to && link.to === linkMatch.from); // undirected
+  }
+  return false;
+}
+
+function _scaleLinkCap(m, { linkMatch, factor }) {
+  for (const link of (m.links || [])) {
+    if (!_linkMatches(link, linkMatch)) continue;
+    if (typeof link.capacity === 'number') link.capacity = link.capacity * factor;
+  }
+}
+
+function _setLinkCap(m, { linkMatch, value }) {
+  for (const link of (m.links || [])) {
+    if (!_linkMatches(link, linkMatch)) continue;
+    link.capacity = value;
+  }
+}
+
+function _vintageResidual(m, { techMatch, existingCaps = {}, suffix = '_existing' }) {
+  const names = _matchTechNames(m.technologies, techMatch);
+  for (const name of names) {
+    // Collect per-location prior capacity for this base tech.
+    const locCaps = [];
+    for (const [key, cap] of Object.entries(existingCaps)) {
+      if (!(cap > 0)) continue;
+      const idx = key.lastIndexOf('::');
+      if (idx < 0) continue;
+      if (key.slice(idx + 2) !== name) continue;
+      locCaps.push({ locTok: key.slice(0, idx), cap });
+    }
+    if (locCaps.length === 0) continue;
+
+    const shadowName = `${name}${suffix}`;
+
+    // Global shadow tech: clone base def, drop cap bounds, zero investment costs.
+    if (!(m.technologies || []).some(t => t.name === shadowName)) {
+      const base = (m.technologies || []).find(t => t.name === name);
+      const clone = JSON.parse(JSON.stringify(base || { name }));
+      clone.name = shadowName;
+      if (clone.constraints) {
+        delete clone.constraints.energy_cap_max;
+        delete clone.constraints.energy_cap_min;
+        delete clone.constraints.energy_cap_equals;
+      }
+      _zeroCapex(clone.costs);
+      clone._vintaged = true; // marker the runner uses to preserve per-loc overrides in assignment mode
+      m.technologies.push(clone);
+    }
+
+    // Per-location fixed capacity + inherited resource profile.
+    for (const { locTok, cap } of locCaps) {
+      const loc = (m.locations || []).find(l => _locMatches(l, locTok));
+      if (!loc) continue;
+      if (!loc.techs) loc.techs = {};
+      // Inherit the base tech's per-location override (esp. resource: file=…).
+      const inherited = loc.techs[name] ? JSON.parse(JSON.stringify(loc.techs[name])) : {};
+      const shadow = loc.techs[shadowName] || inherited;
+      if (!shadow.constraints) shadow.constraints = {};
+      delete shadow.constraints.energy_cap_max;
+      delete shadow.constraints.energy_cap_min;
+      shadow.constraints.energy_cap_equals = cap;
+      _zeroCapex(shadow.costs);
+      loc.techs[shadowName] = shadow;
+
+      // Assignment-mode models: register the shadow so the runner includes it.
+      const lta = m.locationTechAssignments;
+      if (lta) {
+        for (const k of [loc.id, loc.name]) {
+          if (k != null && Array.isArray(lta[k]) && lta[k].includes(name) && !lta[k].includes(shadowName)) {
+            lta[k] = [...lta[k], shadowName];
+          }
+        }
+      }
+    }
+  }
 }
