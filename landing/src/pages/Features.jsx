@@ -2,9 +2,7 @@ import Footer from '../components/Footer'
 import model from '../public/img/Model.png'
 import InteractiveQGIS from '../public/img/InteractiveQGIS.png'
 import Results from '../public/img/Results.png'
-import ScreenTimeseries from '../public/img/timeseries.png' 
-import ScreenH2 from '../public/img/h2.png'        
-import ScreenCCS from '../public/img/ccs.png'     
+import ScreenTimeseries from '../public/img/timeseries.png'
 
 export default function Features() {
   const workflowSteps = [
@@ -306,86 +304,6 @@ export default function Features() {
                 alt="TEMPO Timeseries Editor"
                 src={ScreenTimeseries}
               />
-            </div>
-          </div>
-        </section>
-
-        {/* ── H₂ Simulation ── */}
-        <section className="bg-surface-container-lowest py-32 px-8 ghost-border">
-          <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-16 items-start">
-            <div className="lg:col-span-4">
-              <div className="sticky top-32">
-                <span className="material-symbols-outlined text-primary text-4xl mb-6 block">
-                  local_gas_station
-                </span>
-                <h2 className="text-[2.75rem] font-bold tracking-tight leading-none mb-6">
-                  H₂ PLANT<br />SIMULATION
-                </h2>
-                <p className="text-on-surface-variant mb-8 leading-relaxed">
-                  OpenModelica-based digital twin for hydrogen power plants. Configure
-                  electrolyzer stacks, compressor stages, and storage tanks — efficiency
-                  and output metrics update in real time.
-                </p>
-                <ul className="space-y-4">
-                  {['PEM & Alkaline electrolyzer models', 'H₂ compressor & storage tank', 'Pressure & temperature control', 'Real-time flow diagram', 'Energy & H₂ output charts'].map(
-                    (item) => (
-                      <li key={item} className="flex items-center gap-3 text-[0.6875rem] font-bold uppercase tracking-widest">
-                        <span className="material-symbols-outlined text-[1rem]">check_circle</span>
-                        {item}
-                      </li>
-                    )
-                  )}
-                </ul>
-              </div>
-            </div>
-            <div className="lg:col-span-8">
-              <div className="bg-surface ghost-border relative overflow-hidden">
-                <img
-                  className="w-full h-auto"
-                  alt="TEMPO H₂ plant simulation dashboard"
-                  src={ScreenH2}
-                />
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ── CCS Simulation ── */}
-        <section className="py-32 px-8 bg-surface">
-          <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-16 items-start">
-            <div className="lg:col-span-8">
-              <div className="bg-surface ghost-border relative overflow-hidden">
-                <img
-                  className="w-full h-auto"
-                  alt="TEMPO CCS simulation dashboard"
-                  src={ScreenCCS}
-                />
-              </div>
-            </div>
-            <div className="lg:col-span-4">
-              <div className="sticky top-32">
-                <span className="material-symbols-outlined text-primary text-4xl mb-6 block">
-                  co2
-                </span>
-                <h2 className="text-[2.75rem] font-bold tracking-tight leading-none mb-6">
-                  CCS<br />SIMULATION
-                </h2>
-                <p className="text-on-surface-variant mb-8 leading-relaxed">
-                  Digital twin for carbon capture and storage systems. Model the full capture
-                  chain — absorber, stripper, compressor — with configurable CO₂ source
-                  characteristics and capture rate targets.
-                </p>
-                <ul className="space-y-4">
-                  {['CO₂ source & absorber column', 'Stripper & solvent regeneration', 'CCS compressor chain', 'Configurable capture rate (%)', 'Energy penalty breakdown'].map(
-                    (item) => (
-                      <li key={item} className="flex items-center gap-3 text-[0.6875rem] font-bold uppercase tracking-widest">
-                        <span className="material-symbols-outlined text-[1rem]">check_circle</span>
-                        {item}
-                      </li>
-                    )
-                  )}
-                </ul>
-              </div>
             </div>
           </div>
         </section>

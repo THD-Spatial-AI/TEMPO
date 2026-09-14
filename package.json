@@ -70,36 +70,6 @@
         ]
       },
       {
-        "from": "../ccssim",
-        "to": "ccssim",
-        "filter": [
-          "**/*",
-          "!**/.git/**",
-          "!**/.venv/**",
-          "!**/.vscode/**",
-          "!**/__pycache__/**",
-          "!**/*.pyc",
-          "!**/docker-compose.yml",
-          "!**/Dockerfile",
-          "!**/.env**"
-        ]
-      },
-      {
-        "from": "../hydrogenmatsim",
-        "to": "hydrogensim",
-        "filter": [
-          "**/*",
-          "!**/.git/**",
-          "!**/.venv/**",
-          "!**/.vscode/**",
-          "!**/__pycache__/**",
-          "!**/*.pyc",
-          "!**/docker-compose.yml",
-          "!**/Dockerfile",
-          "!**/.env**"
-        ]
-      },
-      {
         "from": "docker-compose.geoserver.yml",
         "to": "geoserver/docker-compose.geoserver.yml"
       },

@@ -6,8 +6,6 @@ export default defineConfig(({ mode }) => {
   // Read .env so we can use service URLs as proxy targets.
   // This way the URLs are never hard-coded here.
   const env = loadEnv(mode, process.cwd(), '')
-  const h2Target = (env.VITE_H2_SERVICE_URL || 'http://localhost:8765').replace(/\/$/, '')
-  const ccsTarget = (env.VITE_CCS_SERVICE_URL || 'http://localhost:8766').replace(/\/$/, '')
   const techTarget = (env.VITE_TECH_API_URL || 'https://otdb.th-deg.de').replace(/\/$/, '')
 
   return {
@@ -16,23 +14,6 @@ export default defineConfig(({ mode }) => {
     base: './',   // relative paths so Electron can load dist/index.html from file://
     server: {
       proxy: {
-        // ── Hydrogen Plant Simulation Service ─────────────────────────────────────
-        // Proxies both HTTP and WebSocket so the browser never connects directly
-        // to the VM (avoids CORS issues and Docker/firewall restrictions).
-        '/h2-proxy': {
-          target: h2Target,
-          changeOrigin: true,
-          ws: true,  // also proxy WebSocket upgrade requests
-          rewrite: (path) => path.replace(/^\/h2-proxy/, ''),
-        },
-        // ── CCS Simulation Service ───────────────────────────────────────────────
-        // Carbon Capture and Storage simulation service
-        '/ccs-proxy': {
-          target: ccsTarget,
-          changeOrigin: true,
-          ws: true,
-          rewrite: (path) => path.replace(/^\/ccs-proxy/, ''),
-        },
         // ── Go backend (dev only — avoids CORS from localhost:5174) ──────────
         '/api': {
           target: 'http://localhost:8082',

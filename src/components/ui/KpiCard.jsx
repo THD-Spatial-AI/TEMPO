@@ -1,7 +1,5 @@
-// Compact uppercase KPI card shared by the five CCS unit panels (Absorber,
-// Compressor, Source, Storage, Stripper), which each carried an identical copy.
+// Compact uppercase KPI card used by the Dashboard widgets.
 // Every colour except `electric`/`slate` renders the same neutral grey.
-// Note: HydrogenPlantDashboard uses a visually different KpiCard and keeps its own.
 export default function KpiCard({ label, value, unit, color = "slate" }) {
   const ring = {
     electric: "border-electric-200 bg-electric-50",
