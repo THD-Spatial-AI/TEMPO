@@ -65,20 +65,6 @@ src/
 │   ├── OsmInfrastructurePanel.jsx  # OSM layer controls
 │   ├── GeoServerRegionSelector.jsx # GeoServer region picker
 │   ├── RegionSelectionStepper.jsx  # Multi-step region selection wizard
-│   ├── HydrogenPlantDashboard.jsx  # H₂ plant modelling dashboard
-│   ├── H2ElectrolyzerPanel.jsx     # Electrolyser configuration panel
-│   ├── H2GeneratorPanel.jsx        # H₂ generator panel
-│   ├── H2NodeModal.jsx             # H₂ node detail modal
-│   ├── H2PlantFlowDiagram.jsx      # H₂ plant Sankey / flow diagram
-│   ├── H2EnergyCharts.jsx          # H₂ energy result charts
-│   ├── CCSSourcePanel.jsx          # CCS CO₂ source panel
-│   ├── CCSAbsorberPanel.jsx        # CCS absorber column panel
-│   ├── CCSCompressorPanel.jsx      # CCS compressor panel
-│   ├── CCSStripperPanel.jsx        # CCS stripper / regenerator panel
-│   ├── CCSStoragePanel.jsx         # CCS CO₂ storage panel
-│   ├── CCSFlowDiagram.jsx          # CCS process flow diagram
-│   ├── CCSEnergyCharts.jsx         # CCS energy result charts
-│   ├── CCSConfigPanel.jsx          # CCS top-level configuration aggregator
 │   ├── OSMDownloader.jsx           # Triggers OSM region download and tracks progress
 │   ├── Settings.jsx        # Application settings screen
 │   ├── SetupScreen.jsx     # First-run Python environment setup
@@ -98,16 +84,7 @@ src/
 ├── services/               # HTTP clients for all backend and external services
 │   ├── api.js              # Go backend client (models, jobs, OSM, geocode)
 │   ├── calliopeClient.js   # Direct Calliope runner client (SSE streaming)
-│   ├── techDatabaseApi.js  # OEO Technology Database API client
-│   ├── hydrogenService.js  # H₂ plant simulation service client (port 8765) + WS fallback
-│   ├── ccsService.js       # CCS simulation service client (port 8766) + WS fallback
-│   ├── h2Physics.js        # Client-side H₂ physics fallback (offline approximate simulation)
-│   ├── ccsPhysics.js       # Client-side CCS physics fallback (offline approximate simulation)
-│   ├── h2TechModels.js     # H₂ technology parameter definitions
-│   ├── ccsTechModels.js    # CCS technology parameter definitions
-│   ├── h2SimPayload.js     # H₂ simulation JSON payload factory functions
-│   ├── ccsSimPayload.js    # CCS simulation JSON payload factory functions
-│   └── h2SourceProfiles.js # Renewable resource profiles for H₂ electricity sources
+│   └── techDatabaseApi.js  # OEO Technology Database API client
 ├── hooks/                  # Custom React hooks
 │   ├── useLocationManager.js   # Location/link CRUD + Haversine distance calculation
 │   ├── useTechnologyManager.js # Technology assignment to locations

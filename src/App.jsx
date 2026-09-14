@@ -25,7 +25,6 @@ const Export = lazy(() => import("./components/Export"));
 const Run = lazy(() => import("./components/Run"));
 const Results = lazy(() => import("./components/Results"));
 const SetupScreen = lazy(() => import("./components/SetupScreen"));
-const HydrogenPlantDashboard = lazy(() => import("./components/HydrogenPlantDashboard"));
 
 function AppContent() {
   const [selected, setSelected] = useState(() => getSetting('defaultView'));
@@ -107,7 +106,6 @@ function AppContent() {
       case "Run":            return <Run onNavigate={handleNavigation} />;
       case "Results":        return <Results />;
       case "Export":         return <Export />;
-      case "Tech Simulator": return <HydrogenPlantDashboard />;
       default:               return <Dashboard />;
     }
   };

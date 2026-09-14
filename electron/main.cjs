@@ -11,8 +11,6 @@ const { createEngineService, findSystemPython310Plus, findSystemPython312Plus } 
 let mainWindow         = null;
 let backendProcess     = null;   // Go REST backend (port 8082)
 let calliopeService    = null;   // Python uvicorn service (port 5000, optional)
-let ccsSimService      = null;   // CCS simulation FastAPI service (port 8766)
-let hydrogenSimService = null;   // Hydrogen simulation FastAPI service (port 8765)
 
 let BACKEND_PORT    = 8082;   // may be reassigned at startup if port is taken
 let CALLIOPE_PORT   = 5000;   // may be reassigned at startup if port is taken
@@ -253,20 +251,6 @@ function startDockerService(serviceName, progressEvent = null) {
   return new Promise(resolve => {
     emit('stage', { label: `Starting ${svc.label}…` });
 
-    if (svc.name === 'ccssim') {
-      try {
-        execFileSync('docker', ['network', 'inspect', 'tempo-network'], { timeout: 6000, stdio: ['ignore', 'pipe', 'pipe'] });
-      } catch {
-        try {
-          emit('log', { line: 'Creating Docker network tempo-network…' });
-          execFileSync('docker', ['network', 'create', 'tempo-network'], { timeout: 15000, stdio: ['ignore', 'pipe', 'pipe'] });
-        } catch (networkErr) {
-          resolve({ success: false, error: `Failed to create Docker network tempo-network: ${networkErr.message}` });
-          return;
-        }
-      }
-    }
-
     const child = spawn('docker', ['compose', ...(svc.composeFile ? ['-f', svc.composeFile] : []), 'up', '-d', '--remove-orphans'], { cwd: svc.composeDir, shell: false });
     let stderr = '';
     child.stdout.on('data', d => { for (const l of d.toString().split('\n').filter(x => x.trim())) emit('log', { line: l }); });
@@ -297,9 +281,9 @@ ipcMain.handle('docker:start-all', async () => {
 
 // ─── IPC: Service URL registry ───────────────────────────────────────────────
 ipcMain.handle('services:urls', async () => {
-  const [c, c07, a, py, osm, o, h2, ccs, gs, be] = await Promise.all([
+  const [c, c07, a, py, osm, o, gs, be] = await Promise.all([
     isPortOpen(CALLIOPE_PORT), isPortOpen(CALLIOPE07_PORT), isPortOpen(ADOPTNET0_PORT), isPortOpen(PYPSA_PORT), isPortOpen(OSEMOSYS_PORT), isPortOpen(8000),
-    isPortOpen(8765), isPortOpen(8766), isPortOpen(8081), isPortOpen(BACKEND_PORT),
+    isPortOpen(8081), isPortOpen(BACKEND_PORT),
   ]);
   return {
     calliope:   { url: `http://localhost:${CALLIOPE_PORT}`,  running: c   },
@@ -308,8 +292,6 @@ ipcMain.handle('services:urls', async () => {
     pypsa:      { url: `http://localhost:${PYPSA_PORT}`,     running: py  },
     osemosys:   { url: `http://localhost:${OSEMOSYS_PORT}`,  running: osm },
     opentech:   { url: 'https://otdb.th-deg.de',             running: o   },
-    hydrogen:   { url: 'http://localhost:8765',              running: h2  },
-    ccs:        { url: 'http://localhost:8766',              running: ccs },
     geoserver:  { url: 'http://localhost:8081',              running: gs  },
     backend:    { url: `http://localhost:${BACKEND_PORT}`,   running: be  },
   };
@@ -847,109 +829,6 @@ function getServicePaths() {
   return { pythonDir };
 }
 
-// ─── Simulation services (CCS + Hydrogen) — Python venv, no Docker ──────────
-
-/**
- * Resolve the venv for a simulation service.
- * simId: 'ccssim' | 'hydrogensim'
- */
-function resolveSimVenv(simId) {
-  const binDir = IS_WIN ? 'Scripts' : 'bin';
-  const pyExe  = IS_WIN ? 'python.exe' : 'python3';
-  const venvDir = path.join(app.getPath('userData'), `${simId}-venv`);
-  const python  = path.join(venvDir, binDir, pyExe);
-  return { venvDir, python, exists: fs.existsSync(python) };
-}
-
-/**
- * Resolve the directory where main.py lives for a sim service.
- * Packaged: resources/ccssim or resources/hydrogensim
- * Dev: sibling folder ../ccssim or ../hydrogenmatsim
- */
-function getSimSrcDir(simId) {
-  if (app.isPackaged) {
-    return path.join(process.resourcesPath, simId);
-  }
-  const devDir = simId === 'hydrogensim' ? 'hydrogenmatsim' : simId;
-  return path.join(__dirname, '..', '..', devDir);
-}
-
-let _simIntentionalStop = false;
-
-async function startSimService(simId, port, getRef, setRef) {
-  if (await isPortOpen(port)) {
-    console.log(`[${simId}] Already running on port ${port}`);
-    return;
-  }
-  const { python, exists } = resolveSimVenv(simId);
-  if (!exists) {
-    console.log(`[${simId}] venv not ready — skipping autostart`);
-    return;
-  }
-  const srcDir = getSimSrcDir(simId);
-  if (!fs.existsSync(srcDir)) {
-    console.warn(`[${simId}] Source directory not found: ${srcDir}`);
-    return;
-  }
-
-  console.log(`[${simId}] Starting uvicorn on port ${port} from ${srcDir}`);
-  const proc = spawn(python, [
-    '-m', 'uvicorn', 'main:app',
-    '--host', '127.0.0.1',
-    '--port', String(port),
-    '--workers', '1',
-    '--log-level', 'warning',
-  ], { cwd: srcDir, shell: false });
-
-  setRef(proc);
-  proc.stdout.on('data', d => { for (const l of d.toString().split('\n').filter(x => x.trim())) console.log(`[${simId}] ${l}`); });
-  proc.stderr.on('data', d => { for (const l of d.toString().split('\n').filter(x => x.trim())) console.log(`[${simId}] ${l}`); });
-  proc.on('close', code => {
-    console.log(`[${simId}] Exited: ${code}`);
-    setRef(null);
-    if (!_simIntentionalStop) {
-      setTimeout(() => startSimService(simId, port, getRef, setRef).catch(e => console.warn(`[${simId}] Restart failed:`, e)), 5000);
-    }
-  });
-
-  try { await waitForPort(port, 15000); console.log(`[${simId}] Ready on port ${port}`); }
-  catch { console.warn(`[${simId}] Did not start within 15 s — continuing anyway`); }
-}
-
-function stopSimServices() {
-  _simIntentionalStop = true;
-  if (ccsSimService)      { ccsSimService.kill();      ccsSimService      = null; }
-  if (hydrogenSimService) { hydrogenSimService.kill();  hydrogenSimService = null; }
-}
-
-async function startAllSimServices() {
-  _simIntentionalStop = false;
-  await Promise.all([
-    startSimService('ccssim',      8766, () => ccsSimService,      p => { ccsSimService      = p; }),
-    startSimService('hydrogensim', 8765, () => hydrogenSimService, p => { hydrogenSimService = p; }),
-  ]);
-}
-
-// ─── IPC: Simulation service management ──────────────────────────────────────
-
-ipcMain.handle('sim:check', async () => {
-  const ccs = resolveSimVenv('ccssim');
-  const h2  = resolveSimVenv('hydrogensim');
-  const [ccsPort, h2Port] = await Promise.all([isPortOpen(8766), isPortOpen(8765)]);
-  return {
-    ccssim:      { venvExists: ccs.exists, running: ccsPort  },
-    hydrogensim: { venvExists: h2.exists,  running: h2Port   },
-  };
-});
-
-ipcMain.handle('sim:restart', async () => {
-  stopSimServices();
-  await new Promise(r => setTimeout(r, 1500));
-  await startAllSimServices();
-  const [ccsPort, h2Port] = await Promise.all([isPortOpen(8766), isPortOpen(8765)]);
-  return { ccssim: ccsPort, hydrogensim: h2Port };
-});
-
 // ─── Demandlib one-shot (BDEW load shapes for OSM Study-Area demand) ──────────
 // A dedicated venv holds oemof demandlib; it's invoked one-shot (no service, no
 // port) to generate a normalised demand shape at import time. Installed lazily
@@ -1441,43 +1320,6 @@ ipcMain.handle('calliope:install', async (_event, selectedModules = ['calliope']
       await startCalliopeService();
     }
 
-    // ── Install simulation services (CCS + Hydrogen) ──────────────────────
-    // These are independent FastAPI services; each gets its own venv in userData.
-    const simDefs = [
-      { id: 'ccssim',      label: 'CCS Simulation',      port: 8766 },
-      { id: 'hydrogensim', label: 'Hydrogen Simulation',  port: 8765 },
-    ];
-    for (const sim of simDefs) {
-      sendProgress({ type: 'stage', label: `Installing ${sim.label} service…` });
-      try {
-        const simVenvDir  = path.join(app.getPath('userData'), `${sim.id}-venv`);
-        const simVenvPy   = path.join(simVenvDir, IS_WIN ? 'Scripts' : 'bin', IS_WIN ? 'python.exe' : 'python3');
-        const simReqFile  = path.join(pythonDir, `requirements.${sim.id}.txt`);
-
-        // Create fresh venv for this sim
-        await runChild(systemPython, ['-m', 'venv', '--clear', simVenvDir], `${sim.id} venv creation`);
-        try { await runChild(simVenvPy, ['-m', 'ensurepip', '--upgrade'], `${sim.id} ensurepip`); } catch { /* non-fatal */ }
-        await runChild(simVenvPy, ['-m', 'pip', 'install', '--upgrade', '--quiet', 'pip', 'setuptools', 'wheel'], `${sim.id} pip upgrade`);
-
-        if (fs.existsSync(simReqFile)) {
-          await runChild(simVenvPy, ['-m', 'pip', 'install', '--prefer-binary', '--no-cache-dir', '-r', simReqFile], `${sim.id} deps`);
-        } else {
-          sendProgress({ type: 'log', line: `⚠ No requirements file for ${sim.id} — skipping pip install` });
-        }
-
-        // Verify import
-        await runChild(simVenvPy, ['-c', 'import fastapi, uvicorn; print("sim-ok fastapi uvicorn")'], `${sim.id} verify`);
-        sendProgress({ type: 'log', line: `✓ ${sim.label} service installed` });
-
-        // Auto-start the service
-        sendProgress({ type: 'stage', label: `Starting ${sim.label}…` });
-        await startSimService(sim.id, sim.port, () => (sim.id === 'ccssim' ? ccsSimService : hydrogenSimService), p => { if (sim.id === 'ccssim') ccsSimService = p; else hydrogenSimService = p; });
-      } catch (simErr) {
-        sendProgress({ type: 'log', line: `⚠ ${sim.label} install failed: ${(simErr.message || String(simErr)).split('\n')[0]}` });
-        sendProgress({ type: 'log', line: `  ${sim.label} will use local fallback physics — no action needed` });
-      }
-    }
-
     // ── Install OSM processing venv ───────────────────────────────────────
     // Separate venv because osm_processing needs numpy>=1.24 (conflicts with
     // calliope's pinned numpy==1.23.5) plus osmium, geopandas, psycopg2-binary.
@@ -1809,7 +1651,6 @@ async function createWindow() {
 function stopAll() {
   stopCalliopeService();
   for (const engine of Object.values(engines)) engine.stop();
-  stopSimServices();
   stopBackend();
 }
 
@@ -1874,8 +1715,6 @@ app.whenReady().then(async () => {
   for (const [name, engine] of Object.entries(engines)) {
     engine.start().catch(err => console.warn(`[${name}] autostart error:`, err.message));
   }
-  // Start simulation services (no-op if venvs not installed yet)
-  startAllSimServices().catch(err => console.warn('[sim-svc] autostart error:', err.message));
   await createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

@@ -36,10 +36,8 @@ Use this document as a single source of truth when onboarding, debugging, or ext
    - 6.2 [calliope_runner.py](#62-calliope_runnerpy)
    - 6.3 [adapters/](#63-adapters)
    - 6.4 [services/tech_database.py](#64-servicestech_databasepy)
-7. [External simulation services](#7-external-simulation-services)
-   - 7.1 [Hydrogen plant service](#71-hydrogen-plant-service)
-   - 7.2 [CCS simulation service](#72-ccs-simulation-service)
-   - 7.3 [OEO Technology Database API](#73-oeo-technology-database-api)
+7. [External services](#7-external-services)
+   - 7.1 [OEO Technology Database API](#71-oeo-technology-database-api)
 8. [GeoServer & PostGIS pipeline](#8-geoserver--postgis-pipeline)
 9. [OSM processing pipeline](#9-osm-processing-pipeline)
 10. [Technology library](#10-technology-library)
@@ -91,8 +89,6 @@ The three primary processes are:
 | 5000 | Calliope runner (FastAPI) | Docker or local uvicorn |
 | 8080 | GeoServer (user-facing) | Docker container |
 | 8081 | GeoServer (backend config) | Configured in `config.yaml` |
-| 8765 | Hydrogen plant sim service | Optional, external VM/Docker |
-| 8766 | CCS simulation service | Optional, external VM/Docker |
 | 8000 | OEO Technology Database API | Optional, proxied via `/tech/*` |
 
 ---
@@ -137,7 +133,7 @@ Built with **React 19** and **Vite**. All views except `Dashboard` are lazy-load
 - Maintains `selected` state (the currently visible view).
 - Implements navigation guards: if the current view is in `EDITING_VIEWS` and `isDirty === true`, a save-before-navigate dialog is shown.
 - Global `Ctrl+S` shortcut calls `saveNow()` when a model is loaded and an editing view is active.
-- Views: `Dashboard`, `Tutorial`, `Models`, `MapView`, `Creation`, `Locations`, `Links`, `Overrides`, `Scenarios`, `Parameters`, `Technologies`, `TimeSeries`, `Settings`, `Export`, `Run`, `Results`, `SetupScreen`, `HydrogenPlantDashboard`.
+- Views: `Dashboard`, `Tutorial`, `Models`, `MapView`, `Creation`, `Locations`, `Links`, `Overrides`, `Scenarios`, `Parameters`, `Technologies`, `TimeSeries`, `Settings`, `Export`, `Run`, `Results`, `SetupScreen`.
 
 **`src/components/Sidebar.jsx`**
 
@@ -220,39 +216,7 @@ Key behaviours:
 | `RegionSelectionStepper.jsx` | Multi-step wizard for downloading and loading a new OSM region (continent → country → sub-region). |
 | `OSMDownloader.jsx` | Triggers `POST /api/osm/download` and tracks download progress. |
 
-### 4.7 Components — Hydrogen plant
-
-TEMPO includes a detailed **H₂ plant design module** as a separate dashboard tab.
-
-| Component | Purpose |
-|---|---|
-| `HydrogenPlantDashboard.jsx` | Top-level H₂ plant view. Hosts the flow diagram and panel tabs. |
-| `H2ElectrolyzerPanel.jsx` | Configure electrolyser (PEM/Alkaline), stack size, efficiency curves, operating schedule. |
-| `H2GeneratorPanel.jsx` | Configure the electricity source (grid, PV, wind). |
-| `H2NodeModal.jsx` | Detail overlay for a single node on the H₂ flow diagram. |
-| `H2PlantFlowDiagram.jsx` | Sankey-style flow diagram of the H₂ plant sub-system. |
-| `H2EnergyCharts.jsx` | ECharts visualisations of H₂ simulation results (production, efficiency, cost). |
-
-The H₂ module calls the external **Hydrogen Plant Simulation Service** (port 8765) via `hydrogenService.js`. When unreachable, it falls back to the client-side physics model in `h2Physics.js`.
-
-### 4.8 Components — CCS chain
-
-TEMPO includes a detailed **CCS (Carbon Capture and Storage) chain design module**.
-
-| Component | Purpose |
-|---|---|
-| `CCSSourcePanel.jsx` | Configure the CO₂ point source (flue gas composition, flow rate). |
-| `CCSAbsorberPanel.jsx` | Configure the absorption column (solvent type, L/G ratio, packing height). |
-| `CCSStripperPanel.jsx` | Configure the stripper / regenerator (reboiler duty, solvent circulation). |
-| `CCSCompressorPanel.jsx` | Configure CO₂ compression stages, intercooling, outlet pressure. |
-| `CCSStoragePanel.jsx` | Configure geological storage or utilisation (injection rate, reservoir). |
-| `CCSFlowDiagram.jsx` | Process flow diagram of the full CCS chain (SVG-based, interactive). |
-| `CCSEnergyCharts.jsx` | Recharts visualisations: energy penalty, capture efficiency, cost curves. |
-| `CCSConfigPanel.jsx` | Top-level CCS configuration aggregator. |
-
-The CCS module calls the external **CCS Simulation Service** (port 8766) via `ccsService.js`. When unreachable, it falls back to client-side first-principles simulation in `ccsPhysics.js`.
-
-### 4.9 Components — UI primitives
+### 4.7 Components — UI primitives
 
 Located in `src/components/ui/`:
 
@@ -264,7 +228,7 @@ Located in `src/components/ui/`:
 | `Badge.jsx` | Status badge chip (success / warning / error / neutral). |
 | `SaveBar.jsx` | Sticky bottom bar shown when `isDirty`. Offers Save and Discard actions. |
 
-### 4.10 Services
+### 4.8 Services
 
 Located in `src/services/`:
 
@@ -273,17 +237,8 @@ Located in `src/services/`:
 | `api.js` | Primary Go backend client. Resolves the backend URL via `window.electronAPI.getBackendURL()` (Electron) or Vite proxy `/api` (dev). Exports the `api` object with methods for every endpoint. |
 | `calliopeClient.js` | Direct client for the Calliope runner service (port 5000). Used by `Run.jsx` to submit jobs and read SSE log streams. Resolves the service URL from `window.electronAPI.getCalliopeServiceURL()` or env var. |
 | `techDatabaseApi.js` | Client for the OEO Technology Database API (proxied at `/tech`). Provides `getTechnologies()`, `getTechnologyById()`, `getTechnologiesByCategory()`, `getCalliopeTechs()`. Falls back gracefully when the API is offline. |
-| `hydrogenService.js` | Client for the H₂ plant simulation service (port 8765). Implements WebSocket-first with HTTP polling fallback. Proxied at `/h2-proxy` in Vite dev mode. |
-| `ccsService.js` | Client for the CCS simulation service (port 8766). Same WS-first + HTTP polling pattern. Proxied at `/ccs-proxy` in Vite dev mode. |
-| `h2Physics.js` | Client-side physics fallback for H₂ simulations. First-principles electrolyser, storage and fuel cell models. |
-| `ccsPhysics.js` | Client-side physics fallback for CCS simulations. Simplified absorption column, compression and storage injection models (~85–90% accuracy vs Simulink). |
-| `h2TechModels.js` | H₂ technology parameter definitions (CAPEX, OPEX, efficiency curves). |
-| `ccsTechModels.js` | CCS technology parameter definitions. |
-| `h2SimPayload.js` | Factory functions that build H₂ simulation JSON payloads from panel state. |
-| `ccsSimPayload.js` | Factory functions that build CCS simulation JSON payloads from panel state. |
-| `h2SourceProfiles.js` | Renewable resource profiles for H₂ plant electricity sources. |
 
-### 4.11 Hooks
+### 4.9 Hooks
 
 Located in `src/hooks/`:
 
@@ -506,40 +461,9 @@ OEO Technology Database API client.
 
 ---
 
-## 7. External simulation services
+## 7. External services
 
-These are optional services not included in the main repository. They are invoked by the frontend via Vite proxies (`/h2-proxy`, `/ccs-proxy`) in dev mode, or directly by URL in production.
-
-### 7.1 Hydrogen plant service
-
-**Port:** 8765  
-**Env var:** `VITE_H2_SERVICE_URL`  
-**Frontend client:** `src/services/hydrogenService.js`  
-**Physics fallback:** `src/services/h2Physics.js`
-
-Exposes a FastAPI (OpenModelica Bridge) for detailed H₂ plant simulation. Supports:
-- WebSocket streaming for real-time progress.
-- HTTP fallback polling.
-- `POST /simulate` — submit parameters.
-- `GET /jobs/{id}` — poll status.
-- `GET /` (WebSocket) — real-time telemetry.
-
-When the service is unreachable, `h2Physics.js` provides an approximate simulation using first-principles electrolyser, compressor, and storage models.
-
-### 7.2 CCS simulation service
-
-**Port:** 8766  
-**Env var:** `VITE_CCS_SERVICE_URL`  
-**Frontend client:** `src/services/ccsService.js`  
-**Physics fallback:** `src/services/ccsPhysics.js`
-
-Same pattern as the H₂ service but models the CCS chain: flue-gas source → absorption column → stripper/regenerator → multi-stage compressor → geological storage. Physics models include:
-- Amine chemical absorption (MEA/MDEA/Piperazine).
-- Thermal desorption (reboiler duty).
-- Multi-stage isentropic compression.
-- Injection well pressure model.
-
-### 7.3 OEO Technology Database API
+### 7.1 OEO Technology Database API
 
 **Port:** 8000  
 **Env var:** `VITE_TECH_API_URL`  
@@ -741,7 +665,7 @@ npm run build:go:linux    # Linux cross-compile (backend-linux)
 | File | Purpose |
 |---|---|
 | `backend-go/config.yaml` | Go backend: GeoServer URL/credentials, Calliope service URL, server port. |
-| `vite.config.js` | Vite: dev proxy rules for `/api`, `/tech`, `/h2-proxy`, `/ccs-proxy`; Rollup chunk splitting; base path. |
+| `vite.config.js` | Vite: dev proxy rules for `/api`, `/tech`; Rollup chunk splitting; base path. |
 | `tailwind.config.js` | Tailwind: content paths, custom colour palette, font settings. |
 | `eslint.config.js` | ESLint flat-config: React Hooks plugin, React Refresh plugin. |
 | `docker-compose.yml` | Docker: `calliope-runner` service definition (ports, volumes, healthcheck). |
@@ -749,7 +673,7 @@ npm run build:go:linux    # Linux cross-compile (backend-linux)
 | `package.json` | NPM deps, scripts, and `electron-builder` packaging config. |
 | `package.electron.json` | Separate package.json used when building the Electron-only dist (strips devDeps). |
 | `mkdocs.yml` | MkDocs: site name, nav structure, Material theme config. |
-| `.env` (not committed) | `VITE_H2_SERVICE_URL`, `VITE_CCS_SERVICE_URL`, `VITE_TECH_API_URL`, `VITE_CALLIOPE_SERVICE_URL`. |
+| `.env` (not committed) | `VITE_TECH_API_URL`, `VITE_CALLIOPE_SERVICE_URL`. |
 
 ---
 
@@ -792,18 +716,4 @@ User opens MapView / toggles a layer
           else → overpass.Client.QueryRegion()
       → GeoJSON FeatureCollection returned
         → MapDeckGL.jsx renders GeoJsonLayer
-```
-
-### H₂ / CCS simulation flow
-
-```
-User configures H₂ plant / CCS chain
-  → HydrogenPlantDashboard / CCS panels collect params
-    → hydrogenService.runSimulation(params, callbacks)
-         attempts WebSocket   → ws://localhost:8765
-         fallback after 3s    → HTTP polling /jobs/{id}
-      OR ccsService.runSimulation(params, callbacks)
-         same pattern         → localhost:8766
-      OR client-side physics (h2Physics / ccsPhysics) if service unreachable
-    → Results stream into H2EnergyCharts / CCSEnergyCharts
 ```
