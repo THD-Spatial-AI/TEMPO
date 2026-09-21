@@ -87,7 +87,13 @@ function _set(obj, path, value) {
   cur[parts[parts.length - 1]] = value;
 }
 
-function _scaleParam(m, { techMatch, path, factor, level = 'global' }) {
+// Does a location match an optional locMatch (by name or id)? No locMatch = all.
+function _locMatches(loc, locMatch) {
+  if (!locMatch) return true;
+  return loc.name === locMatch || loc.id === locMatch;
+}
+
+function _scaleParam(m, { techMatch, path, factor, level = 'global', locMatch }) {
   const names = _matchTechNames(m.technologies, techMatch);
 
   if (level === 'global' || level === 'both') {
@@ -106,7 +112,7 @@ function _scaleParam(m, { techMatch, path, factor, level = 'global' }) {
 
   if (level === 'location' || level === 'both') {
     for (const loc of (m.locations || [])) {
-      if (!loc.techs) continue;
+      if (!loc.techs || !_locMatches(loc, locMatch)) continue;
       for (const name of names) {
         const locTech = loc.techs[name];
         if (!locTech) continue;
@@ -121,7 +127,7 @@ function _scaleParam(m, { techMatch, path, factor, level = 'global' }) {
   }
 }
 
-function _setParam(m, { techMatch, path, value, level = 'global' }) {
+function _setParam(m, { techMatch, path, value, level = 'global', locMatch }) {
   const names = _matchTechNames(m.technologies, techMatch);
 
   if (level === 'global' || level === 'both') {
@@ -133,7 +139,7 @@ function _setParam(m, { techMatch, path, value, level = 'global' }) {
 
   if (level === 'location' || level === 'both') {
     for (const loc of (m.locations || [])) {
-      if (!loc.techs) continue;
+      if (!loc.techs || !_locMatches(loc, locMatch)) continue;
       for (const name of names) {
         if (!loc.techs[name]) continue;
         _set(loc.techs[name], path, value);
