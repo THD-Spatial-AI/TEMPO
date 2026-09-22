@@ -1,19 +1,15 @@
 import { createContext } from 'react';
 
 /**
- * Shared board state read by the custom card nodes (mirrors DiagramCtx in
- * CCSFlowDiagram.jsx). Provided by ScenarioStudio; consumed by RecipeCardNode.
+ * Shared board state read by the canvas nodes/edges.
  *
  * value: {
- *   model,                       // selected base model (for face summaries)
- *   selectedNodeId,              // currently selected node
- *   metaByNode: Map<id, {        // per-node group-derived metadata
- *     isHead, isSpores, variantCount, isEligible, pathwayMode, chainPos, chainLen
- *   }>,
- *   pathwayProgress,             // { nodeId: { variantLabel: status } }
- *   sporesEngineOk,              // engine === calliope06
- *   onTogglePathway,             // (headNodeId, boolean) => void
- *   onDeleteNode,                // (nodeId) => void
+ *   selectedNodeId,   // currently selected node id
+ *   onDeleteNode,     // (nodeId) => void
+ *   onDuplicateNode,  // (nodeId) => void
+ *   onSetYear,        // (nodeId, year:number) => void   (Year nodes)
+ *   onResizeYear,     // (nodeId, {width,height}) => void (manual resize)
+ *   onDeleteEdge,     // (edgeId) => void
  * }
  */
 export const BoardCtx = createContext(null);

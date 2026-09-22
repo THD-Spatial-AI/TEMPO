@@ -1,55 +1,99 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useNodesState, useEdgesState, addEdge } from '@xyflow/react';
-import { FiZap, FiLayers } from 'react-icons/fi';
+import { FiZap, FiLayers, FiGrid, FiChevronDown } from 'react-icons/fi';
 import { useData } from '../context/DataContext';
 import { checkCalliopeService, runCalliopeModel } from '../services/calliopeClient';
 import { checkEngineRunService, runEngineModel } from '../services/engineClient';
 import { applyOps } from '../services/scenarioStudio/transform.js';
-import { composeRecipes } from '../services/scenarioStudio/compose.js';
-import { buildCarryForwardOp, accumulateExistingCaps } from '../services/scenarioStudio/pathway.js';
-import { buildCalliope06GroupConstraintsOverride } from '../services/scenarioStudio/utils.js';
+import { buildCalliope06GroupConstraintsOverride, resolveTechGroup } from '../services/scenarioStudio/utils.js';
 import { getCapabilityWarnings, engineKeyFromModel, ENGINE_LABELS, ENGINE_FRAMEWORK } from '../services/scenarioStudio/capabilities.js';
-import { deriveGroups, canConnect } from '../services/scenarioStudio/board.js';
-import { DEFAULT_PARAMS, buildRecipeParams } from './scenarioStudio/recipeMeta.js';
+import { buildScenarioVariants, scenarioFromGraph, canConnect, defaultCardParams, previousYear, SCENARIO_TEMPLATES, YEAR_SIZE } from '../services/scenarioStudio/scenario.js';
 import ScenarioBoard from './scenarioStudio/ScenarioBoard.jsx';
 import RecipeSidePanel from './scenarioStudio/RecipeSidePanel.jsx';
+import YearDetailPanel from './scenarioStudio/YearDetailPanel.jsx';
 import BoardDock from './scenarioStudio/BoardDock.jsx';
 import ResultsSheet from './scenarioStudio/ResultsSheet.jsx';
 
 // ─── Board persistence (localStorage) ────────────────────────────────────────
 
 const BOARD_KEY = 'scenarioBoard';
-const clone = (o) => JSON.parse(JSON.stringify(o ?? {}));
+const genId = (p) => `${p}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
 function defaultBoard() {
   return {
-    nodes: [{
-      id: 'card_seed', type: 'recipeCard', position: { x: 140, y: 120 },
-      data: { recipeId: 'demandGrowth', params: clone(DEFAULT_PARAMS.demandGrowth), pathwayMode: false },
-    }],
+    nodes: [
+      { id: 'year_2025', type: 'year', position: { x: 80, y: 60 },  style: { ...YEAR_SIZE }, data: { year: 2025 } },
+      { id: 'year_2030', type: 'year', position: { x: 80, y: 260 }, style: { ...YEAR_SIZE }, data: { year: 2030 } },
+    ],
     edges: [],
   };
 }
-
 function loadBoard() {
   try {
     const raw = localStorage.getItem(BOARD_KEY);
     if (!raw) return defaultBoard();
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed?.nodes)) return defaultBoard();
-    return { nodes: parsed.nodes, edges: Array.isArray(parsed.edges) ? parsed.edges : [] };
+    const p = JSON.parse(raw);
+    if (Array.isArray(p?.nodes) && p.nodes.some(n => n.type)) return { nodes: orderNodes(p.nodes), edges: Array.isArray(p.edges) ? p.edges : [] };
+    return defaultBoard();
   } catch { return defaultBoard(); }
 }
-
 function saveBoard(nodes, edges) {
   try {
-    const slimNodes = nodes.map(n => ({ id: n.id, type: n.type, position: n.position, data: n.data }));
+    const slimNodes = nodes.map(n => ({ id: n.id, type: n.type, position: n.position, data: n.data, parentId: n.parentId, style: n.style }));
     const slimEdges = edges.map(e => ({ id: e.id, source: e.source, target: e.target }));
     localStorage.setItem(BOARD_KEY, JSON.stringify({ nodes: slimNodes, edges: slimEdges }));
-  } catch { /* quota / private mode */ }
+  } catch { /* quota */ }
 }
 
-const genId = () => `card_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+// React Flow requires a parent node to appear before its children. Year
+// containers are the only parents, so keeping years first guarantees that.
+function orderNodes(nds) {
+  return [...nds.filter(n => n.type === 'year'), ...nds.filter(n => n.type !== 'year')];
+}
+
+// Derived (not persisted): grow each Year container to fit its nested cards.
+const CARD_W = 208, CARD_H = 60, PAD = 16;
+function withYearSizes(nds) {
+  const kids = new Map();
+  nds.forEach(n => {
+    if (n.type === 'config' && n.parentId) {
+      if (!kids.has(n.parentId)) kids.set(n.parentId, []);
+      kids.get(n.parentId).push(n);
+    }
+  });
+  return nds.map(n => {
+    if (n.type !== 'year') return n;
+    const children = kids.get(n.id) || [];
+    // Content floor: big enough to fit every nested card.
+    let maxR = YEAR_SIZE.width - PAD, maxB = YEAR_SIZE.height - PAD;
+    children.forEach(c => {
+      maxR = Math.max(maxR, (c.position?.x || 0) + CARD_W);
+      maxB = Math.max(maxB, (c.position?.y || 0) + CARD_H);
+    });
+    const fitW = maxR + PAD, fitH = maxB + PAD;
+    // Manual resize is honored as a floor too; final = max(content, manual).
+    const manual = n.data.manualSize;
+    const width = Math.max(fitW, manual?.width || 0);
+    const height = Math.max(fitH, manual?.height || 0);
+    return {
+      ...n,
+      style: { width, height },
+      data: { ...n.data, _hasChildren: children.length > 0, _minW: fitW, _minH: fitH },
+    };
+  });
+}
+
+// A group/emissions actuator that resolves to zero techs in the current model.
+function actuatorNoMatch(model, data) {
+  if (!model) return false;
+  const p = data?.params || {};
+  if (data.category === 'emissions') return resolveTechGroup(model, p.group || 'emitting').length === 0;
+  if (data.category === 'renewables') return resolveTechGroup(model, p.group || 'renewable').length === 0;
+  if ((data.category === 'tech' || data.category === 'location') && p.target === 'group') {
+    return resolveTechGroup(model, p.group).length === 0;
+  }
+  return false;
+}
 
 // ─── Main component ──────────────────────────────────────────────────────────
 
@@ -65,17 +109,14 @@ export default function ScenarioStudio({ onNavigate }) {
   const [selectedEngine, setSelectedEngine] = useState('calliope06');
   const [serviceStatus, setServiceStatus] = useState(null);
 
-  // Board state (React Flow) — initialised from localStorage.
   const initial = useMemo(() => loadBoard(), []);
   const [nodes, setNodes, onNodesChange] = useNodesState(initial.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initial.edges);
   const [selectedNodeId, setSelectedNodeId] = useState(null);
-  const [pathwayProgress, setPathwayProgress] = useState({}); // { headId: { variantLabel: status } }
+  const [showTemplates, setShowTemplates] = useState(false);
 
-  // Persist board on change.
   useEffect(() => { saveBoard(nodes, edges); }, [nodes, edges]);
 
-  // Synchronous refs for callbacks.
   const runningJobsRef = useRef([]);
   useEffect(() => { runningJobsRef.current = runningJobs; }, [runningJobs]);
   const nodesRef = useRef(nodes); useEffect(() => { nodesRef.current = nodes; }, [nodes]);
@@ -85,13 +126,9 @@ export default function ScenarioStudio({ onNavigate }) {
 
   useEffect(() => {
     const cur = getCurrentModel();
-    if (cur) {
-      setSelectedModel(cur);
-      setSelectedEngine(engineKeyFromModel(cur));
-    }
+    if (cur) { setSelectedModel(cur); setSelectedEngine(engineKeyFromModel(cur)); }
   }, [getCurrentModel]);
 
-  // Re-check service status when engine changes.
   useEffect(() => {
     setServiceStatus(null);
     if (selectedEngine === 'calliope06' || selectedEngine === 'calliope07') {
@@ -103,19 +140,34 @@ export default function ScenarioStudio({ onNavigate }) {
   }, [selectedEngine]);
 
   const model = selectedModel;
-  const sporesEngineOk = selectedEngine === 'calliope06';
 
-  // ── Board editing callbacks ─────────────────────────────────────────────────
+  // ── Board editing ───────────────────────────────────────────────────────────
 
-  const addNode = useCallback((recipeId, position) => {
-    const id = genId();
-    const pos = position || { x: 160 + nodesRef.current.length * 30, y: 140 + nodesRef.current.length * 30 };
-    setNodes(nds => [...nds, {
-      id, type: 'recipeCard', position: pos,
-      data: { recipeId, params: clone(DEFAULT_PARAMS[recipeId] || {}), pathwayMode: false },
-    }]);
+  const addYear = useCallback((position) => {
+    const years = nodesRef.current.filter(n => n.type === 'year').map(n => n.data.year);
+    const year = (years.length ? Math.max(...years) : 2020) + 5;
+    const id = genId('year');
+    setNodes(nds => orderNodes([...nds, { id, type: 'year', position: position || { x: 120, y: 120 }, style: { ...YEAR_SIZE }, data: { year } }]));
     setSelectedNodeId(id);
   }, [setNodes]);
+
+  const addConfig = useCallback((category, position) => {
+    const id = genId('cfg');
+    setNodes(nds => orderNodes([...nds, { id, type: 'config', position: position || { x: 360, y: 120 }, data: { category, params: defaultCardParams(category) } }]));
+    setSelectedNodeId(id);
+  }, [setNodes]);
+
+  const reparentNode = useCallback((id, parentId, position) => {
+    setNodes(nds => orderNodes(nds.map(n => n.id === id ? { ...n, parentId: parentId || undefined, position } : n)));
+  }, [setNodes]);
+
+  const onConnect = useCallback((conn) => {
+    if (!canConnect(nodesRef.current, edgesRef.current, conn)) {
+      showNotification('Wire a Year card into a config card (Year → config).', 'error');
+      return;
+    }
+    setEdges(eds => addEdge(conn, eds));
+  }, [setEdges, showNotification]);
 
   const deleteNode = useCallback((id) => {
     setNodes(nds => nds.filter(n => n.id !== id));
@@ -123,79 +175,93 @@ export default function ScenarioStudio({ onNavigate }) {
     setSelectedNodeId(sid => (sid === id ? null : sid));
   }, [setNodes, setEdges]);
 
-  const onConnect = useCallback((conn) => {
-    // Validate against the current graph — linear chains only, no SPORES/cycles.
-    if (!canConnect(nodesRef.current, edgesRef.current, conn)) {
-      showNotification('Cannot connect: chains must be linear (no forks, cycles, or SPORES cards).', 'error');
-      return;
-    }
-    setEdges(eds => addEdge(conn, eds));
-  }, [setEdges, showNotification]);
-
-  const setNodeParams = useCallback((nodeId, key, value) => {
-    setNodes(nds => nds.map(n => n.id === nodeId
-      ? { ...n, data: { ...n.data, params: { ...(n.data.params || {}), [key]: value } } }
-      : n));
+  const duplicateNode = useCallback((id) => {
+    const src = nodesRef.current.find(n => n.id === id);
+    if (!src) return;
+    const newId = genId(src.type === 'year' ? 'year' : 'cfg');
+    const clone = {
+      id: newId, type: src.type,
+      position: { x: (src.position?.x || 0) + 40, y: (src.position?.y || 0) + 40 },
+      data: JSON.parse(JSON.stringify(src.data || {})),
+      ...(src.parentId ? { parentId: src.parentId } : {}), // config keeps its year; year has none
+      ...(src.style ? { style: { ...src.style } } : {}),
+    };
+    setNodes(nds => orderNodes([...nds, clone])); // edges are NOT copied
+    setSelectedNodeId(newId);
   }, [setNodes]);
 
-  const togglePathway = useCallback((headId, val) => {
-    setNodes(nds => nds.map(n => n.id === headId ? { ...n, data: { ...n.data, pathwayMode: val } } : n));
+  const deleteEdge = useCallback((id) => {
+    setEdges(eds => eds.filter(e => e.id !== id));
+  }, [setEdges]);
+
+  const setYear = useCallback((id, year) => {
+    setNodes(nds => nds.map(n => n.id === id ? { ...n, data: { ...n.data, year } } : n));
   }, [setNodes]);
+
+  const resizeYear = useCallback((id, size) => {
+    setNodes(nds => nds.map(n => n.id === id ? { ...n, data: { ...n.data, manualSize: size } } : n));
+  }, [setNodes]);
+
+  const setConfigParam = useCallback((id, key, value) => {
+    setNodes(nds => nds.map(n => n.id === id ? { ...n, data: { ...n.data, params: { ...(n.data.params || {}), [key]: value } } } : n));
+  }, [setNodes]);
+
+  const applyTemplate = useCallback((tpl) => {
+    const built = tpl.build();
+    setNodes(built.nodes);
+    setEdges(built.edges);
+    setSelectedNodeId(null);
+    setShowTemplates(false);
+  }, [setNodes, setEdges]);
 
   const onNodeClick = useCallback((_e, node) => setSelectedNodeId(node.id), []);
 
-  // ── Derive groups + per-node metadata ───────────────────────────────────────
+  // ── Derive scenario + variants ──────────────────────────────────────────────
 
-  const { metaByNode, groupInfos, totals } = useMemo(() => {
-    const groups = deriveGroups(nodes, edges);
-    const map = new Map();
-    const infos = [];
-    let totalRuns = 0, warningCount = 0;
-    const modelsCount = 1 + extraModels.length;
+  // Year containers auto-grow to fit nested cards (derived, not persisted).
+  const displayNodes = useMemo(() => withYearSizes(nodes).map(n => {
+    if (n.type !== 'config') return n;
+    return actuatorNoMatch(model, n.data) ? { ...n, data: { ...n.data, _noMatch: true } } : n;
+  }), [nodes, model]);
+  const noMatchCount = useMemo(
+    () => displayNodes.filter(n => n.type === 'config' && n.data._noMatch).length,
+    [displayNodes]
+  );
+  const scenario = useMemo(() => scenarioFromGraph(nodes), [nodes]);
+  const { variants, warnings } = useMemo(() => buildScenarioVariants(model, scenario), [model, scenario]);
 
-    for (const g of groups) {
-      const isSpores = g.isSpores;
-      let variants = [], warnings = [];
-      if (model && isSpores) {
-        variants = [{ label: 'Alternatives', ops: [] }];
-      } else if (model) {
-        const mapped = g.layers.map(l => ({ recipeId: l.recipeId, params: buildRecipeParams(l.recipeId, l.params, model) }));
-        try { const c = composeRecipes(model, mapped); variants = c.variants; warnings = c.warnings; }
-        catch { variants = []; }
-      }
-      const capabilityWarnings = variants.length ? getCapabilityWarnings(selectedEngine, variants.flatMap(v => v.ops)) : [];
-      const isEligible = !isSpores && variants.length > 1 && variants.every(v => typeof v.year === 'number');
-      const headNode = nodes.find(n => n.id === g.head);
-      const headParams = headNode?.data?.params || {};
-      const pathwayMode = isEligible && !!headNode?.data?.pathwayMode;
-      const runCount = isSpores ? ((headParams.sporesNumber ?? 20) + 1) : variants.length;
-      totalRuns += runCount * modelsCount;
-      warningCount += warnings.length + capabilityWarnings.length;
-
-      infos.push({ head: g.head, isSpores, variants, warnings, capabilityWarnings, isEligible, pathwayMode });
-      g.nodeIds.forEach((nid, idx) => {
-        map.set(nid, {
-          isHead: nid === g.head, isSpores, variantCount: variants.length,
-          isEligible, pathwayMode, chainPos: idx, chainLen: g.nodeIds.length,
-          variants, warnings, capabilityWarnings,
-        });
-      });
-    }
-    return { metaByNode: map, groupInfos: infos, totals: { totalRuns, warningCount, groupCount: groups.length } };
-  }, [nodes, edges, model, selectedEngine, extraModels]);
+  const capabilityWarnings = useMemo(() => {
+    if (!variants.length) return [];
+    return getCapabilityWarnings(selectedEngine, variants.flatMap(v => v.ops));
+  }, [variants, selectedEngine]);
 
   const selectedNode = useMemo(() => nodes.find(n => n.id === selectedNodeId) || null, [nodes, selectedNodeId]);
+  const selectedCard = useMemo(() => (
+    selectedNode?.type === 'config'
+      ? { id: selectedNode.id, category: selectedNode.data.category, params: selectedNode.data.params }
+      : null
+  ), [selectedNode]);
+  const selectedScopeLabel = useMemo(() => {
+    if (!selectedNode || selectedNode.type !== 'config') return '';
+    const parent = selectedNode.parentId ? nodes.find(n => n.id === selectedNode.parentId && n.type === 'year') : null;
+    return parent ? `Year ${parent.data.year}` : 'All years';
+  }, [selectedNode, nodes]);
 
-  const latestSporesJob = useMemo(() => {
-    const jobs = (completedJobs || []).filter(j =>
-      j.source === 'scenario_studio' && j.mode === 'spores' &&
-      Array.isArray(j.result?.spores_data) && j.result.spores_data.length > 0);
-    return jobs.sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt))[0] || null;
-  }, [completedJobs]);
+  const yearPanel = useMemo(() => {
+    if (selectedNode?.type !== 'year') return null;
+    const year = selectedNode.data.year;
+    const variant = variants.find(v => v.year === year) || { year, ops: [] };
+    const py = previousYear(nodes, edges, year);
+    const prevVariant = py != null ? variants.find(v => v.year === py) : null;
+    return { year, prevYear: py, variant, prevVariant };
+  }, [selectedNode, variants, nodes, edges]);
+
+  const modelsCount = 1 + extraModels.length;
+  const totalRuns = variants.length * modelsCount;
 
   // ── Job completion ──────────────────────────────────────────────────────────
 
-  const _handleDone = (jobId, batchId, variantLabel, modelLabel, result, mode = 'plan') => {
+  const _handleDone = (jobId, batchId, variantLabel, modelLabel, result) => {
     if (completedIdsRef.current.has(jobId)) return;
     completedIdsRef.current.add(jobId);
     const job = runningJobsRef.current.find(j => j.id === jobId);
@@ -206,10 +272,10 @@ export default function ScenarioStudio({ onNavigate }) {
       setTimeout(() => {
         addCompletedJob({
           id: jobId, modelName: job.displayName, framework: ENGINE_FRAMEWORK[job.engine] || 'calliope',
-          solver: 'highs', mode, status: result?.success === false ? 'failed' : 'completed',
+          solver: 'highs', mode: 'plan', status: result?.success === false ? 'failed' : 'completed',
           completedAt: new Date().toISOString(), duration, objective: result?.objective || null,
           terminationCondition: result?.termination_condition || 'optimal',
-          result: result || {}, logs: job.logs, batchId, variantLabel, modelLabel, source: job.source,
+          result: result || {}, logs: job.logs, batchId, variantLabel, modelLabel,
         });
         showNotification(
           result?.success === false ? `Run failed: ${result.error}` : `Completed: ${job.displayName} (${duration})`,
@@ -220,7 +286,7 @@ export default function ScenarioStudio({ onNavigate }) {
     delete cancelFnsRef.current[jobId];
   };
 
-  const _handleError = (jobId, batchId, variantLabel, modelLabel, error, mode = 'plan') => {
+  const _handleError = (jobId, batchId, variantLabel, modelLabel, error) => {
     if (completedIdsRef.current.has(jobId)) return;
     completedIdsRef.current.add(jobId);
     const job = runningJobsRef.current.find(j => j.id === jobId);
@@ -229,10 +295,10 @@ export default function ScenarioStudio({ onNavigate }) {
       setTimeout(() => {
         addCompletedJob({
           id: jobId, modelName: job.displayName, framework: ENGINE_FRAMEWORK[job.engine] || 'calliope',
-          solver: 'highs', mode, status: 'failed', completedAt: new Date().toISOString(),
+          solver: 'highs', mode: 'plan', status: 'failed', completedAt: new Date().toISOString(),
           duration: 'N/A', objective: null, terminationCondition: 'error',
           result: { success: false, error }, logs: [...job.logs, `[ERROR] ${error}`],
-          batchId, variantLabel, modelLabel, source: job.source,
+          batchId, variantLabel, modelLabel,
         });
         showNotification(`Run failed: ${error}`, 'error');
       }, 0);
@@ -242,14 +308,12 @@ export default function ScenarioStudio({ onNavigate }) {
 
   // ── Dispatch ────────────────────────────────────────────────────────────────
 
-  const buildConcrete = (m, variant, techsForRun, tsForRun, extraOp) => {
+  const buildConcrete = (m, variant, techsForRun, tsForRun) => {
     const baseModelData = {
       ...m, solver: 'highs', modelConfig: m.modelConfig || {},
       technologies: techsForRun, timeSeries: tsForRun,
     };
-    const ops = extraOp ? [...variant.ops, extraOp] : variant.ops;
-    const concreteModel = applyOps(baseModelData, ops);
-
+    const concreteModel = applyOps(baseModelData, variant.ops);
     if (selectedEngine === 'calliope06' || selectedEngine === 'calliope07') {
       const gc = concreteModel.modelConfig?.groupConstraints;
       const nativeGC = gc ? buildCalliope06GroupConstraintsOverride(gc) : null;
@@ -264,51 +328,12 @@ export default function ScenarioStudio({ onNavigate }) {
     return concreteModel;
   };
 
-  const runVariant = (m, variant, concreteModel, batchId, engineLabel, mode = 'plan') => new Promise((resolve) => {
-    const jobId = `job_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-    const displayName = `${m.name} — ${variant.label}`;
-    addRunningJob({
-      id: jobId, displayName, startTime: new Date().toISOString(), engine: selectedEngine,
-      source: 'scenario_studio',
-      logs: [`[TEMPO] Scenario Studio — ${displayName} [${engineLabel}]`],
-    });
-    const onDone = (result) => { _handleDone(jobId, batchId, variant.label, m.name, result, mode); resolve(result || {}); };
-    const onError = (error) => { _handleError(jobId, batchId, variant.label, m.name, error, mode); resolve({ success: false, error }); };
-    const opts = { modelData: concreteModel, onLog: line => appendRunningJobLog(jobId, line), onStats: () => {}, onDone, onError };
-    const start = (selectedEngine === 'calliope06' || selectedEngine === 'calliope07')
-      ? runCalliopeModel(opts)
-      : runEngineModel(selectedEngine, opts);
-    start
-      .then(({ cancel }) => { cancelFnsRef.current[jobId] = cancel; })
-      .catch((err) => {
-        removeRunningJob(jobId);
-        showNotification(`Failed to start "${displayName}": ${err.message}`, 'error');
-        resolve({ success: false, error: err.message });
-      });
-  });
-
-  const markSkipped = (m, variant, batchId, headId) => {
-    const jobId = `job_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-    addCompletedJob({
-      id: jobId, modelName: `${m.name} — ${variant.label}`, framework: ENGINE_FRAMEWORK[selectedEngine] || 'calliope',
-      solver: 'highs', mode: 'plan', status: 'skipped', completedAt: new Date().toISOString(),
-      duration: '—', objective: null, terminationCondition: 'skipped',
-      result: { success: false, skipped: true }, logs: ['[TEMPO] Skipped — myopic pathway broken at an earlier year'],
-      batchId, variantLabel: variant.label, modelLabel: m.name,
-    });
-    setPathwayProgress(p => ({ ...p, [headId]: { ...(p[headId] || {}), [variant.label]: 'skipped' } }));
-  };
-
   const handleRun = async () => {
     if (!model) { showNotification('Select a model first.', 'error'); return; }
-    if (!groupInfos.length || totals.totalRuns === 0) {
-      showNotification('Add at least one recipe card to the board.', 'error'); return;
-    }
+    if (variants.length === 0) { showNotification('Add at least one Year card to the scenario.', 'error'); return; }
 
     const engineLabel = ENGINE_LABELS[selectedEngine] || selectedEngine;
-    if (serviceStatus === false) {
-      showNotification(`${engineLabel} service is offline. Start it from Settings.`, 'error'); return;
-    }
+    if (serviceStatus === false) { showNotification(`${engineLabel} service is offline. Start it from Settings.`, 'error'); return; }
     if (serviceStatus === null) {
       const up = (selectedEngine === 'calliope06' || selectedEngine === 'calliope07')
         ? await checkCalliopeService(selectedEngine === 'calliope07' ? '0.7' : undefined)
@@ -320,13 +345,10 @@ export default function ScenarioStudio({ onNavigate }) {
     const batchId = `batch_${Date.now()}`;
     const modelsToRun = extraModels.length > 0 ? [model, ...extraModels] : [model];
 
-    // Reset progress for pathway groups.
-    const initProg = {};
-    groupInfos.forEach(g => { if (g.pathwayMode) initProg[g.head] = Object.fromEntries(g.variants.map(v => [v.label, 'pending'])); });
-    setPathwayProgress(initProg);
-
     showNotification(
-      `Starting ${totals.totalRuns} run${totals.totalRuns > 1 ? 's' : ''} across ${totals.groupCount} scenario${totals.groupCount > 1 ? 's' : ''} on ${engineLabel}…`,
+      modelsToRun.length > 1
+        ? `Starting ${totalRuns} runs (${modelsToRun.length} models × ${variants.length} year${variants.length > 1 ? 's' : ''}) on ${engineLabel}…`
+        : `Starting ${variants.length} year run${variants.length > 1 ? 's' : ''} on ${engineLabel}…`,
       'info'
     );
     onNavigate?.('Run');
@@ -336,68 +358,54 @@ export default function ScenarioStudio({ onNavigate }) {
       const techsForRun = isCurrentModel && technologies?.length ? technologies : (m.technologies || technologies || []);
       const tsForRun = (timeSeries || []).filter(ts => ts.modelId === m.id);
 
-      for (const g of groupInfos) {
-        if (g.isSpores) {
-          if (!sporesEngineOk) { showNotification('SPORES card skipped — requires the Calliope 0.6 engine.', 'error'); continue; }
-          const variant = { label: 'Alternatives', ops: [] };
-          const headParams = nodesRef.current.find(n => n.id === g.head)?.data?.params || {};
-          const concrete = buildConcrete(m, variant, techsForRun, tsForRun, null);
-          concrete.modelConfig = {
-            ...(concrete.modelConfig || {}),
-            mode: 'spores',
-            sporesOptions: { slack: headParams.slack ?? 10, sporesNumber: headParams.sporesNumber ?? 20 },
-          };
-          runVariant(m, variant, concrete, batchId, engineLabel, 'spores');
-          continue;
-        }
+      for (const variant of variants) {
+        const jobId = `job_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        const displayName = `${m.name} — ${variant.label}`;
+        const concreteModel = buildConcrete(m, variant, techsForRun, tsForRun);
 
-        if (g.pathwayMode) {
-          // Sequential with feedback: carry each solved year's capacity forward.
-          let priorCaps = null, broken = false;
-          for (const variant of g.variants) {
-            if (broken) { markSkipped(m, variant, batchId, g.head); continue; }
-            setPathwayProgress(p => ({ ...p, [g.head]: { ...(p[g.head] || {}), [variant.label]: 'running' } }));
-            const carryOp = priorCaps ? buildCarryForwardOp({ technologies: techsForRun }, priorCaps) : null;
-            const concrete = buildConcrete(m, variant, techsForRun, tsForRun, carryOp);
-            const result = await runVariant(m, variant, concrete, batchId, engineLabel);
-            const ok = result?.success !== false && (result?.capacities && Object.keys(result.capacities).length > 0);
-            if (!ok) {
-              setPathwayProgress(p => ({ ...p, [g.head]: { ...(p[g.head] || {}), [variant.label]: 'failed' } }));
-              showNotification(`Pathway broke at ${variant.label} (${result?.termination_condition || result?.error || 'no solution'}). Later years skipped.`, 'error');
-              broken = true;
-              continue;
-            }
-            setPathwayProgress(p => ({ ...p, [g.head]: { ...(p[g.head] || {}), [variant.label]: 'done' } }));
-            priorCaps = accumulateExistingCaps(result.capacities);
-          }
-        } else {
-          for (const variant of g.variants) {
-            const concrete = buildConcrete(m, variant, techsForRun, tsForRun, null);
-            runVariant(m, variant, concrete, batchId, engineLabel);
-          }
+        addRunningJob({
+          id: jobId, displayName, startTime: new Date().toISOString(), engine: selectedEngine,
+          source: 'scenario_studio',
+          logs: [`[TEMPO] Scenario Studio — ${displayName} [${engineLabel}]`],
+        });
+
+        try {
+          const opts = {
+            modelData: concreteModel,
+            onLog: line => appendRunningJobLog(jobId, line),
+            onStats: () => {},
+            onDone: result => _handleDone(jobId, batchId, variant.label, m.name, result),
+            onError: error => _handleError(jobId, batchId, variant.label, m.name, error),
+          };
+          const runPromise = (selectedEngine === 'calliope06' || selectedEngine === 'calliope07')
+            ? runCalliopeModel(opts)
+            : runEngineModel(selectedEngine, opts);
+          const { cancel } = await runPromise;
+          cancelFnsRef.current[jobId] = cancel;
+        } catch (err) {
+          removeRunningJob(jobId);
+          showNotification(`Failed to start "${displayName}": ${err.message}`, 'error');
         }
       }
     }
   };
 
-  // ── Board context passed to card nodes ──────────────────────────────────────
+  const engineLabel = ENGINE_LABELS[selectedEngine] || selectedEngine;
 
   const boardCtx = useMemo(() => ({
-    model, selectedNodeId, metaByNode, pathwayProgress, sporesEngineOk,
-    onTogglePathway: togglePathway, onDeleteNode: deleteNode,
-  }), [model, selectedNodeId, metaByNode, pathwayProgress, sporesEngineOk, togglePathway, deleteNode]);
-
-  const engineLabel = ENGINE_LABELS[selectedEngine] || selectedEngine;
+    selectedNodeId, onDeleteNode: deleteNode, onDuplicateNode: duplicateNode, onSetYear: setYear,
+    onResizeYear: resizeYear, onDeleteEdge: deleteEdge,
+  }), [selectedNodeId, deleteNode, duplicateNode, setYear, resizeYear, deleteEdge]);
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="h-full flex flex-col bg-slate-50">
-      {/* Top bar: model + engine + compare + status */}
+      {/* Top bar */}
       <div className="shrink-0 border-b border-slate-200 bg-white px-4 py-2.5 flex items-center gap-3 flex-wrap">
         <div>
           <h1 className="text-lg font-bold text-slate-800 leading-tight">Scenario Studio</h1>
-          <p className="text-[11px] text-slate-400 leading-tight">Drag, wire &amp; run policy scenarios on a board</p>
+          <p className="text-[11px] text-slate-400 leading-tight">Build one scenario — add Year cards and wire configs into them</p>
         </div>
         <div className="h-8 w-px bg-slate-200 mx-1" />
         <div className="flex items-center gap-2 min-w-0">
@@ -430,25 +438,46 @@ export default function ScenarioStudio({ onNavigate }) {
           }`} />
           {serviceStatus === true ? 'ready' : serviceStatus === false ? 'offline' : 'checking…'}
         </div>
-        <button
-          onClick={() => setShowModelCompare(v => !v)}
-          className={`ml-auto flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+        <div className="relative ml-auto">
+          <button onClick={() => setShowTemplates(v => !v)}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border bg-white border-slate-200 text-slate-600 hover:border-slate-300 transition-colors"
+            title="Start from a scenario template">
+            <FiGrid size={12} /> Templates <FiChevronDown size={11} className={showTemplates ? 'rotate-180 transition-transform' : 'transition-transform'} />
+          </button>
+          {showTemplates && (
+            <>
+              <div className="fixed inset-0 z-[90]" onClick={() => setShowTemplates(false)} />
+              <div className="absolute right-0 mt-1 z-[91] w-72 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden">
+                <div className="px-3 py-2 border-b border-slate-100 bg-slate-50 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                  Start from a template (replaces the board)
+                </div>
+                <div className="max-h-80 overflow-y-auto">
+                  {SCENARIO_TEMPLATES.map(t => (
+                    <button key={t.id} onClick={() => applyTemplate(t)}
+                      className="w-full text-left px-3 py-2.5 hover:bg-slate-50 border-b border-slate-50 last:border-0 transition-colors">
+                      <div className="text-xs font-semibold text-slate-800">{t.label}</div>
+                      <div className="text-[11px] text-slate-500 mt-0.5 leading-snug">{t.description}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+        <button onClick={() => setShowModelCompare(v => !v)}
+          className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
             showModelCompare || extraModels.length > 0
               ? 'bg-electric-50 border-electric-300 text-electric-700'
               : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'
-          }`}
-          title="Compare across multiple models">
-          <FiLayers size={12} />
-          Compare{extraModels.length > 0 ? ` (${extraModels.length + 1})` : ''}
+          }`} title="Compare across multiple models">
+          <FiLayers size={12} /> Compare{extraModels.length > 0 ? ` (${extraModels.length + 1})` : ''}
         </button>
       </div>
 
-      {/* Cross-model selector */}
       {showModelCompare && (
         <div className="shrink-0 border-b border-slate-200 bg-white px-4 py-3">
           <p className="text-xs font-semibold text-slate-600 mb-2 flex items-center gap-1.5">
-            <FiLayers size={12} className="text-electric-500" />
-            Run the whole board against additional models
+            <FiLayers size={12} className="text-electric-500" /> Run this scenario against additional models
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 max-h-40 overflow-y-auto pr-1">
             {models.filter(m => m.id !== selectedModel?.id).map(m => {
@@ -475,40 +504,53 @@ export default function ScenarioStudio({ onNavigate }) {
       <div className="flex-1 flex min-h-0">
         <div className="flex-1 min-w-0">
           <ScenarioBoard
-            nodes={nodes}
+            nodes={displayNodes}
             edges={edges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
             onNodeClick={onNodeClick}
             onPaneClick={() => setSelectedNodeId(null)}
-            onAddNode={addNode}
+            onAddYear={addYear}
+            onAddConfig={addConfig}
+            onReparent={reparentNode}
             ctxValue={boardCtx}
           />
         </div>
-        <RecipeSidePanel
-          node={selectedNode}
-          model={model}
-          meta={selectedNodeId ? metaByNode.get(selectedNodeId) : null}
-          onSetParam={(k, v) => setNodeParams(selectedNodeId, k, v)}
-          onClose={() => setSelectedNodeId(null)}
-        />
+        {yearPanel ? (
+          <YearDetailPanel
+            year={yearPanel.year}
+            prevYear={yearPanel.prevYear}
+            variant={yearPanel.variant}
+            prevVariant={yearPanel.prevVariant}
+            model={model}
+            timeSeries={timeSeries}
+            onClose={() => setSelectedNodeId(null)}
+            onDelete={() => deleteNode(selectedNodeId)}
+          />
+        ) : (
+          <RecipeSidePanel
+            card={selectedCard}
+            scopeLabel={selectedScopeLabel}
+            model={model}
+            timeSeries={timeSeries}
+            variants={variants}
+            warnings={warnings}
+            capabilityWarnings={capabilityWarnings}
+            onSetParam={(k, v) => setConfigParam(selectedNodeId, k, v)}
+            onClose={() => setSelectedNodeId(null)}
+          />
+        )}
       </div>
 
-      {/* Results sheet */}
-      <ResultsSheet
-        completedJobs={completedJobs}
-        latestSporesJob={latestSporesJob}
-        modelLocations={model?.locations || []}
-      />
+      <ResultsSheet completedJobs={completedJobs} />
 
-      {/* Dock */}
       <BoardDock
-        totalRuns={totals.totalRuns}
-        groupCount={totals.groupCount}
-        warningCount={totals.warningCount}
+        totalRuns={totalRuns}
+        warningCount={warnings.length + capabilityWarnings.length}
+        noMatchCount={noMatchCount}
         onRun={handleRun}
-        runDisabled={!model || serviceStatus === false || totals.totalRuns === 0}
+        runDisabled={!model || serviceStatus === false || totalRuns === 0}
         runningJobsCount={runningJobs.length}
         onGoToRun={() => onNavigate?.('Run')}
         engineLabel={engineLabel}

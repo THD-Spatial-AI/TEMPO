@@ -1,52 +1,64 @@
 /**
  * Scenario Studio — docked side panel for the selected card.
  *
- * Reuses the existing per-recipe ConfigPanel verbatim, and shows the selected
- * card's GROUP variant list, affected demand techs, and compose/capability
- * warnings. Empty-state hint when nothing is selected.
+ * Routes the selected card to its category config (CardConfig) and shows the
+ * whole scenario's variant list (one per year) plus compose/capability warnings.
  */
 
 import React from 'react';
-import { FiX, FiInfo, FiLayers, FiAlertTriangle, FiAlertCircle } from 'react-icons/fi';
-import { ConfigPanel, VariantBadge } from './recipeConfig.jsx';
-import { RECIPE_BY_ID, buildRecipeParams, resolveDemandTechNames } from './recipeMeta.js';
+import { FiX, FiInfo, FiLayers, FiAlertTriangle } from 'react-icons/fi';
+import { CardConfig, VariantBadge } from './recipeConfig.jsx';
+import { CATEGORY_BY_ID } from '../../services/scenarioStudio/scenario.js';
+import { resolveTechGroup } from '../../services/scenarioStudio/utils.js';
+
+function ModelSummary({ model }) {
+  if (!model) return <p className="text-xs text-slate-400 mt-1">Select a model above to begin.</p>;
+  const techs = model.technologies || [];
+  const stats = [
+    ['Technologies', techs.length],
+    ['Locations', (model.locations || []).length],
+    ['Renewable', resolveTechGroup(model, 'renewable').length],
+    ['Emitting (CO₂)', resolveTechGroup(model, 'emitting').length],
+  ];
+  return (
+    <div className="mt-4 w-full">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1.5 text-left">This model</p>
+      <div className="grid grid-cols-2 gap-1.5">
+        {stats.map(([label, n]) => (
+          <div key={label} className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-left">
+            <div className="text-sm font-bold text-slate-800">{n}</div>
+            <div className="text-[10px] text-slate-500">{label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function RecipeSidePanel({
-  node, model, meta, onSetParam, onClose,
+  card, scopeLabel, model, timeSeries, variants, warnings, capabilityWarnings, onSetParam, onClose,
 }) {
-  if (!node) {
+  if (!card) {
     return (
       <div className="w-[340px] shrink-0 border-l border-slate-200 bg-white flex flex-col items-center justify-center text-center px-6">
         <FiInfo size={22} className="text-slate-300 mb-2" />
         <p className="text-sm text-slate-500 font-medium">No card selected</p>
-        <p className="text-xs text-slate-400 mt-1">Click a card on the board to configure it, or add one with the “+” button.</p>
+        <p className="text-xs text-slate-400 mt-1">Click a config card to configure it. Nest it in a Year to scope it to that year, or leave it on the canvas for all years.</p>
+        <ModelSummary model={model} />
       </div>
     );
   }
 
-  const recipeId = node.data.recipeId;
-  const params = node.data.params || {};
-  const card = RECIPE_BY_ID[recipeId];
-  const variants = meta?.variants || [];
-  const warnings = meta?.warnings || [];
-  const capabilityWarnings = meta?.capabilityWarnings || [];
-
-  const affectedTechs = recipeId === 'demandGrowth' && model
-    ? resolveDemandTechNames(model, buildRecipeParams('demandGrowth', params, model))
-    : [];
-
-  const previewRecipeId = (meta?.chainLen ?? 1) > 1 ? 'composed' : recipeId;
+  const meta = CATEGORY_BY_ID[card.category];
+  const scope = scopeLabel || 'All years';
 
   return (
     <div className="w-[340px] shrink-0 border-l border-slate-200 bg-white flex flex-col">
-      {/* Header */}
       <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-200 shrink-0">
-        <span className={`w-8 h-8 rounded-lg bg-gradient-to-br ${card?.color || 'from-slate-500 to-slate-600'} flex items-center justify-center text-white shadow-sm`}>
-          {card?.Icon && <card.Icon size={16} />}
-        </span>
+        <span className={`w-8 h-8 rounded-lg bg-gradient-to-br ${meta?.color || 'from-slate-500 to-slate-600'} shadow-sm`} />
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold text-slate-800 truncate">{card?.label || recipeId}</div>
-          <div className="text-[11px] text-slate-400">Configure this card</div>
+          <div className="text-sm font-semibold text-slate-800 truncate">{meta?.label || card.category}</div>
+          <div className="text-[11px] text-slate-400">{scope}</div>
         </div>
         <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600 rounded transition-colors">
           <FiX size={16} />
@@ -54,56 +66,29 @@ export default function RecipeSidePanel({
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {/* Config */}
-        <ConfigPanel recipeId={recipeId} params={params} setParam={onSetParam} model={model} />
+        <CardConfig category={card.category} params={card.params} setParam={onSetParam} model={model} timeSeries={timeSeries} />
 
-        {/* Affected techs (demand growth) */}
-        {recipeId === 'demandGrowth' && (
-          affectedTechs.length > 0 ? (
-            <div>
-              <p className="text-xs font-medium text-slate-500 mb-1.5">Technologies scaled:</p>
-              <div className="flex flex-wrap gap-1.5">
-                {affectedTechs.map(name => (
-                  <span key={name} className="text-xs font-mono bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md">{name}</span>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="text-xs text-amber-600 flex items-center gap-1">
-              <FiAlertCircle size={11} /> No demand techs found in model
-            </div>
-          )
-        )}
-
-        {/* Variant list for this group */}
-        {recipeId !== 'spores' && variants.length > 0 && (
+        {variants?.length > 0 && (
           <div>
             <p className="text-xs text-slate-500 mb-2">
-              <span className="font-semibold text-slate-700">{variants.length} run{variants.length > 1 ? 's' : ''}</span>
-              {(meta?.chainLen ?? 1) > 1 ? ' (composed chain):' : ' in this scenario:'}
+              <span className="font-semibold text-slate-700">Scenario — {variants.length} run{variants.length > 1 ? 's' : ''}</span> (one per year):
             </p>
             <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
-              {variants.map(v => <VariantBadge key={v.label} variant={v} recipeId={previewRecipeId} />)}
+              {variants.map(v => <VariantBadge key={v.label} variant={v} />)}
             </div>
           </div>
         )}
 
-        {/* Compose warnings */}
-        {warnings.length > 0 && (
+        {warnings?.length > 0 && (
           <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 space-y-1">
-            <p className="text-xs font-semibold text-blue-700 flex items-center gap-1.5">
-              <FiLayers size={12} /> Layer composition notes
-            </p>
+            <p className="text-xs font-semibold text-blue-700 flex items-center gap-1.5"><FiLayers size={12} /> Composition notes</p>
             {warnings.map((w, i) => <p key={i} className="text-xs text-blue-700">{w}</p>)}
           </div>
         )}
 
-        {/* Capability warnings */}
-        {capabilityWarnings.length > 0 && (
+        {capabilityWarnings?.length > 0 && (
           <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 space-y-1">
-            <p className="text-xs font-semibold text-amber-700 flex items-center gap-1.5">
-              <FiAlertTriangle size={12} /> Engine compatibility warnings
-            </p>
+            <p className="text-xs font-semibold text-amber-700 flex items-center gap-1.5"><FiAlertTriangle size={12} /> Engine compatibility</p>
             {capabilityWarnings.map((w, i) => <p key={i} className="text-xs text-amber-700">{w}</p>)}
           </div>
         )}

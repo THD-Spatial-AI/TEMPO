@@ -1,18 +1,18 @@
 /**
- * Scenario Studio — per-recipe config panels + variant badge (components).
+ * Scenario Studio — config panels for the side panel (year-swimlane builder).
  *
- * Lifted verbatim from the old ScenarioStudio.jsx form shell so the sandbox
- * board's side panel can reuse the exact same configuration UI. Pure metadata
- * and param helpers live in recipeMeta.js (keeps this file component-only).
+ * Recipe config panels + custom-op editor are lifted verbatim from the dev
+ * ScenarioStudio.jsx form shell. New small per-card configs (Demand / Constraint
+ * / Technology) drive the atomic card categories from scenario.js. `CardConfig`
+ * routes a selected card to the right panel.
  */
 
 import React from 'react';
 import { FiInfo, FiPlus, FiTrash2, FiDownload } from 'react-icons/fi';
-import { TECH_TEMPLATES, templateAddTechOp } from '../../services/scenarioStudio/techTemplates.js';
-import { autoDetectTechs, FOSSIL_KEYWORDS, RENEWABLE_KEYWORDS } from '../../services/scenarioStudio/utils.js';
+import ReactECharts from 'echarts-for-react';
+import { autoDetectTechs, FOSSIL_KEYWORDS, RENEWABLE_KEYWORDS, techGroupsForModel, resolveTechGroup } from '../../services/scenarioStudio/utils.js';
 import { importLegacyScenario } from '../../services/scenarioStudio/legacyImport.js';
-import SporesConfigPanel from '../run/SporesConfigPanel.jsx';
-import { summarizeOps } from './recipeMeta.js';
+import { summarizeOps, extractDemandSeries } from '../../services/scenarioStudio/recipeParams.js';
 
 const COST_PARAM_OPTIONS = [
   { value: 'costs.monetary.energy_cap',  label: 'CAPEX (€/kW)' },
@@ -40,7 +40,7 @@ function NumInput({ value, onChange, min, max, step = 1, className = 'w-28' }) {
 }
 function ToggleBtn({ value, options, onChange }) {
   return (
-    <div className="flex gap-1">
+    <div className="flex gap-1 flex-wrap">
       {options.map(({ id, label }) => (
         <button key={id} onClick={() => onChange(id)}
           className={`px-2.5 py-1 text-xs rounded-lg font-medium transition-colors ${
@@ -98,7 +98,7 @@ function TechCheckList({ techs, selected, onChange }) {
   );
 }
 
-// ─── Config panels ────────────────────────────────────────────────────────────
+// ─── Recipe config panels (verbatim from dev form shell) ────────────────────────
 
 function DemandGrowthConfig({ params, setParam, model }) {
   const demandTechs = (model?.technologies || []).filter(t => t.parent === 'demand');
@@ -316,16 +316,13 @@ function CostSensitivityConfig({ params, setParam, model }) {
   );
 }
 
-// ─── Custom op editor ─────────────────────────────────────────────────────────
+// ─── Custom op editor (verbatim from dev form shell) ────────────────────────────
 
 const OP_TYPES = [
   { id: 'setParam',         label: 'Set parameter' },
   { id: 'scaleParam',       label: 'Scale parameter' },
   { id: 'disableTech',      label: 'Disable technology' },
   { id: 'systemConstraint', label: 'System constraint' },
-  { id: 'addTech',          label: 'Add technology (H₂/CCS…)' },
-  { id: 'scaleLinkCap',     label: 'Scale link capacity' },
-  { id: 'setLinkCap',       label: 'Set link capacity' },
 ];
 
 const SYS_KINDS = ['co2_cap', 'renewable_min', 'reserve_margin'];
@@ -335,12 +332,6 @@ function defaultOp(type) {
   if (type === 'scaleParam')       return { op: 'scaleParam',       techMatch: '', path: 'constraints.resource_scale',  factor: 1.0, level: 'global' };
   if (type === 'disableTech')      return { op: 'disableTech',      techMatch: '' };
   if (type === 'systemConstraint') return { op: 'systemConstraint', kind: 'co2_cap', value: 0 };
-  if (type === 'addTech') {
-    const t = 'electrolyser';
-    return { ...templateAddTechOp(t, t, {}), _template: t, _knobs: {} };
-  }
-  if (type === 'scaleLinkCap')     return { op: 'scaleLinkCap', linkMatch: 'all', factor: 1.5 };
-  if (type === 'setLinkCap')       return { op: 'setLinkCap',   linkMatch: 'all', value: 1000 };
   return { op: type };
 }
 
@@ -430,71 +421,6 @@ function OpRow({ op, index, onChange, onDelete }) {
           </div>
         </div>
       )}
-
-      {op.op === 'addTech' && (() => {
-        const tpl = TECH_TEMPLATES[op._template] || {};
-        const getPath = (o, p) => p.split('.').reduce((a, k) => (a == null ? undefined : a[k]), o);
-        const setTemplate = tid => onChange(index, { ...templateAddTechOp(tid, tid, {}), _template: tid, _knobs: {} });
-        const setName = name => onChange(index, { ...op, tech: name });
-        const setKnob = (path, value) => {
-          const knobs = { ...(op._knobs || {}), [path]: value };
-          onChange(index, { ...templateAddTechOp(op._template, op.tech, knobs), _template: op._template, _knobs: knobs });
-        };
-        return (
-          <div className="space-y-2">
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <span className="text-slate-500 block mb-0.5">Template</span>
-                <select value={op._template} onChange={e => setTemplate(e.target.value)}
-                  className="w-full px-2 py-1 border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-electric-400">
-                  {Object.entries(TECH_TEMPLATES).map(([id, t]) => <option key={id} value={id}>{t.label}</option>)}
-                </select>
-              </div>
-              <div className="flex-1">
-                <span className="text-slate-500 block mb-0.5">Tech name</span>
-                <input value={op.tech} onChange={e => setName(e.target.value)}
-                  className="w-full px-2 py-1 border border-slate-200 rounded-md font-mono focus:outline-none focus:ring-1 focus:ring-electric-400" />
-              </div>
-            </div>
-            <div className="flex gap-2">
-              {(tpl.knobs || []).map(kn => (
-                <div key={kn.path} className="flex-1">
-                  <span className="text-slate-500 block mb-0.5">{kn.label} ({kn.unit})</span>
-                  <input type="number" step="0.01" value={getPath(op.defaults, kn.path) ?? ''}
-                    onChange={e => setKnob(kn.path, e.target.value)}
-                    className="w-full px-2 py-1 border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-electric-400" />
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      })()}
-
-      {(op.op === 'scaleLinkCap' || op.op === 'setLinkCap') && (
-        <div className="flex gap-2">
-          <div className="flex-1">
-            <span className="text-slate-500 block mb-0.5">Link type (or “all”)</span>
-            <input value={typeof op.linkMatch === 'string' ? op.linkMatch : 'all'}
-              onChange={e => set('linkMatch', e.target.value)} placeholder="all"
-              className="w-full px-2 py-1 border border-slate-200 rounded-md font-mono focus:outline-none focus:ring-1 focus:ring-electric-400" />
-          </div>
-          {op.op === 'scaleLinkCap' ? (
-            <div className="w-28">
-              <span className="text-slate-500 block mb-0.5">Factor</span>
-              <input type="number" step="0.1" value={op.factor}
-                onChange={e => set('factor', parseFloat(e.target.value) || 1)}
-                className="w-full px-2 py-1 border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-electric-400" />
-            </div>
-          ) : (
-            <div className="w-28">
-              <span className="text-slate-500 block mb-0.5">MW</span>
-              <input type="number" value={op.value}
-                onChange={e => set('value', parseFloat(e.target.value) || 0)}
-                className="w-full px-2 py-1 border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-electric-400" />
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }
@@ -523,15 +449,6 @@ function CustomConfigPanel({ params, setParam, model }) {
 
   return (
     <div className="space-y-4">
-      {/* Variant label */}
-      <div>
-        <Label>Variant label</Label>
-        <input value={params.variantLabel || 'Custom'}
-          onChange={e => setParam('variantLabel', e.target.value)}
-          className="w-48 px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-electric-400" />
-      </div>
-
-      {/* Legacy import */}
       {scenarioNames.length > 0 && (
         <div>
           <Label>Import from saved scenario</Label>
@@ -550,11 +467,7 @@ function CustomConfigPanel({ params, setParam, model }) {
           <Hint>Appends the scenario's overrides as setParam ops.</Hint>
         </div>
       )}
-      {scenarioNames.length === 0 && (
-        <p className="text-xs text-slate-400 italic">No saved scenarios found on this model.</p>
-      )}
 
-      {/* Op list */}
       <div>
         <div className="flex items-center justify-between mb-2">
           <Label>Operations ({ops.length})</Label>
@@ -577,70 +490,342 @@ function CustomConfigPanel({ params, setParam, model }) {
   );
 }
 
-function SporesRecipeConfig({ params, setParam }) {
-  const opts = { slack: params.slack ?? 10, sporesNumber: params.sporesNumber ?? 20 };
+// ─── Atomic card configs (new) ──────────────────────────────────────────────────
+
+function DemandCardConfig({ params, setParam, model, timeSeries }) {
+  const scale = Number(params.scale ?? 1);
+  const series = extractDemandSeries(model, timeSeries);
+
+  // Downsample to ~300 points for a light preview.
+  const preview = React.useMemo(() => {
+    if (!series) return null;
+    const step = Math.max(1, Math.floor(series.values.length / 300));
+    const pts = [];
+    for (let i = 0; i < series.values.length; i += step) pts.push(series.values[i] * scale);
+    return pts;
+  }, [series, scale]);
+
   return (
-    <SporesConfigPanel
-      modelConfig={{ sporesOptions: opts }}
-      setModelConfig={updater => {
-        const next = updater({ sporesOptions: opts }).sporesOptions;
-        setParam('slack', next.slack);
-        setParam('sporesNumber', next.sporesNumber);
-      }}
-    />
+    <div className="space-y-4">
+      <div>
+        <Label>Demand scale for this cell</Label>
+        <div className="flex items-center gap-2">
+          <input type="range" min={0.2} max={3} step={0.01} value={scale}
+            onChange={e => setParam('scale', parseFloat(e.target.value))}
+            className="flex-1 accent-electric-600" />
+          <NumInput value={scale} onChange={v => setParam('scale', v)} min={0.2} max={5} step={0.01} className="w-20" />
+          <span className="text-xs text-slate-500">×</span>
+        </div>
+        <Hint>Scales the demand profile ({params.scale === 1 ? 'baseline' : `${((scale - 1) * 100).toFixed(0)}%`}). Drag-to-reshape the hourly profile is coming later.</Hint>
+      </div>
+      {preview ? (
+        <div>
+          <Label>Demand preview — {series.name}</Label>
+          <ReactECharts
+            style={{ height: 160 }}
+            option={{
+              animation: false,
+              grid: { top: 10, bottom: 24, left: 44, right: 10 },
+              xAxis: { type: 'category', show: false, data: preview.map((_, i) => i) },
+              yAxis: { type: 'value', axisLabel: { fontSize: 9 } },
+              tooltip: { trigger: 'axis' },
+              series: [{
+                type: 'line', data: preview, smooth: true, symbol: 'none',
+                lineStyle: { color: '#3b82f6', width: 1.5 }, areaStyle: { color: 'rgba(59,130,246,0.08)' },
+              }],
+            }}
+          />
+        </div>
+      ) : (
+        <p className="text-xs text-slate-400 italic">No demand time series found for this model.</p>
+      )}
+    </div>
   );
 }
 
-export function ConfigPanel({ recipeId, params, setParam, model }) {
+function ConstraintCardConfig({ params, setParam }) {
+  return (
+    <div className="space-y-4">
+      <div>
+        <Label>Constraint</Label>
+        <select value={params.kind} onChange={e => setParam('kind', e.target.value)}
+          className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-electric-400 bg-white">
+          {SYS_KINDS.map(k => <option key={k} value={k}>{k}</option>)}
+        </select>
+      </div>
+      <div>
+        <Label>Value</Label>
+        <NumInput value={params.value} onChange={v => setParam('value', v)} step={1} />
+        <Hint>{params.kind === 'co2_cap' ? 'CO₂ cap (0 = net-zero)' : params.kind === 'renewable_min' ? 'Minimum renewable share (fraction 0–1)' : 'Reserve margin'}</Hint>
+      </div>
+      {params.kind === 'co2_cap' && (
+        <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex gap-2">
+          <FiInfo size={13} className="shrink-0 mt-0.5" />
+          Requires technologies to have CO₂ costs (<code className="bg-amber-100 px-1 rounded">costs.co2.*</code>).
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Chips listing the model techs an actuator currently matches (integrates the
+// model's own technology info so the user sees exactly what a card will hit).
+function MatchedTechs({ names }) {
+  if (!names || names.length === 0) {
+    return <p className="text-xs text-amber-600 italic mt-1">No matching technologies in this model.</p>;
+  }
+  return (
+    <div className="mt-1.5">
+      <p className="text-[11px] text-slate-500 mb-1">Affects {names.length} tech{names.length > 1 ? 's' : ''}:</p>
+      <div className="flex flex-wrap gap-1">
+        {names.map(n => <span key={n} className="text-[10px] font-mono bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">{n}</span>)}
+      </div>
+    </div>
+  );
+}
+
+// Group dropdown labelled with live counts from the model.
+function GroupSelect({ value, model, onChange }) {
+  return (
+    <select value={value} onChange={e => onChange(e.target.value)}
+      className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-electric-400 bg-white">
+      {techGroupsForModel(model).map(g => {
+        const n = resolveTechGroup(model, g.id).length;
+        return <option key={g.id} value={g.id}>{g.label} ({n})</option>;
+      })}
+    </select>
+  );
+}
+
+function TechCardConfig({ params, setParam, model }) {
+  const allTechs = (model?.technologies || []).map(t => t.name);
+  const isGroup = params.target === 'group';
+  const matched = isGroup ? resolveTechGroup(model, params.group) : (params.techMatch ? [params.techMatch] : []);
+  return (
+    <div className="space-y-4">
+      <div>
+        <Label>Target</Label>
+        <ToggleBtn value={params.target || 'single'}
+          options={[{ id: 'single', label: 'A technology' }, { id: 'group', label: 'A group' }]}
+          onChange={v => setParam('target', v)} />
+        <Hint>Groups (renewables, emitting…) are read from the model — target many techs at once.</Hint>
+      </div>
+      {isGroup ? (
+        <div>
+          <Label>Technology group</Label>
+          <GroupSelect value={params.group} model={model} onChange={v => setParam('group', v)} />
+          <MatchedTechs names={matched} />
+        </div>
+      ) : (
+        <div>
+          <Label>Technology</Label>
+          <select value={params.techMatch} onChange={e => setParam('techMatch', e.target.value)}
+            className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-electric-400 bg-white">
+            <option value="">— select a technology —</option>
+            {allTechs.map(n => <option key={n} value={n}>{n}</option>)}
+          </select>
+        </div>
+      )}
+      <div>
+        <Label>Action</Label>
+        <ToggleBtn value={params.mode}
+          options={[{ id: 'disable', label: 'Disable' }, { id: 'set', label: 'Set param' }, { id: 'scale', label: 'Scale param' }]}
+          onChange={v => setParam('mode', v)} />
+      </div>
+      {params.mode !== 'disable' && (
+        <>
+          <div>
+            <Label>Param path</Label>
+            <input value={params.path} onChange={e => setParam('path', e.target.value)} placeholder="constraints.energy_cap_max"
+              className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg font-mono focus:outline-none focus:ring-2 focus:ring-electric-400" />
+          </div>
+          <div className="flex gap-3 items-end">
+            <div>
+              <Label>{params.mode === 'scale' ? 'Factor' : 'Value'}</Label>
+              {params.mode === 'scale'
+                ? <NumInput value={params.factor} onChange={v => setParam('factor', v)} step={0.01} className="w-24" />
+                : <NumInput value={params.value} onChange={v => setParam('value', v)} step={1} className="w-24" />}
+            </div>
+            <div>
+              <Label>Apply to</Label>
+              <ToggleBtn value={params.level}
+                options={[{ id: 'global', label: 'Global' }, { id: 'both', label: 'Both' }]}
+                onChange={v => setParam('level', v)} />
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function EmissionsCardConfig({ params, setParam, model }) {
+  const matched = resolveTechGroup(model, params.group || 'emitting');
+  return (
+    <div className="space-y-4">
+      <div className="text-xs text-slate-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+        Reduce emissions by acting on all matching techs at once — pulled live from the model.
+      </div>
+      <div>
+        <Label>Target group</Label>
+        <GroupSelect value={params.group || 'emitting'} model={model} onChange={v => setParam('group', v)} />
+        <MatchedTechs names={matched} />
+      </div>
+      <div>
+        <Label>Lever</Label>
+        <ToggleBtn value={params.lever || 'reduceCap'}
+          options={[{ id: 'reduceCap', label: 'Reduce capacity' }, { id: 'phaseOut', label: 'Phase out' }]}
+          onChange={v => setParam('lever', v)} />
+      </div>
+      {(params.lever || 'reduceCap') === 'reduceCap' && (
+        <div>
+          <Label>Reduce buildable capacity by</Label>
+          <div className="flex items-center gap-2">
+            <input type="range" min={0} max={100} step={5} value={params.reducePct ?? 50}
+              onChange={e => setParam('reducePct', parseInt(e.target.value, 10))}
+              className="flex-1 accent-electric-600" />
+            <span className="text-xs font-mono text-slate-700 w-10 text-right">{params.reducePct ?? 50}%</span>
+          </div>
+          <Hint>Caps the group's <code className="bg-slate-100 px-1 rounded">energy_cap_max</code> at {(100 - (params.reducePct ?? 50))}% of its current value.</Hint>
+        </div>
+      )}
+      {(params.lever === 'phaseOut') && (
+        <Hint>Disables every matched tech (energy_cap_max = 0) for the card's scope.</Hint>
+      )}
+    </div>
+  );
+}
+
+function LocationCardConfig({ params, setParam, model }) {
+  const locations = (model?.locations || []).map(l => l.name || l.id).filter(Boolean);
+  const allTechs = (model?.technologies || []).map(t => t.name);
+  return (
+    <div className="space-y-4">
+      <div>
+        <Label>Location (from model)</Label>
+        <select value={params.location} onChange={e => setParam('location', e.target.value)}
+          className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-electric-400 bg-white">
+          <option value="">— select a location —</option>
+          {locations.map(n => <option key={n} value={n}>{n}</option>)}
+        </select>
+        {locations.length === 0 && <Hint>This model has no locations defined.</Hint>}
+      </div>
+      <div>
+        <Label>Action</Label>
+        <ToggleBtn value={params.mode}
+          options={[{ id: 'disable', label: 'Disable here' }, { id: 'set', label: 'Set param' }, { id: 'scale', label: 'Scale param' }]}
+          onChange={v => setParam('mode', v)} />
+      </div>
+      <div>
+        <Label>Technology</Label>
+        <ToggleBtn value={params.target || 'single'}
+          options={[{ id: 'single', label: 'A technology' }, { id: 'group', label: 'A group' }]}
+          onChange={v => setParam('target', v)} />
+        <div className="mt-2">
+          {params.target === 'group' ? (
+            <>
+              <GroupSelect value={params.group || 'nonRenewable'} model={model} onChange={v => setParam('group', v)} />
+              <MatchedTechs names={resolveTechGroup(model, params.group || 'nonRenewable')} />
+            </>
+          ) : (
+            <select value={params.techMatch} onChange={e => setParam('techMatch', e.target.value)}
+              className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-electric-400 bg-white">
+              <option value="">— select a technology —</option>
+              {allTechs.map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+          )}
+        </div>
+      </div>
+      {params.mode !== 'disable' && (
+        <>
+          <div>
+            <Label>Param path</Label>
+            <input value={params.path} onChange={e => setParam('path', e.target.value)} placeholder="constraints.energy_cap_max"
+              className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg font-mono focus:outline-none focus:ring-2 focus:ring-electric-400" />
+          </div>
+          <div>
+            <Label>{params.mode === 'scale' ? 'Factor' : 'Value'}</Label>
+            {params.mode === 'scale'
+              ? <NumInput value={params.factor} onChange={v => setParam('factor', v)} step={0.01} className="w-24" />
+              : <NumInput value={params.value} onChange={v => setParam('value', v)} step={1} className="w-24" />}
+          </div>
+        </>
+      )}
+      <div className="text-[11px] text-slate-400 bg-slate-50 rounded-lg px-3 py-2">
+        Applies only within this location (location-level override; only affects a tech that already
+        exists at that location).
+      </div>
+    </div>
+  );
+}
+
+function RenewablesCardConfig({ params, setParam, model }) {
+  const matched = resolveTechGroup(model, params.group || 'renewable');
+  return (
+    <div className="space-y-4">
+      <div className="text-xs text-slate-600 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+        Boost renewables by raising the buildable capacity of all matching techs at once.
+      </div>
+      <div>
+        <Label>Target group</Label>
+        <GroupSelect value={params.group || 'renewable'} model={model} onChange={v => setParam('group', v)} />
+        <MatchedTechs names={matched} />
+      </div>
+      <div>
+        <Label>Increase buildable capacity by</Label>
+        <div className="flex items-center gap-2">
+          <input type="range" min={0} max={300} step={10} value={params.boostPct ?? 50}
+            onChange={e => setParam('boostPct', parseInt(e.target.value, 10))}
+            className="flex-1 accent-electric-600" />
+          <span className="text-xs font-mono text-slate-700 w-12 text-right">+{params.boostPct ?? 50}%</span>
+        </div>
+        <Hint>Scales the group's <code className="bg-slate-100 px-1 rounded">energy_cap_max</code> to {100 + (params.boostPct ?? 50)}% of its current value.</Hint>
+      </div>
+    </div>
+  );
+}
+
+// ─── Card config router ─────────────────────────────────────────────────────────
+
+const RECIPE_PANEL = {
+  demandGrowth: DemandGrowthConfig,
+  renewableTransition: RenewableTransitionConfig,
+  carbonCap: CarbonCapConfig,
+  costSensitivity: CostSensitivityConfig,
+};
+
+export function CardConfig({ category, params, setParam, model, timeSeries }) {
   if (!model) {
     return (
       <div className="flex items-center gap-2 text-sm text-slate-500 italic">
-        <FiInfo size={14} /> Select a model above to configure this recipe.
+        <FiInfo size={14} /> Select a model to configure this card.
       </div>
     );
   }
-  switch (recipeId) {
-    case 'demandGrowth':       return <DemandGrowthConfig params={params} setParam={setParam} model={model} />;
-    case 'renewableTransition':return <RenewableTransitionConfig params={params} setParam={setParam} model={model} />;
-    case 'carbonCap':          return <CarbonCapConfig params={params} setParam={setParam} />;
-    case 'costSensitivity':    return <CostSensitivityConfig params={params} setParam={setParam} model={model} />;
-    case 'custom':             return <CustomConfigPanel params={params} setParam={setParam} model={model} />;
-    case 'spores':             return <SporesRecipeConfig params={params} setParam={setParam} />;
-    default: return <p className="text-sm text-slate-500 italic">Configuration not available.</p>;
+  if (category === 'demand')     return <DemandCardConfig params={params} setParam={setParam} model={model} timeSeries={timeSeries} />;
+  if (category === 'constraint') return <ConstraintCardConfig params={params} setParam={setParam} />;
+  if (category === 'tech')       return <TechCardConfig params={params} setParam={setParam} model={model} />;
+  if (category === 'emissions')  return <EmissionsCardConfig params={params} setParam={setParam} model={model} />;
+  if (category === 'renewables') return <RenewablesCardConfig params={params} setParam={setParam} model={model} />;
+  if (category === 'location')   return <LocationCardConfig params={params} setParam={setParam} model={model} />;
+  if (category === 'custom')     return <CustomConfigPanel params={params} setParam={setParam} model={model} />;
+  if (category?.startsWith('recipe:')) {
+    const Panel = RECIPE_PANEL[category.slice(7)];
+    return Panel ? <Panel params={params} setParam={setParam} model={model} /> : null;
   }
+  return <p className="text-sm text-slate-500 italic">No configuration for this card.</p>;
 }
 
-export function VariantBadge({ variant, recipeId }) {
-  let detail = null;
-  if (recipeId === 'demandGrowth') {
-    const factor = variant.ops[0]?.factor ?? 1;
-    const pct = (factor - 1) * 100;
-    detail = Math.abs(pct) < 0.01
-      ? <span className="text-slate-400">baseline</span>
-      : <span className={pct > 0 ? 'text-blue-600' : 'text-red-600'}>{pct > 0 ? '+' : ''}{pct.toFixed(1)}%</span>;
-  } else if (recipeId === 'renewableTransition') {
-    const t = variant.t ?? 0;
-    detail = t <= 0 ? <span className="text-slate-400">baseline</span>
-      : t >= 1 ? <span className="text-orange-600">fossils disabled</span>
-      : <span className="text-amber-600">{(t * 100).toFixed(0)}% phase-out</span>;
-  } else if (recipeId === 'carbonCap') {
-    const cap = variant.capValue;
-    detail = cap !== undefined
-      ? <span className={cap === 0 ? 'text-green-600 font-semibold' : 'text-slate-600'}>{cap.toFixed(1)} Mt</span>
-      : null;
-  } else if (recipeId === 'costSensitivity') {
-    detail = <span className="text-purple-700 font-mono">{variant.label}</span>;
-  } else if (recipeId === 'custom') {
-    const summary = summarizeOps(variant.ops);
-    detail = summary ? <span className="text-slate-500 truncate max-w-[220px]" title={summary}>{summary}</span> : null;
-  } else {
-    const summary = summarizeOps(variant.ops);
-    if (summary) detail = <span className="text-slate-400 font-mono text-[10px] truncate max-w-[180px]" title={summary}>{summary}</span>;
-  }
+// ─── Variant badge (for the side panel variant list) ────────────────────────────
+
+export function VariantBadge({ variant }) {
+  const summary = summarizeOps(variant.ops);
   return (
     <div className="flex items-center justify-between gap-2 px-3 py-1.5 bg-slate-50 rounded-lg text-xs">
       <span className="font-semibold text-slate-700">{variant.label}</span>
-      {detail}
+      {summary
+        ? <span className="text-slate-500 truncate max-w-[200px]" title={summary}>{summary}</span>
+        : <span className="text-slate-400">baseline</span>}
     </div>
   );
 }
