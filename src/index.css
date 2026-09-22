@@ -306,3 +306,32 @@ code, pre {
   animation-duration: 1s !important;
   animation-iteration-count: infinite !important;
 }
+
+/* ── Study-area "calculating surrounding regions" contour ───────────────────
+   A glowing, breathing outline applied to the selected boundary's SVG path
+   while neighbour candidates are being fetched. */
+@keyframes tempo-breathe {
+  0%, 100% {
+    stroke-width: 3;
+    stroke-opacity: 0.5;
+    filter: drop-shadow(0 0 4px rgba(59, 130, 246, 0.5));
+  }
+  50% {
+    stroke-width: 8;
+    stroke-opacity: 1;
+    filter: drop-shadow(0 0 16px rgba(59, 130, 246, 0.95));
+  }
+}
+.tempo-breathing-contour {
+  animation: tempo-breathe 1.6s ease-in-out infinite;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+@keyframes tempo-badge-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.45); }
+  50%      { box-shadow: 0 0 0 8px rgba(59, 130, 246, 0); }
+}
+.tempo-calc-badge {
+  animation: tempo-badge-pulse 1.4s ease-in-out infinite;
+}

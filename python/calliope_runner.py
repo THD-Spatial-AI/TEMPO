@@ -399,11 +399,17 @@ def build_locations_config(locations, location_tech_assignments, technologies):
     """Convert the app's location list + assignments to Calliope `locations:` dict."""
     # Build mapping from any form of tech reference → calliope tech id
     tech_id_map = {}
+    # Vintaged residual techs (Scenario Studio myopic pathways) carry per-location
+    # energy_cap_equals in loc.techs; their overrides must survive even in
+    # assignment mode, where ordinary per-loc overrides are dropped.
+    vintaged_ids = set()
     for tech in technologies:
         tid = _tech_id(tech)
         tech_id_map[tid] = tid
         tech_id_map[tech.get('id', tid)] = tid
         tech_id_map[tech.get('name', tid)] = tid
+        if tech.get('_vintaged') or str(tech.get('name', '')).endswith('_existing'):
+            vintaged_ids.add(tid)
 
     # Tech labels that represent transmission hub / substation nodes in input
     # datasets (e.g. Chilean grid templates).  These are NOT valid Calliope
@@ -448,7 +454,7 @@ def build_locations_config(locations, location_tech_assignments, technologies):
                     # When reading directly from the imported location's techs dict,
                     # preserve any per-location constraint overrides (e.g. resource: file=
                     # or energy_cap_equals) instead of always setting None.
-                    if use_direct:
+                    if use_direct or tech_key in vintaged_ids:
                         per_loc = loc_techs_direct.get(ref) or loc_techs_direct.get(normalized)
                         resolved[tech_key] = per_loc if isinstance(per_loc, dict) else None
                     else:
@@ -549,21 +555,30 @@ def build_links_config(links):
                 tech_field = (old_techs[0] if old_techs else None) or 'ac_transmission'
         tech_key = tech_field.replace(' ', '_').lower()
 
-        link_entry = {'techs': {tech_key: None}}
-
-        # Include distance inside the tech entry (Calliope 0.6 format):
+        # Per-link tech entry (Calliope 0.6 format):
         # links:
         #   A,B:
         #     techs:
         #       my_transmission_tech:
         #         distance: 500
+        #         constraints: { energy_cap_max: 2400 }
+        entry = {}
         distance = link.get('distance')
         if distance is not None:
             try:
-                link_entry['techs'][tech_key] = {'distance': float(distance)}
+                entry['distance'] = float(distance)
+            except (ValueError, TypeError):
+                pass
+        capacity = link.get('capacity')
+        if capacity is not None:
+            try:
+                cap = float(capacity)
+                if cap > 0:
+                    entry['constraints'] = {'energy_cap_max': cap}
             except (ValueError, TypeError):
                 pass
 
+        link_entry = {'techs': {tech_key: entry if entry else None}}
         calliope_links[f"{from_loc},{to_loc}"] = link_entry
     return calliope_links
 

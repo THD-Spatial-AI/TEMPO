@@ -25,7 +25,6 @@ const Export = lazy(() => import("./components/Export"));
 const Run = lazy(() => import("./components/Run"));
 const Results = lazy(() => import("./components/Results"));
 const SetupScreen = lazy(() => import("./components/SetupScreen"));
-const HydrogenPlantDashboard = lazy(() => import("./components/HydrogenPlantDashboard"));
 
 function AppContent() {
   const [selected, setSelected] = useState(() => getSetting('defaultView'));
@@ -92,7 +91,7 @@ function AppContent() {
       case "Tutorial":       return <Tutorial />;
       case "Models":         return <Models />;
       case "Map View":       return <MapView />;
-      case "Creation":       return <Creation />;
+      case "Creation":       return <Creation onNavigate={handleNavigation} />;
       case "Locations":      return <Locations />;
       case "Links":          return <Links />;
       case "Scenarios":      return <ScenarioStudio onNavigate={handleNavigation} />;
@@ -107,7 +106,6 @@ function AppContent() {
       case "Run":            return <Run onNavigate={handleNavigation} />;
       case "Results":        return <Results onNavigate={handleNavigation} />;
       case "Export":         return <Export />;
-      case "Tech Simulator": return <HydrogenPlantDashboard />;
       default:               return <Dashboard />;
     }
   };

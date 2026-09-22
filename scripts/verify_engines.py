@@ -41,14 +41,25 @@ Cross-engine checks:
   * dispatch / demand series lengths match snapshot count
   * all CONTRACT_KEYS present on every engine (key-set consistency)
 
+Myopic residual check (opt-in, --check-myopic):
+  Runs a 2-step Scenario Studio myopic pathway per engine — solve, then fix the
+  solved capacity forward as free `<tech>_existing` residual (vintageResidual) —
+  and asserts: step-2 stays optimal, residual objective does not exceed greenfield
+  (prior capacity is sunk/free, not re-charged CAPEX), and residual capacity is
+  monotonic (carried capacity survives). Note: the reference model runs in direct
+  loc.techs mode; the assignment-mode override-preservation path needs a real
+  assignment-mode model to exercise.
+
 OSeMOSYS note: dispatch is broadcast from timeslices (not hourly resolution), so
 timestep counts match Calliope only when both use the same date range. Tolerances
 are wider because the GLPK/OSeMOSYS formulation differs from HiGHS/Calliope.
 """
 
 import argparse
+import copy
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -176,6 +187,177 @@ def compare_pair(tag_a, r_a, tag_b, r_b, obj_tol, cap_tol, non_tx_techs, failure
                 f"[{tag_a} vs {tag_b}] total demand differs by {d:.3f}%")
 
 
+# ─── Myopic residual check (mirrors src/services/scenarioStudio transform + pathway) ──
+#
+# The Scenario Studio myopic pathway carries a solved year's capacity forward as
+# fixed, capex-free "residual" capacity (transform op `vintageResidual`). The JS
+# side is unit-tested; this reproduces the transform in Python so the engine-level
+# behaviour can be verified end-to-end: does each runner honour a `<tech>_existing`
+# shadow (fixed cap, zero capex, resource inherited) and produce a defensible
+# residual objective?
+
+CARRY_FORWARD_PARENTS = {'supply', 'supply_plus', 'conversion', 'conversion_plus', 'storage'}
+INVESTMENT_COST_KEYS = ['energy_cap', 'storage_cap', 'resource_cap', 'resource_area', 'purchase']
+VINTAGE_SUFFIX = '_existing'
+
+
+def _norm_id(s):
+    return re.sub(r'[^a-zA-Z0-9]', '_', str(s or '')).lower()
+
+
+def _parent_of(t):
+    return (t.get('essentials') or {}).get('parent', t.get('parent', ''))
+
+
+def carry_forward_techs(model):
+    return [t['name'] for t in model.get('technologies', []) if _parent_of(t) in CARRY_FORWARD_PARENTS]
+
+
+def accumulate_existing_caps(capacities, suffix=VINTAGE_SUFFIX):
+    """Collapse a result's capacities onto base techs, folding `_existing` back in."""
+    out = {}
+    for key, cap in (capacities or {}).items():
+        if not (cap and cap > 0) or '::' not in key:
+            continue
+        loc, tech = key.rsplit('::', 1)
+        tech = tech.split(':')[0]
+        if tech.endswith(suffix):
+            tech = tech[:-len(suffix)]
+        k = f'{loc}::{tech}'
+        out[k] = out.get(k, 0.0) + cap
+    return out
+
+
+def _zero_capex(costs):
+    if not isinstance(costs, dict):
+        return
+    for cost_vals in costs.values():
+        if isinstance(cost_vals, dict):
+            for k in INVESTMENT_COST_KEYS:
+                if k in cost_vals:
+                    cost_vals[k] = 0
+
+
+def _loc_matches(loc, token):
+    return any(v is not None and (str(v) == token or _norm_id(v) == token)
+               for v in (loc.get('id'), loc.get('name')))
+
+
+def apply_vintage_residual(model, existing_caps, tech_match, suffix=VINTAGE_SUFFIX):
+    """Return a deep copy of *model* with residual capacity fixed per the JS op."""
+    m = copy.deepcopy(model)
+    techs = m.setdefault('technologies', [])
+    locs = m.setdefault('locations', [])
+    lta = m.get('locationTechAssignments')
+    for name in set(tech_match):
+        loc_caps = []
+        for key, cap in existing_caps.items():
+            if not (cap and cap > 0) or '::' not in key:
+                continue
+            loc_tok, tech_tok = key.rsplit('::', 1)
+            if tech_tok.split(':')[0] != name:
+                continue
+            loc_caps.append((loc_tok, cap))
+        if not loc_caps:
+            continue
+        shadow = f'{name}{suffix}'
+        if not any(t.get('name') == shadow for t in techs):
+            base = next((t for t in techs if t.get('name') == name), None)
+            clone = copy.deepcopy(base) if base else {'name': name}
+            clone['name'] = shadow
+            cons = clone.get('constraints')
+            if isinstance(cons, dict):
+                for k in ('energy_cap_max', 'energy_cap_min', 'energy_cap_equals'):
+                    cons.pop(k, None)
+            _zero_capex(clone.get('costs'))
+            clone['_vintaged'] = True
+            techs.append(clone)
+        for loc_tok, cap in loc_caps:
+            loc = next((l for l in locs if _loc_matches(l, loc_tok)), None)
+            if not loc:
+                continue
+            loc.setdefault('techs', {})
+            inherited = copy.deepcopy(loc['techs'].get(name)) if loc['techs'].get(name) else {}
+            sh = loc['techs'].get(shadow) or inherited
+            sh.setdefault('constraints', {})
+            sh['constraints'].pop('energy_cap_max', None)
+            sh['constraints'].pop('energy_cap_min', None)
+            sh['constraints']['energy_cap_equals'] = cap
+            _zero_capex(sh.get('costs'))
+            loc['techs'][shadow] = sh
+            if isinstance(lta, dict):
+                for k in (loc.get('id'), loc.get('name')):
+                    if k is not None and isinstance(lta.get(k), list) and name in lta[k] and shadow not in lta[k]:
+                        lta[k] = lta[k] + [shadow]
+    return m
+
+
+def _write_payload(d):
+    fd, name = tempfile.mkstemp(suffix='.json')
+    os.close(fd)
+    Path(name).write_text(json.dumps(d), encoding='utf-8')
+    return Path(name)
+
+
+def check_myopic(tag, py_exe, module, base_payload, solver_dir, obj_tol, cap_tol, failures):
+    """Run a 2-step myopic pathway on one engine and assert residual semantics."""
+    print(f"\n=== MYOPIC RESIDUAL CHECK: {tag} ===")
+    p1 = _write_payload(base_payload)
+    try:
+        r1 = run_engine(py_exe, module, p1, solver_dir)
+    finally:
+        p1.unlink(missing_ok=True)
+    if r1.get('termination_condition') != 'optimal':
+        failures.append(f"[{tag} myopic] step-1 not optimal ({r1.get('termination_condition')!r})")
+        return
+
+    tech_match = set(carry_forward_techs(base_payload))
+    existing = {k: v for k, v in accumulate_existing_caps(r1.get('capacities')).items()
+                if k.rsplit('::', 1)[1].split(':')[0] in tech_match}
+    if not existing:
+        print(f"  [{tag}] step-1 built no carry-forward capacity — nothing to vintage; skipping.")
+        return
+
+    step2 = apply_vintage_residual(base_payload, existing, tech_match)
+    p2 = _write_payload(step2)
+    try:
+        r2 = run_engine(py_exe, module, p2, solver_dir)
+    finally:
+        p2.unlink(missing_ok=True)
+
+    check_contract(f'{tag} myopic-step2', r2, failures)
+    if r2.get('termination_condition') != 'optimal':
+        failures.append(f"[{tag} myopic] step-2 not optimal ({r2.get('termination_condition')!r})")
+        return
+
+    # 1) Residual is not more expensive than greenfield — prior capacity is free (sunk).
+    o1, o2 = r1.get('objective'), r2.get('objective')
+    if o1 is not None and o2 is not None:
+        print(f"  objective:  greenfield={o1:.4f}  residual={o2:.4f}")
+        if o2 > o1 * (1 + obj_tol / 100):
+            failures.append(
+                f"[{tag} myopic] residual objective {o2:.4f} exceeds greenfield {o1:.4f} "
+                f"(> {obj_tol}%) — existing capacity should be free, not re-charged CAPEX")
+
+    # 2) Monotonic residual — step-2 total (base + _existing) >= the carried capacity.
+    agg2 = accumulate_existing_caps(r2.get('capacities'))
+    for key, fixed in sorted(existing.items()):
+        got = agg2.get(key, 0.0)
+        d = pct_diff(got, fixed)
+        print(f"  residual {key}:  carried={fixed:.3f}  step2_total={got:.3f}  diff={d:.3f}%")
+        if got < fixed * (1 - cap_tol / 100):
+            failures.append(
+                f"[{tag} myopic] {key} step-2 total {got:.3f} < carried residual {fixed:.3f} "
+                f"(not monotonic — carried capacity was dropped)")
+
+    # 3) Informational: the _existing shadow should carry only opex (capex sunk).
+    costs_by_tech = r2.get('costs_by_tech') or {}
+    for name in sorted(tech_match):
+        shadow = f'{name}{VINTAGE_SUFFIX}'
+        if shadow in costs_by_tech:
+            print(f"  cost[{shadow}]={costs_by_tech[shadow]:.4f}  (opex only — CAPEX sunk)")
+
+
 def main():
     ap = argparse.ArgumentParser(
         description=__doc__,
@@ -210,6 +392,13 @@ def main():
     ap.add_argument('--osemosys-cap-tol', type=float, default=15.0,
                     dest='osemosys_cap_tol',
                     help='OSeMOSYS vs Calliope per-tech capacity tolerance %% (default 15.0)')
+    ap.add_argument('--check-myopic', action='store_true', dest='check_myopic',
+                    help='Also run a 2-step myopic residual pathway per engine and assert '
+                         'residual (sunk) capacity semantics (Scenario Studio). Doubles runtime.')
+    ap.add_argument('--myopic-obj-tol', type=float, default=2.0, dest='myopic_obj_tol',
+                    help='Myopic: max %% the residual objective may exceed greenfield (default 2.0)')
+    ap.add_argument('--myopic-cap-tol', type=float, default=2.0, dest='myopic_cap_tol',
+                    help='Myopic: tolerance %% on the monotonic residual-capacity check (default 2.0)')
     args = ap.parse_args()
 
     engines_to_run = {}
@@ -298,6 +487,13 @@ def main():
     comparable = set(results) - {'adoptnet0'}
     if len(comparable) <= 1 and 'adoptnet0' not in results:
         print(f"  (only one engine provided — pairwise checks skipped)")
+
+    # ── Myopic residual pathway checks (opt-in) ───────────────────────────────
+    if args.check_myopic:
+        print("\n=== MYOPIC RESIDUAL PATHWAY CHECKS ===")
+        for tag, (py_exe, module) in engines_to_run.items():
+            check_myopic(tag, py_exe, module, payload, args.solver_dir,
+                         args.myopic_obj_tol, args.myopic_cap_tol, failures)
 
     # ── Cross-engine contract key-set consistency ─────────────────────────────
     if len(results) > 1:

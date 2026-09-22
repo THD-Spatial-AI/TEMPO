@@ -442,3 +442,49 @@ def test_1x1_scheme_produces_one_timeslice():
         assert rows[0]["VALUE"] == "s1d1"
         ys_rows = _read_csv(tmp, "YearSplit.csv")
         assert abs(float(ys_rows[0]["VALUE"]) - 1.0) < 1e-9
+
+
+# ─── OSM study-area demand: file=name:col resource on inline loc techs ─────────
+
+def _osm_demand_model():
+    """A location whose demand is a `file=` timeseries on the inline power_demand
+    tech (as written by the OSM study-area importer), with a global demand tech
+    that only carries the parent."""
+    data = [{"datetime": f"2005-01-01 {h:02d}:00:00", "dem_1": -(10 + h)} for h in range(24)]
+    return {
+        "modelConfig": {"startDate": "2005-01-01", "endDate": "2005-01-01"},
+        "technologies": [
+            {"name": "solar_pv", "essentials": {"parent": "supply", "carrier_out": "electricity"},
+             "constraints": {"energy_cap_max": 2000, "energy_eff": 1.0, "lifetime": 25},
+             "costs": {"monetary": {"energy_cap": 900}}},
+            {"id": "power_demand", "name": "power_demand",
+             "essentials": {"parent": "demand", "carrier": "electricity"}},  # no constraints
+        ],
+        "locations": [{
+            "name": "arica",
+            "techs": {
+                "solar_pv": None,
+                "power_demand": {"constraints": {"resource": "file=osm_substation_demand.csv:dem_1", "force_resource": True}},
+            },
+        }],
+        "timeSeries": [{
+            "name": "osm_substation_demand", "fileName": "osm_substation_demand.csv",
+            "columns": ["datetime", "dem_1"], "dataColumns": ["dem_1"], "data": data,
+        }],
+    }
+
+
+def test_osm_file_ref_demand_produces_annual_demand():
+    with tempfile.TemporaryDirectory() as tmp:
+        tr.translate_model(_osm_demand_model(), tmp, SCHEME_4X3)
+        rows = {r["FUEL"]: float(r["VALUE"]) for r in _read_csv(tmp, "SpecifiedAnnualDemand.csv")}
+        assert "ARICA_ELECTRICITY" in rows
+        # 24 h of |−(10+h)| kW = sum(10..33) = 516 kWh × 3.6e-9 PJ.
+        assert abs(rows["ARICA_ELECTRICITY"] - 516 * 3.6e-9) / (516 * 3.6e-9) < 1e-6
+
+
+def test_osm_file_ref_demand_profile_sums_to_one():
+    with tempfile.TemporaryDirectory() as tmp:
+        tr.translate_model(_osm_demand_model(), tmp, SCHEME_4X3)
+        rows = [r for r in _read_csv(tmp, "SpecifiedDemandProfile.csv") if r["FUEL"] == "ARICA_ELECTRICITY"]
+        assert abs(sum(float(r["VALUE"]) for r in rows) - 1.0) < 1e-6

@@ -48,19 +48,17 @@ DC          := docker compose
 REPO_FILES  := -f docker-compose.yml -f docker-compose.adoptnet0.yml
 GEO_FILE    := -f docker-compose.geoserver.yml
 
-# Sibling repositories (physics simulators + technology catalog). Optional:
-# targets skip them with a notice if the directory is absent.
-CCSSIM_DIR   := ../ccssim
-HYDROSIM_DIR := ../hydrogenmatsim
+# Sibling repositories (technology catalog). Optional: targets skip them with a
+# notice if the directory is absent.
 OPENTECH_DIR := ../opentech-db
 
 .PHONY: help check bootstrap _bootstrap-linux _bootstrap-mac _bootstrap-windows \
         env npm-install go-build frontend-build docker-build install \
-        up up-engines up-geoserver up-sims up-opentech \
-        down down-engines down-geoserver down-sims down-opentech \
+        up up-engines up-geoserver up-opentech \
+        down down-engines down-geoserver down-opentech \
         ps logs dev web backend-run test clean clean-docker \
         venv-calliope venv-calliope07 venv-pypsa venv-osemosys venv-adoptnet0 \
-        venv-ccssim venv-hydrogensim venv-osm venvs install-native clean-venvs
+        venv-osm venvs install-native clean-venvs
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Help
@@ -169,13 +167,11 @@ frontend-build: ## Build the production frontend bundle into dist/
 # ─────────────────────────────────────────────────────────────────────────────
 # Docker image builds
 # ─────────────────────────────────────────────────────────────────────────────
-docker-build: ## Build all Docker images (engines + geoserver + sibling sims/db)
+docker-build: ## Build all Docker images (engines + geoserver + sibling db)
 	@echo "── Building optimization engine images ──"
 	$(DC) $(REPO_FILES) build
 	@echo "── Building GeoServer/PostGIS images (pulled) ──"
 	$(DC) $(GEO_FILE) pull
-	@$(MAKE) --no-print-directory _sibling-build DIR=$(CCSSIM_DIR)   NAME="CCS simulator"
-	@$(MAKE) --no-print-directory _sibling-build DIR=$(HYDROSIM_DIR) NAME="Hydrogen simulator"
 	@$(MAKE) --no-print-directory _sibling-build DIR=$(OPENTECH_DIR) NAME="OpenTech-DB"
 
 _sibling-build:
@@ -198,7 +194,7 @@ install: bootstrap env npm-install go-build docker-build ## Full install: Node/G
 # ─────────────────────────────────────────────────────────────────────────────
 # Service lifecycle — start
 # ─────────────────────────────────────────────────────────────────────────────
-up: up-engines up-geoserver up-sims up-opentech ## Start every Docker service (detached)
+up: up-engines up-geoserver up-opentech ## Start every Docker service (detached)
 	@echo "All available services started. Check with 'make ps'."
 
 up-engines: ## Start optimization engines (calliope 5000/5002, pypsa 5003, osemosys 5004, adoptnet0 5001)
@@ -206,10 +202,6 @@ up-engines: ## Start optimization engines (calliope 5000/5002, pypsa 5003, osemo
 
 up-geoserver: ## Start GeoServer (8081) + PostGIS (5432)
 	$(DC) $(GEO_FILE) up -d
-
-up-sims: ## Start CCS (8766) + Hydrogen (8765) simulators (sibling repos)
-	@$(MAKE) --no-print-directory _sibling-up DIR=$(CCSSIM_DIR)   NAME="CCS simulator"
-	@$(MAKE) --no-print-directory _sibling-up DIR=$(HYDROSIM_DIR) NAME="Hydrogen simulator"
 
 up-opentech: ## Start the OpenTech-DB technology catalog (8000, sibling repo)
 	@$(MAKE) --no-print-directory _sibling-up DIR=$(OPENTECH_DIR) NAME="OpenTech-DB"
@@ -225,17 +217,13 @@ _sibling-up:
 # ─────────────────────────────────────────────────────────────────────────────
 # Service lifecycle — stop
 # ─────────────────────────────────────────────────────────────────────────────
-down: down-engines down-geoserver down-sims down-opentech ## Stop every Docker service
+down: down-engines down-geoserver down-opentech ## Stop every Docker service
 
 down-engines: ## Stop the optimization engines
 	$(DC) $(REPO_FILES) down
 
 down-geoserver: ## Stop GeoServer + PostGIS
 	$(DC) $(GEO_FILE) down
-
-down-sims: ## Stop the CCS + Hydrogen simulators
-	@$(MAKE) --no-print-directory _sibling-down DIR=$(CCSSIM_DIR)   NAME="CCS simulator"
-	@$(MAKE) --no-print-directory _sibling-down DIR=$(HYDROSIM_DIR) NAME="Hydrogen simulator"
 
 down-opentech: ## Stop the OpenTech-DB catalog
 	@$(MAKE) --no-print-directory _sibling-down DIR=$(OPENTECH_DIR) NAME="OpenTech-DB"
@@ -251,7 +239,7 @@ _sibling-down:
 # ─────────────────────────────────────────────────────────────────────────────
 ps: ## List running TEMPO containers
 	@docker ps --filter "name=calliope" --filter "name=pypsa" --filter "name=osemosys" \
-	  --filter "name=adoptnet0" --filter "name=ccssim" --filter "name=hydrogensim" \
+	  --filter "name=adoptnet0" \
 	  --filter "name=opentech" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 
 logs: ## Tail logs from the optimization engines (Ctrl+C to stop)
@@ -293,8 +281,6 @@ CALLIOPE07_VENV := .venv-calliope07
 PYPSA_VENV      := .venv-pypsa
 OSEMOSYS_VENV   := .venv-osemosys
 ADOPTNET0_VENV  := .venv-adoptnet0
-CCSSIM_VENV     := .venv-ccssim
-HYDROSIM_VENV   := .venv-hydrogensim
 OSM_VENV        := .venv-osm
 
 venv-calliope: ## Create Calliope 0.6.8 venv in .venv-calliope/ — needs Python 3.9–3.11
@@ -339,20 +325,6 @@ venv-adoptnet0: ## Create AdOpT-NET0 venv in .venv-adoptnet0/ — needs Python 3
 	$(ADOPTNET0_VENV)/$(VBIN)/python -m pip install -r python/requirements.adoptnet0.txt --quiet
 	@echo "  ✓ $(ADOPTNET0_VENV)/ ready"
 
-venv-ccssim: ## Create CCS simulator venv in .venv-ccssim/
-	@echo "── CCS simulator venv ($(CCSSIM_VENV)) ──"
-	$(PY310) -m venv $(CCSSIM_VENV)
-	$(CCSSIM_VENV)/$(VBIN)/python -m pip install --upgrade pip --quiet
-	$(CCSSIM_VENV)/$(VBIN)/python -m pip install -r python/requirements.ccssim.txt --quiet
-	@echo "  ✓ $(CCSSIM_VENV)/ ready"
-
-venv-hydrogensim: ## Create Hydrogen simulator venv in .venv-hydrogensim/
-	@echo "── Hydrogen simulator venv ($(HYDROSIM_VENV)) ──"
-	$(PY310) -m venv $(HYDROSIM_VENV)
-	$(HYDROSIM_VENV)/$(VBIN)/python -m pip install --upgrade pip --quiet
-	$(HYDROSIM_VENV)/$(VBIN)/python -m pip install -r python/requirements.hydrogensim.txt --quiet
-	@echo "  ✓ $(HYDROSIM_VENV)/ ready"
-
 venv-osm: ## Create OSM processing venv in .venv-osm/ (numpy ≥ 1.24 — isolated from Calliope venv)
 	@echo "── OSM processing venv ($(OSM_VENV)) ──"
 	$(PY310) -m venv $(OSM_VENV)
@@ -360,7 +332,7 @@ venv-osm: ## Create OSM processing venv in .venv-osm/ (numpy ≥ 1.24 — isolat
 	$(OSM_VENV)/$(VBIN)/python -m pip install -r python/requirements.osm.txt --quiet
 	@echo "  ✓ $(OSM_VENV)/ ready"
 
-venvs: venv-calliope venv-calliope07 venv-pypsa venv-osemosys venv-adoptnet0 venv-ccssim venv-hydrogensim venv-osm ## Create all native Python venvs (needs Python 3.11, 3.10, and 3.12 on PATH)
+venvs: venv-calliope venv-calliope07 venv-pypsa venv-osemosys venv-adoptnet0 venv-osm ## Create all native Python venvs (needs Python 3.11, 3.10, and 3.12 on PATH)
 
 install-native: bootstrap env npm-install go-build venvs ## Full install without Docker — native Python venvs in .venv-*/ instead of containers
 	@echo
@@ -380,13 +352,11 @@ clean: ## Remove build artifacts (dist/, Go binary)
 
 clean-venvs: ## Remove all native Python venvs (.venv-*/)
 	@rm -rf $(CALLIOPE_VENV) $(CALLIOPE07_VENV) $(PYPSA_VENV) $(OSEMOSYS_VENV) \
-	         $(ADOPTNET0_VENV) $(CCSSIM_VENV) $(HYDROSIM_VENV) $(OSM_VENV)
+	         $(ADOPTNET0_VENV) $(OSM_VENV)
 	@echo "Removed all .venv-*/ directories."
 
 clean-docker: ## Stop all services and remove their volumes (destroys GeoServer/PostGIS data)
 	$(DC) $(REPO_FILES) down -v
 	$(DC) $(GEO_FILE) down -v
-	@$(MAKE) --no-print-directory _sibling-down DIR=$(CCSSIM_DIR)   NAME="CCS simulator"
-	@$(MAKE) --no-print-directory _sibling-down DIR=$(HYDROSIM_DIR) NAME="Hydrogen simulator"
 	@$(MAKE) --no-print-directory _sibling-down DIR=$(OPENTECH_DIR) NAME="OpenTech-DB"
 	@echo "Docker services stopped and volumes removed."

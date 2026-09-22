@@ -106,6 +106,121 @@ func (c *Client) GetOSMLayer(layerName string, bbox *BBox) ([]byte, error) {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
+// GetPowerFeatures  (per-zone, transmission-filtered fetch for the zonal builder)
+// ──────────────────────────────────────────────────────────────────────────────
+
+// GetPowerFeatures fetches power infrastructure of a given kind within a bbox,
+// keeping only lines/substations at or above minVoltageKv (plants are always
+// kept). Results are cached for 10 minutes. kind ∈ {"lines","substations","plants"}.
+func (c *Client) GetPowerFeatures(kind string, bbox *BBox, minVoltageKv float64) ([]byte, error) {
+	if bbox == nil {
+		return emptyFC(), nil
+	}
+	bbox = clampBBox(bbox, 4.0)
+
+	cacheKey := fmt.Sprintf("power:%s:%.1f:%.4f,%.4f,%.4f,%.4f",
+		kind, minVoltageKv, bbox.MinLat, bbox.MinLon, bbox.MaxLat, bbox.MaxLon)
+	c.mu.Lock()
+	if e, ok := c.cache[cacheKey]; ok && time.Now().Before(e.expiresAt) {
+		c.mu.Unlock()
+		return e.data, nil
+	}
+	c.mu.Unlock()
+
+	query := buildPowerQuery(kind, bbox)
+	if query == "" {
+		return emptyFC(), nil
+	}
+	raw, err := c.runOverpassQuery(query)
+	if err != nil {
+		return emptyFC(), nil
+	}
+	geojson, err := powerFeaturesToGeoJSON(raw, kind, minVoltageKv)
+	if err != nil {
+		return emptyFC(), nil
+	}
+
+	c.mu.Lock()
+	c.cache[cacheKey] = cacheEntry{data: geojson, expiresAt: time.Now().Add(10 * time.Minute)}
+	c.mu.Unlock()
+	return geojson, nil
+}
+
+func buildPowerQuery(kind string, bbox *BBox) string {
+	b := fmt.Sprintf("(%.6f,%.6f,%.6f,%.6f)", bbox.MinLat, bbox.MinLon, bbox.MaxLat, bbox.MaxLon)
+	switch kind {
+	case "lines":
+		// Require a voltage tag (drops untagged minor lines — big payload cut);
+		// the precise voltage threshold is applied in powerFeaturesToGeoJSON.
+		return fmt.Sprintf(
+			`[out:json][timeout:60];(way["power"="line"]["voltage"]%s;way["power"="cable"]["voltage"]%s;);out geom;`,
+			b, b,
+		)
+	case "substations":
+		return fmt.Sprintf(
+			`[out:json][timeout:60];(node["power"="substation"]%s;way["power"="substation"]%s;);out geom;`,
+			b, b,
+		)
+	case "plants":
+		return fmt.Sprintf(
+			`[out:json][timeout:60];(node["power"="plant"]%s;way["power"="plant"]%s;node["power"="generator"]%s;way["power"="generator"]%s;);out geom;`,
+			b, b, b, b,
+		)
+	default:
+		return ""
+	}
+}
+
+// powerFeaturesToGeoJSON converts an Overpass response, dropping lines/substations
+// below minVoltageKv (by their raw `voltage` tag). Plants are always kept.
+func powerFeaturesToGeoJSON(data []byte, kind string, minVoltageKv float64) ([]byte, error) {
+	var ovResp overpassResponse
+	if err := json.Unmarshal(data, &ovResp); err != nil {
+		return nil, fmt.Errorf("parse overpass: %w", err)
+	}
+	fc := geojsonFC{Type: "FeatureCollection", Features: []interface{}{}}
+	for _, el := range ovResp.Elements {
+		if kind != "plants" && minVoltageKv > 0 && voltageKv(el.Tags["voltage"]) < minVoltageKv {
+			continue
+		}
+		var f *geojsonFeature
+		switch el.Type {
+		case "node":
+			f = nodeToFeature(el)
+		case "way":
+			f = wayToFeature(el)
+		case "relation":
+			f = relationToFeature(el)
+		}
+		if f != nil {
+			fc.Features = append(fc.Features, f)
+		}
+	}
+	return json.Marshal(fc)
+}
+
+// voltageKv parses an OSM voltage tag (volts, possibly ";"-separated) to kV,
+// returning the max. Values ≥ 1000 are treated as volts, else already kV.
+func voltageKv(tag string) float64 {
+	if tag == "" {
+		return 0
+	}
+	best := 0.0
+	for _, part := range strings.Split(tag, ";") {
+		var v float64
+		if _, err := fmt.Sscanf(strings.TrimSpace(part), "%f", &v); err == nil {
+			if v >= 1000 {
+				v /= 1000
+			}
+			if v > best {
+				best = v
+			}
+		}
+	}
+	return best
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 // Geocode  (Nominatim search – replaces PostGIS region list)
 // ──────────────────────────────────────────────────────────────────────────────
 

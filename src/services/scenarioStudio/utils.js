@@ -21,6 +21,61 @@ export function autoDetectTechs(technologies, keywords) {
     .map(t => t.name);
 }
 
+// ─── Model-aware tech classification (for "actuator" cards) ──────────────────────
+
+/** A supply/conversion tech (i.e. produces energy — not demand or transmission). */
+export function isSupplyTech(tech) {
+  const p = tech?.parent || '';
+  if (p === 'demand' || p === 'transmission') return false;
+  return true;
+}
+
+/** Renewable by name keyword. */
+export function isRenewableTech(tech) {
+  const n = (tech?.name || '').toLowerCase();
+  return RENEWABLE_KEYWORDS.some(kw => n.includes(kw));
+}
+
+/** Emits CO₂ — has a CO₂/emission cost class defined, or a fossil-fuel name. */
+export function isEmittingTech(tech) {
+  const costs = tech?.costs || {};
+  const hasCo2CostClass = Object.keys(costs).some(cls => /co2|co2e|emission|carbon/i.test(cls));
+  const hasCo2Key = Object.values(costs).some(
+    c => c && typeof c === 'object' && Object.keys(c).some(k => /co2|emission|carbon/i.test(k)));
+  const fossil = FOSSIL_KEYWORDS.some(kw => (tech?.name || '').toLowerCase().includes(kw));
+  return hasCo2CostClass || hasCo2Key || fossil;
+}
+
+/** Semantic tech-group catalogue for the actuator UI. */
+export const TECH_GROUPS = [
+  { id: 'all',          label: 'All supply techs' },
+  { id: 'renewable',    label: 'Renewables' },
+  { id: 'nonRenewable', label: 'Non-renewables' },
+  { id: 'emitting',     label: 'Emitting (CO₂) techs' },
+];
+
+/** Semantic groups + the model's own parent groups (supply, conversion, …). */
+export function techGroupsForModel(model) {
+  const parents = [...new Set((model?.technologies || []).map(t => t.parent).filter(Boolean))]
+    .filter(p => p !== 'demand' && p !== 'transmission');
+  const parentGroups = parents.map(p => ({ id: `parent:${p}`, label: `Parent: ${p}` }));
+  return [...TECH_GROUPS, ...parentGroups];
+}
+
+/** Resolve a semantic group id (or `parent:<p>`) to a list of tech names from the model. */
+export function resolveTechGroup(model, groupId) {
+  const techs = model?.technologies || [];
+  if (groupId === 'all')          return techs.filter(isSupplyTech).map(t => t.name);
+  if (groupId === 'renewable')    return techs.filter(isRenewableTech).map(t => t.name);
+  if (groupId === 'emitting')     return techs.filter(isEmittingTech).map(t => t.name);
+  if (groupId === 'nonRenewable') return techs.filter(t => isSupplyTech(t) && !isRenewableTech(t)).map(t => t.name);
+  if (typeof groupId === 'string' && groupId.startsWith('parent:')) {
+    const p = groupId.slice(7);
+    return techs.filter(t => t.parent === p).map(t => t.name);
+  }
+  return [];
+}
+
 /** Resolve a techMatch spec to a list of tech names from the model. */
 export function resolveTechMatch(technologies, spec) {
   if (!spec) return [];

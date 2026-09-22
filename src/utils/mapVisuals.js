@@ -208,9 +208,32 @@ export const createLocationIcon = (location, techMap) => {
     };
   }
   
+  // OSM study-area imports carry an explicit kind — draw them as filled circles
+  // in the same palette as the Creation OSM overlay (red substations, green
+  // plants, amber transmission nodes) so the model matches what was imported.
+  const OSM_KIND_COLOR = {
+    substation: 'rgb(239, 68, 68)',
+    plant: 'rgb(34, 197, 94)',
+    transmission_node: 'rgb(245, 158, 11)',
+  };
+  const osmColor = OSM_KIND_COLOR[location.metadata?.kind];
+  if (osmColor) {
+    return {
+      url: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 32 32">
+          <circle cx="16" cy="16" r="10" fill="${osmColor}" stroke="#ffffff" stroke-width="2"/>
+        </svg>
+      `)}`,
+      width: 16,
+      height: 16,
+      anchorX: 8,
+      anchorY: 8,
+    };
+  }
+
   const techs = location.techs || {};
   const techNames = Object.keys(techs);
-  
+
   // Detect substations (simple check for performance)
   const locationName = (location.name || '').toUpperCase();
   const isSubstation = locationName.includes('S/E') || locationName.includes('SUBSTATION') || locationName.includes('TAP OFF');

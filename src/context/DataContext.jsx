@@ -151,6 +151,9 @@ export const DataProvider = ({ children }) => {
   const [osmPowerLines, setOsmPowerLines] = useState(null);
   const [osmCommunes, setOsmCommunes] = useState(null);
   const [osmDistricts, setOsmDistricts] = useState(null);
+  const [osmLoading, setOsmLoading] = useState(false);
+  const [osmLoadingStage, setOsmLoadingStage] = useState(''); // human-readable pipeline step
+  const [candidateBoundaries, setCandidateBoundaries] = useState(null); // dotted neighbour candidates
   const [osmRegionPath, setOsmRegionPath] = useState(null);
   const [selectedRegionBoundary, setSelectedRegionBoundary] = useState(null);
   const [selectedRegionInfo, setSelectedRegionInfo] = useState(null);
@@ -162,7 +165,15 @@ export const DataProvider = ({ children }) => {
   const [selectedRegion, setSelectedRegion] = useState(null);
   const [selectedSubregion, setSelectedSubregion] = useState(null);
   const [selectedCommune, setSelectedCommune] = useState(null);
-  
+
+  // Zonal Study Area (boundary-driven selection, persisted with the model)
+  // Shape: { units: [{ id, name, level }], voltageThreshold } | null
+  const [studyArea, setStudyArea] = useState(null);
+  // Study Area network-builder wizard (transient, NOT persisted): the current
+  // build config drives a live map preview; planSummary holds per-layer counts.
+  const [studyBuildConfig, setStudyBuildConfig] = useState(null);
+  const [planSummary, setPlanSummary] = useState(null);
+
   // Generated mesh data (persisted across navigation)
   const [generatedMesh, setGeneratedMesh] = useState(null);
   const [meshVisible, setMeshVisible] = useState(false);
@@ -214,7 +225,7 @@ export const DataProvider = ({ children }) => {
   stateRef.current = {
     models, currentModelId,
     locations, links, parameters, technologies, timeSeries, overrides, scenarios,
-    backendAvailable,
+    studyArea, backendAvailable,
   };
 
   const showNotification = (text, type = 'info') => {
@@ -244,6 +255,7 @@ export const DataProvider = ({ children }) => {
     }));
     setOverrides(model.overrides || {});
     setScenarios(model.scenarios || {});
+    setStudyArea(model.studyArea || null);
     setIsDirty(false);
   };
 
@@ -258,6 +270,7 @@ export const DataProvider = ({ children }) => {
     overrides: m.overrides || {},
     scenarios: m.scenarios || {},
     locationTechAssignments: m.locationTechAssignments || {},
+    studyArea: m.studyArea || null,
     metadata: m.metadata || {},
   });
 
@@ -493,7 +506,7 @@ export const DataProvider = ({ children }) => {
   const updateCurrentModel = useCallback(() => {
     const {
       currentModelId, locations, links, parameters,
-      technologies, timeSeries, overrides, scenarios, backendAvailable,
+      technologies, timeSeries, overrides, scenarios, studyArea, backendAvailable,
     } = stateRef.current;
     if (!currentModelId) return;
 
@@ -502,7 +515,7 @@ export const DataProvider = ({ children }) => {
         model.id === currentModelId
           ? {
               ...model, locations, links, parameters, technologies,
-              timeSeries, overrides, scenarios,
+              timeSeries, overrides, scenarios, studyArea,
               updatedAt: new Date().toISOString(),
             }
           : model
@@ -628,7 +641,7 @@ export const DataProvider = ({ children }) => {
     }
     setIsDirty(true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [locations, links, parameters, technologies, timeSeries, overrides, scenarios]);
+  }, [locations, links, parameters, technologies, timeSeries, overrides, scenarios, studyArea]);
 
   // ── Auto-save preference (Settings › General) ─────────────────────────────
   // When off, the debounced save below is skipped; isDirty stays true so the
@@ -647,7 +660,8 @@ export const DataProvider = ({ children }) => {
     const hasData =
       locations.length > 0 || links.length > 0 || parameters.length > 0 ||
       technologies.length > 0 || timeSeries.length > 0 ||
-      Object.keys(overrides).length > 0 || Object.keys(scenarios).length > 0;
+      Object.keys(overrides).length > 0 || Object.keys(scenarios).length > 0 ||
+      (studyArea && studyArea.units?.length > 0);
     if (!hasData) return;
 
     const timeout = setTimeout(() => {
@@ -655,7 +669,7 @@ export const DataProvider = ({ children }) => {
       setIsDirty(false);   // optimistically clear; data is already in local state
     }, 1500);
     return () => clearTimeout(timeout);
-  }, [locations, links, parameters, technologies, timeSeries, overrides, scenarios, currentModelId, updateCurrentModel, autoSaveEnabled]);
+  }, [locations, links, parameters, technologies, timeSeries, overrides, scenarios, studyArea, currentModelId, updateCurrentModel, autoSaveEnabled]);
 
   // ── Context value ─────────────────────────────────────────────────────────
 
@@ -726,6 +740,9 @@ export const DataProvider = ({ children }) => {
     osmSubstations, setOsmSubstations,
     osmPowerPlants, setOsmPowerPlants,
     osmPowerLines, setOsmPowerLines,
+    osmLoading, setOsmLoading,
+    osmLoadingStage, setOsmLoadingStage,
+    candidateBoundaries, setCandidateBoundaries,
     osmCommunes, setOsmCommunes,
     osmDistricts, setOsmDistricts,
     osmRegionPath, setOsmRegionPath,
@@ -738,6 +755,10 @@ export const DataProvider = ({ children }) => {
     selectedRegion, setSelectedRegion,
     selectedSubregion, setSelectedSubregion,
     selectedCommune, setSelectedCommune,
+    // Zonal study area (boundary-driven)
+    studyArea, setStudyArea,
+    studyBuildConfig, setStudyBuildConfig,
+    planSummary, setPlanSummary,
     // Mesh generation
     generatedMesh, setGeneratedMesh,
     meshVisible, setMeshVisible,

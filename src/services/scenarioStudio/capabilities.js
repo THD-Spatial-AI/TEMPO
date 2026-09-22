@@ -14,30 +14,40 @@ export const ENGINE_CAPABILITIES = {
     scaleParam:       true,
     setParam:         true,
     disableTech:      true,
+    addTech:          true,
+    linkCap:          true,
     systemConstraint: { co2_cap: true, renewable_min: true, reserve_margin: true },
   },
   calliope07: {
     scaleParam:       true,
     setParam:         true,
     disableTech:      true,
+    addTech:          true,
+    linkCap:          true,
     systemConstraint: { co2_cap: true, renewable_min: true, reserve_margin: 'warn' },
   },
   pypsa: {
     scaleParam:       true,
     setParam:         true,
     disableTech:      true,
+    addTech:          true,
+    linkCap:          true,
     systemConstraint: { co2_cap: 'partial', renewable_min: false, reserve_margin: false },
   },
   osemosys: {
     scaleParam:       'partial',
     setParam:         'partial',
     disableTech:      true,
+    addTech:          'partial',
+    linkCap:          'partial',
     systemConstraint: { co2_cap: 'partial', renewable_min: false, reserve_margin: false },
   },
   adoptnet0: {
     scaleParam:       true,
     setParam:         true,
     disableTech:      true,
+    addTech:          true,
+    linkCap:          'partial',
     systemConstraint: { co2_cap: false, renewable_min: false, reserve_margin: false },
   },
 };
@@ -88,6 +98,18 @@ export function getCapabilityWarnings(engine, ops) {
         warns.add(`${label}: setParam is not supported.`);
       else
         warns.add(`${label}: setParam works for technology-level parameters but may skip cost entries.`);
+    }
+    if ((op.op === 'scaleLinkCap' || op.op === 'setLinkCap') && caps.linkCap !== true) {
+      if (caps.linkCap === false)
+        warns.add(`${label}: transmission/link capacity changes are not supported and will be ignored.`);
+      else
+        warns.add(`${label}: transmission/link capacity changes are only partially modelled — verify trade/interconnector results.`);
+    }
+    if (op.op === 'addTech' && caps.addTech !== true) {
+      if (caps.addTech === false)
+        warns.add(`${label}: adding technologies is not supported by this engine.`);
+      else
+        warns.add(`${label}: added technologies may need engine-specific parameters to solve correctly.`);
     }
     if (op.op === 'systemConstraint') {
       const kindCap = caps.systemConstraint?.[op.kind];

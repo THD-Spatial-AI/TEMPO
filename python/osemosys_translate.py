@@ -134,6 +134,32 @@ def _resolve_timeseries(ref: str, ts_list: list) -> list:
     return []
 
 
+def _resolve_file_ref(ref, ts_list: list) -> list:
+    """
+    Resolve a `file=<name.csv>:<column>` demand ref against the inline timeSeries
+    store, returning the named column as floats. Handles both row-object data
+    (`[{datetime, dem_1, ...}]`) and positional rows. Returns [] when not a file
+    ref or not found.
+    """
+    if not (isinstance(ref, str) and ref.startswith("file=")):
+        return []
+    fname, _, col = ref[len("file="):].partition(":")
+    fbase = fname.removesuffix(".csv")
+    for ts in ts_list:
+        tsf = str(ts.get("fileName") or ts.get("file") or ts.get("name") or "")
+        if fname not in (tsf, tsf.removesuffix(".csv")) and fbase not in (tsf, tsf.removesuffix(".csv")):
+            continue
+        data = ts.get("data") or []
+        if not data:
+            return []
+        if isinstance(data[0], dict):
+            return [_float(row.get(col)) for row in data]
+        cols = ts.get("columns") or []
+        idx = cols.index(col) if col in cols else (1 if len(data[0]) > 1 else 0)
+        return [_float(row[idx]) for row in data]
+    return []
+
+
 # ─── Public API ──────────────────────────────────────────────────────────────
 
 def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None) -> tuple:
@@ -428,7 +454,11 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None) 
 
             carrier = _carrier_in(tech)
             fuel = f"{loc_s}_{_sid(carrier)}"
-            constr = tech.get("constraints") or {}
+            # Prefer the per-location inline constraints (the OSM study-area
+            # importer writes the demand `resource` there), falling back to the
+            # global tech's constraints.
+            loc_cfg = loc_tech_refs.get(tech_ref) or {}
+            constr = {**(tech.get("constraints") or {}), **(loc_cfg.get("constraints") or {})}
 
             # Resolve demand values (kW)
             vals_kw: list[float] = []
@@ -437,12 +467,20 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None) 
             elif isinstance(dp_timeseries, str):
                 vals_kw = _resolve_timeseries(dp_timeseries, ts_store)
             if not vals_kw:
-                resource = abs(_float(constr.get("resource"), 0.0))
-                if resource > 0:
-                    vals_kw = [resource] * 24
+                # Demand may be on the tech's resource: a `file=name:col` timeseries
+                # (OSM study-area importer) or a scalar. Series are negative
+                # (withdrawal) → take the magnitude.
+                resource = constr.get("resource")
+                series = _resolve_file_ref(resource, ts_store)
+                if series:
+                    vals_kw = [abs(v) for v in series]
                 else:
-                    report.append(f"{loc_name}/{tech_ref}: no demand data — skipped.")
-                    continue
+                    scalar = abs(_float(resource, 0.0))
+                    if scalar > 0:
+                        vals_kw = [scalar] * 24
+            if not vals_kw:
+                report.append(f"{loc_name}/{tech_ref}: no demand data — skipped.")
+                continue
 
             # Tile to model period
             full_vals = list(itertools.islice(itertools.cycle(vals_kw), n_hours))

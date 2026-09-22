@@ -155,6 +155,33 @@ export const classifyTech = (t) => {
 // For a link tech like "pFV:CHERCAN", return the base type label "pFV"
 export const linkTechBase = (t) => t.split(':')[0];
 
+// ── Generation/storage tech predicate (shared) ───────────────────────────────
+// Calliope parent types that represent a build decision worth charting.
+export const GEN_PARENTS = new Set(['supply', 'supply_plus', 'storage', 'conversion', 'conversion_plus']);
+// Transmission entries: "loc::tech:dest" → tech contains a colon; also catch the literal name.
+export const isTransTech = (tech) => tech.includes(':') || tech.toLowerCase().includes('transmission');
+
+// Build an isGenTech(tech) predicate from a frozen-contract result — true only for
+// generation/storage techs that belong in capacity charts (excludes demand,
+// transmission, unmet/import/export). Uses the contract's tech_metadata parent
+// (authoritative), falling back to the flat tech_parents map, then name heuristics.
+// Mirrors Results.jsx's isGenTech so the SPORES tab can be self-contained.
+export const makeIsGenTech = (result) => {
+  const parentByTech = {};
+  const meta = result?.tech_metadata;
+  if (meta) {
+    Object.entries(meta).forEach(([k, v]) => { parentByTech[k] = v?.parent || ''; });
+  } else {
+    Object.entries(result?.tech_parents || {}).forEach(([k, v]) => { parentByTech[k] = v; });
+  }
+  return (tech) => {
+    if (!tech || tech.includes(':')) return false; // :dest suffix = transmission entry
+    const parent = String(parentByTech[tech] || '').toLowerCase();
+    if (parent && parent !== 'nan') return GEN_PARENTS.has(parent);
+    return !isTransTech(tech) && !/demand|unmet|import|export/i.test(tech);
+  };
+};
+
 // Replicate Python's _safe_id(name).lower() — the exact transform Calliope applies
 // to frontend model location names before they become result keys.
 export const calliopeLocName = (name) => {

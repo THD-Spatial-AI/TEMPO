@@ -18,7 +18,6 @@ import {
   FiDownload,
   FiPlay,
   FiPieChart,
-  FiZap,
 } from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
 import tempoLogo from '../assets/Logo_TEMPO.PNG';
@@ -121,13 +120,6 @@ const Sidebar = ({ selected, setSelected }) => {
         <Option
           Icon={FiCpu}
           title="Tech Database"
-          selected={selected}
-          setSelected={setSelected}
-          open={open}
-        />
-        <Option
-          Icon={FiZap}
-          title="Tech Simulator"
           selected={selected}
           setSelected={setSelected}
           open={open}
