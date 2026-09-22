@@ -80,6 +80,42 @@ describe('expandCard', () => {
     expect(expandCard(model, card('location', null, { location: '', techMatch: '' }), 2030)).toEqual([]);
   });
 
+  it('location card can target a group scoped to one location', () => {
+    const ops = expandCard(model, card('location', null, { location: 'north', target: 'group', group: 'nonRenewable', mode: 'disable' }), 2030);
+    expect(ops[0]).toMatchObject({ op: 'setParam', path: 'constraints.energy_cap_max', value: 0, level: 'location', locMatch: 'north' });
+    expect(ops[0].techMatch).toContain('coal_power');
+  });
+
+  it('tech card can target a model-derived group (non-renewables)', () => {
+    const ops = expandCard(model, card('tech', null, { target: 'group', group: 'nonRenewable', mode: 'disable' }), 2030);
+    expect(ops).toHaveLength(1);
+    expect(ops[0].op).toBe('disableTech');
+    expect(ops[0].techMatch).toContain('coal_power');
+    expect(ops[0].techMatch).not.toContain('solar_pv');
+  });
+
+  it('renewables actuator boosts capacity of renewable techs', () => {
+    const ops = expandCard(model, card('renewables', null, { group: 'renewable', boostPct: 50 }), 2030);
+    expect(ops[0]).toMatchObject({ op: 'scaleParam', path: 'constraints.energy_cap_max', factor: 1.5, level: 'both' });
+    expect(ops[0].techMatch).toContain('solar_pv');
+    expect(ops[0].techMatch).not.toContain('coal_power');
+  });
+
+  it('constraint renewable_min emits a { share, techs } object with RE techs', () => {
+    const ops = expandCard(model, card('constraint', null, { kind: 'renewable_min', value: 80 }), 2030);
+    expect(ops[0].op).toBe('systemConstraint');
+    expect(ops[0].value.share).toBeCloseTo(0.8);
+    expect(ops[0].value.techs).toContain('solar_pv');
+  });
+
+  it('emissions actuator reduces capacity of emitting techs', () => {
+    const reduce = expandCard(model, card('emissions', null, { group: 'emitting', lever: 'reduceCap', reducePct: 40 }), 2030);
+    expect(reduce[0]).toMatchObject({ op: 'scaleParam', path: 'constraints.energy_cap_max', factor: 0.6, level: 'both' });
+    expect(reduce[0].techMatch).toContain('coal_power');
+    const phase = expandCard(model, card('emissions', null, { group: 'emitting', lever: 'phaseOut' }), 2030);
+    expect(phase[0].op).toBe('disableTech');
+  });
+
   it('custom → raw ops passthrough', () => {
     const raw = [{ op: 'disableTech', techMatch: 'coal_power' }];
     expect(expandCard(model, card('custom', null, { ops: raw }), 2030)).toEqual(raw);

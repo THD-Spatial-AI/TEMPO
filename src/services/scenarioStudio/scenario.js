@@ -18,6 +18,7 @@
 
 import { expandRecipe } from './recipes/index.js';
 import { buildRecipeParams, DEFAULT_PARAMS as RECIPE_DEFAULT_PARAMS } from './recipeParams.js';
+import { resolveTechGroup } from './utils.js';
 
 // Recipes usable as Global-lane trajectory shortcuts (year-based only — cost
 // sensitivity is a sweep = multiple scenarios, deferred to multi-scenario step).
@@ -34,6 +35,8 @@ export const CARD_CATEGORIES = [
   { id: 'demand',     label: 'Demand',     icon: 'FiTrendingUp', color: 'from-blue-500 to-blue-600',     lanes: ['global', 'year'] },
   { id: 'constraint', label: 'Constraint', icon: 'FiCloud',      color: 'from-green-500 to-emerald-600', lanes: ['global', 'year'] },
   { id: 'tech',       label: 'Technology', icon: 'FiZap',        color: 'from-amber-500 to-orange-500',  lanes: ['global', 'year'] },
+  { id: 'emissions',  label: 'Emissions',  icon: 'FiWind',       color: 'from-red-500 to-orange-600',    lanes: ['global', 'year'] },
+  { id: 'renewables', label: 'Renewables', icon: 'FiSun',        color: 'from-emerald-500 to-green-600', lanes: ['global', 'year'] },
   { id: 'location',   label: 'Location',   icon: 'FiMapPin',     color: 'from-rose-500 to-pink-600',     lanes: ['global', 'year'] },
   { id: 'custom',     label: 'Custom ops', icon: 'FiSliders',    color: 'from-slate-500 to-slate-600',   lanes: ['global', 'year'] },
   // Global-lane trajectory shortcuts (expand across the year axis).
@@ -52,8 +55,10 @@ export function defaultCardParams(category) {
   switch (category) {
     case 'demand':     return { scale: 1.0 };
     case 'constraint': return { kind: 'co2_cap', value: 0 };
-    case 'tech':       return { mode: 'disable', techMatch: '', path: 'constraints.energy_cap_max', value: 0, factor: 1, level: 'global' };
-    case 'location':   return { location: '', mode: 'disable', techMatch: '', path: 'constraints.energy_cap_max', value: 0, factor: 1 };
+    case 'tech':       return { target: 'single', group: 'nonRenewable', mode: 'disable', techMatch: '', path: 'constraints.energy_cap_max', value: 0, factor: 1, level: 'both' };
+    case 'emissions':  return { group: 'emitting', lever: 'reduceCap', reducePct: 50 };
+    case 'renewables': return { group: 'renewable', boostPct: 50 };
+    case 'location':   return { location: '', target: 'single', group: 'nonRenewable', mode: 'disable', techMatch: '', path: 'constraints.energy_cap_max', value: 0, factor: 1 };
     case 'custom':     return { ops: [], variantLabel: 'Custom' };
     default:           return {};
   }
@@ -81,19 +86,47 @@ export function expandCard(model, card, year) {
   }
 
   if (cat === 'constraint') {
-    return [{ op: 'systemConstraint', kind: p.kind || 'co2_cap', value: Number(p.value) || 0 }];
+    const kind = p.kind || 'co2_cap';
+    const num = Number(p.value) || 0;
+    if (kind === 'renewable_min') {
+      // Runner override expects { share, techs }; accept 80 or 0.8, auto-fill RE techs.
+      const share = num > 1 ? num / 100 : num;
+      return [{ op: 'systemConstraint', kind, value: { share, techs: resolveTechGroup(model, 'renewable') } }];
+    }
+    return [{ op: 'systemConstraint', kind, value: num }];
   }
 
   if (cat === 'tech') {
-    if (!p.techMatch) return [];
-    if (p.mode === 'scale') return [{ op: 'scaleParam', techMatch: p.techMatch, path: p.path, factor: Number(p.factor) || 1, level: p.level || 'global' }];
-    if (p.mode === 'set')   return [{ op: 'setParam',   techMatch: p.techMatch, path: p.path, value: Number(p.value) || 0, level: p.level || 'global' }];
-    return [{ op: 'disableTech', techMatch: p.techMatch }];
+    // Target a single tech or a whole model-derived group (renewables, emitting…).
+    const techMatch = p.target === 'group' ? resolveTechGroup(model, p.group) : p.techMatch;
+    if (!techMatch || (Array.isArray(techMatch) && techMatch.length === 0)) return [];
+    if (p.mode === 'scale') return [{ op: 'scaleParam', techMatch, path: p.path, factor: Number(p.factor) || 1, level: p.level || 'both' }];
+    if (p.mode === 'set')   return [{ op: 'setParam',   techMatch, path: p.path, value: Number(p.value) || 0, level: p.level || 'both' }];
+    return [{ op: 'disableTech', techMatch }];
+  }
+
+  if (cat === 'emissions') {
+    // Model-aware actuator: hit every emitting / non-renewable tech at once.
+    const names = resolveTechGroup(model, p.group || 'emitting');
+    if (!names.length) return [];
+    if (p.lever === 'phaseOut') return [{ op: 'disableTech', techMatch: names }];
+    // reduceCap: cut the buildable capacity of the group by reducePct %.
+    const factor = Math.max(0, 1 - (Number(p.reducePct) || 0) / 100);
+    return [{ op: 'scaleParam', techMatch: names, path: 'constraints.energy_cap_max', factor, level: 'both' }];
+  }
+
+  if (cat === 'renewables') {
+    // Positive actuator: raise the buildable capacity of renewable techs.
+    const names = resolveTechGroup(model, p.group || 'renewable');
+    if (!names.length) return [];
+    const factor = 1 + (Number(p.boostPct) || 0) / 100;
+    return [{ op: 'scaleParam', techMatch: names, path: 'constraints.energy_cap_max', factor, level: 'both' }];
   }
 
   if (cat === 'location') {
-    if (!p.location || !p.techMatch) return [];
-    const base = { techMatch: p.techMatch, level: 'location', locMatch: p.location };
+    const techMatch = p.target === 'group' ? resolveTechGroup(model, p.group) : p.techMatch;
+    if (!p.location || !techMatch || (Array.isArray(techMatch) && techMatch.length === 0)) return [];
+    const base = { techMatch, level: 'location', locMatch: p.location };
     if (p.mode === 'scale') return [{ op: 'scaleParam', path: p.path, factor: Number(p.factor) || 1, ...base }];
     if (p.mode === 'set')   return [{ op: 'setParam',   path: p.path, value: Number(p.value) || 0, ...base }];
     // disable at this location only
@@ -303,6 +336,24 @@ export const SCENARIO_TEMPLATES = [
       nodes.push({
         id: 'tpl_rt', type: 'config', position: { x: 360, y: 60 },
         data: { category: 'recipe:renewableTransition', params: defaultCardParams('recipe:renewableTransition') },
+      });
+      return { nodes, edges };
+    },
+  },
+  {
+    id: 'renewablesBoost',
+    label: 'Renewables boost',
+    description: 'A Technology card in each year scaling renewables’ buildable capacity up over time.',
+    build: () => {
+      const years = rangeYears(2025, 2040, 5);
+      const { nodes, edges } = chainedYears(years, 'tpl');
+      years.forEach((yr, i) => {
+        const t = years.length > 1 ? i / (years.length - 1) : 1;
+        const factor = +(1 + t).toFixed(2); // 1.0 (base year) → 2.0 (final)
+        nodes.push(nestedConfig(`tpl_rb${yr}`, `tpl_y${yr}`, 'tech', {
+          target: 'group', group: 'renewable', mode: 'scale',
+          path: 'constraints.energy_cap_max', factor, level: 'both',
+        }));
       });
       return { nodes, edges };
     },

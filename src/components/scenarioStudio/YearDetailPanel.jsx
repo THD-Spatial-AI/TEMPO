@@ -12,6 +12,13 @@ import ReactECharts from 'echarts-for-react';
 import { summarizeYearOps } from '../../services/scenarioStudio/scenario.js';
 import { extractDemandSeries } from '../../services/scenarioStudio/recipeParams.js';
 
+// renewable_min carries an object { share, techs }; everything else is a scalar.
+function fmtConstraint(kind, v) {
+  if (v == null) return '—';
+  if (kind === 'renewable_min' && typeof v === 'object') return `${Math.round((v.share || 0) * 100)}% RE`;
+  return String(v);
+}
+
 function pctDelta(cur, prev) {
   if (prev == null || prev === 0) return null;
   const d = (cur / prev - 1) * 100;
@@ -101,14 +108,14 @@ export default function YearDetailPanel({
               {constraintKinds.map(k => {
                 const cur = summary.constraints[k];
                 const prev = prevSummary?.constraints[k];
-                const changed = prevSummary && cur !== prev;
+                const changed = prevSummary && JSON.stringify(cur) !== JSON.stringify(prev);
                 return (
                   <div key={k} className="flex items-center gap-2 text-xs px-2.5 py-1.5 bg-slate-50 rounded-lg">
                     <span className="font-medium text-slate-600">{k}</span>
-                    <span className="ml-auto font-mono text-slate-800">{cur ?? '—'}</span>
+                    <span className="ml-auto font-mono text-slate-800">{fmtConstraint(k, cur)}</span>
                     {changed && (
                       <span className="flex items-center gap-1 text-[10px] text-amber-600">
-                        <FiArrowRight size={9} /> was {prev ?? '—'}
+                        <FiArrowRight size={9} /> was {fmtConstraint(k, prev)}
                       </span>
                     )}
                   </div>

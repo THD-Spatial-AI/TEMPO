@@ -10,7 +10,7 @@
 import React from 'react';
 import { FiInfo, FiPlus, FiTrash2, FiDownload } from 'react-icons/fi';
 import ReactECharts from 'echarts-for-react';
-import { autoDetectTechs, FOSSIL_KEYWORDS, RENEWABLE_KEYWORDS } from '../../services/scenarioStudio/utils.js';
+import { autoDetectTechs, FOSSIL_KEYWORDS, RENEWABLE_KEYWORDS, techGroupsForModel, resolveTechGroup } from '../../services/scenarioStudio/utils.js';
 import { importLegacyScenario } from '../../services/scenarioStudio/legacyImport.js';
 import { summarizeOps, extractDemandSeries } from '../../services/scenarioStudio/recipeParams.js';
 
@@ -568,23 +568,69 @@ function ConstraintCardConfig({ params, setParam }) {
   );
 }
 
+// Chips listing the model techs an actuator currently matches (integrates the
+// model's own technology info so the user sees exactly what a card will hit).
+function MatchedTechs({ names }) {
+  if (!names || names.length === 0) {
+    return <p className="text-xs text-amber-600 italic mt-1">No matching technologies in this model.</p>;
+  }
+  return (
+    <div className="mt-1.5">
+      <p className="text-[11px] text-slate-500 mb-1">Affects {names.length} tech{names.length > 1 ? 's' : ''}:</p>
+      <div className="flex flex-wrap gap-1">
+        {names.map(n => <span key={n} className="text-[10px] font-mono bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">{n}</span>)}
+      </div>
+    </div>
+  );
+}
+
+// Group dropdown labelled with live counts from the model.
+function GroupSelect({ value, model, onChange }) {
+  return (
+    <select value={value} onChange={e => onChange(e.target.value)}
+      className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-electric-400 bg-white">
+      {techGroupsForModel(model).map(g => {
+        const n = resolveTechGroup(model, g.id).length;
+        return <option key={g.id} value={g.id}>{g.label} ({n})</option>;
+      })}
+    </select>
+  );
+}
+
 function TechCardConfig({ params, setParam, model }) {
   const allTechs = (model?.technologies || []).map(t => t.name);
+  const isGroup = params.target === 'group';
+  const matched = isGroup ? resolveTechGroup(model, params.group) : (params.techMatch ? [params.techMatch] : []);
   return (
     <div className="space-y-4">
+      <div>
+        <Label>Target</Label>
+        <ToggleBtn value={params.target || 'single'}
+          options={[{ id: 'single', label: 'A technology' }, { id: 'group', label: 'A group' }]}
+          onChange={v => setParam('target', v)} />
+        <Hint>Groups (renewables, emitting…) are read from the model — target many techs at once.</Hint>
+      </div>
+      {isGroup ? (
+        <div>
+          <Label>Technology group</Label>
+          <GroupSelect value={params.group} model={model} onChange={v => setParam('group', v)} />
+          <MatchedTechs names={matched} />
+        </div>
+      ) : (
+        <div>
+          <Label>Technology</Label>
+          <select value={params.techMatch} onChange={e => setParam('techMatch', e.target.value)}
+            className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-electric-400 bg-white">
+            <option value="">— select a technology —</option>
+            {allTechs.map(n => <option key={n} value={n}>{n}</option>)}
+          </select>
+        </div>
+      )}
       <div>
         <Label>Action</Label>
         <ToggleBtn value={params.mode}
           options={[{ id: 'disable', label: 'Disable' }, { id: 'set', label: 'Set param' }, { id: 'scale', label: 'Scale param' }]}
           onChange={v => setParam('mode', v)} />
-      </div>
-      <div>
-        <Label>Technology</Label>
-        <select value={params.techMatch} onChange={e => setParam('techMatch', e.target.value)}
-          className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-electric-400 bg-white">
-          <option value="">— select a technology —</option>
-          {allTechs.map(n => <option key={n} value={n}>{n}</option>)}
-        </select>
       </div>
       {params.mode !== 'disable' && (
         <>
@@ -613,6 +659,43 @@ function TechCardConfig({ params, setParam, model }) {
   );
 }
 
+function EmissionsCardConfig({ params, setParam, model }) {
+  const matched = resolveTechGroup(model, params.group || 'emitting');
+  return (
+    <div className="space-y-4">
+      <div className="text-xs text-slate-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+        Reduce emissions by acting on all matching techs at once — pulled live from the model.
+      </div>
+      <div>
+        <Label>Target group</Label>
+        <GroupSelect value={params.group || 'emitting'} model={model} onChange={v => setParam('group', v)} />
+        <MatchedTechs names={matched} />
+      </div>
+      <div>
+        <Label>Lever</Label>
+        <ToggleBtn value={params.lever || 'reduceCap'}
+          options={[{ id: 'reduceCap', label: 'Reduce capacity' }, { id: 'phaseOut', label: 'Phase out' }]}
+          onChange={v => setParam('lever', v)} />
+      </div>
+      {(params.lever || 'reduceCap') === 'reduceCap' && (
+        <div>
+          <Label>Reduce buildable capacity by</Label>
+          <div className="flex items-center gap-2">
+            <input type="range" min={0} max={100} step={5} value={params.reducePct ?? 50}
+              onChange={e => setParam('reducePct', parseInt(e.target.value, 10))}
+              className="flex-1 accent-electric-600" />
+            <span className="text-xs font-mono text-slate-700 w-10 text-right">{params.reducePct ?? 50}%</span>
+          </div>
+          <Hint>Caps the group's <code className="bg-slate-100 px-1 rounded">energy_cap_max</code> at {(100 - (params.reducePct ?? 50))}% of its current value.</Hint>
+        </div>
+      )}
+      {(params.lever === 'phaseOut') && (
+        <Hint>Disables every matched tech (energy_cap_max = 0) for the card's scope.</Hint>
+      )}
+    </div>
+  );
+}
+
 function LocationCardConfig({ params, setParam, model }) {
   const locations = (model?.locations || []).map(l => l.name || l.id).filter(Boolean);
   const allTechs = (model?.technologies || []).map(t => t.name);
@@ -634,12 +717,24 @@ function LocationCardConfig({ params, setParam, model }) {
           onChange={v => setParam('mode', v)} />
       </div>
       <div>
-        <Label>Technology (from model)</Label>
-        <select value={params.techMatch} onChange={e => setParam('techMatch', e.target.value)}
-          className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-electric-400 bg-white">
-          <option value="">— select a technology —</option>
-          {allTechs.map(n => <option key={n} value={n}>{n}</option>)}
-        </select>
+        <Label>Technology</Label>
+        <ToggleBtn value={params.target || 'single'}
+          options={[{ id: 'single', label: 'A technology' }, { id: 'group', label: 'A group' }]}
+          onChange={v => setParam('target', v)} />
+        <div className="mt-2">
+          {params.target === 'group' ? (
+            <>
+              <GroupSelect value={params.group || 'nonRenewable'} model={model} onChange={v => setParam('group', v)} />
+              <MatchedTechs names={resolveTechGroup(model, params.group || 'nonRenewable')} />
+            </>
+          ) : (
+            <select value={params.techMatch} onChange={e => setParam('techMatch', e.target.value)}
+              className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-electric-400 bg-white">
+              <option value="">— select a technology —</option>
+              {allTechs.map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+          )}
+        </div>
       </div>
       {params.mode !== 'disable' && (
         <>
@@ -659,6 +754,32 @@ function LocationCardConfig({ params, setParam, model }) {
       <div className="text-[11px] text-slate-400 bg-slate-50 rounded-lg px-3 py-2">
         Applies only within this location (location-level override; only affects a tech that already
         exists at that location).
+      </div>
+    </div>
+  );
+}
+
+function RenewablesCardConfig({ params, setParam, model }) {
+  const matched = resolveTechGroup(model, params.group || 'renewable');
+  return (
+    <div className="space-y-4">
+      <div className="text-xs text-slate-600 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+        Boost renewables by raising the buildable capacity of all matching techs at once.
+      </div>
+      <div>
+        <Label>Target group</Label>
+        <GroupSelect value={params.group || 'renewable'} model={model} onChange={v => setParam('group', v)} />
+        <MatchedTechs names={matched} />
+      </div>
+      <div>
+        <Label>Increase buildable capacity by</Label>
+        <div className="flex items-center gap-2">
+          <input type="range" min={0} max={300} step={10} value={params.boostPct ?? 50}
+            onChange={e => setParam('boostPct', parseInt(e.target.value, 10))}
+            className="flex-1 accent-electric-600" />
+          <span className="text-xs font-mono text-slate-700 w-12 text-right">+{params.boostPct ?? 50}%</span>
+        </div>
+        <Hint>Scales the group's <code className="bg-slate-100 px-1 rounded">energy_cap_max</code> to {100 + (params.boostPct ?? 50)}% of its current value.</Hint>
       </div>
     </div>
   );
@@ -684,6 +805,8 @@ export function CardConfig({ category, params, setParam, model, timeSeries }) {
   if (category === 'demand')     return <DemandCardConfig params={params} setParam={setParam} model={model} timeSeries={timeSeries} />;
   if (category === 'constraint') return <ConstraintCardConfig params={params} setParam={setParam} />;
   if (category === 'tech')       return <TechCardConfig params={params} setParam={setParam} model={model} />;
+  if (category === 'emissions')  return <EmissionsCardConfig params={params} setParam={setParam} model={model} />;
+  if (category === 'renewables') return <RenewablesCardConfig params={params} setParam={setParam} model={model} />;
   if (category === 'location')   return <LocationCardConfig params={params} setParam={setParam} model={model} />;
   if (category === 'custom')     return <CustomConfigPanel params={params} setParam={setParam} model={model} />;
   if (category?.startsWith('recipe:')) {

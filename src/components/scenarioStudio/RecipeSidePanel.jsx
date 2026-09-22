@@ -9,6 +9,31 @@ import React from 'react';
 import { FiX, FiInfo, FiLayers, FiAlertTriangle } from 'react-icons/fi';
 import { CardConfig, VariantBadge } from './recipeConfig.jsx';
 import { CATEGORY_BY_ID } from '../../services/scenarioStudio/scenario.js';
+import { resolveTechGroup } from '../../services/scenarioStudio/utils.js';
+
+function ModelSummary({ model }) {
+  if (!model) return <p className="text-xs text-slate-400 mt-1">Select a model above to begin.</p>;
+  const techs = model.technologies || [];
+  const stats = [
+    ['Technologies', techs.length],
+    ['Locations', (model.locations || []).length],
+    ['Renewable', resolveTechGroup(model, 'renewable').length],
+    ['Emitting (CO₂)', resolveTechGroup(model, 'emitting').length],
+  ];
+  return (
+    <div className="mt-4 w-full">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1.5 text-left">This model</p>
+      <div className="grid grid-cols-2 gap-1.5">
+        {stats.map(([label, n]) => (
+          <div key={label} className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-left">
+            <div className="text-sm font-bold text-slate-800">{n}</div>
+            <div className="text-[10px] text-slate-500">{label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function RecipeSidePanel({
   card, scopeLabel, model, timeSeries, variants, warnings, capabilityWarnings, onSetParam, onClose,
@@ -18,7 +43,8 @@ export default function RecipeSidePanel({
       <div className="w-[340px] shrink-0 border-l border-slate-200 bg-white flex flex-col items-center justify-center text-center px-6">
         <FiInfo size={22} className="text-slate-300 mb-2" />
         <p className="text-sm text-slate-500 font-medium">No card selected</p>
-        <p className="text-xs text-slate-400 mt-1">Click a config card to configure it. Wire a Year card into it to scope it to that year, or leave it unwired for all years.</p>
+        <p className="text-xs text-slate-400 mt-1">Click a config card to configure it. Nest it in a Year to scope it to that year, or leave it on the canvas for all years.</p>
+        <ModelSummary model={model} />
       </div>
     );
   }

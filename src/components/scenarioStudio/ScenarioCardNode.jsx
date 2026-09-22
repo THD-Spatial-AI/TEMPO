@@ -8,30 +8,43 @@
 
 import React, { memo, useContext } from 'react';
 import {
-  FiTrendingUp, FiCloud, FiZap, FiSliders, FiSun, FiMapPin, FiTrash2, FiCopy,
+  FiTrendingUp, FiCloud, FiZap, FiSliders, FiSun, FiMapPin, FiWind, FiTrash2, FiCopy, FiAlertTriangle,
 } from 'react-icons/fi';
 import { CATEGORY_BY_ID } from '../../services/scenarioStudio/scenario.js';
 import { summarizeOps } from '../../services/scenarioStudio/recipeParams.js';
 import { BoardCtx } from './boardContext.js';
 
-const ICONS = { FiTrendingUp, FiCloud, FiZap, FiSliders, FiSun, FiMapPin };
+const ICONS = { FiTrendingUp, FiCloud, FiZap, FiSliders, FiSun, FiMapPin, FiWind };
+
+const GROUP_LABEL = { all: 'all supply', renewable: 'renewables', nonRenewable: 'non-renewables', emitting: 'emitting techs' };
+const groupLabel = (g) => GROUP_LABEL[g] || (typeof g === 'string' && g.startsWith('parent:') ? g.slice(7) : g);
 
 function faceSummary(category, params = {}) {
   switch (category) {
     case 'demand':     return `${Number(params.scale ?? 1)}× demand`;
     case 'constraint': return `${params.kind || 'co2_cap'} = ${params.value ?? 0}`;
     case 'tech': {
-      if (!params.techMatch) return 'pick a tech';
-      if (params.mode === 'disable') return `${params.techMatch} off`;
-      if (params.mode === 'scale') return `${params.techMatch} ×${params.factor ?? 1}`;
-      return `${params.techMatch} = ${params.value ?? 0}`;
+      const tgt = params.target === 'group' ? groupLabel(params.group) : params.techMatch;
+      if (!tgt) return 'pick a target';
+      if (params.mode === 'disable') return `${tgt} off`;
+      if (params.mode === 'scale') return `${tgt} ×${params.factor ?? 1}`;
+      return `${tgt} = ${params.value ?? 0}`;
+    }
+    case 'emissions': {
+      const g = groupLabel(params.group || 'emitting');
+      return params.lever === 'phaseOut' ? `phase out ${g}` : `−${params.reducePct ?? 50}% cap · ${g}`;
+    }
+    case 'renewables': {
+      const g = groupLabel(params.group || 'renewable');
+      return `+${params.boostPct ?? 50}% cap · ${g}`;
     }
     case 'location': {
       if (!params.location) return 'pick a location';
-      if (!params.techMatch) return `${params.location}: pick tech`;
-      if (params.mode === 'disable') return `${params.location}: ${params.techMatch} off`;
-      if (params.mode === 'scale') return `${params.location}: ${params.techMatch} ×${params.factor ?? 1}`;
-      return `${params.location}: ${params.techMatch} = ${params.value ?? 0}`;
+      const tgt = params.target === 'group' ? groupLabel(params.group) : params.techMatch;
+      if (!tgt) return `${params.location}: pick tech`;
+      if (params.mode === 'disable') return `${params.location}: ${tgt} off`;
+      if (params.mode === 'scale') return `${params.location}: ${tgt} ×${params.factor ?? 1}`;
+      return `${params.location}: ${tgt} = ${params.value ?? 0}`;
     }
     case 'custom':     return summarizeOps(params.ops) || 'no ops yet';
     case 'recipe:demandGrowth':        return `+${params.ratePerYear ?? 0}%/yr`;
@@ -61,6 +74,11 @@ function ScenarioCardNodeImpl({ id, data, selected }) {
           <div className="text-xs font-semibold text-slate-800 leading-tight truncate">{meta?.label || data.category}</div>
           <div className="text-[10px] text-slate-500 truncate">{summary}</div>
         </div>
+        {data._noMatch && (
+          <span className="nodrag shrink-0 text-amber-500" title="Matches no technologies in this model">
+            <FiAlertTriangle size={13} />
+          </span>
+        )}
         <button
           onClick={(e) => { e.stopPropagation(); ctx.onDuplicateNode?.(id); }}
           className="nodrag p-1 text-slate-300 hover:text-electric-500 rounded transition-colors"

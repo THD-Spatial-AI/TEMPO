@@ -7,7 +7,7 @@ import React from 'react';
 import { FiPlay, FiActivity, FiAlertTriangle } from 'react-icons/fi';
 
 export default function BoardDock({
-  totalRuns, warningCount, onRun, runDisabled, runningJobsCount, onGoToRun, engineLabel,
+  totalRuns, warningCount, noMatchCount = 0, onRun, runDisabled, runningJobsCount, onGoToRun, engineLabel,
 }) {
   return (
     <div className="shrink-0 border-t border-slate-200 bg-white px-4 py-2.5 flex items-center gap-4">
@@ -19,6 +19,14 @@ export default function BoardDock({
           <>
             <span className="text-slate-300">·</span>
             <span className="flex items-center gap-1 text-amber-600"><FiAlertTriangle size={12} /> {warningCount} note{warningCount === 1 ? '' : 's'}</span>
+          </>
+        )}
+        {noMatchCount > 0 && (
+          <>
+            <span className="text-slate-300">·</span>
+            <span className="flex items-center gap-1 text-amber-600" title="Cards that match no technologies in this model">
+              <FiAlertTriangle size={12} /> {noMatchCount} card{noMatchCount === 1 ? '' : 's'} hit 0 techs
+            </span>
           </>
         )}
       </div>

@@ -5,7 +5,7 @@ import { useData } from '../context/DataContext';
 import { checkCalliopeService, runCalliopeModel } from '../services/calliopeClient';
 import { checkEngineRunService, runEngineModel } from '../services/engineClient';
 import { applyOps } from '../services/scenarioStudio/transform.js';
-import { buildCalliope06GroupConstraintsOverride } from '../services/scenarioStudio/utils.js';
+import { buildCalliope06GroupConstraintsOverride, resolveTechGroup } from '../services/scenarioStudio/utils.js';
 import { getCapabilityWarnings, engineKeyFromModel, ENGINE_LABELS, ENGINE_FRAMEWORK } from '../services/scenarioStudio/capabilities.js';
 import { buildScenarioVariants, scenarioFromGraph, canConnect, defaultCardParams, previousYear, SCENARIO_TEMPLATES, YEAR_SIZE } from '../services/scenarioStudio/scenario.js';
 import ScenarioBoard from './scenarioStudio/ScenarioBoard.jsx';
@@ -81,6 +81,18 @@ function withYearSizes(nds) {
       data: { ...n.data, _hasChildren: children.length > 0, _minW: fitW, _minH: fitH },
     };
   });
+}
+
+// A group/emissions actuator that resolves to zero techs in the current model.
+function actuatorNoMatch(model, data) {
+  if (!model) return false;
+  const p = data?.params || {};
+  if (data.category === 'emissions') return resolveTechGroup(model, p.group || 'emitting').length === 0;
+  if (data.category === 'renewables') return resolveTechGroup(model, p.group || 'renewable').length === 0;
+  if ((data.category === 'tech' || data.category === 'location') && p.target === 'group') {
+    return resolveTechGroup(model, p.group).length === 0;
+  }
+  return false;
 }
 
 // ─── Main component ──────────────────────────────────────────────────────────
@@ -207,7 +219,14 @@ export default function ScenarioStudio({ onNavigate }) {
   // ── Derive scenario + variants ──────────────────────────────────────────────
 
   // Year containers auto-grow to fit nested cards (derived, not persisted).
-  const displayNodes = useMemo(() => withYearSizes(nodes), [nodes]);
+  const displayNodes = useMemo(() => withYearSizes(nodes).map(n => {
+    if (n.type !== 'config') return n;
+    return actuatorNoMatch(model, n.data) ? { ...n, data: { ...n.data, _noMatch: true } } : n;
+  }), [nodes, model]);
+  const noMatchCount = useMemo(
+    () => displayNodes.filter(n => n.type === 'config' && n.data._noMatch).length,
+    [displayNodes]
+  );
   const scenario = useMemo(() => scenarioFromGraph(nodes), [nodes]);
   const { variants, warnings } = useMemo(() => buildScenarioVariants(model, scenario), [model, scenario]);
 
@@ -529,6 +548,7 @@ export default function ScenarioStudio({ onNavigate }) {
       <BoardDock
         totalRuns={totalRuns}
         warningCount={warnings.length + capabilityWarnings.length}
+        noMatchCount={noMatchCount}
         onRun={handleRun}
         runDisabled={!model || serviceStatus === false || totalRuns === 0}
         runningJobsCount={runningJobs.length}
