@@ -126,7 +126,6 @@ export const useLocationManager = () => {
     updateLocation,
     addLink,
     removeLink,
-    removeLink,
     handleLocationClickForLink,
     setSelectedLocation,
     setLinkStart,
