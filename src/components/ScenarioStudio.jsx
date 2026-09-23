@@ -28,27 +28,40 @@ function defaultBoard() {
     edges: [],
   };
 }
-function loadBoard() {
+// Each model gets its own board; a legacy single board migrates to the first model opened.
+const keyFor = (modelId) => (modelId ? `${BOARD_KEY}:${modelId}` : BOARD_KEY);
+
+function readBoardKey(key) {
   try {
-    const raw = localStorage.getItem(BOARD_KEY);
-    if (!raw) return defaultBoard();
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
     const p = JSON.parse(raw);
-    if (!Array.isArray(p?.nodes)) return defaultBoard();
+    if (!Array.isArray(p?.nodes)) return null;
     const validTypes = new Set(['year', 'config']);
     const nodes = orderNodes(p.nodes.filter(n => validTypes.has(n.type)));
-    if (!nodes.some(n => n.type === 'year')) return defaultBoard();
+    if (!nodes.some(n => n.type === 'year')) return null;
     const nodeIds = new Set(nodes.map(n => n.id));
-    const edges = Array.isArray(p.edges)
-      ? p.edges.filter(e => nodeIds.has(e.source) && nodeIds.has(e.target))
-      : [];
+    const edges = Array.isArray(p.edges) ? p.edges.filter(e => nodeIds.has(e.source) && nodeIds.has(e.target)) : [];
     return { nodes, edges };
-  } catch { return defaultBoard(); }
+  } catch { return null; }
 }
-function saveBoard(nodes, edges) {
+
+function loadBoard(modelId) {
+  if (modelId) {
+    const own = readBoardKey(keyFor(modelId));
+    if (own) return own;
+    const legacy = readBoardKey(BOARD_KEY); // migrate a pre-existing single board once
+    if (legacy) { try { localStorage.removeItem(BOARD_KEY); } catch { /* ignore */ } return legacy; }
+    return defaultBoard();
+  }
+  return readBoardKey(BOARD_KEY) || defaultBoard();
+}
+
+function saveBoard(modelId, nodes, edges) {
   try {
     const slimNodes = nodes.map(n => ({ id: n.id, type: n.type, position: n.position, data: n.data, parentId: n.parentId, style: n.style }));
     const slimEdges = edges.map(e => ({ id: e.id, source: e.source, target: e.target }));
-    localStorage.setItem(BOARD_KEY, JSON.stringify({ nodes: slimNodes, edges: slimEdges }));
+    localStorage.setItem(keyFor(modelId), JSON.stringify({ nodes: slimNodes, edges: slimEdges }));
   } catch { /* quota */ }
 }
 
@@ -116,13 +129,28 @@ export default function ScenarioStudio({ onNavigate }) {
   const [selectedEngine, setSelectedEngine] = useState('calliope06');
   const [serviceStatus, setServiceStatus] = useState(null);
 
-  const initial = useMemo(() => loadBoard(), []);
+  const initial = useMemo(() => defaultBoard(), []);
   const [nodes, setNodes, onNodesChange] = useNodesState(initial.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initial.edges);
   const [selectedNodeId, setSelectedNodeId] = useState(null);
   const [showTemplates, setShowTemplates] = useState(false);
+  const [runSequential, setRunSequential] = useState(false);
 
-  useEffect(() => { saveBoard(nodes, edges); }, [nodes, edges]);
+  // Per-model board: each model persists its own board under its own key.
+  const boardModelIdRef = useRef(null);
+  const loadBoardForModel = useCallback((mid) => {
+    if (!mid || boardModelIdRef.current === mid) return;
+    boardModelIdRef.current = mid;
+    const b = loadBoard(mid);
+    setNodes(b.nodes);
+    setEdges(b.edges);
+    setSelectedNodeId(null);
+  }, [setNodes, setEdges]);
+
+  useEffect(() => {
+    const mid = boardModelIdRef.current;
+    if (mid) saveBoard(mid, nodes, edges);
+  }, [nodes, edges]);
 
   const runningJobsRef = useRef([]);
   useEffect(() => { runningJobsRef.current = runningJobs; }, [runningJobs]);
@@ -133,8 +161,8 @@ export default function ScenarioStudio({ onNavigate }) {
 
   useEffect(() => {
     const cur = getCurrentModel();
-    if (cur) { setSelectedModel(cur); setSelectedEngine(engineKeyFromModel(cur)); }
-  }, [getCurrentModel]);
+    if (cur) { setSelectedModel(cur); setSelectedEngine(engineKeyFromModel(cur)); loadBoardForModel(cur.id); }
+  }, [getCurrentModel, loadBoardForModel]);
 
   useEffect(() => {
     setServiceStatus(null);
@@ -340,6 +368,29 @@ export default function ScenarioStudio({ onNavigate }) {
     return concreteModel;
   };
 
+  // Dispatch one year-variant; resolves when the job settles (used to serialize
+  // sequential runs). In parallel mode callers simply don't await it.
+  const runOneVariant = (m, variant, techsForRun, tsForRun, batchId, engineLabel) => new Promise((resolve) => {
+    const jobId = `job_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const displayName = `${m.name} — ${variant.label}`;
+    const concreteModel = buildConcrete(m, variant, techsForRun, tsForRun);
+    addRunningJob({
+      id: jobId, displayName, startTime: new Date().toISOString(), engine: selectedEngine,
+      source: 'scenario_studio', logs: [`[TEMPO] Scenario Studio — ${displayName} [${engineLabel}]`],
+    });
+    const opts = {
+      modelData: concreteModel,
+      onLog: line => appendRunningJobLog(jobId, line),
+      onStats: () => {},
+      onDone: result => { _handleDone(jobId, batchId, variant.label, m.name, result); resolve(result || {}); },
+      onError: error => { _handleError(jobId, batchId, variant.label, m.name, error); resolve({ success: false, error }); },
+    };
+    const start = (selectedEngine === 'calliope06' || selectedEngine === 'calliope07')
+      ? runCalliopeModel(opts) : runEngineModel(selectedEngine, opts);
+    start.then(({ cancel }) => { cancelFnsRef.current[jobId] = cancel; })
+      .catch(err => { removeRunningJob(jobId); showNotification(`Failed to start "${displayName}": ${err.message}`, 'error'); resolve({ success: false, error: err.message }); });
+  });
+
   const handleRun = async () => {
     if (!model) { showNotification('Select a model first.', 'error'); return; }
     if (variants.length === 0) { showNotification('Add at least one Year card to the scenario.', 'error'); return; }
@@ -358,9 +409,7 @@ export default function ScenarioStudio({ onNavigate }) {
     const modelsToRun = extraModels.length > 0 ? [model, ...extraModels] : [model];
 
     showNotification(
-      modelsToRun.length > 1
-        ? `Starting ${totalRuns} runs (${modelsToRun.length} models × ${variants.length} year${variants.length > 1 ? 's' : ''}) on ${engineLabel}…`
-        : `Starting ${variants.length} year run${variants.length > 1 ? 's' : ''} on ${engineLabel}…`,
+      `Starting ${totalRuns} run${totalRuns > 1 ? 's' : ''}${modelsToRun.length > 1 ? ` (${modelsToRun.length} models × ${variants.length} years)` : ''} on ${engineLabel}${runSequential ? ' — sequential' : ''}…`,
       'info'
     );
     onNavigate?.('Run');
@@ -370,33 +419,15 @@ export default function ScenarioStudio({ onNavigate }) {
       const techsForRun = isCurrentModel && technologies?.length ? technologies : (m.technologies || technologies || []);
       const tsForRun = (timeSeries || []).filter(ts => ts.modelId === m.id);
 
-      for (const variant of variants) {
-        const jobId = `job_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-        const displayName = `${m.name} — ${variant.label}`;
-        const concreteModel = buildConcrete(m, variant, techsForRun, tsForRun);
-
-        addRunningJob({
-          id: jobId, displayName, startTime: new Date().toISOString(), engine: selectedEngine,
-          source: 'scenario_studio',
-          logs: [`[TEMPO] Scenario Studio — ${displayName} [${engineLabel}]`],
-        });
-
-        try {
-          const opts = {
-            modelData: concreteModel,
-            onLog: line => appendRunningJobLog(jobId, line),
-            onStats: () => {},
-            onDone: result => _handleDone(jobId, batchId, variant.label, m.name, result),
-            onError: error => _handleError(jobId, batchId, variant.label, m.name, error),
-          };
-          const runPromise = (selectedEngine === 'calliope06' || selectedEngine === 'calliope07')
-            ? runCalliopeModel(opts)
-            : runEngineModel(selectedEngine, opts);
-          const { cancel } = await runPromise;
-          cancelFnsRef.current[jobId] = cancel;
-        } catch (err) {
-          removeRunningJob(jobId);
-          showNotification(`Failed to start "${displayName}": ${err.message}`, 'error');
+      if (runSequential) {
+        // Years run one at a time, in ascending order (awaits each to settle).
+        for (const variant of variants) {
+          await runOneVariant(m, variant, techsForRun, tsForRun, batchId, engineLabel);
+        }
+      } else {
+        // Parallel: fire all years at once (do not await completion).
+        for (const variant of variants) {
+          runOneVariant(m, variant, techsForRun, tsForRun, batchId, engineLabel);
         }
       }
     }
@@ -426,7 +457,7 @@ export default function ScenarioStudio({ onNavigate }) {
             onChange={e => {
               const m = models.find(m => m.id === e.target.value) || null;
               setSelectedModel(m);
-              if (m) setSelectedEngine(engineKeyFromModel(m));
+              if (m) { setSelectedEngine(engineKeyFromModel(m)); loadBoardForModel(m.id); }
             }}
             className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-electric-400 bg-white max-w-[220px]">
             <option value="">— select a model —</option>
@@ -561,6 +592,8 @@ export default function ScenarioStudio({ onNavigate }) {
         totalRuns={totalRuns}
         warningCount={warnings.length + capabilityWarnings.length}
         noMatchCount={noMatchCount}
+        sequential={runSequential}
+        onToggleSequential={() => setRunSequential(v => !v)}
         onRun={handleRun}
         runDisabled={!model || serviceStatus === false || totalRuns === 0}
         runningJobsCount={runningJobs.length}
