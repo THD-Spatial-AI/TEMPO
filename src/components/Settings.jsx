@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
-import { FiDownload, FiRefreshCw, FiTerminal, FiCheckCircle, FiAlertCircle, FiBox, FiCpu, FiZap, FiSliders, FiShield, FiChevronDown, FiInfo, FiServer } from 'react-icons/fi';
+import { FiDownload, FiRefreshCw, FiTerminal, FiCheckCircle, FiAlertCircle, FiBox, FiCpu, FiZap, FiSliders, FiShield, FiChevronDown, FiInfo, FiServer, FiMessageSquare } from 'react-icons/fi';
 import Calliope07EnginePanel from './Calliope07EnginePanel';
 import EngineInstallPanel from './EngineInstallPanel';
 import { getSettings, setSetting } from '../services/appSettings';
 import { checkMemeService } from '../services/memeClient';
+import { AI_PROVIDERS, getAIConfig, setAIConfig, providerMeta } from '../services/aiSettings';
 
 // ── Module catalogue (mirrors SetupScreen) ───────────────────────────────────
 const PYTHON_MODULES = [
@@ -495,6 +496,244 @@ function RemoteExecutionPanel() {
   );
 }
 
+// ── AI Assistant panel ────────────────────────────────────────────────────────
+// Configures the provider/model and the user's own API key for the Results AI
+// Analysis tab. Non-secret config lives in appSettings (localStorage); the key
+// is stored encrypted in the main process (electron/ai/keystore.cjs) and never
+// held in the renderer.
+function AIPanel() {
+  const [cfg, setCfg]         = useState(() => getAIConfig());
+  const [keyInput, setKeyInput] = useState('');
+  const [showKey, setShowKey] = useState(false);
+  const [hasKey, setHasKey]   = useState(false);
+  const [saved, setSaved]     = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState(null); // null | { ok, sample?|error? }
+
+  const meta = providerMeta(cfg.provider);
+
+  const refreshKeyStatus = (provider) => {
+    window.electronAPI?.ai?.keyStatus?.(provider)
+      .then(r => setHasKey(Boolean(r?.hasKey)))
+      .catch(() => setHasKey(false));
+  };
+  useEffect(() => { refreshKeyStatus(cfg.provider); }, [cfg.provider]);
+
+  const updateCfg = (patch) => { setCfg(setAIConfig(patch)); setSaved(false); setTestResult(null); };
+
+  const changeProvider = (provider) => {
+    // Reset model to the provider default and drop any base URL that belonged to
+    // the previous provider (only compatible/ollama use one). Clear test state.
+    const m = providerMeta(provider);
+    updateCfg({ provider, model: m.defaultModel, baseUrl: m.needsBaseUrl ? cfg.baseUrl : '' });
+    setTestResult(null);
+    setKeyInput('');
+  };
+
+  const saveKey = async () => {
+    if (!window.electronAPI?.ai) return;
+    await window.electronAPI.ai.setKey(cfg.provider, keyInput.trim());
+    setKeyInput('');
+    setSaved(true);
+    refreshKeyStatus(cfg.provider);
+  };
+
+  const clearKey = async () => {
+    if (!window.electronAPI?.ai) return;
+    await window.electronAPI.ai.clearKey(cfg.provider);
+    setSaved(false);
+    setTestResult(null);
+    refreshKeyStatus(cfg.provider);
+  };
+
+  const testConnection = async () => {
+    setTesting(true); setTestResult(null);
+    const r = await window.electronAPI?.ai?.testKey?.({ provider: cfg.provider, model: cfg.model || meta.defaultModel, baseUrl: cfg.baseUrl })
+      .catch(err => ({ ok: false, error: err.message }));
+    setTesting(false);
+    setTestResult(r || { ok: false, error: 'LLM bridge unavailable.' });
+  };
+
+  const desktop = Boolean(window.electronAPI?.ai);
+
+  return (
+    <div>
+      <h3 className="text-lg font-semibold text-slate-800 mb-1 flex items-center gap-2">
+        <FiMessageSquare className="w-5 h-5 text-slate-400" /> Model Advisor
+        <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-600">Bring your own key</span>
+      </h3>
+      <p className="text-sm text-slate-500 mb-5 max-w-2xl">
+        Powers the <span className="font-medium text-slate-600">Model Advisor</span> tab in Results —
+        an auto-generated report and a chat to ask questions about a run. TEMPO uses your own API
+        key and never provides one. Your key is stored encrypted on this device.
+      </p>
+
+      {!desktop && (
+        <div className="mb-5 flex items-start gap-2 p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-700">
+          <FiAlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+          Model Advisor is only available in the TEMPO desktop app.
+        </div>
+      )}
+
+      {/* Privacy disclaimer */}
+      {meta.local ? (
+        <div className="mb-5 flex items-start gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 max-w-2xl">
+          <FiShield className="w-4 h-4 mt-0.5 shrink-0" />
+          <span>
+            {meta.label} runs on your own hardware — model data goes only to your Ollama server,
+            never to a third-party service.
+          </span>
+        </div>
+      ) : (
+        <div className="mb-5 flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 max-w-2xl">
+          <FiShield className="w-4 h-4 mt-0.5 shrink-0" />
+          <span>
+            Using this feature sends your selected run's results to your chosen LLM provider
+            ({meta.label}). This is the only case where TEMPO transmits model data off this device.
+            Review the provider's data-handling terms before use.
+          </span>
+        </div>
+      )}
+
+      <div className="space-y-5 max-w-md">
+        {/* Provider */}
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-2">Provider</label>
+          <select
+            value={cfg.provider}
+            onChange={(e) => changeProvider(e.target.value)}
+            className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-gray-500"
+          >
+            {AI_PROVIDERS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+          </select>
+        </div>
+
+        {/* Base URL (compatible + Ollama) */}
+        {meta.needsBaseUrl && (
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">{meta.local ? 'Ollama server URL' : 'Base URL'}</label>
+            <input
+              type="text"
+              value={cfg.baseUrl}
+              onChange={(e) => updateCfg({ baseUrl: e.target.value })}
+              placeholder={meta.local ? 'http://192.168.1.50:11434' : 'https://openrouter.ai/api/v1'}
+              className="w-full px-3 py-2 border border-slate-300 rounded-md font-mono text-sm focus:outline-none focus:ring-2 focus:ring-gray-500"
+            />
+            <p className="text-xs text-slate-400 mt-1.5">
+              {meta.local
+                ? 'Where Ollama is running. Leave blank for localhost; use the host machine’s IP:11434 when Ollama runs on another computer.'
+                : 'Any OpenAI-compatible endpoint (OpenRouter, Azure, a local server).'}
+            </p>
+          </div>
+        )}
+
+        {/* Model */}
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-2">Model</label>
+          <input
+            type="text"
+            value={cfg.model}
+            onChange={(e) => updateCfg({ model: e.target.value })}
+            placeholder={meta.defaultModel || 'model id'}
+            className="w-full px-3 py-2 border border-slate-300 rounded-md font-mono text-sm focus:outline-none focus:ring-2 focus:ring-gray-500"
+          />
+        </div>
+
+        {/* API key (remote providers) / local connection note (Ollama) */}
+        {meta.needsKey === false ? (
+          <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+            No API key needed — TEMPO connects to your Ollama server at
+            <span className="font-mono text-slate-500"> {cfg.baseUrl || 'http://localhost:11434'}</span>. Make sure Ollama is
+            running there and the model above is pulled (<span className="font-mono text-slate-500">ollama pull {cfg.model || meta.defaultModel}</span>).
+          </div>
+        ) : (
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">
+              API key
+              {hasKey && <span className="ml-2 text-xs text-gray-600 font-normal"><FiCheckCircle className="inline w-3.5 h-3.5" /> stored</span>}
+            </label>
+            <div className="flex gap-2">
+              <input
+                type={showKey ? 'text' : 'password'}
+                value={keyInput}
+                onChange={(e) => setKeyInput(e.target.value)}
+                placeholder={hasKey ? '•••••••• (a key is stored)' : 'Paste your API key'}
+                className="flex-1 px-3 py-2 border border-slate-300 rounded-md font-mono text-sm focus:outline-none focus:ring-2 focus:ring-gray-500"
+              />
+              <button type="button" onClick={() => setShowKey(v => !v)} className="px-3 py-2 text-xs font-medium text-slate-500 border border-slate-200 rounded-md hover:bg-slate-50">
+                {showKey ? 'Hide' : 'Show'}
+              </button>
+            </div>
+            {meta.keysUrl && (
+              <p className="text-xs text-slate-400 mt-1.5">
+                Get a key at <span className="font-mono text-slate-500">{meta.keysUrl}</span>. Stored encrypted on this device.
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {meta.needsKey !== false && (
+            <button
+              onClick={saveKey}
+              disabled={!desktop || !keyInput.trim()}
+              className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-gray-700 hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Save key
+            </button>
+          )}
+          <button
+            onClick={testConnection}
+            disabled={!desktop || testing || (!hasKey && meta.needsKey !== false)}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {testing
+              ? <><span className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" /> Testing…</>
+              : <><FiRefreshCw className="w-4 h-4" /> {meta.needsKey === false ? 'Test connection' : 'Test key'}</>}
+          </button>
+          {hasKey && (
+            <button onClick={clearKey} disabled={!desktop} className="px-3 py-2 rounded-lg text-sm font-medium text-slate-500 hover:bg-slate-100 transition-colors">
+              Remove key
+            </button>
+          )}
+          {saved && <span className="text-xs text-gray-600 flex items-center gap-1"><FiCheckCircle className="w-3.5 h-3.5" /> Saved</span>}
+        </div>
+
+        {/* Test result */}
+        {testResult && (
+          <div className="rounded-xl border p-3 text-sm bg-gray-50 border-gray-200 text-gray-700">
+            {testResult.ok ? (
+              <div className="flex items-start gap-2">
+                <FiCheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <span>{meta.needsKey === false ? 'Connection works' : 'Key works'}. Model replied: <span className="font-mono">{testResult.sample || 'ok'}</span></span>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-start gap-2">
+                  <FiAlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <span className="break-all">{testResult.error}</span>
+                </div>
+                {meta.local && (
+                  <div className="mt-1 pt-2 border-t border-gray-200 text-xs text-slate-500">
+                    <p className="font-medium text-slate-600 mb-1">Can’t reach Ollama? On the machine running it, check:</p>
+                    <ul className="list-disc pl-4 space-y-1">
+                      <li>Port is published — <span className="font-mono">docker ps</span> shows <span className="font-mono">0.0.0.0:11434-&gt;11434/tcp</span> (else run with <span className="font-mono">-p 11434:11434</span>).</li>
+                      <li>Reachable from here — <span className="font-mono">curl {cfg.baseUrl || 'http://localhost:11434'}/api/tags</span> lists your models.</li>
+                      <li>Firewall allows inbound TCP <span className="font-mono">11434</span> on that host.</li>
+                      <li>Model is pulled — <span className="font-mono">ollama pull {cfg.model || meta.defaultModel}</span>.</li>
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── About panel ───────────────────────────────────────────────────────────────
 function AboutPanel() {
   const [version, setVersion] = useState(null);
@@ -534,6 +773,7 @@ const SECTIONS = [
   { id: 'general', label: 'General',              icon: FiSliders },
   { id: 'engines', label: 'Optimization Engines', icon: FiCpu },
   { id: 'remote',  label: 'Remote Execution',     icon: FiServer },
+  { id: 'ai',      label: 'Model Advisor',         icon: FiMessageSquare },
   { id: 'data',    label: 'Privacy & Data',       icon: FiShield },
   { id: 'about',   label: 'About',                icon: FiInfo },
 ];
@@ -665,6 +905,11 @@ const Settings = () => {
           {/* Remote Execution */}
           <div className={activeSection === 'remote' ? '' : 'hidden'}>
             <RemoteExecutionPanel />
+          </div>
+
+          {/* AI Assistant */}
+          <div className={activeSection === 'ai' ? '' : 'hidden'}>
+            <AIPanel />
           </div>
 
           {/* Privacy & Data */}

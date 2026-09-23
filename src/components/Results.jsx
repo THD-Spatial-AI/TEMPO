@@ -31,12 +31,17 @@ import AnalysisTab from './results/tabs/AnalysisTab';
 import LogsTab from './results/tabs/LogsTab';
 import SporesTab from './results/tabs/SporesTab';
 import ShadowTab from './results/tabs/ShadowTab';
+import AIAnalysisTab from './results/tabs/AIAnalysisTab';
 
 // ── Main component ───────────────────────────────────────────────────────────
-const Results = () => {
+const Results = ({ onNavigate }) => {
   const { completedJobs, removeCompletedJob, showNotification, models, activeResultJobId, setActiveResultJobId } = useData();
   const [selectedJobId, setSelectedJobId] = useState(null);
   const [tab, setTab] = useState('overview');
+  // Once the Model Advisor tab is opened, keep it mounted (hidden via CSS) so its
+  // generated report and chat thread survive switching to other tabs — see the
+  // 'ai' block below, which renders it outside the usual unmount-on-switch pattern.
+  const [aiTabVisited, setAiTabVisited] = useState(false);
   const [compareMode, setCompareMode] = useState(false);
   const [mapView, setMapView] = useState('capacity');
   // Tech inclusion filter: empty Set = show all; non-empty = show only listed techs.
@@ -90,14 +95,17 @@ const Results = () => {
   const selectedJob = completedJobs.find(j => j.id === selectedJobId) || null;
   const result = selectedJob?.result || null;
 
-  // Find model for location lat/lon data
+  // Find the source model for this run (for lat/lon, tech metadata, AI input digest)
   // Strip the " (version N)" suffix that Run.jsx appends after repeated runs
-  const modelLocations = useMemo(() => {
-    if (!selectedJob) return [];
+  const selectedModel = useMemo(() => {
+    if (!selectedJob) return null;
     const baseName = selectedJob.modelName.replace(/ \(version \d+\)$/, '');
-    const m = models.find(m => m.name === baseName || m.name === selectedJob.modelName);
-    return (m?.locations || []).filter(l => l.latitude && l.longitude).map(l => ({ ...l, calliopeName: calliopeLocName(l.name) }));
+    return models.find(m => m.name === baseName || m.name === selectedJob.modelName) || null;
   }, [selectedJob, models]);
+
+  const modelLocations = useMemo(() => {
+    return (selectedModel?.locations || []).filter(l => l.latitude && l.longitude).map(l => ({ ...l, calliopeName: calliopeLocName(l.name) }));
+  }, [selectedModel]);
 
   // ── Tech metadata map: tech_name → {parent, carrier_out, display_name} ─────
   // Priority order (highest wins):
@@ -533,11 +541,13 @@ const Results = () => {
     ...(hasShadowPrices ? [{ id: 'shadow', label: 'Shadow Prices', icon: FiTrendingUp }] : []),
     ...(hasFlow     ? [{ id: 'analysis', label: 'Analysis',      icon: FiGrid      }] : []),
     ...((isSporesRun || hasSpores) ? [{ id: 'spores', label: 'SPORES', icon: FiGitMerge }] : []),
+    { id: 'ai',        label: 'Model Advisor', icon: FiCpu },
     { id: 'logs',      label: 'Logs',        icon: FiTerminal },
   ];
 
   // Fall back to overview if the active tab was hidden by auto-hide logic
   const activeTab = TABS.some(t => t.id === tab) ? tab : 'overview';
+  if (activeTab === 'ai' && !aiTabVisited) setAiTabVisited(true);
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -938,6 +948,22 @@ const Results = () => {
             )}
             {activeTab === 'spores' && hasSpores && (
               <SporesTab key={selectedJobId} result={result} modelLocations={modelLocations} />
+            )}
+
+            {/* ════════════════ AI ANALYSIS TAB ════════════════ */}
+            {/* Kept mounted (hidden via CSS) once visited, instead of unmounting on tab
+                switch like the other tabs — its generated report and chat thread are
+                expensive to recreate and should survive navigating away and back. */}
+            {aiTabVisited && (
+              <div className={activeTab === 'ai' ? '' : 'hidden'}>
+                <AIAnalysisTab
+                  key={selectedJobId}
+                  result={result}
+                  selectedJob={selectedJob}
+                  model={selectedModel}
+                  onOpenSettings={() => onNavigate?.('Settings')}
+                />
+              </div>
             )}
 
             {/* ════════════════ LOGS TAB ════════════════ */}

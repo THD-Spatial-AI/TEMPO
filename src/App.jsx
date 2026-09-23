@@ -104,7 +104,7 @@ function AppContent() {
       case "TimeSeries":     return <TimeSeries />;
       case "Settings":       return <Settings />;
       case "Run":            return <Run onNavigate={handleNavigation} />;
-      case "Results":        return <Results />;
+      case "Results":        return <Results onNavigate={handleNavigation} />;
       case "Export":         return <Export />;
       default:               return <Dashboard />;
     }
