@@ -45,12 +45,10 @@ export default function OverviewTab({
                       <div className="ml-auto flex gap-1 flex-wrap">
                         {[
                           { id: 'capacity',     label: 'Capacity',     icon: FiBarChart2 },
-                          { id: 'mix',          label: 'Tech Mix',     icon: FiPieChart },
-                          { id: 'regions',      label: 'Regions',      icon: FiGrid },
-                          ...(hasFlow ? [{ id: 'generation', label: 'Gen Heatmap', icon: FiZap }] : []),
                           ...(Object.keys(techMixByLoc).length > 0 ? [{ id: 'mix', label: 'Tech Mix', icon: FiPieChart }] : []),
-                          { id: 'transmission', label: 'Transmission', icon: FiShare2 },
                           ...(hasRegions ? [{ id: 'regions', label: 'Regions', icon: FiMap }] : []),
+                          ...(hasFlow ? [{ id: 'generation', label: 'Gen Heatmap', icon: FiZap }] : []),
+                          { id: 'transmission', label: 'Transmission', icon: FiShare2 },
                         ].map(({ id, label, icon: Icon }) => (
                           <button key={id} onClick={() => setMapView(id)}
                             className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium transition-all ${
@@ -108,9 +106,8 @@ export default function OverviewTab({
                             locations={modelLocations}
                             capacitiesByLoc={derivedData?.capByLoc || {}}
                             dominantTechByLoc={derivedData?.domTech || {}}
-                            techMixByLoc={derivedData?.techMixByLoc || {}}
-                            generationByLoc={derivedData?.genByLoc || {}}
                             techMixByLoc={techMixByLoc}
+                            generationByLoc={derivedData?.genByLoc || {}}
                             viewMode={mapView}
                             colorFn={techColorFn}
                             transmissionLinks={transmissionLinks}

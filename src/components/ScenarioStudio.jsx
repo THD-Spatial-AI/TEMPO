@@ -33,8 +33,15 @@ function loadBoard() {
     const raw = localStorage.getItem(BOARD_KEY);
     if (!raw) return defaultBoard();
     const p = JSON.parse(raw);
-    if (Array.isArray(p?.nodes) && p.nodes.some(n => n.type)) return { nodes: orderNodes(p.nodes), edges: Array.isArray(p.edges) ? p.edges : [] };
-    return defaultBoard();
+    if (!Array.isArray(p?.nodes)) return defaultBoard();
+    const validTypes = new Set(['year', 'config']);
+    const nodes = orderNodes(p.nodes.filter(n => validTypes.has(n.type)));
+    if (!nodes.some(n => n.type === 'year')) return defaultBoard();
+    const nodeIds = new Set(nodes.map(n => n.id));
+    const edges = Array.isArray(p.edges)
+      ? p.edges.filter(e => nodeIds.has(e.source) && nodeIds.has(e.target))
+      : [];
+    return { nodes, edges };
   } catch { return defaultBoard(); }
 }
 function saveBoard(nodes, edges) {
@@ -170,9 +177,14 @@ export default function ScenarioStudio({ onNavigate }) {
   }, [setEdges, showNotification]);
 
   const deleteNode = useCallback((id) => {
-    setNodes(nds => nds.filter(n => n.id !== id));
-    setEdges(eds => eds.filter(e => e.source !== id && e.target !== id));
-    setSelectedNodeId(sid => (sid === id ? null : sid));
+    const node = nodesRef.current.find(n => n.id === id);
+    const childIds = node?.type === 'year'
+      ? new Set(nodesRef.current.filter(n => n.parentId === id).map(n => n.id))
+      : new Set();
+    const removedIds = new Set([id, ...childIds]);
+    setNodes(nds => nds.filter(n => !removedIds.has(n.id)));
+    setEdges(eds => eds.filter(e => !removedIds.has(e.source) && !removedIds.has(e.target)));
+    setSelectedNodeId(sid => (removedIds.has(sid) ? null : sid));
   }, [setNodes, setEdges]);
 
   const duplicateNode = useCallback((id) => {

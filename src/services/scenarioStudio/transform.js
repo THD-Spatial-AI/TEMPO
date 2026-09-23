@@ -107,11 +107,6 @@ function _set(obj, path, value) {
   cur[parts[parts.length - 1]] = value;
 }
 
-// Does a location match an optional locMatch (by name or id)? No locMatch = all.
-function _locMatches(loc, locMatch) {
-  if (!locMatch) return true;
-  return loc.name === locMatch || loc.id === locMatch;
-}
 
 function _scaleParam(m, { techMatch, path, factor, level = 'global', locMatch }) {
   const names = _matchTechNames(m.technologies, techMatch);
@@ -203,6 +198,7 @@ function _zeroCapex(costs) {
 // so result-capacity loc tokens (already normalised) match internal-model locations.
 function _normId(s) { return String(s ?? '').replace(/[^a-zA-Z0-9]/g, '_').toLowerCase(); }
 function _locMatches(loc, token) {
+  if (!token) return true;
   return [loc.id, loc.name].some(v => v != null && (String(v) === token || _normId(v) === token));
 }
 
