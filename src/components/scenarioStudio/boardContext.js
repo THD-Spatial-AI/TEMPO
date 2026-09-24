@@ -10,6 +10,7 @@ import { createContext } from 'react';
  *   onSetYear,        // (nodeId, year:number) => void   (Year nodes)
  *   onResizeYear,     // (nodeId, {width,height}) => void (manual resize)
  *   onDeleteEdge,     // (edgeId) => void
+ *   onAddConfigToYear,// (yearId, category) => void  (nest a config in a year)
  * }
  */
 export const BoardCtx = createContext(null);

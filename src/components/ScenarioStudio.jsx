@@ -192,6 +192,16 @@ export default function ScenarioStudio({ onNavigate }) {
     setSelectedNodeId(id);
   }, [setNodes]);
 
+  const addConfigToYear = useCallback((yearId, category) => {
+    const id = genId('cfg');
+    setNodes(nds => {
+      const siblings = nds.filter(n => n.parentId === yearId).length;
+      const node = { id, type: 'config', parentId: yearId, position: { x: 20, y: 56 + siblings * 10 }, data: { category, params: defaultCardParams(category) } };
+      return orderNodes([...nds, node]);
+    });
+    setSelectedNodeId(id);
+  }, [setNodes]);
+
   const reparentNode = useCallback((id, parentId, position) => {
     setNodes(nds => orderNodes(nds.map(n => n.id === id ? { ...n, parentId: parentId || undefined, position } : n)));
   }, [setNodes]);
@@ -437,8 +447,8 @@ export default function ScenarioStudio({ onNavigate }) {
 
   const boardCtx = useMemo(() => ({
     selectedNodeId, onDeleteNode: deleteNode, onDuplicateNode: duplicateNode, onSetYear: setYear,
-    onResizeYear: resizeYear, onDeleteEdge: deleteEdge,
-  }), [selectedNodeId, deleteNode, duplicateNode, setYear, resizeYear, deleteEdge]);
+    onResizeYear: resizeYear, onDeleteEdge: deleteEdge, onAddConfigToYear: addConfigToYear,
+  }), [selectedNodeId, deleteNode, duplicateNode, setYear, resizeYear, deleteEdge, addConfigToYear]);
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
@@ -448,7 +458,7 @@ export default function ScenarioStudio({ onNavigate }) {
       <div className="shrink-0 border-b border-slate-200 bg-white px-4 py-2.5 flex items-center gap-3 flex-wrap">
         <div>
           <h1 className="text-lg font-bold text-slate-800 leading-tight">Scenario Studio</h1>
-          <p className="text-[11px] text-slate-400 leading-tight">Build one scenario — add Year cards and wire configs into them</p>
+          <p className="text-[11px] text-slate-400 leading-tight">Add Year cards, drop config cards into a year (or leave them global), then Run</p>
         </div>
         <div className="h-8 w-px bg-slate-200 mx-1" />
         <div className="flex items-center gap-2 min-w-0">

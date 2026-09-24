@@ -2,9 +2,10 @@
  * Scenario Studio — free React Flow canvas (single scenario).
  *
  * Play with cards: pan/zoom/drag, a dotted grid, a minimap. Two node types —
- * Year cards and config cards. Wire a Year → a config (Year source handle →
- * config target handle) to make that config apply to that year; unwired configs
- * apply to all years. Add cards via the "+" button or right-click.
+ * Year cards and config cards. Drop a config card INTO a Year card (or use the
+ * Year's "+") to scope it to that year; a config left on the canvas applies to
+ * ALL years. Link Year → Year (right handle → next Year's left handle) to mark a
+ * consecutive timeline. Add cards via the "+" button or right-click.
  */
 
 import React, { useState, useCallback, useRef, useContext } from 'react';
