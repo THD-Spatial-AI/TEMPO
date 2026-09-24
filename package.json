@@ -167,7 +167,7 @@
     "jszip": "^3.10.1",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.562.0",
-    "maplibre-gl": "^5.16.0",
+    "maplibre-gl": "^6.11.1",
     "papaparse": "^5.5.3",
     "react": "^19.2.0",
     "react-apexcharts": "^1.9.0",
