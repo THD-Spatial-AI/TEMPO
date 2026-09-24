@@ -219,7 +219,7 @@ export const OSM_STYLE = {
 // Inject Referer + User-Agent on OSM tile/geocode requests when running
 // outside Electron (in Electron, main.cjs session.webRequest handles this).
 export const osmTransformRequest = (url) => {
-  if (/tile\.openstreetmap\.org|nominatim\.openstreetmap\.org|basemaps\.cartocdn\.com|tile\.opentopomap\.org/.test(url)) {
+  if (/tile\.openstreetmap\.org|nominatim\.openstreetmap\.org|tile\.opentopomap\.org/.test(url)) {
     return { url, headers: { Referer: 'https://www.openstreetmap.org/', 'User-Agent': 'TEMPO-Energy-Tool/1.0' } };
   }
   return { url };
