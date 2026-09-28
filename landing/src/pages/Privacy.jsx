@@ -258,8 +258,9 @@ export default function Privacy() {
                   datenschutz@th-deg.de
                 </a>{' '}
                 for any data protection queries. You also have the right to lodge a complaint
-                with the Bavarian State Data Protection Officer (BayLDA), Promenade 18,
-                91522 Ansbach.
+                with the Bavarian Data Protection Commissioner (Bayerischer Landesbeauftragter
+                für den Datenschutz) — the supervisory authority for public bodies such as
+                THD — Wagmüllerstraße 18, 80538 München.
               </p>
             </div>
 

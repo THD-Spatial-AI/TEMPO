@@ -91,7 +91,7 @@ export default function Impressum() {
                 <p>
                   Prof. Dr. Sascha Kreiskott<br />
                   Technische Hochschule Deggendorf<br />
-                  Dieter-Görlitz-Platz 1, 94469 Deggendorf<br />
+                  European Campus Rottal-Inn, Max-Breiherr-Straße 32, 84347 Pfarrkirchen<br />
                   Email: <a href="mailto:datenschutz@th-deg.de" className="underline hover:text-primary">datenschutz@th-deg.de</a>
                 </p>
               </div>
