@@ -280,10 +280,13 @@ export default function ScenarioStudio({ onNavigate }) {
   const scenario = useMemo(() => scenarioFromGraph(nodes), [nodes]);
   const { variants, warnings } = useMemo(() => buildScenarioVariants(model, scenario), [model, scenario]);
 
+  const hasSpores = useMemo(() => variants.some(v => v.sporesPlan), [variants]);
+  const sporesBlocked = hasSpores && selectedEngine !== 'calliope06';
   const capabilityWarnings = useMemo(() => {
     if (!variants.length) return [];
-    return getCapabilityWarnings(selectedEngine, variants.flatMap(v => v.ops));
-  }, [variants, selectedEngine]);
+    const w = getCapabilityWarnings(selectedEngine, variants.flatMap(v => v.ops));
+    return sporesBlocked ? [...w, 'SPORES runs need the Calliope 0.6.8 engine.'] : w;
+  }, [variants, selectedEngine, sporesBlocked]);
 
   const selectedNode = useMemo(() => nodes.find(n => n.id === selectedNodeId) || null, [nodes, selectedNodeId]);
   const selectedCard = useMemo(() => (
@@ -322,7 +325,7 @@ export default function ScenarioStudio({ onNavigate }) {
       setTimeout(() => {
         addCompletedJob({
           id: jobId, modelName: job.displayName, framework: ENGINE_FRAMEWORK[job.engine] || 'calliope',
-          solver: 'highs', mode: 'plan', status: result?.success === false ? 'failed' : 'completed',
+          solver: 'highs', mode: result?.spores_data ? 'spores' : 'plan', status: result?.success === false ? 'failed' : 'completed',
           completedAt: new Date().toISOString(), duration, objective: result?.objective || null,
           terminationCondition: result?.termination_condition || 'optimal',
           result: result || {}, logs: job.logs, batchId, variantLabel, modelLabel,
@@ -364,6 +367,13 @@ export default function ScenarioStudio({ onNavigate }) {
       technologies: techsForRun, timeSeries: tsForRun,
     };
     const concreteModel = applyOps(baseModelData, variant.ops);
+    // SPORES card: per-slack plan + run settings (solver, feasibility) for this run.
+    if (variant.sporesPlan || variant.modelConfig) {
+      concreteModel.modelConfig = {
+        ...(concreteModel.modelConfig || {}), ...(variant.modelConfig || {}),
+        ...(variant.sporesPlan ? { sporesPlan: variant.sporesPlan } : {}),
+      };
+    }
     if (selectedEngine === 'calliope06' || selectedEngine === 'calliope07') {
       const gc = concreteModel.modelConfig?.groupConstraints;
       const nativeGC = gc ? buildCalliope06GroupConstraintsOverride(gc) : null;
@@ -605,7 +615,7 @@ export default function ScenarioStudio({ onNavigate }) {
         sequential={runSequential}
         onToggleSequential={() => setRunSequential(v => !v)}
         onRun={handleRun}
-        runDisabled={!model || serviceStatus === false || totalRuns === 0}
+        runDisabled={!model || serviceStatus === false || totalRuns === 0 || sporesBlocked}
         runningJobsCount={runningJobs.length}
         onGoToRun={() => onNavigate?.('Run')}
         engineLabel={engineLabel}

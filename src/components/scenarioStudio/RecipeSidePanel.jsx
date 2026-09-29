@@ -71,7 +71,7 @@ export default function RecipeSidePanel({
         {variants?.length > 0 && (
           <div>
             <p className="text-xs text-slate-500 mb-2">
-              <span className="font-semibold text-slate-700">Scenario — {variants.length} run{variants.length > 1 ? 's' : ''}</span> (one per year):
+              <span className="font-semibold text-slate-700">Scenario — {variants.length} run{variants.length > 1 ? 's' : ''}</span> (per year{variants.some(v => v.label.includes(' · ')) ? ' × case / slack' : ''}):
             </p>
             <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
               {variants.map(v => <VariantBadge key={v.label} variant={v} />)}

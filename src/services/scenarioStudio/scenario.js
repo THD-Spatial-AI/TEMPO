@@ -19,6 +19,10 @@
 import { expandRecipe } from './recipes/index.js';
 import { buildRecipeParams, DEFAULT_PARAMS as RECIPE_DEFAULT_PARAMS } from './recipeParams.js';
 import { resolveTechGroup } from './utils.js';
+import {
+  BASE_OPS as ITALY_BASE_OPS, SENSITIVITY_VARIANTS as ITALY_VARIANTS, SLACKS as ITALY_SLACKS,
+  MODEL_CONFIG as ITALY_MODEL_CONFIG, SPORES_PLAN as ITALY_SPORES_PLAN,
+} from './presets/lombardi2020Italy.js';
 
 // Recipes usable as Global-lane trajectory shortcuts (year-based only — cost
 // sensitivity is a sweep = multiple scenarios, deferred to multi-scenario step).
@@ -39,6 +43,10 @@ export const CARD_CATEGORIES = [
   { id: 'renewables', label: 'Renewables', icon: 'FiSun',        color: 'from-emerald-500 to-green-600', lanes: ['global', 'year'] },
   { id: 'location',   label: 'Location',   icon: 'FiMapPin',     color: 'from-rose-500 to-pink-600',     lanes: ['global', 'year'] },
   { id: 'custom',     label: 'Custom ops', icon: 'FiSliders',    color: 'from-slate-500 to-slate-600',   lanes: ['global', 'year'] },
+  { id: 'timeseries', label: 'Time series', icon: 'FiActivity',   color: 'from-cyan-500 to-sky-600',      lanes: ['global', 'year'] },
+  // Global-only multipliers: each sensitivity case / each SPORES cost slack is its own run.
+  { id: 'sensitivity', label: 'Sensitivity cases', icon: 'FiLayers',  color: 'from-violet-500 to-purple-600', lanes: ['global'] },
+  { id: 'spores',     label: 'SPORES alternatives', icon: 'FiGitMerge', color: 'from-teal-500 to-cyan-600', lanes: ['global'] },
   // Global-lane trajectory shortcuts (expand across the year axis).
   { id: 'recipe:demandGrowth',        label: 'Demand growth (trajectory)',   icon: 'FiTrendingUp', color: 'from-blue-500 to-blue-600',     lanes: ['global'] },
   { id: 'recipe:carbonCap',           label: 'Carbon cap (trajectory)',      icon: 'FiCloud',      color: 'from-green-500 to-emerald-600', lanes: ['global'] },
@@ -60,6 +68,14 @@ export function defaultCardParams(category) {
     case 'renewables': return { group: 'renewable', boostPct: 50 };
     case 'location':   return { location: '', target: 'single', group: 'nonRenewable', mode: 'disable', techMatch: '', path: 'constraints.energy_cap_max', value: 0, factor: 1 };
     case 'custom':     return { ops: [], variantLabel: 'Custom' };
+    case 'timeseries': return { fromFile: '', toFile: '', techMatch: '' };
+    case 'sensitivity': return { variants: [{ id: 'reference', label: 'Reference', ops: [] }] };
+    case 'spores':     return {
+      slacks: [10],
+      plan: { algorithm: 'lombardi2020', scoredTechs: [], weights: { excl: 10, nos: 1 },
+              stages: [{ type: 'explore', count: 10 }] },
+      modelConfig: {},
+    };
     default:           return {};
   }
 }
@@ -102,7 +118,15 @@ export function expandCard(model, card, year) {
     if (!techMatch || (Array.isArray(techMatch) && techMatch.length === 0)) return [];
     if (p.mode === 'scale') return [{ op: 'scaleParam', techMatch, path: p.path, factor: Number(p.factor) || 1, level: p.level || 'both' }];
     if (p.mode === 'set')   return [{ op: 'setParam',   techMatch, path: p.path, value: Number(p.value) || 0, level: p.level || 'both' }];
+    if (p.mode === 'remove') return [{ op: 'removeTech', techMatch }];
     return [{ op: 'disableTech', techMatch }];
+  }
+
+  if (cat === 'timeseries') {
+    // Swap a CSV profile (weather year, demand scenario) wherever it is referenced.
+    if (!p.fromFile || !p.toFile) return [];
+    const techMatch = Array.isArray(p.techMatch) ? p.techMatch : (p.techMatch ? [p.techMatch] : null);
+    return [{ op: 'swapTimeseries', fromFile: p.fromFile, toFile: p.toFile, ...(techMatch?.length ? { techMatch } : {}) }];
   }
 
   if (cat === 'emissions') {
@@ -289,6 +313,31 @@ function nestedConfig(id, parentId, category, params) {
 
 export const SCENARIO_TEMPLATES = [
   {
+    id: 'lombardi2020Italy',
+    label: 'Lombardi et al. 2020 — Italy SPORES',
+    description: 'Calliope-Italy study: 2050_eff + no old techs, 9 sensitivity cases × 5/10/20 % cost relaxation, 178 SPORES each (27 runs). Calliope 0.6.8.',
+    build: () => {
+      const { nodes, edges } = chainedYears([2050], 'tpl');
+      const [demandSwap, removeFossil] = ITALY_BASE_OPS;
+      nodes.push(nestedConfig('tpl_ts2050', 'tpl_y2050', 'timeseries', {
+        fromFile: demandSwap.fromFile, toFile: demandSwap.toFile, techMatch: demandSwap.techMatch,
+      }));
+      nodes.push({ ...nestedConfig('tpl_rm2050', 'tpl_y2050', 'tech', {
+        target: 'single', techMatch: removeFossil.techMatch, mode: 'remove',
+        path: 'constraints.energy_cap_max', value: 0, factor: 1, level: 'both',
+      }), position: { x: 20, y: 128 } });
+      nodes.push({ id: 'tpl_sens', type: 'config', position: { x: 360, y: 60 },
+        data: { category: 'sensitivity', params: { variants: JSON.parse(JSON.stringify(ITALY_VARIANTS)) } } });
+      nodes.push({ id: 'tpl_spores', type: 'config', position: { x: 360, y: 150 },
+        data: { category: 'spores', params: {
+          slacks: ITALY_SLACKS.map(s => Math.round(s * 100)),
+          plan: JSON.parse(JSON.stringify(ITALY_SPORES_PLAN)),
+          modelConfig: JSON.parse(JSON.stringify(ITALY_MODEL_CONFIG)),
+        } } });
+      return { nodes, edges };
+    },
+  },
+  {
     id: 'blank',
     label: 'Blank timeline',
     description: 'Three consecutive years, no configs — start from scratch.',
@@ -372,14 +421,29 @@ export function buildScenarioVariants(model, scenario) {
   const cards = scenario.cards || [];
   const warnings = [];
 
-  const variants = years.map(year => {
+  // Global multipliers (see CARD_CATEGORIES): sensitivity cases and SPORES slacks.
+  const sens = cards.find(c => c.category === 'sensitivity' && c.year == null);
+  const cases = sens?.params?.variants?.length ? sens.params.variants : [null];
+  const spores = cards.find(c => c.category === 'spores' && c.year == null);
+  const slacks = spores?.params?.slacks?.length ? spores.params.slacks : [null];
+
+  const variants = years.flatMap(year => {
     const active = cards.filter(c => c.year == null || c.year === year);
     const ops = active.flatMap(c => {
       try { return expandCard(model, c, year) || []; } catch { return []; }
     });
-    const { ops: composed, warnings: w } = composeOps(ops);
-    w.forEach(m => warnings.push(m));
-    return { label: String(year), year, ops: composed };
+    return cases.flatMap(sc => {
+      const { ops: composed, warnings: w } = composeOps([...ops, ...(sc?.ops || [])]);
+      w.forEach(m => warnings.push(m));
+      const label = sc ? `${year} · ${sc.label}` : String(year);
+      return slacks.map(slack => (slack == null
+        ? { label, year, ops: composed }
+        : {
+          label: `${label} · SPORES ${slack}%`, year, ops: composed,
+          sporesPlan: { ...spores.params.plan, slack: slack / 100 },
+          modelConfig: spores.params.modelConfig || {},
+        }));
+    });
   });
 
   return { variants, warnings: [...new Set(warnings)] };

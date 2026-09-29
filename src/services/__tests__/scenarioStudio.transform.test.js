@@ -220,3 +220,60 @@ describe('addTech', () => {
     expect(r.technologies.find(t => t.name === 'solar_pv').parent).toBe('supply'); // unchanged
   });
 });
+
+describe('removeTech (Calliope exists: false)', () => {
+  const model = () => ({
+    technologies: [{ name: 'ccgt', parent: 'supply' }, { name: 'pv', parent: 'supply_plus' },
+                   { name: 'inter_zonal', parent: 'transmission' }],
+    locations: [
+      { name: 'NORD', techs: { ccgt: { constraints: { energy_cap_max: 2e7 } }, pv: {} } },
+      { name: 'SUD',  techs: { pv: {} } },
+    ],
+    links: [{ from: 'NORD', to: 'SUD', tech: 'inter_zonal' }, { from: 'NORD', to: 'SUD', tech: 'ccgt' }],
+    locationTechAssignments: { NORD: ['ccgt', 'pv'] },
+    metadata: { runConfig: { group_constraints: { share: { techs: ['ccgt', 'pv'], supply_share_min: { electricity: 1 } } } } },
+  });
+
+  it('removes the tech everywhere it is referenced', () => {
+    const r = applyOps(model(), [{ op: 'removeTech', techMatch: ['ccgt'] }]);
+    expect(r.technologies.map(t => t.name)).toEqual(['pv', 'inter_zonal']);
+    expect(r.locations[0].techs).toEqual({ pv: {} });
+    expect(r.links.map(l => l.tech)).toEqual(['inter_zonal']);
+    expect(r.locationTechAssignments.NORD).toEqual(['pv']);
+    expect(r.metadata.runConfig.group_constraints.share.techs).toEqual(['pv']);
+  });
+
+  it('is a no-op for an unknown tech', () => {
+    const m = model();
+    expect(applyOps(m, [{ op: 'removeTech', techMatch: 'nope' }])).toEqual(m);
+  });
+});
+
+describe('swapTimeseries', () => {
+  const model = () => ({
+    technologies: [{ name: 'demand_power', parent: 'demand' },
+                   { name: 'hydro', parent: 'supply_plus', constraints: { resource: 'file=hydro.csv' } }],
+    locations: [
+      { name: 'NORD', techs: { demand_power: { constraints: { resource: 'file=regional_demand.csv' } } } },
+      { name: 'R1',   techs: { pv: { constraints: { resource: 'file=pv_series.csv:R1' } } } },
+    ],
+  });
+
+  it('rewrites file= references at location and tech level, keeping a column suffix', () => {
+    const r = applyOps(model(), [
+      { op: 'swapTimeseries', fromFile: 'regional_demand.csv', toFile: 'demand_2050_eff.csv' },
+      { op: 'swapTimeseries', fromFile: 'pv_series.csv', toFile: 'pv_1989.csv' },
+      { op: 'swapTimeseries', fromFile: 'hydro.csv', toFile: 'hydro_dry.csv' },
+    ]);
+    expect(r.locations[0].techs.demand_power.constraints.resource).toBe('file=demand_2050_eff.csv');
+    expect(r.locations[1].techs.pv.constraints.resource).toBe('file=pv_1989.csv:R1');
+    expect(r.technologies[1].constraints.resource).toBe('file=hydro_dry.csv');
+  });
+
+  it('can be restricted to some techs', () => {
+    const r = applyOps(model(), [
+      { op: 'swapTimeseries', fromFile: 'regional_demand.csv', toFile: 'x.csv', techMatch: ['hydro'] },
+    ]);
+    expect(r.locations[0].techs.demand_power.constraints.resource).toBe('file=regional_demand.csv');
+  });
+});

@@ -38,3 +38,32 @@ def test_zero_capacity_is_ignored():
 def test_tech_defaults_to_ac_transmission():
     cfg = build_links_config([{'from': 'X', 'to': 'Y', 'capacity': 100}])
     assert 'ac_transmission' in cfg['x,y']['techs']
+
+
+def test_same_pair_links_merge_techs():
+    # Calliope-Italy: one pair carries existing + expandable + gas transmission.
+    cfg = build_links_config([
+        {'from': 'NORD', 'to': 'CNOR', 'tech': 'inter_zonal', 'capacity': 1.3e6},
+        {'from': 'NORD', 'to': 'CNOR', 'tech': 'inter_zonal_new', 'capacity': 5e6},
+    ])
+    assert set(cfg['nord,cnor']['techs']) == {'inter_zonal', 'inter_zonal_new'}
+
+
+def test_imported_link_config_preserved_with_capacity_key():
+    cfg = build_links_config([
+        {'from': 'NORD', 'to': 'CNOR', 'tech': 'inter_zonal', 'capacity': 1.3e6,
+         'capacityKey': 'energy_cap_equals',
+         'linkConfig': {'constraints': {'energy_cap_equals': 1.3e6}}},
+        {'from': 'NORD', 'to': 'CNOR', 'tech': 'inter_zonal_new', 'capacity': 4e6,
+         'capacityKey': 'energy_cap_max',
+         'linkConfig': {'constraints': {'energy_cap_max': 5e6},
+                        'costs': {'monetary': {'energy_cap': 450}}}},
+        {'from': 'NORD', 'to': 'CNOR', 'tech': 'gas_inter_zonal_transmission', 'capacity': 0,
+         'linkConfig': None},
+    ])
+    techs = cfg['nord,cnor']['techs']
+    assert techs['inter_zonal'] == {'constraints': {'energy_cap_equals': 1.3e6}}
+    # UI capacity (e.g. edited by a Studio link op) wins, written to the original key
+    assert techs['inter_zonal_new'] == {'constraints': {'energy_cap_max': 4e6},
+                                        'costs': {'monetary': {'energy_cap': 450}}}
+    assert techs['gas_inter_zonal_transmission'] is None

@@ -175,6 +175,8 @@ export function summarizeOps(ops) {
     if (op.op === 'addTech') return `+${op.tech}`;
     if (op.op === 'scaleLinkCap') return `links ×${parseFloat((op.factor ?? 1).toFixed(3))}`;
     if (op.op === 'setLinkCap') return `links=${op.value ?? ''}`;
+    if (op.op === 'removeTech') return `−${[].concat(op.techMatch || '*').join('/')}`;
+    if (op.op === 'swapTimeseries') return `${op.fromFile}→${op.toFile}`;
     return op.op;
   });
   return parts.length <= 3

@@ -142,3 +142,79 @@ describe('translateCalliopeModel — subset_time', () => {
     expect(subsetTime).toEqual(['2025-12-10', '2025-12-14']);
   });
 });
+
+describe('translateCalliopeModel — model-level constraints (Calliope-Italy)', () => {
+  const doc = {
+    model: { reserve_margin: { electricity: 0.1 } },
+    run: {
+      ensure_feasibility: false,
+      objective_options: { cost_class: { monetary: 1, co2: 0, nos_score: 0, excl_score: 0 } },
+    },
+    group_constraints: {
+      systemwide_max_slacked_cost: { cost_max: { monetary: Infinity } },
+      vres_min_prod_share: { techs: ['pv', 'wind'], supply_share_min: { electricity: 1 } },
+    },
+    techs: { demand_power: { essentials: { parent: 'demand', carrier: 'electricity' } } },
+    locations: { NORD: { techs: { demand_power: { constraints: { resource: 'file=regional_demand.csv' } } } } },
+    overrides: {
+      '2050_eff': { 'locations.NORD.techs.demand_power.constraints.resource': 'file=demand_2050_eff.csv' },
+    },
+  };
+  const files = new Map([
+    ['regional_demand.csv', ',NORD\n2015-01-01 00:00:00,-1\n'],
+    ['demand_2050_eff.csv', ',NORD\n2015-01-01 00:00:00,-2\n'],
+  ]);
+
+  it('carries group_constraints, reserve_margin and objective cost classes into runConfig', () => {
+    const { runConfig } = translateCalliopeModel(doc, files);
+    expect(runConfig.group_constraints.vres_min_prod_share).toEqual({
+      techs: ['pv', 'wind'], supply_share_min: { electricity: 1 },
+    });
+    // inf is sanitised to a large finite bound (an inf bound is dropped at build time)
+    expect(runConfig.group_constraints.systemwide_max_slacked_cost.cost_max.monetary).toBe(1e15);
+    expect(runConfig.reserve_margin).toEqual({ electricity: 0.1 });
+    expect(runConfig.objective_cost_class).toEqual({ monetary: 1, co2: 0, nos_score: 0, excl_score: 0 });
+  });
+
+  it('loads CSVs referenced only from overrides as timeseries', () => {
+    const { timeSeries, missingTimeSeries } = translateCalliopeModel(doc, files);
+    expect(timeSeries.map(t => t.fileName).sort()).toEqual(['demand_2050_eff.csv', 'regional_demand.csv']);
+    expect(missingTimeSeries).toEqual([]);
+  });
+
+  it('omits the new keys when the model does not define them', () => {
+    const { runConfig } = translateCalliopeModel({ techs: {}, locations: {} }, new Map());
+    expect(runConfig.group_constraints).toBeUndefined();
+    expect(runConfig.reserve_margin).toBeUndefined();
+    expect(runConfig.objective_cost_class).toBeUndefined();
+  });
+});
+
+describe('translateCalliopeModel — links with several techs per pair', () => {
+  const doc = {
+    links: {
+      'NORD,CNOR': {
+        techs: {
+          inter_zonal: { constraints: { energy_cap_equals: 1300000 } },
+          gas_inter_zonal_transmission: null,
+          inter_zonal_new: {
+            constraints: { energy_cap_max: 5000000 },
+            'costs.monetary': { energy_cap: 450 },
+          },
+        },
+      },
+    },
+  };
+
+  it('emits one link per tech, keeping its per-link config and capacity key', () => {
+    const { links } = translateCalliopeModel(doc, new Map());
+    expect(links.map(l => l.tech)).toEqual(['inter_zonal', 'gas_inter_zonal_transmission', 'inter_zonal_new']);
+    const [existing, gas, expandable] = links;
+    expect(existing).toMatchObject({ from: 'NORD', to: 'CNOR', capacity: 1300000, capacityKey: 'energy_cap_equals' });
+    expect(gas).toMatchObject({ capacity: 0, linkConfig: null });
+    expect(expandable).toMatchObject({ capacity: 5000000, capacityKey: 'energy_cap_max' });
+    expect(expandable.linkConfig).toEqual({
+      constraints: { energy_cap_max: 5000000 }, costs: { monetary: { energy_cap: 450 } },
+    });
+  });
+});

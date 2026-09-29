@@ -18,7 +18,7 @@ import { FiPlus, FiCalendar } from 'react-icons/fi';
 import YearNode from './YearNode.jsx';
 import ScenarioCardNode from './ScenarioCardNode.jsx';
 import { BoardCtx } from './boardContext.js';
-import { CARD_CATEGORIES } from '../../services/scenarioStudio/scenario.js';
+import { CARD_CATEGORIES, CATEGORY_BY_ID } from '../../services/scenarioStudio/scenario.js';
 
 const nodeTypes = { year: YearNode, config: ScenarioCardNode };
 
@@ -101,7 +101,9 @@ function Flow({
   // On drop, nest a config into a Year it overlaps (or un-nest if dropped outside).
   const handleNodeDragStop = useCallback((_e, node) => {
     if (node.type !== 'config') return;
-    const overYear = getIntersectingNodes(node).filter(n => n.type === 'year')[0] || null;
+    // Global-only cards (sensitivity cases, SPORES) apply to the whole scenario — never nest.
+    const yearAllowed = CATEGORY_BY_ID[node.data?.category]?.lanes?.includes('year') ?? true;
+    const overYear = yearAllowed ? (getIntersectingNodes(node).filter(n => n.type === 'year')[0] || null) : null;
     const curParent = node.parentId || null;
     const newParent = overYear ? overYear.id : null;
     if (newParent === curParent) return;

@@ -5,6 +5,7 @@
 import React, { useState } from 'react';
 import { FiChevronUp, FiChevronDown, FiBarChart2 } from 'react-icons/fi';
 import BatchComparison from '../results/BatchComparison.jsx';
+import SporesEnsembleComparison from '../results/SporesEnsembleComparison.jsx';
 
 export default function ResultsSheet({ completedJobs }) {
   const [open, setOpen] = useState(false);
@@ -21,6 +22,7 @@ export default function ResultsSheet({ completedJobs }) {
       </button>
       {open && (
         <div className="max-h-[45vh] overflow-y-auto px-4 pb-4 bg-gradient-to-br from-slate-50 to-slate-100">
+          <SporesEnsembleComparison completedJobs={completedJobs} />
           <BatchComparison completedJobs={completedJobs} />
         </div>
       )}

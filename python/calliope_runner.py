@@ -190,6 +190,143 @@ def _safe_id(name):
     return s or 'unknown'  # preserve original case — calliope is case-sensitive
 
 
+def imported_model_run_extras(meta_run):
+    """Model-level settings carried from an imported Calliope 0.6 YAML
+    (metadata.runConfig): group_constraints, reserve_margin, objective cost classes.
+    They change the optimum (e.g. Calliope-Italy's 100% renewable share), so they
+    must reach the generated model.  Tech/loc ids in group constraints are
+    normalised the same way the runner writes techs and locations."""
+    meta_run = meta_run or {}
+    extras = {}
+    gc_in = meta_run.get('group_constraints') or {}
+    if gc_in:
+        gc_out = {}
+        for name, gc in gc_in.items():
+            gc = dict(gc)
+            if isinstance(gc.get('techs'), list):
+                gc['techs'] = [_safe_id(t) for t in gc['techs']]
+            if isinstance(gc.get('locs'), list):
+                gc['locs'] = [_safe_id(l).lower() for l in gc['locs']]
+            # Calliope <0.6.5 name; 0.6.8 silently ignores it ("Unrecognised group constraint")
+            for suffix in ('min', 'max', 'equals'):
+                if f'supply_share_{suffix}' in gc:
+                    gc[f'carrier_prod_share_{suffix}'] = gc.pop(f'supply_share_{suffix}')
+            gc_out[name] = gc
+        extras['group_constraints'] = gc_out
+    if meta_run.get('reserve_margin'):
+        extras['reserve_margin'] = dict(meta_run['reserve_margin'])
+    if meta_run.get('objective_cost_class'):
+        extras['objective_cost_class'] = dict(meta_run['objective_cost_class'])
+    return extras
+
+
+def _spore_summary(results_ds):
+    """Per-SPORE extract: capacities per loc::tech, storage capacities, and annual
+    production / consumption per loc::tech::carrier (transmission flows included,
+    for line capacity factors; el_curtailment consumption for curtailment)."""
+    def _series(name, sum_time=False):
+        if name not in results_ds:
+            return {}
+        da = results_ds[name]
+        if sum_time and 'timesteps' in da.dims:
+            da = da.sum('timesteps')
+        return {str(k): float(v) for k, v in da.to_series().items() if v == v and abs(v) > 1e-9}
+    return {
+        'cost': float(results_ds['cost'].sel(costs='monetary').sum().values),
+        'capacities': _series('energy_cap'),
+        'storage_capacities': _series('storage_cap'),
+        'generation': _series('carrier_prod', sum_time=True),
+        'consumption': _series('carrier_con', sum_time=True),
+    }
+
+
+def _run_lombardi_spores(model, plan, slack_group):
+    """Run the Lombardi-2020 SPORES schedule on a solved cost-optimal model and
+    return {'spores_data': [...], 'spores_meta': {...}} (SPORES-only keys; the
+    frozen single-run contract is untouched)."""
+    import time as _time
+    from spores_lombardi import run_lombardi_spores, expand_schedule
+    try:
+        import psutil as _psutil
+        _proc = _psutil.Process()
+    except Exception:
+        _proc = None
+
+    def _peak_mb():
+        if _proc is None:
+            return None
+        mi = _proc.memory_info()
+        return round(getattr(mi, 'peak_wset', mi.rss) / 2**20, 1)
+
+    inputs = model._model_data
+    potentials = {}
+    for var in ('energy_cap_max', 'storage_cap_max'):
+        if var in inputs:
+            potentials[var] = {str(k): float(v) for k, v in inputs[var].to_series().items()
+                               if v == v and abs(v) != float('inf')}
+    n_hours = float(inputs.timestep_resolution.sum().values) if 'timestep_resolution' in inputs else None
+
+    spores = [{'spore_id': 0, 'stage': 'cost_optimal', 'target': None, 'iteration': 0,
+               'slack': plan.get('slack'), **_spore_summary(model.results),
+               'seconds': None, 'peak_mem_mb': _peak_mb()}]
+    t_prev = [_time.time()]
+
+    def _on_spore(step, new, _cost):
+        now = _time.time()
+        spores.append({'spore_id': step['spore'], 'stage': step['stage'], 'target': step['target'],
+                       'iteration': step['iteration'], 'slack': plan.get('slack'),
+                       **_spore_summary(new.results),
+                       'seconds': round(now - t_prev[0], 1), 'peak_mem_mb': _peak_mb()})
+        t_prev[0] = now
+
+    planned = len(expand_schedule(plan))
+    try:
+        run_lombardi_spores(model, plan, slack_group, log, _on_spore)
+    except Exception as e:
+        import traceback as _tb
+        log(f"  [SPORES] stopped after {len(spores) - 1}/{planned} SPORES: {e}")
+        log(_tb.format_exc())
+    log(f"  [SPORES] collected {len(spores) - 1}/{planned} SPORES")
+    return {
+        'spores_data': spores,
+        'spores_meta': {
+            'algorithm': 'lombardi2020', 'plan': plan, 'planned': planned,
+            'cost_optimal': spores[0]['cost'],
+            'slacked_cost': (1 + float(plan['slack'])) * spores[0]['cost'],
+            'potentials': potentials, 'hours': n_hours,
+        },
+    }
+
+
+def _patch_calliope_get_var():
+    """Calliope 0.6.8 + Pyomo >= 6.x: get_var() infers a component's dims from an
+    index set named '<name>_index', but Pyomo now names implicit product sets
+    'SetProduct_OrderedSet'.  Multi-dimensional Params then get one dim name for a
+    2-level index ("Length of names must match number of levels in MultiIndex"),
+    which breaks model.backend.rerun() / access_model_inputs() — i.e. SPORES
+    reruns.  Infer dims from the product set's subsets instead."""
+    try:
+        import calliope.backend.pyomo.util as _cu
+        import calliope.backend.pyomo.interface as _ci
+    except Exception:
+        return
+    if getattr(_cu.get_var, '_tempo_patched', False):
+        return
+    _orig = _cu.get_var
+
+    def get_var(backend_model, var, dims=None, sparse=False, expr=False):
+        if not dims:
+            comp = getattr(backend_model, var, None)
+            idx = comp.index_set() if comp is not None and comp.is_indexed() else None
+            if idx is not None and (idx.dimen or 0) > 1 and idx.name != var + '_index':
+                dims = [s.name for s in idx.subsets()]
+        return _orig(backend_model, var, dims=dims, sparse=sparse, expr=expr)
+
+    get_var._tempo_patched = True
+    _cu.get_var = get_var
+    _ci.get_var = get_var
+
+
 def _tech_id(tech):
     """Derive a clean snake_case Calliope tech identifier."""
     return _safe_id(tech.get('name') or tech.get('id') or 'unknown')
@@ -562,9 +699,13 @@ def build_links_config(links):
         #       my_transmission_tech:
         #         distance: 500
         #         constraints: { energy_cap_max: 2400 }
-        entry = {}
+        # Imported YAML links carry their full per-link tech config (constraints,
+        # costs) plus the constraint key the capacity came from (e.g. existing
+        # lines use energy_cap_equals, not energy_cap_max).
+        entry = json.loads(json.dumps(link.get('linkConfig') or {}))
+        cap_key = link.get('capacityKey') or 'energy_cap_max'
         distance = link.get('distance')
-        if distance is not None:
+        if distance is not None and 'distance' not in entry:
             try:
                 entry['distance'] = float(distance)
             except (ValueError, TypeError):
@@ -574,12 +715,13 @@ def build_links_config(links):
             try:
                 cap = float(capacity)
                 if cap > 0:
-                    entry['constraints'] = {'energy_cap_max': cap}
+                    entry.setdefault('constraints', {})[cap_key] = cap
             except (ValueError, TypeError):
                 pass
 
-        link_entry = {'techs': {tech_key: entry if entry else None}}
-        calliope_links[f"{from_loc},{to_loc}"] = link_entry
+        # Several techs may share one pair (e.g. existing + expandable + gas lines)
+        pair = calliope_links.setdefault(f"{from_loc},{to_loc}", {'techs': {}})
+        pair['techs'][tech_key] = entry if entry else None
     return calliope_links
 
 
@@ -1687,6 +1829,25 @@ def _run_model_impl(model_data, work_dir):
             n_injected += 1
         log(f"  [SPORES] Injected spores_score cost class into {n_injected} investment technologies")
 
+    # SPORES as in Lombardi et al. (2020) — see spores_lombardi.py.  A plan-mode
+    # cost-optimal solve followed by backend reruns; scored techs need the nos_score /
+    # excl_score cost classes (Calliope-Italy already defines them).
+    _lombardi_plan = model_config_payload.get('sporesPlan') or None
+    if _lombardi_plan and _lombardi_plan.get('algorithm') != 'lombardi2020':
+        _lombardi_plan = None
+    if _lombardi_plan:
+        from spores_lombardi import normalise_tech
+        _scored_base = {normalise_tech(t).split(':')[0] for t in _lombardi_plan.get('scoredTechs') or []}
+        for _tn, _tcfg in techs.items():
+            _mon = (_tcfg.get('costs') or {}).get('monetary') or {}
+            _is_invest = isinstance(_mon, dict) and ('energy_cap' in _mon or 'storage_cap' in _mon)
+            if _tn in _scored_base or (not _scored_base and _is_invest):
+                _costs = _tcfg.setdefault('costs', {})
+                for _cls in ('nos_score', 'excl_score'):
+                    _costs.setdefault(_cls, {'interest_rate': 1, 'energy_cap': 0})
+        log(f"  [SPORES] Lombardi-2020 plan: slack={_lombardi_plan.get('slack')}, "
+            f"{len(_scored_base)} scored techs")
+
     # Ensure at least one demand tech exists
     has_demand = any(
         (t.get('essentials', {}) or {}).get('parent', t.get('parent', '')) == 'demand'
@@ -1802,13 +1963,17 @@ def _run_model_impl(model_data, work_dir):
             {'mip_rel_gap': 1e-3, 'primal_feasibility_tolerance': 1e-6,
              'dual_feasibility_tolerance': 1e-6, 'ipm_optimality_tolerance': 1e-6},
             {'mipGap': 'mip_rel_gap', 'threads': 'threads', 'timeLimit': 'time_limit',
-             'primalTol': 'primal_feasibility_tolerance', 'dualTol': 'dual_feasibility_tolerance'},
+             'primalTol': 'primal_feasibility_tolerance', 'dualTol': 'dual_feasibility_tolerance',
+             # barrier-without-crossover runs (e.g. the Calliope-Italy/Gurobi setup)
+             'method': 'solver', 'crossover': 'run_crossover', 'optimalityTol': 'ipm_optimality_tolerance'},
         ),
         'appsi_highs': (
             {'mip_rel_gap': 1e-3, 'primal_feasibility_tolerance': 1e-6,
              'dual_feasibility_tolerance': 1e-6, 'ipm_optimality_tolerance': 1e-6},
             {'mipGap': 'mip_rel_gap', 'threads': 'threads', 'timeLimit': 'time_limit',
-             'primalTol': 'primal_feasibility_tolerance', 'dualTol': 'dual_feasibility_tolerance'},
+             'primalTol': 'primal_feasibility_tolerance', 'dualTol': 'dual_feasibility_tolerance',
+             # barrier-without-crossover runs (e.g. the Calliope-Italy/Gurobi setup)
+             'method': 'solver', 'crossover': 'run_crossover', 'optimalityTol': 'ipm_optimality_tolerance'},
         ),
         'highs': (
             {'mip_rel_gap': 1e-3},
@@ -1868,6 +2033,19 @@ def _run_model_impl(model_data, work_dir):
     _meta_run = (model_data.get('metadata') or {}).get('runConfig') or {}
     if not model_config_payload.get('mode') and _meta_run.get('mode') in ('plan', 'operate', 'spores'):
         run_cfg['mode'] = _meta_run['mode']
+    _imported_extras = imported_model_run_extras(_meta_run)
+    if _imported_extras.get('objective_cost_class'):
+        run_cfg['objective_options'] = {'cost_class': _imported_extras['objective_cost_class']}
+    if _imported_extras:
+        log(f"  [CONFIG] Imported model settings: {sorted(_imported_extras)}")
+    if _lombardi_plan:
+        run_cfg['mode'] = 'plan'
+        # Score classes must be in the INITIAL objective (weight 0) so their
+        # weights can be flipped later via the mutable objective_cost_class param.
+        _cc = dict((run_cfg.get('objective_options') or {}).get('cost_class') or {'monetary': 1})
+        _cc.setdefault('nos_score', 0)
+        _cc.setdefault('excl_score', 0)
+        run_cfg['objective_options'] = {'cost_class': _cc}
     # NOTE: ensure_feasibility=False is intentionally NOT inherited from templates.
     # Templates for commercial solvers (Gurobi) set it False; free solvers crash
     # without the unmet_demand slack variable.  The UI can still override via
@@ -1990,15 +2168,30 @@ def _run_model_impl(model_data, work_dir):
         model_yaml['overrides'] = overrides
     if scenarios:
         model_yaml['scenarios'] = scenarios
+    if _imported_extras.get('reserve_margin'):
+        model_yaml['model']['reserve_margin'] = _imported_extras['reserve_margin']
+    if _imported_extras.get('group_constraints'):
+        model_yaml['group_constraints'] = dict(_imported_extras['group_constraints'])
+    _slack_group = None
+    if _lombardi_plan:
+        # Reuse a system-wide monetary cost_max group (Calliope-Italy's
+        # systemwide_max_slacked_cost) or add one.  The bound must be finite at build
+        # time (an inf bound is dropped) and far above any real system cost.
+        _gcs = model_yaml.setdefault('group_constraints', {})
+        _slack_group = next((n for n, g in _gcs.items() if isinstance(g, dict)
+                             and not g.get('techs') and not g.get('locs')
+                             and 'monetary' in (g.get('cost_max') or {})), None)
+        if _slack_group is None:
+            _slack_group = 'systemwide_cost_max'
+            _gcs[_slack_group] = {'cost_max': {'monetary': 1e15}}
+        log(f"  [SPORES] slack cost group: {_slack_group}")
     if run_cfg.get('mode') == 'spores':
         # group_constraints provides the cost ceiling that SPORES tightens after the
         # first (cost-optimal) solve to (1+slack)*cost_optimal.  Must be a large
         # FINITE value (calliope's own spores example uses 1e10): an inf bound is
         # dropped at build time, so the slacked budget could never be applied.
-        model_yaml['group_constraints'] = {
-            'systemwide_cost_max': {
-                'cost_max': {'monetary': 1e10}
-            }
+        model_yaml.setdefault('group_constraints', {})['systemwide_cost_max'] = {
+            'cost_max': {'monetary': 1e10}
         }
 
     model_yaml_path = Path(work_dir) / 'model.yaml'
@@ -2009,6 +2202,7 @@ def _run_model_impl(model_data, work_dir):
     # ------------------------------------------------------------------
     # Load & run
     # ------------------------------------------------------------------
+    _patch_calliope_get_var()
     log("Loading Calliope model …")
     try:
         model = calliope.Model(str(model_yaml_path))
@@ -2155,7 +2349,12 @@ def _run_model_impl(model_data, work_dir):
     # Total cost (objective)
     if 'cost' in ds:
         try:
-            results['objective'] = float(ds['cost'].sum().values)
+            # Monetary class only: models may carry other cost classes (co2,
+            # SPORES scores) that must not be added into the system cost.
+            _cost = ds['cost']
+            if 'costs' in _cost.dims and 'monetary' in _cost.costs.values:
+                _cost = _cost.sel(costs='monetary')
+            results['objective'] = float(_cost.sum().values)
         except Exception as e:
             log(f"  Could not extract objective: {e}")
 
@@ -2473,8 +2672,12 @@ def _run_model_impl(model_data, work_dir):
             )
             if loc_dim:
                 # loc_techs_cost values look like "Berlin::solar_pv"
-                # Sum all cost classes, then group by technology name
-                cost_flat = cost_da.sum(dim='costs')  # drop cost-class dim
+                # Monetary class only (co2 / SPORES score classes are not money),
+                # then group by technology name
+                if 'costs' in dims and 'monetary' in cost_da.costs.values:
+                    cost_flat = cost_da.sel(costs='monetary')
+                else:
+                    cost_flat = cost_da.sum(dim='costs')  # drop cost-class dim
                 costs_dict = {}
                 for coord_val, val in zip(cost_flat[loc_dim].values, cost_flat.values):
                     tech = str(coord_val).split('::')[-1]  # "Berlin::solar_pv" → "solar_pv"
@@ -2502,6 +2705,8 @@ def _run_model_impl(model_data, work_dir):
             log(f"  Could not extract cost breakdown: {e}")
 
     log(f"Objective value: {results.get('objective', 'N/A')}")
+    if _lombardi_plan:
+        results.update(_run_lombardi_spores(model, _lombardi_plan, _slack_group))
     return results
 
 

@@ -9,12 +9,14 @@
 import React, { memo, useContext } from 'react';
 import {
   FiTrendingUp, FiCloud, FiZap, FiSliders, FiSun, FiMapPin, FiWind, FiTrash2, FiCopy, FiAlertTriangle,
+  FiActivity, FiLayers, FiGitMerge,
 } from 'react-icons/fi';
 import { CATEGORY_BY_ID } from '../../services/scenarioStudio/scenario.js';
 import { summarizeOps } from '../../services/scenarioStudio/recipeParams.js';
+import { sporesCount } from '../../services/scenarioStudio/presets/lombardi2020Italy.js';
 import { BoardCtx } from './boardContext.js';
 
-const ICONS = { FiTrendingUp, FiCloud, FiZap, FiSliders, FiSun, FiMapPin, FiWind };
+const ICONS = { FiTrendingUp, FiCloud, FiZap, FiSliders, FiSun, FiMapPin, FiWind, FiActivity, FiLayers, FiGitMerge };
 
 const GROUP_LABEL = { all: 'all supply', renewable: 'renewables', nonRenewable: 'non-renewables', emitting: 'emitting techs' };
 const groupLabel = (g) => GROUP_LABEL[g] || (typeof g === 'string' && g.startsWith('parent:') ? g.slice(7) : g);
@@ -24,9 +26,11 @@ function faceSummary(category, params = {}) {
     case 'demand':     return `${Number(params.scale ?? 1)}× demand`;
     case 'constraint': return `${params.kind || 'co2_cap'} = ${params.value ?? 0}`;
     case 'tech': {
-      const tgt = params.target === 'group' ? groupLabel(params.group) : params.techMatch;
+      const tm = Array.isArray(params.techMatch) ? params.techMatch.join(', ') : params.techMatch;
+      const tgt = params.target === 'group' ? groupLabel(params.group) : tm;
       if (!tgt) return 'pick a target';
       if (params.mode === 'disable') return `${tgt} off`;
+      if (params.mode === 'remove') return `remove ${tgt}`;
       if (params.mode === 'scale') return `${tgt} ×${params.factor ?? 1}`;
       return `${tgt} = ${params.value ?? 0}`;
     }
@@ -47,6 +51,9 @@ function faceSummary(category, params = {}) {
       return `${params.location}: ${tgt} = ${params.value ?? 0}`;
     }
     case 'custom':     return summarizeOps(params.ops) || 'no ops yet';
+    case 'timeseries': return params.fromFile && params.toFile ? `${params.fromFile} → ${params.toFile}` : 'pick files';
+    case 'sensitivity': return `${(params.variants || []).length} cases`;
+    case 'spores': return `${sporesCount(params.plan)} alt · ${(params.slacks || []).map(s => `${s}%`).join('/') || 'no slack'}`;
     case 'recipe:demandGrowth':        return `+${params.ratePerYear ?? 0}%/yr`;
     case 'recipe:carbonCap':           return `${params.startCap ?? '?'}→${params.endCap ?? '?'} Mt`;
     case 'recipe:renewableTransition': return `→ ${params.targetYear ?? '?'}`;

@@ -13,6 +13,10 @@ import ReactECharts from 'echarts-for-react';
 import { autoDetectTechs, FOSSIL_KEYWORDS, RENEWABLE_KEYWORDS, techGroupsForModel, resolveTechGroup } from '../../services/scenarioStudio/utils.js';
 import { importLegacyScenario } from '../../services/scenarioStudio/legacyImport.js';
 import { summarizeOps, extractDemandSeries } from '../../services/scenarioStudio/recipeParams.js';
+import {
+  SENSITIVITY_VARIANTS as ITALY_VARIANTS, SLACKS as ITALY_SLACKS, MODEL_CONFIG as ITALY_MODEL_CONFIG,
+  SPORES_PLAN as ITALY_SPORES_PLAN, sporesCount,
+} from '../../services/scenarioStudio/presets/lombardi2020Italy.js';
 
 const COST_PARAM_OPTIONS = [
   { value: 'costs.monetary.energy_cap',  label: 'CAPEX (€/kW)' },
@@ -600,7 +604,8 @@ function GroupSelect({ value, model, onChange }) {
 function TechCardConfig({ params, setParam, model }) {
   const allTechs = (model?.technologies || []).map(t => t.name);
   const isGroup = params.target === 'group';
-  const matched = isGroup ? resolveTechGroup(model, params.group) : (params.techMatch ? [params.techMatch] : []);
+  const multi = Array.isArray(params.techMatch);
+  const matched = isGroup ? resolveTechGroup(model, params.group) : (multi ? params.techMatch : (params.techMatch ? [params.techMatch] : []));
   return (
     <div className="space-y-4">
       <div>
@@ -619,7 +624,8 @@ function TechCardConfig({ params, setParam, model }) {
       ) : (
         <div>
           <Label>Technology</Label>
-          <select value={params.techMatch} onChange={e => setParam('techMatch', e.target.value)}
+          {multi && <MatchedTechs names={params.techMatch} />}
+          <select value={multi ? '' : params.techMatch} onChange={e => setParam('techMatch', e.target.value)}
             className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-electric-400 bg-white">
             <option value="">— select a technology —</option>
             {allTechs.map(n => <option key={n} value={n}>{n}</option>)}
@@ -629,10 +635,11 @@ function TechCardConfig({ params, setParam, model }) {
       <div>
         <Label>Action</Label>
         <ToggleBtn value={params.mode}
-          options={[{ id: 'disable', label: 'Disable' }, { id: 'set', label: 'Set param' }, { id: 'scale', label: 'Scale param' }]}
+          options={[{ id: 'disable', label: 'Disable' }, { id: 'remove', label: 'Remove' }, { id: 'set', label: 'Set param' }, { id: 'scale', label: 'Scale param' }]}
           onChange={v => setParam('mode', v)} />
+        {params.mode === 'remove' && <Hint>Removes the technology from the model entirely (Calliope <code>exists: false</code>).</Hint>}
       </div>
-      {params.mode !== 'disable' && (
+      {params.mode !== 'disable' && params.mode !== 'remove' && (
         <>
           <div>
             <Label>Param path</Label>
@@ -785,6 +792,198 @@ function RenewablesCardConfig({ params, setParam, model }) {
   );
 }
 
+// ─── Time series swap ───────────────────────────────────────────────────────────
+
+// CSV files the model references via `file=` (global and per-location constraints).
+function referencedFiles(model) {
+  const files = new Set();
+  const scan = (c) => Object.values(c || {}).forEach(v => {
+    if (typeof v === 'string' && v.startsWith('file=')) files.add(v.slice(5).split(':')[0]);
+  });
+  (model?.technologies || []).forEach(t => scan(t.constraints));
+  (model?.locations || []).forEach(l => Object.values(l.techs || {}).forEach(lt => scan(lt?.constraints)));
+  return [...files].sort();
+}
+
+function TimeseriesCardConfig({ params, setParam, model, timeSeries }) {
+  const refs = referencedFiles(model);
+  const available = [...new Set((timeSeries || []).map(t => t.fileName || t.file).filter(Boolean))].sort();
+  const techs = (model?.technologies || []).map(t => t.name);
+  const techValue = Array.isArray(params.techMatch) ? (params.techMatch[0] || '') : (params.techMatch || '');
+  return (
+    <div className="space-y-4">
+      <div>
+        <Label>Replace profile</Label>
+        <select value={params.fromFile} onChange={e => setParam('fromFile', e.target.value)}
+          className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg bg-white font-mono focus:outline-none focus:ring-2 focus:ring-electric-400">
+          <option value="">— a CSV the model uses —</option>
+          {refs.map(f => <option key={f} value={f}>{f}</option>)}
+        </select>
+      </div>
+      <div>
+        <Label>With</Label>
+        <input list="ts-available" value={params.toFile} onChange={e => setParam('toFile', e.target.value)}
+          placeholder="e.g. pv_1989.csv"
+          className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg font-mono focus:outline-none focus:ring-2 focus:ring-electric-400" />
+        <datalist id="ts-available">{available.map(f => <option key={f} value={f} />)}</datalist>
+        <Hint>A time series of this model, or a CSV bundled with its template (weather years, demand scenarios). Columns must match the original.</Hint>
+      </div>
+      <div>
+        <Label>Only for technology (optional)</Label>
+        <select value={techValue} onChange={e => setParam('techMatch', e.target.value ? [e.target.value] : '')}
+          className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-electric-400">
+          <option value="">All technologies using it</option>
+          {techs.map(n => <option key={n} value={n}>{n}</option>)}
+        </select>
+      </div>
+    </div>
+  );
+}
+
+// ─── Sensitivity cases (each case = a bundle of ops = its own run) ──────────────
+
+function SensitivityCardConfig({ params, setParam }) {
+  const cases = params.variants || [];
+  const [editing, setEditing] = React.useState(null);
+  const [draft, setDraft] = React.useState('');
+  const [error, setError] = React.useState('');
+  const update = (next) => setParam('variants', next);
+  const startEdit = (i) => { setEditing(i); setDraft(JSON.stringify(cases[i].ops || [], null, 1)); setError(''); };
+  const saveEdit = () => {
+    try {
+      const ops = JSON.parse(draft);
+      if (!Array.isArray(ops)) throw new Error('ops must be a JSON array');
+      update(cases.map((c, i) => (i === editing ? { ...c, ops } : c)));
+      setEditing(null);
+    } catch (e) { setError(e.message); }
+  };
+  return (
+    <div className="space-y-3">
+      <Hint>Each case runs separately on top of the rest of the board (and once per SPORES slack, if a SPORES card is present).</Hint>
+      <button onClick={() => update(JSON.parse(JSON.stringify(ITALY_VARIANTS)))}
+        className="w-full px-3 py-1.5 text-xs font-medium rounded-lg border border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100">
+        Load Lombardi et al. 2020 cases (9)
+      </button>
+      <div className="space-y-1.5">
+        {cases.map((c, i) => (
+          <div key={c.id || i} className="rounded-lg border border-slate-200 p-2">
+            <div className="flex items-center gap-2">
+              <input value={c.label} onChange={e => update(cases.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))}
+                className="flex-1 min-w-0 px-2 py-1 text-xs border border-slate-200 rounded" />
+              <button onClick={() => (editing === i ? setEditing(null) : startEdit(i))} className="text-[11px] text-electric-600 hover:underline">
+                {editing === i ? 'close' : 'ops'}
+              </button>
+              <button onClick={() => update(cases.filter((_, j) => j !== i))} className="p-1 text-slate-300 hover:text-red-500">
+                <FiTrash2 size={12} />
+              </button>
+            </div>
+            <p className="text-[10px] text-slate-500 mt-1 truncate">{summarizeOps(c.ops) || 'no changes (baseline)'}</p>
+            {editing === i && (
+              <div className="mt-2">
+                <textarea value={draft} onChange={e => setDraft(e.target.value)} rows={6}
+                  className="w-full px-2 py-1 text-[11px] font-mono border border-slate-200 rounded" />
+                {error && <p className="text-[11px] text-red-600">{error}</p>}
+                <button onClick={saveEdit} className="mt-1 px-2 py-1 text-xs rounded bg-slate-800 text-white">Save ops</button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      <button onClick={() => update([...cases, { id: `case_${Date.now()}`, label: `Case ${cases.length + 1}`, ops: [] }])}
+        className="flex items-center gap-1 text-xs text-electric-600 hover:underline">
+        <FiPlus size={12} /> Add case
+      </button>
+    </div>
+  );
+}
+
+// ─── SPORES (Lombardi et al. 2020 algorithm, Calliope 0.6.8) ────────────────────
+
+const SLACK_CHOICES = [1, 5, 10, 20, 30, 50];
+
+function SporesCardConfig({ params, setParam, model }) {
+  const plan = params.plan || { stages: [] };
+  const slacks = params.slacks || [];
+  const setPlan = (next) => setParam('plan', next);
+  const setStage = (i, patch) => setPlan({ ...plan, stages: plan.stages.map((st, j) => (j === i ? { ...st, ...patch } : st)) });
+  const n = sporesCount(plan);
+  const investTechs = (model?.technologies || [])
+    .filter(t => t.costs?.monetary?.energy_cap != null || t.costs?.monetary?.storage_cap != null)
+    .map(t => t.name);
+  const mc = params.modelConfig || {};
+  return (
+    <div className="space-y-4">
+      <button onClick={() => {
+        setParam('plan', JSON.parse(JSON.stringify(ITALY_SPORES_PLAN)));
+        setParam('slacks', ITALY_SLACKS.map(s => Math.round(s * 100)));
+        setParam('modelConfig', JSON.parse(JSON.stringify(ITALY_MODEL_CONFIG)));
+      }}
+        className="w-full px-3 py-1.5 text-xs font-medium rounded-lg border border-teal-200 bg-teal-50 text-teal-700 hover:bg-teal-100">
+        Load Lombardi et al. 2020 settings (178 per slack)
+      </button>
+
+      <div>
+        <Label>Cost relaxations (one ensemble each)</Label>
+        <div className="flex gap-1 flex-wrap">
+          {SLACK_CHOICES.map(v => (
+            <button key={v} onClick={() => setParam('slacks', slacks.includes(v) ? slacks.filter(x => x !== v) : [...slacks, v].sort((a, b) => a - b))}
+              className={`px-2.5 py-1 text-xs rounded-lg font-medium ${slacks.includes(v) ? 'bg-teal-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+              {v}%
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <Label>Stages</Label>
+        <div className="space-y-1.5">
+          {plan.stages.map((st, i) => (
+            <div key={i} className="flex items-center gap-2 rounded-lg border border-slate-200 px-2 py-1.5">
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-medium text-slate-700">
+                  {st.type === 'explore' ? 'Explore (spatial diversity)' : `Minimise: ${st.label || 'targets'}`}
+                </div>
+                {st.type === 'minimise' && (
+                  <div className="text-[10px] text-slate-500 truncate" title={(st.targets || []).map(t => t.join('+')).join(', ')}>
+                    {(st.targets || []).length} targets · {(st.targets || []).map(t => t.join('+')).join(', ')}
+                  </div>
+                )}
+              </div>
+              {st.type === 'explore'
+                ? <NumInput value={st.count} onChange={v => setStage(i, { count: Math.max(0, Math.round(v)) })} className="w-16" />
+                : <NumInput value={st.countEach} onChange={v => setStage(i, { countEach: Math.max(0, Math.round(v)) })} className="w-16" />}
+            </div>
+          ))}
+        </div>
+        <Hint>Explore: number of SPORES. Minimise: SPORES per target — the first minimises only the target, later ones also keep exploring.</Hint>
+      </div>
+
+      <div>
+        <Label>Scored technologies</Label>
+        {(plan.scoredTechs || []).length === 0
+          ? <p className="text-xs text-slate-500">All investment technologies ({investTechs.length}).</p>
+          : <MatchedTechs names={plan.scoredTechs} />}
+      </div>
+
+      <div className="space-y-1">
+        <label className="flex items-center gap-2 text-xs text-slate-600">
+          <input type="checkbox" checked={mc.ensureFeasibility === false}
+            onChange={e => setParam('modelConfig', { ...mc, ensureFeasibility: e.target.checked ? false : undefined })} />
+          No unmet-demand slack (ensure_feasibility: false)
+        </label>
+        {mc.solverOptions && (
+          <p className="text-[11px] text-slate-500">Solver: HiGHS {mc.solverOptions.method || ''}{mc.solverOptions.crossover ? `, crossover ${mc.solverOptions.crossover}` : ''}{mc.solverOptions.optimalityTol ? `, tol ${mc.solverOptions.optimalityTol}` : ''}</p>
+        )}
+      </div>
+
+      <div className="rounded-lg bg-teal-50 border border-teal-200 p-3 text-xs text-teal-800">
+        <span className="font-semibold">{n} SPORES</span> × {slacks.length || 0} relaxation{slacks.length === 1 ? '' : 's'} per scenario.
+        Calliope 0.6.8 only. Every SPORE is a full re-solve of the model.
+      </div>
+    </div>
+  );
+}
+
 // ─── Card config router ─────────────────────────────────────────────────────────
 
 const RECIPE_PANEL = {
@@ -809,6 +1008,9 @@ export function CardConfig({ category, params, setParam, model, timeSeries }) {
   if (category === 'renewables') return <RenewablesCardConfig params={params} setParam={setParam} model={model} />;
   if (category === 'location')   return <LocationCardConfig params={params} setParam={setParam} model={model} />;
   if (category === 'custom')     return <CustomConfigPanel params={params} setParam={setParam} model={model} />;
+  if (category === 'timeseries') return <TimeseriesCardConfig params={params} setParam={setParam} model={model} timeSeries={timeSeries} />;
+  if (category === 'sensitivity') return <SensitivityCardConfig params={params} setParam={setParam} />;
+  if (category === 'spores')     return <SporesCardConfig params={params} setParam={setParam} model={model} />;
   if (category?.startsWith('recipe:')) {
     const Panel = RECIPE_PANEL[category.slice(7)];
     return Panel ? <Panel params={params} setParam={setParam} model={model} /> : null;

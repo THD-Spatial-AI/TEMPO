@@ -499,19 +499,28 @@ export function translateCalliopeModel(mergedDoc, filesMap) {
 
   // Links  ("loc1,loc2" key)
   const linksRaw = doc.links || {};
-  const links = Object.entries(linksRaw).map(([key, link]) => {
+  // One link per (pair, tech): a pair may carry several techs (e.g. Calliope-Italy's
+  // existing inter_zonal + expandable inter_zonal_new + gas transmission). Each keeps
+  // its full per-link config and the constraint key its capacity came from.
+  const CAP_KEYS = ['energy_cap_equals', 'energy_cap_max', 'energy_cap_min'];
+  const links = Object.entries(linksRaw).flatMap(([key, link]) => {
     const parts = key.split(',').map(s => s.trim());
     const techs = link?.techs || {};
-    const ft    = Object.keys(techs)[0] || 'ac_transmission';
-    const tc    = techs[ft]?.constraints || {};
-    return {
-      from:     parts[0] || '',
-      to:       parts[1] || '',
-      tech:     ft,
+    const names = Object.keys(techs).length ? Object.keys(techs) : ['ac_transmission'];
+    return names.map(ft => {
+      const tc     = techs[ft]?.constraints || {};
       // energy_cap_equals takes precedence (UK model uses it), fall back to energy_cap_max/min
-      capacity: tc.energy_cap_equals ?? tc.energy_cap_max ?? tc.energy_cap_min ?? 0,
-      distance: tc.distance ?? link?.distance ?? techs[ft]?.distance ?? 0,
-    };
+      const capKey = CAP_KEYS.find(k => tc[k] != null);
+      return {
+        from:        parts[0] || '',
+        to:          parts[1] || '',
+        tech:        ft,
+        capacity:    capKey ? tc[capKey] : 0,
+        ...(capKey ? { capacityKey: capKey } : {}),
+        distance:    tc.distance ?? link?.distance ?? techs[ft]?.distance ?? 0,
+        linkConfig:  techs[ft] ?? null,
+      };
+    });
   });
   log.push('Found ' + links.length + ' links');
 
@@ -546,6 +555,13 @@ export function translateCalliopeModel(mergedDoc, filesMap) {
     cyclic_storage:     runConf.cyclic_storage      ?? true,
     solver_options:     runConf.solver_options      || {},
   };
+  // Model-level constraints and objective weights change the optimum, so carry
+  // them through for the runner (e.g. Calliope-Italy's 100% RE share + reserve margin).
+  if (doc.group_constraints && Object.keys(doc.group_constraints).length)
+    runConfig.group_constraints = doc.group_constraints;
+  if (modelConf.reserve_margin) runConfig.reserve_margin = modelConf.reserve_margin;
+  if (runConf.objective_options?.cost_class)
+    runConfig.objective_cost_class = runConf.objective_options.cost_class;
 
   // Overrides / scenarios
   const overrides = doc.overrides  || {};
@@ -586,6 +602,18 @@ export function translateCalliopeModel(mergedDoc, filesMap) {
   Object.entries(doc.techs || {}).forEach(([techName, tech]) => {
     if (tech?.constraints) collectFileRefs(tech.constraints, null, techName);
     if (tech?.costs)       collectFileRefs(tech.costs, null, techName);
+  });
+  // Overrides can point at CSVs used nowhere else (e.g. Calliope-Italy's
+  // demand_2050_eff.csv); load them too so scenarios can swap them in.
+  Object.values(overrides).forEach(ov => {
+    Object.entries(ov?.locations || {}).forEach(([locName, loc]) => {
+      Object.entries(loc?.techs || {}).forEach(([techName, tech]) => {
+        if (tech?.constraints) collectFileRefs(tech.constraints, locName, techName);
+      });
+    });
+    Object.entries(ov?.techs || {}).forEach(([techName, tech]) => {
+      if (tech?.constraints) collectFileRefs(tech.constraints, null, techName);
+    });
   });
 
   // ── Build one timeSeries entry per CSV file ────────────────────────────────

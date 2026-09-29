@@ -7,6 +7,7 @@ import { FiActivity, FiBarChart2, FiDollarSign, FiFilter, FiGitMerge, FiGrid, Fi
 import ReactECharts from 'echarts-for-react';
 import { GroupedCorrMatrixSVG, ResultsMap } from '../ResultMaps';
 import { autoScale, axisNameStyle, fmtCost, fmtPower, makeIsGenTech, techColor } from '../../../utils/resultFormat';
+import SporesPaperPanel from '../SporesPaperPanel';
 
 export default function SporesTab({
   result,
@@ -579,7 +580,9 @@ export default function SporesTab({
                     </div>
                   </div>
 
+                  <SporesPaperPanel result={result} />
+
                 </div>
               );
 }
-
+

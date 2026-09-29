@@ -42,6 +42,16 @@
  *     keep their capacity-factor profile. Sunk (residual) capacity semantics:
  *     prior builds are free; only NEW additions pay CAPEX.
  *
+ *   { op: 'removeTech', techMatch }
+ *     Remove the tech entirely (Calliope `exists: false`): from technologies,
+ *     every location, links, location-tech assignments and imported
+ *     group-constraint tech lists.
+ *
+ *   { op: 'swapTimeseries', fromFile, toFile, techMatch? }
+ *     Rewrite `file=fromFile[:col]` references (global and per-location
+ *     constraints) to `file=toFile[:col]` — weather-year / demand-profile swaps.
+ *     Optional techMatch restricts the swap to those techs.
+ *
  * techMatch shapes:
  *   string             — exact tech name
  *   string[]           — any of these names
@@ -60,6 +70,8 @@ export function applyOps(model, ops) {
       case 'vintageResidual': _vintageResidual(m, op); break;
       case 'scaleLinkCap':    _scaleLinkCap(m, op); break;
       case 'setLinkCap':      _setLinkCap(m, op); break;
+      case 'removeTech':      _removeTech(m, op); break;
+      case 'swapTimeseries':  _swapTimeseries(m, op); break;
       default: break; // unknown ops (and UI-only keys like _template) silently skipped
     }
   }
@@ -283,5 +295,46 @@ function _vintageResidual(m, { techMatch, existingCaps = {}, suffix = '_existing
         }
       }
     }
+  }
+}
+
+function _removeTech(m, { techMatch }) {
+  const names = new Set(_matchTechNames(m.technologies, techMatch));
+  if (names.size === 0) return;
+  m.technologies = m.technologies.filter(t => !names.has(t.name));
+  for (const loc of (m.locations || [])) {
+    for (const n of names) if (loc.techs && n in loc.techs) delete loc.techs[n];
+  }
+  if (m.links) m.links = m.links.filter(l => !names.has(l.tech));
+  for (const [k, list] of Object.entries(m.locationTechAssignments || {})) {
+    if (Array.isArray(list)) m.locationTechAssignments[k] = list.filter(n => !names.has(n));
+  }
+  for (const gc of Object.values(m.metadata?.runConfig?.group_constraints || {})) {
+    if (Array.isArray(gc?.techs)) gc.techs = gc.techs.filter(n => !names.has(n));
+  }
+}
+
+function _swapTimeseries(m, { fromFile, toFile, techMatch }) {
+  if (!fromFile || !toFile) return;
+  const parentOf = Object.fromEntries((m.technologies || []).map(t => [t.name, t.parent]));
+  const wanted = (name) => {
+    if (!techMatch) return true;
+    if (typeof techMatch === 'string') return name === techMatch;
+    if (Array.isArray(techMatch)) return techMatch.includes(name);
+    if (techMatch.parentIs) return parentOf[name] === techMatch.parentIs;
+    return false;
+  };
+  const swapIn = (constraints) => {
+    if (!constraints) return;
+    for (const [k, v] of Object.entries(constraints)) {
+      if (typeof v !== 'string' || !v.startsWith('file=')) continue;
+      const rest = v.slice(5);
+      if (rest === fromFile) constraints[k] = `file=${toFile}`;
+      else if (rest.startsWith(fromFile + ':')) constraints[k] = `file=${toFile}${rest.slice(fromFile.length)}`;
+    }
+  };
+  for (const tech of (m.technologies || [])) if (wanted(tech.name)) swapIn(tech.constraints);
+  for (const loc of (m.locations || [])) {
+    for (const [name, lt] of Object.entries(loc.techs || {})) if (wanted(name)) swapIn(lt?.constraints);
   }
 }
