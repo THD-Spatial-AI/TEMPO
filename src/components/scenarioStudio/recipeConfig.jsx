@@ -978,7 +978,7 @@ function SporesCardConfig({ params, setParam, model }) {
 
       <div className="rounded-lg bg-teal-50 border border-teal-200 p-3 text-xs text-teal-800">
         <span className="font-semibold">{n} SPORES</span> × {slacks.length || 0} relaxation{slacks.length === 1 ? '' : 's'} per scenario.
-        Calliope 0.6.8 only. Every SPORE is a full re-solve of the model.
+        Runs on Calliope 0.6.8 locally, or Calliope 0.7 on MEME. Every SPORE is a full re-solve of the model.
       </div>
     </div>
   );

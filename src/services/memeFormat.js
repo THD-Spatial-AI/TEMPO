@@ -132,11 +132,16 @@ function columnsFromTs(ts) {
 
 function makeTsContext(model) {
   const files = new Map(); // fileName → { column → number[] }
+  const times = new Map(); // fileName → timestamp strings (row order)
   for (const ts of model.timeSeries || []) {
     const fname = ts.fileName || ts.file;
     if (!fname) continue;
     const colMap = columnsFromTs(ts);
     if (Object.keys(colMap).length) files.set(fname, colMap);
+    if (Array.isArray(ts.data) && ts.data.length) {
+      const dateCol = ts.dateColumn || (ts.columns || [])[0];
+      times.set(fname, ts.data.map((r) => String(r[dateCol])));
+    }
   }
 
   const timeseries = {};
@@ -170,7 +175,21 @@ function makeTsContext(model) {
     return id;
   };
 
-  return { timeseries, register };
+  /** Raw { times, values } of a `file=` reference (column = node when implicit), or null. */
+  const raw = (ref, node = null) => {
+    if (typeof ref !== 'string' || !ref.startsWith('file=')) return null;
+    const body = ref.slice(5);
+    const sep = body.indexOf(':');
+    const fname = sep < 0 ? body : body.slice(0, sep);
+    const wanted = sep < 0 ? node : body.slice(sep + 1);
+    const colMap = files.get(fname);
+    if (!colMap || wanted == null || !times.has(fname)) return null;
+    const col = wanted in colMap ? wanted
+      : Object.keys(colMap).find((c) => c.toLowerCase() === String(wanted).toLowerCase());
+    return col != null ? { times: times.get(fname), values: colMap[col] } : null;
+  };
+
+  return { timeseries, register, raw };
 }
 
 // ---------------------------------------------------------------------------
@@ -363,6 +382,69 @@ function applyCarriers(out, ess, role) {
     out.carrier_in = cIn;
     out.carrier_out = cOut;
   }
+}
+
+/**
+ * Calliope 0.6 `model.reserve_margin` as native Calliope 0.7 math (0.7 has no
+ * reserve margin). Mirrors 0.6.8's reserve_margin_constraint_rule per carrier c:
+ *   Σ capacity of supply/supply_plus/conversion techs producing c
+ *     ≥ (1 + margin) × Σ consumption of c by demand techs at 0.6.8's
+ *       peak-demand timestep (idxmin of summed demand resource in the window).
+ * MEME's conversion capacity is input-referenced, so conversions count as
+ * input flow_cap × efficiency (their output flow_cap is a free variable).
+ * Returns { math, data_definitions } or null.
+ */
+function reserveMarginNative(margins, technologies, locations, tsCtx, window, log) {
+  if (!margins || !Object.keys(margins).length) return null;
+  const math = { parameters: {}, constraints: {} };
+  const dd = {};
+  const inWindow = (t) => t.slice(0, 10) >= window[0] && t.slice(0, 10) <= window[1];
+  for (const [carrier, margin] of Object.entries(margins)) {
+    const m = num(margin);
+    if (m == null) continue;
+    const capIdx = [], capVal = [], demIdx = [];
+    const demandSeries = [];
+    for (const t of technologies) {
+      const parent = parentOf(t);
+      const ess = t.essentials || {};
+      const id = techIdOf(t);
+      const cOut = ess.carrier_out || ess.carrier;
+      const cIn = ess.carrier_in || ess.carrier;
+      if ((parent === 'supply' || parent === 'supply_plus') && cOut === carrier) {
+        capIdx.push([id, carrier]); capVal.push(1);
+      } else if ((parent === 'conversion' || parent === 'conversion_plus') && cOut === carrier) {
+        capIdx.push([id, cIn]); capVal.push(num(t.constraints?.energy_eff) ?? 1);
+      } else if (parent === 'demand' && cIn === carrier) {
+        demIdx.push([id, carrier]);
+        for (const loc of locations) {
+          const lt = loc.techs?.[t.name];
+          if (lt === undefined) continue;
+          const series = tsCtx.raw((lt?.constraints || {}).resource ?? t.constraints?.resource, loc.name ?? loc.id);
+          if (series) demandSeries.push(series);
+        }
+      }
+    }
+    // 0.6.8 add_max_demand_timesteps: idxmin of the summed (negative) demand resource.
+    const total = new Map();
+    for (const { times, values } of demandSeries) {
+      times.forEach((ts, i) => { if (inWindow(ts)) total.set(ts, (total.get(ts) || 0) + Math.min(values[i], 0)); });
+    }
+    let peak = null;
+    for (const [ts, v] of total) if (peak == null || v < total.get(peak)) peak = ts;
+    if (!peak || !capIdx.length) { log.push(`⚠ reserve margin for '${carrier}': no demand series / capacity found — not applied`); continue; }
+    const cap = `tempo_rm_cap_${carrier}`, dem = `tempo_rm_dem_${carrier}`, pk = `tempo_rm_peak_${carrier}`;
+    dd[cap] = { data: capVal, index: capIdx, dims: ['techs', 'carriers'] };
+    dd[dem] = { data: demIdx.map(() => 1), index: demIdx, dims: ['techs', 'carriers'] };
+    dd[pk] = { data: 1, index: [peak], dims: 'timesteps' };
+    for (const k of [cap, dem, pk]) math.parameters[k] = { default: 0 };
+    math.constraints[`tempo_reserve_margin_${carrier}`] = {
+      description: `Calliope 0.6 reserve margin (${m}) on ${carrier}, peak ${peak}`,
+      equations: [{ expression:
+        `sum(flow_cap * ${cap}, over=[nodes, techs, carriers]) >= ${+(1 + m).toFixed(12)} * ` +
+        `sum(flow_in * ${dem} * ${pk}, over=[nodes, techs, carriers, timesteps])` }],
+    };
+  }
+  return Object.keys(dd).length ? { math, data_definitions: dd } : null;
 }
 
 /** Output-referenced capacity/costs (Calliope 0.6 conversion) → input basis. */
@@ -705,8 +787,13 @@ export function internalToMemeCanonical(model, opts = {}) {
   if (Object.keys(tsCtx.timeseries).length) memeModel.timeseries = tsCtx.timeseries;
   if (Object.keys(transmission).length) memeModel.transmission = transmission;
   if (Object.keys(tradeEntries).length) memeModel.trade = tradeEntries;
+  // Model-wide Calliope-only settings (native): the 0.6 reserve margin.
+  const rm = reserveMarginNative(runCfg.reserve_margin ?? meta.runConfig?.reserve_margin,
+    technologies, locations, tsCtx, [start, end], log);
+  if (rm) memeModel.native = { calliope: rm };
 
-  const mode = opts.mode || modelCfg.mode || runCfg.mode || 'plan';
+  const sporesPlan = modelCfg.sporesPlan;
+  const mode = sporesPlan ? 'spores' : (opts.mode || modelCfg.mode || runCfg.mode || 'plan');
   // Unmet-demand slack. TEMPO enables ensure_feasibility by default on local
   // runs; MEME only emits config.build.ensure_feasibility when this flag is set
   // (emitter.go:134). Without it a model whose peak demand exceeds a feeder's
@@ -724,5 +811,62 @@ export function internalToMemeCanonical(model, opts = {}) {
     solver: { name: opts.solver || runCfg.solver || 'highs' },
   };
 
+  // SPORES → Calliope 0.7 spores mode ("alternatives"). A Lombardi-2020 plan
+  // runs its explore stage natively: relative_deployment scoring (installed /
+  // max capacity, accumulated — the paper's Eq. 2) with the paper's 1e-3
+  // threshold, restricted to the scored techs via a tracking parameter.
+  if (sporesPlan) {
+    const explore = (sporesPlan.stages || []).filter((st) => st.type === 'explore')
+      .reduce((n, st) => n + (Number(st.count) || 0), 0);
+    experiment.alternatives = { number: explore, slack: num(sporesPlan.slack) ?? 0, scoring_algorithm: 'relative_deployment' };
+    const tracked = sporesTrackedTechs(sporesPlan.scoredTechs || [], memeTechs, transmission);
+    experiment.alternatives.score_threshold_factor = 0.001;
+    if (tracked.length) {
+      experiment.alternatives.tracking_parameter = 'tempo_spores_track';
+      const cal = memeModel.native?.calliope || {};
+      memeModel.native = { calliope: { ...cal, data_definitions: {
+        ...(cal.data_definitions || {}), tempo_spores_track: { data: true, index: tracked, dims: 'techs' } } } };
+    }
+    // The full schedule (Lombardi et al. 2020 minimise stages) runs through
+    // MEME's SPORES driver; targets are translated to MEME tech ids.
+    experiment.alternatives.stages = (sporesPlan.stages || []).map((st) => {
+      if (st.type === 'explore') return { type: 'explore', count: Number(st.count) || 0 };
+      const targets = (st.targets || []).map((tg) => {
+        const ids = sporesTrackedTechs(tg, memeTechs, transmission);
+        if (!ids.length) log.push(`⚠ SPORES: minimise target '${tg.join('+')}' matches no tech — skipped`);
+        return ids;
+      }).filter((ids) => ids.length);
+      return { type: 'minimise', targets, count_each: Number(st.countEach) || 0 };
+    }).filter((st) => st.type === 'explore' || st.targets.length);
+    experiment.alternatives.weights = {
+      excl: num(sporesPlan.weights?.excl) ?? 10, nos: num(sporesPlan.weights?.nos) ?? 1,
+    };
+  } else if (mode === 'spores' && modelCfg.sporesOptions) {
+    const o = modelCfg.sporesOptions;
+    experiment.alternatives = { number: Number(o.sporesNumber) || 0, slack: (Number(o.slack) || 0) / 100 };
+  }
+
   return { payload: { model: memeModel, experiment }, log };
+}
+
+/**
+ * MEME tech ids for a SPORES plan's scored techs: node techs by id; a
+ * transmission entry 'tech:REMOTE' → every emitted link of that tech with an
+ * end at REMOTE (Calliope 0.7 has one tech per link).
+ */
+function sporesTrackedTechs(scored, memeTechs, transmission) {
+  const out = [];
+  for (const t of scored) {
+    const [base, remote] = String(t).split(':');
+    const id = safeId(base);
+    if (!remote) {
+      if (memeTechs[id]) out.push(id);
+      continue;
+    }
+    const end = safeId(remote).toLowerCase();
+    for (const [linkId, l] of Object.entries(transmission)) {
+      if (linkId.startsWith(id + '_') && [l.from, l.to].some((n) => String(n).toLowerCase() === end)) out.push(linkId);
+    }
+  }
+  return [...new Set(out)];
 }

@@ -421,6 +421,10 @@ export async function runMemeModel(engine, {
       if (cancelled) return;
       if (contract) {
         if (engine === 'adoptnet0') contract = normalizeAdoptContract(contract, modelData);
+        // SPORES: MEME knows nothing of TEMPO's plan; attach it so the SPORES
+        // views resolve the analysis config (e.g. the Lombardi 2020 metrics).
+        const plan = modelData?.modelConfig?.sporesPlan;
+        if (contract.spores_meta && plan) contract = { ...contract, spores_meta: { ...contract.spores_meta, plan } };
         onDone?.(contract);
       } else {
         onError?.(`MEME job ${jobId} succeeded but returned no result contract`);

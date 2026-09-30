@@ -396,11 +396,12 @@ const Run = ({ onNavigate }) => {
     const isOsemosys = selectedFramework === 'osemosys';
     const isCalliope07 = selectedFramework === 'calliope' && calliopeEngine === '0.7';
 
-    // SPORES is gated on the experimental 0.7 engine until upstream support is verified
-    if (isCalliope07 && modelConfig.mode === 'spores') {
+    // SPORES on the 0.7 engine runs only remotely (MEME's spores mode); the local
+    // 0.7 runner has no SPORES support.
+    if (isCalliope07 && modelConfig.mode === 'spores' && !computeRemote) {
       showNotification(
-        'SPORES mode is not supported on the Calliope 0.7 (experimental) engine yet. ' +
-        'Switch the engine to Calliope 0.6.8 to run SPORES.',
+        'SPORES mode is not supported on the local Calliope 0.7 (experimental) engine. ' +
+        'Switch the engine to Calliope 0.6.8, or run it remotely on MEME.',
         'error'
       );
       return;
@@ -841,13 +842,13 @@ const Run = ({ onNavigate }) => {
                   >
                     <option value="plan">Plan — capacity planning</option>
                     <option value="operate">Operate — operational</option>
-                    <option value="spores" disabled={isCalliope07Selected}>
-                      {isCalliope07Selected
-                        ? 'SPORES — requires the 0.6.8 engine'
+                    <option value="spores" disabled={isCalliope07Selected && !computeRemote}>
+                      {isCalliope07Selected && !computeRemote
+                        ? 'SPORES — requires the 0.6.8 engine (or a remote run)'
                         : 'SPORES — near-optimal alternatives'}
                     </option>
                   </select>
-                  {isCalliope07Selected && modelConfig.mode === 'spores' && (
+                  {isCalliope07Selected && !computeRemote && modelConfig.mode === 'spores' && (
                     <p className="mt-1 text-xs text-gray-600">
                       SPORES is not supported on the experimental Calliope 0.7 engine yet.
                     </p>

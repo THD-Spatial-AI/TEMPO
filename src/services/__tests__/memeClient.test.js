@@ -208,3 +208,21 @@ describe('fetchMemeBundle', () => {
     expect(blob).toBeInstanceOf(Blob);
   });
 });
+
+describe('runMemeModel – SPORES contract', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('attaches the run’s SPORES plan to spores_meta so TEMPO picks its analysis config', async () => {
+    const plan = { algorithm: 'lombardi2020', metrics: 'lombardi2020Italy', slack: 0.1, stages: [{ type: 'explore', count: 2 }] };
+    const sporesContract = { ...contract, spores_data: [{ spore_id: 0 }], spores_meta: { algorithm: 'calliope07_native' } };
+    installFetch({
+      submit: { body: { id: 'js', state: 'queued' } },
+      statuses: [{ state: 'succeeded', target: 'calliope', contract: sporesContract, log: '' }],
+    });
+    const onDone = vi.fn();
+    await runMemeModel('calliope07', { server, modelData: { ...modelData, modelConfig: { sporesPlan: plan } }, onDone, pollMs: 500 });
+    await vi.advanceTimersByTimeAsync(500);
+    expect(onDone.mock.calls[0][0].spores_meta).toEqual({ algorithm: 'calliope07_native', plan });
+  });
+});

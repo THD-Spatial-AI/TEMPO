@@ -904,3 +904,114 @@ describe('internalToMemeCanonical – cyclic storage', () => {
     expect(internalToMemeCanonical(m).payload.model.technologies.phs.storage?.cyclic).toBeUndefined();
   });
 });
+
+describe('internalToMemeCanonical – reserve margin (Calliope 0.6 model.reserve_margin → native 0.7 math)', () => {
+  const ts = {
+    fileName: 'dem.csv', columns: ['time', 'NORD', 'SUD'], dateColumn: 'time', dataColumns: ['NORD', 'SUD'],
+    data: [
+      { time: '2015-01-01 00:00:00', NORD: -5, SUD: -1 },
+      { time: '2015-01-01 01:00:00', NORD: -9, SUD: -2 },   // peak (−11) inside the window
+      { time: '2015-01-02 00:00:00', NORD: -50, SUD: -50 }, // outside the window
+    ],
+  };
+  const model = baseModel({
+    technologies: [
+      { name: 'demand_power', essentials: { parent: 'demand', carrier: 'electricity' }, constraints: {} },
+      { name: 'el_export', essentials: { parent: 'demand', carrier_in: 'electricity' }, constraints: { resource: -6e6, force_resource: false } },
+      makeTech('pv', 'supply_plus', {}),
+      { name: 'ccgt', essentials: { parent: 'conversion', carrier_in: 'methane', carrier_out: 'electricity' }, constraints: { energy_eff: 0.5 } },
+      { name: 'electrolysis', essentials: { parent: 'conversion', carrier_in: 'electricity', carrier_out: 'hydrogen' }, constraints: { energy_eff: 0.66 } },
+      { name: 'battery', essentials: { parent: 'storage', carrier: 'electricity' }, constraints: {} },
+    ],
+    locations: [
+      { name: 'NORD', techs: { demand_power: { constraints: { resource: 'file=dem.csv' } }, el_export: {}, pv: {}, ccgt: {}, battery: {} } },
+      { name: 'SUD', techs: { demand_power: { constraints: { resource: 'file=dem.csv' } }, electrolysis: {} } },
+    ],
+    timeSeries: [ts],
+    metadata: { runConfig: { reserve_margin: { electricity: 0.1 } } },
+    modelConfig: { startDate: '2015-01-01', endDate: '2015-01-01' },
+  });
+  const nat = internalToMemeCanonical(model).payload.model.native.calliope;
+  const dd = nat.data_definitions;
+
+  it('counts supply at 1 and conversion at input capacity × efficiency; not storage or electricity consumers', () => {
+    expect(dd.tempo_rm_cap_electricity).toEqual({
+      data: [1, 0.5], index: [['pv', 'electricity'], ['ccgt', 'methane']], dims: ['techs', 'carriers'] });
+  });
+
+  it('includes every demand tech of the carrier (fixed and flexible sinks)', () => {
+    expect(dd.tempo_rm_dem_electricity).toEqual({
+      data: [1, 1], index: [['demand_power', 'electricity'], ['el_export', 'electricity']], dims: ['techs', 'carriers'] });
+  });
+
+  it('picks 0.6.8’s peak-demand timestep within the run window', () => {
+    expect(dd.tempo_rm_peak_electricity).toEqual({ data: 1, index: ['2015-01-01 01:00:00'], dims: 'timesteps' });
+  });
+
+  it('emits the constraint with factor (1 + margin)', () => {
+    const c = nat.math.constraints.tempo_reserve_margin_electricity;
+    expect(c.equations[0].expression).toBe(
+      'sum(flow_cap * tempo_rm_cap_electricity, over=[nodes, techs, carriers]) >= 1.1 * ' +
+      'sum(flow_in * tempo_rm_dem_electricity * tempo_rm_peak_electricity, over=[nodes, techs, carriers, timesteps])');
+    expect(Object.keys(nat.math.parameters)).toEqual(['tempo_rm_cap_electricity', 'tempo_rm_dem_electricity', 'tempo_rm_peak_electricity']);
+  });
+
+  it('adds nothing without a reserve margin', () => {
+    const m = { ...model, metadata: { runConfig: {} } };
+    expect(internalToMemeCanonical(m).payload.model.native).toBeUndefined();
+  });
+});
+
+describe('internalToMemeCanonical – SPORES (Calliope 0.7 spores mode on MEME)', () => {
+  const base = () => baseModel({
+    technologies: [
+      makeTech('pv_new', 'supply_plus', { energy_cap_max: 10 }),
+      makeTech('ccgt', 'supply', { resource: 'inf' }),
+      { name: 'inter_zonal_new', essentials: { parent: 'transmission', carrier: 'electricity' }, constraints: {} },
+    ],
+    locations: [{ name: 'NORD', techs: { pv_new: {}, ccgt: {} } }, { name: 'FR', techs: {} }, { name: 'SUD', techs: {} }],
+    links: [
+      { from: 'FR', to: 'NORD', tech: 'inter_zonal_new', capacity: 5, capacityKey: 'energy_cap_max' },
+      { from: 'NORD', to: 'SUD', tech: 'inter_zonal_new', capacity: 5, capacityKey: 'energy_cap_max' },
+    ],
+  });
+
+  it('maps a Lombardi-2020 plan to alternatives with relative_deployment, the paper threshold and tracked techs', () => {
+    const m = base();
+    m.modelConfig = { sporesPlan: { algorithm: 'lombardi2020', slack: 0.1, scoredTechs: ['pv_new', 'inter_zonal_new:FR'],
+      stages: [{ type: 'explore', count: 50 }, { type: 'minimise', targets: [['pv_new']], countEach: 3 }] } };
+    const { payload } = internalToMemeCanonical(m);
+    expect(payload.experiment.mode).toBe('alternatives');
+    expect(payload.experiment.alternatives).toEqual({ number: 50, slack: 0.1, scoring_algorithm: 'relative_deployment',
+      score_threshold_factor: 0.001, tracking_parameter: 'tempo_spores_track',
+      stages: [{ type: 'explore', count: 50 }, { type: 'minimise', targets: [['pv_new']], count_each: 3 }],
+      weights: { excl: 10, nos: 1 } });
+    expect(payload.model.native.calliope.data_definitions.tempo_spores_track).toEqual({
+      data: true, index: ['pv_new', 'inter_zonal_new_FR_NORD'], dims: 'techs' });
+  });
+
+  it('maps the Run view SPORES options (native mode) to plain alternatives', () => {
+    const m = base();
+    m.modelConfig = { mode: 'spores', sporesOptions: { slack: 10, sporesNumber: 20 } };
+    const { payload } = internalToMemeCanonical(m);
+    expect(payload.experiment.mode).toBe('alternatives');
+    expect(payload.experiment.alternatives).toEqual({ number: 20, slack: 0.1 });
+  });
+});
+
+describe('internalToMemeCanonical – SPORES minimise targets', () => {
+  it('translates target techs to MEME ids (links expand per end) and drops empty targets', () => {
+    const m = baseModel({
+      technologies: [makeTech('pv_new', 'supply_plus', {}),
+        { name: 'inter_zonal_new', essentials: { parent: 'transmission', carrier: 'electricity' }, constraints: {} }],
+      locations: [{ name: 'NORD', techs: { pv_new: {} } }, { name: 'FR', techs: {} }],
+      links: [{ from: 'FR', to: 'NORD', tech: 'inter_zonal_new', capacity: 5, capacityKey: 'energy_cap_max' }],
+      modelConfig: { sporesPlan: { algorithm: 'lombardi2020', slack: 0.1, weights: { excl: 10, nos: 1 }, scoredTechs: ['pv_new'],
+        stages: [{ type: 'minimise', targets: [['inter_zonal_new:FR'], ['missing_tech']], countEach: 2 }] } },
+    });
+    const { payload, log } = internalToMemeCanonical(m);
+    expect(payload.experiment.alternatives.stages).toEqual([
+      { type: 'minimise', targets: [['inter_zonal_new_FR_NORD']], count_each: 2 }]);
+    expect(log.some(l => /missing_tech/.test(l))).toBe(true);
+  });
+});

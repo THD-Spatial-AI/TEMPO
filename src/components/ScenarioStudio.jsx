@@ -4,6 +4,8 @@ import { FiZap, FiLayers, FiGrid, FiChevronDown } from 'react-icons/fi';
 import { useData } from '../context/DataContext';
 import { checkCalliopeService, runCalliopeModel } from '../services/calliopeClient';
 import { checkEngineRunService, runEngineModel } from '../services/engineClient';
+import { runMemeModel, getMemeServerConfig } from '../services/memeClient';
+import { engineSupportedByMeme } from '../services/memeFormat';
 import { applyOps } from '../services/scenarioStudio/transform.js';
 import { buildCalliope06GroupConstraintsOverride, resolveTechGroup } from '../services/scenarioStudio/utils.js';
 import { getCapabilityWarnings, engineKeyFromModel, ENGINE_LABELS, ENGINE_FRAMEWORK } from '../services/scenarioStudio/capabilities.js';
@@ -135,6 +137,11 @@ export default function ScenarioStudio({ onNavigate }) {
   const [selectedNodeId, setSelectedNodeId] = useState(null);
   const [showTemplates, setShowTemplates] = useState(false);
   const [runSequential, setRunSequential] = useState(false);
+  // Where runs execute: this machine, or the configured MEME server.
+  const [computeTarget, setComputeTarget] = useState('local');
+  const [remoteServer] = useState(() => getMemeServerConfig());
+  const remoteAvailable = !!remoteServer?.url && engineSupportedByMeme(selectedEngine);
+  const computeRemote = computeTarget === 'remote' && remoteAvailable;
 
   // Per-model board: each model persists its own board under its own key.
   const boardModelIdRef = useRef(null);
@@ -281,11 +288,12 @@ export default function ScenarioStudio({ onNavigate }) {
   const { variants, warnings } = useMemo(() => buildScenarioVariants(model, scenario), [model, scenario]);
 
   const hasSpores = useMemo(() => variants.some(v => v.sporesPlan), [variants]);
-  const sporesBlocked = hasSpores && selectedEngine !== 'calliope06';
+  // SPORES: locally on Calliope 0.6.8, remotely (MEME) on Calliope 0.7.
+  const sporesBlocked = hasSpores && !(selectedEngine === 'calliope06' || (selectedEngine === 'calliope07' && computeRemote));
   const capabilityWarnings = useMemo(() => {
     if (!variants.length) return [];
     const w = getCapabilityWarnings(selectedEngine, variants.flatMap(v => v.ops));
-    return sporesBlocked ? [...w, 'SPORES runs need the Calliope 0.6.8 engine.'] : w;
+    return sporesBlocked ? [...w, 'SPORES runs need Calliope 0.6.8 locally, or Calliope 0.7 on MEME.'] : w;
   }, [variants, selectedEngine, sporesBlocked]);
 
   const selectedNode = useMemo(() => nodes.find(n => n.id === selectedNodeId) || null, [nodes, selectedNodeId]);
@@ -405,8 +413,10 @@ export default function ScenarioStudio({ onNavigate }) {
       onDone: result => { _handleDone(jobId, batchId, variant.label, m.name, result); resolve(result || {}); },
       onError: error => { _handleError(jobId, batchId, variant.label, m.name, error); resolve({ success: false, error }); },
     };
-    const start = (selectedEngine === 'calliope06' || selectedEngine === 'calliope07')
-      ? runCalliopeModel(opts) : runEngineModel(selectedEngine, opts);
+    const start = computeRemote
+      ? runMemeModel(selectedEngine, { ...opts, server: remoteServer, mode: concreteModel.modelConfig?.mode, solver: 'highs' })
+      : (selectedEngine === 'calliope06' || selectedEngine === 'calliope07')
+        ? runCalliopeModel(opts) : runEngineModel(selectedEngine, opts);
     start.then(({ cancel }) => { cancelFnsRef.current[jobId] = cancel; })
       .catch(err => { removeRunningJob(jobId); showNotification(`Failed to start "${displayName}": ${err.message}`, 'error'); resolve({ success: false, error: err.message }); });
   });
@@ -415,9 +425,9 @@ export default function ScenarioStudio({ onNavigate }) {
     if (!model) { showNotification('Select a model first.', 'error'); return; }
     if (variants.length === 0) { showNotification('Add at least one Year card to the scenario.', 'error'); return; }
 
-    const engineLabel = ENGINE_LABELS[selectedEngine] || selectedEngine;
-    if (serviceStatus === false) { showNotification(`${engineLabel} service is offline. Start it from Settings.`, 'error'); return; }
-    if (serviceStatus === null) {
+    const engineLabel = (ENGINE_LABELS[selectedEngine] || selectedEngine) + (computeRemote ? ' (MEME)' : '');
+    if (!computeRemote && serviceStatus === false) { showNotification(`${engineLabel} service is offline. Start it from Settings.`, 'error'); return; }
+    if (!computeRemote && serviceStatus === null) {
       const up = (selectedEngine === 'calliope06' || selectedEngine === 'calliope07')
         ? await checkCalliopeService(selectedEngine === 'calliope07' ? '0.7' : undefined)
         : await checkEngineRunService(selectedEngine);
@@ -491,6 +501,17 @@ export default function ScenarioStudio({ onNavigate }) {
             {Object.entries(ENGINE_LABELS).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
           </select>
         </div>
+        {remoteAvailable && (
+          <div className="flex items-center rounded-lg border border-slate-200 overflow-hidden text-xs font-medium"
+            title={`Remote runs go to MEME at ${remoteServer.url}`}>
+            {[['local', 'Local'], ['remote', 'MEME']].map(([id, label]) => (
+              <button key={id} onClick={() => setComputeTarget(id)}
+                className={`px-2.5 py-1.5 transition-colors ${computeTarget === id ? 'bg-slate-800 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
         <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${
           serviceStatus === true ? 'bg-green-50 border-green-200 text-green-700' :
           serviceStatus === false ? 'bg-red-50 border-red-200 text-red-600' :
@@ -615,7 +636,7 @@ export default function ScenarioStudio({ onNavigate }) {
         sequential={runSequential}
         onToggleSequential={() => setRunSequential(v => !v)}
         onRun={handleRun}
-        runDisabled={!model || serviceStatus === false || totalRuns === 0 || sporesBlocked}
+        runDisabled={!model || (!computeRemote && serviceStatus === false) || totalRuns === 0 || sporesBlocked}
         runningJobsCount={runningJobs.length}
         onGoToRun={() => onNavigate?.('Run')}
         engineLabel={engineLabel}
