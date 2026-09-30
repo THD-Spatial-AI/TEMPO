@@ -394,7 +394,7 @@ export async function parseFilesMap(filesMap, addLog, rootKey = null) {
 
 // ─── YAML → internal model translator ────────────────────────────────────────
 
-export function translateCalliopeModel(mergedDoc, filesMap) {
+export function translateCalliopeModel(mergedDoc, filesMap, { extraCsvFiles = [] } = {}) {
   const log = [];
   // Normalise ALL Calliope dot-path shorthand at every level before any field
   // lookups. This covers tech_group bare keys (costs.monetary.interest_rate: 0.1),
@@ -615,6 +615,12 @@ export function translateCalliopeModel(mergedDoc, filesMap) {
       if (tech?.constraints) collectFileRefs(tech.constraints, null, techName);
     });
   });
+
+  // CSVs a scenario may swap in later (e.g. alternative weather years): loaded
+  // now, with no refs, so the model carries them (remote runs can't fetch them).
+  for (const f of extraCsvFiles) {
+    if (!fileRefMap.has(f) && (resolveFile(filesMap, f) ?? resolveFile(filesMap, tsPath + '/' + f))) fileRefMap.set(f, []);
+  }
 
   // ── Build one timeSeries entry per CSV file ────────────────────────────────
   // Demand techs whose missing timeseries would leave the model with nothing to

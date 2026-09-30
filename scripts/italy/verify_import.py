@@ -66,14 +66,9 @@ def build_tempo(payload_path):
 
 def build_original(yaml_path):
     import calliope
-    # Same 0.6.4 → 0.6.8 rename TEMPO applies (supply_share_min is otherwise ignored).
-    cfg = calliope.AttrDict.from_yaml(str(yaml_path))
-    for gc in cfg.get('group_constraints', {}).values():
-        for suffix in ('min', 'max', 'equals'):
-            if f'supply_share_{suffix}' in gc:
-                gc[f'carrier_prod_share_{suffix}'] = gc.pop(f'supply_share_{suffix}')
-    cfg.model.timeseries_data_path = str(Path(yaml_path).parent / cfg.model.timeseries_data_path)
-    return calliope.Model(cfg, scenario='2050_eff,no_old_techs')
+    # 0.6.8 ignores the legacy supply_share_min (TEMPO drops it too: its 0.6.8
+    # rename carrier_prod_share_min would also count conversion output).
+    return calliope.Model(str(yaml_path), scenario='2050_eff,no_old_techs')
 
 
 def _lower_coords(da):

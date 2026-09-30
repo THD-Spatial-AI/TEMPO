@@ -30,7 +30,9 @@ for (const p of walk(root)) {
 }
 
 const merged = await parseFilesMap(filesMap, () => {}, 'model.yaml');
-const t = translateCalliopeModel(merged, filesMap);
+// Same extra CSVs the app's Italian template carries (CalliopeYAMLImporter SERVER_TEMPLATES).
+const extraCsvFiles = ['pv', 'wind', 'windoff'].flatMap(p => [`${p}_1989.csv`, `${p}_2010.csv`]);
+const t = translateCalliopeModel(merged, filesMap, { extraCsvFiles });
 if (t.missingTimeSeries.length) console.warn('missing CSVs:', t.missingTimeSeries);
 
 const variant = SENSITIVITY_VARIANTS.find(v => v.id === (args.variant || 'reference'));

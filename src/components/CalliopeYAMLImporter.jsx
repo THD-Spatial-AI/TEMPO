@@ -54,6 +54,13 @@ const SERVER_TEMPLATES = [
       'timeseries_data/wind_offshore_series.csv',
       'timeseries_data/hydro_reservoirs.csv',
     ],
+    // Not referenced by the YAML, but swapped in by the Lombardi et al. (2020)
+    // sensitivity cases (worst / best weather year) — carried in the model so
+    // remote (MEME) runs have them too.
+    extraCsvFiles: [
+      'timeseries_data/pv_1989.csv', 'timeseries_data/wind_1989.csv', 'timeseries_data/windoff_1989.csv',
+      'timeseries_data/pv_2010.csv', 'timeseries_data/wind_2010.csv', 'timeseries_data/windoff_2010.csv',
+    ],
     color: 'green',
   },
   {
@@ -125,11 +132,14 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
   const folderRef = useRef(null);
 
   const addLog = useCallback(msg => setParseLog(p => [...p, msg]), []);
+  // Unreferenced CSVs a server template asks to carry (see SERVER_TEMPLATES.extraCsvFiles).
+  const extraCsvRef = useRef([]);
 
   const reset = () => {
     setStatus('idle'); setErrorMsg(''); setParseLog([]);
     setPreview(null);  setShowLog(false); setModelName(''); setLoadingTpl(null);
     setRootCandidates([]); setPendingFilesMap(null);
+    extraCsvRef.current = [];
   };
 
   // ── shared: parse a filesMap against a chosen (or auto-detected) root ───────
@@ -141,7 +151,7 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
       addLog('Detected Calliope model format: ' + format);
       const result    = format === '0.7'
         ? from07ToInternal(mergedDoc, filesMap, Papa)
-        : translateCalliopeModel(mergedDoc, filesMap);
+        : translateCalliopeModel(mergedDoc, filesMap, { extraCsvFiles: extraCsvRef.current });
       result.log.forEach(l => addLog(l));
       setPreview(result);
       setModelName(result.modelName);
@@ -167,6 +177,7 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
 
   // ── ZIP mode ───────────────────────────────────────────────────────────────
   const handleZIP = useCallback(async (file) => {
+    extraCsvRef.current = [];
     setStatus('parsing');
     setParseLog([]);
     addLog('Opening ZIP: ' + file.name);
@@ -193,6 +204,7 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
 
   // ── files/folder mode ─────────────────────────────────────────────────────
   const handleFileList = useCallback(async (fileList) => {
+    extraCsvRef.current = [];
     setStatus('parsing');
     setParseLog([]);
     const filesMap = new Map();
@@ -284,6 +296,11 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
       for (const csv of (tpl.csvFiles || [])) {
         const csvOk = await fetchFile(tpl.basePath + '/' + csv, csv.split('/').pop());
         if (csvOk) addLog('Fetched CSV: ' + csv.split('/').pop());
+      }
+      extraCsvRef.current = [];
+      for (const csv of (tpl.extraCsvFiles || [])) {
+        const name = csv.split('/').pop();
+        if (await fetchFile(tpl.basePath + '/' + csv, name)) { extraCsvRef.current.push(name); addLog('Fetched CSV: ' + name); }
       }
 
       // Auto-discover and fetch any 'file=xxx.csv' references found across all

@@ -57,7 +57,7 @@ const COST_MAP = {
   storage_cap: 'investment_per_energy_capacity',
   om_annual: 'fixed_om',
   om_prod: 'variable_om',
-  om_con: 'variable_om',
+  // om_con (per unit consumed) is role-dependent — see buildCosts.
   purchase: 'purchase',
 };
 
@@ -142,21 +142,29 @@ function makeTsContext(model) {
   const timeseries = {};
   const idByKey = new Map();
 
-  /** @returns {string|null} the inline-timeseries id, or null if unresolvable. */
-  const register = (ref, { abs = false } = {}) => {
+  /**
+   * `file=x.csv:col`, or Calliope's implicit `file=x.csv` whose column is the
+   * location name (`node`). Columns match exactly, then case-insensitively.
+   * `scale` multiplies the series (e.g. resource_eff).
+   * @returns {string|null} the inline-timeseries id, or null if unresolvable.
+   */
+  const register = (ref, { abs = false, node = null, scale = 1 } = {}) => {
     if (typeof ref !== 'string' || !ref.startsWith('file=')) return null;
-    const key = `${ref}|${abs}`;
-    if (idByKey.has(key)) return idByKey.get(key);
     const body = ref.slice(5);
     const sep = body.indexOf(':');
-    if (sep < 0) return null;
-    const fname = body.slice(0, sep);
-    const col = body.slice(sep + 1);
+    const fname = sep < 0 ? body : body.slice(0, sep);
+    const wanted = sep < 0 ? node : body.slice(sep + 1);
     const colMap = files.get(fname);
-    let values = colMap ? colMap[col] : null;
+    if (!colMap || wanted == null) return null;
+    const col = wanted in colMap ? wanted
+      : Object.keys(colMap).find((c) => c.toLowerCase() === String(wanted).toLowerCase());
+    let values = col != null ? colMap[col] : null;
     if (!values || !values.length) return null;
+    const key = `${fname}|${col}|${abs}|${scale}`;
+    if (idByKey.has(key)) return idByKey.get(key);
     if (abs) values = values.map((v) => Math.abs(v));
-    const id = safeId(`ts_${fname.replace(/\.csv$/i, '')}_${col}`);
+    if (scale !== 1) values = values.map((v) => v * scale);
+    const id = safeId(`ts_${fname.replace(/\.csv$/i, '')}_${col}${scale !== 1 ? `_x${scale}` : ''}`);
     timeseries[id] = { source: 'inline', values };
     idByKey.set(key, id);
     return id;
@@ -174,9 +182,12 @@ function makeTsContext(model) {
  * (capacity / efficiency / storage / demand_profile / source). Mutates `out`.
  * Unmapped keys are warned about and dropped.
  */
-function applyConstraints(out, constraints, role, log, ctx, tsCtx) {
+function applyConstraints(out, constraints, role, log, ctx, tsCtx, { node = null, inherited = {} } = {}) {
   const c = { ...(constraints || {}) };
   delete c.lifetime; // → tech.lifetime, handled by caller
+  // Settings that shape how a node-level resource series is read may live on
+  // the tech (Calliope inherits them): force_resource, resource_eff.
+  const pick = (k) => (k in c ? c[k] : inherited[k]);
 
   const cap = {};
   if ('energy_cap_max' in c) {
@@ -185,6 +196,10 @@ function applyConstraints(out, constraints, role, log, ctx, tsCtx) {
     delete c.energy_cap_max;
   }
   if ('energy_cap_min' in c) { cap.min = num(c.energy_cap_min); delete c.energy_cap_min; }
+  if ('energy_cap_max_systemwide' in c) {
+    if (!isInf(c.energy_cap_max_systemwide)) cap.systemwide_max = num(c.energy_cap_max_systemwide);
+    delete c.energy_cap_max_systemwide;
+  }
   if ('energy_cap_equals' in c) {
     cap.existing = num(c.energy_cap_equals);
     cap.expandable = false;
@@ -192,7 +207,16 @@ function applyConstraints(out, constraints, role, log, ctx, tsCtx) {
   }
   if (Object.keys(cap).length) out.capacity = cap;
 
-  if ('energy_eff' in c) { out.efficiency = num(c.energy_eff); delete c.energy_eff; }
+  if ('energy_eff' in c) {
+    // 0.6 storage applies energy_eff on charge AND discharge; MEME storage has
+    // no generic efficiency, only the two directions.
+    if (role === 'storage') {
+      out.storage = { ...(out.storage || {}), charge_eff: num(c.energy_eff), discharge_eff: num(c.energy_eff) };
+    } else {
+      out.efficiency = num(c.energy_eff);
+    }
+    delete c.energy_eff;
+  }
 
   const storage = {};
   if ('storage_cap_max' in c) {
@@ -204,23 +228,61 @@ function applyConstraints(out, constraints, role, log, ctx, tsCtx) {
     delete c.storage_cap_min;
   }
   if ('storage_cap_equals' in c) {
-    storage.energy_capacity = { ...(storage.energy_capacity || {}), existing: num(c.storage_cap_equals) };
+    storage.energy_capacity = { ...(storage.energy_capacity || {}), existing: num(c.storage_cap_equals), expandable: false };
     delete c.storage_cap_equals;
+  }
+  if ('storage_loss' in c) { storage.self_discharge = num(c.storage_loss); delete c.storage_loss; }
+  if ('storage_initial' in c) { storage.initial_soc = num(c.storage_initial); delete c.storage_initial; }
+  // One power cap bounds charge and discharge (Calliope 0.6), so both rates.
+  for (const key of ['energy_cap_per_storage_cap_max', 'energy_cap_per_storage_cap_equals']) {
+    if (!(key in c)) continue;
+    storage.max_charge_rate = num(c[key]);
+    storage.max_discharge_rate = num(c[key]);
+    if (key.endsWith('_equals')) {
+      // MEME can only bound the ratio from above; pin the minimum natively.
+      out.native = { ...(out.native || {}), calliope: { ...(out.native?.calliope || {}), flow_cap_per_storage_cap_min: num(c[key]) } };
+    }
+    delete c[key];
   }
   if (Object.keys(storage).length) out.storage = { ...(out.storage || {}), ...storage };
 
-  const force = !!c.force_resource;
+  const operation = {};
+  if ('energy_cap_min_use' in c) { operation.min_pu = num(c.energy_cap_min_use); delete c.energy_cap_min_use; }
+  if ('energy_ramping' in c) {
+    operation.ramp_up = num(c.energy_ramping);
+    operation.ramp_down = num(c.energy_ramping);
+    delete c.energy_ramping;
+  }
+  if (Object.keys(operation).length) out.operation = { ...(out.operation || {}), ...operation };
+
+  // energy_per_cap is what a per-unit availability series already means;
+  // energy_prod: true is Calliope's default. Anything else is not mappable.
+  if (c.resource_unit === 'energy_per_cap') delete c.resource_unit;
+  if (c.energy_prod === true) delete c.energy_prod;
+  const resourceEff = num(pick('resource_eff')) ?? 1;
+  delete c.resource_eff;
+  if ('resource_cap_equals' in c || 'resource_cap_max' in c) {
+    out.source = { ...(out.source || {}), cap: num(c.resource_cap_equals ?? c.resource_cap_max) };
+    delete c.resource_cap_equals;
+    delete c.resource_cap_max;
+  }
+
+  const forceRaw = pick('force_resource');
+  const force = !!forceRaw;
   delete c.force_resource;
   if ('resource' in c) {
     const r = c.resource;
     delete c.resource;
     const fileRef = typeof r === 'string' && r.startsWith('file=');
     if (role === 'demand') {
+      // force_resource: false → a flexible sink up to the profile (export,
+      // curtailment, market) rather than a demand that must be met exactly.
+      if (forceRaw === false) out.demand_curtailable = true;
       // internal demand is a negative sink; MEME demand_profile is positive.
       if (typeof r === 'number') {
         out.demand_profile = Math.abs(r);
       } else if (fileRef) {
-        const id = tsCtx?.register(r, { abs: true });
+        const id = tsCtx?.register(r, { abs: true, node });
         if (id) out.demand_profile = id;
         else log.push(`⚠ ${ctx}: demand timeseries '${r}' could not be resolved — dropped`);
       } else if (r != null) {
@@ -228,10 +290,12 @@ function applyConstraints(out, constraints, role, log, ctx, tsCtx) {
       }
     } else if (role === 'supply') {
       if (fileRef) {
-        // a per-timestep availability series → capacity-factor bound (max_pu)
-        const id = tsCtx?.register(r, { abs: false });
-        if (id) out.operation = { ...(out.operation || {}), max_pu: id };
-        else log.push(`⚠ ${ctx}: availability timeseries '${r}' could not be resolved — dropped`);
+        // A per-timestep availability series (× resource_eff): a ceiling
+        // (max_pu), or the exact output when force_resource is set (equals_pu).
+        const id = tsCtx?.register(r, { abs: false, node, scale: resourceEff });
+        if (id) out.operation = { ...(out.operation || {}), [force ? 'equals_pu' : 'max_pu']: id };
+        else if (node || r.slice(5).includes(':')) log.push(`⚠ ${ctx}: availability timeseries '${r}' could not be resolved — dropped`);
+        else out._implicitResource = r; // tech-level: expanded per node by the caller
       } else if (isInf(r)) {
         // resource: inf → an unlimited source (the import/slack tech). Calliope
         // leaves energy_cap unbounded; MEME defaults an unspecified supply
@@ -242,7 +306,7 @@ function applyConstraints(out, constraints, role, log, ctx, tsCtx) {
         // scalar resource is Calliope-only in MEME (source.max, curtailable)
         out.source = { ...(out.source || {}), max: r };
       }
-      if (force) log.push(`⚠ ${ctx}: force_resource (source_use_equals) not mapped — using a curtailable bound`);
+      if (force && !fileRef) log.push(`⚠ ${ctx}: force_resource on a scalar resource not mapped — using a curtailable bound`);
     }
   }
 
@@ -251,21 +315,35 @@ function applyConstraints(out, constraints, role, log, ctx, tsCtx) {
   }
 }
 
-/** internal costs.monetary → MEME tech `costs` block (single 'monetary' class). */
-function buildCosts(costs, log, ctx) {
+/**
+ * internal costs.monetary → MEME tech `costs` block (single 'monetary' class).
+ * om_con is a cost per unit consumed: on techs with an input carrier it is
+ * MEME fuel_cost (Calliope cost_flow_in). A supply tech has no input flow:
+ * Calliope 0.6 charges it on output / energy_eff, so it becomes a per-output
+ * cost om_con / eff added to variable_om (portable; a Calliope 0.7
+ * cost_source would only apply to techs with a source model).
+ */
+function buildCosts(costs, log, ctx, role = null, eff = 1) {
   const monetary = costs?.monetary;
   if (!monetary || typeof monetary !== 'object') return null;
-  const out = {};
+  const res = {};
   for (const [key, raw] of Object.entries(monetary)) {
     if (key === 'interest_rate') continue; // → tech.interest_rate
+    if (key === 'om_con') {
+      const v = num(raw);
+      if (v == null) continue;
+      if (role === 'supply') res.variable_om = (res.variable_om ?? 0) + v / (eff || 1);
+      else res.fuel_cost = v;
+      continue;
+    }
     if (key in COST_MAP) {
       const v = num(raw);
-      if (v != null) out[COST_MAP[key]] = v;
+      if (v != null) res[COST_MAP[key]] = (COST_MAP[key] === 'variable_om' ? (res.variable_om ?? 0) : 0) + v;
     } else {
       log.push(`⚠ ${ctx}: cost '${key}' has no MEME canonical field — dropped`);
     }
   }
-  return Object.keys(out).length ? { monetary: out } : null;
+  return Object.keys(res).length ? { monetary: res } : null;
 }
 
 /** Assign carrier_in/carrier_out on a MEME tech per its role. */
@@ -284,6 +362,23 @@ function applyCarriers(out, ess, role) {
   } else if (role === 'conversion') {
     out.carrier_in = cIn;
     out.carrier_out = cOut;
+  }
+}
+
+/** Output-referenced capacity/costs (Calliope 0.6 conversion) → input basis. */
+function toInputBasis(obj, eff) {
+  if (!obj || !(eff > 0) || eff === 1) return;
+  const cap = obj.capacity;
+  if (cap) {
+    for (const k of ['max', 'min', 'existing', 'systemwide_max', 'systemwide_min']) {
+      if (typeof cap[k] === 'number') cap[k] = cap[k] / eff;
+    }
+  }
+  const m = obj.costs?.monetary;
+  if (m) {
+    for (const k of ['investment_per_capacity', 'fixed_om']) {
+      if (typeof m[k] === 'number') m[k] = m[k] * eff;
+    }
   }
 }
 
@@ -346,8 +441,10 @@ export function internalToMemeCanonical(model, opts = {}) {
     byNode[node] = { ...(byNode[node] || {}), ...patch };
   };
 
+  const locNameOf = new Map();
   for (const loc of locations) {
     const nodeId = safeId(loc.name || loc.id);
+    locNameOf.set(nodeId, loc.name ?? loc.id);
     for (const [ref, cfg] of Object.entries(loc.techs || {})) {
       const tid = resolveTechId(ref);
       const tech = techById.get(tid);
@@ -358,8 +455,10 @@ export function internalToMemeCanonical(model, opts = {}) {
       if (cfg && typeof cfg === 'object') {
         const per = cfg.constraints || cfg;
         const patch = {};
-        applyConstraints(patch, per, ROLE_FOR_PARENT[parentOf(tech)], log, `${nodeId}.${tid}`, tsCtx);
-        const costs = buildCosts(cfg.costs, log, `${nodeId}.${tid}`);
+        applyConstraints(patch, per, ROLE_FOR_PARENT[parentOf(tech)], log, `${nodeId}.${tid}`, tsCtx,
+          { node: loc.name ?? loc.id, inherited: tech.constraints || {} });
+        const costs = buildCosts(cfg.costs, log, `${nodeId}.${tid}`, ROLE_FOR_PARENT[parentOf(tech)],
+          num(per?.energy_eff ?? tech.constraints?.energy_eff) ?? 1);
         if (costs) patch.costs = costs;
         addOverride(tid, nodeId, patch);
       }
@@ -416,7 +515,7 @@ export function internalToMemeCanonical(model, opts = {}) {
 
     applyConstraints(out, tech.constraints, role, log, id, tsCtx);
 
-    const costs = buildCosts(tech.costs, log, id);
+    const costs = buildCosts(tech.costs, log, id, role, num(tech.constraints?.energy_eff) ?? 1);
     if (costs) out.costs = costs;
 
     const lifetime = num(tech.constraints?.lifetime);
@@ -424,6 +523,37 @@ export function internalToMemeCanonical(model, opts = {}) {
     const interest = num(tech.costs?.monetary?.interest_rate);
     if (interest != null) out.interest_rate = interest;
     out.cost_basis = 'overnight';
+
+    // A tech-level implicit `file=x.csv` means "each node reads its own column".
+    if (out._implicitResource) {
+      const ref = out._implicitResource;
+      delete out._implicitResource;
+      const force = !!tech.constraints?.force_resource;
+      const scale = num(tech.constraints?.resource_eff) ?? 1;
+      for (const nodeId of nodes) {
+        const own = overridesForTech.get(id)?.[nodeId]?.operation;
+        if (own?.max_pu != null || own?.equals_pu != null) continue; // node sets its own
+        const tsId = tsCtx.register(ref, { node: locNameOf.get(nodeId), scale });
+        if (!tsId) { log.push(`⚠ ${nodeId}.${id}: availability timeseries '${ref}' could not be resolved — dropped`); continue; }
+        addOverride(id, nodeId, { operation: { ...(own || {}), [force ? 'equals_pu' : 'max_pu']: tsId } });
+      }
+    }
+
+    // Cyclic storage is Calliope 0.6.8's default (the local runner keeps it);
+    // a non-cyclic 0.7 model can start with free stored energy.
+    const cyclic = modelCfg.cyclicStorage ?? runCfg.cyclic_storage ?? true;
+    if (role === 'storage' && cyclic) out.storage = { ...(out.storage || {}), cyclic: true };
+
+    // Calliope 0.6 conversion capacity/costs are per unit of OUTPUT; MEME's
+    // canonical conversion capacity is input-referenced (PyPSA link p_nom).
+    if (role === 'conversion') {
+      const eff = num(tech.constraints?.energy_eff) ?? 1;
+      toInputBasis(out, eff);
+      for (const [nodeId, ov] of Object.entries(overridesForTech.get(id) || {})) {
+        const nodeCfg = locations.find(l => safeId(l.name || l.id) === nodeId)?.techs?.[tech.name];
+        toInputBasis(ov, num((nodeCfg?.constraints || nodeCfg)?.energy_eff) ?? eff);
+      }
+    }
 
     const overrides = overridesForTech.get(id);
     if (overrides && Object.keys(overrides).length) out.node_overrides = overrides;
@@ -465,25 +595,49 @@ export function internalToMemeCanonical(model, opts = {}) {
     // freely" in TEMPO: Calliope treats an unset link cap as unbounded. It must
     // NOT become capacity.max = 0, which MEME emits as flow_cap_max: 0 and
     // islands the node → infeasible. So 0/absent ⇒ expandable with no max.
-    const txc = def?.constraints || {};
+    // Imported YAML links carry their own per-link tech config (linkConfig) and
+    // the constraint the capacity came from (capacityKey): existing lines are
+    // energy_cap_equals (fixed), new ones energy_cap_max (expandable).
+    const lcc = link.linkConfig?.constraints || {};
+    const txc = { ...(def?.constraints || {}), ...lcc };
     const cap = {};
     const linkCap = num(link.capacity);
-    const capMax = linkCap != null && linkCap > 0 ? linkCap : txc.energy_cap_max;
-    if (capMax != null && !isInf(capMax) && num(capMax) > 0) {
-      cap.max = num(capMax);
+    if (link.capacityKey === 'energy_cap_equals' && linkCap != null) {
+      cap.existing = linkCap;
+      cap.expandable = false;
+    } else if (link.capacityKey === 'energy_cap_min' && linkCap != null) {
+      cap.min = linkCap;
       cap.expandable = true;
     } else {
-      cap.expandable = true; // unbounded — build transmission as needed
+      const capMax = linkCap != null && linkCap > 0 ? linkCap : txc.energy_cap_max;
+      if (capMax != null && !isInf(capMax) && num(capMax) > 0) {
+        cap.max = num(capMax);
+        cap.expandable = true;
+      } else {
+        cap.expandable = true; // unbounded — build transmission as needed
+      }
+      if (!link.capacityKey && txc.energy_cap_equals != null) { cap.existing = num(txc.energy_cap_equals); cap.expandable = false; }
+      if (!link.capacityKey && txc.energy_cap_min != null) cap.min = num(txc.energy_cap_min);
     }
-    if (txc.energy_cap_equals != null) { cap.existing = num(txc.energy_cap_equals); cap.expandable = false; }
-    if (txc.energy_cap_min != null) cap.min = num(txc.energy_cap_min);
     if (Object.keys(cap).length) entry.capacity = cap;
 
     if (link.distance != null && link.distance !== 0) entry.distance = num(link.distance);
     const eff = num(txc.energy_eff);
     if (eff != null) entry.efficiency = eff;
-    const costs = buildCosts(def?.costs, log, `link ${from}→${to}`);
-    if (costs) entry.costs = costs;
+    const techCosts = buildCosts(def?.costs, log, `link ${from}→${to}`)?.monetary || {};
+    const linkCosts = buildCosts(link.linkConfig?.costs, log, `link ${from}→${to}`)?.monetary || {};
+    const monetary = { ...techCosts, ...linkCosts }; // per-link costs override the tech's
+    if (Object.keys(monetary).length) entry.costs = { monetary };
+    // Annualisation of the link investment: canonical links have no lifetime /
+    // interest-rate fields, so pass Calliope's natively.
+    const lifetime = num(lcc.lifetime ?? def?.constraints?.lifetime);
+    const rate = num(link.linkConfig?.costs?.monetary?.interest_rate ?? def?.costs?.monetary?.interest_rate);
+    if (lifetime != null || rate != null) {
+      entry.native = { calliope: {
+        ...(lifetime != null ? { lifetime } : {}),
+        ...(rate != null ? { cost_interest_rate: { data: rate, index: 'monetary', dims: 'costs' } } : {}),
+      } };
+    }
 
     transmission[`${safeId(link.tech || 'transmission')}_${from}_${to}`] = entry;
   }

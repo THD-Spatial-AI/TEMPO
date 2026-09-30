@@ -698,3 +698,209 @@ describe('internalToMemeCanonical – full model shape', () => {
     expect(Object.keys(payload.model.transmission)).toHaveLength(1);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Calliope-Italy fidelity (docs/issues-drafts/17 §11)
+// ---------------------------------------------------------------------------
+
+const csvTs = (fileName, cols, rows) => ({
+  fileName,
+  columns: ['time', ...cols],
+  dateColumn: 'time',
+  dataColumns: cols,
+  data: rows.map((r, i) => ({ time: `2015-01-01 0${i}:00:00`, ...Object.fromEntries(cols.map((c, j) => [c, r[j]])) })),
+});
+
+describe('internalToMemeCanonical – implicit-column timeseries (file=x.csv → column = node)', () => {
+  const model = () => baseModel({
+    technologies: [
+      makeTech('pv', 'supply_plus', { force_resource: true, resource_unit: 'energy_per_cap' }),
+      makeTech('hydro', 'supply_plus', { resource: 'file=hydro.csv', resource_eff: 0.5, resource_unit: 'energy_per_cap' }),
+      { name: 'demand_power', essentials: { parent: 'demand', carrier: 'electricity' }, constraints: {} },
+    ],
+    locations: [
+      { name: 'R1', techs: { pv: { constraints: { resource: 'file=pv.csv' } }, hydro: {} } },
+      { name: 'NORD', techs: { demand_power: { constraints: { resource: 'file=dem.csv' } }, hydro: {} } },
+    ],
+    timeSeries: [
+      csvTs('pv.csv', ['R1', 'R2'], [[0.1, 0.9], [0.2, 0.8]]),
+      csvTs('hydro.csv', ['r1', 'NORD'], [[0.4, 0.6], [0.2, 1.0]]),
+      csvTs('dem.csv', ['NORD'], [[-5, 0], [-7, 0]]),
+    ],
+  });
+  const { payload, log } = internalToMemeCanonical(model());
+  const t = payload.model.technologies;
+  const ts = payload.model.timeseries;
+
+  it('resolves node-level references by node name, with no dropped series', () => {
+    expect(log.filter(l => /could not be resolved/.test(l))).toEqual([]);
+    const id = t.pv.node_overrides.R1.operation.equals_pu;
+    expect(ts[id].values).toEqual([0.1, 0.2]);
+    expect(ts[t.demand_power.demand_profile].values).toEqual([5, 7]);
+  });
+
+  it('force_resource pins availability (equals_pu) instead of a ceiling', () => {
+    expect(t.pv.node_overrides.R1.operation.max_pu).toBeUndefined();
+    expect(log.some(l => /force_resource/.test(l))).toBe(false);
+  });
+
+  it('expands a tech-level implicit reference per node (case-insensitive) and applies resource_eff', () => {
+    expect(ts[t.hydro.node_overrides.R1.operation.max_pu].values).toEqual([0.2, 0.1]);
+    expect(ts[t.hydro.node_overrides.NORD.operation.max_pu].values).toEqual([0.3, 0.5]);
+    expect(log.some(l => /resource_eff|resource_unit/.test(l))).toBe(false);
+  });
+});
+
+describe('internalToMemeCanonical – imported links (linkConfig / capacityKey)', () => {
+  const model = baseModel({
+    technologies: [
+      { name: 'inter_zonal', essentials: { parent: 'transmission', carrier: 'electricity' }, constraints: { energy_eff: 0.96 }, costs: { monetary: { om_prod: 0.0022 } } },
+      { name: 'inter_zonal_new', essentials: { parent: 'transmission', carrier: 'electricity' }, constraints: { energy_eff: 0.96 }, costs: { monetary: { om_prod: 0.0022, interest_rate: 0.1 } } },
+    ],
+    locations: [{ name: 'NORD', techs: {} }, { name: 'CNOR', techs: {} }],
+    links: [
+      { from: 'NORD', to: 'CNOR', tech: 'inter_zonal', capacity: 1300000, capacityKey: 'energy_cap_equals',
+        linkConfig: { constraints: { energy_cap_equals: 1300000 } } },
+      { from: 'NORD', to: 'CNOR', tech: 'inter_zonal_new', capacity: 5000000, capacityKey: 'energy_cap_max',
+        linkConfig: { constraints: { energy_cap_max: 5000000 }, costs: { monetary: { energy_cap: 450 } } } },
+    ],
+  });
+  const tx = internalToMemeCanonical(model).payload.model.transmission;
+
+  it('keeps an existing (equals) line fixed', () => {
+    expect(tx.inter_zonal_NORD_CNOR.capacity).toEqual({ existing: 1300000, expandable: false });
+  });
+
+  it('keeps the expandable line bounded and adds its per-link investment cost to the tech costs', () => {
+    expect(tx.inter_zonal_new_NORD_CNOR.capacity).toEqual({ max: 5000000, expandable: true });
+    expect(tx.inter_zonal_new_NORD_CNOR.costs.monetary).toEqual({ variable_om: 0.0022, investment_per_capacity: 450 });
+  });
+});
+
+describe('internalToMemeCanonical – Calliope-Italy constraint mappings', () => {
+  const model = baseModel({
+    technologies: [
+      makeTech('biogas_new', 'supply', { resource: 'inf', energy_cap_max_systemwide: 4e6, energy_cap_min_use: 0.3, energy_ramping: 0.8 }),
+      { name: 'phs_new', essentials: { parent: 'storage', carrier: 'electricity' }, constraints: { energy_cap_per_storage_cap_equals: 0.01, storage_loss: 0 } },
+      { name: 'battery', essentials: { parent: 'storage', carrier: 'electricity' }, constraints: { energy_cap_per_storage_cap_max: 0.25 } },
+      { name: 'gas_store', essentials: { parent: 'storage', carrier: 'methane' }, constraints: { storage_initial: 0 } },
+      makeTech('el_import', 'supply_plus', { resource: 6e6, resource_cap_equals: 6e6, energy_prod: true, resource_eff: 1 }),
+    ],
+    locations: [{ name: 'NORD', techs: { biogas_new: {}, phs_new: {}, battery: {}, gas_store: {}, el_import: {} } }],
+  });
+  const { payload, log } = internalToMemeCanonical(model);
+  const t = payload.model.technologies;
+
+  it('drops none of the Italy constraints', () => {
+    expect(log.filter(l => /has no MEME canonical field/.test(l))).toEqual([]);
+  });
+
+  it('maps system-wide cap, minimum load and ramping', () => {
+    expect(t.biogas_new.capacity.systemwide_max).toBe(4e6);
+    expect(t.biogas_new.operation).toMatchObject({ min_pu: 0.3, ramp_up: 0.8, ramp_down: 0.8 });
+  });
+
+  it('maps storage loss, initial level and power/energy ratios (equals via a native minimum)', () => {
+    expect(t.phs_new.storage).toMatchObject({ self_discharge: 0, max_charge_rate: 0.01, max_discharge_rate: 0.01 });
+    expect(t.phs_new.native.calliope).toEqual({ flow_cap_per_storage_cap_min: 0.01 });
+    expect(t.battery.storage).toMatchObject({ max_charge_rate: 0.25, max_discharge_rate: 0.25 });
+    expect(t.gas_store.storage.initial_soc).toBe(0);
+  });
+
+  it('maps a scalar resource with a resource cap to the source model', () => {
+    expect(t.el_import.source).toEqual({ max: 6e6, cap: 6e6 });
+  });
+});
+
+describe('internalToMemeCanonical – om_con (cost per unit consumed)', () => {
+  const model = baseModel({
+    technologies: [
+      makeTech('biogas_new', 'supply', { resource: 'inf', energy_eff: 0.39 }, { monetary: { om_con: 0.04, om_prod: 0.01 } }),
+      { name: 'el_export', essentials: { parent: 'demand', carrier_in: 'electricity' }, constraints: { resource: -6e6, force_resource: false }, costs: { monetary: { om_con: -0.063 } } },
+      { name: 'demand_power', essentials: { parent: 'demand', carrier: 'electricity' }, constraints: { resource: -5 } },
+    ],
+    locations: [{ name: 'NORD', techs: { biogas_new: {}, el_export: {}, demand_power: {} } }],
+  });
+  const t = internalToMemeCanonical(model).payload.model.technologies;
+
+  it('supply: fuel cost per unit of fuel = per output / efficiency, added to the per-output cost', () => {
+    // 0.6 charges om_con on carrier_prod / energy_eff; 0.7 supply techs without a
+    // source model have no source_use, so a native cost_source would be ignored.
+    expect(t.biogas_new.costs.monetary.variable_om).toBeCloseTo(0.01 + 0.04 / 0.39, 12);
+    expect(t.biogas_new.native).toBeUndefined();
+  });
+
+  it('demand: cost (here revenue) per unit consumed → fuel_cost (cost_flow_in)', () => {
+    expect(t.el_export.costs.monetary).toEqual({ fuel_cost: -0.063 });
+  });
+
+  it('force_resource: false makes a demand a flexible sink (up to the profile)', () => {
+    expect(t.el_export.demand_curtailable).toBe(true);
+    expect(t.demand_power.demand_curtailable).toBeUndefined();
+  });
+});
+
+describe('internalToMemeCanonical – link annualisation', () => {
+  it('passes the transmission tech lifetime and interest rate natively (no canonical link fields)', () => {
+    const model = baseModel({
+      technologies: [{ name: 'inter_zonal_new', essentials: { parent: 'transmission', carrier: 'electricity' },
+        constraints: { lifetime: 40 }, costs: { monetary: { interest_rate: 0.1 } } }],
+      locations: [{ name: 'A', techs: {} }, { name: 'B', techs: {} }],
+      links: [{ from: 'A', to: 'B', tech: 'inter_zonal_new', capacity: 5, capacityKey: 'energy_cap_max',
+        linkConfig: { costs: { monetary: { energy_cap: 450 } } } }],
+    });
+    const tx = internalToMemeCanonical(model).payload.model.transmission.inter_zonal_new_A_B;
+    expect(tx.native.calliope).toEqual({ lifetime: 40, cost_interest_rate: { data: 0.1, index: 'monetary', dims: 'costs' } });
+  });
+});
+
+describe('internalToMemeCanonical – storage efficiency and fixed energy capacity', () => {
+  const model = baseModel({
+    technologies: [
+      { name: 'battery', essentials: { parent: 'storage', carrier: 'electricity' }, constraints: { energy_eff: 0.98 } },
+      { name: 'gas_store', essentials: { parent: 'storage', carrier: 'methane' }, constraints: { storage_cap_equals: 1e10 } },
+    ],
+    locations: [{ name: 'A', techs: { battery: {}, gas_store: {} } }],
+  });
+  const t = internalToMemeCanonical(model).payload.model.technologies;
+
+  it('applies 0.6 energy_eff on both charge and discharge', () => {
+    expect(t.battery.storage).toMatchObject({ charge_eff: 0.98, discharge_eff: 0.98 });
+    expect(t.battery.efficiency).toBeUndefined();
+  });
+
+  it('pins storage_cap_equals as a fixed (non-expandable) energy capacity', () => {
+    expect(t.gas_store.storage.energy_capacity).toEqual({ existing: 1e10, expandable: false });
+  });
+});
+
+describe('internalToMemeCanonical – conversion capacity basis', () => {
+  it('re-expresses 0.6 output-referenced capacity/costs on the canonical input basis', () => {
+    const model = baseModel({
+      technologies: [{ name: 'electrolysis', essentials: { parent: 'conversion', carrier_in: 'electricity', carrier_out: 'hydrogen' },
+        constraints: { energy_eff: 0.66, energy_cap_max: 660 }, costs: { monetary: { energy_cap: 1200, om_annual: 36, om_prod: 0.01 } } }],
+      locations: [{ name: 'R1', techs: { electrolysis: { constraints: { energy_cap_max: 66 } } } }],
+    });
+    const t = internalToMemeCanonical(model).payload.model.technologies.electrolysis;
+    expect(t.capacity.max).toBeCloseTo(1000);                               // 660 kW_H2 / 0.66
+    expect(t.costs.monetary.investment_per_capacity).toBeCloseTo(792);      // 1200 €/kW_H2 × 0.66
+    expect(t.costs.monetary.fixed_om).toBeCloseTo(23.76);
+    expect(t.costs.monetary.variable_om).toBe(0.01);                        // per output unit, unchanged
+    expect(t.node_overrides.R1.capacity.max).toBeCloseTo(100);
+  });
+});
+
+describe('internalToMemeCanonical – cyclic storage', () => {
+  const model = (extra) => baseModel({
+    technologies: [{ name: 'phs', essentials: { parent: 'storage', carrier: 'electricity' }, constraints: {} }],
+    locations: [{ name: 'A', techs: { phs: {} } }],
+    ...extra,
+  });
+  it('makes storage cyclic by default, as Calliope 0.6.8 (and the local runner) does', () => {
+    expect(internalToMemeCanonical(model()).payload.model.technologies.phs.storage.cyclic).toBe(true);
+  });
+  it('respects modelConfig.cyclicStorage === false', () => {
+    const m = model({ modelConfig: { cyclicStorage: false } });
+    expect(internalToMemeCanonical(m).payload.model.technologies.phs.storage?.cyclic).toBeUndefined();
+  });
+});

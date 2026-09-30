@@ -218,3 +218,13 @@ describe('translateCalliopeModel — links with several techs per pair', () => {
     });
   });
 });
+
+describe('translateCalliopeModel — extra (unreferenced) CSVs', () => {
+  it('loads listed CSVs that no constraint references yet (e.g. alternative weather years)', () => {
+    const doc = { techs: {}, locations: {} };
+    const files = new Map([['pv_1989.csv', ',R1\n2015-01-01 00:00:00,0.2\n'], ['other.csv', ',R1\n2015-01-01 00:00:00,1\n']]);
+    const { timeSeries } = translateCalliopeModel(doc, files, { extraCsvFiles: ['pv_1989.csv', 'missing.csv'] });
+    expect(timeSeries.map(t => t.fileName)).toEqual(['pv_1989.csv']);
+    expect(timeSeries[0].refs).toEqual([]);
+  });
+});

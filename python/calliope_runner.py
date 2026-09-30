@@ -207,10 +207,18 @@ def imported_model_run_extras(meta_run):
                 gc['techs'] = [_safe_id(t) for t in gc['techs']]
             if isinstance(gc.get('locs'), list):
                 gc['locs'] = [_safe_id(l).lower() for l in gc['locs']]
-            # Calliope <0.6.5 name; 0.6.8 silently ignores it ("Unrecognised group constraint")
+            # Calliope <0.6.5 `supply_share_*` is a share over supply techs only.
+            # 0.6.8's `carrier_prod_share_*` also counts conversion output, so a
+            # rename would change its meaning (Calliope-Italy's 100% renewable
+            # share would forbid its synthetic-gas turbines). 0.6.8 has no
+            # supply-only equivalent: drop it, as 0.6.8 itself ignores the key.
             for suffix in ('min', 'max', 'equals'):
-                if f'supply_share_{suffix}' in gc:
-                    gc[f'carrier_prod_share_{suffix}'] = gc.pop(f'supply_share_{suffix}')
+                if gc.pop(f'supply_share_{suffix}', None) is not None:
+                    log(f"  [CONFIG] group constraint '{name}': legacy supply_share_{suffix} "
+                        f"has no Calliope 0.6.8 equivalent (carrier_prod_share also counts "
+                        f"conversion output) — dropped")
+            if not (set(gc) - {'techs', 'locs', 'exists'}):
+                continue  # no constraint left in this group
             gc_out[name] = gc
         extras['group_constraints'] = gc_out
     if meta_run.get('reserve_margin'):
