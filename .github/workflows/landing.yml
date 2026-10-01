@@ -1,0 +1,96 @@
+name: Landing Page
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "landing/**"
+      - "deploy/landing/**"
+      - ".github/workflows/landing.yml"
+  pull_request:
+    paths:
+      - "landing/**"
+      - "deploy/landing/**"
+      - ".github/workflows/landing.yml"
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * 1"   # Weekly cert renewal
+
+permissions:
+  contents: read
+
+concurrency:
+  group: landing-deploy
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: landing
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: landing/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: landing-dist
+          path: landing/dist
+          retention-days: 7
+
+  deploy:
+    name: Deploy to tempo.th-deg.de
+    needs: build
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: [self-hosted, tempo-runner]
+    environment:
+      name: production
+      url: https://tempo.th-deg.de
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: deploy/landing
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: landing-dist
+          path: dist
+
+      - name: Deploy
+        env:
+          LETSENCRYPT_EMAIL: ${{ vars.LETSENCRYPT_EMAIL }}
+        run: bash deploy/landing/deploy.sh dist "$(date +%Y%m%d%H%M%S)-${GITHUB_SHA::7}"
+
+      - name: Smoke test
+        run: |
+          curl -fsS --retry 5 --retry-delay 3 -o /dev/null https://tempo.th-deg.de/
+          curl -fsS -o /dev/null https://otdb.th-deg.de/health
+          echo "✅ tempo.th-deg.de is live and otdb.th-deg.de is unaffected"
+
+  renew-cert:
+    name: Renew TLS certificate
+    if: github.event_name == 'schedule'
+    runs-on: [self-hosted, tempo-runner]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: deploy/landing
+
+      - name: Renew if due
+        env:
+          LETSENCRYPT_EMAIL: ${{ vars.LETSENCRYPT_EMAIL }}
+        run: bash deploy/landing/deploy.sh --renew
