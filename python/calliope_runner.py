@@ -1981,7 +1981,8 @@ def _run_model_impl(model_data, work_dir):
             {'mipGap': 'mip_rel_gap', 'threads': 'threads', 'timeLimit': 'time_limit',
              'primalTol': 'primal_feasibility_tolerance', 'dualTol': 'dual_feasibility_tolerance',
              # barrier-without-crossover runs (e.g. the Calliope-Italy/Gurobi setup)
-             'method': 'solver', 'crossover': 'run_crossover', 'optimalityTol': 'ipm_optimality_tolerance'},
+             'method': 'solver', 'crossover': 'run_crossover', 'optimalityTol': 'ipm_optimality_tolerance',
+             'logFile': 'log_file'},
         ),
         'highs': (
             {'mip_rel_gap': 1e-3},
@@ -2178,6 +2179,13 @@ def _run_model_impl(model_data, work_dir):
         model_yaml['scenarios'] = scenarios
     if _imported_extras.get('reserve_margin'):
         model_yaml['model']['reserve_margin'] = _imported_extras['reserve_margin']
+    # Optional coarser time resolution (e.g. '6H'), as Calliope's resample time function.
+    if model_config_payload.get('timeResolution'):
+        model_yaml['model']['time'] = {
+            'function': 'resample',
+            'function_options': {'resolution': str(model_config_payload['timeResolution'])},
+        }
+        log(f"  Time resolution: resample to {model_config_payload['timeResolution']}")
     if _imported_extras.get('group_constraints'):
         model_yaml['group_constraints'] = dict(_imported_extras['group_constraints'])
     _slack_group = None
