@@ -117,13 +117,20 @@ nav:
       - Quick Start: getting-started/quick-start.md
   - User Guide:
       - Creating a Model: user-guide/creating-a-model.md
+      - Study Area: user-guide/study-area.md
+      - Substation Demand: user-guide/demand-profiles.md
       - Locations: user-guide/locations.md
       - Links: user-guide/links.md
       - Technologies: user-guide/technologies.md
       - Time Series: user-guide/time-series.md
       - Parameters & Scenarios: user-guide/parameters-scenarios.md
+      - Scenario Studio: user-guide/scenario-studio.md
       - Running Optimization: user-guide/running-optimization.md
+      - Remote Runs (MEME): user-guide/remote-runs.md
+      - SPORES: user-guide/spores.md
       - Results: user-guide/results.md
+      - Comparing & Exporting: user-guide/comparing-exporting.md
+      - Model Advisor: user-guide/model-advisor.md
       - Import & Export: user-guide/import-export.md
   - Map & Geographic Data:
       - Map Interface: map/map-interface.md

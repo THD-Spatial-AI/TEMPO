@@ -9,27 +9,27 @@ export default function Features() {
     {
       num: '01',
       title: 'Ingest',
-      desc: 'Import OSM data for your region, load CSV timeseries, or drop a full Calliope YAML model (ZIP or folder). TEMPO resolves all imports recursively.',
+      desc: 'Search for a region by name and pull its grid from OpenStreetMap, load timeseries from CSV, or open an existing Calliope, PyPSA or OSeMOSYS model.',
     },
     {
       num: '02',
       title: 'Architect',
-      desc: 'Click the map to place nodes, draw transmission links, and assign technologies from the catalog. Every change live-previews CAPEX and OPEX estimates.',
+      desc: 'Click the map to place nodes, draw transmission links and assign technologies from the catalog. CAPEX and OPEX estimates update as you go.',
     },
     {
       num: '03',
       title: 'Parametrize',
-      desc: 'Edit timeseries columns directly on the chart, apply named override groups for costs and CO₂ limits, and compose multi-scenario batches.',
+      desc: 'Edit timeseries on the chart, give each substation a demand profile, and lay out scenarios year by year in Scenario Studio.',
     },
     {
       num: '04',
       title: 'Solve',
-      desc: 'Execute the Calliope (0.6.8 or 0.7) or AdOpT-NET0 solver locally. Choose Plan, Operate, or SPORES mode. Logs stream live via SSE.',
+      desc: 'Run on Calliope 0.6.8 or 0.7, PyPSA, OSeMOSYS or AdOpT-NET0 on your machine, or send the job to a MEME server. Choose Plan, Operate or SPORES mode and watch the log while it runs.',
     },
     {
       num: '05',
       title: 'Analyze',
-      desc: 'Interactive dispatch charts, capacity maps with transmission lines, carbon intensity timelines, LCOE tables, SPORES grids, and multi-scenario comparison dashboards.',
+      desc: 'Dispatch charts, capacity maps with transmission lines, costs, shadow prices and SPORES alternatives. Compare runs side by side, export the figures, or ask Model Advisor what changed.',
     },
   ]
 
@@ -37,19 +37,20 @@ export default function Features() {
     <div className="text-primary selection:bg-primary selection:text-surface-container-lowest">
       <main className="pt-16">
 
-        {/* ── Hero ── */}
+        {/* Hero */}
         <section className="px-8 py-24 bg-surface">
           <div className="max-w-7xl mx-auto">
             <p className="font-bold text-[0.6875rem] uppercase tracking-[0.2em] text-outline mb-4">
-              Core Infrastructure
+              Features
             </p>
             <h1 className="text-[3.5rem] md:text-[5rem] font-bold tracking-[-0.03em] leading-tight mb-12">
-              TECHNICAL<br />CAPABILITIES
+              WHAT TEMPO<br />DOES
             </h1>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-end">
               <p className="font-medium text-[1.125rem] leading-[1.6] text-on-surface-variant max-w-xl">
-                TEMPO is an architectural-grade platform for modeling high-complexity energy systems.
-                Built on rigorous mathematical foundations and served through a precision interface.
+                TEMPO is a desktop app for building and solving energy system models. You do the
+                modelling on a map and in forms; TEMPO writes the input files, runs the engine and
+                reads the results back.
               </p>
               <div className="flex flex-col border-l border-outline-variant/30 pl-8 space-y-2">
                 <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-outline">
@@ -59,14 +60,14 @@ export default function Features() {
                   Architecture: x64 / ARM64
                 </span>
                 <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-outline">
-                  Engines: Calliope 0.6.8 / 0.7 · PyPSA · OSeMOSYS · AdOpT-NET0 · MEME
+                  Engines: Calliope 0.6.8 / 0.7 · PyPSA · OSeMOSYS · AdOpT-NET0 · MEME (remote)
                 </span>
               </div>
             </div>
           </div>
         </section>
 
-        {/* ── What's New in v3 ── */}
+        {/* What's New in v3 */}
         <section className="py-32 px-8 bg-black text-white">
           <div className="max-w-7xl mx-auto">
             <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-8">
@@ -79,9 +80,9 @@ export default function Features() {
                 </h2>
               </div>
               <p className="max-w-md text-white/60 font-medium">
-                v3 builds a scenario-analysis and reporting layer on the multi-engine
-                core — design policy scenarios from reusable recipes, compare many runs
-                side by side, and export publication-ready maps, charts, and data.
+                Version 3 adds the work that comes after the first model: setting up policy
+                scenarios year by year, comparing many runs, and getting maps, charts and data
+                out for a report.
               </p>
             </div>
 
@@ -90,26 +91,38 @@ export default function Features() {
                 {
                   icon: 'science',
                   tag: 'Scenario Design',
-                  title: 'Scenario Studio — policy recipes',
-                  desc: 'A recipe library replaces hand-built overrides for common studies: demand growth, renewable transition, carbon cap, and cost sensitivity — configured through a guided UI and applied across every engine.',
+                  title: 'Scenario Studio',
+                  desc: 'Lay out a scenario by year on a board. Cards change demand, add CO₂ caps or renewable targets, switch technologies off, swap weather years, or add sensitivity cases and SPORES. Templates cover demand growth, carbon caps and renewable transitions. Every year runs as one batch, on any engine.',
                 },
                 {
                   icon: 'tune',
                   tag: 'Parameters',
                   title: 'Engine-neutral technology parameters',
-                  desc: 'Set common technology values — capacity, efficiency, lifetime, CAPEX — once, and TEMPO translates them to each engine automatically. One shared ontology drives both the UI and the PyPSA / OSeMOSYS / AdOpT-NET0 translators, with opt-in engine-specific fields.',
+                  desc: 'Enter capacity, efficiency, lifetime and CAPEX once and TEMPO translates them for each engine. The same parameter list drives the editor and the PyPSA, OSeMOSYS and AdOpT-NET0 translators. Engine-specific fields are there if you want them.',
                 },
                 {
                   icon: 'grid_view',
                   tag: 'Comparison',
-                  title: 'Multi-model comparison matrix',
-                  desc: 'A multi-model matrix view with selectable KPIs and a heatmap, plus a batch-comparison panel — line up unmet-demand, imports, cost and capacity metrics across many runs at once.',
+                  title: 'Comparing many runs',
+                  desc: 'Compare any runs as KPI tables, side-by-side maps, parallel coordinates or a scatter plot. A Scenario Studio batch across several models also gets a model-by-variant matrix, shaded by the KPI you pick.',
                 },
                 {
                   icon: 'map',
                   tag: 'Export',
                   title: 'Publication-ready map & chart export',
-                  desc: 'A dedicated results export panel with live map previews: SVG node/transmission maps, capacity / generation / technology-mix maps, demand choropleths, and downloadable charts and data (JSON / CSV).',
+                  desc: 'Preview and export SVG maps of nodes and transmission, capacity, generation and technology mix, and demand choropleths. Charts and the data behind them download as CSV or JSON.',
+                },
+                {
+                  icon: 'travel_explore',
+                  tag: 'Study Area',
+                  title: 'Study area from a place name',
+                  desc: 'Type a city, province or country. TEMPO finds the boundary, pulls substations and lines from OpenStreetMap and builds a zonal model. Regional demand is spread over the substations, each with an hourly load shape.',
+                },
+                {
+                  icon: 'chat',
+                  tag: 'AI',
+                  title: 'Model Advisor',
+                  desc: 'The Model Advisor tab writes a plain-language report on a finished run and answers follow-up questions. Use your own Anthropic, Gemini, OpenAI or Groq key, or a local Ollama model. Nothing is sent until you configure it.',
                 },
               ].map((item) => (
                 <div key={item.title} className="bg-white/5 border border-white/10 p-10 flex flex-col justify-between min-h-[260px]">
@@ -127,7 +140,7 @@ export default function Features() {
           </div>
         </section>
 
-        {/* ── Model Builder: Node Interface ── */}
+        {/* Model Builder: Node Interface */}
         <section className="bg-surface-container-lowest py-32 px-8 ghost-border">
           <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-16">
             {/* Left: copy */}
@@ -140,9 +153,8 @@ export default function Features() {
                   MODEL BUILDER
                 </h2>
                 <p className="text-on-surface-variant mb-8 leading-relaxed">
-                  A visual-first GIS interface for defining model topology. Click the map to place
-                  location nodes, draw transmission links, and assign technology stacks — each node
-                  translates directly to a Calliope <code className="text-xs bg-black/5 px-1">locations.yaml</code> entry.
+                  You build the model topology on a map. Click to place location nodes, draw
+                  transmission links and assign technologies. Each node becomes a Calliope <code className="text-xs bg-black/5 px-1">locations.yaml</code> entry.
                 </p>
                 <ul className="space-y-4">
                   {['Click-to-place node & link authoring', 'Calliope YAML export without data loss', 'Real-time CAPEX / OPEX estimation', 'Template models: Germany, Italy & more'].map(
@@ -174,7 +186,7 @@ export default function Features() {
           </div>
         </section>
 
-        {/* ── Interactive GIS ── */}
+        {/* Interactive GIS */}
         <section className="py-32 px-8 bg-surface">
           <div className="max-w-7xl mx-auto">
             <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-8">
@@ -183,9 +195,10 @@ export default function Features() {
                 <h2 className="text-[2.75rem] font-bold tracking-tight">INTERACTIVE GIS</h2>
               </div>
               <p className="max-w-md text-on-surface-variant font-medium">
-                Download any national or sub-national OpenStreetMap extract via Geofabrik, push it
-                into PostGIS, and overlay power lines, substations, and plants directly in the
-                map canvas. Generate a mesh network and import it as model locations and links in one click.
+                Search for a place by name and TEMPO fetches its power lines, substations and
+                plants from OpenStreetMap, filtered by voltage if you like. For larger areas you can
+                load a Geofabrik extract into PostGIS instead. Either way, the network becomes model
+                locations and links in one step.
               </p>
             </div>
 
@@ -206,7 +219,7 @@ export default function Features() {
               >
                 OpenStreetMap contributors
               </a>
-              {' '}— available under the{' '}
+              , available under the{' '}
               <a
                 href="https://opendatacommons.org/licenses/odbl/"
                 target="_blank"
@@ -238,7 +251,7 @@ export default function Features() {
           </div>
         </section>
 
-        {/* ── Result Analysis ── */}
+        {/* Result Analysis */}
         <section className="bg-surface-container-lowest py-32 px-8 ghost-border">
           <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-16 items-start">
             {/* Left: full-width screenshot */}
@@ -262,12 +275,12 @@ export default function Features() {
                   RESULT ANALYSIS
                 </h2>
                 <p className="text-on-surface-variant mb-8 leading-relaxed">
-                  After the solver finishes, TEMPO surfaces every key output — installed capacity,
-                  hourly dispatch, carbon intensity, and system-wide LCOE — in a multi-tab dashboard
-                  with interactive ECharts visualizations.
+                  When the solver finishes, the results open in a dashboard with one tab per topic:
+                  installed capacity, hourly dispatch, costs, transmission flows, shadow prices and
+                  LCOE. All five engines fill the same tabs.
                 </p>
                 <ul className="space-y-4">
-                  {['Energy dispatch by technology', 'Installed capacity breakdown', 'Carbon intensity timeline', 'Levelized cost of electricity (LCOE)', 'Filterable by tech group & time window', 'SPORES alternative plans grid', 'Multi-scenario comparison dashboard', 'Transmission links on the results map'].map(
+                  {['Energy dispatch by technology', 'Installed capacity breakdown', 'Carbon intensity timeline', 'Levelized cost of electricity (LCOE)', 'Filterable by tech group & time window', 'SPORES alternative plans grid', 'Multi-scenario comparison dashboard', 'Transmission links on the results map', 'Shadow prices', 'AI-written run report'].map(
                     (item) => (
                       <li
                         key={item}
@@ -284,7 +297,7 @@ export default function Features() {
           </div>
         </section>
 
-        {/* ── Timeseries Editor ── */}
+        {/* Timeseries Editor */}
         <section className="py-32 px-8 bg-surface">
           <div className="max-w-7xl mx-auto">
             <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-8">
@@ -293,9 +306,9 @@ export default function Features() {
                 <h2 className="text-[2.75rem] font-bold tracking-tight">TIMESERIES EDITOR</h2>
               </div>
               <p className="max-w-md text-on-surface-variant font-medium">
-                Interactive per-column CSV editor. Drag data points on the chart to adjust demand
-                curves or resource profiles. Supports line, bar, and scatter views with seasonal,
-                monthly, and custom time windows.
+                Edit CSV timeseries one column at a time. Drag points on the chart to reshape a demand
+                curve or resource profile, and switch between line, bar and scatter views by season,
+                month or a window you pick.
               </p>
             </div>
             <div className="h-[600px] w-full bg-surface-container relative overflow-hidden">
@@ -308,14 +321,14 @@ export default function Features() {
           </div>
         </section>
 
-        {/* ── Complete Feature Set ── */}
+        {/* Complete Feature Set */}
         <section className="py-32 px-8 bg-surface-container-lowest">
           <div className="max-w-7xl mx-auto">
             <h2 className="text-[2.75rem] font-bold tracking-tight mb-4 uppercase">
               Complete Feature Set
             </h2>
             <p className="text-on-surface-variant max-w-2xl mb-16">
-              Every screen in TEMPO is purpose-built around the energy modelling workflow.
+              The rest of what TEMPO can do, in one place.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-12 gap-4 auto-rows-[280px]">
 
@@ -325,8 +338,8 @@ export default function Features() {
                 <div>
                   <h3 className="text-2xl font-bold uppercase">Multi-Framework Export</h3>
                   <p className="text-neutral-300 mt-3 max-w-md">
-                    Export the full model as a Calliope ZIP archive or run it on any integrated
-                    engine — Calliope 0.6.8 / 0.7, PyPSA, OSeMOSYS, and AdOpT-NET0 all ship in v3.
+                    Export a model as a Calliope ZIP archive or in the input format of PyPSA,
+                    OSeMOSYS or AdOpT-NET0, so you can keep working on it outside TEMPO.
                   </p>
                 </div>
               </div>
@@ -334,10 +347,10 @@ export default function Features() {
               {/* YAML Model Import — narrow */}
               <div className="md:col-span-4 bg-surface p-10 flex flex-col justify-center items-start">
                 <span className="material-symbols-outlined text-4xl mb-4">upload_file</span>
-                <h3 className="text-lg font-bold uppercase">YAML Import</h3>
+                <h3 className="text-lg font-bold uppercase">Model Import</h3>
                 <p className="text-[0.75rem] mt-2 text-on-surface-variant">
-                  Import any Calliope 0.6.x or 0.7 model from a ZIP archive, folder drop, or
-                  individual YAML + CSV files with full recursive import resolution.
+                  Open Calliope 0.6 or 0.7 YAML, PyPSA netCDF or CSV, or an OSeMOSYS otoole
+                  dataset. TEMPO detects the format from the files in the archive.
                 </p>
               </div>
 
@@ -349,14 +362,14 @@ export default function Features() {
                 </div>
                 <div>
                   <p className="text-on-surface-variant mb-6">
-                    Generate N spatially diverse, near-optimal energy configurations within a
-                    configurable cost slack. Each SPORES run is a full solver execution; results
-                    show hidden siting trade-offs that a single optimal solution conceals.
+                    Ask for N near-optimal alternatives that stay within a cost margin you set
+                    but differ as much as possible in where things get built. A single optimum
+                    hides these options; SPORES lists them.
                   </p>
                   <div className="flex gap-3 flex-wrap">
                     <span className="text-[0.6875rem] font-bold uppercase tracking-widest border border-black px-3 py-1">Cost Slack %</span>
                     <span className="text-[0.6875rem] font-bold uppercase tracking-widest border border-black px-3 py-1">N Alternatives</span>
-                    <span className="text-[0.6875rem] font-bold uppercase tracking-widest border border-black px-3 py-1">Calliope 0.6.8 Only</span>
+                    <span className="text-[0.6875rem] font-bold uppercase tracking-widest border border-black px-3 py-1">0.6.8 local · 0.7 via MEME</span>
                   </div>
                 </div>
               </div>
@@ -366,8 +379,8 @@ export default function Features() {
                 <span className="material-symbols-outlined text-4xl mb-4">compare</span>
                 <h3 className="text-lg font-bold uppercase">Scenario Comparison</h3>
                 <p className="text-[0.75rem] mt-2 text-on-surface-variant">
-                  Select multiple completed runs and compare KPIs, capacity mixes, and dispatch
-                  profiles side-by-side in a dedicated Results dashboard.
+                  Pick any finished runs and compare their KPIs, capacity mixes and dispatch
+                  profiles side by side.
                 </p>
               </div>
 
@@ -375,13 +388,13 @@ export default function Features() {
               <div className="md:col-span-8 bg-surface p-10 flex flex-col justify-between">
                 <div>
                   <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-outline">Scenarios</span>
-                  <h3 className="text-2xl font-bold uppercase mt-2">Override &amp; Scenario Engine</h3>
+                  <h3 className="text-2xl font-bold uppercase mt-2">Overrides &amp; Scenario Studio</h3>
                 </div>
                 <div>
                   <p className="text-on-surface-variant mb-6">
-                    Parameterize any technology constraint through named override groups. Template
-                    library covers cost, capacity, CO₂, and policy scenarios. Compose multi-run
-                    batches and stream solver telemetry live.
+                    Group changes to any technology constraint under a name and switch them on per
+                    run. For whole studies, Scenario Studio builds the changes from cards laid out
+                    by year and runs every variant as one batch.
                   </p>
                   <div className="flex gap-3 flex-wrap">
                     <span className="text-[0.6875rem] font-bold uppercase tracking-widest border border-black px-3 py-1">Cost Overrides</span>
@@ -394,10 +407,10 @@ export default function Features() {
               {/* Offline-First — narrow */}
               <div className="md:col-span-4 bg-surface p-10 flex flex-col justify-center items-start">
                 <span className="material-symbols-outlined text-4xl mb-4">laptop_mac</span>
-                <h3 className="text-lg font-bold uppercase">Offline-First Desktop</h3>
+                <h3 className="text-lg font-bold uppercase">Local First</h3>
                 <p className="text-[0.75rem] mt-2 text-on-surface-variant">
-                  Runs entirely as an Electron app. No cloud dependency — model, optimize,
-                  and analyze without an internet connection.
+                  Models live in a local database and solve on your machine. You only need a
+                  connection for map data, AI analysis and remote runs.
                 </p>
               </div>
 
@@ -405,7 +418,7 @@ export default function Features() {
           </div>
         </section>
 
-        {/* ── Engineering Workflow Deep Dive ── */}
+        {/* Engineering Workflow Deep Dive */}
         <section className="py-32 px-8 bg-black text-white">
           <div className="max-w-7xl mx-auto">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-24 items-center">
@@ -441,15 +454,15 @@ export default function Features() {
                   <div className="text-[0.6875rem] font-bold tracking-[0.3em] uppercase opacity-50 mb-2">
                     Optimization Engine
                   </div>
-                  <div className="text-2xl font-bold">4 ENGINES + MEME</div>
-                  <div className="text-xs text-white/40 mt-1 font-medium tracking-widest uppercase">Calliope · PyPSA · OSeMOSYS · AdOpT-NET0</div>
+                  <div className="text-2xl font-bold">5 ENGINES + MEME</div>
+                  <div className="text-xs text-white/40 mt-1 font-medium tracking-widest uppercase">Calliope 0.6.8 · 0.7 · PyPSA · OSeMOSYS · AdOpT-NET0</div>
                 </div>
               </div>
             </div>
           </div>
         </section>
 
-        {/* ── Live Runner & SSE Streaming ── */}
+        {/* Live Runner & SSE Streaming */}
         <section className="py-32 px-8 bg-surface">
           <div className="max-w-7xl mx-auto flex flex-col items-center">
             <span
@@ -462,8 +475,9 @@ export default function Features() {
               LIVE RUNNER
             </h2>
             <p className="text-center max-w-2xl text-on-surface-variant mb-16">
-              Experience computation as it happens. Our Live Runner utilizes Server-Sent Events (SSE)
-              to stream simulation results frame-by-frame to your dashboard.
+              The solver log streams into the app while the model runs, so you can see whether it
+              is still building, solving or has stopped on an error. Remote MEME runs show the same
+              log, refreshed every couple of seconds.
             </p>
 
             {/* Terminal mockup */}
@@ -473,7 +487,7 @@ export default function Features() {
                 <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
                 <div className="w-3 h-3 rounded-full bg-green-500"></div>
                 <span className="ml-4 text-[0.625rem] font-mono text-white/40">
-                  calliope_service.py — 0.0.0.0:5000 · 0.7 engine — 0.0.0.0:5002
+                  calliope_service.py · 0.0.0.0:5000 · 0.7 engine · 0.0.0.0:5002
                 </span>
               </div>
               <div className="font-mono text-[0.75rem] text-green-400 p-4 space-y-1">
