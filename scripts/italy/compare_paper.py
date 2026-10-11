@@ -40,7 +40,8 @@ def main():
     a = ap.parse_args()
     r = json.load(open(a.result, encoding='utf-8'))
     spores = r['spores_data']
-    slack = r['spores_meta']['plan']['slack']
+    # TEMPO 0.6.8 runner: spores_meta.plan.slack; raw MEME contract: per SPORE.
+    slack = (r['spores_meta'].get('plan') or {}).get('slack', spores[0].get('slack'))
     co = spores[0]
 
     print(f"Cost-optimal: {co['cost']:.6g} (slacked cap {r['spores_meta']['slacked_cost']:.6g}, slack {slack:.0%})\n")
