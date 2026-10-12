@@ -1,7 +1,7 @@
 // Left-sidebar list panels (locations, links, time-series demand profiles) for
 // the Deck.GL map view. Extracted verbatim from MapDeckGL.jsx; the parent owns
 // the state and passes it as props, and still gates on !leftSidebarCollapsed.
-import { FiActivity, FiArrowRight, FiChevronDown, FiChevronRight, FiEdit2, FiLink, FiMapPin, FiTrash2 } from 'react-icons/fi';
+import { FiActivity, FiArrowRight, FiChevronDown, FiChevronRight, FiEdit2, FiLink, FiMapPin, FiTrash2 } from '../ui/icons';
 import { formatTechName } from '../../utils/mapVisuals';
 
 export default function MapSidebarLists({

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { FiDownload, FiRefreshCw, FiTerminal, FiCheckCircle, FiAlertCircle, FiBox, FiCpu, FiZap, FiSliders, FiShield, FiChevronDown, FiInfo, FiServer, FiMessageSquare } from 'react-icons/fi';
+import { FiDownload, FiRefreshCw, FiTerminal, FiCheckCircle, FiAlertCircle, FiBox, FiCpu, FiZap, FiSliders, FiShield, FiChevronDown, FiInfo, FiServer, FiMessageSquare } from './ui/icons';
 import Calliope07EnginePanel from './Calliope07EnginePanel';
 import EngineInstallPanel from './EngineInstallPanel';
 import { getSettings, setSetting } from '../services/appSettings';

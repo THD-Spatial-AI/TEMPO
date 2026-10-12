@@ -1,6 +1,6 @@
 // Filter / resolution / columns / stats sidebar for the TimeSeries chart view.
 // Extracted verbatim from TimeSeries.jsx; all view state passed as props.
-import { FiChevronDown, FiChevronUp } from 'react-icons/fi';
+import { FiChevronDown, FiChevronUp } from '../ui/icons';
 
 export default function TimeSeriesFilterSidebar({
   colSearch,

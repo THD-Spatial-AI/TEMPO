@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { FiSearch, FiX, FiMapPin } from "react-icons/fi";
+import { FiSearch, FiX, FiMapPin } from "../ui/icons";
 
 const SearchBar = ({ locations, onLocationSelect }) => {
   const [searchQuery, setSearchQuery] = useState("");

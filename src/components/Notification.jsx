@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { FiAlertCircle, FiX, FiCheckCircle, FiAlertTriangle, FiInfo } from "react-icons/fi";
+import { FiAlertCircle, FiX, FiCheckCircle, FiAlertTriangle, FiInfo } from "./ui/icons";
 import { useEffect } from "react";
 
 const NOTIFICATION_TTL = 5000;

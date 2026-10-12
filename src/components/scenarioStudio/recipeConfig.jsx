@@ -8,7 +8,7 @@
  */
 
 import React from 'react';
-import { FiInfo, FiPlus, FiTrash2, FiDownload } from 'react-icons/fi';
+import { FiInfo, FiPlus, FiTrash2, FiDownload } from '../ui/icons';
 import ReactECharts from 'echarts-for-react';
 import { autoDetectTechs, FOSSIL_KEYWORDS, RENEWABLE_KEYWORDS, techGroupsForModel, resolveTechGroup } from '../../services/scenarioStudio/utils.js';
 import { importLegacyScenario } from '../../services/scenarioStudio/legacyImport.js';

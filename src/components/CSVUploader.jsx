@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import Papa from 'papaparse';
-import { FiUpload, FiX, FiFile, FiCheck, FiDownload } from 'react-icons/fi';
+import { FiUpload, FiX, FiFile, FiCheck, FiDownload } from './ui/icons';
 import { useData } from '../context/DataContext';
 import { fetchTemplate } from '../utils/templateFetch';
 

@@ -39,7 +39,6 @@ export default defineConfig(({ mode }) => {
             'vendor-react': ['react', 'react-dom'],
             'vendor-mui': [
               '@mui/material',
-              '@mui/icons-material',
               '@emotion/react',
               '@emotion/styled',
             ],

@@ -5,7 +5,7 @@ import {
   FiSearch, FiBarChart2, FiGrid, FiTrendingUp, FiZap,
   FiDollarSign, FiSliders, FiLayers, FiInfo, FiCheckSquare,
   FiSquare, FiDownload, FiFilter, FiChevronDown, FiMap,
-} from 'react-icons/fi';
+} from './ui/icons';
 import { RegionChoropleth } from './results/ResultMaps';
 
 // ─── Qualitative colour palette (20 perceptually-distinct colours) ────────────

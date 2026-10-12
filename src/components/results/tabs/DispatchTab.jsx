@@ -1,6 +1,6 @@
 // DispatchTab — the "dispatch" result tab, extracted verbatim from Results.jsx.
 // Renders the pre-computed chart options / data passed as props.
-import { FiActivity, FiChevronDown } from 'react-icons/fi';
+import { FiActivity, FiChevronDown } from '../../ui/icons';
 import ReactECharts from 'echarts-for-react';
 import { fmtEnergy, fmtPower } from '../../../utils/resultFormat';
 

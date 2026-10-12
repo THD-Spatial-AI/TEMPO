@@ -1,6 +1,6 @@
 // AnalysisTab — the "analysis" result tab, extracted verbatim from Results.jsx.
 // Renders the pre-computed chart options / data passed as props.
-import { FiChevronDown, FiGrid } from 'react-icons/fi';
+import { FiChevronDown, FiGrid } from '../../ui/icons';
 import ReactECharts from 'echarts-for-react';
 import { fmtCost, fmtEnergy, fmtPower } from '../../../utils/resultFormat';
 

@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import {
   FiLayers, FiTrash2, FiPlus, FiCopy, FiChevronDown, FiChevronRight,
   FiPlay, FiEdit2, FiEdit3, FiSliders, FiZap, FiX, FiCheck, FiArrowUp, FiArrowDown,
-} from 'react-icons/fi';
+} from './ui/icons';
 import { useData } from '../context/DataContext';
 import SaveBar from './ui/SaveBar';
 import {

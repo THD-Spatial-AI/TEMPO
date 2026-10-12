@@ -1,6 +1,6 @@
 // TimeSeriesChart — interactive ECharts chart + drag-to-edit popup.
 // Extracted verbatim from TimeSeries.jsx; chart state/refs/handlers passed as props.
-import { FiActivity, FiBarChart2 } from 'react-icons/fi';
+import { FiActivity, FiBarChart2 } from '../ui/icons';
 import ReactECharts from 'echarts-for-react';
 
 export default function TimeSeriesChart({

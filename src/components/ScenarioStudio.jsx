@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useNodesState, useEdgesState, addEdge } from '@xyflow/react';
-import { FiZap, FiLayers, FiGrid, FiChevronDown } from 'react-icons/fi';
+import { FiZap, FiLayers, FiGrid, FiChevronDown } from './ui/icons';
 import { useData } from '../context/DataContext';
 import { checkCalliopeService, runCalliopeModel } from '../services/calliopeClient';
 import { checkEngineRunService, runEngineModel } from '../services/engineClient';

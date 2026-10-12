@@ -1,5 +1,5 @@
 // SporesConfigPanel — extracted verbatim from Run.jsx.
-import { FiAlertTriangle, FiHelpCircle, FiZap } from 'react-icons/fi';
+import { FiAlertTriangle, FiHelpCircle, FiZap } from '../ui/icons';
 
 export default function SporesConfigPanel({
   modelConfig,

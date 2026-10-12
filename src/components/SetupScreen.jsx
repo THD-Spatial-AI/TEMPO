@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { FiCheckCircle, FiAlertCircle, FiLoader, FiTerminal, FiRefreshCw, FiClock, FiPlay, FiBox, FiDownload, FiZap, FiInfo, FiCpu } from 'react-icons/fi';
+import { FiCheckCircle, FiAlertCircle, FiLoader, FiTerminal, FiRefreshCw, FiClock, FiPlay, FiBox, FiDownload, FiZap, FiInfo, FiCpu } from './ui/icons';
 
 // ── Status icon ───────────────────────────────────────────────────────────────
 function ServiceIcon({ running, healthy }) {

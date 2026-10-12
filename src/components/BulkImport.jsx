@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FiUpload, FiFile, FiCheckCircle, FiAlertCircle, FiX, FiDownload, FiMapPin, FiLink, FiZap, FiDatabase } from 'react-icons/fi';
+import { FiUpload, FiFile, FiCheckCircle, FiAlertCircle, FiX, FiDownload, FiMapPin, FiLink, FiZap, FiDatabase } from './ui/icons';
 import Papa from 'papaparse';
 import { ENTITY_TYPES, TRANSMISSION_TYPES, VALIDATION_RULES, ENTITY_TO_TECH_MAPPING } from '../config/domainModel';
 import { useData } from '../context/DataContext';

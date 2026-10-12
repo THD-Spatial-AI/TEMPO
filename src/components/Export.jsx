@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect, useMemo } from 'react';
 import ReactECharts from 'echarts-for-react';
 import { useData } from '../context/DataContext';
-import { FiDownload, FiFolder, FiFile, FiCheckCircle, FiAlertCircle, FiPackage, FiZap, FiActivity, FiCpu, FiSettings, FiDatabase, FiLayers, FiMap, FiBarChart2 } from 'react-icons/fi';
+import { FiDownload, FiFolder, FiFile, FiCheckCircle, FiAlertCircle, FiPackage, FiZap, FiActivity, FiCpu, FiSettings, FiDatabase, FiLayers, FiMap, FiBarChart2 } from './ui/icons';
 import { loadCommunesGeo, normComuna } from '../utils/loadCommunesGeo';
 import { choroMetricsFromResult } from '../utils/choroMetrics';
 import { buildChoroplethSVG, buildNodeMapSVG, buildTransmissionMapSVG, buildTechPieMapSVG } from '../utils/choroSvg';
@@ -17,7 +17,7 @@ import { internalTo07Yaml } from '../services/calliope07Format';
 import { exportModelArchive, checkEngineRunService } from '../services/engineClient';
 import { resolveScenario } from '../services/scenarioResolver';
 import TranslationReport from './TranslationReport';
-import { FiCheck } from 'react-icons/fi';
+import { FiCheck } from './ui/icons';
 
 
 const EXPORT_FORMATS = [

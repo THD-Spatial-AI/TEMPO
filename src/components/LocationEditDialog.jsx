@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FiX, FiTrash2, FiCheck, FiChevronDown, FiChevronRight, FiHelpCircle, FiArrowRight, FiPlus } from 'react-icons/fi';
+import { FiX, FiTrash2, FiCheck, FiChevronDown, FiChevronRight, FiHelpCircle, FiArrowRight, FiPlus } from './ui/icons';
 import { CARRIERS_BY_GROUP } from '../config/carriers';
 import TechParameterEditor from './creation/TechParameterEditor';
 

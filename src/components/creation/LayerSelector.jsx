@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { FiLayers } from "react-icons/fi";
+import { FiLayers } from "../ui/icons";
 import { MAP_STYLE_NAMES } from "../../config/mapStyles";
 
 const LayerSelector = ({ currentLayer, onLayerChange }) => {

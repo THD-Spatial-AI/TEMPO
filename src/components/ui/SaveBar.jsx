@@ -9,7 +9,7 @@
  * Usage:  <SaveBar label="Locations" />
  */
 import React, { useState, useEffect } from 'react';
-import { FiSave, FiRefreshCw, FiCheck, FiAlertCircle } from 'react-icons/fi';
+import { FiSave, FiRefreshCw, FiCheck, FiAlertCircle } from './icons';
 import { useData } from '../../context/DataContext';
 
 const SaveBar = ({ label = 'Model' }) => {

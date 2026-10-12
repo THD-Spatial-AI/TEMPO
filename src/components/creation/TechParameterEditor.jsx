@@ -13,7 +13,7 @@
 //
 // The parent owns all state; this component is controlled via callbacks.
 import React, { useState } from 'react';
-import { FiX, FiChevronDown, FiChevronRight } from 'react-icons/fi';
+import { FiX, FiChevronDown, FiChevronRight } from '../ui/icons';
 import {
   commonParamsForParent,
   COMMON_CALLIOPE_CONSTRAINTS,

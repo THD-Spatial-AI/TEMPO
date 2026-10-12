@@ -1,6 +1,6 @@
 // ActiveJobsPanel — displays all active runs, including those launched from Scenario Studio.
 import { useState, useEffect } from 'react';
-import { FiActivity, FiClock, FiStopCircle, FiTerminal, FiLayers } from 'react-icons/fi';
+import { FiActivity, FiClock, FiStopCircle, FiTerminal, FiLayers } from '../ui/icons';
 
 function useElapsed(startTime) {
   const [elapsed, setElapsed] = useState('0s');

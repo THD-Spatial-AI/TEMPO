@@ -1,6 +1,6 @@
 // CostsTab — the "costs" result tab, extracted verbatim from Results.jsx.
 // Renders the pre-computed chart options / data passed as props.
-import { FiChevronDown, FiDollarSign, FiMapPin, FiTrendingUp } from 'react-icons/fi';
+import { FiChevronDown, FiDollarSign, FiMapPin, FiTrendingUp } from '../../ui/icons';
 import ReactECharts from 'echarts-for-react';
 import { fmtFull } from '../../../utils/resultFormat';
 

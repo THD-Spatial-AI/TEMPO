@@ -11,7 +11,7 @@ import {
   FiFileText,
   FiChevronDown,
   FiChevronUp
-} from 'react-icons/fi';
+} from './ui/icons';
 import ReactECharts from 'echarts-for-react';
 import DataTablePanel from './timeseries/DataTablePanel';
 import TimeSeriesFilterSidebar from './timeseries/TimeSeriesFilterSidebar';

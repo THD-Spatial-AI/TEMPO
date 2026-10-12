@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FiMap, FiChevronRight, FiLayers, FiMapPin } from 'react-icons/fi';
+import { FiMap, FiChevronRight, FiLayers, FiMapPin } from './ui/icons';
 import RegionSelectionStepper from './RegionSelectionStepper';
 import ZonalStudyAreaPanel from './ZonalStudyAreaPanel';
 import { api } from '../services/api';

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
   FiMapPin, FiPlus, FiX, FiSearch, FiLayers, FiLoader, FiCheck, FiChevronDown,
-} from 'react-icons/fi';
+} from './ui/icons';
 import { useData } from '../context/DataContext';
 import { searchPlaces, fetchGeometries } from '../services/nominatim';
 import { SLP_CATALOGUE, familyForSlp } from '../services/demandProfiles';

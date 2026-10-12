@@ -14,7 +14,7 @@ import {
   BackgroundVariant, MarkerType, useReactFlow, BaseEdge, EdgeLabelRenderer, getSmoothStepPath,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { FiPlus, FiCalendar } from 'react-icons/fi';
+import { FiPlus, FiCalendar } from '../ui/icons';
 import YearNode from './YearNode.jsx';
 import ScenarioCardNode from './ScenarioCardNode.jsx';
 import { BoardCtx } from './boardContext.js';

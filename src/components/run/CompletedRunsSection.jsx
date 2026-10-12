@@ -1,6 +1,6 @@
 // CompletedRunsSection — extracted verbatim from Run.jsx.
 import { useState } from 'react';
-import { FiActivity, FiAlertTriangle, FiBarChart2, FiCheckCircle, FiClock, FiCpu, FiDownload, FiList, FiSearch, FiTerminal, FiTrash2, FiX, FiZap } from 'react-icons/fi';
+import { FiActivity, FiAlertTriangle, FiBarChart2, FiCheckCircle, FiClock, FiCpu, FiDownload, FiList, FiSearch, FiTerminal, FiTrash2, FiX, FiZap } from '../ui/icons';
 
 export default function CompletedRunsSection({
   onNavigate,

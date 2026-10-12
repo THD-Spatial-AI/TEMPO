@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { FiSearch, FiX, FiPlus, FiCheck, FiTrash2 } from 'react-icons/fi';
+import { FiSearch, FiX, FiPlus, FiCheck, FiTrash2 } from '../ui/icons';
 import { useData } from '../../context/DataContext';
 import { oeoDetailToCalliope } from '../../services/techDatabaseApi';
 

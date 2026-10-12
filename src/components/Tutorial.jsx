@@ -21,7 +21,7 @@ import {
   FiBarChart2,
   FiSearch,
   FiTrash2,
-} from 'react-icons/fi';
+} from './ui/icons';
 import { ENTITY_TYPES } from '../config/domainModel';
 import { generateCSVDownload, generateJSONDownload } from '../config/dataTemplates';
 import { ModelStructureTutorial } from './ModelStructureTutorial';

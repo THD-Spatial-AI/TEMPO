@@ -1,6 +1,6 @@
 // LogsTab — the "logs" result tab, extracted verbatim from Results.jsx.
 // Renders the pre-computed chart options / data passed as props.
-import { FiTerminal } from 'react-icons/fi';
+import { FiTerminal } from '../../ui/icons';
 
 export default function LogsTab({
   selectedJob,

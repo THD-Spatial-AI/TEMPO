@@ -1,6 +1,6 @@
 // FlowTab — the "flow" result tab, extracted verbatim from Results.jsx.
 // Renders the pre-computed chart options / data passed as props.
-import { FiChevronDown, FiShare2 } from 'react-icons/fi';
+import { FiChevronDown, FiShare2 } from '../../ui/icons';
 import ReactECharts from 'echarts-for-react';
 import { fmtEnergy, fmtPower } from '../../../utils/resultFormat';
 

@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { FiEdit2, FiTrash2, FiCheck, FiX, FiPlus, FiSearch, FiLink } from "react-icons/fi";
+import { FiEdit2, FiTrash2, FiCheck, FiX, FiPlus, FiSearch, FiLink } from "./ui/icons";
 import { useData } from "../context/DataContext";
 import SaveBar from './ui/SaveBar';
 import { LINK_TYPES, LINK_TYPES_BY_GROUP, getLinkTypeColor } from "../config/linkTypes";

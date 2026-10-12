@@ -10,7 +10,7 @@ import React, { memo, useContext } from 'react';
 import {
   FiTrendingUp, FiCloud, FiZap, FiSliders, FiSun, FiMapPin, FiWind, FiTrash2, FiCopy, FiAlertTriangle,
   FiActivity, FiLayers, FiGitMerge,
-} from 'react-icons/fi';
+} from '../ui/icons';
 import { CATEGORY_BY_ID } from '../../services/scenarioStudio/scenario.js';
 import { summarizeOps } from '../../services/scenarioStudio/recipeParams.js';
 import { sporesCount } from '../../services/scenarioStudio/presets/lombardi2020Italy.js';

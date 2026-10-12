@@ -1,7 +1,7 @@
 // Confirmation dialog shown after a location marker is dragged to a new position.
 // Extracted verbatim from MapDeckGL.jsx; the parent still gates rendering on
 // `showDragConfirmDialog && pendingDragChange`.
-import { FiArrowRight, FiX, FiCheck } from 'react-icons/fi';
+import { FiArrowRight, FiX, FiCheck } from '../ui/icons';
 
 export default function DragConfirmDialog({
   locations,

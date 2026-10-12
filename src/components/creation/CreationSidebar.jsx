@@ -1,7 +1,7 @@
 // Left sidebar (mode selection + shared Locations/Links lists) for the Creation
 // map view. The Locations/Links sections come from the shared EntityListsPanel
 // so Creation and the Map View stay identical. State/handlers passed as props.
-import { FiActivity, FiChevronLeft, FiChevronRight, FiLink, FiMapPin } from 'react-icons/fi';
+import { FiActivity, FiChevronLeft, FiChevronRight, FiLink, FiMapPin } from '../ui/icons';
 import EntityListsPanel from '../shared/EntityListsPanel';
 
 export default function CreationSidebar({

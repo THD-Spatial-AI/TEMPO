@@ -10,7 +10,7 @@ import {
   FiCpu,
   FiClock,
   FiSliders,
-} from "react-icons/fi";
+} from "./ui/icons";
 import { TECH_TEMPLATES } from './TechnologiesData';
 
 export const ModelStructureTutorial = () => {

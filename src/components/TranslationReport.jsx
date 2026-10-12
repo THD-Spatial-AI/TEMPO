@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FiInfo, FiChevronDown, FiChevronRight } from 'react-icons/fi';
+import { FiInfo, FiChevronDown, FiChevronRight } from './ui/icons';
 
 /**
  * Collapsible list of translation-report lines produced by an engine's

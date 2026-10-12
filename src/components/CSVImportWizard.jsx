@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   FiX, FiCheck, FiMap, FiZap, FiActivity, FiCpu, FiLayers,
   FiDatabase, FiUploadCloud, FiDownload,
-} from 'react-icons/fi';
+} from './ui/icons';
 
 const STEP_LABELS = ['Model Info', 'Required Files', 'Optional Files', 'Review'];
 const TOTAL = 4;

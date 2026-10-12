@@ -1,5 +1,5 @@
 ﻿import React, { useState, useRef } from 'react';
-import { FiFolder, FiTrash2, FiEdit2, FiCheck, FiX, FiPlus, FiDownload, FiUpload, FiMap, FiZap, FiInfo, FiEye, FiChevronDown, FiChevronRight, FiCpu, FiDatabase, FiActivity, FiLayers, FiUploadCloud, FiPackage, FiSearch } from 'react-icons/fi';
+import { FiFolder, FiTrash2, FiEdit2, FiCheck, FiX, FiPlus, FiDownload, FiUpload, FiMap, FiZap, FiInfo, FiEye, FiChevronDown, FiChevronRight, FiCpu, FiDatabase, FiActivity, FiLayers, FiUploadCloud, FiPackage, FiSearch } from './ui/icons';
 import Papa from 'papaparse';
 import JSZip from 'jszip';
 import { useData } from '../context/DataContext';

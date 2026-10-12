@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { FiZap, FiCheckCircle, FiAlertCircle, FiDownload, FiTerminal, FiRefreshCw } from 'react-icons/fi';
+import { FiZap, FiCheckCircle, FiAlertCircle, FiDownload, FiTerminal, FiRefreshCw } from './ui/icons';
 
 /**
  * Reusable install/status panel for the Calliope 0.7 (experimental) engine.

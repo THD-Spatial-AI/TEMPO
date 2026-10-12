@@ -3,7 +3,7 @@
 // MapDeckGL.jsx; the parent owns all edit state and passes it as props, and
 // still gates rendering on `showEditDialog && editingLocation`.
 import { CONSTRAINT_DEFINITIONS, COST_DEFINITIONS, PARENT_CONSTRAINTS } from '../../utils/constraintDefinitions';
-import { FiArrowRight, FiCheck, FiChevronDown, FiChevronRight, FiHelpCircle, FiTrash2, FiX } from 'react-icons/fi';
+import { FiArrowRight, FiCheck, FiChevronDown, FiChevronRight, FiHelpCircle, FiTrash2, FiX } from '../ui/icons';
 import { formatTechName } from '../../utils/mapVisuals';
 
 export default function MapLocationEditDialog({

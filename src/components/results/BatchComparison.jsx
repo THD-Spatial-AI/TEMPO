@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import ReactECharts from 'echarts-for-react';
-import { FiDownload, FiLayers, FiTrendingUp, FiGrid, FiChevronDown, FiChevronUp } from 'react-icons/fi';
+import { FiDownload, FiLayers, FiTrendingUp, FiGrid, FiChevronDown, FiChevronUp } from '../ui/icons';
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
 const PALETTE = [

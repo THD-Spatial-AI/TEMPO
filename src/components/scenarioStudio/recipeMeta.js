@@ -8,7 +8,7 @@
 
 import {
   FiTrendingUp, FiSun, FiCloud, FiDollarSign, FiSliders, FiGitMerge,
-} from 'react-icons/fi';
+} from '../ui/icons';
 import { autoDetectTechs, FOSSIL_KEYWORDS, RENEWABLE_KEYWORDS } from '../../services/scenarioStudio/utils.js';
 
 // ─── Recipe catalogue (UI metadata) ─────────────────────────────────────────

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FiFolder, FiTrash2, FiEdit2, FiCheck, FiX, FiPlus } from 'react-icons/fi';
+import { FiFolder, FiTrash2, FiEdit2, FiCheck, FiX, FiPlus } from './ui/icons';
 import { useData } from '../context/DataContext';
 
 const ModelSelector = () => {

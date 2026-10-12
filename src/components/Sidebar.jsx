@@ -18,7 +18,7 @@ import {
   FiDownload,
   FiPlay,
   FiPieChart,
-} from "react-icons/fi";
+} from "./ui/icons";
 import { motion, AnimatePresence } from "framer-motion";
 import tempoLogo from '../assets/Logo_TEMPO.PNG';
 

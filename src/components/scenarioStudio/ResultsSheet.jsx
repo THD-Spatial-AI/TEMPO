@@ -3,7 +3,7 @@
  */
 
 import React, { useState } from 'react';
-import { FiChevronUp, FiChevronDown, FiBarChart2 } from 'react-icons/fi';
+import { FiChevronUp, FiChevronDown, FiBarChart2 } from '../ui/icons';
 import BatchComparison from '../results/BatchComparison.jsx';
 import SporesEnsembleComparison from '../results/SporesEnsembleComparison.jsx';
 

@@ -34,7 +34,7 @@ export const EMPTY_SCENARIO = () => ({
 });
 
 // Card category metadata. `icon` is a name string resolved to a component in the
-// UI (keeps this service free of react-icons). `lanes` restricts placement.
+// UI (keeps this service free of icon components). `lanes` restricts placement.
 export const CARD_CATEGORIES = [
   { id: 'demand',     label: 'Demand',     icon: 'FiTrendingUp', color: 'from-blue-500 to-blue-600',     lanes: ['global', 'year'] },
   { id: 'constraint', label: 'Constraint', icon: 'FiCloud',      color: 'from-green-500 to-emerald-600', lanes: ['global', 'year'] },

@@ -6,7 +6,7 @@
  */
 
 import React from 'react';
-import { FiX, FiInfo, FiLayers, FiAlertTriangle } from 'react-icons/fi';
+import { FiX, FiInfo, FiLayers, FiAlertTriangle } from '../ui/icons';
 import { CardConfig, VariantBadge } from './recipeConfig.jsx';
 import { CATEGORY_BY_ID } from '../../services/scenarioStudio/scenario.js';
 import { resolveTechGroup } from '../../services/scenarioStudio/utils.js';

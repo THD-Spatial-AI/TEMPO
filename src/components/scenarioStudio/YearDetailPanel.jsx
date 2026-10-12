@@ -7,7 +7,7 @@
  */
 
 import React, { useMemo } from 'react';
-import { FiX, FiCalendar, FiTrash2, FiArrowRight } from 'react-icons/fi';
+import { FiX, FiCalendar, FiTrash2, FiArrowRight } from '../ui/icons';
 import ReactECharts from 'echarts-for-react';
 import { summarizeYearOps } from '../../services/scenarioStudio/scenario.js';
 import { extractDemandSeries } from '../../services/scenarioStudio/recipeParams.js';

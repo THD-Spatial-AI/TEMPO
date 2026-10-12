@@ -2,7 +2,7 @@
 // sidebar, collapsible panel, KPI card, and the Leaflet input-network mini-map.
 // Extracted from Dashboard.jsx — each is prop-driven and holds no dashboard state.
 import React, { useState, useEffect, useRef } from 'react';
-import { FiChevronDown, FiChevronUp, FiFilter, FiMapPin } from 'react-icons/fi';
+import { FiChevronDown, FiChevronUp, FiFilter, FiMapPin } from '../ui/icons';
 import 'leaflet/dist/leaflet.css';
 
 // ── Time-range + location filter controls (vertical right-sidebar) ───────────

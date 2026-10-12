@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { FiCheckCircle, FiAlertCircle, FiDownload, FiTerminal, FiRefreshCw } from 'react-icons/fi';
+import { FiCheckCircle, FiAlertCircle, FiDownload, FiTerminal, FiRefreshCw } from './ui/icons';
 
 /**
  * Generic install/status panel for an optional optimisation engine
@@ -7,7 +7,7 @@ import { FiCheckCircle, FiAlertCircle, FiDownload, FiTerminal, FiRefreshCw } fro
  * by the engine's electronAPI function names.
  *
  * @param {string}   title            Panel heading, e.g. "PyPSA Engine".
- * @param {object}   icon             react-icons component rendered next to the title.
+ * @param {object}   icon             icon component (ui/icons) rendered next to the title.
  * @param {string}   description      Short explanation shown under the heading.
  * @param {string}   checkFn          window.electronAPI method name: env/service status.
  * @param {string}   installFn        window.electronAPI method name: start install.

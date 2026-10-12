@@ -7,7 +7,7 @@ import { fetchTemplate } from '../utils/templateFetch';
 import {
   FiMapPin, FiLink, FiZap, FiBarChart2, FiPieChart, FiActivity, FiDollarSign,
   FiChevronDown, FiChevronUp, FiCpu, FiLayers, FiMap, FiClock, FiGrid, FiSun, FiFilter,
-} from 'react-icons/fi';
+} from './ui/icons';
 import 'leaflet/dist/leaflet.css';
 import { TsViewControls, Panel, KpiCard, InputMap } from './dashboard/DashboardWidgets';
 

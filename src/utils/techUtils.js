@@ -1,4 +1,4 @@
-import { FiSun, FiWind, FiBattery, FiZap, FiActivity, FiDroplet, FiHome, FiCircle } from "react-icons/fi";
+import { FiSun, FiWind, FiBattery, FiZap, FiActivity, FiDroplet, FiHome, FiCircle } from "../components/ui/icons";
 
 export const getTechColor = (techNameOrObject, techMap = null) => {
   let colorHex = null;

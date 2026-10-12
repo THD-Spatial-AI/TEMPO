@@ -4,7 +4,7 @@
 //   • sensitivity clusters: renewable vs transmission utilisation per SPORE (Fig 6)
 import { useMemo, useState } from 'react';
 import ReactECharts from 'echarts-for-react';
-import { FiDownload, FiGitMerge } from 'react-icons/fi';
+import { FiDownload, FiGitMerge } from '../ui/icons';
 import {
   resolveMetrics, groupUtilisation, aggregateUtilisation, classifyTechs, parseRunLabel, toCsv,
 } from '../../services/sporesAnalysis';

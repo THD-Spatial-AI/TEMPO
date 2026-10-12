@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 // Fonts are bundled (not Google Fonts) so the Electron app renders offline.
 import '@fontsource-variable/inter'
 import '@fontsource-variable/jetbrains-mono'
+import 'material-symbols/outlined.css'
 import './index.css'
 import App from './App.jsx'
 

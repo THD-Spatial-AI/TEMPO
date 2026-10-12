@@ -10,7 +10,7 @@
 
 import React, { memo, useContext } from 'react';
 import { Handle, Position } from '@xyflow/react';
-import { FiTrash2, FiClock } from 'react-icons/fi';
+import { FiTrash2, FiClock } from '../ui/icons';
 import { RECIPE_BY_ID, summarizeOps } from './recipeMeta.js';
 import { BoardCtx } from './boardContext.js';
 

@@ -4,7 +4,7 @@ import {
   FiChevronRight as FiChevronRightIcon, FiArrowRight, FiHelpCircle, FiCopy, FiZap,
   FiSun, FiDatabase, FiRefreshCw, FiShare2, FiBarChart2, FiStar, FiPlus, FiCheck,
   FiExternalLink,
-} from 'react-icons/fi';
+} from './ui/icons';
 import { useData } from '../context/DataContext';
 import SaveBar from './ui/SaveBar';
 import { TECH_TEMPLATES, PARENT_TYPES, useLiveTechTemplates } from './TechnologiesData';

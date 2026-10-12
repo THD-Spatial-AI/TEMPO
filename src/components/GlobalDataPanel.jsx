@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FiGlobe, FiMapPin, FiZap, FiLayers, FiSearch, FiFilter, FiDownload, FiX, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
+import { FiGlobe, FiMapPin, FiZap, FiLayers, FiSearch, FiFilter, FiDownload, FiX, FiChevronLeft, FiChevronRight } from './ui/icons';
 import Papa from 'papaparse';
 
 const GlobalDataPanel = ({ 

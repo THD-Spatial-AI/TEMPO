@@ -1,7 +1,7 @@
 // Save-model modal (name, description, time horizon, solver/mode, advanced
 // options, threads) for the Creation view. Extracted verbatim from
 // Creation.jsx; the parent still gates rendering on `showSaveDialog`.
-import { FiX } from 'react-icons/fi';
+import { FiX } from '../ui/icons';
 
 export default function SaveModelDialog({
   locationManager,

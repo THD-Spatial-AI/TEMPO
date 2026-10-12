@@ -1,6 +1,6 @@
 // Modeling-framework catalogue + per-framework solver options for the Run view.
 // Extracted from Run.jsx so a collaborator adding an engine edits one small file.
-import { FiZap, FiActivity, FiCpu, FiBarChart2 } from 'react-icons/fi';
+import { FiZap, FiActivity, FiCpu, FiBarChart2 } from '../components/ui/icons';
 
 export const MODELING_FRAMEWORKS = [
   {

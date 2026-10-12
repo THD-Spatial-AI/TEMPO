@@ -4,7 +4,7 @@
 // Shown for Lombardi-2020 SPORES results (result.spores_meta).
 import { useMemo } from 'react';
 import ReactECharts from 'echarts-for-react';
-import { FiDownload, FiAward } from 'react-icons/fi';
+import { FiDownload, FiAward } from '../ui/icons';
 import {
   resolveMetrics, groupUtilisation, sporeMetrics, bestRanking, toCsv,
 } from '../../services/sporesAnalysis';

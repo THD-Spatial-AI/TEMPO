@@ -185,6 +185,21 @@ code, pre {
     @apply hover:border-black/40;
   }
   
+  /* Material Symbols icons (ui/icons.jsx): weight/fill copied from
+     landing/src/index.css; size follows the surrounding text like the old
+     Feather SVGs (1em) unless a size prop / text-* class sets it. The fixed
+     1em box hides the ligature name while the font loads. */
+  .tempo-icon {
+    font-size: 1em;
+    font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+    vertical-align: middle;
+    width: 1em;
+    height: 1em;
+    overflow: hidden;
+    flex-shrink: 0;
+    user-select: none;
+  }
+
   .input-refined {
     @apply w-full px-4 py-2.5 border border-outline-variant;
     @apply bg-surface-container-lowest text-on-surface placeholder-slate-400;

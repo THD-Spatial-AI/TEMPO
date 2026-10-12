@@ -1,5 +1,5 @@
 import React from "react";
-import { FiMaximize2, FiMinimize2, FiMapPin } from "react-icons/fi";
+import { FiMaximize2, FiMinimize2, FiMapPin } from "../ui/icons";
 
 const MapZoomControls = ({ onZoomIn, onZoomOut, onFitBounds }) => {
   return (

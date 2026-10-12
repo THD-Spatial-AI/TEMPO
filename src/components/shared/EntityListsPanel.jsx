@@ -3,7 +3,7 @@
 // only — all data and handlers are passed as props. The optional `onSave` and
 // `setCurrentLinkType` props enable the Creation-only extras (Save button, new-
 // link-type picker); when omitted, the panel renders the same lists without them.
-import { FiActivity, FiArrowRight, FiChevronDown, FiEdit2, FiLink, FiMapPin, FiSave, FiTrash2 } from 'react-icons/fi';
+import { FiActivity, FiArrowRight, FiChevronDown, FiEdit2, FiLink, FiMapPin, FiSave, FiTrash2 } from '../ui/icons';
 import { LINK_TYPES, LINK_TYPES_BY_GROUP, getLinkTypeColor } from '../../config/linkTypes';
 import { getCarrierColor } from '../../config/carriers';
 import { formatTechName } from '../../utils/nameUtils';

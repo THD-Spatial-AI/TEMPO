@@ -10,7 +10,7 @@ import {
   FiDatabase,
   FiRefreshCw,
   FiX,
-} from 'react-icons/fi';
+} from './ui/icons';
 import { api } from '../services/api';
 
 // ── helpers ─────────────────────────────────────────────────────────────────

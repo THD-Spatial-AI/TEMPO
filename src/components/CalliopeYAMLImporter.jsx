@@ -20,7 +20,7 @@ import {
   FiAlertTriangle, FiX, FiChevronDown, FiChevronRight,
   FiMap, FiZap, FiDatabase, FiActivity, FiInfo, FiRefreshCw,
   FiServer, FiFolder,
-} from 'react-icons/fi';
+} from './ui/icons';
 import JSZip from 'jszip';
 import jsyaml from 'js-yaml';
 import Papa from 'papaparse';

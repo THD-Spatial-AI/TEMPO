@@ -10,7 +10,7 @@
 
 import React, { memo, useContext, useState } from 'react';
 import { Handle, Position, NodeResizer } from '@xyflow/react';
-import { FiCalendar, FiTrash2, FiCopy, FiPlus } from 'react-icons/fi';
+import { FiCalendar, FiTrash2, FiCopy, FiPlus } from '../ui/icons';
 import { BoardCtx } from './boardContext.js';
 import { CARD_CATEGORIES } from '../../services/scenarioStudio/scenario.js';
 

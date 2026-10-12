@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { FiFolder, FiFile, FiDownload, FiTrash2, FiEdit2, FiX, FiSave, FiChevronDown, FiChevronRight } from "react-icons/fi";
+import { FiFolder, FiFile, FiDownload, FiTrash2, FiEdit2, FiX, FiSave, FiChevronDown, FiChevronRight } from "./ui/icons";
 import { useData } from "../context/DataContext";
 
 const CalliopeModels = () => {

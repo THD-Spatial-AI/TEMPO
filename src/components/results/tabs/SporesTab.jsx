@@ -3,7 +3,7 @@
 // predicate, so it drops into both Results and Scenario Studio with just
 // { result, modelLocations }.
 import { useMemo, useState } from 'react';
-import { FiActivity, FiBarChart2, FiDollarSign, FiFilter, FiGitMerge, FiGrid, FiLayers, FiMap, FiShare2 } from 'react-icons/fi';
+import { FiActivity, FiBarChart2, FiDollarSign, FiFilter, FiGitMerge, FiGrid, FiLayers, FiMap, FiShare2 } from '../../ui/icons';
 import ReactECharts from 'echarts-for-react';
 import { GroupedCorrMatrixSVG, ResultsMap } from '../ResultMaps';
 import { autoScale, axisNameStyle, fmtCost, fmtPower, makeIsGenTech, techColor } from '../../../utils/resultFormat';

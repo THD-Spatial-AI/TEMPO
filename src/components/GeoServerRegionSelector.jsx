@@ -20,7 +20,7 @@ import React, { useState } from 'react';
 import {
   FiMap, FiChevronDown, FiChevronRight, FiLayers,
   FiCrosshair, FiRefreshCw, FiAlertCircle, FiGlobe,
-} from 'react-icons/fi';
+} from './ui/icons';
 import { useLoadedRegions } from '../hooks/useLoadedRegions';
 
 // ── helpers ────────────────────────────────────────────────────────────────────

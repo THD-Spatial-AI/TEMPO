@@ -14,7 +14,7 @@ import {
   FiTerminal, FiTrash2, FiAlertTriangle, FiBox,
   FiBarChart2, FiDownload, FiEye, FiList,
   FiCalendar, FiChevronDown, FiChevronRight, FiHelpCircle,
-} from 'react-icons/fi';
+} from './ui/icons';
 import { MODELING_FRAMEWORKS, SOLVER_OPTIONS } from '../config/modelingFrameworks';
 import CompletedRunsSection from './run/CompletedRunsSection';
 import ActiveJobsPanel from './run/ActiveJobsPanel';

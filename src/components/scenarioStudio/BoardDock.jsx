@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { FiPlay, FiActivity, FiAlertTriangle } from 'react-icons/fi';
+import { FiPlay, FiActivity, FiAlertTriangle } from '../ui/icons';
 
 export default function BoardDock({
   totalRuns, warningCount, noMatchCount = 0, sequential = false, onToggleSequential,

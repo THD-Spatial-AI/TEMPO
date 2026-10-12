@@ -7,7 +7,7 @@ import {
   FiTerminal, FiAlertTriangle, FiMapPin, FiDollarSign,
   FiZap, FiActivity, FiClock, FiCpu, FiMap, FiLayers, FiShare2, FiGrid,
   FiChevronDown, FiFilter, FiGitMerge, FiSearch, FiX,
-} from 'react-icons/fi';
+} from './ui/icons';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import 'maplibre-gl/dist/maplibre-gl.css';

@@ -4,7 +4,7 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import {
   FiCpu, FiSend, FiRefreshCw, FiStopCircle, FiSettings, FiAlertTriangle, FiSliders,
-} from 'react-icons/fi';
+} from '../../ui/icons';
 import { streamAI, aiAvailable, hasKey } from '../../../services/aiClient';
 import { buildResultContextString, summarizeResult, summarizeModelInputs, estimateTokens } from '../../../services/aiContext';
 import { SYSTEM_PROMPT, buildReportMessages, buildChatMessages } from '../../../services/aiPrompts';

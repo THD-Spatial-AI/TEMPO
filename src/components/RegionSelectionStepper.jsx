@@ -1,5 +1,5 @@
 import React from 'react';
-import { FiGlobe, FiMapPin, FiMap, FiLayers } from 'react-icons/fi';
+import { FiGlobe, FiMapPin, FiMap, FiLayers } from './ui/icons';
 
 const RegionSelectionStepper = ({ 
   currentStep, 
