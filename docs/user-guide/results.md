@@ -52,7 +52,19 @@ Click **Download raw results (JSON)** to save the full optimization result as re
 
 ---
 
-## Limitations
+## Other tabs
 
-- The Results screen currently shows results for the most recently completed run. A run history is accessible in the Run screen.
-- Plotting is limited to the variables listed above. For detailed analysis (e.g. shadow prices, curtailment), use the raw JSON results or load the exported model in a Jupyter notebook with Calliope's Python API.
+Depending on the run, the Results screen also has these tabs:
+
+| Tab | What it shows |
+|---|---|
+| **Energy Flow** | A Sankey diagram of how energy moves from supply to demand |
+| **Dispatch** | Hourly generation and storage by technology |
+| **Shadow Prices** | The marginal price of each carrier over time, when the engine reports it |
+| **Analysis** | Capacity factors by technology, LCOE, renewable share and a per-location capacity breakdown |
+| **SPORES** | The alternative solutions of a SPORES run. See [SPORES](spores.md) |
+| **Model Advisor** | An AI-written report and chat about the run. See [Model Advisor](model-advisor.md) |
+| **Logs** | The full solver log |
+
+To compare several runs, or to export maps, charts and data, see
+[Comparing & Exporting Results](comparing-exporting.md).

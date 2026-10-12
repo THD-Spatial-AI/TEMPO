@@ -1,4 +1,4 @@
-﻿import { HeroSection } from '../components/ui/HeroSection'
+import { HeroSection } from '../components/ui/HeroSection'
 import { ImageComparison } from '../components/ui/ImageComparison'
 import { ShadowOverlay } from '../components/ui/ShadowOverlay'
 import { DottedSurface } from '../components/ui/DottedSurface'
@@ -32,7 +32,7 @@ const DOWNLOADS = [
 
 const CONTACTS = [
   { label: 'https://github.com/THD-Spatial-AI/TEMPO', icon: 'github', href: GITHUB, external: true },
-  { label: 'ricardo.miranda-castillo@th-deg-de', icon: 'email', href: 'mailto:ricardo.miranda-castillo@th-deg-de' },
+  { label: 'ricardo.miranda-castillo@th-deg.de', icon: 'email', href: 'mailto:ricardo.miranda-castillo@th-deg.de' },
   { label: 'www.th-deg.de', icon: 'website', href: 'https://www.th-deg.de', external: true },
   { label: 'Deggendorf, Bavaria', icon: 'address', href: 'https://maps.google.com/?q=TH+Deggendorf', external: true },
 ]
@@ -41,56 +41,116 @@ const CONTRIBUTE_STEPS = [
   {
     num: '01',
     title: 'Fork & Clone',
-    desc: 'Fork the repository on GitHub and clone it locally. The monorepo contains the React frontend, Go backend, Python service, and OSM processing scripts.',
+    desc: 'Fork the repository on GitHub and clone it. Everything lives in one repo: the React frontend, the Go backend, the Python engine services and the OSM processing scripts.',
     code: 'git clone https://github.com/THD-Spatial-AI/TEMPO.git',
   },
   {
     num: '02',
-    title: 'Set Up Your Environment',
-    desc: 'Install Node.js >= 16, Go >= 1.21, and Python >= 3.9 with Calliope. Docker Desktop is needed for GeoServer and the Calliope runner service.',
-    code: 'npm install  |  go mod download  |  pip install -r python/requirements.txt',
+    title: 'Install',
+    desc: 'You need Node.js 16+, Go 1.21+ and Python 3.9 to 3.11 (Calliope 0.6.8 does not run on 3.12). make install fetches the npm packages, builds the Go binary and creates every Python environment.',
+    code: 'make install',
   },
   {
     num: '03',
     title: 'Run Locally',
-    desc: 'Start all three services — Vite dev server, Go backend, and optionally the Docker services — then open the app at localhost:5173.',
-    code: 'npm run dev  |  cd backend-go && go run .  |  docker compose up',
+    desc: 'make dev starts the Vite dev server and the Go backend on localhost:5173. Use npm run dev:electron when you want the full desktop app with the engines attached.',
+    code: 'make dev  |  npm run dev:electron',
   },
   {
     num: '04',
     title: 'Open a Pull Request',
-    desc: 'Create a feature branch, commit your changes following conventional commits, and open a PR against the main branch. All PRs are reviewed by maintainers.',
+    desc: 'Work on a feature branch, use conventional commit messages, and open a PR against main. A maintainer will review it.',
     code: 'git checkout -b feat/my-feature  &&  git push origin feat/my-feature',
   },
 ]
 
 export default function Home() {
   const workflowSteps = [
-    { icon: 'database', step: '01. INGESTION', desc: 'Import heterogeneous spatial & temporal data assets.' },
-    { icon: 'architecture', step: '02. TOPOLOGY', desc: 'Construct multi-node networks via visual architect.' },
-    { icon: 'memory', step: '03. SOLVE', desc: 'Execute linear & mixed-integer optimizations.' },
-    { icon: 'analytics', step: '04. ANALYTICS', desc: 'Deconstruct results via interactive GIS dashboards.' },
+    { icon: 'database', step: '01. Bring data in', desc: 'Search a region by name and pull its grid from OpenStreetMap, or open an existing Calliope, PyPSA or OSeMOSYS model.' },
+    { icon: 'architecture', step: '02. Build', desc: 'Place nodes and links on the map, then give each node technologies from the catalog.' },
+    { icon: 'memory', step: '03. Solve', desc: 'Run it on your own machine with one of five engines, or send it to a remote server.' },
+    { icon: 'analytics', step: '04. Read results', desc: 'Maps, dispatch, costs and flows for every run, and an optional written summary.' },
+  ]
+
+  const whatsNew = [
+    {
+      icon: 'science',
+      title: 'Scenario Studio',
+      desc: 'Lay out a scenario year by year on a board, with cards for demand, CO₂ caps, technology changes, sensitivity cases and SPORES. Start from a template (demand growth, carbon cap, renewable transition) or a blank timeline, and run every year as one batch.',
+    },
+    {
+      icon: 'schema',
+      title: 'Five engines, one results view',
+      desc: 'Calliope 0.6.8, Calliope 0.7, PyPSA, OSeMOSYS and AdOpT-NET0, each in its own Python environment. They all hand back results in the same shape, so you read a PyPSA run the same way you read a Calliope one.',
+    },
+    {
+      icon: 'tune',
+      title: 'Enter parameters once',
+      desc: 'Capacity, efficiency, lifetime and CAPEX are entered once and translated for each engine. Engine-specific fields are still there when you need them.',
+    },
+    {
+      icon: 'travel_explore',
+      title: 'Study area from a place name',
+      desc: 'Type a city, province or country. TEMPO finds its boundary, pulls substations and power lines from OpenStreetMap and turns them into a zonal model you can edit.',
+    },
+    {
+      icon: 'electric_meter',
+      title: 'Demand for every substation',
+      desc: 'Spread a regional demand figure across substations, evenly or weighted by voltage, and give each one an hourly load shape. Install demandlib and you also get the BDEW standard load profiles.',
+    },
+    {
+      icon: 'chat',
+      title: 'Ask questions about a run',
+      desc: 'The Model Advisor tab writes a report on a finished run and answers follow-up questions. You bring your own key (Anthropic, Gemini, OpenAI, Groq) or point it at a local Ollama model.',
+    },
+    {
+      icon: 'cloud_upload',
+      title: 'Remote runs',
+      desc: 'When a model is too big for your laptop, send a PyPSA, Calliope 0.7 or AdOpT-NET0 run to a MEME server. The results come back in the same format as a local run.',
+    },
+    {
+      icon: 'difference',
+      title: 'SPORES',
+      desc: 'Ask for a set of near-optimal alternatives inside a cost margin you set, and see how differently the same system could be built. Local on Calliope 0.6.8, remote on 0.7.',
+    },
+    {
+      icon: 'swap_horiz',
+      title: 'Open models from other tools',
+      desc: 'Drop in a Calliope 0.6 or 0.7 YAML model, a PyPSA netCDF or CSV folder, or an OSeMOSYS otoole dataset. TEMPO reads the archive and works out which one it is.',
+    },
+    {
+      icon: 'map',
+      title: 'Figures for your paper',
+      desc: 'Export node and transmission maps, capacity and generation maps and demand choropleths as SVG, with the data behind them as CSV or JSON.',
+    },
+    {
+      icon: 'grid_view',
+      title: 'Compare many runs',
+      desc: 'Put runs side by side as KPI tables, maps, parallel coordinates or a scatter plot. A batch across several models gets a matrix shaded by the KPI you pick.',
+    },
+    {
+      icon: 'laptop_mac',
+      title: 'Your models stay on your machine',
+      desc: 'TEMPO is a desktop app with a local database. No account, no upload. Model Advisor and remote runs are the only features that send data out, and both are off until you set them up.',
+    },
   ]
 
   const features = [
-    { icon: 'account_tree', title: 'Model Builder', desc: 'Node-based canvas for architecting energy networks with direct, lossless translation to Calliope YAML schemas.' },
-    { icon: 'map', title: 'GIS Integration', desc: 'Native Shapefile and GeoJSON support. Locations and links are geographically anchored via live OSM data. Transmission links render directly on the results map.' },
-    { icon: 'library_books', title: 'Tech Catalog', desc: 'OEO-aligned library of 55+ energy technologies backed by OpenTech-DB.' },
-    { icon: 'ssid_chart', title: 'Timeseries Editor', desc: 'Interactive per-column CSV editor with drag-to-edit data points, charts, and seasonal windowed views.' },
-    { icon: 'output', title: 'Multi-Framework Export', desc: 'Export to Calliope ZIP folder. AdOpT-NET0 adapter now live. PyPSA and OSeMOSYS adapters in progress.' },
-    { icon: 'data_exploration', title: 'Result Analysis', desc: 'Dispatch charts, capacity maps, carbon timelines, LCOE tables, SPORES comparison grids, and side-by-side scenario comparison.' },
-    { icon: 'schema', title: 'Dual Calliope Engine', desc: 'Run models on Calliope 0.6.8 (stable) or 0.7 (dev7) from the same UI. Engine is selected per model; dependency stacks are fully isolated.' },
-    { icon: 'difference', title: 'SPORES Mode', desc: 'Generate N spatially diverse near-optimal energy plans within a configurable cost slack. Each alternative reveals hidden siting trade-offs.' },
-    { icon: 'compare', title: 'Scenario Comparison', desc: 'Select multiple completed runs and compare KPIs, capacity mixes, and dispatch profiles side-by-side in a dedicated dashboard.' },
+    { icon: 'account_tree', title: 'Map-based builder', desc: 'Click to place locations, draw links between them and attach technologies. The model is written out as Calliope YAML with nothing lost on the way.' },
+    { icon: 'library_books', title: 'Technology catalog', desc: 'Generation, storage, conversion and transmission technologies with costs and efficiencies from OpenTech-DB, aligned with the Open Energy Ontology.' },
+    { icon: 'ssid_chart', title: 'Timeseries editor', desc: 'Edit demand and resource profiles column by column. Drag points on the chart, or zoom to a season, a month or a custom window.' },
+    { icon: 'layers', title: 'Overrides', desc: 'Group changes to costs, capacities or CO₂ limits under a name and switch them on per run.' },
+    { icon: 'data_exploration', title: 'Results dashboard', desc: 'Capacities, hourly dispatch, costs by technology and location, transmission flows, shadow prices and LCOE, each on its own tab.' },
+    { icon: 'sensors', title: 'Live solver log', desc: 'Watch the solver log while the model runs, so you know whether it is building, solving or stuck.' },
   ]
 
   const techStack = [
-    { label: 'Core Engine', value: 'Calliope 0.6.8 / 0.7' },
+    { label: 'Engines', value: 'Calliope 0.6.8 / 0.7 · PyPSA · OSeMOSYS · AdOpT-NET0' },
+    { label: 'Solvers', value: 'HiGHS · CBC · GLPK' },
     { label: 'Desktop', value: 'Electron / Vite' },
     { label: 'Backend', value: 'Go + FastAPI' },
-    { label: 'Frontend', value: 'React 19 / Tailwind' },
-    { label: 'Database', value: 'SQLite / PostGIS' },
-    { label: 'Alt Engine', value: 'AdOpT-NET0' },
+    { label: 'Frontend', value: 'React 19 / MapLibre' },
+    { label: 'Storage', value: 'SQLite / PostGIS' },
   ]
 
   return (
@@ -102,8 +162,8 @@ export default function Home() {
           className="min-h-[calc(100vh-4rem)]"
           logo={{ url: logo, alt: 'TEMPO logo', text: 'TEMPO' }}
           slogan="Tool for Energy Model Planning and Optimization"
-          title={<>Bridge GIS, Code<br /><span className="text-primary"> and Energy Optimization.</span></>}
-          subtitle="A planning platform to design, optimize, and visualize complex regional energy systems through a high-precision no-code interface."
+          title={<>Energy system models,<br /><span className="text-primary"> built on a map.</span></>}
+          subtitle="Draw your region, pick the technologies and run it on Calliope, PyPSA, OSeMOSYS or AdOpT-NET0. No hand-written YAML."
           downloads={DOWNLOADS}
           contacts={CONTACTS}
           institution={{ logo: LogoTHD, name: 'TH Deggendorf', group: 'BigGeoData & Spatial AI Research Group' }}
@@ -111,7 +171,7 @@ export default function Home() {
             { logo: LogoH2IN, name: 'H2.in', href: 'https://h2in.cl/' },
             { logo: LogoREDRES, name: 'RED-RES-H2' },
             { logo: LogoH2V, name: 'H2V+' },
-            
+
           ]}
           backgroundImage={Hero}
         />
@@ -126,7 +186,7 @@ export default function Home() {
                     <span className="material-symbols-outlined text-2xl">{item.icon}</span>
                   </div>
                   <h3 className="font-bold uppercase text-[10px] tracking-[0.3em] mb-3">{item.step}</h3>
-                  <p className="text-[11px] text-neutral-400 uppercase tracking-widest leading-relaxed">{item.desc}</p>
+                  <p className="text-[13px] text-neutral-400 leading-relaxed">{item.desc}</p>
                 </div>
               ))}
             </div>
@@ -136,100 +196,28 @@ export default function Home() {
         {/* What's New */}
         <section className="py-24 px-8 bg-neutral-50 border-y border-neutral-200" id="changelog">
           <div className="max-w-7xl mx-auto">
-            <div className="mb-12">
-              <span className="font-bold text-[10px] tracking-[0.4em] uppercase text-neutral-400 mb-2 block">
-                Recent Development
-              </span>
-              <h2 className="text-4xl font-black tracking-tighter uppercase leading-none">
-                What's New
-              </h2>
+            <div className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-8">
+              <div>
+                <span className="font-bold text-[10px] tracking-[0.4em] uppercase text-neutral-400 mb-2 block">
+                  TEMPO 3
+                </span>
+                <h2 className="text-4xl font-black tracking-tighter uppercase leading-none">
+                  What's New
+                </h2>
+              </div>
+              <p className="text-sm text-neutral-500 max-w-md">
+                Version 3 is mostly about what happens after the first model works: running
+                many scenarios, comparing them, and getting figures out for a report.
+              </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-px bg-neutral-200 border border-neutral-200">
-
-              {/* Added */}
-              {[
-                {
-                  tag: 'Added',
-                  tagColor: 'bg-emerald-100 text-emerald-700',
-                  icon: 'science',
-                  title: 'Scenario Studio',
-                  desc: 'A policy-recipe library that replaces hand-built overrides — demand growth, renewable transition, carbon cap, and cost sensitivity — configured through a guided UI and applied across every engine.',
-                },
-                {
-                  tag: 'Added',
-                  tagColor: 'bg-emerald-100 text-emerald-700',
-                  icon: 'tune',
-                  title: 'Engine-Neutral Parameters',
-                  desc: 'Set common technology values (capacity, efficiency, lifetime, CAPEX) once and TEMPO translates them to each engine automatically. One shared ontology drives the UI and the PyPSA / OSeMOSYS / AdOpT-NET0 translators.',
-                },
-                {
-                  tag: 'Added',
-                  tagColor: 'bg-emerald-100 text-emerald-700',
-                  icon: 'grid_view',
-                  title: 'Multi-Model Comparison',
-                  desc: 'A multi-model matrix view with selectable KPIs and a heatmap, plus a batch-comparison panel — line up unmet-demand, imports, cost and capacity metrics across many runs at once.',
-                },
-                {
-                  tag: 'Added',
-                  tagColor: 'bg-emerald-100 text-emerald-700',
-                  icon: 'map',
-                  title: 'Publication-Ready Export',
-                  desc: 'A results export panel with live map previews: SVG node/transmission maps, capacity / generation / technology-mix maps, demand choropleths, and downloadable charts and data (JSON / CSV).',
-                },
-                {
-                  tag: 'Added',
-                  tagColor: 'bg-emerald-100 text-emerald-700',
-                  icon: 'difference',
-                  title: 'SPORES Mode',
-                  desc: 'Generate N spatially diverse, near-optimal energy plans within a configurable cost slack. Reveals hidden siting and transmission trade-offs that a single optimal solution conceals.',
-                },
-                {
-                  tag: 'Added',
-                  tagColor: 'bg-emerald-100 text-emerald-700',
-                  icon: 'compare',
-                  title: 'Scenario Comparison',
-                  desc: 'Select any number of completed runs and compare their KPIs, installed capacity mixes, and dispatch profiles side-by-side in a dedicated Results dashboard.',
-                },
-                {
-                  tag: 'Added',
-                  tagColor: 'bg-emerald-100 text-emerald-700',
-                  icon: 'schema',
-                  title: 'Calliope 0.7 Dual Engine',
-                  desc: 'Opt any model into Calliope 0.7 (dev7). Both engines run in isolated Python venvs and return the same result contract — no UI changes required between versions.',
-                },
-                {
-                  tag: 'Added',
-                  tagColor: 'bg-emerald-100 text-emerald-700',
-                  icon: 'hub',
-                  title: 'AdOpT-NET0 Integration',
-                  desc: 'Full FastAPI service and JS client for AdOpT-NET0 model execution. Runs via Docker with live log streaming — previously listed as a planned adapter, now shipped.',
-                },
-                {
-                  tag: 'Improved',
-                  tagColor: 'bg-sky-100 text-sky-700',
-                  icon: 'map',
-                  title: 'Results Map Overhaul',
-                  desc: 'Transmission links now render on the capacity and generation maps. Node markers show location name and formatted capacity inline. Unit-aware formatters (MW/GW/TW) applied throughout.',
-                },
-                {
-                  tag: 'Refactored',
-                  tagColor: 'bg-amber-100 text-amber-700',
-                  icon: 'construction',
-                  title: 'Creation Module Split',
-                  desc: 'The monolithic Creation component was broken into focused sub-components: LayerSelector, MapZoomControls, SearchBar, and supporting map utilities — removing ~600 lines from a single file.',
-                },
-              ].map((item) => (
+              {whatsNew.map((item) => (
                 <div key={item.title} className="bg-white p-8 flex flex-col gap-4">
-                  <div className="flex items-start justify-between">
-                    <span className="material-symbols-outlined text-xl text-black">{item.icon}</span>
-                    <span className={`text-[9px] font-bold tracking-widest uppercase px-2 py-1 ${item.tagColor}`}>
-                      {item.tag}
-                    </span>
-                  </div>
+                  <span className="material-symbols-outlined text-xl text-black">{item.icon}</span>
                   <div>
                     <h4 className="font-black text-[0.875rem] uppercase tracking-tight mb-2">{item.title}</h4>
-                    <p className="text-[12px] text-neutral-500 leading-relaxed">{item.desc}</p>
+                    <p className="text-[13px] text-neutral-500 leading-relaxed">{item.desc}</p>
                   </div>
                 </div>
               ))}
@@ -252,8 +240,8 @@ export default function Home() {
                 </h2>
               </div>
               <p className="text-sm text-neutral-500 max-w-sm">
-                Drag the slider to compare the traditional approach, going from manually parsing raw OSM infrastructure
-                layers to actionable energy model produced inside TEMPO.
+                Drag the slider. On the left, raw OpenStreetMap power infrastructure as you would
+                download it. On the right, the same region as a TEMPO model ready to solve.
               </p>
             </div>
 
@@ -271,7 +259,8 @@ export default function Home() {
                 <div>
                   <p className="font-black text-[10px] uppercase tracking-widest">Before</p>
                   <p className="text-[11px] text-neutral-500 mt-0.5">
-                    Raw OSM power lines, plants &amp; substations, as well tech definitions like cost and constraints, having thousands of features to sift through manually.
+                    Thousands of OSM power lines, plants and substations, plus cost and constraint
+                    data kept somewhere else, all to be sorted by hand.
                   </p>
                 </div>
               </div>
@@ -280,7 +269,8 @@ export default function Home() {
                 <div>
                   <p className="font-black text-[10px] uppercase tracking-widest">After</p>
                   <p className="text-[11px] text-neutral-500 mt-0.5">
-                    Structured TEMPO model. Considering the topology, tech catalog, CAPEX/OPEX estimates, and more ready to optimize.
+                    A TEMPO model with its topology, technologies and CAPEX/OPEX estimates in
+                    one place, ready to run.
                   </p>
                 </div>
               </div>
@@ -302,15 +292,20 @@ export default function Home() {
                   Developed at TH Deggendorf
                 </h2>
                 <p className="text-[0.9375rem] text-neutral-500 leading-relaxed mb-6">
-                  TEMPO was created at the <strong className="text-black">Technische Hochschule Deggendorf</strong> (THD)
-                  by the <strong className="text-black">Research Group for BigGeoData & Spatial AI</strong> research group. The project bridges
-                  geospatial science and energy systems engineering, combining open geographic data from
-                  OpenStreetMap with the rigorous optimization frameworks, like <a href="https://callio.pe" target="_blank" rel="noopener noreferrer"><strong className="text-black">Calliope</strong></a>, <a href="https://pypsa.org" target="_blank" rel="noopener noreferrer"><strong className="text-black">PYPSA</strong></a> and <a href="https://github.com/UU-ER/AdOpT-NET0" target="_blank" rel="noopener noreferrer"><strong className="text-black">Adopt-net0</strong></a> to support regional and national energy transition planning.
+                  TEMPO is built by the <strong className="text-black">Research Group for BigGeoData & Spatial AI</strong> at
+                  the <strong className="text-black">Technische Hochschule Deggendorf</strong> (THD). The aim is to get a
+                  region from raw map data to a model you can solve, without the manual cleanup and
+                  configuration work in between. TEMPO joins open geographic data from OpenStreetMap
+                  with established open-source modelling frameworks:{' '}
+                  <a href="https://callio.pe" target="_blank" rel="noopener noreferrer"><strong className="text-black">Calliope</strong></a>,{' '}
+                  <a href="https://pypsa.org" target="_blank" rel="noopener noreferrer"><strong className="text-black">PyPSA</strong></a>,{' '}
+                  <a href="https://osemosys.org" target="_blank" rel="noopener noreferrer"><strong className="text-black">OSeMOSYS</strong></a> and{' '}
+                  <a href="https://github.com/UU-ER/AdOpT-NET0" target="_blank" rel="noopener noreferrer"><strong className="text-black">AdOpT-NET0</strong></a>.
                 </p>
                 <p className="text-[0.9375rem] text-neutral-500 leading-relaxed mb-10">
-                  The tool is designed for researchers, students, and practitioners who need to model
-                  complex multi-node energy systems at regional or national scale without requiring
-                  deep expertise in YAML configuration or command-line workflows.
+                  It is meant for researchers, students and practitioners who model regional or national
+                  systems with many nodes and would rather not spend their time on YAML files and
+                  command-line setup.
                 </p>
                 <div className="border-l-4 border-black pl-8 space-y-3">
                   {[
@@ -318,7 +313,7 @@ export default function Home() {
                     { label: 'Research Group', value: 'Research Group for BigGeoData & Spatial AI' },
                     { label: 'Location', value: 'Deggendorf, Bavaria, Germany' },
                     { label: 'Website', value: 'www.th-deg.de', href: 'https://www.th-deg.de' },
-                    { label: 'License', value: 'MIT — Open Source' },
+                    { label: 'License', value: 'MIT, open source' },
                     { label: 'First Release', value: '2026' },
                   ].map((row) => (
                     <div key={row.label} className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-4">
@@ -340,12 +335,12 @@ export default function Home() {
 
               <div className="grid grid-cols-2 gap-px bg-neutral-200 border border-neutral-200 self-start">
                 {[
-                  { icon: 'bolt', label: 'Optimization Engine', value: 'Calliope 0.6.8 + 0.7', sub: 'CBC / HiGHS MILP solver' },
-                  { icon: 'map', label: 'GIS Backend', value: 'PostGIS + GeoServer', sub: 'OSM power infrastructure' },
+                  { icon: 'bolt', label: 'Engines', value: '5 local + remote', sub: 'HiGHS, CBC and GLPK solvers' },
+                  { icon: 'map', label: 'Map data', value: 'OpenStreetMap', sub: 'PostGIS + GeoServer optional' },
                   { icon: 'desktop_windows', label: 'Platforms', value: 'Windows + Linux', sub: 'Electron desktop app' },
                   { icon: 'code', label: 'Tech Stack', value: 'React + Go + Python', sub: 'Vite + FastAPI + SQLite' },
-                  { icon: 'public', label: 'Data Source', value: 'OpenStreetMap', sub: 'Geofabrik regional extracts' },
-                  { icon: 'account_balance', label: 'Academic Use', value: 'Free & Open', sub: 'MIT Licensed' },
+                  { icon: 'public', label: 'Coverage', value: 'Worldwide', sub: 'Any region OSM has mapped' },
+                  { icon: 'account_balance', label: 'Cost', value: 'Free', sub: 'MIT licence' },
                 ].map((stat) => (
                   <div key={stat.label} className="bg-white p-8">
                     <span className="material-symbols-outlined text-xl mb-4 block text-black">{stat.icon}</span>
@@ -367,11 +362,11 @@ export default function Home() {
                 Research &amp; Industry Projects
               </span>
               <h2 className="text-4xl md:text-5xl font-black tracking-tighter uppercase leading-none mb-4">
-                Built for Real Projects
+                Where TEMPO Is Used
               </h2>
               <p className="text-lg text-neutral-500 max-w-3xl">
-                TEMPO is the modelling backbone for several funded research and industry
-                projects focused on regional hydrogen economies and renewable energy planning.
+                These funded projects use TEMPO for their energy models. Most of them deal with
+                green hydrogen and renewable planning in Chile.
               </p>
             </div>
 
@@ -386,13 +381,9 @@ export default function Home() {
                 <div>
                   <h3 className="text-lg font-black tracking-tight uppercase mb-2">H2 In</h3>
                   <p className="text-sm text-neutral-500 leading-relaxed">
-                    This is a multidisciplinary research project focused on the multidimensional 
-                    and comprehensive study of the green hydrogen value chain, 
-                    supporting decision-making regarding the technologies that can be used at 
-                    each stage of the value chain, providing public policy recommendations on this topic, 
-                    and developing advanced human capital in this field with international support and 
-                    collaborative networks in Germany.
-
+                    A multidisciplinary research project on the green hydrogen value chain. It looks at
+                    which technologies fit each stage of the chain, makes public policy recommendations
+                    and trains researchers in the field, working with partners in Germany.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2 mt-auto">
@@ -414,11 +405,8 @@ export default function Home() {
                 <div>
                   <h3 className="text-lg font-black tracking-tight uppercase mb-2">RED-RES-H2</h3>
                   <p className="text-sm text-neutral-500 leading-relaxed">
-                    RED-RES-GH2: Reducing the risk generated by
-                    extreme droughts in the Chilean power system
-                    with optimal shares of variable renewable
-                    energy sources including green hydrogen
-                    storage
+                    Reducing the risk that extreme droughts pose to the Chilean power system, using
+                    optimal shares of variable renewables together with green hydrogen storage.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2 mt-auto">
@@ -428,7 +416,7 @@ export default function Home() {
                 </div>
                 <a href="https://zaf.th-deg.de/public/project/fact-sheet/363" target="_blank" rel="noopener noreferrer"
                       className="text-[10px] font-bold tracking-widest uppercase text-primary hover:opacity-70 transition-opacity mt-2 inline-block">
-                      www.red-res-h2.cl →
+                      Project fact sheet →
                     </a>
               </div>
 
@@ -438,10 +426,10 @@ export default function Home() {
                   <img src={LogoH2V} alt="H2V+ project logo" className="h-14 w-auto object-contain" style={{ mixBlendMode: 'multiply' }} />
                 </div>
                 <div>
-                  <h3 className="text-lg font-black tracking-tight uppercase mb-2">H2V+ — Valparaíso</h3>
+                  <h3 className="text-lg font-black tracking-tight uppercase mb-2">H2V+ Valparaíso</h3>
                   <p className="text-sm text-neutral-500 leading-relaxed">
-                    <em>Interactive Green Hydrogen Platform in the Valparaíso Region:</em>  Driving the energy transition,
-                    promoting clean energy and sustainable solutions.
+                    An interactive green hydrogen platform for the Valparaíso Region, supporting the
+                    region's move to clean energy.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2 mt-auto">
@@ -456,7 +444,7 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Developed by — institution row */}
+            {/* Developed by: institution row */}
             <div className="border border-neutral-200 bg-white p-8">
               <p className="text-[10px] font-bold tracking-[0.4em] uppercase text-neutral-400 mb-6">Developed by</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
@@ -467,7 +455,7 @@ export default function Home() {
                   <div>
                     <p className="font-black text-sm tracking-tight">Technische Hochschule Deggendorf</p>
                     <p className="text-xs text-neutral-500 mt-1 leading-relaxed">
-                      University of Applied Sciences — Deggendorf, Bavaria, Germany.
+                      University of Applied Sciences in Deggendorf, Bavaria, Germany.
                       Faculty of Applied Computer Science and Applied Natural Sciences.
                     </p>
                     <a href="https://www.th-deg.de" target="_blank" rel="noopener noreferrer"
@@ -485,8 +473,8 @@ export default function Home() {
                   <div>
                     <p className="font-black text-sm tracking-tight">Research Group for BigGeoData & Spatial AI of the THD</p>
                     <p className="text-xs text-neutral-500 mt-1 leading-relaxed">
-                      Applied research group at THD focusing on spatial data science, GIS-driven energy
-                      system modelling, and AI-enhanced land-use analysis.
+                      Applied research group at THD working on spatial data science, GIS-based energy
+                      system modelling and land-use analysis with AI.
                     </p>
                     <a href="https://github.com/THD-Spatial-AI" target="_blank" rel="noopener noreferrer"
                       className="text-[10px] font-bold tracking-widest uppercase text-primary hover:opacity-70 transition-opacity mt-2 inline-block">
@@ -516,12 +504,13 @@ export default function Home() {
             <div className="mb-20 flex flex-col md:flex-row md:items-end justify-between gap-8">
               <div className="max-w-2xl">
                 <span className="font-black text-[10px] tracking-[0.4em] uppercase text-black">
-                  System Architecture
+                  The Basics
                 </span>
-                <h2 className="text-5xl font-black mt-4 tracking-tighter text-black">Engineered for Precision.</h2>
+                <h2 className="text-5xl font-black mt-4 tracking-tighter text-black">The parts you use every day.</h2>
               </div>
               <p className="text-sm text-black max-w-sm">
-                TEMPO abstracts the complexity of mathematical modeling into a high-performance desktop environment.
+                Everything in TEMPO 3 sits on top of these. They are where most of the
+                modelling time goes.
               </p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-px bg-neutral-200 border border-neutral-200">
@@ -541,9 +530,9 @@ export default function Home() {
           <div className="max-w-7xl mx-auto">
             <div className="text-center mb-20">
               <span className="font-black text-[10px] tracking-[0.4em] uppercase text-neutral-400">
-                Internal Foundations
+                Under the Hood
               </span>
-              <h2 className="text-3xl font-black mt-4 tracking-tighter uppercase">The Modern Energy Stack</h2>
+              <h2 className="text-3xl font-black mt-4 tracking-tighter uppercase">What It's Built On</h2>
             </div>
             <div className="flex flex-wrap justify-center gap-px bg-neutral-200 border border-neutral-200 max-w-4xl mx-auto">
               {techStack.map((s, i) => (
@@ -564,16 +553,16 @@ export default function Home() {
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-20">
               <div>
                 <span className="font-bold text-[10px] tracking-[0.4em] uppercase text-neutral-400 mb-2 block">
-                  Powering the Tech Catalog
+                  Where the Technology Data Comes From
                 </span>
                 <h2 className="text-4xl font-black tracking-tighter uppercase leading-none">
                   OpenTech-DB
                 </h2>
                 <p className="mt-4 text-[0.9375rem] text-neutral-500 max-w-2xl leading-relaxed">
-                  An <strong className="text-black">OEO-aligned</strong> open database of 100+ energy technologies
-                  with a REST API and framework adapters, that is the data backbone behind TEMPO's technology catalog and more software projects.
-                  All CAPEX, OPEX, efficiency, and capacity parameters are sourced from here and exported
-                  directly to Calliope, PyPSA, and Adopt-net0 models.
+                  The CAPEX, OPEX, efficiency and capacity values in TEMPO's catalog come from
+                  OpenTech-DB, our open database of energy technologies. It follows the{' '}
+                  <strong className="text-black">Open Energy Ontology</strong>, has a REST API, and can hand its
+                  data straight to Calliope, PyPSA and AdOpT-NET0 models. Other projects use it too.
                 </p>
               </div>
               <div className="flex flex-wrap gap-3 flex-shrink-0">
@@ -641,17 +630,17 @@ export default function Home() {
                 {
                   icon: 'schedule',
                   title: 'Time-Series Profiles',
-                  desc: '28 ready-to-use capacity factor and load profiles for DE, FR, UK, ES, IT, NO, DK, AT — solar, wind, hydro, industrial & residential demand (2019 base year).',
+                  desc: '28 capacity factor and load profiles for DE, FR, UK, ES, IT, NO, DK and AT: solar, wind, hydro, and industrial and residential demand, with 2019 as the base year.',
                 },
                 {
                   icon: 'sync_alt',
                   title: 'Framework Adapters',
-                  desc: 'One-click export to Calliope YAML techs: blocks, PyPSA component dicts, and OSeMOSYS parameter tables. Drop TEMPO model parameters straight from the API.',
+                  desc: 'Get technologies as a Calliope techs: block, as PyPSA component dicts or as OSeMOSYS parameter tables, straight from the API.',
                 },
                 {
                   icon: 'manage_search',
                   title: 'REST API + Web UI',
-                  desc: 'Browse, filter by category, fetch instances, and query CAPEX/OPEX/efficiency by technology ID. Swagger UI at /docs, ReDoc at /redoc, React frontend at :5173.',
+                  desc: 'Browse by category, fetch instances and look up CAPEX, OPEX or efficiency by technology ID. Swagger UI at /docs, ReDoc at /redoc, React frontend at :5173.',
                 },
               ].map((cap) => (
                 <div key={cap.title} className="bg-white p-10">
@@ -666,7 +655,7 @@ export default function Home() {
             <div className="border border-neutral-200">
               <div className="flex items-center justify-between px-6 py-3 border-b border-neutral-200 bg-neutral-50">
                 <span className="font-bold text-[10px] uppercase tracking-widest text-neutral-400">
-                  Quick Integration — Calliope export via REST
+                  Example: Calliope export over REST
                 </span>
                 <span className="font-bold text-[10px] uppercase tracking-widest text-neutral-400">curl</span>
               </div>
@@ -687,10 +676,10 @@ curl "$BASE/adapt/pypsa/ccgt?instance_index=0&discount_rate=0.07"`}
             {/* Bottom note */}
             <p className="mt-8 text-[11px] text-neutral-400 leading-relaxed">
               Data and documentation are released under{' '}
-              <strong className="text-black">CC BY 4.0</strong>. Aligned with the{' '}
+              <strong className="text-black">CC BY 4.0</strong>. Terms follow the{' '}
               <a href="https://openenergy-platform.org/ontology/oeo/" target="_blank" rel="noopener noreferrer"
                 className="underline hover:text-black">Open Energy Ontology (OEO)</a>{' '}
-              for semantic interoperability across modelling frameworks.
+              so the same technology means the same thing in every framework.
             </p>
           </div>
         </section>
@@ -729,10 +718,10 @@ curl "$BASE/adapt/pypsa/ccgt?instance_index=0&discount_rate=0.07"`}
             <div className="grid grid-cols-1 lg:grid-cols-3 border border-white/10 mb-16">
               <div className="lg:col-span-2 p-10 border-b lg:border-b-0 lg:border-r border-white/10">
                 <p className="text-[0.9375rem] text-white/70 leading-relaxed">
-                  TEMPO is released under the <strong className="text-white">MIT License</strong> — you are
-                  free to use, modify, distribute, and build upon it for any purpose, including commercial
-                  applications, as long as the original copyright notice is retained. Contributions from
-                  the community are warmly welcomed and reviewed by the THD-Spatial maintenance team.
+                  TEMPO is released under the <strong className="text-white">MIT License</strong>. You can use,
+                  change and redistribute it for any purpose, commercial work included, as long as you keep
+                  the copyright notice. Pull requests, bug reports and ideas are all welcome, and the
+                  THD-Spatial team reviews every one.
                 </p>
               </div>
               <div className="p-10 flex flex-col justify-center items-center text-center gap-4">
@@ -764,11 +753,11 @@ curl "$BASE/adapt/pypsa/ccgt?instance_index=0&discount_rate=0.07"`}
 
             <div className="mt-12 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 pt-10 border-t border-white/10">
               <p className="text-[0.8125rem] text-white/50 max-w-xl">
-                All contributors are expected to follow the project's{' '}
+                Contributors follow the project's{' '}
                 <a href="/code-of-conduct" className="text-white underline hover:opacity-80">
                   Code of Conduct
                 </a>
-                {' '}(Contributor Covenant 3.0). We are committed to maintaining a welcoming and inclusive community.
+                {' '}(Contributor Covenant 3.0).
               </p>
               <a
                 href={`${GITHUB}/blob/main/CONTRIBUTING.md`}
@@ -787,7 +776,7 @@ curl "$BASE/adapt/pypsa/ccgt?instance_index=0&discount_rate=0.07"`}
           <div className="absolute inset-0 grid-bg opacity-10"></div>
           <div className="max-w-4xl mx-auto text-center space-y-12 relative z-10">
             <h2 className="text-4xl md:text-6xl font-black tracking-tighter leading-tight">
-              Scale your regional energy strategies today.
+              Try it on your own region.
             </h2>
             <div className="flex flex-col items-center gap-8">
               <div className="flex flex-col sm:flex-row items-center justify-center gap-1 w-full max-w-xl bg-black p-1">
@@ -810,7 +799,8 @@ curl "$BASE/adapt/pypsa/ccgt?instance_index=0&discount_rate=0.07"`}
                 </a>
               </div>
               <p className="text-[10px] uppercase tracking-widest text-neutral-400">
-                Available for Windows 10/11 and major Linux distributions. Free and open source.
+                Windows 10/11 and most Linux distributions. Free and open source. On first launch,
+                the setup screen installs the Python engines for you.
               </p>
             </div>
           </div>

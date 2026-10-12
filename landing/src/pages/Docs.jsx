@@ -1,15 +1,15 @@
 import { Link } from 'react-router-dom'
 import Footer from '../components/Footer'
 
-const MKDOCS = 'http://localhost:8000'
-const GITHUB = 'https://github.com/TH-Deggendorf/TEMPO'
+const MKDOCS = 'https://thd-spatial-ai.github.io/TEMPO'
+const GITHUB = 'https://github.com/THD-Spatial-AI/TEMPO'
 
 const sections = [
   {
     icon: 'rocket_launch',
     category: 'Getting Started',
     title: 'Installation & Setup',
-    desc: 'Step-by-step guide for setting up TEMPO on Windows and Linux, including Docker containers, Go backend, and Python environment.',
+    desc: 'Install TEMPO on Windows or Linux, set up the engines, and build and run a first model.',
     links: [
       { label: 'Installation Guide', href: `${MKDOCS}/getting-started/installation/` },
       { label: 'Quick Start', href: `${MKDOCS}/getting-started/quick-start/` },
@@ -17,10 +17,35 @@ const sections = [
     ],
   },
   {
+    icon: 'book',
+    category: 'User Guide',
+    title: 'Building a Model',
+    desc: 'Create a model step by step: add locations, connect them with links, assign technologies and load time series.',
+    links: [
+      { label: 'Creating a Model', href: `${MKDOCS}/user-guide/creating-a-model/` },
+      { label: 'Locations', href: `${MKDOCS}/user-guide/locations/` },
+      { label: 'Links', href: `${MKDOCS}/user-guide/links/` },
+      { label: 'Technologies', href: `${MKDOCS}/user-guide/technologies/` },
+      { label: 'Time Series', href: `${MKDOCS}/user-guide/time-series/` },
+    ],
+  },
+  {
+    icon: 'play_circle',
+    category: 'User Guide',
+    title: 'Running & Results',
+    desc: 'Set up scenarios, run the optimization, read the results, and move models in and out of TEMPO.',
+    links: [
+      { label: 'Parameters & Scenarios', href: `${MKDOCS}/user-guide/parameters-scenarios/` },
+      { label: 'Running Optimization', href: `${MKDOCS}/user-guide/running-optimization/` },
+      { label: 'Results', href: `${MKDOCS}/user-guide/results/` },
+      { label: 'Import & Export', href: `${MKDOCS}/user-guide/import-export/` },
+    ],
+  },
+  {
     icon: 'map',
     category: 'Map Interface',
     title: 'GIS & Map Layers',
-    desc: 'Documentation for the MapLibre GL / Deck.gl map, the right sidebar OSM Infrastructure Panel (region selection, GIS download, layer filters, mesh generator), and GeoServer integration.',
+    desc: 'The map, the OSM Infrastructure panel in the right sidebar (region selection, layer filters, mesh generator) and the optional GeoServer setup.',
     links: [
       { label: 'Map Interface', href: `${MKDOCS}/map/map-interface/` },
       { label: 'OSM Layers', href: `${MKDOCS}/map/osm-layers/` },
@@ -31,10 +56,9 @@ const sections = [
     icon: 'download',
     category: 'GIS Data',
     title: 'Download & Import Map Data',
-    desc: 'Download OSM power infrastructure for any country or region directly from the app. Select continent → country → region in the Creation map right sidebar, click Download & Import, and watch the pipeline stream live.',
+    desc: 'Download OSM power infrastructure for a country or region from inside the app. Pick the region in the Creation map sidebar, click Download & Import, and follow the progress in the log.',
     links: [
       { label: 'Downloading GIS Data', href: `${MKDOCS}/osm-processing/downloading-data/` },
-      { label: 'GeoServer Setup', href: `${MKDOCS}/map/geoserver/` },
       { label: 'OSM Layers', href: `${MKDOCS}/map/osm-layers/` },
     ],
   },
@@ -42,9 +66,9 @@ const sections = [
     icon: 'account_tree',
     category: 'OSM Processing',
     title: 'Data Pipelines',
-    desc: 'Python scripts that power the download pipeline: Geofabrik PBF download, osmium extraction, PostGIS import, and GeoServer publishing. Also available as CLI tools for batch or headless use.',
+    desc: 'The Python scripts behind the download: Geofabrik PBF download, osmium extraction, PostGIS import and GeoServer publishing. You can also run them from the command line for batch jobs.',
     links: [
-      { label: 'OSM Processing Overview', href: `${MKDOCS}/osm-processing/` },
+      { label: 'OSM Processing Overview', href: `${MKDOCS}/osm-processing/overview/` },
       { label: 'Extracting Data', href: `${MKDOCS}/osm-processing/extracting-data/` },
     ],
   },
@@ -53,30 +77,31 @@ const sections = [
     category: 'Reference',
     title: 'API Reference',
     to: '/docs/api',
-    desc: 'REST API endpoints exposed by the Go backend on port 8082, and the FastAPI Calliope service on port 5000.',
+    desc: 'HTTP endpoints of the Go backend and the five engine services the desktop app runs locally.',
     links: [
-      { label: 'Go Backend API', href: `${MKDOCS}/reference/` },
-      { label: 'Calliope Service API', to: '/docs/api' },
+      { label: 'Endpoint Overview', to: '/docs/api' },
+      { label: 'Go Backend API', href: `${MKDOCS}/reference/api-endpoints/` },
+    ],
+  },
+  {
+    icon: 'library_books',
+    category: 'Reference',
+    title: 'Technologies & Code',
+    desc: 'The built-in technology templates and their parameters, and a map of the codebase.',
+    links: [
+      { label: 'Technology Templates', href: `${MKDOCS}/reference/technology-templates/` },
+      { label: 'Codebase Reference', href: `${MKDOCS}/reference/codebase-reference/` },
     ],
   },
   {
     icon: 'construction',
     category: 'Development',
     title: 'Building & Contributing',
-    desc: 'Architecture overview, project structure, build commands, and guidelines for contributing to TEMPO.',
+    desc: 'How the project is laid out, how to set up a development environment, and how to build the installers.',
     links: [
       { label: 'Project Structure', href: `${MKDOCS}/development/project-structure/` },
-      { label: 'Building', href: `${MKDOCS}/development/building/` },
       { label: 'Dev Setup', href: `${MKDOCS}/development/setup/` },
-    ],
-  },
-  {
-    icon: 'book',
-    category: 'User Guide',
-    title: 'User Guide',
-    desc: 'End-to-end walkthroughs for creating models, running optimizations, and interpreting results.',
-    links: [
-      { label: 'Full User Guide', href: `${MKDOCS}/user-guide/` },
+      { label: 'Building', href: `${MKDOCS}/development/building/` },
     ],
   },
 ]
@@ -96,11 +121,11 @@ export default function Docs() {
               DOCS & REFERENCE
             </h1>
             <p className="text-on-surface-variant text-[1rem] max-w-2xl leading-relaxed">
-              Full documentation is served via MkDocs. Start the local docs server with{' '}
-              <code className="font-mono bg-black text-[#E2E2E2] px-2 py-0.5 text-[0.8125rem]">
-                npm run docs
-              </code>{' '}
-              or browse the sections below.
+              The full documentation is on{' '}
+              <a href={MKDOCS} target="_blank" rel="noopener noreferrer" className="underline hover:opacity-70">
+                thd-spatial-ai.github.io/TEMPO
+              </a>
+              . The cards below go straight to the pages people open most.
             </p>
           </div>
         </section>
@@ -196,15 +221,18 @@ export default function Docs() {
           <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-8">
             <div>
               <p className="font-bold text-[0.6875rem] uppercase tracking-[0.2em] text-outline mb-2">
-                Local Docs Server
+                Offline Copy
               </p>
               <h3 className="font-black text-2xl uppercase tracking-tight">
-                Run the full documentation site locally
+                Read the docs online, or run them locally
               </h3>
+              <p className="text-[0.8125rem] text-neutral-500 mt-2">
+                From the repository root, after pip install -r docs/requirements.txt.
+              </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-4">
               <div className="bg-black text-[#E2E2E2] px-8 py-4 font-mono text-[0.75rem] tracking-widest">
-                npm run docs
+                mkdocs serve
               </div>
               <a
                 href={MKDOCS}

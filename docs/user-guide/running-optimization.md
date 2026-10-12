@@ -75,7 +75,7 @@ Click **View Results** to open the Results screen for the completed job. Each ru
 Select multiple scenarios or overrides from the dropdown to launch them as parallel jobs in a single click. Each job gets its own log panel. For non-Calliope engines, each scenario is pre-resolved into a concrete model before submission.
 
 !!! note "SPORES mode"
-    SPORES (Spatially Explicit Practically Optimal Results) is supported on **Calliope 0.6.8 only**. The Run screen disables SPORES mode when the Calliope 0.7 engine is selected.
+    SPORES runs locally on **Calliope 0.6.8**. On Calliope 0.7 it only runs on a remote MEME server; the Run screen disables it for local 0.7 runs. See [SPORES](spores.md) and [Remote Runs](remote-runs.md).
 
 ---
 
