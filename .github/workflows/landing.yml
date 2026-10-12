@@ -77,7 +77,18 @@ jobs:
 
       - name: Smoke test
         run: |
-          curl -fsS --retry 5 --retry-delay 3 -o /dev/null https://tempo.th-deg.de/
+          if ! curl -fsS --retry 5 --retry-delay 3 -o /dev/null https://tempo.th-deg.de/; then
+            echo "::group::TLS diagnostics"
+            echo "user=$(whoami) host=$(hostname) date=$(date -u)"
+            env | grep -iE '^(ssl_|curl_|https?_proxy|no_proxy|requests_ca)' || true
+            ls -la ~/.curlrc 2>/dev/null && cat ~/.curlrc
+            getent ahosts tempo.th-deg.de
+            echo | openssl s_client -connect tempo.th-deg.de:443 -servername tempo.th-deg.de 2>&1 \
+              | grep -E 'depth=|verify error|Verify return code'
+            curl -v -o /dev/null https://tempo.th-deg.de/ 2>&1 | grep -E '^\* ' || true
+            echo "::endgroup::"
+            exit 1
+          fi
           curl -fsS -o /dev/null https://otdb.th-deg.de/health
           echo "✅ tempo.th-deg.de is live and otdb.th-deg.de is unaffected"
 
