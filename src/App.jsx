@@ -121,12 +121,6 @@ function AppContent() {
       </a>
 
       <div className="flex h-screen overflow-hidden relative">
-        {/* Animated background accent — will-change hints allow GPU compositing (paint perf fix) */}
-        <div className="fixed inset-0 pointer-events-none" aria-hidden="true">
-          <div className="absolute top-0 right-0 w-96 h-96 bg-electric-500/5 rounded-full blur-3xl animate-pulse-slow" style={{ willChange: 'opacity' }}></div>
-          <div className="absolute bottom-0 left-0 w-96 h-96 bg-gray-500/5 rounded-full blur-3xl animate-pulse-slow" style={{ willChange: 'opacity', animationDelay: '1s' }}></div>
-        </div>
-        
         <Sidebar selected={selected} setSelected={handleNavigation} />
         
         <main id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto relative z-10 flex flex-col">
