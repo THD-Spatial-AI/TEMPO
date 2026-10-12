@@ -43,7 +43,7 @@ export const Modal = ({
 
   const contentClasses = isFullscreen
     ? 'w-full h-full'
-    : `relative w-full ${maxWidth} mx-4 rounded-2xl bg-white shadow-2xl dark:bg-gray-900`;
+    : `relative w-full ${maxWidth} mx-4 bg-surface-container-lowest border border-black/15 shadow-2xl dark:bg-gray-900`;
 
   return (
     <div className="fixed inset-0 flex items-center justify-center overflow-y-auto z-[9999]">
@@ -61,7 +61,7 @@ export const Modal = ({
         {showCloseButton && (
           <button
             onClick={onClose}
-            className="absolute right-3 top-3 z-50 flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white sm:right-6 sm:top-6 sm:h-10 sm:w-10"
+            className="absolute right-3 top-3 z-50 flex h-9 w-9 items-center justify-center text-black/60 transition-colors hover:bg-black hover:text-white dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white sm:right-6 sm:top-6 sm:h-10 sm:w-10"
           >
             <svg
               width="20"

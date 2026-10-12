@@ -17,28 +17,28 @@ const Notification = ({ text, id, removeNotif, type = "info" }) => {
     switch (type) {
       case "success":
         return {
-          bg: "bg-gray-600",
+          bg: "bg-primary",
           icon: FiCheckCircle,
-          iconBg: "bg-white text-gray-600"
+          iconBg: "bg-white text-black border border-black"
         };
       case "error":
         return {
-          bg: "bg-gray-600",
+          bg: "bg-primary",
           icon: FiAlertCircle,
-          iconBg: "bg-white text-gray-600"
+          iconBg: "bg-white text-black border border-black"
         };
       case "warning":
         return {
-          bg: "bg-gray-600",
+          bg: "bg-primary",
           icon: FiAlertTriangle,
-          iconBg: "bg-white text-gray-600"
+          iconBg: "bg-white text-black border border-black"
         };
       case "info":
       default:
         return {
-          bg: "bg-gray-600",
+          bg: "bg-primary",
           icon: FiInfo,
-          iconBg: "bg-white text-gray-600"
+          iconBg: "bg-white text-black border border-black"
         };
     }
   };
@@ -57,9 +57,9 @@ const Notification = ({ text, id, removeNotif, type = "info" }) => {
         stiffness: 400,
         damping: 30
       }}
-      className={`p-4 w-80 flex items-start rounded-lg gap-2 text-sm font-medium shadow-lg text-white ${style.bg} fixed z-[9999] top-4 right-4`}
+      className={`p-4 w-80 flex items-start gap-2 text-sm font-medium shadow-lg text-white ${style.bg} fixed z-[9999] top-4 right-4`}
     >
-      <IconComponent className={`text-3xl absolute -top-4 -left-4 p-2 rounded-full ${style.iconBg} shadow`} />
+      <IconComponent className={`text-3xl absolute -top-4 -left-4 p-2 ${style.iconBg}`} />
       <span className="flex-1">{text}</span>
       <button onClick={() => removeNotif(id)} className="ml-auto mt-0.5 hover:opacity-70 transition-opacity">
         <FiX />

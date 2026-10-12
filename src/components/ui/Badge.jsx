@@ -10,12 +10,12 @@ const Badge = ({
   className = ''
 }) => {
   const baseStyles =
-    'inline-flex items-center px-2.5 py-0.5 justify-center gap-1 rounded-full font-medium';
+    'inline-flex items-center px-2 py-0.5 justify-center gap-1 font-bold uppercase tracking-widest';
 
   // Define size styles
   const sizeStyles = {
-    sm: 'text-xs',
-    md: 'text-sm',
+    sm: 'text-[9px]',
+    md: 'text-[10px]',
   };
 
   // Define color styles for variants

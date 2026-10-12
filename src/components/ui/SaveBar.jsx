@@ -38,8 +38,8 @@ const SaveBar = ({ label = 'Model' }) => {
 
   /* ── colour theme ── */
   const dirty = isDirty && !saving;
-  const bg    = dirty ? 'bg-gray-50 border-gray-200' : 'bg-slate-50 border-slate-200';
-  const text  = dirty ? 'text-gray-800' : 'text-slate-500';
+  const bg    = dirty ? 'bg-surface-container-low border-black/15' : 'bg-surface border-black/15';
+  const text  = dirty ? 'text-black' : 'text-black/60';
 
   return (
     <div className={`flex items-center gap-3 px-5 py-2 border-b shrink-0 ${bg}`}>
@@ -55,7 +55,7 @@ const SaveBar = ({ label = 'Model' }) => {
       )}
 
       {/* ── Label ── */}
-      <span className={`text-xs font-medium flex-1 ${text}`}>
+      <span className={`text-[0.6875rem] font-bold uppercase tracking-widest flex-1 ${text}`}>
         {dirty
           ? `${label} — unsaved changes`
           : justSaved
@@ -77,11 +77,11 @@ const SaveBar = ({ label = 'Model' }) => {
         onClick={handleSave}
         disabled={saving}
         title="Save model now (Ctrl+S)"
-        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
+        className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-[0.6875rem] font-bold uppercase tracking-wide
                    transition-all disabled:opacity-60 shrink-0
                    ${dirty
-                     ? 'bg-gray-700 hover:bg-gray-800 text-white shadow-sm'
-                     : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                     ? 'bg-primary text-white hover:opacity-80'
+                     : 'bg-transparent border border-black text-black hover:bg-black hover:text-white'
                    }`}
       >
         {saving

@@ -28,18 +28,18 @@ const PrivacyDialog = ({ onAccept }) => {
 
   return (
     <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center z-[99999]">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-4 border border-slate-200">
+      <div className="bg-surface-container-lowest shadow-2xl max-w-lg w-full mx-4 border border-black/15">
 
         {/* Header */}
-        <div className="flex items-center gap-3 p-6 border-b border-slate-100">
-          <span className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-600">
+        <div className="flex items-center gap-3 p-6 border-b border-black/10">
+          <span className="w-9 h-9 bg-surface-container-low flex items-center justify-center shrink-0">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-black">
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
             </svg>
           </span>
           <div>
-            <h2 className="text-base font-semibold text-slate-900">Privacy Notice</h2>
-            <p className="text-xs text-slate-500 mt-0.5">Please read before using TEMPO</p>
+            <h2 className="text-xl font-black tracking-tighter text-black">Privacy Notice</h2>
+            <p className="text-[0.6875rem] font-bold uppercase tracking-widest text-black/60 mt-0.5">Please read before using TEMPO</p>
           </div>
         </div>
 
@@ -51,8 +51,8 @@ const PrivacyDialog = ({ onAccept }) => {
             personal data to any TEMPO servers.
           </p>
 
-          <div className="bg-slate-50 rounded-lg p-4 space-y-2 text-xs">
-            <p className="font-semibold text-slate-800">What data is processed:</p>
+          <div className="bg-surface-container-low border border-black/10 p-4 space-y-2 text-xs">
+            <p className="font-bold uppercase tracking-widest text-[10px] text-black">What data is processed:</p>
             <ul className="list-disc list-inside space-y-1 text-slate-600">
               <li>
                 <strong>Model files</strong> — stored locally in a SQLite database
@@ -86,7 +86,7 @@ const PrivacyDialog = ({ onAccept }) => {
         <div className="p-6 pt-0 flex justify-end">
           <button
             onClick={handleAccept}
-            className="px-6 py-2.5 rounded-lg text-sm font-semibold text-white bg-gray-700 hover:bg-gray-800 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2"
+            className="px-6 py-2.5 text-sm font-bold uppercase tracking-wide text-white bg-primary hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2"
           >
             Accept &amp; continue
           </button>

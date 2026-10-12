@@ -21,23 +21,23 @@ const Button = ({
   // Variant Classes
   const variantClasses = {
     primary:
-      'bg-gray-600 text-white shadow-sm hover:bg-gray-700 disabled:bg-gray-300 disabled:cursor-not-allowed',
+      'bg-primary text-white hover:opacity-80 disabled:bg-outline-variant disabled:cursor-not-allowed',
     secondary:
-      'bg-gray-600 text-white shadow-sm hover:bg-gray-700 disabled:bg-gray-300 disabled:cursor-not-allowed',
+      'bg-primary text-white hover:opacity-80 disabled:bg-outline-variant disabled:cursor-not-allowed',
     outline:
-      'bg-white text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700 dark:hover:bg-gray-700',
+      'bg-transparent text-black border border-black hover:bg-black hover:text-white disabled:border-outline-variant disabled:text-outline disabled:cursor-not-allowed',
     success:
-      'bg-gray-600 text-white shadow-sm hover:bg-gray-700 disabled:bg-gray-300 disabled:cursor-not-allowed',
+      'bg-primary text-white hover:opacity-80 disabled:bg-outline-variant disabled:cursor-not-allowed',
     danger:
-      'bg-gray-600 text-white shadow-sm hover:bg-gray-700 disabled:bg-gray-300 disabled:cursor-not-allowed',
+      'bg-error text-white hover:opacity-80 disabled:bg-outline-variant disabled:cursor-not-allowed',
     ghost:
-      'bg-transparent text-gray-700 hover:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed dark:text-gray-300 dark:hover:bg-gray-800',
+      'bg-transparent text-black/60 hover:text-black hover:bg-surface-container-low disabled:text-outline disabled:cursor-not-allowed',
   };
 
   return (
     <button
       type={type}
-      className={`inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 ${className} ${
+      className={`inline-flex items-center justify-center gap-2 font-bold uppercase tracking-wide transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-black ${className} ${
         sizeClasses[size]
       } ${variantClasses[variant]} ${disabled ? 'opacity-60' : ''}`}
       onClick={onClick}

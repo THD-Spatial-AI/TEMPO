@@ -10,17 +10,17 @@ const Card = ({
 }) => {
   return (
     <div
-      className={`rounded-2xl border border-gray-200 bg-white shadow-sm ${className}`}
+      className={`border border-black/15 bg-surface-container-lowest ${className}`}
     >
       {/* Card Header */}
       {(title || description || headerAction) && (
-        <div className="px-6 py-5 flex items-start justify-between border-b border-gray-100">
+        <div className="px-6 py-5 flex items-start justify-between border-b border-black/10">
           <div className="flex-1">
-            <h3 className="text-base font-semibold text-gray-900">
+            <h3 className="text-[0.6875rem] font-bold uppercase tracking-widest text-on-surface">
               {title}
             </h3>
             {description && (
-              <p className="mt-1 text-sm text-gray-500">
+              <p className="mt-1 text-sm text-on-surface-variant">
                 {description}
               </p>
             )}

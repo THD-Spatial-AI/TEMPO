@@ -10,8 +10,8 @@ function ServiceIcon({ running, healthy }) {
 
 function ServiceRow({ svc }) {
   const bg = svc.running
-    ? svc.healthy === false ? 'border-gray-200 bg-gray-50' : 'border-gray-200 bg-gray-50'
-    : 'border-slate-100 bg-slate-50';
+    ? svc.healthy === false ? 'border-black/15 bg-surface-container-low' : 'border-black/15 bg-surface-container-low'
+    : 'border-black/10 bg-surface';
 
   return (
     <div className={`flex items-center gap-3 p-3 rounded-xl border transition-all duration-300 ${bg}`}>
@@ -204,7 +204,7 @@ export default function SetupScreen({ onComplete, freshInstall = false }) {
     return (
       <FullScreenCard>
         <SpinnerIcon />
-        <h2 className="mt-6 text-2xl font-semibold text-slate-800">Checking services…</h2>
+        <h2 className="mt-6 text-2xl font-black tracking-tighter text-black">Checking services…</h2>
         <p className="mt-2 text-slate-500 text-sm">Verifying TEMPO services</p>
       </FullScreenCard>
     );
@@ -214,7 +214,7 @@ export default function SetupScreen({ onComplete, freshInstall = false }) {
     return (
       <FullScreenCard>
         <SpinnerIcon />
-        <h2 className="mt-6 text-2xl font-semibold text-slate-800">Starting Calliope…</h2>
+        <h2 className="mt-6 text-2xl font-black tracking-tighter text-black">Starting Calliope…</h2>
         <p className="mt-2 text-slate-500 text-sm">Launching the energy model service</p>
       </FullScreenCard>
     );
@@ -225,17 +225,17 @@ export default function SetupScreen({ onComplete, freshInstall = false }) {
 
     return (
       <FullScreenCard wide>
-        <div className="w-14 h-14 rounded-full bg-white border-2 border-black flex items-center justify-center">
+        <div className="w-14 h-14 bg-white border-2 border-black flex items-center justify-center">
           <FiDownload className="w-7 h-7 text-black" />
         </div>
-        <h2 className="mt-5 text-2xl font-bold text-black">Setup TEMPO</h2>
+        <h2 className="mt-5 text-2xl font-black tracking-tighter text-black">Setup TEMPO</h2>
         <p className="mt-2 text-gray-500 text-sm text-center max-w-md">
           An internet connection and Python 3.9–3.11 are required.
           Installation takes a few minutes and only needs to run once.
         </p>
 
         {/* What gets installed */}
-        <div className="w-full mt-6 border border-gray-200 rounded-lg divide-y divide-gray-100">
+        <div className="w-full mt-6 border border-black/15 divide-y divide-black/10">
           <div className="flex items-center justify-between px-4 py-3">
             <div>
               <p className="text-sm font-semibold text-black">Calliope <span className="font-normal text-gray-400">0.6.8</span></p>
@@ -287,14 +287,14 @@ export default function SetupScreen({ onComplete, freshInstall = false }) {
         <div className="flex gap-3 mt-6">
           <button
             onClick={installNative}
-            className="flex items-center gap-2 px-6 py-3 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors"
+            className="flex items-center gap-2 px-6 py-3 bg-primary text-white text-sm font-bold uppercase tracking-wide hover:opacity-80 transition-opacity"
           >
             <FiDownload className="w-4 h-4" />
             {installFailed ? 'Retry' : 'Install'}
           </button>
           <button
             onClick={onComplete}
-            className="flex items-center gap-2 px-5 py-3 border border-gray-300 text-gray-500 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+            className="flex items-center gap-2 px-5 py-3 border border-black text-black text-sm font-bold uppercase tracking-wide hover:bg-black hover:text-white transition-colors"
           >
             Skip
           </button>
@@ -307,7 +307,7 @@ export default function SetupScreen({ onComplete, freshInstall = false }) {
     return (
       <FullScreenCard wide>
         <SpinnerIcon />
-        <h2 className="mt-4 text-2xl font-semibold text-slate-800">Installing TEMPO services…</h2>
+        <h2 className="mt-4 text-2xl font-black tracking-tighter text-black">Installing TEMPO services…</h2>
         <p className="mt-1 text-slate-500 text-sm">Creating Python environments and installing packages</p>
         <div className="w-full max-w-2xl mt-6">
           <div className="flex items-center gap-2 mb-2">
@@ -338,10 +338,10 @@ export default function SetupScreen({ onComplete, freshInstall = false }) {
   if (phase === 'done') {
     return (
       <FullScreenCard>
-        <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center">
+        <div className="w-16 h-16 bg-surface-container flex items-center justify-center">
           <FiCheckCircle className="w-8 h-8 text-gray-700" />
         </div>
-        <h2 className="mt-6 text-2xl font-semibold text-slate-800">All services running</h2>
+        <h2 className="mt-6 text-2xl font-black tracking-tighter text-black">All services running</h2>
         <p className="mt-2 text-slate-500 text-sm">Opening TEMPO…</p>
       </FullScreenCard>
     );
@@ -350,21 +350,21 @@ export default function SetupScreen({ onComplete, freshInstall = false }) {
   if (phase === 'error') {
     return (
       <FullScreenCard>
-        <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center">
+        <div className="w-16 h-16 bg-surface-container flex items-center justify-center">
           <FiAlertCircle className="w-8 h-8 text-gray-500" />
         </div>
-        <h2 className="mt-6 text-2xl font-semibold text-slate-800">Cannot start services</h2>
+        <h2 className="mt-6 text-2xl font-black tracking-tighter text-black">Cannot start services</h2>
         <p className="mt-3 text-slate-500 text-sm text-center max-w-sm">{errorMsg}</p>
         <div className="flex gap-3 mt-6">
           <button
             onClick={checkStatus}
-            className="flex items-center gap-2 px-6 py-3 bg-gray-700 text-white rounded-xl font-semibold shadow hover:bg-gray-800 transition-colors"
+            className="flex items-center gap-2 px-6 py-3 bg-primary text-white text-sm font-bold uppercase tracking-wide hover:opacity-80 transition-opacity"
           >
             <FiRefreshCw className="w-4 h-4" /> Retry
           </button>
           <button
             onClick={onComplete}
-            className="flex items-center gap-2 px-5 py-3 border-2 border-slate-200 text-slate-500 rounded-xl font-semibold hover:bg-slate-50 transition-colors"
+            className="flex items-center gap-2 px-5 py-3 border border-black text-black text-sm font-bold uppercase tracking-wide hover:bg-black hover:text-white transition-colors"
           >
             Continue Anyway
           </button>
@@ -379,11 +379,11 @@ export default function SetupScreen({ onComplete, freshInstall = false }) {
       <div className="w-full flex flex-col items-center">
         <div className="mb-6 text-center">
           {phase === 'starting' ? <SpinnerIcon /> : (
-            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center">
+            <div className="w-16 h-16 bg-surface-container flex items-center justify-center">
               <FiPlay className="w-8 h-8 text-gray-700" />
             </div>
           )}
-          <h2 className="mt-4 text-2xl font-semibold text-slate-800">
+          <h2 className="mt-4 text-2xl font-black tracking-tighter text-black">
             {phase === 'starting' ? 'Starting services…' : 'Services not running'}
           </h2>
           <p className="mt-1 text-slate-500 text-sm">
@@ -434,13 +434,13 @@ export default function SetupScreen({ onComplete, freshInstall = false }) {
             <>
               <button
                 onClick={startServices}
-                className="flex items-center gap-2 px-6 py-3 bg-gray-700 text-white rounded-xl font-semibold shadow-md hover:bg-gray-800 transition-all duration-200"
+                className="flex items-center gap-2 px-6 py-3 bg-primary text-white text-sm font-bold uppercase tracking-wide hover:opacity-80 transition-opacity duration-200"
               >
                 <FiPlay className="w-4 h-4" /> Start Services
               </button>
               <button
                 onClick={onComplete}
-                className="flex items-center gap-2 px-6 py-3 border-2 border-slate-200 text-slate-600 rounded-xl font-semibold hover:bg-slate-50 transition-all duration-200"
+                className="flex items-center gap-2 px-6 py-3 border border-black text-black text-sm font-bold uppercase tracking-wide hover:bg-black hover:text-white transition-colors duration-200"
               >
                 Continue Anyway
               </button>
@@ -449,7 +449,7 @@ export default function SetupScreen({ onComplete, freshInstall = false }) {
           {phase === 'needs-start' && (
             <button
               onClick={checkStatus}
-              className="flex items-center gap-2 px-4 py-3 border-2 border-slate-200 text-slate-400 rounded-xl hover:bg-slate-50 transition-all duration-200"
+              className="flex items-center gap-2 px-4 py-3 border border-black/15 text-black/60 hover:border-black hover:text-black transition-colors duration-200"
             >
               <FiRefreshCw className="w-4 h-4" />
             </button>
@@ -468,14 +468,10 @@ export default function SetupScreen({ onComplete, freshInstall = false }) {
 
 function FullScreenCard({ children, wide }) {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-8">
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-gray-500/5 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-gray-500/5 rounded-full blur-3xl" />
-      </div>
-      <div className={`relative bg-white rounded-2xl shadow-2xl border border-slate-100 p-10 flex flex-col items-center ${wide ? 'max-w-2xl w-full' : 'max-w-md w-full'}`}>
+    <div className="min-h-screen bg-surface grid-bg flex items-center justify-center p-8">
+      <div className={`relative bg-surface-container-lowest border border-black/15 p-10 flex flex-col items-center ${wide ? 'max-w-2xl w-full' : 'max-w-md w-full'}`}>
         <div className="mb-6 text-center">
-          <div className="inline-flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-full text-gray-600 text-xs font-semibold tracking-wide mb-2">
+          <div className="inline-flex items-center gap-2 px-3 py-1 bg-surface-container text-black text-[10px] font-bold uppercase tracking-widest mb-2">
             TEMPO · FIRST-TIME SETUP
           </div>
         </div>
@@ -487,7 +483,7 @@ function FullScreenCard({ children, wide }) {
 
 function SpinnerIcon() {
   return (
-    <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center">
+    <div className="w-16 h-16 bg-surface-container flex items-center justify-center">
       <FiLoader className="w-8 h-8 text-gray-500 animate-spin" />
     </div>
   );

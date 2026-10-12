@@ -7,7 +7,7 @@ export default function KpiCard({ label, value, unit, color = "slate" }) {
     amber:    "border-gray-200 bg-gray-50",
     blue:     "border-gray-200 bg-gray-50",
     violet:   "border-gray-200 bg-gray-50",
-    slate:    "border-slate-200 bg-slate-50",
+    slate:    "border-black/15 bg-surface-container-lowest",
   };
   const text = {
     electric: "text-electric-700",
@@ -18,9 +18,9 @@ export default function KpiCard({ label, value, unit, color = "slate" }) {
     slate:    "text-slate-700",
   };
   return (
-    <div className={`rounded-xl border px-4 py-3 ${ring[color] ?? ring.slate}`}>
-      <p className="text-[10px] text-slate-500 uppercase tracking-wide font-medium">{label}</p>
-      <p className={`text-lg font-bold leading-tight ${text[color] ?? text.slate}`}>
+    <div className={`border px-4 py-3 ${ring[color] ?? ring.slate}`}>
+      <p className="text-[10px] text-black/60 uppercase tracking-widest font-bold">{label}</p>
+      <p className={`text-lg font-black tracking-tighter leading-tight ${text[color] ?? text.slate}`}>
         {value ?? "—"}
         {value != null && <span className="text-sm font-medium ml-1">{unit}</span>}
       </p>

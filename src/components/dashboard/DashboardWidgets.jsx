@@ -15,19 +15,19 @@ export const TsViewControls = ({ opts, onChange, ts, locSearch, onLocSearch, acc
   const visibleCols = locSearch ? allCols.filter(c => c.toLowerCase().includes(locSearch.toLowerCase())) : allCols;
   const isAll = (opts.locs?.length ?? 0) === 0;
   const sectionHead = (label) => (
-    <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">{label}</p>
+    <p className="text-[10px] font-bold uppercase tracking-widest text-black/60 mb-1.5">{label}</p>
   );
   const chip = (active, label, onClick) => (
     <button onClick={onClick}
-      className="px-2 py-1 rounded text-[11px] font-medium border transition-all text-left w-full"
+      className="px-2 py-1 text-[11px] font-semibold border transition-all text-left w-full"
       style={active
         ? { background: accentColor, color: 'white', borderColor: accentColor }
-        : { background: 'white', color: '#475569', borderColor: '#e2e8f0' }}>
+        : { background: 'white', color: '#474747', borderColor: '#c6c6c6' }}>
       {label}
     </button>
   );
   return (
-    <div className="w-52 shrink-0 flex flex-col gap-4 bg-white border border-slate-200 rounded-xl p-3 self-start sticky top-4">
+    <div className="w-52 shrink-0 flex flex-col gap-4 bg-surface-container-lowest border border-black/15 p-3 self-start sticky top-4">
       {/* Range */}
       <div>
         {sectionHead('Range')}
@@ -131,29 +131,29 @@ export const TsViewControls = ({ opts, onChange, ts, locSearch, onLocSearch, acc
 export const Panel = ({ title, icon: Icon, defaultOpen = true, children, className = '', fill = false }) => {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className={`bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden ${fill ? 'flex flex-col' : ''} ${className}`}>
+    <div className={`bg-surface-container-lowest border border-black/15 overflow-hidden ${fill ? 'flex flex-col' : ''} ${className}`}>
       <button onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-5 py-3 hover:bg-slate-50 transition-colors flex-shrink-0">
-        <span className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-          {Icon && <Icon size={15} className="text-slate-500" />}{title}
+        className="w-full flex items-center justify-between px-5 py-3 hover:bg-surface-container-low transition-colors flex-shrink-0">
+        <span className="flex items-center gap-2 text-[0.6875rem] font-bold uppercase tracking-widest text-black">
+          {Icon && <Icon size={15} className="text-black/60" />}{title}
         </span>
         {open ? <FiChevronUp size={14} className="text-slate-400" /> : <FiChevronDown size={14} className="text-slate-400" />}
       </button>
-      {open && <div className={`border-t border-slate-100${fill ? ' flex-1 overflow-hidden' : ''}`}>{children}</div>}
+      {open && <div className={`border-t border-black/10${fill ? ' flex-1 overflow-hidden' : ''}`}>{children}</div>}
     </div>
   );
 };
 
 // ── KPI card ─────────────────────────────────────────────────────────────────
 export const KpiCard = ({ icon: Ic, label, value, sub, accent }) => (
-  <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-4 flex items-center gap-3">
-    <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${accent || 'bg-slate-100'}`}>
-      <Ic size={17} className={accent ? 'text-white' : 'text-slate-500'} />
+  <div className="bg-surface-container-lowest border border-black/15 px-4 py-4 flex items-center gap-3">
+    <div className={`w-9 h-9 flex items-center justify-center flex-shrink-0 ${accent || 'bg-surface-container-low'}`}>
+      <Ic size={17} className={accent ? 'text-white' : 'text-black/60'} />
     </div>
     <div className="min-w-0">
-      <p className="text-[11px] text-slate-500 truncate">{label}</p>
-      <p className="text-xl font-bold text-slate-800 leading-tight">{value}</p>
-      <p className="text-[10px] text-slate-400">{sub}</p>
+      <p className="text-[10px] font-bold uppercase tracking-widest text-black/60 truncate">{label}</p>
+      <p className="text-xl font-black tracking-tighter text-black leading-tight">{value}</p>
+      <p className="text-[10px] uppercase tracking-wide text-black/40">{sub}</p>
     </div>
   </div>
 );

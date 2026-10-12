@@ -25,12 +25,12 @@ class ErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex items-center justify-center w-full h-full bg-slate-50">
+        <div className="flex items-center justify-center w-full h-full bg-surface">
           <div className="text-center">
             <p className="text-slate-600">Something went wrong with the map.</p>
             <button 
               onClick={() => this.setState({ hasError: false })}
-              className="mt-4 px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
+              className="mt-4 px-4 py-2 bg-primary text-white text-sm font-bold uppercase tracking-wide hover:opacity-80"
             >
               Try Again
             </button>
