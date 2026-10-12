@@ -39,7 +39,7 @@ export default function CookieConsent() {
                 Cookies &amp; External Requests
               </p>
               <p className="text-[0.8125rem] text-neutral-500 leading-relaxed">
-                TEMPO is a <strong>local-first desktop application</strong> — no analytics or tracking
+                TEMPO is a <strong>local-first desktop application</strong>, so there are no analytics or tracking
                 cookies are used. This page makes limited external requests to render the map and
                 fetch open geographic data.{' '}
                 <button
