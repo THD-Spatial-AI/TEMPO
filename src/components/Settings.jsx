@@ -102,7 +102,7 @@ function PythonEnvironmentPanel({ embedded = false, onInstallSuccess }) {
       {!embedded && (
         <h3 className="text-lg font-semibold text-slate-800 mb-1 flex items-center gap-2">
           <FiBox className="w-5 h-5 text-slate-400" /> Calliope 0.6.8 Engine
-          <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-700">Core</span>
+          <span className="text-xs px-2 py-0.5 font-medium bg-gray-100 text-gray-700">Core</span>
         </h3>
       )}
       <p className="text-sm text-slate-500 mb-4">
@@ -113,8 +113,8 @@ function PythonEnvironmentPanel({ embedded = false, onInstallSuccess }) {
       {/* Status badge */}
       {!embedded && (
       <div className={`flex items-center gap-3 p-3 rounded-xl border mb-4 ${
-        statusLoading ? 'bg-slate-50 border-slate-200' :
-        envStatus?.envExists ? 'bg-gray-50 border-gray-200' : 'bg-gray-50 border-gray-200'
+        statusLoading ? 'bg-slate-50 border-black/15' :
+        envStatus?.envExists ? 'bg-gray-50 border-black/15' : 'bg-gray-50 border-black/15'
       }`}>
         {statusLoading ? (
           <span className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
@@ -157,7 +157,7 @@ function PythonEnvironmentPanel({ embedded = false, onInstallSuccess }) {
               onClick={() => toggleModule(mod.id)}
               disabled={installing}
               className={`w-full flex items-start gap-3 p-3 rounded-xl border-2 text-left transition-all
-                ${checked ? 'border-gray-400 bg-gray-50' : 'border-slate-100 bg-slate-50 hover:border-slate-200'}
+                ${checked ? 'border-gray-400 bg-gray-50' : 'border-black/10 bg-slate-50 hover:border-black/15'}
                 disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               <div className={`mt-0.5 w-5 h-5 flex-shrink-0 rounded border-2 flex items-center justify-center transition-colors
@@ -171,7 +171,7 @@ function PythonEnvironmentPanel({ embedded = false, onInstallSuccess }) {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className={`text-sm font-semibold ${checked ? 'text-gray-800' : 'text-slate-700'}`}>{mod.label}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${mod.badgeColor}`}>{mod.badge}</span>
+                  <span className={`text-xs px-2 py-0.5 font-medium ${mod.badgeColor}`}>{mod.badge}</span>
                 </div>
                 <p className="text-xs text-slate-500 mt-0.5">{mod.description}</p>
               </div>
@@ -190,7 +190,7 @@ function PythonEnvironmentPanel({ embedded = false, onInstallSuccess }) {
             onClick={() => setDownloadCbc(v => !v)}
             disabled={installing}
             className={`w-full flex items-start gap-3 p-3 rounded-xl border-2 text-left transition-all mb-4
-              ${downloadCbc ? 'border-gray-400 bg-gray-50' : 'border-slate-100 bg-slate-50 hover:border-slate-200'}
+              ${downloadCbc ? 'border-gray-400 bg-gray-50' : 'border-black/10 bg-slate-50 hover:border-black/15'}
               disabled:opacity-50 disabled:cursor-not-allowed`}
           >
             <div className={`mt-0.5 w-5 h-5 flex-shrink-0 rounded border-2 flex items-center justify-center transition-colors
@@ -217,7 +217,7 @@ function PythonEnvironmentPanel({ embedded = false, onInstallSuccess }) {
       <button
         onClick={handleInstall}
         disabled={installing || selectedModules.length === 0 || !window.electronAPI}
-        className="flex items-center gap-2 px-5 py-2.5 bg-gray-700 text-white rounded-xl font-semibold shadow hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm"
+        className="flex items-center gap-2 px-5 py-2.5 bg-black text-white rounded-xl font-bold uppercase tracking-wide shadow hover:bg-black/80 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm"
       >
         {installing ? (
           <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Installing…</>
@@ -251,13 +251,13 @@ function PythonEnvironmentPanel({ embedded = false, onInstallSuccess }) {
 
       {/* Result messages */}
       {success && (
-        <div className="mt-3 flex items-center gap-2 p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-700">
+        <div className="mt-3 flex items-center gap-2 p-3 bg-gray-50 border border-black/15 rounded-xl text-sm text-gray-700">
           <FiCheckCircle className="w-4 h-4 flex-shrink-0" />
           Installation complete. TEMPO services restarted.
         </div>
       )}
       {error && (
-        <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-700">
+        <div className="mt-3 p-3 bg-gray-50 border border-black/15 rounded-xl text-sm text-gray-700">
           <p className="font-semibold mb-1">Installation failed:</p>
           <pre className="whitespace-pre-wrap break-all text-xs bg-gray-100 rounded p-2 max-h-24 overflow-y-auto">{error}</pre>
         </div>
@@ -293,7 +293,7 @@ function EngineAccordion({ title, icon: Icon, badge, checkFn, defaultOpen = fals
     : 'Not installed';
 
   return (
-    <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
+    <div className="border border-black/15 rounded-xl overflow-hidden bg-white">
       <button
         onClick={() => setOpen(o => !o)}
         className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 transition-colors"
@@ -301,7 +301,7 @@ function EngineAccordion({ title, icon: Icon, badge, checkFn, defaultOpen = fals
         {Icon && <Icon className="w-5 h-5 text-slate-400 shrink-0" />}
         <span className="text-sm font-semibold text-slate-800">{title}</span>
         {badge && (
-          <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-600">{badge}</span>
+          <span className="text-xs px-2 py-0.5 font-medium bg-gray-100 text-gray-600">{badge}</span>
         )}
         <span className="ml-auto flex items-center gap-3">
           {loading ? (
@@ -315,7 +315,7 @@ function EngineAccordion({ title, icon: Icon, badge, checkFn, defaultOpen = fals
           <FiChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
         </span>
       </button>
-      <div className={open ? 'px-4 pb-4 pt-2 border-t border-slate-100' : 'hidden'}>
+      <div className={open ? 'px-4 pb-4 pt-2 border-t border-black/10' : 'hidden'}>
         {children(refresh)}
       </div>
     </div>
@@ -330,7 +330,7 @@ function GeneralPanel() {
   return (
     <div className="space-y-6">
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-2">Default View</label>
+        <label className="block text-[0.6875rem] font-bold text-black/60 mb-2 uppercase tracking-widest">Default View</label>
         <select
           value={settings.defaultView}
           onChange={(e) => update('defaultView', e.target.value)}
@@ -342,7 +342,7 @@ function GeneralPanel() {
         <p className="text-xs text-slate-400 mt-1.5">The view TEMPO opens to on launch.</p>
       </div>
 
-      <div className="border-t border-slate-200 pt-6">
+      <div className="border-t border-black/15 pt-6">
         <label className="flex items-start gap-2 cursor-pointer">
           <input
             type="checkbox"
@@ -399,7 +399,7 @@ function RemoteExecutionPanel() {
     <div>
       <h3 className="text-lg font-semibold text-slate-800 mb-1 flex items-center gap-2">
         <FiServer className="w-5 h-5 text-slate-400" /> Remote Execution (MEME)
-        <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-600">Beta</span>
+        <span className="text-xs px-2 py-0.5 font-medium bg-gray-100 text-gray-600">Beta</span>
       </h3>
       <p className="text-sm text-slate-500 mb-5 max-w-2xl">
         Point TEMPO at a remote MEME server to run models on its hardware instead of this
@@ -412,7 +412,7 @@ function RemoteExecutionPanel() {
       <div className="space-y-5 max-w-md">
         {/* Server URL */}
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-2">Server URL</label>
+          <label className="block text-[0.6875rem] font-bold text-black/60 mb-2 uppercase tracking-widest">Server URL</label>
           <input
             type="text"
             value={form.url}
@@ -424,7 +424,7 @@ function RemoteExecutionPanel() {
 
         {/* API key */}
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-2">API key</label>
+          <label className="block text-[0.6875rem] font-bold text-black/60 mb-2 uppercase tracking-widest">API key</label>
           <div className="flex gap-2">
             <input
               type={showKey ? 'text' : 'password'}
@@ -436,7 +436,7 @@ function RemoteExecutionPanel() {
             <button
               type="button"
               onClick={() => setShowKey(v => !v)}
-              className="px-3 py-2 text-xs font-medium text-slate-500 border border-slate-200 rounded-md hover:bg-slate-50"
+              className="px-3 py-2 text-xs font-medium text-slate-500 border border-black/15 rounded-md hover:bg-slate-50"
             >
               {showKey ? 'Hide' : 'Show'}
             </button>
@@ -451,14 +451,14 @@ function RemoteExecutionPanel() {
         <div className="flex items-center gap-2">
           <button
             onClick={save}
-            className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-gray-700 hover:bg-gray-800 transition-colors"
+            className="px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wide text-white bg-black hover:bg-black/80 transition-colors"
           >
             Save
           </button>
           <button
             onClick={testConnection}
             disabled={testing || !form.url.trim()}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-slate-600 border border-black/15 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {testing
               ? <><span className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" /> Testing…</>
@@ -469,7 +469,7 @@ function RemoteExecutionPanel() {
 
         {/* Test result */}
         {testResult && (
-          <div className={`rounded-xl border p-3 text-sm ${testResult.ok ? 'bg-gray-50 border-gray-200 text-gray-700' : 'bg-gray-50 border-gray-200 text-gray-700'}`}>
+          <div className={`rounded-xl border p-3 text-sm ${testResult.ok ? 'bg-gray-50 border-black/15 text-gray-700' : 'bg-gray-50 border-black/15 text-gray-700'}`}>
             {testResult.ok ? (
               <div className="flex items-start gap-2">
                 <FiCheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
@@ -478,7 +478,7 @@ function RemoteExecutionPanel() {
                   <p className="text-xs mt-1">
                     Targets:{' '}
                     {(testResult.targets.length ? testResult.targets : ['—']).map(t => (
-                      <span key={t} className="inline-block px-2 py-0.5 mr-1 rounded-full bg-white border border-gray-200 font-mono text-[11px]">{t}</span>
+                      <span key={t} className="inline-block px-2 py-0.5 mr-1 bg-white border border-black/15 font-mono text-[11px]">{t}</span>
                     ))}
                   </p>
                 </div>
@@ -560,7 +560,7 @@ function AIPanel() {
     <div>
       <h3 className="text-lg font-semibold text-slate-800 mb-1 flex items-center gap-2">
         <FiMessageSquare className="w-5 h-5 text-slate-400" /> Model Advisor
-        <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-600">Bring your own key</span>
+        <span className="text-xs px-2 py-0.5 font-medium bg-gray-100 text-gray-600">Bring your own key</span>
       </h3>
       <p className="text-sm text-slate-500 mb-5 max-w-2xl">
         Powers the <span className="font-medium text-slate-600">Model Advisor</span> tab in Results —
@@ -569,7 +569,7 @@ function AIPanel() {
       </p>
 
       {!desktop && (
-        <div className="mb-5 flex items-start gap-2 p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-700">
+        <div className="mb-5 flex items-start gap-2 p-3 bg-gray-50 border border-black/15 rounded-xl text-sm text-gray-700">
           <FiAlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
           Model Advisor is only available in the TEMPO desktop app.
         </div>
@@ -598,7 +598,7 @@ function AIPanel() {
       <div className="space-y-5 max-w-md">
         {/* Provider */}
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-2">Provider</label>
+          <label className="block text-[0.6875rem] font-bold text-black/60 mb-2 uppercase tracking-widest">Provider</label>
           <select
             value={cfg.provider}
             onChange={(e) => changeProvider(e.target.value)}
@@ -611,7 +611,7 @@ function AIPanel() {
         {/* Base URL (compatible + Ollama) */}
         {meta.needsBaseUrl && (
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">{meta.local ? 'Ollama server URL' : 'Base URL'}</label>
+            <label className="block text-[0.6875rem] font-bold text-black/60 mb-2 uppercase tracking-widest">{meta.local ? 'Ollama server URL' : 'Base URL'}</label>
             <input
               type="text"
               value={cfg.baseUrl}
@@ -629,7 +629,7 @@ function AIPanel() {
 
         {/* Model */}
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-2">Model</label>
+          <label className="block text-[0.6875rem] font-bold text-black/60 mb-2 uppercase tracking-widest">Model</label>
           <input
             type="text"
             value={cfg.model}
@@ -641,14 +641,14 @@ function AIPanel() {
 
         {/* API key (remote providers) / local connection note (Ollama) */}
         {meta.needsKey === false ? (
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+          <div className="rounded-md border border-black/15 bg-slate-50 p-3 text-xs text-slate-600">
             No API key needed — TEMPO connects to your Ollama server at
             <span className="font-mono text-slate-500"> {cfg.baseUrl || 'http://localhost:11434'}</span>. Make sure Ollama is
             running there and the model above is pulled (<span className="font-mono text-slate-500">ollama pull {cfg.model || meta.defaultModel}</span>).
           </div>
         ) : (
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
+            <label className="block text-[0.6875rem] font-bold text-black/60 mb-2 uppercase tracking-widest">
               API key
               {hasKey && <span className="ml-2 text-xs text-gray-600 font-normal"><FiCheckCircle className="inline w-3.5 h-3.5" /> stored</span>}
             </label>
@@ -660,7 +660,7 @@ function AIPanel() {
                 placeholder={hasKey ? '•••••••• (a key is stored)' : 'Paste your API key'}
                 className="flex-1 px-3 py-2 border border-slate-300 rounded-md font-mono text-sm focus:outline-none focus:ring-2 focus:ring-gray-500"
               />
-              <button type="button" onClick={() => setShowKey(v => !v)} className="px-3 py-2 text-xs font-medium text-slate-500 border border-slate-200 rounded-md hover:bg-slate-50">
+              <button type="button" onClick={() => setShowKey(v => !v)} className="px-3 py-2 text-xs font-medium text-slate-500 border border-black/15 rounded-md hover:bg-slate-50">
                 {showKey ? 'Hide' : 'Show'}
               </button>
             </div>
@@ -678,7 +678,7 @@ function AIPanel() {
             <button
               onClick={saveKey}
               disabled={!desktop || !keyInput.trim()}
-              className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-gray-700 hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wide text-white bg-black hover:bg-black/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Save key
             </button>
@@ -686,7 +686,7 @@ function AIPanel() {
           <button
             onClick={testConnection}
             disabled={!desktop || testing || (!hasKey && meta.needsKey !== false)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-slate-600 border border-black/15 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {testing
               ? <><span className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" /> Testing…</>
@@ -702,7 +702,7 @@ function AIPanel() {
 
         {/* Test result */}
         {testResult && (
-          <div className="rounded-xl border p-3 text-sm bg-gray-50 border-gray-200 text-gray-700">
+          <div className="rounded-xl border p-3 text-sm bg-gray-50 border-black/15 text-gray-700">
             {testResult.ok ? (
               <div className="flex items-start gap-2">
                 <FiCheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
@@ -715,7 +715,7 @@ function AIPanel() {
                   <span className="break-all">{testResult.error}</span>
                 </div>
                 {meta.local && (
-                  <div className="mt-1 pt-2 border-t border-gray-200 text-xs text-slate-500">
+                  <div className="mt-1 pt-2 border-t border-black/15 text-xs text-slate-500">
                     <p className="font-medium text-slate-600 mb-1">Can’t reach Ollama? On the machine running it, check:</p>
                     <ul className="list-disc pl-4 space-y-1">
                       <li>Port is published — <span className="font-mono">docker ps</span> shows <span className="font-mono">0.0.0.0:11434-&gt;11434/tcp</span> (else run with <span className="font-mono">-p 11434:11434</span>).</li>
@@ -756,7 +756,7 @@ function AboutPanel() {
       <p className="text-sm text-slate-500 mb-4">
         Tool for Energy Model Preparation and Optimization. All model data is stored locally on this device.
       </p>
-      <dl className="rounded-xl border border-slate-200 divide-y divide-slate-100">
+      <dl className="rounded-xl border border-black/15 divide-y divide-black/10">
         {rows.map(({ label, value }) => (
           <div key={label} className="flex items-center justify-between gap-4 px-4 py-3">
             <dt className="text-sm text-slate-500">{label}</dt>
@@ -805,14 +805,14 @@ const Settings = () => {
   return (
     <div className="flex-1 p-8 bg-gray-50">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-800 mb-2">Settings</h1>
+        <h1 className="text-3xl font-black tracking-tighter text-black mb-2">Settings</h1>
         <p className="text-slate-600">Application configuration and preferences</p>
       </div>
 
-      <div className="bg-white rounded-lg shadow-lg flex overflow-hidden min-h-[600px]">
+      <div className="bg-surface-container-lowest rounded-lg flex overflow-hidden min-h-[600px] border border-black/15">
 
         {/* Sub-navigation */}
-        <nav className="w-60 shrink-0 border-r border-slate-200 bg-slate-50/60 p-3 space-y-1">
+        <nav className="w-60 shrink-0 border-r border-black/15 bg-surface p-3 space-y-1">
           {SECTIONS.map((section) => {
             const active = activeSection === section.id;
             const Icon = section.icon;
@@ -820,12 +820,12 @@ const Settings = () => {
               <button
                 key={section.id}
                 onClick={() => setActiveSection(section.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-left transition-colors
+                className={`w-full flex items-center gap-3 px-3 py-2.5 border-l-2 text-[0.8125rem] font-semibold uppercase tracking-tight text-left transition-colors
                   ${active
-                    ? 'bg-white text-slate-900 shadow-sm border border-slate-200'
-                    : 'text-slate-600 hover:bg-white/70 hover:text-slate-800 border border-transparent'}`}
+                    ? 'border-black bg-surface-container-low text-black'
+                    : 'border-transparent text-black/60 hover:text-black'}`}
               >
-                <Icon className={`w-4 h-4 shrink-0 ${active ? 'text-gray-600' : 'text-slate-400'}`} />
+                <Icon className="w-4 h-4 shrink-0" />
                 {section.label}
               </button>
             );
@@ -924,7 +924,7 @@ const Settings = () => {
             <button
               onClick={() => setConfirmOpen(true)}
               disabled={clearing}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white bg-gray-700 hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wide text-white bg-black hover:bg-black/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {clearing ? (
                 <>
@@ -955,8 +955,8 @@ const Settings = () => {
       {/* Confirmation dialog */}
       {confirmOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[10000]">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full mx-4 border border-slate-200">
-            <div className="flex items-center gap-3 p-6 border-b border-slate-100">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full mx-4 border border-black/15">
+            <div className="flex items-center gap-3 p-6 border-b border-black/10">
               <span className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-600">
                   <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
@@ -978,13 +978,13 @@ const Settings = () => {
             <div className="p-6 pt-0 flex gap-2 justify-end">
               <button
                 onClick={() => setConfirmOpen(false)}
-                className="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 transition-colors"
+                className="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 border border-black/15 hover:bg-slate-50 transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleClearAll}
-                className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-gray-700 hover:bg-gray-800 shadow-sm transition-colors"
+                className="px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wide text-white bg-black hover:bg-black/80 shadow-sm transition-colors"
               >
                 Yes, delete everything
               </button>

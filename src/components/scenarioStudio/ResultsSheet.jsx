@@ -12,7 +12,7 @@ export default function ResultsSheet({ completedJobs }) {
   if ((completedJobs || []).length === 0) return null;
 
   return (
-    <div className="shrink-0 border-t border-slate-200 bg-white">
+    <div className="shrink-0 border-t border-black/15 bg-white">
       <button onClick={() => setOpen(o => !o)}
         className="w-full flex items-center gap-2 px-4 py-2 hover:bg-slate-50 transition-colors">
         <FiBarChart2 size={14} className="text-electric-500" />
@@ -21,7 +21,7 @@ export default function ResultsSheet({ completedJobs }) {
         <span className="ml-auto text-slate-400">{open ? <FiChevronDown size={16} /> : <FiChevronUp size={16} />}</span>
       </button>
       {open && (
-        <div className="max-h-[45vh] overflow-y-auto px-4 pb-4 bg-gradient-to-br from-slate-50 to-slate-100">
+        <div className="max-h-[45vh] overflow-y-auto px-4 pb-4 bg-surface">
           <SporesEnsembleComparison completedJobs={completedJobs} />
           <BatchComparison completedJobs={completedJobs} />
         </div>

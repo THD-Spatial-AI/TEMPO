@@ -158,7 +158,7 @@ const CalliopeModels = () => {
       <div className="mb-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-slate-800 mb-2">
+            <h1 className="text-3xl font-black tracking-tighter text-black mb-2">
               Calliope Models
             </h1>
             <p className="text-slate-600">
@@ -170,13 +170,13 @@ const CalliopeModels = () => {
 
       <div className="grid grid-cols-12 gap-6 h-[calc(100vh-200px)]">
         {/* Models List */}
-        <div className="col-span-3 bg-white rounded-lg shadow-lg overflow-auto">
-          <div className="p-4 border-b border-slate-200">
+        <div className="col-span-3 bg-surface-container-lowest rounded-lg overflow-auto border border-black/15">
+          <div className="p-4 border-b border-black/15">
             <h2 className="font-semibold text-slate-800">Exported Models</h2>
             <p className="text-xs text-slate-500 mt-1">{exportedModels.length} models</p>
           </div>
           
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-black/10">
             {exportedModels.length === 0 ? (
               <div className="p-4 text-center text-slate-500 text-sm">
                 No exported models yet. Export a model to get started.
@@ -222,8 +222,8 @@ const CalliopeModels = () => {
         </div>
 
         {/* File Tree */}
-        <div className="col-span-3 bg-white rounded-lg shadow-lg overflow-auto">
-          <div className="p-4 border-b border-slate-200">
+        <div className="col-span-3 bg-surface-container-lowest rounded-lg overflow-auto border border-black/15">
+          <div className="p-4 border-b border-black/15">
             <h2 className="font-semibold text-slate-800">File Structure</h2>
             {selectedModel && (
               <p className="text-xs text-slate-500 mt-1">{selectedModel.name}</p>
@@ -242,8 +242,8 @@ const CalliopeModels = () => {
         </div>
 
         {/* File Editor */}
-        <div className="col-span-6 bg-white rounded-lg shadow-lg flex flex-col overflow-hidden">
-          <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+        <div className="col-span-6 bg-surface-container-lowest rounded-lg flex flex-col overflow-hidden border border-black/15">
+          <div className="p-4 border-b border-black/15 flex items-center justify-between">
             <div>
               <h2 className="font-semibold text-slate-800">
                 {selectedFile ? selectedFile.path : "File Editor"}
@@ -260,7 +260,7 @@ const CalliopeModels = () => {
                   <>
                     <button
                       onClick={handleSaveFile}
-                      className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-md hover:bg-gray-800 transition-colors text-sm"
+                      className="uppercase tracking-wide font-bold flex items-center gap-2 px-4 py-2 bg-black text-white rounded-md hover:bg-black/80 transition-colors text-sm"
                     >
                       <FiSave />
                       Save
@@ -279,7 +279,7 @@ const CalliopeModels = () => {
                 ) : (
                   <button
                     onClick={() => setIsEditing(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-md hover:bg-gray-800 transition-colors text-sm"
+                    className="uppercase tracking-wide font-bold flex items-center gap-2 px-4 py-2 bg-black text-white rounded-md hover:bg-black/80 transition-colors text-sm"
                   >
                     <FiEdit2 />
                     Edit

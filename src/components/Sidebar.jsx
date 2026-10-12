@@ -29,7 +29,7 @@ const Sidebar = ({ selected, setSelected }) => {
   return (
     <motion.nav
       layout
-      className="sticky top-0 h-screen shrink-0 border-r border-slate-200 bg-white/80 backdrop-blur-xl p-3 shadow-sm flex flex-col"
+      className="sticky top-0 h-screen shrink-0 border-r border-black/15 bg-[#FAF8FF] p-3 flex flex-col"
       style={{
         width: open ? "240px" : "fit-content",
       }}
@@ -171,17 +171,17 @@ const Option = ({ Icon, title, selected, setSelected, open, notifs, isNested = f
       whileTap={{ scale: 0.98 }}
       aria-label={title}
       aria-current={isSelected ? "page" : undefined}
-      className={`relative flex h-11 w-full items-center rounded-xl transition-all duration-200 ${
+      className={`relative flex h-11 w-full items-center border-l-2 transition-colors duration-200 ${
         isSelected
-          ? "bg-gradient-to-r from-electric-500 to-electric-600 text-white shadow-md"
-          : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+          ? "border-black bg-surface-container-low text-black"
+          : "border-transparent text-black/60 hover:text-black"
       } ${isNested ? "pl-5" : "pl-1"}`}
     >
       <motion.div
         layout
         className="grid h-full w-11 place-content-center text-lg"
       >
-        <Icon className={isSelected ? "drop-shadow" : ""} />
+        <Icon />
       </motion.div>
       {open && (
         <motion.span
@@ -189,7 +189,7 @@ const Option = ({ Icon, title, selected, setSelected, open, notifs, isNested = f
           initial={{ opacity: 0, x: -10 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.1, type: "spring", stiffness: 200 }}
-          className={`text-sm font-medium ${isSelected ? "font-semibold" : ""}`}
+          className="text-[0.8125rem] font-semibold uppercase tracking-tight"
         >
           {title}
         </motion.span>
@@ -204,7 +204,7 @@ const Option = ({ Icon, title, selected, setSelected, open, notifs, isNested = f
           }}
           style={{ y: "-50%" }}
           transition={{ delay: 0.5, type: "spring" }}
-          className="absolute right-3 top-1/2 flex h-5 w-5 items-center justify-center rounded-full bg-gray-500 text-[10px] font-bold text-white shadow-sm"
+          className="absolute right-3 top-1/2 flex h-5 w-5 items-center justify-center rounded-full bg-black text-[10px] font-bold text-white"
         >
           {notifs}
         </motion.span>
@@ -222,7 +222,7 @@ const DropdownSection = ({ Icon, title, open, isExpanded, setIsExpanded, childre
         whileHover={{ x: 2 }}
         aria-expanded={isExpanded}
         aria-label={title}
-        className="relative flex h-11 w-full items-center rounded-xl text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all duration-200"
+        className="relative flex h-11 w-full items-center border-l-2 border-transparent text-black/60 hover:text-black transition-colors duration-200"
       >
         <motion.div
           layout
@@ -237,7 +237,7 @@ const DropdownSection = ({ Icon, title, open, isExpanded, setIsExpanded, childre
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.1, type: "spring", stiffness: 200 }}
-              className="text-sm font-medium flex-1 text-left"
+              className="text-[0.8125rem] font-semibold uppercase tracking-tight flex-1 text-left"
             >
               {title}
             </motion.span>
@@ -246,7 +246,7 @@ const DropdownSection = ({ Icon, title, open, isExpanded, setIsExpanded, childre
               transition={{ duration: 0.25, ease: "easeInOut" }}
               className="mr-3"
             >
-              <FiChevronRight size={16} className="text-slate-400" />
+              <FiChevronRight size={16} className="text-black/40" />
             </motion.div>
           </>
         )}
@@ -271,8 +271,8 @@ const DropdownSection = ({ Icon, title, open, isExpanded, setIsExpanded, childre
 
 const TitleSection = ({ open }) => {
   return (
-    <div className="mb-4 border-b border-slate-200 pb-4">
-      <div className="flex cursor-pointer items-center justify-between rounded-xl transition-all duration-200 hover:bg-slate-50 p-2">
+    <div className="mb-4 border-b border-black/15 pb-4">
+      <div className="flex cursor-pointer items-center justify-between transition-colors duration-200 p-2">
         <div className="flex items-center gap-3">
           <Logo />
           {open && (
@@ -282,12 +282,12 @@ const TitleSection = ({ open }) => {
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.1, type: "spring", stiffness: 200 }}
             >
-              <span className="block text-sm font-bold bg-gradient-to-r from-electric-500 to-electric-900 bg-clip-text text-transparent">TEMPO</span>
-              <span className="block text-[11px] text-slate-500 font-medium tracking-wide">Tool for Energy Model Planning and Optimization</span>
+              <span className="block text-2xl font-black uppercase tracking-tighter leading-none text-black">TEMPO</span>
+              <span className="block mt-1 text-[10px] text-black/60 font-bold uppercase tracking-widest leading-snug">Tool for Energy Model Planning and Optimization</span>
             </motion.div>
           )}
         </div>
-        {open && <FiChevronDown className="mr-1 text-slate-400" size={16} />}
+        {open && <FiChevronDown className="mr-1 text-black/40" size={16} />}
       </div>
     </div>
   );
@@ -302,8 +302,7 @@ const Logo = () => {
       <img
         src={tempoLogo}
         alt="TEMPO logo"
-        className="h-10 w-10 object-contain"
-        style={{ mixBlendMode: 'multiply' }}
+        className="h-10 w-10 object-contain logo-on-light"
       />
     </motion.div>
   );
@@ -315,7 +314,7 @@ const ToggleClose = ({ open, setOpen }) => {
       layout
       onClick={() => setOpen((pv) => !pv)}
       aria-label={open ? "Collapse sidebar" : "Expand sidebar"}
-      className="border-t border-slate-200 transition-all duration-200 hover:bg-slate-50 mt-3"
+      className="border-t border-black/15 transition-colors duration-200 text-black/60 hover:text-black mt-3"
     >
       <div className="flex items-center p-2.5">
         <motion.div
@@ -323,7 +322,7 @@ const ToggleClose = ({ open, setOpen }) => {
           className="grid size-11 place-content-center text-lg"
         >
           <FiChevronsRight
-            className={`transition-transform duration-300 text-slate-600 ${open && "rotate-180"}`}
+            className={`transition-transform duration-300 ${open && "rotate-180"}`}
           />
         </motion.div>
         {open && (
@@ -332,7 +331,7 @@ const ToggleClose = ({ open, setOpen }) => {
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.1, type: "spring", stiffness: 200 }}
-            className="text-sm font-medium text-slate-600"
+            className="text-[0.8125rem] font-semibold uppercase tracking-tight"
           >
             Hide
           </motion.span>

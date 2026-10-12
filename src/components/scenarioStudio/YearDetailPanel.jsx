@@ -51,9 +51,9 @@ export default function YearDetailPanel({
   const newlyDisabled = summary.disabled.filter(t => !prevSummary?.disabled.includes(t));
 
   return (
-    <div className="w-[340px] shrink-0 border-l border-slate-200 bg-white flex flex-col">
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-200 shrink-0">
-        <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-electric-500 to-electric-600 flex items-center justify-center text-white shadow-sm">
+    <div className="w-[340px] shrink-0 border-l border-black/15 bg-white flex flex-col">
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-black/15 shrink-0">
+        <span className="w-8 h-8 rounded-lg bg-black flex items-center justify-center text-white shadow-sm">
           <FiCalendar size={15} />
         </span>
         <div className="min-w-0 flex-1">

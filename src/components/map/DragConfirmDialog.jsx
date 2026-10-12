@@ -14,7 +14,7 @@ export default function DragConfirmDialog({
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10001]">
       <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4">
-        <div className="bg-gradient-to-r from-gray-900 to-gray-800 text-white px-6 py-4 rounded-t-xl">
+        <div className="bg-black text-white px-6 py-4 rounded-t-xl">
           <h3 className="text-lg font-bold">Confirm Location Change</h3>
         </div>
 
@@ -71,7 +71,7 @@ export default function DragConfirmDialog({
                 setShowDragConfirmDialog(false);
                 setPendingDragChange(null);
               }}
-              className="flex-1 px-4 py-2.5 bg-gradient-to-r from-gray-900 to-gray-800 hover:from-gray-900 hover:to-gray-900 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+              className="flex-1 px-4 py-2.5 bg-black hover:bg-black/80 text-white font-bold uppercase tracking-wide transition-colors flex items-center justify-center gap-2"
             >
               <FiCheck size={18} />
               Accept

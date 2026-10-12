@@ -14,10 +14,10 @@ export default function FlowTab({
 }) {
   return (
               <div className="space-y-4">
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="bg-white rounded-2xl border border-black/15 shadow-sm overflow-hidden">
                   <button onClick={() => toggleSection('sankey')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
                     <FiShare2 size={14} className="text-gray-600 flex-shrink-0" />
-                    <span className="font-semibold text-slate-800 text-sm flex-1">Energy Flow — Sankey Diagram</span>
+                    <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-black flex-1">Energy Flow — Sankey Diagram</span>
                     <span className="text-xs text-slate-400 mr-1">· tech → carrier → demand</span>
                     <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('sankey') ? '' : '-rotate-90'}`} />
                   </button>
@@ -43,7 +43,7 @@ export default function FlowTab({
                         const share = derivedData.totalGen > 0 ? (gen / derivedData.totalGen * 100) : 0;
                         const cap = derivedData.capByTech[tech] || 0;
                         return (
-                          <div key={tech} className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+                          <div key={tech} className="bg-white rounded-xl border border-black/15 shadow-sm p-4">
                             <div className="flex items-center gap-2 mb-2">
                               <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: techColorFn(tech) }} />
                               <span className="font-semibold text-slate-700 text-sm capitalize">{tech.replace(/_/g, ' ')}</span>

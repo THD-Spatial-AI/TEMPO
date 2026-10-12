@@ -475,9 +475,9 @@ export default function ScenarioStudio({ onNavigate }) {
   return (
     <div className="h-full flex flex-col bg-slate-50">
       {/* Top bar */}
-      <div className="shrink-0 border-b border-slate-200 bg-white px-4 py-2.5 flex items-center gap-3 flex-wrap">
+      <div className="shrink-0 border-b border-black/15 bg-white px-4 py-2.5 flex items-center gap-3 flex-wrap">
         <div>
-          <h1 className="text-lg font-bold text-slate-800 leading-tight">Scenario Studio</h1>
+          <h1 className="text-lg font-black tracking-tighter text-black leading-tight">Scenario Studio</h1>
           <p className="text-[11px] text-slate-400 leading-tight">Add Year cards, drop config cards into a year (or leave them global), then Run</p>
         </div>
         <div className="h-8 w-px bg-slate-200 mx-1" />
@@ -489,7 +489,7 @@ export default function ScenarioStudio({ onNavigate }) {
               setSelectedModel(m);
               if (m) { setSelectedEngine(engineKeyFromModel(m)); loadBoardForModel(m.id); }
             }}
-            className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-electric-400 bg-white max-w-[220px]">
+            className="px-3 py-1.5 text-sm border border-black/15 rounded-lg focus:outline-none focus:ring-2 focus:ring-electric-400 bg-white max-w-[220px]">
             <option value="">— select a model —</option>
             {models.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
@@ -497,25 +497,25 @@ export default function ScenarioStudio({ onNavigate }) {
         <div className="flex items-center gap-2">
           <span className="text-xs font-medium text-slate-500">Engine</span>
           <select value={selectedEngine} onChange={e => setSelectedEngine(e.target.value)}
-            className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-electric-400 bg-white">
+            className="px-3 py-1.5 text-sm border border-black/15 rounded-lg focus:outline-none focus:ring-2 focus:ring-electric-400 bg-white">
             {Object.entries(ENGINE_LABELS).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
           </select>
         </div>
         {remoteAvailable && (
-          <div className="flex items-center rounded-lg border border-slate-200 overflow-hidden text-xs font-medium"
+          <div className="flex items-center rounded-lg border border-black/15 overflow-hidden text-xs font-medium"
             title={`Remote runs go to MEME at ${remoteServer.url}`}>
             {[['local', 'Local'], ['remote', 'MEME']].map(([id, label]) => (
               <button key={id} onClick={() => setComputeTarget(id)}
-                className={`px-2.5 py-1.5 transition-colors ${computeTarget === id ? 'bg-slate-800 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}>
+                className={`uppercase tracking-wide font-bold px-2.5 py-1.5 transition-colors ${computeTarget === id ? 'bg-black text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}>
                 {label}
               </button>
             ))}
           </div>
         )}
-        <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${
+        <div className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium border ${
           serviceStatus === true ? 'bg-green-50 border-green-200 text-green-700' :
           serviceStatus === false ? 'bg-red-50 border-red-200 text-red-600' :
-          'bg-slate-50 border-slate-200 text-slate-500'
+          'bg-slate-50 border-black/15 text-slate-500'
         }`}>
           <span className={`w-1.5 h-1.5 rounded-full ${
             serviceStatus === true ? 'bg-green-500' : serviceStatus === false ? 'bg-red-500' : 'bg-slate-400 animate-pulse'
@@ -524,15 +524,15 @@ export default function ScenarioStudio({ onNavigate }) {
         </div>
         <div className="relative ml-auto">
           <button onClick={() => setShowTemplates(v => !v)}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border bg-white border-slate-200 text-slate-600 hover:border-slate-300 transition-colors"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border bg-white border-black/15 text-slate-600 hover:border-slate-300 transition-colors"
             title="Start from a scenario template">
             <FiGrid size={12} /> Templates <FiChevronDown size={11} className={showTemplates ? 'rotate-180 transition-transform' : 'transition-transform'} />
           </button>
           {showTemplates && (
             <>
               <div className="fixed inset-0 z-[90]" onClick={() => setShowTemplates(false)} />
-              <div className="absolute right-0 mt-1 z-[91] w-72 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden">
-                <div className="px-3 py-2 border-b border-slate-100 bg-slate-50 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+              <div className="absolute right-0 mt-1 z-[91] w-72 bg-white border border-black/15 rounded-xl shadow-xl overflow-hidden">
+                <div className="px-3 py-2 border-b border-black/10 bg-slate-50 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
                   Start from a template (replaces the board)
                 </div>
                 <div className="max-h-80 overflow-y-auto">
@@ -552,14 +552,14 @@ export default function ScenarioStudio({ onNavigate }) {
           className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
             showModelCompare || extraModels.length > 0
               ? 'bg-electric-50 border-electric-300 text-electric-700'
-              : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'
+              : 'bg-white border-black/15 text-slate-500 hover:border-slate-300'
           }`} title="Compare across multiple models">
           <FiLayers size={12} /> Compare{extraModels.length > 0 ? ` (${extraModels.length + 1})` : ''}
         </button>
       </div>
 
       {showModelCompare && (
-        <div className="shrink-0 border-b border-slate-200 bg-white px-4 py-3">
+        <div className="shrink-0 border-b border-black/15 bg-white px-4 py-3">
           <p className="text-xs font-semibold text-slate-600 mb-2 flex items-center gap-1.5">
             <FiLayers size={12} className="text-electric-500" /> Run this scenario against additional models
           </p>
@@ -568,7 +568,7 @@ export default function ScenarioStudio({ onNavigate }) {
               const checked = extraModels.some(e => e.id === m.id);
               return (
                 <label key={m.id} className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer text-xs transition-colors ${
-                  checked ? 'bg-electric-50 border-electric-300 text-electric-800' : 'bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300'
+                  checked ? 'bg-electric-50 border-electric-300 text-electric-800' : 'bg-slate-50 border-black/15 text-slate-600 hover:border-slate-300'
                 }`}>
                   <input type="checkbox" checked={checked}
                     onChange={e => setExtraModels(prev => e.target.checked ? [...prev, m] : prev.filter(em => em.id !== m.id))}

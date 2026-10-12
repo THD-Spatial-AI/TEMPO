@@ -73,9 +73,9 @@ function CategoryDropdown({ label, color, options, selected, onToggle, onSetAll 
         <FiChevronDown size={13} className={`text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
-        <div className="absolute z-20 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg py-1 max-h-52 overflow-y-auto">
+        <div className="absolute z-20 mt-1 w-full bg-white border border-black/15 rounded-lg shadow-lg py-1 max-h-52 overflow-y-auto">
           {onSetAll && (
-            <div className="flex justify-between px-2 pb-1 mb-1 border-b border-slate-100 text-[10px]">
+            <div className="flex justify-between px-2 pb-1 mb-1 border-b border-black/10 text-[10px]">
               <button onClick={() => onSetAll(true)} className="text-electric-600 hover:underline">All</button>
               <button onClick={() => onSetAll(false)} className="text-slate-400 hover:underline">None</button>
             </div>
@@ -507,7 +507,7 @@ export default function ZonalStudyAreaPanel({
           className="w-full pl-8 pr-2 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-electric-400 focus:outline-none"
         />
         {results.length > 0 && (
-          <div className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+          <div className="absolute z-10 mt-1 w-full bg-white border border-black/15 rounded-lg shadow-lg max-h-64 overflow-y-auto">
             {results.map(r => (
               <button
                 key={`${r.osmType}/${r.osmId}`}
@@ -554,7 +554,7 @@ export default function ZonalStudyAreaPanel({
 
       {/* Grid load status — shows the pipeline stage while loading, counts when done */}
       {units.length > 0 && (
-        <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 space-y-2">
+        <div className="rounded-lg border border-black/15 bg-slate-50 px-3 py-2.5 space-y-2">
           {(boundaryLoading || osmLoading) ? (
             <div className="space-y-1.5">
               <div className={`flex items-center gap-1.5 text-[11px] ${boundaryLoading ? 'text-slate-700 font-medium' : 'text-green-600'}`}>
@@ -587,7 +587,7 @@ export default function ZonalStudyAreaPanel({
                 </div>
               </div>
               {(subFeatures.length > 0 || plantCount > 0) && (
-                <div className="text-[10px] text-slate-500 space-y-0.5 border-t border-slate-200 pt-1.5">
+                <div className="text-[10px] text-slate-500 space-y-0.5 border-t border-black/15 pt-1.5">
                   {subFeatures.length > 0 && (
                     <div>
                       Substations: <span className="text-red-600 font-medium">{subTransmission} transmission</span>
@@ -610,9 +610,9 @@ export default function ZonalStudyAreaPanel({
       {/* Network builder — stepped wizard. Each step previews live on the map;
           nothing is committed until "Import all" on the last step. */}
       {wizardActive && (
-        <div className="rounded-lg border border-slate-200 overflow-hidden">
+        <div className="rounded-lg border border-black/15 overflow-hidden">
           {/* Step progress (clickable to jump) */}
-          <div className="flex items-center gap-1 px-3 py-2 bg-slate-50 border-b border-slate-200">
+          <div className="flex items-center gap-1 px-3 py-2 bg-slate-50 border-b border-black/15">
             {WIZARD_STEPS.map((s, i) => (
               <React.Fragment key={s.key}>
                 <button
@@ -678,7 +678,7 @@ export default function ZonalStudyAreaPanel({
                     </p>
 
                     {/* Optional population-based electricity demand on the substations */}
-                    <div className="pt-1.5 border-t border-slate-100">
+                    <div className="pt-1.5 border-t border-black/10">
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-[11px] font-medium text-slate-600">Add estimated demand</span>
                         <button
@@ -777,7 +777,7 @@ export default function ZonalStudyAreaPanel({
                           </div>
 
                           {previewCurve && (
-                            <div className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5">
+                            <div className="rounded-md border border-black/15 bg-slate-50 px-2 py-1.5">
                               <div className="flex items-center justify-between text-[10px] text-slate-400 mb-0.5">
                                 <span>
                                   Shape preview · {previewSource === 'demandlib' ? 'BDEW (demandlib)' : previewSource === 'loading' ? 'loading…' : 'synthetic (approx.)'}
@@ -849,7 +849,7 @@ export default function ZonalStudyAreaPanel({
           </div>
 
           {/* Footer: Back / Next / Import */}
-          <div className="flex items-center justify-between gap-2 px-3 py-2.5 bg-slate-50 border-t border-slate-200">
+          <div className="flex items-center justify-between gap-2 px-3 py-2.5 bg-slate-50 border-t border-black/15">
             <button
               onClick={() => setStep(s => Math.max(0, s - 1))} disabled={step === 0}
               className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg text-slate-600 hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed"
@@ -857,7 +857,7 @@ export default function ZonalStudyAreaPanel({
             {step < WIZARD_STEPS.length - 1 ? (
               <button
                 onClick={() => setStep(s => Math.min(WIZARD_STEPS.length - 1, s + 1))}
-                className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-800 text-white hover:bg-slate-900"
+                className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold uppercase tracking-wide rounded-lg bg-black text-white hover:bg-black/80"
               >Next ▸</button>
             ) : (
               <button

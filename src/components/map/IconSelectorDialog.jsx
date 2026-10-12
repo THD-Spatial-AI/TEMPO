@@ -14,7 +14,7 @@ export default function IconSelectorDialog({
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10002]">
       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full mx-4">
-        <div className="bg-gradient-to-r from-gray-900 to-gray-800 text-white px-6 py-4 rounded-t-xl">
+        <div className="bg-black text-white px-6 py-4 rounded-t-xl">
           <h3 className="text-lg font-bold">Select Icon</h3>
           <p className="text-sm text-gray-100 mt-1">{selectedLocationForIcon.name}</p>
         </div>
@@ -51,7 +51,7 @@ export default function IconSelectorDialog({
                   className={`p-4 rounded-lg border-2 transition-all hover:shadow-md ${
                     isSelected
                       ? 'border-gray-500 bg-gray-50'
-                      : 'border-slate-200 hover:border-gray-300'
+                      : 'border-black/15 hover:border-gray-300'
                   }`}
                 >
                   <div className="flex items-center justify-center mb-2">
@@ -92,7 +92,7 @@ export default function IconSelectorDialog({
                 setShowIconSelector(false);
                 setSelectedLocationForIcon(null);
               }}
-              className="flex-1 px-4 py-2.5 bg-gradient-to-r from-gray-900 to-gray-800 hover:from-gray-900 hover:to-gray-900 text-white rounded-lg font-medium transition-colors"
+              className="flex-1 px-4 py-2.5 bg-black hover:bg-black/80 text-white font-bold uppercase tracking-wide transition-colors"
             >
               Close
             </button>

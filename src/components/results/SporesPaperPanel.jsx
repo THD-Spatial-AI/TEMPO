@@ -68,7 +68,7 @@ export default function SporesPaperPanel({ result }) {
   ];
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-5">
+    <div className="bg-white rounded-xl border border-black/15 p-4 space-y-5">
       <div className="flex items-center gap-2">
         <FiAward size={14} className="text-teal-600" />
         <h3 className="text-sm font-semibold text-slate-700">Paper analysis — Lombardi et al. (2020)</h3>
@@ -84,14 +84,14 @@ export default function SporesPaperPanel({ result }) {
         </div>
         <ReactECharts option={boxOption} style={{ height: 40 + labels.length * 34 }} />
         <table className="w-full text-xs mt-1">
-          <thead><tr className="text-slate-500 text-left"><th className="py-1">Group</th><th>Cost-optimal</th><th>Median</th><th>SPORES avoiding it</th></tr></thead>
+          <thead><tr className="text-slate-500 text-left"><th className="py-1 font-bold uppercase tracking-widest">Group</th><th>Cost-optimal</th><th>Median</th><th>SPORES avoiding it</th></tr></thead>
           <tbody>
             {labels.map(l => {
               const vals = alternatives.map(u => u[l]).filter(v => v != null);
               const q = quantiles(vals);
               const zero = vals.length ? vals.filter(v => v < ZERO).length / vals.length : null;
               return (
-                <tr key={l} className="border-t border-slate-100">
+                <tr key={l} className="border-t border-black/10">
                   <td className="py-1 font-medium text-slate-700">{l}</td>
                   <td>{pct(util[0][l])}</td><td>{pct(q?.[2])}</td>
                   <td className={zero === 0 ? 'text-teal-700 font-semibold' : ''}>{zero == null ? '–' : `${(zero * 100).toFixed(0)}%`}{zero === 0 ? ' · never avoided' : ''}</td>
@@ -112,12 +112,12 @@ export default function SporesPaperPanel({ result }) {
           </div>
           <table className="w-full text-xs mt-1">
             <thead><tr className="text-slate-500 text-left">
-              <th className="py-1">SPORE</th><th>Max regional wind share</th><th>Min inter-zonal line CF</th>
+              <th className="py-1 font-bold uppercase tracking-widest">SPORE</th><th>Max regional wind share</th><th>Min inter-zonal line CF</th>
               <th>Transmission expansion ({unit.powerLabel})</th><th>Overcapacity ({unit.powerLabel})</th><th>Curtailment ({unit.energyLabel})</th>
             </tr></thead>
             <tbody>
               {best.map(([name, r]) => (
-                <tr key={name} className="border-t border-slate-100">
+                <tr key={name} className="border-t border-black/10">
                   <td className="py-1"><span className="font-medium text-slate-700">{name}</span>{r ? <span className="text-slate-400"> · #{r.spore_id}{r.target ? ` (${[].concat(r.target).join('+')})` : ''}</span> : ''}</td>
                   {r ? (
                     <>

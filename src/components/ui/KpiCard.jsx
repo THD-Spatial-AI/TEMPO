@@ -3,10 +3,10 @@
 export default function KpiCard({ label, value, unit, color = "slate" }) {
   const ring = {
     electric: "border-electric-200 bg-electric-50",
-    emerald:  "border-gray-200 bg-gray-50",
-    amber:    "border-gray-200 bg-gray-50",
-    blue:     "border-gray-200 bg-gray-50",
-    violet:   "border-gray-200 bg-gray-50",
+    emerald:  "border-black/15 bg-gray-50",
+    amber:    "border-black/15 bg-gray-50",
+    blue:     "border-black/15 bg-gray-50",
+    violet:   "border-black/15 bg-gray-50",
     slate:    "border-black/15 bg-surface-container-lowest",
   };
   const text = {

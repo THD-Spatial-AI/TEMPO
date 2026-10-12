@@ -75,7 +75,7 @@ function AddFromList({ label, options, onAdd }) {
       <select
         value={sel}
         onChange={(e) => setSel(e.target.value)}
-        className="flex-1 text-xs border border-slate-200 rounded px-2 py-0.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-1 focus:ring-gray-400"
+        className="flex-1 text-xs border border-black/15 rounded px-2 py-0.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-1 focus:ring-gray-400"
       >
         <option value="">{label}</option>
         {options.map((o) => (
@@ -85,7 +85,7 @@ function AddFromList({ label, options, onAdd }) {
       <button
         onClick={() => { if (sel) { onAdd(sel); setSel(''); } }}
         disabled={!sel}
-        className="px-2 py-0.5 text-xs bg-gray-600 text-white rounded disabled:bg-gray-300"
+        className="uppercase tracking-wide font-bold px-2 py-0.5 text-xs bg-black text-white rounded disabled:bg-gray-300"
       >
         Add
       </button>
@@ -101,7 +101,7 @@ function AddFreeForm({ onAdd }) {
         value={key}
         onChange={(e) => setKey(e.target.value)}
         placeholder="custom parameter name"
-        className="flex-1 text-xs border border-slate-200 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-gray-400 font-mono"
+        className="flex-1 text-xs border border-black/15 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-gray-400 font-mono"
       />
       <button
         onClick={() => { const k = key.trim(); if (k) { onAdd(k); setKey(''); } }}
@@ -123,7 +123,7 @@ function ParamRow({ name, value, onChange, onRemove }) {
         type="text"
         value={value ?? ''}
         onChange={(e) => onChange(coerce(e.target.value))}
-        className="flex-1 px-2 py-0.5 text-xs border border-slate-200 rounded focus:ring-1 focus:ring-gray-400 font-mono"
+        className="flex-1 px-2 py-0.5 text-xs border border-black/15 rounded focus:ring-1 focus:ring-gray-400 font-mono"
       />
       <button onClick={onRemove} className="text-slate-400 hover:text-gray-600">
         <FiX size={12} />
@@ -202,7 +202,7 @@ export default function TechParameterEditor({
                   value={val ?? ''}
                   onChange={(e) => setCommon(def, coerce(e.target.value))}
                   placeholder="not set"
-                  className="flex-1 px-2 py-0.5 text-xs border border-slate-200 rounded focus:ring-1 focus:ring-gray-400 font-mono"
+                  className="flex-1 px-2 py-0.5 text-xs border border-black/15 rounded focus:ring-1 focus:ring-gray-400 font-mono"
                 />
                 <button
                   onClick={() => clearCommon(def)}
@@ -312,7 +312,7 @@ export default function TechParameterEditor({
 
 function EngineSection({ label, open, onToggle, count, children }) {
   return (
-    <div className="border border-slate-200 rounded-lg overflow-hidden mb-1.5">
+    <div className="border border-black/15 rounded-lg overflow-hidden mb-1.5">
       <button
         onClick={onToggle}
         className="w-full flex items-center justify-between px-3 py-1.5 bg-slate-50 hover:bg-slate-100 transition-colors"

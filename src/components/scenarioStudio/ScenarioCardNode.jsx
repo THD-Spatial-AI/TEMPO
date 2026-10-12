@@ -70,7 +70,7 @@ function ScenarioCardNodeImpl({ id, data, selected }) {
   return (
     <div
       className={`relative bg-white rounded-lg border shadow-sm w-52 transition-colors ${
-        selected ? 'border-electric-500 ring-2 ring-electric-300' : 'border-slate-200 hover:border-slate-300 hover:shadow-md'
+        selected ? 'border-electric-500 ring-2 ring-electric-300' : 'border-black/15 hover:border-slate-300 hover:shadow-md'
       }`}
     >
       <div className="p-2.5 flex items-center gap-2">

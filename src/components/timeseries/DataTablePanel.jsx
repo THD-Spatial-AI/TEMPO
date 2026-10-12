@@ -13,13 +13,13 @@ export default function DataTablePanel({ ts, updateDataTableConfig, addDim }) {
           <h3 className="text-xs font-semibold text-indigo-800 mb-3">Calliope 0.7 data_tables configuration</h3>
           <div className="grid grid-cols-2 gap-3 mb-3">
             <div>
-              <label className="block text-xs font-medium text-indigo-700 mb-1">rows (row index dimension)</label>
+              <label className="block text-[0.6875rem] font-bold text-indigo-700 mb-1 uppercase tracking-widest">rows (row index dimension)</label>
               <input type="text" value={cfg.rows || ''} placeholder="e.g. nodes or timesteps"
                 onChange={e => updateDataTableConfig(ts.id, { rows: e.target.value })}
                 className="w-full px-2 py-1.5 text-xs border border-indigo-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300 font-mono" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-indigo-700 mb-1">columns (column header dimension)</label>
+              <label className="block text-[0.6875rem] font-bold text-indigo-700 mb-1 uppercase tracking-widest">columns (column header dimension)</label>
               <input type="text" value={cfg.columns || ''} placeholder="e.g. techs (leave blank if none)"
                 onChange={e => updateDataTableConfig(ts.id, { columns: e.target.value })}
                 className="w-full px-2 py-1.5 text-xs border border-indigo-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300 font-mono" />
@@ -29,7 +29,7 @@ export default function DataTablePanel({ ts, updateDataTableConfig, addDim }) {
             <div className="flex items-center gap-2 mb-2">
               <label className="text-xs font-medium text-indigo-700">add_dims (fixed dimension values to inject)</label>
               <button type="button" onClick={() => addDim(ts.id)}
-                className="px-2 py-0.5 text-[10px] bg-indigo-100 text-indigo-700 rounded-full hover:bg-indigo-200">+ add</button>
+                className="px-2 py-0.5 text-[10px] bg-indigo-100 text-indigo-700 hover:bg-indigo-200">+ add</button>
             </div>
             {dimEntries.map(([k, v], i) => (
               <div key={i} className="flex items-center gap-2 mb-1.5">
@@ -58,14 +58,14 @@ export default function DataTablePanel({ ts, updateDataTableConfig, addDim }) {
         </div>
 
         {/* Table preview */}
-        <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
-          <div className="px-4 py-2 border-b border-slate-100 text-xs font-semibold text-slate-600">
+        <div className="bg-white rounded-xl border border-black/15 overflow-x-auto">
+          <div className="px-4 py-2 border-b border-black/10 text-xs font-semibold text-slate-600">
             Preview — first {previewRows.length} rows of {ts.rowCount}
           </div>
           <table className="w-full text-xs border-collapse">
             <thead>
               <tr className="bg-slate-50">
-                {cols.map(c => <th key={c} className="px-3 py-2 text-left text-slate-500 font-medium border-b border-slate-100 whitespace-nowrap">{c}</th>)}
+                {cols.map(c => <th key={c} className="px-3 py-2 text-left text-black/60 font-bold border-b border-black/10 whitespace-nowrap uppercase tracking-widest">{c}</th>)}
               </tr>
             </thead>
             <tbody>

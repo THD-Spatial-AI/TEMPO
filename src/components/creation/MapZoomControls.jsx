@@ -3,7 +3,7 @@ import { FiMaximize2, FiMinimize2, FiMapPin } from "react-icons/fi";
 
 const MapZoomControls = ({ onZoomIn, onZoomOut, onFitBounds }) => {
   return (
-    <div className="bg-white rounded-lg shadow-lg flex gap-1 p-1">
+    <div className="bg-surface-container-lowest rounded-lg flex gap-1 p-1 border border-black/15">
       <button
         onClick={onZoomIn}
         className="p-2 hover:bg-gray-100 rounded transition-colors"

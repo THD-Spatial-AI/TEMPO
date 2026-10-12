@@ -428,14 +428,14 @@ const Locations = () => {
       <SaveBar label="Locations" />
       <div className="flex-1 p-8 overflow-y-auto">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-800 mb-2">Locations</h1>
+        <h1 className="text-3xl font-black tracking-tighter text-black mb-2">Locations</h1>
         <p className="text-slate-600">Manage energy system nodes and locations</p>
         {currentModel && (
           <p className="text-sm text-gray-600 mt-1">Model: {currentModel.name}</p>
         )}
       </div>
 
-      <div className="bg-white rounded-lg shadow-lg p-6">
+      <div className="bg-surface-container-lowest rounded-lg p-6 border border-black/15">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold text-slate-800">
             Location List ({locations.length})
@@ -454,14 +454,14 @@ const Locations = () => {
             {hasChanges && (
               <button
                 onClick={saveChanges}
-                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors text-sm flex items-center gap-2 shadow-lg animate-pulse"
+                className="uppercase tracking-wide font-bold px-4 py-2 bg-black text-white rounded-md hover:bg-black/80 transition-colors text-sm flex items-center gap-2 shadow-lg animate-pulse"
               >
                 <FiSave /> Save Changes
               </button>
             )}
             <button
               onClick={() => setIsAdding(true)}
-              className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors text-sm flex items-center gap-2"
+              className="uppercase tracking-wide font-bold px-4 py-2 bg-black text-white rounded-md hover:bg-black/80 transition-colors text-sm flex items-center gap-2"
             >
               <FiPlus /> Add Location
             </button>
@@ -481,7 +481,7 @@ const Locations = () => {
             {filteredLocations.map((location) => {
               const originalIndex = locations.indexOf(location);
               return (
-              <div key={originalIndex} className="border border-slate-200 rounded-lg overflow-hidden hover:border-slate-300 transition-colors">
+              <div key={originalIndex} className="border border-black/15 rounded-lg overflow-hidden hover:border-slate-300 transition-colors">
                 {/* Location Header */}
                 <div className="bg-slate-50 p-4">
                   <div className="flex items-center justify-between">
@@ -504,7 +504,7 @@ const Locations = () => {
                         <span className="text-lg font-semibold text-slate-800">{location.name}</span>
                       )}
                       
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                      <span className={`px-3 py-1 text-xs font-medium ${
                         location.type === 'demand' ? 'bg-gray-100 text-gray-800' :
                         location.type === 'supply' ? 'bg-gray-100 text-gray-800' :
                         location.type === 'supply_plus' ? 'bg-gray-100 text-gray-800' :
@@ -527,7 +527,7 @@ const Locations = () => {
                       </div>
 
                       {location.techs && Object.keys(location.techs).length > 0 && (
-                        <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium flex items-center gap-1">
+                        <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs font-medium flex items-center gap-1">
                           <FiCpu size={12} />
                           {Object.keys(location.techs).length} techs
                         </span>
@@ -571,7 +571,7 @@ const Locations = () => {
                   {editingIndex === originalIndex && (
                     <div className="mt-3 flex gap-3">
                       <div className="flex-1">
-                        <label className="block text-xs text-slate-600 mb-1">Latitude</label>
+                        <label className="block text-[0.6875rem] text-black/60 mb-1 font-bold uppercase tracking-widest">Latitude</label>
                         <input
                           type="number"
                           step="0.0001"
@@ -581,7 +581,7 @@ const Locations = () => {
                         />
                       </div>
                       <div className="flex-1">
-                        <label className="block text-xs text-slate-600 mb-1">Longitude</label>
+                        <label className="block text-[0.6875rem] text-black/60 mb-1 font-bold uppercase tracking-widest">Longitude</label>
                         <input
                           type="number"
                           step="0.0001"
@@ -591,7 +591,7 @@ const Locations = () => {
                         />
                       </div>
                       <div className="flex-1">
-                        <label className="block text-xs text-slate-600 mb-1">Type</label>
+                        <label className="block text-[0.6875rem] text-black/60 mb-1 font-bold uppercase tracking-widest">Type</label>
                         <select
                           value={editData.type}
                           onChange={(e) => setEditData({ ...editData, type: e.target.value })}
@@ -612,7 +612,7 @@ const Locations = () => {
 
                 {/* Expanded Details: Technologies */}
                 {expandedLocation === originalIndex && (
-                  <div className="bg-white p-4 border-t border-slate-200">
+                  <div className="bg-white p-4 border-t border-black/15">
                     <div className="flex items-center justify-between mb-3">
                       <h4 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
                         <FiCpu className="text-gray-600" />
@@ -621,7 +621,7 @@ const Locations = () => {
                       {editingTech && editingTech.locationIndex === originalIndex && (
                         <button
                           onClick={saveEditTech}
-                          className="px-3 py-1 bg-gray-600 text-white rounded text-xs hover:bg-gray-700"
+                          className="uppercase tracking-wide font-bold px-3 py-1 bg-black text-white rounded text-xs hover:bg-black/80"
                         >
                           <FiCheck className="inline mr-1" /> Done Editing
                         </button>
@@ -639,7 +639,7 @@ const Locations = () => {
                           const mergedTechData = getMergedTechData(techName, techData);
                           
                           return (
-                            <div key={techIdx} className="border border-slate-200 rounded-lg bg-white">
+                            <div key={techIdx} className="border border-black/15 rounded-lg bg-white">
                               {/* Tech Header */}
                               <div className="bg-slate-50 p-3 flex items-center justify-between">
                                 <div className="flex items-center gap-2">
@@ -799,7 +799,7 @@ const Locations = () => {
                                         
                                         {/* Add Constraint Button - Animated (only when editing) */}
                                         {isEditing && (
-                                          <div className="pt-2 border-t border-slate-200">
+                                          <div className="pt-2 border-t border-black/15">
                                             <button
                                               onClick={() => setConstraintSearch({ ...constraintSearch, [`${sectionKey}`]: 'open' })}
                                               className="group flex h-9 w-full items-center gap-2 rounded-full bg-gray-200 pl-3 pr-4 transition-all duration-300 ease-in-out hover:bg-gray-600 hover:pl-2 hover:text-white active:bg-gray-700 text-sm font-medium text-gray-800"
@@ -839,7 +839,7 @@ const Locations = () => {
                                         
                                         {/* Add Cost Button - Animated (only when editing) */}
                                         {isEditing && (
-                                          <div className="pt-2 border-t border-slate-200">
+                                          <div className="pt-2 border-t border-black/15">
                                             <button
                                               onClick={() => setCostSearch({ ...costSearch, [`${sectionKey}`]: 'open' })}
                                               className="group flex h-9 w-full items-center gap-2 rounded-full bg-gray-200 pl-3 pr-4 transition-all duration-300 ease-in-out hover:bg-gray-600 hover:pl-2 hover:text-white active:bg-gray-700 text-sm font-medium text-gray-800"
@@ -871,7 +871,7 @@ const Locations = () => {
 
                     {/* Add Technology from Library - Organized by Category */}
                     {techMap && Object.keys(techMap).length > 0 && (
-                      <div className="border-t border-slate-200 pt-3">
+                      <div className="border-t border-black/15 pt-3">
                         <div className="flex items-center justify-between mb-2">
                           <label className="text-xs font-semibold text-slate-600">
                             Add Technology from Library
@@ -896,7 +896,7 @@ const Locations = () => {
                             const isCategoryExpanded = expandedTechCategories[categoryKey];
 
                             return (
-                              <div key={parentType} className="border border-slate-200 rounded-lg overflow-hidden">
+                              <div key={parentType} className="border border-black/15 rounded-lg overflow-hidden">
                                 {/* Category header */}
                                 <button
                                   onClick={() => setExpandedTechCategories({ ...expandedTechCategories, [categoryKey]: !isCategoryExpanded })}
@@ -908,7 +908,7 @@ const Locations = () => {
                                   {isCategoryExpanded ? <FiChevronDown size={14} /> : <FiChevronRight size={14} />}
                                 </button>
                                 {isCategoryExpanded && (
-                                  <div className="bg-white divide-y divide-slate-100">
+                                  <div className="bg-white divide-y divide-black/10">
                                     {techsInCategory.map(([techName, techData]) => {
                                       const instances = techData.instances || [];
                                       const subKey = `${originalIndex}_${parentType}_${techName}`;
@@ -944,7 +944,7 @@ const Locations = () => {
                                                   <div
                                                     key={idx}
                                                     className={`flex items-center justify-between gap-2 rounded px-2 py-1.5 ${
-                                                      isAssigned ? 'bg-gray-100 opacity-60' : 'bg-white border border-slate-200'
+                                                      isAssigned ? 'bg-gray-100 opacity-60' : 'bg-white border border-black/15'
                                                     }`}
                                                   >
                                                     <div className="flex-1 min-w-0">
@@ -970,10 +970,10 @@ const Locations = () => {
                                                     <button
                                                       onClick={() => { if (!isAssigned) addTechnologyToLocation(originalIndex, techName, inst); }}
                                                       disabled={!!isAssigned}
-                                                      className={`flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold transition-colors ${
+                                                      className={`flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide transition-colors ${
                                                         isAssigned
                                                           ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                                                          : 'bg-gray-600 text-white hover:bg-gray-700'
+                                                          : 'bg-black text-white hover:bg-black/80'
                                                       }`}
                                                     >
                                                       {isAssigned ? '✓' : '+ Add'}
@@ -1019,8 +1019,8 @@ const Locations = () => {
         
         return (
           <div key={sectionKey} className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10001]" onClick={() => { setConstraintSearch({ ...constraintSearch, [sectionKey]: '' }); setSelectedConstraintGroup({}); }}>
-            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
-              <div className="p-4 border-b border-slate-200 bg-gray-600 text-white">
+            <div className="bg-surface-container-lowest rounded-lg max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden border border-black/15 shadow-xl" onClick={(e) => e.stopPropagation()}>
+              <div className="p-4 border-b border-black/15 bg-gray-600 text-white">
                 <h3 className="text-lg font-bold">Available Constraints for {formatTechName(techTemplate?.parent || '')}</h3>
                 <p className="text-xs text-gray-100 mt-1">Browse by category and click to add</p>
               </div>
@@ -1045,7 +1045,7 @@ const Locations = () => {
                       const isExpanded = selectedConstraintGroup[`${sectionKey}_${group}`];
                       
                       return (
-                        <div key={group} className="border-b border-slate-200 last:border-b-0">
+                        <div key={group} className="border-b border-black/15 last:border-b-0">
                           <button
                             onClick={() => setSelectedConstraintGroup({ 
                               ...selectedConstraintGroup, 
@@ -1059,7 +1059,7 @@ const Locations = () => {
                             {isExpanded ? <FiChevronDown size={16} className="text-gray-600" /> : <FiChevronRight size={16} className="text-gray-600" />}
                           </button>
                           {isExpanded && (
-                            <div className="divide-y divide-slate-100 bg-white">
+                            <div className="divide-y divide-black/10 bg-white">
                               {constraints.map(constraint => {
                                 const definition = CONSTRAINT_DEFINITIONS[constraint];
                                 return (
@@ -1094,13 +1094,13 @@ const Locations = () => {
                   })()
                 )}
               </div>
-              <div className="p-4 border-t border-slate-200 bg-slate-50">
+              <div className="p-4 border-t border-black/15 bg-slate-50">
                 <button
                   onClick={() => {
                     setConstraintSearch({ ...constraintSearch, [sectionKey]: '' });
                     setSelectedConstraintGroup({});
                   }}
-                  className="w-full px-4 py-2 bg-slate-600 text-white rounded hover:bg-slate-700 transition-colors"
+                  className="uppercase tracking-wide font-bold w-full px-4 py-2 bg-black text-white rounded hover:bg-black/80 transition-colors"
                 >
                   Close
                 </button>
@@ -1125,8 +1125,8 @@ const Locations = () => {
         
         return (
           <div key={sectionKey} className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10001]" onClick={() => { setCostSearch({ ...costSearch, [sectionKey]: '' }); setSelectedCostGroup({}); }}>
-            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
-              <div className="p-4 border-b border-slate-200 bg-gray-600 text-white">
+            <div className="bg-surface-container-lowest rounded-lg max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden border border-black/15 shadow-xl" onClick={(e) => e.stopPropagation()}>
+              <div className="p-4 border-b border-black/15 bg-gray-600 text-white">
                 <h3 className="text-lg font-bold">Available Costs</h3>
                 <p className="text-xs text-gray-100 mt-1">Browse by category and click to add</p>
               </div>
@@ -1151,7 +1151,7 @@ const Locations = () => {
                       const isExpanded = selectedCostGroup[`${sectionKey}_${group}`];
                       
                       return (
-                        <div key={group} className="border-b border-slate-200 last:border-b-0">
+                        <div key={group} className="border-b border-black/15 last:border-b-0">
                           <button
                             onClick={() => setSelectedCostGroup({ 
                               ...selectedCostGroup, 
@@ -1165,7 +1165,7 @@ const Locations = () => {
                             {isExpanded ? <FiChevronDown size={16} className="text-gray-600" /> : <FiChevronRight size={16} className="text-gray-600" />}
                           </button>
                           {isExpanded && (
-                            <div className="divide-y divide-slate-100 bg-white">
+                            <div className="divide-y divide-black/10 bg-white">
                               {costs.map(cost => {
                                 const definition = COST_DEFINITIONS[cost];
                                 return (
@@ -1203,13 +1203,13 @@ const Locations = () => {
                   })()
                 )}
               </div>
-              <div className="p-4 border-t border-slate-200 bg-slate-50">
+              <div className="p-4 border-t border-black/15 bg-slate-50">
                 <button
                   onClick={() => {
                     setCostSearch({ ...costSearch, [sectionKey]: '' });
                     setSelectedCostGroup({});
                   }}
-                  className="w-full px-4 py-2 bg-slate-600 text-white rounded hover:bg-slate-700 transition-colors"
+                  className="uppercase tracking-wide font-bold w-full px-4 py-2 bg-black text-white rounded hover:bg-black/80 transition-colors"
                 >
                   Close
                 </button>
@@ -1222,13 +1222,13 @@ const Locations = () => {
       {/* Add Location Modal */}
       {isAdding && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000]">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="p-6 border-b border-slate-200">
+          <div className="bg-surface-container-lowest rounded-lg max-w-md w-full mx-4 border border-black/15 shadow-xl">
+            <div className="p-6 border-b border-black/15">
               <h3 className="text-xl font-bold text-slate-800">Add New Location</h3>
             </div>
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
+                <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Name</label>
                 <input
                   type="text"
                   value={newLocation.name}
@@ -1238,7 +1238,7 @@ const Locations = () => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Type</label>
+                <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Type</label>
                 <select
                   value={newLocation.type}
                   onChange={(e) => setNewLocation({ ...newLocation, type: e.target.value })}
@@ -1254,7 +1254,7 @@ const Locations = () => {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Latitude</label>
+                <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Latitude</label>
                 <input
                   type="number"
                   step="0.0001"
@@ -1265,7 +1265,7 @@ const Locations = () => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Longitude</label>
+                <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Longitude</label>
                 <input
                   type="number"
                   step="0.0001"
@@ -1276,7 +1276,7 @@ const Locations = () => {
                 />
               </div>
             </div>
-            <div className="p-6 border-t border-slate-200 flex gap-3 justify-end">
+            <div className="p-6 border-t border-black/15 flex gap-3 justify-end">
               <button
                 onClick={() => {
                   setIsAdding(false);
@@ -1289,7 +1289,7 @@ const Locations = () => {
               <button
                 onClick={addLocation}
                 disabled={!newLocation.name || !newLocation.latitude || !newLocation.longitude}
-                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors disabled:bg-slate-300 disabled:cursor-not-allowed"
+                className="uppercase tracking-wide font-bold px-4 py-2 bg-black text-white rounded-md hover:bg-black/80 transition-colors disabled:bg-slate-300 disabled:cursor-not-allowed"
               >
                 Add Location
               </button>
@@ -1301,14 +1301,14 @@ const Locations = () => {
       {/* Delete Confirmation Dialog */}
       {deleteConfirmDialog && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000]">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="p-6 border-b border-slate-200">
+          <div className="bg-surface-container-lowest rounded-lg max-w-md w-full mx-4 border border-black/15 shadow-xl">
+            <div className="p-6 border-b border-black/15">
               <h3 className="text-xl font-bold text-slate-800">Confirm Deletion</h3>
             </div>
             <div className="p-6">
               <p className="text-sm text-slate-700">{deleteConfirmDialog.message}</p>
             </div>
-            <div className="p-6 border-t border-slate-200 flex gap-3 justify-end">
+            <div className="p-6 border-t border-black/15 flex gap-3 justify-end">
               <button
                 onClick={() => setDeleteConfirmDialog(null)}
                 className="px-4 py-2 border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50 transition-colors"
@@ -1317,7 +1317,7 @@ const Locations = () => {
               </button>
               <button
                 onClick={confirmDelete}
-                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+                className="uppercase tracking-wide font-bold px-4 py-2 bg-black text-white rounded-md hover:bg-black/80 transition-colors"
               >
                 Delete
               </button>

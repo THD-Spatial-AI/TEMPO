@@ -356,9 +356,9 @@ const LocationEditDialog = ({
     <>
       {/* Main Dialog */}
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000]">
-        <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="bg-surface-container-lowest rounded-lg max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto border border-black/15 shadow-xl">
           {/* Header */}
-          <div className="p-6 border-b border-slate-200 sticky top-0 bg-white">
+          <div className="p-6 border-b border-black/15 sticky top-0 bg-white">
             <h3 className="text-xl font-bold text-slate-800">
               Configure Location
             </h3>
@@ -387,7 +387,7 @@ const LocationEditDialog = ({
           <div className="p-6 space-y-6">
             {/* Location Name */}
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Location Name</label>
+              <label className="block text-[0.6875rem] font-bold text-black/60 mb-2 uppercase tracking-widest">Location Name</label>
               <input
                 type="text"
                 value={pendingLocation.name}
@@ -400,7 +400,7 @@ const LocationEditDialog = ({
             {/* Technologies Selection */}
             <div>
                 <div className="flex items-center justify-between mb-3">
-                  <label className="block text-sm font-medium text-slate-700">
+                  <label className="block text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">
                     Technologies ({dialogTechs.length} selected)
                   </label>
                 </div>
@@ -414,7 +414,7 @@ const LocationEditDialog = ({
                 
                 {/* Selected Technologies List */}
                 {dialogTechs.length > 0 && (
-                  <div className="space-y-2 mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className="space-y-2 mb-4 p-3 bg-gray-50 rounded-lg border border-black/15">
                     {dialogTechs.map(techName => {
                       const techTemplate = techMap[techName];
                       const customConstraints = editingConstraints[techName] || {};
@@ -445,8 +445,8 @@ const LocationEditDialog = ({
 
                           {/* Demand Value or CSV Upload - Mandatory for demand technologies */}
                           {techTemplate?.parent === 'demand' && (
-                            <div className="mt-2 p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                              <label className="block text-xs font-semibold text-gray-800 mb-2">
+                            <div className="mt-2 p-3 bg-gray-50 border border-black/15 rounded-lg">
+                              <label className="block text-[0.6875rem] font-bold text-black/60 mb-2 uppercase tracking-widest">
                                 Energy Demand * (Required)
                               </label>
                               <input
@@ -491,7 +491,7 @@ const LocationEditDialog = ({
                           
                           {/* Expanded tech editor: constraints + costs */}
                           {isExpanded && (
-                            <div className="mt-3 pt-3 border-t border-slate-200 space-y-3">
+                            <div className="mt-3 pt-3 border-t border-black/15 space-y-3">
                               {/* Essentials (carrier fields) */}
                               <div>
                                 <p className="text-xs font-semibold text-slate-600 mb-1">Essentials</p>
@@ -510,7 +510,7 @@ const LocationEditDialog = ({
                                         <select
                                           value={Array.isArray(val) ? val[0] : (val || '')}
                                           onChange={e => updateDialogEssential(techName, key, e.target.value)}
-                                          className="flex-1 text-xs border border-slate-200 rounded px-2 py-0.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                                          className="flex-1 text-xs border border-black/15 rounded px-2 py-0.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-1 focus:ring-gray-400"
                                         >
                                           <option value="">— select carrier —</option>
                                           {Object.entries(CARRIERS_BY_GROUP).map(([group, carriers]) => (
@@ -526,7 +526,7 @@ const LocationEditDialog = ({
                                           type="text"
                                           value={val ?? ''}
                                           onChange={e => updateDialogEssential(techName, key, e.target.value)}
-                                          className="flex-1 px-2 py-0.5 text-xs border border-slate-200 rounded focus:ring-1 focus:ring-gray-400 font-mono"
+                                          className="flex-1 px-2 py-0.5 text-xs border border-black/15 rounded focus:ring-1 focus:ring-gray-400 font-mono"
                                         />
                                       )}
                                       <button
@@ -589,7 +589,7 @@ const LocationEditDialog = ({
                 )}
 
                 {/* Technology Library */}
-                <div className="max-h-[480px] overflow-y-auto border border-slate-200 rounded-lg p-3">
+                <div className="max-h-[480px] overflow-y-auto border border-black/15 rounded-lg p-3">
                   <p className="text-xs font-semibold text-slate-600 mb-3">
                     Technology Library ({Object.keys(techMap).length})
                   </p>
@@ -636,7 +636,7 @@ const LocationEditDialog = ({
                         if (techsInCategory.length === 0) return null;
                         const catExpanded = expandedCategories[`dialog_${parentType}`];
                         return (
-                          <div key={parentType} className="border border-slate-200 rounded-lg overflow-hidden">
+                          <div key={parentType} className="border border-black/15 rounded-lg overflow-hidden">
                             {/* Category header */}
                             <button
                               onClick={() => toggleCategory(`dialog_${parentType}`)}
@@ -648,7 +648,7 @@ const LocationEditDialog = ({
                               {catExpanded ? <FiChevronDown size={14} /> : <FiChevronRight size={14} />}
                             </button>
                             {catExpanded && (
-                              <div className="bg-white divide-y divide-slate-100">
+                              <div className="bg-white divide-y divide-black/10">
                                 {techsInCategory.map(([techName, tech]) => {
                                   const instances = tech.instances || [];
                                   // True if every instance of this tech has been added
@@ -689,7 +689,7 @@ const LocationEditDialog = ({
                                               <div
                                                 key={idx}
                                                 className={`flex items-center justify-between gap-2 rounded px-2 py-1.5 ${
-                                                  isAdded ? 'bg-gray-100 opacity-60' : 'bg-white border border-slate-200'
+                                                  isAdded ? 'bg-gray-100 opacity-60' : 'bg-white border border-black/15'
                                                 }`}
                                               >
                                                 <div className="flex-1 min-w-0">
@@ -715,10 +715,10 @@ const LocationEditDialog = ({
                                                 <button
                                                   onClick={() => { if (!isAdded) addTechToDialog(techName, inst); }}
                                                   disabled={isAdded}
-                                                  className={`flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold transition-colors ${
+                                                  className={`flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide transition-colors ${
                                                     isAdded
                                                       ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                                                      : 'bg-gray-600 text-white hover:bg-gray-700'
+                                                      : 'bg-black text-white hover:bg-black/80'
                                                   }`}
                                                 >
                                                   {isAdded ? '✓' : '+ Add'}
@@ -743,7 +743,7 @@ const LocationEditDialog = ({
           </div>
 
           {/* Footer */}
-          <div className="p-6 border-t border-slate-200 flex gap-3 justify-end sticky bottom-0 bg-white">
+          <div className="p-6 border-t border-black/15 flex gap-3 justify-end sticky bottom-0 bg-white">
             <button
               onClick={handleClose}
               className="px-4 py-2 border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50 transition-colors"
@@ -753,7 +753,7 @@ const LocationEditDialog = ({
             <button
               onClick={confirmLocationCreation}
               disabled={originalLocationData && !hasLocationChanged()}
-              className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors flex items-center gap-2 disabled:bg-slate-300 disabled:cursor-not-allowed"
+              className="uppercase tracking-wide font-bold px-4 py-2 bg-black text-white rounded-md hover:bg-black/80 transition-colors flex items-center gap-2 disabled:bg-slate-300 disabled:cursor-not-allowed"
             >
               <FiCheck size={16} />
               {originalLocationData ? 'Update Location' : 'Create Location'}

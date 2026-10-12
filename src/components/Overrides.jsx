@@ -33,7 +33,7 @@ const OverrideDetails = ({ config }) => {
   return (
     <div className="space-y-1">
       {entries.map(([path, value]) => (
-        <div key={path} className="flex items-center gap-3 px-3 py-1.5 bg-white border border-slate-200 rounded-lg">
+        <div key={path} className="flex items-center gap-3 px-3 py-1.5 bg-white border border-black/15 rounded-lg">
           <code className="text-xs text-blue-600 font-mono flex-1 min-w-0 truncate">{path}</code>
           <span className={`text-xs font-mono shrink-0 ${
             typeof value === 'boolean' ? (value ? 'text-green-600' : 'text-red-500') : 'text-slate-700'
@@ -54,8 +54,8 @@ const TemplateCard = ({ template, onImport, alreadyAdded }) => {
     <div
       className={`rounded-xl border transition-all ${
         alreadyAdded
-          ? 'border-gray-200 bg-gray-50'
-          : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
+          ? 'border-black/15 bg-gray-50'
+          : 'border-black/15 bg-white hover:border-slate-300 hover:shadow-sm'
       }`}
     >
       <div className="p-4">
@@ -67,7 +67,7 @@ const TemplateCard = ({ template, onImport, alreadyAdded }) => {
                 <h3 className="text-sm font-semibold text-slate-800">{template.name}</h3>
                 <FrameworkBadge framework="calliope06" />
                 {alreadyAdded && (
-                  <span className="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <span className="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 flex items-center gap-1">
                     <FiCheck size={10} /> Added
                   </span>
                 )}
@@ -85,10 +85,10 @@ const TemplateCard = ({ template, onImport, alreadyAdded }) => {
             </button>
             <button
               onClick={() => onImport(template)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-colors ${
                 alreadyAdded
                   ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  : 'bg-slate-800 text-white hover:bg-slate-700'
+                  : 'bg-black text-white hover:bg-black/80'
               }`}
             >
               {alreadyAdded ? 'Re-add' : 'Add'}
@@ -97,7 +97,7 @@ const TemplateCard = ({ template, onImport, alreadyAdded }) => {
         </div>
 
         {expanded && (
-          <div className="mt-3 pt-3 border-t border-slate-100">
+          <div className="mt-3 pt-3 border-t border-black/10">
             <p className="text-xs text-slate-600 leading-relaxed">{template.detail}</p>
             {template.params.length === 0 && (
               <pre className="mt-2 text-xs bg-slate-800 text-slate-100 p-3 rounded-lg overflow-x-auto">
@@ -130,7 +130,7 @@ const ImportModal = ({ template, onConfirm, onClose }) => {
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="p-6 border-b border-slate-200 flex items-start justify-between">
+        <div className="p-6 border-b border-black/15 flex items-start justify-between">
           <div>
             <div className="flex items-center gap-2">
               <span className="text-2xl">{template.icon}</span>
@@ -146,7 +146,7 @@ const ImportModal = ({ template, onConfirm, onClose }) => {
         <div className="p-6 space-y-5">
           {/* Override name */}
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">
+            <label className="block text-[0.6875rem] font-bold text-black/60 mb-1.5 uppercase tracking-widest">
               Override name <span className="text-gray-500">*</span>
             </label>
             <input
@@ -164,7 +164,7 @@ const ImportModal = ({ template, onConfirm, onClose }) => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {template.params.map((param) => (
                   <div key={param.key}>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                    <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">
                       {param.label}
                     </label>
                     {param.type === 'select' ? (
@@ -194,7 +194,7 @@ const ImportModal = ({ template, onConfirm, onClose }) => {
 
           {/* Detail text */}
           {template.detail && (
-            <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
+            <div className="bg-gray-50 rounded-lg p-3 border border-black/10">
               <p className="text-xs text-gray-700 leading-relaxed">{template.detail}</p>
             </div>
           )}
@@ -210,14 +210,14 @@ const ImportModal = ({ template, onConfirm, onClose }) => {
           </div>
         </div>
 
-        <div className="p-6 border-t border-slate-200 flex gap-3">
+        <div className="p-6 border-t border-black/15 flex gap-3">
           <button
             onClick={() => {
               if (!name.trim()) return;
               onConfirm(name.trim(), template.buildConfig(values));
             }}
             disabled={!name.trim()}
-            className="flex-1 px-4 py-2.5 bg-slate-800 text-white rounded-xl font-medium hover:bg-slate-700 transition-colors disabled:opacity-40"
+            className="flex-1 px-4 py-2.5 bg-black text-white rounded-xl font-bold uppercase tracking-wide hover:bg-black/80 transition-colors disabled:opacity-40"
           >
             Add to Model
           </button>
@@ -286,7 +286,7 @@ const CustomOverrideModal = ({ initial, onConfirm, onClose }) => {
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-slate-200 flex items-center justify-between">
+        <div className="p-6 border-b border-black/15 flex items-center justify-between">
           <h2 className="text-lg font-bold text-slate-800">Custom Override</h2>
           <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg">
             <FiX size={18} className="text-slate-500" />
@@ -295,7 +295,7 @@ const CustomOverrideModal = ({ initial, onConfirm, onClose }) => {
 
         <div className="p-6 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">Name *</label>
+            <label className="block text-[0.6875rem] font-bold text-black/60 mb-1.5 uppercase tracking-widest">Name *</label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -305,7 +305,7 @@ const CustomOverrideModal = ({ initial, onConfirm, onClose }) => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">Type</label>
+            <label className="block text-[0.6875rem] font-bold text-black/60 mb-1.5 uppercase tracking-widest">Type</label>
             <select
               value={type}
               onChange={(e) => setType(e.target.value)}
@@ -321,7 +321,7 @@ const CustomOverrideModal = ({ initial, onConfirm, onClose }) => {
             <div className="grid grid-cols-2 gap-3">
               {['startDate', 'endDate'].map((k, i) => (
                 <div key={k}>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">
+                  <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">
                     {i === 0 ? 'Start date' : 'End date'}
                   </label>
                   <input type="date" value={data[k]} onChange={(e) => set(k, e.target.value)}
@@ -333,7 +333,7 @@ const CustomOverrideModal = ({ initial, onConfirm, onClose }) => {
 
           {type === 'time_resolution' && (
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Resolution</label>
+              <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Resolution</label>
               <select value={data.resolution} onChange={(e) => set('resolution', e.target.value)}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-500">
                 {['1H','2H','3H','4H','6H','12H','24H'].map((r) => (
@@ -346,7 +346,7 @@ const CustomOverrideModal = ({ initial, onConfirm, onClose }) => {
           {type === 'solver_config' && (
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Solver</label>
+                <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Solver</label>
                 <select value={data.solver} onChange={(e) => set('solver', e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-500">
                   {['highs','gurobi','cbc','glpk','cplex'].map((s) => (
@@ -372,20 +372,20 @@ const CustomOverrideModal = ({ initial, onConfirm, onClose }) => {
           {type === 'tech_parameter' && (
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Technology name</label>
+                <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Technology name</label>
                 <input value={data.tech} onChange={(e) => set('tech', e.target.value)}
                   placeholder="e.g. solar_pv"
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-500" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Parameter</label>
+                  <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Parameter</label>
                   <input value={data.parameter} onChange={(e) => set('parameter', e.target.value)}
                     placeholder="e.g. energy_cap_max"
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-500" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Value</label>
+                  <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Value</label>
                   <input value={data.value} onChange={(e) => set('value', e.target.value)}
                     placeholder="e.g. 100000"
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-500" />
@@ -396,7 +396,7 @@ const CustomOverrideModal = ({ initial, onConfirm, onClose }) => {
 
           {type === 'raw_json' && (
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Raw JSON config</label>
+              <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Raw JSON config</label>
               <textarea
                 value={data.rawJson}
                 onChange={(e) => set('rawJson', e.target.value)}
@@ -417,11 +417,11 @@ const CustomOverrideModal = ({ initial, onConfirm, onClose }) => {
           )}
         </div>
 
-        <div className="p-6 border-t border-slate-200 flex gap-3">
+        <div className="p-6 border-t border-black/15 flex gap-3">
           <button
             onClick={() => name.trim() && onConfirm(name.trim(), config)}
             disabled={!name.trim()}
-            className="flex-1 px-4 py-2.5 bg-slate-800 text-white rounded-xl font-medium hover:bg-slate-700 transition-colors disabled:opacity-40"
+            className="flex-1 px-4 py-2.5 bg-black text-white rounded-xl font-bold uppercase tracking-wide hover:bg-black/80 transition-colors disabled:opacity-40"
           >
             Create Override
           </button>
@@ -571,13 +571,13 @@ const Overrides = () => {
     <div className="flex-1 h-screen overflow-hidden flex flex-col bg-slate-50">
       <SaveBar label="Overrides" />
       {/* ── Page Header ── */}
-      <div className="bg-white border-b border-slate-200 px-5 py-2.5 shrink-0 flex items-center gap-3">
+      <div className="bg-white border-b border-black/15 px-5 py-2.5 shrink-0 flex items-center gap-3">
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <FiEdit3 size={14} className="text-slate-500 shrink-0" />
-          <h1 className="text-sm font-semibold text-slate-800">Overrides</h1>
+          <h1 className="text-sm font-black tracking-tighter text-black">Overrides</h1>
           <span className="text-xs text-slate-400 truncate">{currentModel?.name}</span>
           {overrideCount > 0 && (
-            <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs font-medium shrink-0">
+            <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs font-medium shrink-0">
               {overrideCount}
             </span>
           )}
@@ -590,8 +590,8 @@ const Overrides = () => {
             <button
               key={id}
               onClick={() => setActiveTab(id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                activeTab === id ? 'bg-slate-800 text-white' : 'text-slate-600 hover:bg-slate-100'
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-colors ${
+                activeTab === id ? 'bg-black text-white' : 'text-slate-600 hover:bg-slate-100'
               }`}
             >
               {label}
@@ -600,7 +600,7 @@ const Overrides = () => {
         </div>
         <button
           onClick={() => setCustomModal({})}
-          className="px-3 py-1.5 bg-gray-700 text-white rounded-lg text-xs font-medium hover:bg-gray-800 transition-colors flex items-center gap-1.5 shrink-0"
+          className="px-3 py-1.5 bg-black text-white rounded-lg text-xs font-bold uppercase tracking-wide hover:bg-black/80 transition-colors flex items-center gap-1.5 shrink-0"
         >
           <FiPlus size={12} />
           Custom
@@ -611,7 +611,7 @@ const Overrides = () => {
       {activeTab === 'library' && (
         <div className="flex-1 overflow-hidden flex">
           {/* Category sidebar */}
-          <div className="w-56 shrink-0 bg-white border-r border-slate-200 overflow-y-auto p-3">
+          <div className="w-56 shrink-0 bg-white border-r border-black/15 overflow-y-auto p-3">
             {/* Search */}
             <div className="relative mb-3">
               <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
@@ -620,7 +620,7 @@ const Overrides = () => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search templates…"
-                className="w-full pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-400"
+                className="w-full pl-8 pr-3 py-2 text-sm border border-black/15 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-400"
               />
               {searchQuery && (
                 <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
@@ -637,9 +637,9 @@ const Overrides = () => {
                     <button
                       key={key}
                       onClick={() => setActiveCategory(key)}
-                      className={`w-full text-left px-3 py-2.5 rounded-xl transition-colors ${
+                      className={`uppercase tracking-wide font-bold w-full text-left px-3 py-2.5 rounded-xl transition-colors ${
                         activeCategory === key
-                          ? 'bg-slate-800 text-white'
+                          ? 'bg-black text-white'
                           : 'text-slate-700 hover:bg-slate-100'
                       }`}
                     >
@@ -648,7 +648,7 @@ const Overrides = () => {
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5">
                             <span className="text-sm font-medium">{meta.label}</span>
-                            <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                            <span className={`text-xs px-1.5 py-0.5 ${
                               activeCategory === key
                                 ? 'bg-white/20 text-white'
                                 : 'bg-slate-100 text-slate-500'
@@ -717,7 +717,7 @@ const Overrides = () => {
                 <div className="flex justify-center gap-3">
                   <button
                     onClick={() => setActiveTab('library')}
-                    className="px-4 py-2 bg-slate-800 text-white rounded-xl text-sm font-medium hover:bg-slate-700 transition-colors"
+                    className="px-4 py-2 bg-black text-white rounded-xl text-sm font-bold uppercase tracking-wide hover:bg-black/80 transition-colors"
                   >
                     Browse Templates
                   </button>
@@ -736,7 +736,7 @@ const Overrides = () => {
                   const isJsonOpen = showJsonEditor[name];
 
                   return (
-                    <div key={name} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                    <div key={name} className="bg-white rounded-xl border border-black/15 overflow-hidden">
                       {/* Row header */}
                       <div className="flex items-center gap-2 px-4 py-3 hover:bg-slate-50">
                         <button
@@ -796,7 +796,7 @@ const Overrides = () => {
 
                       {/* Expanded content */}
                       {isExpanded && (
-                        <div className="border-t border-slate-100 bg-slate-50 p-4">
+                        <div className="border-t border-black/10 bg-slate-50 p-4">
                           <div className="flex items-center justify-between mb-2">
                             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
                               {isJsonOpen ? 'Edit JSON' : 'Configuration'}
@@ -805,7 +805,7 @@ const Overrides = () => {
                               {isJsonOpen && (
                                 <button
                                   onClick={() => saveJsonEdit(name)}
-                                  className="px-3 py-1 text-xs bg-gray-700 text-white rounded-lg hover:bg-gray-800"
+                                  className="uppercase tracking-wide font-bold px-3 py-1 text-xs bg-black text-white rounded-lg hover:bg-black/80"
                                 >
                                   Save JSON
                                 </button>

@@ -113,7 +113,7 @@ const CSVUploader = () => {
   const FileUploadField = ({ type, label, file }) => (
     <div className="mb-4">
       <div className="flex items-center justify-between mb-2">
-        <label className="block text-sm font-medium text-slate-700">
+        <label className="block text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">
           {label}
         </label>
         <button
@@ -138,7 +138,7 @@ const CSVUploader = () => {
           />
         </label>
       ) : (
-        <div className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg">
+        <div className="flex items-center justify-between p-3 bg-gray-50 border border-black/15 rounded-lg">
           <div className="flex items-center gap-2">
             <FiCheck className="text-gray-600" />
             <FiFile className="text-gray-600" />
@@ -159,15 +159,15 @@ const CSVUploader = () => {
     <>
       <button
         onClick={() => setIsOpen(true)}
-        className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors text-sm"
+        className="uppercase tracking-wide font-bold px-4 py-2 bg-black text-white rounded-md hover:bg-black/80 transition-colors text-sm"
       >
         Load Model
       </button>
 
       {isOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000]">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-slate-200">
+          <div className="bg-surface-container-lowest rounded-lg max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto border border-black/15 shadow-xl">
+            <div className="p-6 border-b border-black/15">
               <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-bold text-slate-800">
                   Upload Calliope Model Data
@@ -185,7 +185,7 @@ const CSVUploader = () => {
               <button
                 onClick={loadExampleData}
                 disabled={loading}
-                className="mt-3 px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors text-sm disabled:bg-slate-300"
+                className="uppercase tracking-wide font-bold mt-3 px-4 py-2 bg-black text-white rounded-md hover:bg-black/80 transition-colors text-sm disabled:bg-slate-300"
               >
                 {loading ? 'Loading...' : 'Load Example Data'}
               </button>
@@ -208,7 +208,7 @@ const CSVUploader = () => {
                 file={uploadedFiles.parameters}
               />
 
-              <div className="mt-6 bg-gray-50 border border-gray-200 rounded-lg p-4">
+              <div className="mt-6 bg-gray-50 border border-black/15 rounded-lg p-4">
                 <h3 className="text-sm font-semibold text-gray-900 mb-2">
                   Expected CSV Format:
                 </h3>
@@ -220,7 +220,7 @@ const CSVUploader = () => {
               </div>
             </div>
 
-            <div className="p-6 border-t border-slate-200 flex gap-3 justify-end">
+            <div className="p-6 border-t border-black/15 flex gap-3 justify-end">
               <button
                 onClick={() => setIsOpen(false)}
                 className="px-4 py-2 border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50 transition-colors"
@@ -230,7 +230,7 @@ const CSVUploader = () => {
               <button
                 onClick={processData}
                 disabled={!uploadedFiles.locations || loading}
-                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors disabled:bg-slate-300 disabled:cursor-not-allowed"
+                className="uppercase tracking-wide font-bold px-4 py-2 bg-black text-white rounded-md hover:bg-black/80 transition-colors disabled:bg-slate-300 disabled:cursor-not-allowed"
               >
                 {loading ? 'Processing...' : 'Load Data'}
               </button>

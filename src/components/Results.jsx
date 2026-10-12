@@ -551,7 +551,7 @@ const Results = ({ onNavigate }) => {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="h-full bg-gradient-to-br from-slate-50 to-slate-100 flex flex-col">
+    <div className="h-full bg-surface flex flex-col">
 
       {compareMode ? (
         /* ══ Full-screen compare mode ════════════════════════════════════ */
@@ -559,7 +559,7 @@ const Results = ({ onNavigate }) => {
           <div className="flex-shrink-0 px-6 pt-5 pb-0">
             <div className="flex items-end justify-between gap-4 flex-wrap">
               <div>
-                <h1 className="text-3xl font-bold tracking-tight text-gray-900 mb-1">Results Dashboard</h1>
+                <h1 className="text-3xl font-black tracking-tighter text-black mb-1">Results Dashboard</h1>
                 <p className="text-slate-500 text-sm">Calliope optimisation results · interactive analysis</p>
               </div>
               <div className="flex items-center gap-2">
@@ -591,7 +591,7 @@ const Results = ({ onNavigate }) => {
           {/* ── Header ── */}
           <div className="flex items-end justify-between gap-4 flex-wrap">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight text-gray-900 mb-1">Results Dashboard</h1>
+              <h1 className="text-3xl font-black tracking-tighter text-black mb-1">Results Dashboard</h1>
               <p className="text-slate-500 text-sm">Calliope optimisation results · interactive analysis</p>
             </div>
             <div className="flex items-center gap-2">
@@ -616,11 +616,11 @@ const Results = ({ onNavigate }) => {
                 <div className="relative" ref={downloadRef}>
                   <button
                     onClick={() => setDownloadOpen(v => !v)}
-                    className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white text-slate-700 rounded-xl hover:bg-slate-50 transition text-sm shadow-sm">
+                    className="flex items-center gap-2 px-4 py-2 border border-black/15 bg-white text-slate-700 rounded-xl hover:bg-slate-50 transition text-sm shadow-sm">
                     <FiDownload size={14} /> Download <FiChevronDown size={12} />
                   </button>
                   {downloadOpen && (
-                    <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-slate-200 rounded-xl shadow-lg z-20 py-1 overflow-hidden">
+                    <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-black/15 rounded-xl shadow-lg z-20 py-1 overflow-hidden">
                       <button
                         onClick={handleExportJSON}
                         className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2.5">
@@ -640,12 +640,12 @@ const Results = ({ onNavigate }) => {
 
         {/* ── Model selector (dropdown) ── */}
         {!compareMode && (
-          <div className="border-b border-slate-200 pb-3">
+          <div className="border-b border-black/15 pb-3">
             <div className="flex items-center gap-3">
               <select
                 value={selectedJobId || ''}
                 onChange={e => { const id = e.target.value; setSelectedJobId(id || null); if (id) setTab('overview'); }}
-                className="flex-1 max-w-sm px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300">
+                className="flex-1 max-w-sm px-3 py-2 rounded-xl border border-black/15 bg-white text-sm text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300">
                 <option value="">{completedJobs.length === 0 ? 'No completed runs' : 'Select a run…'}</option>
                 {completedJobs.map(job => (
                   <option key={job.id} value={job.id}>
@@ -664,7 +664,7 @@ const Results = ({ onNavigate }) => {
                 };
                 const label = ENGINE_LABELS[fw];
                 return label ? (
-                  <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-slate-100 text-slate-600 border border-slate-200 whitespace-nowrap">
+                  <span className="px-2.5 py-1 text-xs font-semibold bg-slate-100 text-slate-600 border border-black/15 whitespace-nowrap">
                     {label}
                   </span>
                 ) : null;
@@ -681,7 +681,7 @@ const Results = ({ onNavigate }) => {
 
         {/* ── Main content ── */}
         {!compareMode && !selectedJob && (
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-24 text-center text-slate-400">
+          <div className="bg-white rounded-2xl shadow-sm border border-black/15 p-24 text-center text-slate-400">
             <FiBarChart2 size={56} className="mx-auto mb-4 opacity-15" />
             <h3 className="text-xl font-semibold mb-1 text-slate-600">Select a run above</h3>
             <p className="text-sm">Run a model from the Run section, then select it here</p>
@@ -689,7 +689,7 @@ const Results = ({ onNavigate }) => {
         )}
         {!compareMode && selectedJob?.status === 'failed' && (
           <div className="space-y-4">
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 flex gap-4">
+            <div className="bg-white rounded-2xl shadow-sm border border-black/15 p-6 flex gap-4">
               <FiAlertTriangle className="text-gray-500 flex-shrink-0" size={24} />
               <div>
                 <h2 className="text-xl font-bold text-slate-800 mb-1">{selectedJob.modelName} — Failed</h2>
@@ -708,11 +708,11 @@ const Results = ({ onNavigate }) => {
 
             {/* ── Tabs + filter button ── */}
             <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex gap-1 bg-slate-100 rounded-xl p-1 w-fit overflow-x-auto">
+              <div className="flex gap-1 border-b border-black/15 w-fit overflow-x-auto">
                 {TABS.map(({ id, label, icon: Icon }) => (
                   <button key={id} onClick={() => setTab(id)}
-                    className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
-                      activeTab === id ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                    className={`flex items-center gap-1.5 px-4 py-2 border-b-2 -mb-px text-[0.8125rem] font-semibold uppercase tracking-tight transition-colors whitespace-nowrap ${
+                      activeTab === id ? 'border-black text-black' : 'border-transparent text-black/60 hover:text-black'
                     }`}>
                     <Icon size={13} /> {label}
                     {id === 'dispatch' && !hasDispatch && <span className="text-xs text-slate-300 ml-0.5">(—)</span>}
@@ -721,10 +721,10 @@ const Results = ({ onNavigate }) => {
               </div>
               {allTechs.length > 0 && (
                 <button onClick={() => setFilterExpanded(v => !v)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap border ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-all whitespace-nowrap border ${
                     filterExpanded
-                      ? 'bg-gray-900 text-white border-gray-900'
-                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                      ? 'bg-black text-white border-gray-900'
+                      : 'bg-white text-slate-600 border-black/15 hover:bg-slate-100'
                   }`}>
                   <FiFilter size={11} /> Filters
                   {techFilter.size > 0 && <span className="ml-0.5 text-[10px] font-bold">({allTechs.length - techFilter.size})</span>}
@@ -734,7 +734,7 @@ const Results = ({ onNavigate }) => {
 
             {/* ── Tech filter — categorized redesign ── */}
             {filterExpanded && allTechs.length > 0 && (
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-3 space-y-4">
+              <div className="bg-white rounded-xl border border-black/15 shadow-sm p-3 space-y-4">
                 {/* Search */}
                 <div className="relative">
                   <FiSearch size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -743,7 +743,7 @@ const Results = ({ onNavigate }) => {
                     placeholder="Search technologies…"
                     value={filterSearch}
                     onChange={e => setFilterSearch(e.target.value)}
-                    className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300"
+                    className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-black/15 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300"
                   />
                   {filterSearch && (
                     <button onClick={() => setFilterSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
@@ -803,7 +803,7 @@ const Results = ({ onNavigate }) => {
                                     ? 'border-transparent'
                                     : anyActive
                                       ? 'border-dashed'
-                                      : 'bg-white border-slate-200 text-slate-300 line-through opacity-40'
+                                      : 'bg-white border-black/15 text-slate-300 line-through opacity-40'
                                 }`}
                                 style={anyActive ? {
                                   background: grp.color + (allActive ? '22' : '11'),
@@ -824,7 +824,7 @@ const Results = ({ onNavigate }) => {
                               className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium transition-all flex-shrink-0 border ${
                                 techFilter.size === 0 || techFilter.has(entry)
                                   ? 'border-transparent'
-                                  : 'bg-white border-slate-200 text-slate-300 line-through opacity-40'
+                                  : 'bg-white border-black/15 text-slate-300 line-through opacity-40'
                               }`}
                               style={techFilter.size === 0 || techFilter.has(entry) ? {
                                 background: grp.color + '22',
@@ -932,7 +932,7 @@ const Results = ({ onNavigate }) => {
             {/* ════════════════ SPORES TAB ════════════════ */}
             {activeTab === 'spores' && (isSporesRun || hasSpores) && !hasSpores && (
               <div className="space-y-4">
-                <div className="bg-gray-50 border border-gray-200 rounded-2xl p-5 flex items-start gap-3">
+                <div className="bg-gray-50 border border-black/15 rounded-2xl p-5 flex items-start gap-3">
                   <FiAlertTriangle className="text-gray-500 mt-0.5 shrink-0" size={18} />
                   <div>
                     <p className="text-sm font-semibold text-gray-800 mb-1">SPORES data not available in this result</p>

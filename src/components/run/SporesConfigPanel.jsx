@@ -6,7 +6,7 @@ export default function SporesConfigPanel({
   setModelConfig,
 }) {
   return (
-                <div className="mt-4 border-t border-slate-100 pt-4">
+                <div className="mt-4 border-t border-black/10 pt-4">
                   {/* Header row with title + hint */}
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
@@ -36,7 +36,7 @@ export default function SporesConfigPanel({
                   </div>
 
                   {/* Runtime warning */}
-                  <div className="flex items-start gap-2 px-3 py-2 mb-3 bg-slate-50 border border-slate-200 rounded-lg">
+                  <div className="flex items-start gap-2 px-3 py-2 mb-3 bg-slate-50 border border-black/15 rounded-lg">
                     <FiAlertTriangle size={12} className="text-slate-400 mt-0.5 shrink-0" />
                     <p className="text-xs text-slate-500">
                       Runs <span className="font-semibold text-slate-700">N + 1</span> full optimisations sequentially.

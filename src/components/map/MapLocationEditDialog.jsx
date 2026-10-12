@@ -43,8 +43,8 @@ export default function MapLocationEditDialog({
 }) {
   return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000]">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-slate-200 sticky top-0 bg-white z-10">
+          <div className="bg-surface-container-lowest rounded-lg max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto border border-black/15 shadow-xl">
+            <div className="p-6 border-b border-black/15 sticky top-0 bg-white z-10">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xl font-bold text-slate-800">Edit Location</h3>
                 <button
@@ -57,7 +57,7 @@ export default function MapLocationEditDialog({
               
               {/* Editable Location Name */}
               <div className="mb-3">
-                <label className="block text-sm font-medium text-slate-700 mb-2">Location Name</label>
+                <label className="block text-[0.6875rem] font-bold text-black/60 mb-2 uppercase tracking-widest">Location Name</label>
                 <input
                   type="text"
                   value={editingLocation.name}
@@ -103,7 +103,7 @@ export default function MapLocationEditDialog({
                     const csvFile = techCsvFiles[techName];
                     
                     return (
-                      <div key={techName} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                      <div key={techName} className="bg-gray-50 rounded-lg p-4 border border-black/15">
                         <div className="flex items-center justify-between mb-3">
                           <span className="font-semibold text-lg text-slate-800">{formatTechName(techName)}</span>
                           <div className="flex items-center gap-2">
@@ -128,7 +128,7 @@ export default function MapLocationEditDialog({
                         {techTemplate?.parent === 'demand' ? (
                           <div className="mb-3">
                             {editingLocation.demandProfile ? (
-                              <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                              <div className="p-3 bg-gray-50 border border-black/15 rounded-lg">
                                 <div className="flex items-center gap-2 mb-2">
                                   <FiCheck className="text-gray-600" size={16} />
                                   <label className="text-xs font-semibold text-gray-800">
@@ -153,18 +153,18 @@ export default function MapLocationEditDialog({
                                     <div className="font-bold text-gray-700">{editingLocation.demandProfile.hours}h</div>
                                   </div>
                                 </div>
-                                <div className="bg-gray-50 p-2 rounded border border-gray-200 mt-2">
+                                <div className="bg-gray-50 p-2 rounded border border-black/15 mt-2">
                                   <div className="text-xs font-semibold text-gray-900 mb-1">Annual Demand: {editingLocation.totalDemandMWh} MWh</div>
                                 </div>
                                 <div className="mt-2 text-xs text-slate-600">
                                   <div><span className="font-medium">Source:</span> {editingLocation.demandProfile.file}</div>
                                   <div><span className="font-medium">Column:</span> {editingLocation.demandProfile.column}</div>
-                                  <div className="mt-1 p-2 bg-gray-50 border border-gray-200 rounded">
+                                  <div className="mt-1 p-2 bg-gray-50 border border-black/15 rounded">
                                     <span className="font-medium text-gray-800">⚡ Linked to constraint:</span>
                                     <span className="ml-1 font-mono text-gray-900">resource = file={editingLocation.demandProfile.file}:{editingLocation.demandProfile.column}</span>
                                   </div>
                                 </div>
-                                <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer mt-2 pt-2 border-t border-gray-200">
+                                <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer mt-2 pt-2 border-t border-black/15">
                                   <span>Replace with different timeseries:</span>
                                   <input
                                     type="file"
@@ -175,13 +175,13 @@ export default function MapLocationEditDialog({
                                 </label>
                               </div>
                             ) : (
-                              <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                              <div className="p-3 bg-gray-50 border border-black/15 rounded-lg">
                                 <div className="flex items-center gap-2 mb-2 p-2 bg-gray-100 border border-gray-300 rounded">
                                   <span className="text-xs text-gray-800">
                                     ⚠️ <strong>No demand data found.</strong> If this is the Chile model, please delete it and reload from templates to get the demand timeseries.
                                   </span>
                                 </div>
-                                <label className="block text-xs font-semibold text-gray-800 mb-2">
+                                <label className="block text-[0.6875rem] font-bold text-black/60 mb-2 uppercase tracking-widest">
                                   Energy Demand * (Required)
                                 </label>
                                 <input
@@ -325,7 +325,7 @@ export default function MapLocationEditDialog({
                                             </div>
                                             
                                             {isResourceConstraint && techTemplate?.parent === 'demand' && editingLocation.demandProfile && (
-                                              <div className="pl-4 p-2 bg-gray-50 border border-gray-200 rounded">
+                                              <div className="pl-4 p-2 bg-gray-50 border border-black/15 rounded">
                                                 <div className="flex items-center gap-1 text-xs text-gray-800 font-semibold mb-1">
                                                   <FiCheck size={12} />
                                                   <span>Timeseries file linked to this constraint:</span>
@@ -362,7 +362,7 @@ export default function MapLocationEditDialog({
                                   )}
                                   
                                   {/* Add Constraint Button */}
-                                  <div className="pt-2 border-t border-slate-200">
+                                  <div className="pt-2 border-t border-black/15">
                                     <button
                                       onClick={() => setConstraintSearch({ ...constraintSearch, [techName]: 'open' })}
                                       className="group flex h-9 w-full items-center gap-2 rounded-full bg-gray-200 pl-3 pr-4 transition-all duration-300 hover:bg-gray-600 hover:pl-2 hover:text-white text-sm font-medium text-gray-800"
@@ -377,8 +377,8 @@ export default function MapLocationEditDialog({
                                   {/* Constraint Browser Modal */}
                                   {constraintSearch[techName] === 'open' && (
                                     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10001]" onClick={() => setConstraintSearch({ ...constraintSearch, [techName]: '' })}>
-                                      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
-                                        <div className="p-4 border-b border-slate-200 bg-gray-600 text-white">
+                                      <div className="bg-surface-container-lowest rounded-lg max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden border border-black/15 shadow-xl" onClick={(e) => e.stopPropagation()}>
+                                        <div className="p-4 border-b border-black/15 bg-gray-600 text-white">
                                           <h3 className="text-lg font-bold">Available Constraints for {formatTechName(techTemplate.parent || '')}</h3>
                                         </div>
                                         <div className="overflow-y-auto max-h-[calc(80vh-120px)]">
@@ -406,7 +406,7 @@ export default function MapLocationEditDialog({
                                               const isExpanded = selectedConstraintGroup[`${techName}_${group}`];
                                               
                                               return (
-                                                <div key={group} className="border-b border-slate-200 last:border-b-0">
+                                                <div key={group} className="border-b border-black/15 last:border-b-0">
                                                   <button
                                                     onClick={() => setSelectedConstraintGroup({ 
                                                       ...selectedConstraintGroup, 
@@ -420,7 +420,7 @@ export default function MapLocationEditDialog({
                                                     {isExpanded ? <FiChevronDown size={16} /> : <FiChevronRight size={16} />}
                                                   </button>
                                                   {isExpanded && (
-                                                    <div className="divide-y divide-slate-100 bg-white">
+                                                    <div className="divide-y divide-black/10 bg-white">
                                                       {constraints.map(constraint => {
                                                         const definition = CONSTRAINT_DEFINITIONS[constraint];
                                                         return (
@@ -448,13 +448,13 @@ export default function MapLocationEditDialog({
                                             });
                                           })()}
                                         </div>
-                                        <div className="p-4 border-t border-slate-200 bg-slate-50">
+                                        <div className="p-4 border-t border-black/15 bg-slate-50">
                                           <button
                                             onClick={() => {
                                               setConstraintSearch({ ...constraintSearch, [techName]: '' });
                                               setSelectedConstraintGroup({});
                                             }}
-                                            className="w-full px-4 py-2 bg-slate-600 text-white rounded hover:bg-slate-700"
+                                            className="uppercase tracking-wide font-bold w-full px-4 py-2 bg-black text-white rounded hover:bg-black/80"
                                           >
                                             Close
                                           </button>
@@ -522,7 +522,7 @@ export default function MapLocationEditDialog({
                                   })()}
                                   
                                   {/* Add Cost Button */}
-                                  <div className="pt-2 border-t border-slate-200">
+                                  <div className="pt-2 border-t border-black/15">
                                     <button
                                       onClick={() => setCostSearch({ ...costSearch, [techName]: 'open' })}
                                       className="group flex h-9 w-full items-center gap-2 rounded-full bg-gray-200 pl-3 pr-4 transition-all duration-300 hover:bg-gray-600 hover:pl-2 hover:text-white text-sm font-medium text-gray-800"
@@ -537,8 +537,8 @@ export default function MapLocationEditDialog({
                                   {/* Cost Browser Modal */}
                                   {costSearch[techName] === 'open' && (
                                     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10001]" onClick={() => setCostSearch({ ...costSearch, [techName]: '' })}>
-                                      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
-                                        <div className="p-4 border-b border-slate-200 bg-gray-600 text-white">
+                                      <div className="bg-surface-container-lowest rounded-lg max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden border border-black/15 shadow-xl" onClick={(e) => e.stopPropagation()}>
+                                        <div className="p-4 border-b border-black/15 bg-gray-600 text-white">
                                           <h3 className="text-lg font-bold">Available Costs</h3>
                                         </div>
                                         <div className="overflow-y-auto max-h-[calc(80vh-120px)]">
@@ -570,7 +570,7 @@ export default function MapLocationEditDialog({
                                               const isExpanded = selectedCostGroup[`${techName}_${group}`];
                                               
                                               return (
-                                                <div key={group} className="border-b border-slate-200 last:border-b-0">
+                                                <div key={group} className="border-b border-black/15 last:border-b-0">
                                                   <button
                                                     onClick={() => setSelectedCostGroup({ 
                                                       ...selectedCostGroup, 
@@ -584,7 +584,7 @@ export default function MapLocationEditDialog({
                                                     {isExpanded ? <FiChevronDown size={16} /> : <FiChevronRight size={16} />}
                                                   </button>
                                                   {isExpanded && (
-                                                    <div className="divide-y divide-slate-100 bg-white">
+                                                    <div className="divide-y divide-black/10 bg-white">
                                                       {costs.map(cost => {
                                                         const definition = COST_DEFINITIONS[cost];
                                                         return (
@@ -612,13 +612,13 @@ export default function MapLocationEditDialog({
                                             });
                                           })()}
                                         </div>
-                                        <div className="p-4 border-t border-slate-200 bg-slate-50">
+                                        <div className="p-4 border-t border-black/15 bg-slate-50">
                                           <button
                                             onClick={() => {
                                               setCostSearch({ ...costSearch, [techName]: '' });
                                               setSelectedCostGroup({});
                                             }}
-                                            className="w-full px-4 py-2 bg-slate-600 text-white rounded hover:bg-slate-700"
+                                            className="uppercase tracking-wide font-bold w-full px-4 py-2 bg-black text-white rounded hover:bg-black/80"
                                           >
                                             Close
                                           </button>
@@ -642,11 +642,11 @@ export default function MapLocationEditDialog({
               )}
               
               {/* Available Technologies to Add */}
-              <div className="border-t border-slate-200 pt-6">
-                <label className="block text-sm font-medium text-slate-700 mb-3">
+              <div className="border-t border-black/15 pt-6">
+                <label className="block text-[0.6875rem] font-bold text-black/60 mb-3 uppercase tracking-widest">
                   Available Technologies ({Object.keys(techMap).length - dialogTechs.length} available)
                 </label>
-                <div className="max-h-96 overflow-y-auto border border-slate-200 rounded-lg p-3">
+                <div className="max-h-96 overflow-y-auto border border-black/15 rounded-lg p-3">
                   {Object.keys(techMap).length === 0 ? (
                     <div className="text-center py-8 text-slate-500 text-sm">
                       <p>No technologies available.</p>
@@ -705,7 +705,7 @@ export default function MapLocationEditDialog({
                                             const rowLabel = inst?.displayLabel || inst?.label || inst?.raw?.label || `Variant ${idx + 1}`;
                                             return (
                                               <div key={idx} className={`flex items-center justify-between gap-2 rounded px-2 py-1.5 ${
-                                                isAssigned ? 'bg-gray-100 opacity-60' : 'bg-white border border-slate-200'
+                                                isAssigned ? 'bg-gray-100 opacity-60' : 'bg-white border border-black/15'
                                               }`}>
                                                 <div className="flex-1 min-w-0">
                                                   <p className="text-[11px] font-medium text-slate-700 truncate">{rowLabel}</p>
@@ -726,8 +726,8 @@ export default function MapLocationEditDialog({
                                                 <button
                                                   onClick={() => !isAssigned && addTechToDialog(techName, inst)}
                                                   disabled={!!isAssigned}
-                                                  className={`flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold transition-colors ${
-                                                    isAssigned ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-gray-600 text-white hover:bg-gray-700'
+                                                  className={`flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide transition-colors ${
+                                                    isAssigned ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-black text-white hover:bg-black/80'
                                                   }`}
                                                 >
                                                   {isAssigned ? '✓' : '+'}
@@ -751,7 +751,7 @@ export default function MapLocationEditDialog({
               </div>
             </div>
 
-            <div className="p-6 border-t border-slate-200 flex gap-3 justify-end sticky bottom-0 bg-white">
+            <div className="p-6 border-t border-black/15 flex gap-3 justify-end sticky bottom-0 bg-white">
               <button
                 onClick={() => setShowEditDialog(false)}
                 className="px-4 py-2 border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50 transition-colors"
@@ -761,9 +761,9 @@ export default function MapLocationEditDialog({
               <button
                 onClick={saveEditedLocation}
                 disabled={!hasLocationChanged()}
-                className={`px-4 py-2 rounded-md transition-colors ${
+                className={`uppercase tracking-wide font-bold px-4 py-2 rounded-md transition-colors ${
                   hasLocationChanged()
-                    ? 'bg-gray-600 text-white hover:bg-gray-700'
+                    ? 'bg-black text-white hover:bg-black/80'
                     : 'bg-slate-300 text-slate-500 cursor-not-allowed'
                 }`}
               >

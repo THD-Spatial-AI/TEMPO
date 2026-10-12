@@ -31,9 +31,9 @@ export default function TimeSeriesChart({
                       <div className="flex gap-1">
                         <button
                           onClick={() => setChartType('line')}
-                          className={`px-2 py-1 text-[10px] rounded font-medium transition-all ${
+                          className={`px-2 py-1 text-[10px] rounded font-bold uppercase tracking-wide transition-all ${
                             chartType === 'line'
-                              ? 'bg-gray-900 text-white'
+                              ? 'bg-black text-white'
                               : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                           }`}
                         >
@@ -41,9 +41,9 @@ export default function TimeSeriesChart({
                         </button>
                         <button
                           onClick={() => setChartType('bar')}
-                          className={`px-2 py-1 text-[10px] rounded font-medium transition-all ${
+                          className={`px-2 py-1 text-[10px] rounded font-bold uppercase tracking-wide transition-all ${
                             chartType === 'bar'
-                              ? 'bg-gray-900 text-white'
+                              ? 'bg-black text-white'
                               : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                           }`}
                         >
@@ -51,9 +51,9 @@ export default function TimeSeriesChart({
                         </button>
                         <button
                           onClick={() => setChartType('scatter')}
-                          className={`px-2 py-1 text-[10px] rounded font-medium transition-all ${
+                          className={`px-2 py-1 text-[10px] rounded font-bold uppercase tracking-wide transition-all ${
                             chartType === 'scatter'
-                              ? 'bg-gray-900 text-white'
+                              ? 'bg-black text-white'
                               : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                           }`}
                         >
@@ -234,7 +234,7 @@ export default function TimeSeriesChart({
                                   }
                                   setEditPopup(null);
                                 }}
-                                className="flex-1 px-2 py-1 text-[10px] bg-gray-900 text-white rounded hover:bg-gray-800 transition-colors font-medium"
+                                className="flex-1 px-2 py-1 text-[10px] bg-black text-white rounded hover:bg-black/80 transition-colors font-bold uppercase tracking-wide"
                               >
                                 Apply
                               </button>

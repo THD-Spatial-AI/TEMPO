@@ -303,7 +303,7 @@ export default function BatchComparison({ completedJobs }) {
                 className={`px-2.5 py-1 text-xs rounded-lg border font-medium transition-colors ${
                   b.batchId === effectiveBatchId
                     ? 'bg-electric-600 text-white border-electric-600'
-                    : 'bg-white text-slate-600 border-slate-200 hover:border-electric-400'
+                    : 'bg-white text-slate-600 border-black/15 hover:border-electric-400'
                 }`}>
                 Batch {batches.length - i} — {label} ({n})
               </button>
@@ -314,7 +314,7 @@ export default function BatchComparison({ completedJobs }) {
 
       {/* Batch header */}
       {selectedBatch && (
-        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 mb-3 text-xs text-slate-600 flex gap-4 flex-wrap">
+        <div className="bg-slate-50 border border-black/15 rounded-xl p-3 mb-3 text-xs text-slate-600 flex gap-4 flex-wrap">
           <span><span className="font-semibold text-slate-800">{baseName}</span></span>
           <span>{sortedJobs.length} variant{sortedJobs.length > 1 ? 's' : ''}</span>
           {completedCount > 0 && <span className="text-green-600">{completedCount} completed</span>}
@@ -355,8 +355,8 @@ export default function BatchComparison({ completedJobs }) {
         }));
 
         return (
-          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden mb-3">
-            <div className="px-3 py-2 border-b border-slate-100 flex items-center gap-2 flex-wrap">
+          <div className="bg-white border border-black/15 rounded-xl overflow-hidden mb-3">
+            <div className="px-3 py-2 border-b border-black/10 flex items-center gap-2 flex-wrap">
               <FiLayers size={13} className="text-electric-500" />
               <span className="text-xs font-semibold text-slate-700">Model × Variant matrix</span>
               <span className="text-xs text-slate-400">{modelLabels.length} models · {variantLabels.length} variants</span>
@@ -364,7 +364,7 @@ export default function BatchComparison({ completedJobs }) {
                 <span className="text-[10px] text-slate-400">KPI:</span>
                 <select
                   value={matrixKpi} onChange={e => setMatrixKpi(e.target.value)}
-                  className="text-[11px] border border-slate-200 rounded-md px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-electric-400"
+                  className="text-[11px] border border-black/15 rounded-md px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-electric-400"
                 >
                   {MATRIX_KPIS.map(k => <option key={k.id} value={k.id}>{k.label}</option>)}
                 </select>
@@ -373,22 +373,22 @@ export default function BatchComparison({ completedJobs }) {
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="text-left px-3 py-1.5 font-semibold text-slate-600 whitespace-nowrap min-w-[140px]">Model</th>
+                  <tr className="bg-slate-50 border-b border-black/15">
+                    <th className="text-left px-3 py-1.5 font-bold text-black/60 whitespace-nowrap min-w-[140px] uppercase tracking-widest">Model</th>
                     {variantLabels.map(vl => (
-                      <th key={vl} className="text-right px-3 py-1.5 font-semibold text-slate-600 whitespace-nowrap">{vl}</th>
+                      <th key={vl} className="text-right px-3 py-1.5 font-bold text-black/60 whitespace-nowrap uppercase tracking-widest">{vl}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {modelLabels.map((ml, ri) => (
                     <tr key={ml}>
-                      <td className="px-3 py-1.5 font-medium text-slate-700 whitespace-nowrap max-w-[200px] truncate border-b border-slate-100" title={ml}>{ml}</td>
+                      <td className="px-3 py-1.5 font-medium text-slate-700 whitespace-nowrap max-w-[200px] truncate border-b border-black/10" title={ml}>{ml}</td>
                       {variantLabels.map(vl => {
                         const job = matrixCells[ml]?.[vl];
-                        if (!job) return <td key={vl} className="px-3 py-1.5 text-right text-slate-300 border-b border-slate-100">—</td>;
+                        if (!job) return <td key={vl} className="px-3 py-1.5 text-right text-slate-300 border-b border-black/10">—</td>;
                         if (job.status === 'failed') return (
-                          <td key={vl} className="px-3 py-1.5 text-right border-b border-slate-100">
+                          <td key={vl} className="px-3 py-1.5 text-right border-b border-black/10">
                             <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-600">failed</span>
                           </td>
                         );
@@ -403,7 +403,7 @@ export default function BatchComparison({ completedJobs }) {
                         }
                         const tooltip = `Obj: ${fmtNum(job.objective)} · Cap: ${fmtNum(kpis?.totalCap)} MW · RE: ${kpis ? (kpis.renewableShare*100).toFixed(0) : '—'}%`;
                         return (
-                          <td key={vl} className="px-3 py-1.5 text-right font-mono border-b border-slate-100" style={{ background: bg }}>
+                          <td key={vl} className="px-3 py-1.5 text-right font-mono border-b border-black/10" style={{ background: bg }}>
                             <span title={tooltip} className={isBest ? 'font-bold text-slate-900' : 'text-slate-700'}>
                               {val != null ? kpiDef.fmt(val) : '—'}
                               {isBest && <span className="ml-1 text-[9px] font-semibold text-green-600">★</span>}
@@ -416,7 +416,7 @@ export default function BatchComparison({ completedJobs }) {
                 </tbody>
               </table>
             </div>
-            <p className="px-3 py-1.5 text-[10px] text-slate-400 border-t border-slate-100">
+            <p className="px-3 py-1.5 text-[10px] text-slate-400 border-t border-black/10">
               Heat ramp is per-column (variant). ★ = best model for that variant. {kpiDef.lowerBetter ? 'Lower is better (green).' : 'Higher is better (green).'}
             </p>
           </div>
@@ -425,7 +425,7 @@ export default function BatchComparison({ completedJobs }) {
 
       {/* Trajectory chart — single-model batches only */}
       {!isMultiModel && trajectoryOption && (
-        <div className="bg-white border border-slate-200 rounded-xl p-3 mb-3">
+        <div className="bg-white border border-black/15 rounded-xl p-3 mb-3">
           <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
             <span className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
               <FiTrendingUp size={13} /> Trajectory
@@ -433,7 +433,7 @@ export default function BatchComparison({ completedJobs }) {
             <select
               value={trajectoryKpi}
               onChange={e => setTrajectoryKpi(e.target.value)}
-              className="text-xs border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-electric-400"
+              className="text-xs border border-black/15 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-electric-400"
             >
               {TRAJECTORY_KPIS.map(k => <option key={k.id} value={k.id}>{k.label}</option>)}
             </select>
@@ -444,7 +444,7 @@ export default function BatchComparison({ completedJobs }) {
 
       {/* Capacity stacked bar — single-model batches only */}
       {!isMultiModel && capacityOption && (
-        <div className="bg-white border border-slate-200 rounded-xl p-3 mb-3">
+        <div className="bg-white border border-black/15 rounded-xl p-3 mb-3">
           <span className="text-xs font-semibold text-slate-700 mb-2 block">Capacity by technology (MW)</span>
           <ReactECharts option={capacityOption} style={{ height: 220 }} notMerge />
         </div>
@@ -452,7 +452,7 @@ export default function BatchComparison({ completedJobs }) {
 
       {/* KPI table */}
       {sortedJobs.length > 0 && (
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+        <div className="bg-white border border-black/15 rounded-xl overflow-hidden">
           <button
             onClick={() => setShowTable(t => !t)}
             className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
@@ -464,16 +464,16 @@ export default function BatchComparison({ completedJobs }) {
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="text-left px-3 py-1.5 font-semibold text-slate-600 whitespace-nowrap">Variant</th>
-                    <th className="text-right px-3 py-1.5 font-semibold text-slate-600 whitespace-nowrap">Status</th>
-                    <th className="text-right px-3 py-1.5 font-semibold text-slate-600 whitespace-nowrap">Objective</th>
-                    <th className="text-right px-3 py-1.5 font-semibold text-slate-600 whitespace-nowrap">Cap (MW)</th>
-                    <th className="text-right px-3 py-1.5 font-semibold text-slate-600 whitespace-nowrap">Gen (MWh)</th>
-                    <th className="text-right px-3 py-1.5 font-semibold text-slate-600 whitespace-nowrap">RE %</th>
-                    <th className="text-right px-3 py-1.5 font-semibold text-slate-600 whitespace-nowrap">LCOE</th>
-                    {hasUnmet   && <th className="text-right px-3 py-1.5 font-semibold text-amber-600 whitespace-nowrap">Unmet (MWh)</th>}
-                    {hasImports && <th className="text-right px-3 py-1.5 font-semibold text-slate-600 whitespace-nowrap">Imports (MWh)</th>}
+                  <tr className="bg-slate-50 border-b border-black/15">
+                    <th className="text-left px-3 py-1.5 font-bold text-black/60 whitespace-nowrap uppercase tracking-widest">Variant</th>
+                    <th className="text-right px-3 py-1.5 font-bold text-black/60 whitespace-nowrap uppercase tracking-widest">Status</th>
+                    <th className="text-right px-3 py-1.5 font-bold text-black/60 whitespace-nowrap uppercase tracking-widest">Objective</th>
+                    <th className="text-right px-3 py-1.5 font-bold text-black/60 whitespace-nowrap uppercase tracking-widest">Cap (MW)</th>
+                    <th className="text-right px-3 py-1.5 font-bold text-black/60 whitespace-nowrap uppercase tracking-widest">Gen (MWh)</th>
+                    <th className="text-right px-3 py-1.5 font-bold text-black/60 whitespace-nowrap uppercase tracking-widest">RE %</th>
+                    <th className="text-right px-3 py-1.5 font-bold text-black/60 whitespace-nowrap uppercase tracking-widest">LCOE</th>
+                    {hasUnmet   && <th className="text-right px-3 py-1.5 font-bold text-amber-600 whitespace-nowrap uppercase tracking-widest">Unmet (MWh)</th>}
+                    {hasImports && <th className="text-right px-3 py-1.5 font-bold text-black/60 whitespace-nowrap uppercase tracking-widest">Imports (MWh)</th>}
                   </tr>
                 </thead>
                 <tbody>

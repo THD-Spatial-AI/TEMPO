@@ -8,14 +8,14 @@ const Parameters = () => {
   return (
     <div className="flex-1 p-8 bg-gray-50">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-800 mb-2">Parameters</h1>
+        <h1 className="text-3xl font-black tracking-tighter text-black mb-2">Parameters</h1>
         <p className="text-slate-600">Configure model parameters and settings</p>
         {currentModel && (
           <p className="text-sm text-gray-600 mt-1">Model: {currentModel.name}</p>
         )}
       </div>
 
-      <div className="bg-white rounded-lg shadow-lg p-6">
+      <div className="bg-surface-container-lowest rounded-lg p-6 border border-black/15">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold text-slate-800">
             Parameter Configuration ({parameters.length})
@@ -28,21 +28,21 @@ const Parameters = () => {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200">
+            <table className="min-w-full divide-y divide-black/15">
               <thead className="bg-slate-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">
                     Name
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">
                     Value
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">
                     Unit
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-slate-200">
+              <tbody className="bg-white divide-y divide-black/15">
                 {parameters.map((param, index) => (
                   <tr key={index} className="hover:bg-slate-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">

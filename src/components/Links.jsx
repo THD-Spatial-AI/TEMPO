@@ -21,7 +21,7 @@ function CarrierBadge({ carrierId }) {
   const carrier = CARRIERS[carrierId];
   return (
     <span
-      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border"
+      className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium border"
       style={{ backgroundColor: `${color}18`, borderColor: `${color}40`, color }}
     >
       <span className="text-xs">{carrier?.icon ?? '•'}</span>
@@ -155,7 +155,7 @@ const Links = () => {
       <div className="flex-1 p-8 overflow-y-auto">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-800 mb-2">Links</h1>
+        <h1 className="text-3xl font-black tracking-tighter text-black mb-2">Links</h1>
         <p className="text-slate-600">
           Manage connections between locations. Each link carries an energy carrier
           (electricity, heat, hydrogen, gas, CO₂ …).
@@ -172,7 +172,7 @@ const Links = () => {
             const color  = c === 'all' ? '#64748b' : getCarrierColor(c);
             return (
               <button key={c} onClick={() => setFilterCarrier(c)}
-                className="px-2.5 py-1 rounded-full text-xs font-medium border transition-all"
+                className="px-2.5 py-1 text-xs font-medium border transition-all"
                 style={{ backgroundColor: active ? `${color}22` : 'white', borderColor: active ? color : '#e2e8f0', color: active ? color : '#64748b' }}
               >
                 {c === 'all' ? `All (${links.length})` : (
@@ -187,7 +187,7 @@ const Links = () => {
         </div>
       )}
 
-      <div className="bg-white rounded-lg shadow-lg p-6">
+      <div className="bg-surface-container-lowest rounded-lg p-6 border border-black/15">
         {/* Toolbar */}
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold text-slate-800">
@@ -201,7 +201,7 @@ const Links = () => {
                 className="pl-9 pr-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 text-sm w-72" />
             </div>
             <button onClick={() => setIsAdding(true)}
-              className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors text-sm flex items-center gap-2">
+              className="uppercase tracking-wide font-bold px-4 py-2 bg-black text-white rounded-md hover:bg-black/80 transition-colors text-sm flex items-center gap-2">
               <FiPlus /> Add Link
             </button>
           </div>
@@ -218,18 +218,18 @@ const Links = () => {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200">
+            <table className="min-w-full divide-y divide-black/15">
               <thead className="bg-slate-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Carrier / Type</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">From</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">To</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Capacity</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Distance (km)</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Actions</th>
+                  <th className="px-4 py-3 text-left text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">Carrier / Type</th>
+                  <th className="px-4 py-3 text-left text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">From</th>
+                  <th className="px-4 py-3 text-left text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">To</th>
+                  <th className="px-4 py-3 text-left text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">Capacity</th>
+                  <th className="px-4 py-3 text-left text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">Distance (km)</th>
+                  <th className="px-4 py-3 text-left text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">Actions</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-slate-200">
+              <tbody className="bg-white divide-y divide-black/15">
                 {filteredLinks.map((link) => {
                   const index   = links.indexOf(link);
                   const carrier = resolveLinkCarrier(link);
@@ -243,7 +243,7 @@ const Links = () => {
                               <LinkTypeSelect value={editData.linkType ?? ''} onChange={handleEditLinkTypeChange}
                                 className="w-full px-2 py-1 text-xs border border-slate-300 rounded focus:outline-none" />
                               <select value={editData.carrier ?? carrier} onChange={e => setEditData({ ...editData, carrier: e.target.value })}
-                                className="w-full px-2 py-1 text-xs border border-slate-200 rounded focus:outline-none">
+                                className="w-full px-2 py-1 text-xs border border-black/15 rounded focus:outline-none">
                                 {Object.values(CARRIERS).map(c => (
                                   <option key={c.id} value={c.id}>{c.icon} {c.label}</option>
                                 ))}
@@ -322,7 +322,7 @@ const Links = () => {
             <div className="p-6 space-y-4">
               {/* Link Type */}
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">
+                <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">
                   Link / Infrastructure Type
                   <span className="ml-1 text-xs font-normal text-slate-400">(determines carrier &amp; default costs)</span>
                 </label>
@@ -335,7 +335,7 @@ const Links = () => {
 
               {/* Carrier override */}
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">
+                <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">
                   Carrier
                   <span className="ml-1 text-xs font-normal text-slate-400">(auto-set from type; override if needed)</span>
                 </label>
@@ -356,7 +356,7 @@ const Links = () => {
               {/* From / To */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">From</label>
+                  <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">From</label>
                   <select value={newLink.from} onChange={e => setNewLink({ ...newLink, from: e.target.value })}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm">
                     <option value="">Select…</option>
@@ -364,7 +364,7 @@ const Links = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">To</label>
+                  <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">To</label>
                   <select value={newLink.to} onChange={e => setNewLink({ ...newLink, to: e.target.value })}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm">
                     <option value="">Select…</option>
@@ -376,12 +376,12 @@ const Links = () => {
               {/* Capacity / Distance */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">Capacity (kW)</label>
+                  <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Capacity (kW)</label>
                   <input type="number" value={newLink.capacity} onChange={e => setNewLink({ ...newLink, capacity: e.target.value })}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none text-sm" placeholder="optional" />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">Distance (km)</label>
+                  <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Distance (km)</label>
                   <input type="number" value={newLink.distance} onChange={e => setNewLink({ ...newLink, distance: e.target.value })}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none text-sm" placeholder="Auto-calc." />
                 </div>
@@ -392,7 +392,7 @@ const Links = () => {
               <button onClick={() => { setIsAdding(false); setNewLink(emptyLink); }}
                 className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 text-sm">Cancel</button>
               <button onClick={addLink} disabled={!newLink.from || !newLink.to || !newLink.linkType}
-                className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 text-sm disabled:bg-slate-300 disabled:cursor-not-allowed">
+                className="uppercase tracking-wide font-bold px-4 py-2 bg-black text-white rounded-lg hover:bg-black/80 text-sm disabled:bg-slate-300 disabled:cursor-not-allowed">
                 Add Link
               </button>
             </div>

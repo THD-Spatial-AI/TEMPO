@@ -797,7 +797,7 @@ const Models = () => {
     <div className="flex-1 p-8 bg-gray-50 overflow-y-auto">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-slate-800 mb-2">Energy System Models</h1>
+        <h1 className="text-3xl font-black tracking-tighter text-black mb-2">Energy System Models</h1>
         <p className="text-slate-600">TEMPO translates between model formats — import, manage and run your energy system models.</p>
       </div>
 
@@ -829,12 +829,12 @@ const Models = () => {
               onClick={() => mt.enabled && setShowCreatePanel(true)}
               className={`relative text-left p-5 rounded-xl border-2 transition-all shadow-sm ${
                 mt.enabled
-                  ? 'bg-white border-gray-200 hover:border-gray-300 hover:shadow-md cursor-pointer'
-                  : 'bg-gray-50 border-gray-200 cursor-not-allowed opacity-60'
+                  ? 'bg-white border-black/15 hover:border-gray-300 hover:shadow-md cursor-pointer'
+                  : 'bg-gray-50 border-black/15 cursor-not-allowed opacity-60'
               }`}
             >
               {!mt.enabled && (
-                <span className="absolute top-3 right-3 px-2 py-0.5 bg-gray-200 text-gray-600 text-[10px] font-bold rounded-full uppercase tracking-wide">
+                <span className="absolute top-3 right-3 px-2 py-0.5 bg-gray-200 text-gray-600 text-[10px] font-bold uppercase tracking-wide">
                   Coming soon
                 </span>
               )}
@@ -858,7 +858,7 @@ const Models = () => {
       {showCreatePanel && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-black/15">
               <div>
                 <h3 className="text-xl font-bold text-slate-800">Import Calliope Model</h3>
                 <p className="text-sm text-slate-500 mt-0.5">Choose how to bring your model into TEMPO</p>
@@ -873,7 +873,7 @@ const Models = () => {
             <div className="p-6 grid grid-cols-2 gap-4">
               <button
                 onClick={() => { setShowCreatePanel(false); setShowYAMLImporter(true); }}
-                className="flex flex-col items-start p-5 border-2 border-gray-200 rounded-xl hover:border-gray-300 hover:bg-gray-50 transition-all text-left group"
+                className="flex flex-col items-start p-5 border-2 border-black/15 rounded-xl hover:border-gray-300 hover:bg-gray-50 transition-all text-left group"
               >
                 <div className="p-2 bg-gray-100 rounded-lg mb-3 group-hover:bg-gray-200 transition-colors">
                   <FiPackage size={22} className="text-gray-700" />
@@ -883,7 +883,7 @@ const Models = () => {
               </button>
               <button
                 onClick={() => { setShowCreatePanel(false); setShowCSVWizard(true); }}
-                className="flex flex-col items-start p-5 border-2 border-gray-200 rounded-xl hover:border-gray-300 hover:bg-gray-50 transition-all text-left group"
+                className="flex flex-col items-start p-5 border-2 border-black/15 rounded-xl hover:border-gray-300 hover:bg-gray-50 transition-all text-left group"
               >
                 <div className="p-2 bg-gray-100 rounded-lg mb-3 group-hover:bg-gray-200 transition-colors">
                   <FiUpload size={22} className="text-gray-700" />
@@ -894,7 +894,7 @@ const Models = () => {
               <button
                 onClick={() => archiveInputRef.current?.click()}
                 disabled={archiveImporting}
-                className="flex flex-col items-start p-5 border-2 border-gray-200 rounded-xl hover:border-gray-300 hover:bg-gray-50 transition-all text-left group disabled:opacity-50 col-span-2"
+                className="flex flex-col items-start p-5 border-2 border-black/15 rounded-xl hover:border-gray-300 hover:bg-gray-50 transition-all text-left group disabled:opacity-50 col-span-2"
               >
                 <div className="p-2 bg-gray-100 rounded-lg mb-3 group-hover:bg-gray-200 transition-colors">
                   <FiUploadCloud size={22} className="text-gray-700" />
@@ -929,10 +929,10 @@ const Models = () => {
       )}
 
       {/* Your Models Section */}
-      <div className="bg-white rounded-xl shadow-lg p-5 mb-8">
+      <div className="bg-surface-container-lowest rounded-xl p-5 mb-8 border border-black/15">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold text-slate-800">Your Models</h2>
-          <span className="px-2.5 py-1 bg-gray-100 text-gray-600 rounded-full text-xs font-medium">
+          <span className="px-2.5 py-1 bg-gray-100 text-gray-600 text-xs font-medium">
             {filteredModels.length !== models.length
               ? `${filteredModels.length} of ${models.length}`
               : `${models.length} ${models.length === 1 ? 'model' : 'models'}`}
@@ -948,13 +948,13 @@ const Models = () => {
                 placeholder="Search models…"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="w-full pl-8 pr-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300"
+                className="w-full pl-8 pr-3 py-2 border border-black/15 rounded-lg text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300"
               />
             </div>
             <select
               value={filterType}
               onChange={e => setFilterType(e.target.value)}
-              className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300"
+              className="px-3 py-2 border border-black/15 rounded-lg text-sm text-gray-600 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300"
             >
               <option value="all">All types</option>
               <option value="calliope">Calliope</option>
@@ -999,7 +999,7 @@ const Models = () => {
             <p className="text-xs text-slate-400 mb-4">Select a model type above or load a template below</p>
             <button
               onClick={() => setShowCreatePanel(true)}
-              className="px-5 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 transition-colors inline-flex items-center gap-2 text-sm font-medium"
+              className="px-5 py-2 bg-black text-white rounded-lg hover:bg-black/80 transition-colors inline-flex items-center gap-2 text-sm font-bold uppercase tracking-wide"
             >
               <FiPlus size={16} />
               Create Your First Model
@@ -1009,7 +1009,7 @@ const Models = () => {
           <p className="text-center py-8 text-sm text-slate-400">No models match your search.</p>
         ) : (
           <div className="space-y-2">
-            <div className="flex items-center gap-3 px-4 py-1.5 text-xs text-gray-500 border-b border-gray-100 mb-1">
+            <div className="flex items-center gap-3 px-4 py-1.5 text-xs text-gray-500 border-b border-black/10 mb-1">
               <input
                 type="checkbox"
                 checked={allSelected}
@@ -1026,7 +1026,7 @@ const Models = () => {
                     ? 'border-gray-300 bg-gray-50'
                     : currentModelId === model.id
                     ? 'border-gray-300 bg-gray-50/40'
-                    : 'border-slate-200 hover:border-slate-300 bg-white'
+                    : 'border-black/15 hover:border-slate-300 bg-white'
                 }`}
               >
                 <input
@@ -1040,12 +1040,12 @@ const Models = () => {
                   <div className="flex items-center gap-2 flex-wrap mb-1">
                     <span className="font-semibold text-slate-800 text-sm">{model.name}</span>
                     {currentModelId === model.id && (
-                      <span className="px-2 py-0.5 bg-gray-700 text-white text-[10px] rounded-full font-bold">ACTIVE</span>
+                      <span className="px-2 py-0.5 bg-gray-700 text-white text-[10px] font-bold">ACTIVE</span>
                     )}
                     {model.metadata?.template && (
-                      <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-[10px] rounded-full font-semibold">TEMPLATE</span>
+                      <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-[10px] font-semibold">TEMPLATE</span>
                     )}
-                    <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-[10px] rounded-full font-medium">
+                    <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-[10px] font-medium">
                       {getModelTypeBadgeLabel(model)}
                     </span>
                   </div>
@@ -1069,7 +1069,7 @@ const Models = () => {
                   {currentModelId !== model.id && (
                     <button
                       onClick={() => loadModel(model.id)}
-                      className="px-3 py-1.5 bg-slate-700 text-white rounded-lg text-xs font-medium hover:bg-slate-800 transition-colors"
+                      className="px-3 py-1.5 bg-black text-white rounded-lg text-xs font-bold uppercase tracking-wide hover:bg-black/80 transition-colors"
                     >
                       Load
                     </button>
@@ -1102,7 +1102,7 @@ const Models = () => {
         return (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl shadow-2xl max-w-xl w-full max-h-[85vh] flex flex-col">
-              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-black/15">
                 <h3 className="text-lg font-bold text-slate-800">Edit Model</h3>
                 <button onClick={() => setEditingModelId(null)} className="text-gray-400 hover:text-gray-600">
                   <FiX size={22} />
@@ -1112,7 +1112,7 @@ const Models = () => {
               <div className="flex-1 overflow-y-auto p-6 space-y-5">
                 {/* Name */}
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">Name</label>
+                  <label className="block text-[0.6875rem] font-bold text-black/60 mb-1.5 uppercase tracking-widest">Name</label>
                   <div className="flex gap-2">
                     <input
                       value={editModalName}
@@ -1120,7 +1120,7 @@ const Models = () => {
                       onKeyDown={(e) => e.key === 'Enter' && saveEditName()}
                       className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
                     />
-                    <button onClick={saveEditName} className="px-4 py-2 bg-slate-700 text-white rounded-lg text-sm hover:bg-slate-800">
+                    <button onClick={saveEditName} className="uppercase tracking-wide font-bold px-4 py-2 bg-black text-white rounded-lg text-sm hover:bg-black/80">
                       Save
                     </button>
                   </div>
@@ -1128,7 +1128,7 @@ const Models = () => {
 
                 {/* Description */}
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">Description</label>
+                  <label className="block text-[0.6875rem] font-bold text-black/60 mb-1.5 uppercase tracking-widest">Description</label>
                   <div className="flex gap-2 items-start">
                     <textarea
                       value={editModalDesc}
@@ -1136,7 +1136,7 @@ const Models = () => {
                       rows={2}
                       className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 resize-none"
                     />
-                    <button onClick={saveEditDesc} className="px-4 py-2 bg-slate-700 text-white rounded-lg text-sm hover:bg-slate-800">
+                    <button onClick={saveEditDesc} className="uppercase tracking-wide font-bold px-4 py-2 bg-black text-white rounded-lg text-sm hover:bg-black/80">
                       Save
                     </button>
                   </div>
@@ -1157,13 +1157,13 @@ const Models = () => {
                   </div>
 
                   {(em.timeSeries?.length || 0) === 0 ? (
-                    <p className="text-xs text-slate-400 text-center py-4 border border-dashed border-slate-200 rounded-lg">
+                    <p className="text-xs text-slate-400 text-center py-4 border border-dashed border-black/15 rounded-lg">
                       No time series files — click Add CSV to upload one
                     </p>
                   ) : (
                     <div className="space-y-1.5">
                       {em.timeSeries.map((ts) => (
-                        <div key={ts.id} className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg bg-gray-50">
+                        <div key={ts.id} className="flex items-center gap-2 px-3 py-2 border border-black/15 rounded-lg bg-gray-50">
                           {renamingTsId === ts.id ? (
                             <>
                               <input
@@ -1228,17 +1228,17 @@ const Models = () => {
       })()}
 
       {/* Template Models Section */}
-      <div className="bg-white rounded-xl shadow-lg p-5 mb-8">
+      <div className="bg-surface-container-lowest rounded-xl p-5 mb-8 border border-black/15">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold text-slate-800">Template Models</h2>
-          <span className="px-2.5 py-1 bg-gray-100 text-gray-600 rounded-full text-xs font-medium">
+          <span className="px-2.5 py-1 bg-gray-100 text-gray-600 text-xs font-medium">
             {TEMPLATE_MODELS.length} templates
           </span>
         </div>
 
         <div className="space-y-2">
           {TEMPLATE_MODELS.map((template) => (
-            <div key={template.id} className="border border-slate-200 rounded-lg overflow-hidden hover:border-slate-300 transition-all">
+            <div key={template.id} className="border border-black/15 rounded-lg overflow-hidden hover:border-slate-300 transition-all">
 
               {/* Main row */}
               <div className="px-4 py-3 flex items-center gap-3">
@@ -1246,7 +1246,7 @@ const Models = () => {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-0.5">
                     <span className="font-semibold text-slate-800 text-sm">{template.name}</span>
-                    <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-[10px] rounded-full font-medium">
+                    <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-[10px] font-medium">
                       {template.locations} loc · {template.links} links
                     </span>
                   </div>
@@ -1264,7 +1264,7 @@ const Models = () => {
                   </button>
                   <button
                     onClick={() => loadTemplateModel(template)}
-                    className="px-3 py-1.5 bg-gray-700 text-white rounded-md text-xs font-semibold hover:bg-gray-800 transition-colors"
+                    className="px-3 py-1.5 bg-black text-white rounded-md text-xs font-bold uppercase tracking-wide hover:bg-black/80 transition-colors"
                   >
                     Load
                   </button>
@@ -1273,7 +1273,7 @@ const Models = () => {
 
               {/* Expanded: files + tech tags */}
               {viewingTemplate === template.id && (
-                <div className="border-t border-gray-100 px-4 py-3 bg-gray-50/50 space-y-3">
+                <div className="border-t border-black/10 px-4 py-3 bg-gray-50/50 space-y-3">
 
                   {/* File list */}
                   <div className="space-y-1.5">
@@ -1311,7 +1311,7 @@ const Models = () => {
                   {/* Download all */}
                   <button
                     onClick={() => downloadAllTemplateFiles(template)}
-                    className="w-full py-1.5 border border-gray-200 bg-white text-gray-600 rounded-md text-xs font-medium hover:bg-gray-50 flex items-center justify-center gap-1.5 transition-colors"
+                    className="w-full py-1.5 border border-black/15 bg-white text-gray-600 rounded-md text-xs font-medium hover:bg-gray-50 flex items-center justify-center gap-1.5 transition-colors"
                   >
                     <FiDownload size={11} />
                     Download all (
@@ -1325,10 +1325,10 @@ const Models = () => {
                   {/* Tech tags */}
                   <div className="flex flex-wrap gap-1">
                     {template.technologies.slice(0, 8).map((tech, i) => (
-                      <span key={i} className="px-2 py-0.5 bg-white border border-gray-200 text-gray-600 text-[10px] rounded-full">{tech}</span>
+                      <span key={i} className="px-2 py-0.5 bg-white border border-black/15 text-gray-600 text-[10px]">{tech}</span>
                     ))}
                     {template.technologies.length > 8 && (
-                      <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-[10px] rounded-full">
+                      <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-[10px]">
                         +{template.technologies.length - 8} more
                       </span>
                     )}

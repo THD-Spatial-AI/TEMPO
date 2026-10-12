@@ -622,13 +622,13 @@ const Run = ({ onNavigate }) => {
   const computeRemote = computeTarget === 'remote' && remoteAvailable && !hasSelections;
 
   return (
-    <div className="h-full bg-gradient-to-br from-slate-50 to-slate-100 overflow-y-auto">
+    <div className="h-full bg-surface overflow-y-auto">
       <div className="p-6 space-y-6">
 
         {/* PAGE HEADER */}
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-electric-600 to-electric-700 bg-clip-text text-transparent">
+            <h1 className="text-3xl font-black tracking-tighter text-black">
               Run Model
             </h1>
             <p className="text-sm text-slate-500 mt-0.5">
@@ -639,19 +639,19 @@ const Run = ({ onNavigate }) => {
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {selectedFramework === 'calliope' && selectedModel && (
-              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border ${
+              <div className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border ${
                 isCalliope07Selected
-                  ? 'bg-gray-50 border-gray-200 text-gray-700'
-                  : 'bg-gray-50 border-gray-200 text-gray-700'
+                  ? 'bg-gray-50 border-black/15 text-gray-700'
+                  : 'bg-gray-50 border-black/15 text-gray-700'
               }`} title="Engine version from the model's configuration">
                 <FiZap size={12} />
                 {isCalliope07Selected ? 'Engine: Calliope 0.7 (experimental)' : 'Engine: Calliope 0.6.8'}
               </div>
             )}
-            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border ${
-              serviceChecking ? 'bg-slate-100 border-slate-200 text-slate-500'
-              : serviceReady  ? 'bg-gray-50 border-gray-200 text-gray-700'
-              : 'bg-gray-50 border-gray-200 text-gray-700'
+            <div className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium border ${
+              serviceChecking ? 'bg-slate-100 border-black/15 text-slate-500'
+              : serviceReady  ? 'bg-gray-50 border-black/15 text-gray-700'
+              : 'bg-gray-50 border-black/15 text-gray-700'
             }`}>
               <span className="relative flex h-2 w-2 flex-shrink-0">
                 {serviceReady && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-gray-400 opacity-75" />}
@@ -667,7 +667,7 @@ const Run = ({ onNavigate }) => {
 
         {/* OFFLINE BANNER — hidden when running remotely (local engine is irrelevant) */}
         {!computeRemote && !serviceChecking && !serviceReady && (
-          <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 flex items-start justify-between gap-4">
+          <div className="bg-gray-50 border border-black/15 rounded-xl px-4 py-3 text-sm text-gray-800 flex items-start justify-between gap-4">
             <div>
               <strong>{activeFrameworkLabel} service offline.</strong>{' '}
               {selectedFramework === 'adoptnet0'
@@ -712,7 +712,7 @@ const Run = ({ onNavigate }) => {
 
         {/* INLINE PYPSA INSTALL PANEL — shown when PyPSA is selected but not yet installed */}
         {!computeRemote && selectedFramework === 'pypsa' && pypsaStatus === false && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+          <div className="bg-white rounded-2xl shadow-sm border border-black/15 p-6">
             <EngineInstallPanel
               title="PyPSA Engine"
               icon={FiCpu}
@@ -730,7 +730,7 @@ const Run = ({ onNavigate }) => {
 
         {/* INLINE 0.7 INSTALL PANEL — shown when 0.7 is selected but not yet installed */}
         {!computeRemote && isCalliope07Selected && calliope07Status === false && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+          <div className="bg-white rounded-2xl shadow-sm border border-black/15 p-6">
             <Calliope07EnginePanel
               onInstallSuccess={() => {
                 setCalliope07Status(null);
@@ -742,7 +742,7 @@ const Run = ({ onNavigate }) => {
 
         {/* INLINE OSEMOSYS INSTALL PANEL — shown when OSeMOSYS is selected but not yet installed */}
         {!computeRemote && selectedFramework === 'osemosys' && osemosysStatus === false && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+          <div className="bg-white rounded-2xl shadow-sm border border-black/15 p-6">
             <EngineInstallPanel
               title="OSeMOSYS Engine"
               icon={FiZap}
@@ -760,7 +760,7 @@ const Run = ({ onNavigate }) => {
 
         {/* INLINE ADOPTNET0 INSTALL PANEL — shown when AdOpT-NET0 is selected but not yet installed */}
         {!computeRemote && selectedFramework === 'adoptnet0' && adoptnet0Status === false && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+          <div className="bg-white rounded-2xl shadow-sm border border-black/15 p-6">
             <EngineInstallPanel
               title="AdOpT-NET0 Engine"
               icon={FiBox}
@@ -783,13 +783,13 @@ const Run = ({ onNavigate }) => {
           <div className="xl:col-span-3 space-y-4">
 
             {/* Model + solver */}
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+            <div className="bg-white rounded-2xl shadow-sm border border-black/15 p-5">
               <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-4 flex items-center gap-2">
                 <FiSettings size={13} className="text-electric-500" /> Configuration
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Model</label>
+                  <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Model</label>
                   <select
                     value={selectedModel?.id || ''}
                     onChange={e => {
@@ -810,7 +810,7 @@ const Run = ({ onNavigate }) => {
                 <div>
                   {selectedFramework === 'calliope' ? (
                     <>
-                      <label className="block text-xs font-medium text-slate-600 mb-1">Engine</label>
+                      <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Engine</label>
                       <select
                         value={calliopeEngine === '0.7' ? '0.7' : '0.6.8'}
                         onChange={e => setModelConfig(p => ({
@@ -826,15 +826,15 @@ const Run = ({ onNavigate }) => {
                     </>
                   ) : (
                     <>
-                      <label className="block text-xs font-medium text-slate-600 mb-1">Solver</label>
-                      <div className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg bg-slate-50 text-slate-700">
+                      <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Solver</label>
+                      <div className="w-full px-3 py-2.5 text-sm border border-black/15 rounded-lg bg-slate-50 text-slate-700">
                         HiGHS
                       </div>
                     </>
                   )}
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Mode</label>
+                  <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Mode</label>
                   <select
                     value={modelConfig.mode}
                     onChange={e => setModelConfig(p => ({ ...p, mode: e.target.value }))}
@@ -859,10 +859,10 @@ const Run = ({ onNavigate }) => {
               {/* Compute location — shown when a MEME server is saved and the
                   selected engine is remote-capable (PyPSA / Calliope 0.7 / AdOpT-NET0) */}
               {remoteAvailable && (
-                <div className="mt-4 border-t border-slate-100 pt-4">
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Compute</label>
+                <div className="mt-4 border-t border-black/10 pt-4">
+                  <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Compute</label>
                   <div className="flex items-center gap-3 flex-wrap">
-                    <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs font-medium">
+                    <div className="flex rounded-lg border border-black/15 overflow-hidden text-xs font-medium">
                       <button
                         type="button"
                         onClick={() => setComputeTarget('local')}
@@ -906,8 +906,8 @@ const Run = ({ onNavigate }) => {
 
               {/* Scenarios & Overrides multiselect — full width below grid */}
               {(availableScenarios.length > 0 || availableOverrides.length > 0) && (
-                <div className="mt-4 border-t border-slate-100 pt-4" ref={scenariosDropdownRef}>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Scenarios / Overrides</label>
+                <div className="mt-4 border-t border-black/10 pt-4" ref={scenariosDropdownRef}>
+                  <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Scenarios / Overrides</label>
                   <div className="relative">
                     <button
                       type="button"
@@ -925,9 +925,9 @@ const Run = ({ onNavigate }) => {
                       />
                     </button>
                     {showScenariosDropdown && (
-                      <div className="absolute z-20 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg p-2 max-h-64 overflow-y-auto">
+                      <div className="absolute z-20 mt-1 w-full bg-white border border-black/15 rounded-lg shadow-lg p-2 max-h-64 overflow-y-auto">
                         {availableScenarios.length > 0 && (
-                          <div className="pb-1 mb-1 border-b border-slate-100">
+                          <div className="pb-1 mb-1 border-b border-black/10">
                             <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-2 pt-1 pb-0.5">
                               Scenarios
                             </p>
@@ -990,7 +990,7 @@ const Run = ({ onNavigate }) => {
             </div>
 
             {/* Framework */}
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+            <div className="bg-white rounded-2xl shadow-sm border border-black/15 p-5">
               <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-2">
                 <FiCpu size={13} className="text-electric-500" /> Framework
               </h2>
@@ -1005,10 +1005,10 @@ const Run = ({ onNavigate }) => {
                       disabled={!fw.supported}
                       className={`relative p-3 rounded-xl border-2 transition-all duration-200 text-left ${
                         sel
-                          ? `border-transparent bg-gradient-to-br ${fw.color} text-white shadow-md`
+                          ? `border-transparent bg-black text-white shadow-md`
                           : fw.supported
-                          ? 'border-slate-200 hover:border-slate-300 bg-white'
-                          : 'border-slate-200 bg-slate-50 opacity-50 cursor-not-allowed'
+                          ? 'border-black/15 hover:border-slate-300 bg-white'
+                          : 'border-black/15 bg-slate-50 opacity-50 cursor-not-allowed'
                       }`}
                     >
                       <Icon size={18} className={sel ? 'text-white mb-1' : 'text-slate-400 mb-1'} />
@@ -1031,7 +1031,7 @@ const Run = ({ onNavigate }) => {
             </div>
 
             {/* Time Settings */}
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+            <div className="bg-white rounded-2xl shadow-sm border border-black/15 p-5">
               <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-4 flex items-center gap-2">
                 <FiCalendar size={13} className="text-electric-500" /> Time Settings
               </h2>
@@ -1058,7 +1058,7 @@ const Run = ({ onNavigate }) => {
                       if (preset.years)         e.setFullYear(e.getFullYear() + preset.years, e.getMonth(), e.getDate() - 1);
                       setModelConfig(p => ({ ...p, startDate: startStr, endDate: e.toISOString().slice(0, 10) }));
                     }}
-                    className="px-3 py-1 text-xs font-medium rounded-lg border border-slate-200 bg-slate-50 hover:bg-electric-50 hover:border-electric-300 hover:text-electric-700 transition-colors"
+                    className="px-3 py-1 text-xs font-medium rounded-lg border border-black/15 bg-slate-50 hover:bg-electric-50 hover:border-electric-300 hover:text-electric-700 transition-colors"
                   >
                     {preset.label}
                   </button>
@@ -1066,7 +1066,7 @@ const Run = ({ onNavigate }) => {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Start Date</label>
+                  <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Start Date</label>
                   <div className="relative">
                     <input
                       type="date"
@@ -1079,7 +1079,7 @@ const Run = ({ onNavigate }) => {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">End Date</label>
+                  <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">End Date</label>
                   <div className="relative">
                     <input
                       type="date"
@@ -1093,19 +1093,19 @@ const Run = ({ onNavigate }) => {
                   </div>
                 </div>
               </div>
-              <div className="mt-3 px-3 py-2 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between text-xs text-slate-500">
+              <div className="mt-3 px-3 py-2 bg-slate-50 rounded-lg border border-black/15 flex items-center justify-between text-xs text-slate-500">
                 <span><span className="font-semibold text-slate-700">{calculateDuration()} days</span> · ≈ {Math.ceil(calculateDuration() / 7)} weeks · ≈ {Math.ceil(calculateDuration() / 30)} months</span>
                 <span>{new Date(modelConfig.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} → {new Date(modelConfig.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
               </div>
             </div>
 
             {/* Solver Options */}
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+            <div className="bg-white rounded-2xl shadow-sm border border-black/15 p-5">
               <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-4 flex items-center gap-2">
                 <FiCpu size={13} className="text-electric-500" /> Solver Options
               </h2>
               <div className="space-y-3 mb-4">
-                <div className="flex items-center gap-3 p-3 border border-slate-200 rounded-lg">
+                <div className="flex items-center gap-3 p-3 border border-black/15 rounded-lg">
                   <input
                     type="checkbox"
                     id="ensureFeasibility"
@@ -1118,7 +1118,7 @@ const Run = ({ onNavigate }) => {
                     <p className="text-xs text-slate-500">Allows unmet demand to ensure model feasibility</p>
                   </label>
                 </div>
-                <div className="flex items-center gap-3 p-3 border border-slate-200 rounded-lg">
+                <div className="flex items-center gap-3 p-3 border border-black/15 rounded-lg">
                   <input
                     type="checkbox"
                     id="cyclicStorage"
@@ -1140,7 +1140,7 @@ const Run = ({ onNavigate }) => {
                 {showAdvancedSettings ? <FiChevronDown size={16} className="text-slate-400" /> : <FiChevronRight size={16} className="text-slate-400" />}
               </button>
               {showAdvancedSettings && (
-                <div className="mt-3 border border-slate-200 rounded-lg p-4 grid grid-cols-2 gap-x-6 gap-y-4">
+                <div className="mt-3 border border-black/15 rounded-lg p-4 grid grid-cols-2 gap-x-6 gap-y-4">
                   {[
                     { label: 'Threads', key: 'threads', step: 1, tip: 'Number of CPU threads for parallel computation' },
                     { label: 'Time Limit (s)', key: 'timeLimit', step: 1, tip: 'Maximum solve time in seconds' },
@@ -1196,7 +1196,7 @@ const Run = ({ onNavigate }) => {
                   value={modelConfig.customMath}
                   onChange={e => setModelConfig(p => ({ ...p, customMath: e.target.value }))}
                   spellCheck={false}
-                  className="w-full px-3 py-2 text-xs font-mono border border-slate-200 rounded-lg bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-y"
+                  className="w-full px-3 py-2 text-xs font-mono border border-black/15 rounded-lg bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-y"
                 />
               </div>
             )}
@@ -1206,7 +1206,7 @@ const Run = ({ onNavigate }) => {
               onClick={handleRunModel}
               disabled={!selectedModel || (!computeRemote && !serviceReady) || !isDateRangeValid()}
               title={!isDateRangeValid() ? 'Set a valid date range (start on or before end) to run.' : undefined}
-              className="w-full py-3.5 bg-gradient-to-r from-electric-500 to-electric-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl hover:from-electric-600 hover:to-electric-700 disabled:from-slate-300 disabled:to-slate-400 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2"
+              className="w-full py-3.5 bg-black text-white font-bold uppercase tracking-wide hover:opacity-80 disabled:bg-outline-variant disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2"
             >
               <FiPlay size={18} />
               {hasSelections

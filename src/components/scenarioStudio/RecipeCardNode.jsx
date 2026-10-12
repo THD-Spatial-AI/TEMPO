@@ -56,7 +56,7 @@ function RecipeCardNodeImpl({ id, data, selected }) {
       className={`relative bg-white rounded-xl border shadow-sm w-60 transition-colors ${
         selected
           ? 'border-electric-500 ring-2 ring-electric-300'
-          : 'border-slate-200 hover:border-slate-300 hover:shadow-md'
+          : 'border-black/15 hover:border-slate-300 hover:shadow-md'
       }`}
     >
       {/* Compose handles — omitted for SPORES (non-composable) */}
@@ -103,7 +103,7 @@ function RecipeCardNodeImpl({ id, data, selected }) {
 
         {/* Per-group temporal toggle — only on an eligible chain head */}
         {meta.isHead && meta.isEligible && (
-          <div className="nodrag mt-2 pt-2 border-t border-slate-100">
+          <div className="nodrag mt-2 pt-2 border-t border-black/10">
             <div className="flex items-center gap-1 mb-1">
               <FiClock size={10} className="text-electric-500" />
               <span className="text-[10px] font-semibold text-slate-600">Temporal mode</span>
@@ -112,8 +112,8 @@ function RecipeCardNodeImpl({ id, data, selected }) {
               {[{ id: false, label: 'Snapshots' }, { id: true, label: 'Pathway' }].map(opt => (
                 <button key={String(opt.id)}
                   onClick={(e) => { e.stopPropagation(); onTogglePathway?.(id, opt.id); }}
-                  className={`px-2 py-0.5 text-[10px] rounded-md font-medium transition-colors ${
-                    !!meta.pathwayMode === opt.id ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  className={`px-2 py-0.5 text-[10px] rounded-md font-bold uppercase tracking-wide transition-colors ${
+                    !!meta.pathwayMode === opt.id ? 'bg-black text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}>{opt.label}</button>
               ))}
             </div>
@@ -127,8 +127,8 @@ function RecipeCardNodeImpl({ id, data, selected }) {
               const color = st === 'done' ? 'bg-green-100 text-green-700 border-green-300'
                 : st === 'running' ? 'bg-electric-100 text-electric-700 border-electric-300 animate-pulse'
                 : st === 'failed' ? 'bg-red-100 text-red-700 border-red-300'
-                : st === 'skipped' ? 'bg-slate-100 text-slate-400 border-slate-200'
-                : 'bg-white text-slate-400 border-slate-200';
+                : st === 'skipped' ? 'bg-slate-100 text-slate-400 border-black/15'
+                : 'bg-white text-slate-400 border-black/15';
               const mark = st === 'done' ? ' ✓' : st === 'failed' ? ' ✗' : st === 'skipped' ? ' –' : '';
               return (
                 <React.Fragment key={label}>

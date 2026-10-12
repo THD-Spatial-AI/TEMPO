@@ -90,13 +90,13 @@ export default function SporesEnsembleComparison({ completedJobs }) {
     ['tech', 'class', ...slacks.flatMap(s => [`zero_share_${s}`, `median_${s}`])]));
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4 space-y-4">
+    <div className="bg-white rounded-xl border border-black/15 p-4 mb-4 space-y-4">
       <div className="flex items-center gap-2 flex-wrap">
         <FiGitMerge size={14} className="text-teal-600" />
         <h3 className="text-sm font-semibold text-slate-700">SPORES ensembles</h3>
         <span className="text-xs text-slate-400">{inBatch.length} ensemble{inBatch.length === 1 ? '' : 's'} · {cases.length} case{cases.length === 1 ? '' : 's'} · relaxations {slacks.map(s => `${s}%`).join('/')}</span>
         {batches.length > 1 && (
-          <select value={activeBatch} onChange={e => setBatchId(e.target.value)} className="ml-auto text-xs border border-slate-200 rounded px-2 py-1">
+          <select value={activeBatch} onChange={e => setBatchId(e.target.value)} className="ml-auto text-xs border border-black/15 rounded px-2 py-1">
             {batches.map((b, i) => <option key={b} value={b}>Batch {i + 1}</option>)}
           </select>
         )}
@@ -106,7 +106,7 @@ export default function SporesEnsembleComparison({ completedJobs }) {
         <div className="flex items-center gap-2 mb-1">
           <p className="text-xs font-semibold text-slate-600">Must-haves and real choices across relaxations (Fig 2)</p>
           {cases.length > 1 && (
-            <select value={activeCase} onChange={e => setCaseSel(e.target.value)} className="text-xs border border-slate-200 rounded px-2 py-0.5">
+            <select value={activeCase} onChange={e => setCaseSel(e.target.value)} className="text-xs border border-black/15 rounded px-2 py-0.5">
               {cases.map(c => <option key={c}>{c}</option>)}
             </select>
           )}
@@ -115,14 +115,14 @@ export default function SporesEnsembleComparison({ completedJobs }) {
         <table className="w-full text-xs">
           <thead>
             <tr className="text-slate-500 text-left">
-              <th className="py-1">Technology</th>
+              <th className="py-1 font-bold uppercase tracking-widest">Technology</th>
               {slacks.map(s => <th key={s}>{s}%: avoided in / median</th>)}
               <th>Class</th>
             </tr>
           </thead>
           <tbody>
             {classification.map(c => (
-              <tr key={c.tech} className="border-t border-slate-100">
+              <tr key={c.tech} className="border-t border-black/10">
                 <td className="py-1 font-medium text-slate-700">{c.tech}</td>
                 {slacks.map(s => {
                   const z = c.zeroShare[s / 100], m = c.median[s / 100];
@@ -142,7 +142,7 @@ export default function SporesEnsembleComparison({ completedJobs }) {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <p className="text-xs font-semibold text-slate-600">Sensitivity clusters (Fig 6)</p>
-            <select value={activeSlack} onChange={e => setSlackSel(Number(e.target.value))} className="text-xs border border-slate-200 rounded px-2 py-0.5">
+            <select value={activeSlack} onChange={e => setSlackSel(Number(e.target.value))} className="text-xs border border-black/15 rounded px-2 py-0.5">
               {slacks.map(s => <option key={s} value={s}>{s}% relaxation</option>)}
             </select>
           </div>

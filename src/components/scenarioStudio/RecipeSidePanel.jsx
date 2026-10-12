@@ -25,7 +25,7 @@ function ModelSummary({ model }) {
       <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1.5 text-left">This model</p>
       <div className="grid grid-cols-2 gap-1.5">
         {stats.map(([label, n]) => (
-          <div key={label} className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-left">
+          <div key={label} className="rounded-lg border border-black/15 bg-slate-50 px-2.5 py-1.5 text-left">
             <div className="text-sm font-bold text-slate-800">{n}</div>
             <div className="text-[10px] text-slate-500">{label}</div>
           </div>
@@ -40,7 +40,7 @@ export default function RecipeSidePanel({
 }) {
   if (!card) {
     return (
-      <div className="w-[340px] shrink-0 border-l border-slate-200 bg-white flex flex-col items-center justify-center text-center px-6">
+      <div className="w-[340px] shrink-0 border-l border-black/15 bg-white flex flex-col items-center justify-center text-center px-6">
         <FiInfo size={22} className="text-slate-300 mb-2" />
         <p className="text-sm text-slate-500 font-medium">No card selected</p>
         <p className="text-xs text-slate-400 mt-1">Click a config card to configure it. Nest it in a Year to scope it to that year, or leave it on the canvas for all years.</p>
@@ -53,8 +53,8 @@ export default function RecipeSidePanel({
   const scope = scopeLabel || 'All years';
 
   return (
-    <div className="w-[340px] shrink-0 border-l border-slate-200 bg-white flex flex-col">
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-200 shrink-0">
+    <div className="w-[340px] shrink-0 border-l border-black/15 bg-white flex flex-col">
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-black/15 shrink-0">
         <span className={`w-8 h-8 rounded-lg bg-gradient-to-br ${meta?.color || 'from-slate-500 to-slate-600'} shadow-sm`} />
         <div className="min-w-0 flex-1">
           <div className="text-sm font-semibold text-slate-800 truncate">{meta?.label || card.category}</div>

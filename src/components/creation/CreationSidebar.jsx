@@ -24,9 +24,9 @@ export default function CreationSidebar({
   showNotification,
 }) {
   return (
-      <div className={`bg-white border-r border-gray-200 transition-all duration-300 ${leftSidebarCollapsed ? 'w-16' : 'w-80'} flex flex-col overflow-hidden`}>
+      <div className={`bg-white border-r border-black/15 transition-all duration-300 ${leftSidebarCollapsed ? 'w-16' : 'w-80'} flex flex-col overflow-hidden`}>
         {/* Header */}
-        <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+        <div className="p-4 border-b border-black/15 flex justify-between items-center">
           {!leftSidebarCollapsed && (
             <div>
               <h2 className="text-lg font-bold text-gray-800">Creation Mode</h2>
@@ -44,8 +44,8 @@ export default function CreationSidebar({
         {!leftSidebarCollapsed && (
           <>
             {/* Mode Selection */}
-            <div className="p-4 border-b border-gray-200">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Mode</label>
+            <div className="p-4 border-b border-black/15">
+              <label className="block text-[0.6875rem] font-bold text-black/60 mb-2 uppercase tracking-widest">Mode</label>
               <div className="mb-2">
                 <button
                   onClick={() => {
@@ -55,7 +55,7 @@ export default function CreationSidebar({
                   className={`w-full p-3 rounded-lg border-2 transition-all ${
                     mode === 'add'
                       ? 'border-gray-500 bg-gray-50 text-gray-700'
-                      : 'border-gray-200 hover:border-gray-300'
+                      : 'border-black/15 hover:border-gray-300'
                   }`}
                 >
                   <FiMapPin className="mx-auto mb-1" size={20} />
@@ -72,7 +72,7 @@ export default function CreationSidebar({
                   className={`p-3 rounded-lg border-2 transition-all ${
                     mode === 'link'
                       ? 'border-gray-500 bg-gray-50 text-gray-700'
-                      : 'border-gray-200 hover:border-gray-300'
+                      : 'border-black/15 hover:border-gray-300'
                   }`}
                 >
                   <FiLink className="mx-auto mb-1" size={20} />
@@ -86,7 +86,7 @@ export default function CreationSidebar({
                   className={`p-3 rounded-lg border-2 transition-all ${
                     mode === 'polyline'
                       ? 'border-gray-500 bg-gray-50 text-gray-700'
-                      : 'border-gray-200 hover:border-gray-300'
+                      : 'border-black/15 hover:border-gray-300'
                   }`}
                 >
                   <FiActivity className="mx-auto mb-1" size={20} />

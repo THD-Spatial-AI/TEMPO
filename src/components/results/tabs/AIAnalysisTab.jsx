@@ -149,7 +149,7 @@ export default function AIAnalysisTab({ result, selectedJob, model, onOpenSettin
   // ── Empty / gated states ────────────────────────────────────────────────
   if (!aiAvailable()) {
     return (
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-10 text-center text-slate-400">
+      <div className="bg-white rounded-2xl border border-black/15 shadow-sm p-10 text-center text-slate-400">
         <FiCpu size={40} className="mx-auto mb-3 opacity-20" />
         <p className="text-sm">Model Advisor is only available in the TEMPO desktop app.</p>
       </div>
@@ -160,7 +160,7 @@ export default function AIAnalysisTab({ result, selectedJob, model, onOpenSettin
 
   if (keyReady === false) {
     return (
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-10 text-center">
+      <div className="bg-white rounded-2xl border border-black/15 shadow-sm p-10 text-center">
         <FiCpu size={40} className="mx-auto mb-3 text-slate-300" />
         <h3 className="text-lg font-semibold text-slate-700 mb-1">No API key configured</h3>
         <p className="text-sm text-slate-500 mb-5 max-w-md mx-auto">
@@ -169,7 +169,7 @@ export default function AIAnalysisTab({ result, selectedJob, model, onOpenSettin
         </p>
         <button
           onClick={() => onOpenSettings?.()}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-gray-700 hover:bg-gray-800 transition-colors"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold uppercase tracking-wide text-white bg-black hover:bg-black/80 transition-colors"
         >
           <FiSettings size={14} /> Open Model Advisor settings
         </button>
@@ -180,7 +180,7 @@ export default function AIAnalysisTab({ result, selectedJob, model, onOpenSettin
   return (
     <div className="space-y-4">
       {/* ── Context budget + cap controls ── */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+      <div className="bg-white rounded-2xl border border-black/15 shadow-sm p-4">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2 text-sm">
             <FiCpu size={15} className="text-gray-500" />
@@ -194,8 +194,8 @@ export default function AIAnalysisTab({ result, selectedJob, model, onOpenSettin
             </span>
             <button
               onClick={() => setShowControls((v) => !v)}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
-                showControls ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wide border transition-colors ${
+                showControls ? 'bg-black text-white border-gray-900' : 'bg-white text-slate-600 border-black/15 hover:bg-slate-50'
               }`}
             >
               <FiSliders size={11} /> Data sent
@@ -211,7 +211,7 @@ export default function AIAnalysisTab({ result, selectedJob, model, onOpenSettin
         )}
 
         {showControls && (
-          <div className="mt-3 pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="mt-3 pt-3 border-t border-black/10 grid grid-cols-1 sm:grid-cols-3 gap-4">
             <label className="flex items-center gap-2 text-xs text-slate-600">
               <input type="checkbox" checked={includeDispatch} onChange={(e) => setIncludeDispatch(e.target.checked)} className="rounded text-gray-600" />
               Include dispatch timeseries
@@ -233,16 +233,16 @@ export default function AIAnalysisTab({ result, selectedJob, model, onOpenSettin
       </div>
 
       {/* ── Auto report ── */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="flex items-center gap-2 px-5 py-3 border-b border-slate-100">
+      <div className="bg-white rounded-2xl border border-black/15 shadow-sm overflow-hidden">
+        <div className="flex items-center gap-2 px-5 py-3 border-b border-black/10">
           <FiCpu size={14} className="text-gray-600" />
-          <span className="font-semibold text-slate-800 text-sm flex-1">Model Advisor</span>
+          <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-black flex-1">Model Advisor</span>
           {reportBusy ? (
-            <button onClick={() => reportHandle.current?.cancel()} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 border border-slate-200 hover:bg-slate-50">
+            <button onClick={() => reportHandle.current?.cancel()} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 border border-black/15 hover:bg-slate-50">
               <FiStopCircle size={12} /> Stop
             </button>
           ) : (
-            <button onClick={runReport} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-gray-700 hover:bg-gray-800">
+            <button onClick={runReport} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide text-white bg-black hover:bg-black/80">
               <FiRefreshCw size={12} /> {report ? 'Regenerate' : 'Generate report'}
             </button>
           )}
@@ -268,15 +268,15 @@ export default function AIAnalysisTab({ result, selectedJob, model, onOpenSettin
       </div>
 
       {/* ── Chat ── */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-        <div className="px-5 py-3 border-b border-slate-100 font-semibold text-slate-800 text-sm">Ask about this run</div>
+      <div className="bg-white rounded-2xl border border-black/15 shadow-sm overflow-hidden flex flex-col">
+        <div className="px-5 py-3 border-b border-black/10 font-semibold text-slate-800 text-sm">Ask about this run</div>
         <div ref={threadRef} className="max-h-96 overflow-y-auto px-5 py-4 space-y-3">
           {messages.length === 0 && (
             <p className="text-sm text-slate-400 text-center py-6">e.g. “Why is gas capacity so low?” · “Which region is most expensive and why?”</p>
           )}
           {messages.map((m, i) => (
             <div key={i} className={m.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
-              <div className={`max-w-[85%] rounded-2xl px-4 py-2.5 ${m.role === 'user' ? 'bg-gray-700 text-white' : 'bg-slate-50 border border-slate-200'}`}>
+              <div className={`max-w-[85%] rounded-2xl px-4 py-2.5 ${m.role === 'user' ? 'bg-gray-700 text-white' : 'bg-slate-50 border border-black/15'}`}>
                 {m.role === 'user'
                   ? <span className="text-sm whitespace-pre-wrap">{m.content}</span>
                   : (m.content ? <div className="prose-sm max-w-none">{renderMarkdown(m.content)}</div>
@@ -285,21 +285,21 @@ export default function AIAnalysisTab({ result, selectedJob, model, onOpenSettin
             </div>
           ))}
         </div>
-        <div className="border-t border-slate-100 p-3 flex items-end gap-2">
+        <div className="border-t border-black/10 p-3 flex items-end gap-2">
           <textarea
             rows={1}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
             placeholder="Ask a question about these results…"
-            className="flex-1 resize-none px-3 py-2 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-300 max-h-32"
+            className="flex-1 resize-none px-3 py-2 text-sm rounded-xl border border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-300 max-h-32"
           />
           {chatBusy ? (
-            <button onClick={() => chatHandle.current?.cancel()} className="p-2.5 rounded-xl text-slate-600 border border-slate-200 hover:bg-slate-50" title="Stop">
+            <button onClick={() => chatHandle.current?.cancel()} className="p-2.5 rounded-xl text-slate-600 border border-black/15 hover:bg-slate-50" title="Stop">
               <FiStopCircle size={16} />
             </button>
           ) : (
-            <button onClick={sendChat} disabled={!input.trim()} className="p-2.5 rounded-xl text-white bg-gray-700 hover:bg-gray-800 disabled:opacity-40" title="Send">
+            <button onClick={sendChat} disabled={!input.trim()} className="uppercase tracking-wide font-bold p-2.5 rounded-xl text-white bg-black hover:bg-black/80 disabled:opacity-40" title="Send">
               <FiSend size={16} />
             </button>
           )}

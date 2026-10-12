@@ -391,7 +391,7 @@ const Dashboard = () => {
       grid: { left: 155, right: 70, top: 10, bottom: 10 },
       xAxis: { type: 'value', ...axisNameStyle(unit), axisLabel: { fontSize: 10, color: '#64748b', formatter: v => fmt(v) }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
       yAxis: { type: 'category', data: entries.map(([id]) => getTechName(id)), axisLabel: { fontSize: 10, color: '#475569' }, inverse: true },
-      series: [{ type: 'bar', barMaxWidth: 22, data: entries.map(([id, v]) => ({ value: v, itemStyle: { color: getTechColor(id), borderRadius: [0,4,4,0] } })), label: { show: true, position: 'right', formatter: p => fmt(p.value) + ' ' + unit, fontSize: 9, color: '#64748b' } }],
+      series: [{ type: 'bar', barMaxWidth: 22, data: entries.map(([id, v]) => ({ value: v, itemStyle: { color: getTechColor(id), borderRadius: 0 } })), label: { show: true, position: 'right', formatter: p => fmt(p.value) + ' ' + unit, fontSize: 9, color: '#64748b' } }],
       tooltip: { trigger: 'axis', formatter: p => `${p[0].name}<br/><b>${fmtNum(p[0].value)} MW</b>` },
     };
   }, [d.capByTech, getTechColor, getTechName]);
@@ -425,7 +425,7 @@ const Dashboard = () => {
       grid: { left: 120, right: 36, top: 10, bottom: 10 },
       xAxis: { type: 'value', axisLabel: { fontSize: 10, color: '#64748b' }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
       yAxis: { type: 'category', data: entries.map(([k]) => k), axisLabel: { fontSize: 10, color: '#475569' }, inverse: true },
-      series: [{ type: 'bar', barMaxWidth: 18, data: entries.map(([,v]) => ({ value: v.length, itemStyle: { color: '#6b7280', borderRadius: [0,4,4,0] } })), label: { show: true, position: 'right', fontSize: 9, color: '#64748b' } }],
+      series: [{ type: 'bar', barMaxWidth: 18, data: entries.map(([,v]) => ({ value: v.length, itemStyle: { color: '#6b7280', borderRadius: 0 } })), label: { show: true, position: 'right', fontSize: 9, color: '#64748b' } }],
       tooltip: { trigger: 'axis', formatter: p => `${p[0].name}: <b>${p[0].value} techs</b>` },
     };
   }, [d.techsPerLoc]);
@@ -441,7 +441,7 @@ const Dashboard = () => {
       grid: { left: 155, right: 70, top: 10, bottom: 10 },
       xAxis: { type: 'value', ...axisNameStyle(unit), axisLabel: { fontSize: 10, color: '#64748b', formatter: v => fmt(v) }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
       yAxis: { type: 'category', data: entries.map(([id]) => getTechName(id)), axisLabel: { fontSize: 10, color: '#475569' }, inverse: true },
-      series: [{ type: 'bar', barMaxWidth: 22, data: entries.map(([id, v]) => ({ value: v, itemStyle: { color: getTechColor(id), borderRadius: [0,4,4,0] } })), label: { show: true, position: 'right', formatter: p => fmt(p.value) + ' ' + unit, fontSize: 9, color: '#64748b' } }],
+      series: [{ type: 'bar', barMaxWidth: 22, data: entries.map(([id, v]) => ({ value: v, itemStyle: { color: getTechColor(id), borderRadius: 0 } })), label: { show: true, position: 'right', formatter: p => fmt(p.value) + ' ' + unit, fontSize: 9, color: '#64748b' } }],
       tooltip: { trigger: 'axis', formatter: p => `${p[0].name}<br/><b>${fmt(p[0].value)} ${unit} CAPEX est.</b>` },
     };
   }, [d.costByTech, getTechColor, getTechName]);
@@ -472,23 +472,23 @@ const Dashboard = () => {
   return (
     <div className="flex-1 overflow-hidden flex flex-col bg-slate-50">
       {/* Header */}
-      <div className="px-6 pt-5 pb-3 bg-white border-b border-slate-200 flex items-center justify-between flex-shrink-0">
+      <div className="px-6 pt-5 pb-3 bg-white border-b border-black/15 flex items-center justify-between flex-shrink-0">
         <div>
-          <h1 className="text-xl font-bold text-slate-800">Model Dashboard</h1>
+          <h1 className="text-xl font-black tracking-tighter text-black">Model Dashboard</h1>
           <p className="text-xs text-slate-500 mt-0.5">{currentModel ? currentModel.name : 'No model selected'} — input data</p>
         </div>
         <ModelSelector />
       </div>
 
       {/* Tab bar */}
-      <div className="bg-white border-b border-slate-200 flex-shrink-0">
+      <div className="bg-white border-b border-black/15 flex-shrink-0">
         <div className="px-6 flex gap-0">
           {TABS.map(({ id, label, icon: Icon }) => (
             <button key={id} onClick={() => setActiveTab(id)}
-              className={`flex items-center gap-1.5 px-4 py-3 border-b-2 text-sm font-medium transition-colors
-                ${activeTab === id ? 'border-gray-900 text-gray-900' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}>
+              className={`flex items-center gap-1.5 px-4 py-3 border-b-2 text-[0.8125rem] font-semibold uppercase tracking-tight transition-colors
+                ${activeTab === id ? 'border-black text-black' : 'border-transparent text-black/60 hover:text-black'}`}>
               <Icon size={14} />{label}
-              {id === 'timeseries' && tsCount > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-gray-100 text-gray-700">{tsCount}</span>}
+              {id === 'timeseries' && tsCount > 0 && <span className="ml-1 px-1.5 py-0.5 text-[10px] font-bold bg-black text-white">{tsCount}</span>}
             </button>
           ))}
         </div>
@@ -563,8 +563,8 @@ const Dashboard = () => {
             <Panel title="Generation & Storage Technologies" icon={FiLayers} defaultOpen={false}>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
-                  <thead><tr className="bg-slate-50 border-b border-slate-200">
-                    {['','Name','ID','Type','Max Cap (MW)','CAPEX (€/MW)','Lifetime'].map(h => <th key={h} className="text-left px-3 py-2 text-slate-500 font-medium">{h}</th>)}
+                  <thead><tr className="bg-slate-50 border-b border-black/15">
+                    {['','Name','ID','Type','Max Cap (MW)','CAPEX (€/MW)','Lifetime'].map(h => <th key={h} className="text-left px-3 py-2 text-black/60 font-bold uppercase tracking-widest">{h}</th>)}
                   </tr></thead>
                   <tbody>
                     {d.allTechIds.filter(id => ['supply','storage','conversion'].includes(getTechParent(id))).map((id, i) => {
@@ -601,20 +601,20 @@ const Dashboard = () => {
                     genViewOpts.locs?.length > 0 ? genViewOpts.locs : null)
                 : null;
               return (
-                <div className="border-t border-slate-200 pt-4">
+                <div className="border-t border-black/15 pt-4">
                   <h3 className="text-sm font-semibold text-slate-600 mb-3 flex items-center gap-2">
                     <FiSun size={14} className="text-gray-500" />
                     Generation Resource Profiles
                     {activeGenTs && <span className="font-normal text-[10px] text-slate-400">({activeGenTs.dataColumns.length} locations · {activeGenTs.rowCount} steps)</span>}
                   </h3>
                   {tsLoading && !activeGenTs && (
-                    <div className="bg-white rounded-xl border border-slate-200 p-6 text-center">
+                    <div className="bg-white rounded-xl border border-black/15 p-6 text-center">
                       <div className="animate-spin w-6 h-6 border-2 border-gray-500 border-t-transparent rounded-full mx-auto mb-2" />
                       <p className="text-xs text-slate-400">Loading generation profiles…</p>
                     </div>
                   )}
                   {!tsLoading && !activeGenTs && (
-                    <div className="bg-white rounded-xl border border-slate-200 p-6 text-center text-slate-400 text-sm">
+                    <div className="bg-white rounded-xl border border-black/15 p-6 text-center text-slate-400 text-sm">
                       No generation resource files loaded. Visit the{' '}
                       <button onClick={() => setActiveTab('timeseries')} className="text-gray-700 underline">Time Series tab</button>
                       {' '}to load.
@@ -649,7 +649,7 @@ const Dashboard = () => {
                             )}
                           </>
                         ) : (
-                          <div className="bg-white rounded-xl border border-slate-200 p-6 text-center text-slate-400 text-sm">
+                          <div className="bg-white rounded-xl border border-black/15 p-6 text-center text-slate-400 text-sm">
                             No data for the selected filter combination.
                           </div>
                         )}
@@ -703,7 +703,7 @@ const Dashboard = () => {
             return (<>
               {/* Loading indicator while TS auto-loads */}
               {tsLoading && (
-                <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 flex items-center gap-3 text-sm text-gray-700">
+                <div className="bg-gray-50 border border-black/15 rounded-xl px-4 py-3 flex items-center gap-3 text-sm text-gray-700">
                   <div className="animate-spin w-4 h-4 border-2 border-gray-500 border-t-transparent rounded-full flex-shrink-0" />
                   Loading demand time series… charts will appear shortly.
                 </div>
@@ -726,7 +726,7 @@ const Dashboard = () => {
                 {gridLocs.length > 0 ? (
                   <div className="p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1.5">
                     {gridLocs.slice(0, 150).map(loc => (
-                      <div key={loc.name} className="rounded border border-gray-100 bg-gray-50 px-2 py-1.5 flex items-center gap-1.5">
+                      <div key={loc.name} className="rounded border border-black/10 bg-gray-50 px-2 py-1.5 flex items-center gap-1.5">
                         <span className="w-1.5 h-1.5 rounded-full bg-gray-400 flex-shrink-0" />
                         <p className="text-[10px] text-slate-700 truncate" title={loc.name}>{loc.name}</p>
                       </div>
@@ -756,7 +756,7 @@ const Dashboard = () => {
                         <ReactECharts option={filteredDemandChart.opt} style={{ height: 240 }} notMerge lazyUpdate />
                       </Panel>
                     ) : (
-                      <div className="bg-white rounded-xl border border-slate-200 p-6 text-center text-slate-400 text-sm">No data for the selected filters.</div>
+                      <div className="bg-white rounded-xl border border-black/15 p-6 text-center text-slate-400 text-sm">No data for the selected filters.</div>
                     )}
                     {charts && (
                       <Panel title="Annual Demand Heatmap — total demand by hour × day" icon={FiClock}>
@@ -771,7 +771,7 @@ const Dashboard = () => {
                     accentColor="#6b7280" />
                 </div>
               ) : !tsLoading && (
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-8 text-center text-slate-400">
+                <div className="bg-white rounded-xl border border-black/15 shadow-sm p-8 text-center text-slate-400">
                   <FiClock size={28} className="mx-auto mb-2 opacity-40" />
                   <p className="text-sm">Demand time series not yet loaded.</p>
                   <p className="text-[11px] mt-1">
@@ -812,8 +812,8 @@ const Dashboard = () => {
               <Panel title={`Transmission Links (${(links||[]).length})`} icon={FiLink} defaultOpen={false}>
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
-                    <thead><tr className="bg-slate-50 border-b border-slate-200">
-                      {['From','To','Technology','Distance (km)','Max Cap (MW)'].map(h => <th key={h} className="text-left px-3 py-2 text-slate-500 font-medium">{h}</th>)}
+                    <thead><tr className="bg-slate-50 border-b border-black/15">
+                      {['From','To','Technology','Distance (km)','Max Cap (MW)'].map(h => <th key={h} className="text-left px-3 py-2 text-black/60 font-bold uppercase tracking-widest">{h}</th>)}
                     </tr></thead>
                     <tbody>
                       {(links||[]).map((link, i) => {
@@ -861,8 +861,8 @@ const Dashboard = () => {
             <Panel title="Full Technology Cost Table" icon={FiLayers} defaultOpen={false}>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
-                  <thead><tr className="bg-slate-50 border-b border-slate-200">
-                    {['','Name','Type','Max Cap (MW)','CAPEX rate (€/MW)','CAPEX est.','OPEX/yr (€)','Lifetime'].map(h=><th key={h} className="text-left px-3 py-2 text-slate-500 font-medium">{h}</th>)}
+                  <thead><tr className="bg-slate-50 border-b border-black/15">
+                    {['','Name','Type','Max Cap (MW)','CAPEX rate (€/MW)','CAPEX est.','OPEX/yr (€)','Lifetime'].map(h=><th key={h} className="text-left px-3 py-2 text-black/60 font-bold uppercase tracking-widest">{h}</th>)}
                   </tr></thead>
                   <tbody>
                     {d.allTechIds.map((id, i) => {
@@ -894,13 +894,13 @@ const Dashboard = () => {
           {activeTab === 'timeseries' && (() => {
             return (<>
               {tsLoading && (
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-8 text-center">
+                <div className="bg-white rounded-xl border border-black/15 shadow-sm p-8 text-center">
                   <div className="animate-spin w-8 h-8 border-2 border-gray-500 border-t-transparent rounded-full mx-auto mb-3" />
                   <p className="text-sm text-slate-500">Loading time series data…</p>
                 </div>
               )}
               {!tsLoading && modelTimeSeries.length === 0 && (
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-10 text-center text-slate-400">
+                <div className="bg-white rounded-xl border border-black/15 shadow-sm p-10 text-center text-slate-400">
                   <FiClock size={32} className="mx-auto mb-3 opacity-40" />
                   <p className="text-sm font-medium">No time series data loaded for this model.</p>
                   <p className="text-[11px] mt-1">Template models load data automatically when you first open this tab.</p>
@@ -958,7 +958,7 @@ const Dashboard = () => {
                             <ReactECharts option={filteredTsChart.opt} style={{ height: 240 }} notMerge lazyUpdate />
                           </Panel>
                         ) : (
-                          <div className="bg-white rounded-xl border border-slate-200 p-6 text-center text-slate-400 text-sm">
+                          <div className="bg-white rounded-xl border border-black/15 p-6 text-center text-slate-400 text-sm">
                             No data for the selected filter combination.
                           </div>
                         )}

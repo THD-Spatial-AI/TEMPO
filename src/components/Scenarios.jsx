@@ -17,7 +17,7 @@ const ScenarioTemplateCard = ({ template, overrides, onImport }) => {
   const allPresent = missingOverrides.length === 0;
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl hover:border-slate-300 hover:shadow-sm transition-all">
+    <div className="bg-white border border-black/15 rounded-xl hover:border-slate-300 hover:shadow-sm transition-all">
       <div className="p-4">
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-start gap-3 flex-1 min-w-0">
@@ -49,7 +49,7 @@ const ScenarioTemplateCard = ({ template, overrides, onImport }) => {
             </button>
             <button
               onClick={() => onImport(template)}
-              className="px-3 py-1.5 bg-slate-800 text-white rounded-lg text-xs font-medium hover:bg-slate-700 transition-colors"
+              className="px-3 py-1.5 bg-black text-white rounded-lg text-xs font-bold uppercase tracking-wide hover:bg-black/80 transition-colors"
             >
               Import
             </button>
@@ -57,7 +57,7 @@ const ScenarioTemplateCard = ({ template, overrides, onImport }) => {
         </div>
 
         {expanded && (
-          <div className="mt-3 pt-3 border-t border-slate-100 space-y-2">
+          <div className="mt-3 pt-3 border-t border-black/10 space-y-2">
             <p className="text-xs text-slate-600">{template.detail}</p>
             <div>
               <p className="text-xs font-semibold text-slate-500 mb-1">Overrides used:</p>
@@ -118,30 +118,30 @@ const SweepGenerator = ({ overrides, onGenerate }) => {
   const preview = stepValues.slice(0, 4).map((v) => `${baseName}_${v}`);
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-4">
+    <div className="bg-white border border-black/15 rounded-xl p-4 space-y-4">
       <div className="flex items-center gap-2">
         <FiSliders className="text-slate-600" size={15} />
         <h3 className="text-sm font-semibold text-slate-800">Parameter Sweep Generator</h3>
-        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5">
           {steps} steps
         </span>
       </div>
 
       {/* Parameter to sweep */}
       <div className="space-y-2">
-        <label className="block text-xs font-medium text-slate-600 uppercase tracking-wide">
+        <label className="block text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">
           Parameter
         </label>
         <div className="flex items-center gap-2 mb-2">
           <button
             onClick={() => setUseCustom(false)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${!useCustom ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-colors ${!useCustom ? 'bg-black text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
           >
             Preset
           </button>
           <button
             onClick={() => setUseCustom(true)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${useCustom ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-colors ${useCustom ? 'bg-black text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
           >
             Custom path
           </button>
@@ -153,7 +153,7 @@ const SweepGenerator = ({ overrides, onGenerate }) => {
               <label
                 key={p.id}
                 className={`flex items-start gap-2 p-3 rounded-xl border cursor-pointer transition-colors ${
-                  presetId === p.id ? 'border-slate-800 bg-slate-50' : 'border-slate-200 hover:border-slate-300'
+                  presetId === p.id ? 'border-slate-800 bg-slate-50' : 'border-black/15 hover:border-slate-300'
                 }`}
               >
                 <input type="radio" name="sweep-preset" value={p.id}
@@ -179,26 +179,26 @@ const SweepGenerator = ({ overrides, onGenerate }) => {
 
       {/* Value range */}
       <div>
-        <label className="block text-xs font-medium text-slate-600 uppercase tracking-wide mb-2">
+        <label className="block text-[0.6875rem] font-bold text-black/60 uppercase mb-2 tracking-widest">
           Range {effectiveUnit && <span className="text-slate-400 normal-case font-normal">({effectiveUnit})</span>}
         </label>
         <div className="grid grid-cols-3 gap-3">
           <div>
-            <label className="block text-xs text-slate-500 mb-1">Min</label>
+            <label className="block text-[0.6875rem] text-black/60 mb-1 font-bold uppercase tracking-widest">Min</label>
             <input type="number" step="any"
               value={minVal !== '' ? minVal : effectiveMin}
               onChange={(e) => setMinVal(e.target.value)}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-500" />
           </div>
           <div>
-            <label className="block text-xs text-slate-500 mb-1">Max</label>
+            <label className="block text-[0.6875rem] text-black/60 mb-1 font-bold uppercase tracking-widest">Max</label>
             <input type="number" step="any"
               value={maxVal !== '' ? maxVal : effectiveMax}
               onChange={(e) => setMaxVal(e.target.value)}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-500" />
           </div>
           <div>
-            <label className="block text-xs text-slate-500 mb-1">Steps</label>
+            <label className="block text-[0.6875rem] text-black/60 mb-1 font-bold uppercase tracking-widest">Steps</label>
             <input type="number" min="2" max="50"
               value={steps}
               onChange={(e) => setSteps(Math.max(2, Math.min(50, Number(e.target.value))))}
@@ -212,7 +212,7 @@ const SweepGenerator = ({ overrides, onGenerate }) => {
 
       {/* Base name */}
       <div>
-        <label className="block text-xs font-medium text-slate-600 uppercase tracking-wide mb-1.5">Base name</label>
+        <label className="block text-[0.6875rem] font-bold text-black/60 uppercase mb-1.5 tracking-widest">Base name</label>
         <input
           value={baseName}
           onChange={(e) => setBaseName(e.target.value.replace(/\s/g, '_'))}
@@ -227,7 +227,7 @@ const SweepGenerator = ({ overrides, onGenerate }) => {
       {/* Base overrides */}
       {Object.keys(overrides).length > 0 && (
         <div>
-          <label className="block text-xs font-medium text-slate-600 uppercase tracking-wide mb-1.5">
+          <label className="block text-[0.6875rem] font-bold text-black/60 uppercase mb-1.5 tracking-widest">
             Combine with (optional)
           </label>
           <div className="flex flex-wrap gap-2">
@@ -235,9 +235,9 @@ const SweepGenerator = ({ overrides, onGenerate }) => {
               <button
                 key={name}
                 onClick={() => toggleBase(name)}
-                className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                className={`uppercase tracking-wide font-bold px-3 py-1 text-xs border transition-colors ${
                   baseOverrides.includes(name)
-                    ? 'bg-slate-800 text-white border-slate-800'
+                    ? 'bg-black text-white border-black'
                     : 'text-slate-600 border-slate-300 hover:border-slate-500'
                 }`}
               >
@@ -283,7 +283,7 @@ const ScenarioModal = ({ initial, overrides, onConfirm, onClose }) => {
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-slate-200 flex items-center justify-between">
+        <div className="p-6 border-b border-black/15 flex items-center justify-between">
           <h2 className="text-lg font-bold text-slate-800">
             {initial ? 'Edit Scenario' : 'Create Scenario'}
           </h2>
@@ -294,7 +294,7 @@ const ScenarioModal = ({ initial, overrides, onConfirm, onClose }) => {
 
         <div className="p-6 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">Scenario name *</label>
+            <label className="block text-[0.6875rem] font-bold text-black/60 mb-1.5 uppercase tracking-widest">Scenario name *</label>
             <input value={name} onChange={(e) => setName(e.target.value)}
               placeholder="e.g. net_zero_2050"
               className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-500" />
@@ -307,18 +307,18 @@ const ScenarioModal = ({ initial, overrides, onConfirm, onClose }) => {
             </div>
           ) : (
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              <label className="block text-[0.6875rem] font-bold text-black/60 mb-1.5 uppercase tracking-widest">
                 Select overrides (order matters)
               </label>
-              <div className="max-h-52 overflow-y-auto border border-slate-200 rounded-xl bg-slate-50 p-2 space-y-1">
+              <div className="max-h-52 overflow-y-auto border border-black/15 rounded-xl bg-slate-50 p-2 space-y-1">
                 {availableKeys.map((n) => (
                   <button
                     key={n}
                     onClick={() => toggle(n)}
-                    className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center justify-between ${
+                    className={`uppercase tracking-wide font-bold w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center justify-between ${
                       selected.includes(n)
-                        ? 'bg-slate-800 text-white'
-                        : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                        ? 'bg-black text-white'
+                        : 'bg-white hover:bg-slate-100 text-slate-700 border border-black/15'
                     }`}
                   >
                     <span>{n}</span>
@@ -333,10 +333,10 @@ const ScenarioModal = ({ initial, overrides, onConfirm, onClose }) => {
 
           {selected.length > 0 && (
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Order</label>
+              <label className="block text-[0.6875rem] font-bold text-black/60 mb-1.5 uppercase tracking-widest">Order</label>
               <div className="space-y-1.5">
                 {selected.map((n, i) => (
-                  <div key={n} className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                  <div key={n} className="flex items-center gap-2 bg-slate-50 border border-black/15 rounded-lg px-3 py-2">
                     <span className="text-xs text-slate-400 w-4">{i+1}.</span>
                     <span className="flex-1 text-sm font-medium text-slate-800">{n}</span>
                     <button onClick={() => moveUp(i)} disabled={i===0} className="p-1 text-slate-400 hover:text-slate-600 disabled:opacity-20">
@@ -356,11 +356,11 @@ const ScenarioModal = ({ initial, overrides, onConfirm, onClose }) => {
           )}
         </div>
 
-        <div className="p-6 border-t border-slate-200 flex gap-3">
+        <div className="p-6 border-t border-black/15 flex gap-3">
           <button
             onClick={() => name.trim() && selected.length > 0 && onConfirm(name.trim(), selected)}
             disabled={!name.trim() || selected.length === 0}
-            className="flex-1 px-4 py-2.5 bg-slate-800 text-white rounded-xl font-medium hover:bg-slate-700 disabled:opacity-40"
+            className="flex-1 px-4 py-2.5 bg-black text-white rounded-xl font-bold uppercase tracking-wide hover:bg-black/80 disabled:opacity-40"
           >
             {initial ? 'Update Scenario' : 'Create Scenario'}
           </button>
@@ -514,13 +514,13 @@ const Scenarios = () => {
     <div className="flex-1 h-screen overflow-hidden flex flex-col bg-slate-50">
       <SaveBar label="Scenarios" />
       {/* ── Header ── */}
-      <div className="bg-white border-b border-slate-200 px-5 py-2.5 shrink-0 flex items-center gap-3">
+      <div className="bg-white border-b border-black/15 px-5 py-2.5 shrink-0 flex items-center gap-3">
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <FiLayers size={14} className="text-slate-500 shrink-0" />
-          <h1 className="text-sm font-semibold text-slate-800">Scenarios</h1>
+          <h1 className="text-sm font-black tracking-tighter text-black">Scenarios</h1>
           <span className="text-xs text-slate-400 truncate">{currentModel?.name}</span>
           {scenarioCount > 0 && (
-            <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs font-medium shrink-0">
+            <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs font-medium shrink-0">
               {scenarioCount}
             </span>
           )}
@@ -534,8 +534,8 @@ const Scenarios = () => {
             <button
               key={id}
               onClick={() => setActiveTab(id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                activeTab === id ? 'bg-slate-800 text-white' : 'text-slate-600 hover:bg-slate-100'
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-colors ${
+                activeTab === id ? 'bg-black text-white' : 'text-slate-600 hover:bg-slate-100'
               }`}
             >
               {label}
@@ -544,7 +544,7 @@ const Scenarios = () => {
         </div>
         <button
           onClick={() => setScenarioModal({})}
-          className="px-3 py-1.5 bg-gray-700 text-white rounded-lg text-xs font-medium hover:bg-gray-800 transition-colors flex items-center gap-1.5 shrink-0"
+          className="px-3 py-1.5 bg-black text-white rounded-lg text-xs font-bold uppercase tracking-wide hover:bg-black/80 transition-colors flex items-center gap-1.5 shrink-0"
         >
           <FiPlus size={12} />
           New Scenario
@@ -605,7 +605,7 @@ const Scenarios = () => {
                 <div className="flex justify-center gap-3">
                   <button
                     onClick={() => setActiveTab('templates')}
-                    className="px-4 py-2 bg-slate-800 text-white rounded-xl text-sm font-medium hover:bg-slate-700 transition-colors"
+                    className="px-4 py-2 bg-black text-white rounded-xl text-sm font-bold uppercase tracking-wide hover:bg-black/80 transition-colors"
                   >
                     Browse Templates
                   </button>
@@ -624,7 +624,7 @@ const Scenarios = () => {
                   const missingCount = overrideList.filter((o) => !overrides[o]).length;
 
                   return (
-                    <div key={name} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                    <div key={name} className="bg-white rounded-xl border border-black/15 overflow-hidden">
                       <div className="flex items-center gap-2 px-4 py-3 hover:bg-slate-50">
                         <button
                           onClick={() => setExpandedScenarios((p) => ({ ...p, [name]: !p[name] }))}
@@ -674,14 +674,14 @@ const Scenarios = () => {
                       </div>
 
                       {isExpanded && (
-                        <div className="border-t border-slate-100 bg-slate-50 p-4">
+                        <div className="border-t border-black/10 bg-slate-50 p-4">
                           <div className="space-y-1 mb-3">
                             {overrideList.map((o, i) => (
                               <div key={i}
                                 className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm ${
                                   overrides[o]
-                                    ? 'bg-white border-slate-200 text-slate-800'
-                                    : 'bg-gray-50 border-gray-200 text-gray-700'
+                                    ? 'bg-white border-black/15 text-slate-800'
+                                    : 'bg-gray-50 border-black/15 text-gray-700'
                                 }`}
                               >
                                 <span className="text-xs text-slate-400 w-4">{i+1}.</span>

@@ -39,14 +39,14 @@ function YearNodeImpl({ id, data, selected }) {
 
       {/* Header band */}
       <div className="flex items-center gap-1.5 px-2.5 py-1.5 border-b border-electric-200/70 bg-white/70 rounded-t-xl">
-        <span className="w-6 h-6 shrink-0 rounded-lg bg-gradient-to-br from-electric-500 to-electric-600 flex items-center justify-center text-white shadow-sm">
+        <span className="w-6 h-6 shrink-0 rounded-lg bg-black flex items-center justify-center text-white shadow-sm">
           <FiCalendar size={12} />
         </span>
         <input
           type="number" value={data.year} min={2000} max={2200} step={1}
           onClick={(e) => e.stopPropagation()}
           onChange={(e) => ctx.onSetYear?.(id, parseInt(e.target.value, 10) || data.year)}
-          className="nodrag w-16 text-base font-bold text-slate-800 border border-slate-200 rounded-md px-1 py-0.5 focus:outline-none focus:ring-2 focus:ring-electric-400"
+          className="nodrag w-16 text-base font-bold text-slate-800 border border-black/15 rounded-md px-1 py-0.5 focus:outline-none focus:ring-2 focus:ring-electric-400"
         />
         <button
           onClick={(e) => { e.stopPropagation(); setMenuOpen(o => !o); }}
@@ -75,8 +75,8 @@ function YearNodeImpl({ id, data, selected }) {
       {menuOpen && (
         <>
           <div className="fixed inset-0 z-[80]" onClick={(e) => { e.stopPropagation(); setMenuOpen(false); }} />
-          <div className="nodrag nopan absolute z-[81] left-2 top-[40px] w-44 bg-white border border-slate-200 rounded-lg shadow-xl overflow-hidden">
-            <div className="px-2.5 py-1.5 border-b border-slate-100 bg-slate-50 text-[9px] font-semibold uppercase tracking-wide text-slate-500">
+          <div className="nodrag nopan absolute z-[81] left-2 top-[40px] w-44 bg-white border border-black/15 rounded-lg shadow-xl overflow-hidden">
+            <div className="px-2.5 py-1.5 border-b border-black/10 bg-slate-50 text-[9px] font-semibold uppercase tracking-wide text-slate-500">
               Add to year {data.year}
             </div>
             {YEAR_CATEGORIES.map(c => (

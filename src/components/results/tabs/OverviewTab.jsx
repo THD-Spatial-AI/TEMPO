@@ -38,10 +38,10 @@ export default function OverviewTab({
   return (
               <div className="space-y-4">
                 {/* Map — full width, main visual */}
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="bg-white rounded-2xl border border-black/15 shadow-sm overflow-hidden">
                     <div className="px-4 pt-3 pb-2 flex items-center gap-2 flex-wrap">
                       <FiMap size={14} className="text-gray-600 flex-shrink-0" />
-                      <span className="font-semibold text-slate-800 text-sm">Location Map</span>
+                      <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-black">Location Map</span>
                       <div className="ml-auto flex gap-1 flex-wrap">
                         {[
                           { id: 'capacity',     label: 'Capacity',     icon: FiBarChart2 },
@@ -51,8 +51,8 @@ export default function OverviewTab({
                           { id: 'transmission', label: 'Transmission', icon: FiShare2 },
                         ].map(({ id, label, icon: Icon }) => (
                           <button key={id} onClick={() => setMapView(id)}
-                            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium transition-all ${
-                              mapView === id ? 'bg-gray-900 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold uppercase tracking-wide transition-all ${
+                              mapView === id ? 'bg-black text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                             }`}>
                             <Icon size={10} /> {label}
                           </button>
@@ -65,8 +65,8 @@ export default function OverviewTab({
                         <span className="text-xs text-slate-500">Show:</span>
                         {CHORO_OPTIONS.map(opt => (
                           <button key={opt.id} onClick={() => setChoroSel(opt.id)}
-                            className={`px-2 py-0.5 rounded text-[11px] font-medium transition-all ${
-                              choroSel === opt.id ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                            className={`px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide transition-all ${
+                              choroSel === opt.id ? 'bg-black text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                             }`}>
                             {opt.label}
                           </button>
@@ -123,10 +123,10 @@ export default function OverviewTab({
                 {/* Capacity + Generation row */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   {/* Capacity by tech */}
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="bg-white rounded-2xl border border-black/15 shadow-sm overflow-hidden">
                     <button onClick={() => toggleSection('cap-by-tech')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
                       <FiBarChart2 size={14} className="text-gray-600 flex-shrink-0" />
-                      <span className="font-semibold text-slate-800 text-sm flex-1">Installed Capacity by Technology</span>
+                      <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-black flex-1">Installed Capacity by Technology</span>
                       <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('cap-by-tech') ? '' : '-rotate-90'}`} />
                     </button>
                     {sectionOpen('cap-by-tech') && <div className="px-5 pb-5">
@@ -136,10 +136,10 @@ export default function OverviewTab({
                     </div>}
                   </div>
                   {/* Generation donut */}
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="bg-white rounded-2xl border border-black/15 shadow-sm overflow-hidden">
                     <button onClick={() => toggleSection('gen-mix')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
                       <FiPieChart size={14} className="text-gray-500 flex-shrink-0" />
-                      <span className="font-semibold text-slate-800 text-sm flex-1">Generation Mix</span>
+                      <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-black flex-1">Generation Mix</span>
                       <span className="text-xs text-slate-400 mr-1">· MWh total</span>
                       <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('gen-mix') ? '' : '-rotate-90'}`} />
                     </button>
@@ -150,10 +150,10 @@ export default function OverviewTab({
                     </div>}
                   </div>
                   {/* Capacity by location */}
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="bg-white rounded-2xl border border-black/15 shadow-sm overflow-hidden">
                     <button onClick={() => toggleSection('cap-by-loc')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
                       <FiMapPin size={14} className="text-gray-600 flex-shrink-0" />
-                      <span className="font-semibold text-slate-800 text-sm flex-1">Capacity by Location & Technology</span>
+                      <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-black flex-1">Capacity by Location & Technology</span>
                       <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('cap-by-loc') ? '' : '-rotate-90'}`} />
                     </button>
                     {sectionOpen('cap-by-loc') && <div className="px-5 pb-5">
@@ -183,9 +183,9 @@ export default function OverviewTab({
                           <table className="w-full text-xs">
                             <thead>
                               <tr className="border-b border-amber-200">
-                                <th className="text-left py-1.5 font-semibold text-amber-700 uppercase tracking-wide">Location</th>
-                                <th className="text-right py-1.5 font-semibold text-amber-700 uppercase tracking-wide">Unmet (MWh)</th>
-                                <th className="text-right py-1.5 font-semibold text-amber-700 uppercase tracking-wide">Share</th>
+                                <th className="text-left py-1.5 font-bold text-amber-700 uppercase tracking-widest">Location</th>
+                                <th className="text-right py-1.5 font-bold text-amber-700 uppercase tracking-widest">Unmet (MWh)</th>
+                                <th className="text-right py-1.5 font-bold text-amber-700 uppercase tracking-widest">Share</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -210,22 +210,22 @@ export default function OverviewTab({
 
                 {/* Technology summary table */}
                 {derivedData?.capByTech && (
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="bg-white rounded-2xl border border-black/15 shadow-sm overflow-hidden">
                     <button onClick={() => toggleSection('tech-summary')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
                       <FiTrendingUp size={14} className="text-slate-500 flex-shrink-0" />
-                      <span className="font-semibold text-slate-800 text-sm flex-1">Technology Summary</span>
+                      <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-black flex-1">Technology Summary</span>
                       <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('tech-summary') ? '' : '-rotate-90'}`} />
                     </button>
                     {sectionOpen('tech-summary') && <div className="px-5 pb-5 overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
-                          <tr className="border-b border-slate-100">
-                            <th className="text-left py-2 pr-6 font-semibold text-slate-500 text-xs uppercase tracking-wide">Technology</th>
-                            <th className="text-right py-2 px-4 font-semibold text-slate-500 text-xs uppercase tracking-wide">Capacity</th>
-                            <th className="text-right py-2 px-4 font-semibold text-slate-500 text-xs uppercase tracking-wide">Generation</th>
-                            <th className="text-right py-2 px-4 font-semibold text-slate-500 text-xs uppercase tracking-wide">Cost</th>
-                            <th className="text-right py-2 px-4 font-semibold text-slate-500 text-xs uppercase tracking-wide">€ / MWh</th>
-                            <th className="text-right py-2 pl-4 font-semibold text-slate-500 text-xs uppercase tracking-wide">Cap. Factor</th>
+                          <tr className="border-b border-black/10">
+                            <th className="text-left py-2 pr-6 font-bold text-black/60 text-[0.6875rem] uppercase tracking-widest">Technology</th>
+                            <th className="text-right py-2 px-4 font-bold text-black/60 text-[0.6875rem] uppercase tracking-widest">Capacity</th>
+                            <th className="text-right py-2 px-4 font-bold text-black/60 text-[0.6875rem] uppercase tracking-widest">Generation</th>
+                            <th className="text-right py-2 px-4 font-bold text-black/60 text-[0.6875rem] uppercase tracking-widest">Cost</th>
+                            <th className="text-right py-2 px-4 font-bold text-black/60 text-[0.6875rem] uppercase tracking-widest">€ / MWh</th>
+                            <th className="text-right py-2 pl-4 font-bold text-black/60 text-[0.6875rem] uppercase tracking-widest">Cap. Factor</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -250,7 +250,7 @@ export default function OverviewTab({
                                 <td className="py-2.5 px-4 text-right font-mono text-xs text-slate-600">{cpm != null ? cpm.toFixed(2) : '—'}</td>
                                 <td className="py-2.5 pl-4 text-right font-mono text-xs">
                                   {cf != null ? (
-                                    <span className="px-1.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                                    <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-700">
                                       {cf.toFixed(1)}%
                                     </span>
                                   ) : '—'}
@@ -284,17 +284,17 @@ export default function OverviewTab({
                     yAxis: { type: 'category', data: barLinks.map(l => `${l.from} ↔ ${l.to}`), axisLabel: { fontSize: 9, color: '#475569' } },
                     series: [{
                       type: 'bar', barMaxWidth: 20,
-                      data: barLinks.map(l => ({ value: l.cap, itemStyle: { color: techColorFn(l.tech), borderRadius: [0, 4, 4, 0] } })),
+                      data: barLinks.map(l => ({ value: l.cap, itemStyle: { color: techColorFn(l.tech), borderRadius: 0 } })),
                       label: { show: true, position: 'right', formatter: p => fmtTx(p.value) + ' ' + txUnit, fontSize: 9, color: '#64748b' },
                     }],
                     tooltip: { trigger: 'axis', formatter: p => `${p[0].name}<br/><b>${fmtTx(p[0].value)} ${txUnit}</b>` },
                   } : null;
 
                   return (
-                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="bg-white rounded-2xl border border-black/15 shadow-sm overflow-hidden">
                       <button onClick={() => toggleSection('tx-capacity')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
                         <FiShare2 size={14} className="text-slate-500 flex-shrink-0" />
-                        <span className="font-semibold text-slate-800 text-sm flex-1">Transmission Capacity</span>
+                        <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-black flex-1">Transmission Capacity</span>
                         <span className="text-xs text-slate-400 mr-1">· {constrained.length} link{constrained.length !== 1 ? 's' : ''}</span>
                         <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('tx-capacity') ? '' : '-rotate-90'}`} />
                       </button>
@@ -312,7 +312,7 @@ export default function OverviewTab({
                             <p className="text-xs text-slate-400 py-4 text-center">No constrained transmission links</p>
                           )}
                           {free.length > 0 && (
-                            <div className="mt-4 pt-4 border-t border-slate-100">
+                            <div className="mt-4 pt-4 border-t border-black/10">
                               <p className="text-xs text-slate-400">
                                 <span className="font-medium text-slate-500">{free.length} unconstrained link{free.length !== 1 ? 's' : ''}</span>
                                 {' '}({[...new Set(free.map(l => l.tech))].join(', ')}) — fixed at very high capacity, omitted from chart.

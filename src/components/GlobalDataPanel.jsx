@@ -161,11 +161,11 @@ const GlobalDataPanel = ({
   };
 
   return (
-    <div className={`bg-white border-l border-slate-200 flex flex-col h-full overflow-hidden transition-all duration-300 ${
+    <div className={`bg-white border-l border-black/15 flex flex-col h-full overflow-hidden transition-all duration-300 ${
       collapsed ? 'w-16' : 'w-96'
     }`}>
       {/* Header */}
-      <div className="p-2 border-b border-slate-200 flex justify-between items-center">
+      <div className="p-2 border-b border-black/15 flex justify-between items-center">
                 {!collapsed && (
                   <div>
                     <label className="block text-lg font-bold text-slate-800">
@@ -186,8 +186,8 @@ const GlobalDataPanel = ({
       {!collapsed ? (
         <>
       {/* Country Selection */}
-      <div className="p-4 border-b border-slate-200 flex-shrink-0">
-        <label className="block text-sm font-semibold text-slate-700 mb-2">
+      <div className="p-4 border-b border-black/15 flex-shrink-0">
+        <label className="block text-[0.6875rem] font-bold text-black/60 mb-2 uppercase tracking-widest">
           <FiMapPin className="inline mr-1" />
           Select Country
         </label>
@@ -207,17 +207,17 @@ const GlobalDataPanel = ({
       {selectedCountry && (
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
           {/* Administrative Level Selection */}
-          <div className="p-4 border-b border-slate-200 flex-shrink-0">
-            <label className="block text-sm font-semibold text-slate-700 mb-2">
+          <div className="p-4 border-b border-black/15 flex-shrink-0">
+            <label className="block text-[0.6875rem] font-bold text-black/60 mb-2 uppercase tracking-widest">
               <FiLayers className="inline mr-1" />
               Administrative Level
             </label>
             <div className="grid grid-cols-3 gap-2">
               <button
                 onClick={() => handleAdminLevelChange('country')}
-                className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                className={`px-3 py-2 rounded-lg text-sm font-bold uppercase tracking-wide transition-all ${
                   adminLevel === 'country'
-                    ? 'bg-gray-700 text-white'
+                    ? 'bg-black text-white'
                     : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                 }`}
               >
@@ -225,9 +225,9 @@ const GlobalDataPanel = ({
               </button>
               <button
                 onClick={() => handleAdminLevelChange('state')}
-                className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                className={`px-3 py-2 rounded-lg text-sm font-bold uppercase tracking-wide transition-all ${
                   adminLevel === 'state'
-                    ? 'bg-gray-700 text-white'
+                    ? 'bg-black text-white'
                     : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                 }`}
               >
@@ -235,9 +235,9 @@ const GlobalDataPanel = ({
               </button>
               <button
                 onClick={() => handleAdminLevelChange('commune')}
-                className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                className={`px-3 py-2 rounded-lg text-sm font-bold uppercase tracking-wide transition-all ${
                   adminLevel === 'commune'
-                    ? 'bg-gray-700 text-white'
+                    ? 'bg-black text-white'
                     : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                 }`}
               >
@@ -259,8 +259,8 @@ const GlobalDataPanel = ({
           </div>
 
           {/* Filters */}
-          <div className="p-4 border-b border-slate-200 flex-shrink-0 max-h-64 overflow-y-auto">
-            <label className="block text-sm font-semibold text-slate-700 mb-2">
+          <div className="p-4 border-b border-black/15 flex-shrink-0 max-h-64 overflow-y-auto">
+            <label className="block text-[0.6875rem] font-bold text-black/60 mb-2 uppercase tracking-widest">
               <FiFilter className="inline mr-1" />
               Filters
             </label>
@@ -281,7 +281,7 @@ const GlobalDataPanel = ({
 
             {/* Fuel Type */}
             <div className="mb-3">
-              <label className="block text-xs text-slate-600 mb-1">Fuel Type</label>
+              <label className="block text-[0.6875rem] text-black/60 mb-1 font-bold uppercase tracking-widest">Fuel Type</label>
               <select
                 value={fuelTypeFilter}
                 onChange={(e) => setFuelTypeFilter(e.target.value)}
@@ -295,7 +295,7 @@ const GlobalDataPanel = ({
 
             {/* Minimum Capacity */}
             <div>
-              <label className="block text-xs text-slate-600 mb-1">
+              <label className="block text-[0.6875rem] text-black/60 mb-1 font-bold uppercase tracking-widest">
                 Min Capacity (MW): {minCapacity}
               </label>
               <input
@@ -313,7 +313,7 @@ const GlobalDataPanel = ({
           {/* Scrollable content area: Statistics and Actions */}
           <div className="flex-1 overflow-y-auto min-h-0">
             {/* Statistics */}
-            <div className="p-4 border-b border-slate-200">
+            <div className="p-4 border-b border-black/15">
               <h3 className="text-sm font-semibold text-slate-700 mb-3">Statistics</h3>
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
@@ -341,7 +341,7 @@ const GlobalDataPanel = ({
               <button
                 onClick={exportFilteredData}
                 disabled={filteredPlants.length === 0}
-                className="w-full px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 disabled:bg-slate-300 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium"
+                className="w-full px-4 py-2 bg-black text-white rounded-lg hover:bg-black/80 disabled:bg-slate-300 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-bold uppercase tracking-wide"
               >
                 <FiDownload />
                 Export Filtered Data ({filteredPlants.length})
@@ -349,7 +349,7 @@ const GlobalDataPanel = ({
             </div>
 
             {/* Infrastructure Layers Section */}
-            <div className="p-4 border-t border-slate-200">
+            <div className="p-4 border-t border-black/15">
               <h3 className="text-sm font-semibold text-slate-700 mb-3">Map Infrastructure</h3>
               
               {/* Layer Toggles */}
@@ -447,7 +447,7 @@ const GlobalDataPanel = ({
           >
             <FiGlobe size={20} />
           </button>
-          <div className="border-t border-slate-200 w-8 my-2"></div>
+          <div className="border-t border-black/15 w-8 my-2"></div>
           <button
             className="p-2 rounded-lg hover:bg-slate-100"
             title="Search & Filters"
@@ -462,7 +462,7 @@ const GlobalDataPanel = ({
           >
             <FiDownload size={20} />
           </button>
-          <div className="border-t border-slate-200 w-8 my-2"></div>
+          <div className="border-t border-black/15 w-8 my-2"></div>
           <button
             className="p-2 rounded-lg hover:bg-slate-100"
             title="Power Plants"

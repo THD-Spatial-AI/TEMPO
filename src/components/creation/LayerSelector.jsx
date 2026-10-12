@@ -6,7 +6,7 @@ const LayerSelector = ({ currentLayer, onLayerChange }) => {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <div className="relative bg-white rounded-lg shadow-lg">
+    <div className="relative bg-surface-container-lowest rounded-lg border border-black/15">
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="p-3 hover:bg-gray-50 transition-colors flex items-center gap-2 rounded-lg"
@@ -16,7 +16,7 @@ const LayerSelector = ({ currentLayer, onLayerChange }) => {
       </button>
 
       {isOpen && (
-        <div className="absolute top-full right-0 mt-2 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden min-w-[160px] z-[10002]">
+        <div className="absolute top-full right-0 mt-2 bg-white rounded-lg shadow-xl border border-black/15 overflow-hidden min-w-[160px] z-[10002]">
           {Object.entries(MAP_STYLE_NAMES).map(([key, name]) => (
             <button
               key={key}

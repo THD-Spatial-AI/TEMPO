@@ -17,10 +17,10 @@ export default function CostsTab({
   return (
               <div className="space-y-4">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="bg-white rounded-2xl border border-black/15 shadow-sm overflow-hidden">
                     <button onClick={() => toggleSection('cost-by-tech')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
                       <FiDollarSign size={14} className="text-gray-500 flex-shrink-0" />
-                      <span className="font-semibold text-slate-800 text-sm flex-1">Total Cost by Technology</span>
+                      <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-black flex-1">Total Cost by Technology</span>
                       <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('cost-by-tech') ? '' : '-rotate-90'}`} />
                     </button>
                     {sectionOpen('cost-by-tech') && <div className="px-5 pb-5">
@@ -30,10 +30,10 @@ export default function CostsTab({
                     </div>}
                   </div>
 
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="bg-white rounded-2xl border border-black/15 shadow-sm overflow-hidden">
                     <button onClick={() => toggleSection('cost-per-mwh')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
                       <FiTrendingUp size={14} className="text-gray-600 flex-shrink-0" />
-                      <span className="font-semibold text-slate-800 text-sm flex-1">Cost per MWh by Technology</span>
+                      <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-black flex-1">Cost per MWh by Technology</span>
                       <span className="text-xs text-slate-400 mr-1">· LCOE proxy</span>
                       <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('cost-per-mwh') ? '' : '-rotate-90'}`} />
                     </button>
@@ -46,10 +46,10 @@ export default function CostsTab({
                 </div>
 
                 {costsLocOption && (
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="bg-white rounded-2xl border border-black/15 shadow-sm overflow-hidden">
                     <button onClick={() => toggleSection('cost-by-loc')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
                       <FiMapPin size={14} className="text-gray-600 flex-shrink-0" />
-                      <span className="font-semibold text-slate-800 text-sm flex-1">Cost Breakdown by Location &amp; Technology</span>
+                      <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-black flex-1">Cost Breakdown by Location &amp; Technology</span>
                       <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('cost-by-loc') ? '' : '-rotate-90'}`} />
                     </button>
                     {sectionOpen('cost-by-loc') && <div className="px-5 pb-5">
@@ -59,7 +59,7 @@ export default function CostsTab({
                 )}
 
                 {result?.costs_by_location && (
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 overflow-x-auto">
+                  <div className="bg-white rounded-2xl border border-black/15 shadow-sm p-5 overflow-x-auto">
                     {(() => {
                       const allLocs = Object.keys(result.costs_by_location);
                       const totalByLoc = Object.fromEntries(
@@ -78,14 +78,14 @@ export default function CostsTab({
                           )}
                           <table className="w-full text-xs">
                             <thead>
-                              <tr className="border-b border-slate-200">
-                                <th className="text-left py-2 pr-4 font-semibold text-slate-500 uppercase tracking-wide">Location</th>
+                              <tr className="border-b border-black/15">
+                                <th className="text-left py-2 pr-4 font-bold text-black/60 uppercase tracking-widest">Location</th>
                                 {techs.map(t => (
-                                  <th key={t} className="text-right py-2 px-3 font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap capitalize">
+                                  <th key={t} className="text-right py-2 px-3 font-bold text-black/60 uppercase whitespace-nowrap capitalize tracking-widest">
                                     {t.replace(/_/g, ' ')}
                                   </th>
                                 ))}
-                                <th className="text-right py-2 pl-4 font-semibold text-slate-800 uppercase tracking-wide">Total</th>
+                                <th className="text-right py-2 pl-4 font-bold text-black/60 uppercase tracking-widest">Total</th>
                               </tr>
                             </thead>
                             <tbody>

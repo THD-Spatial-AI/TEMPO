@@ -378,9 +378,9 @@ const BulkImport = ({ onClose, onComplete }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-5xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-surface-container-lowest rounded-lg max-w-5xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col border border-black/15 shadow-xl">
         {/* Header */}
-        <div className="p-6 border-b border-slate-200">
+        <div className="p-6 border-b border-black/15">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-2xl font-bold text-slate-800">Bulk Import Model</h2>
@@ -407,7 +407,7 @@ const BulkImport = ({ onClose, onComplete }) => {
           {step === 1 && (
             <div className="space-y-6">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label className="block text-[0.6875rem] font-bold text-black/60 mb-2 uppercase tracking-widest">
                   Model Name *
                 </label>
                 <input
@@ -615,7 +615,7 @@ const BulkImport = ({ onClose, onComplete }) => {
               )}
 
               {warnings.length > 0 && (
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <div className="bg-gray-50 border border-black/15 rounded-lg p-4">
                   <div className="flex items-center gap-2 text-gray-800 font-semibold mb-3">
                     <FiAlertCircle />
                     {warnings.length} Warning{warnings.length !== 1 ? 's' : ''}
@@ -646,7 +646,7 @@ const BulkImport = ({ onClose, onComplete }) => {
               <h3 className="text-lg font-semibold text-slate-800">Model Preview</h3>
               
               <div className="grid grid-cols-3 gap-4">
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <div className="bg-gray-50 border border-black/15 rounded-lg p-4">
                   <div className="text-2xl font-bold text-gray-600">{parsedData.locations.length}</div>
                   <div className="text-sm text-gray-800">Locations</div>
                 </div>
@@ -660,20 +660,20 @@ const BulkImport = ({ onClose, onComplete }) => {
                 </div>
               </div>
 
-              <div className="bg-white border border-slate-200 rounded-lg p-4">
+              <div className="bg-white border border-black/15 rounded-lg p-4">
                 <h4 className="font-semibold text-slate-800 mb-3">Sample Locations</h4>
                 <div className="max-h-60 overflow-y-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-slate-200">
-                        <th className="text-left py-2 px-3 font-semibold text-slate-700">Name</th>
-                        <th className="text-left py-2 px-3 font-semibold text-slate-700">Type</th>
-                        <th className="text-left py-2 px-3 font-semibold text-slate-700">Coordinates</th>
+                      <tr className="border-b border-black/15">
+                        <th className="text-left py-2 px-3 font-bold text-black/60 uppercase tracking-widest">Name</th>
+                        <th className="text-left py-2 px-3 font-bold text-black/60 uppercase tracking-widest">Type</th>
+                        <th className="text-left py-2 px-3 font-bold text-black/60 uppercase tracking-widest">Coordinates</th>
                       </tr>
                     </thead>
                     <tbody>
                       {parsedData.locations.slice(0, 10).map((loc, index) => (
-                        <tr key={index} className="border-b border-slate-100">
+                        <tr key={index} className="border-b border-black/10">
                           <td className="py-2 px-3 text-slate-800">{loc.name}</td>
                           <td className="py-2 px-3 text-slate-600">{loc.type}</td>
                           <td className="py-2 px-3 text-slate-600">
@@ -695,7 +695,7 @@ const BulkImport = ({ onClose, onComplete }) => {
         </div>
 
         {/* Footer Actions */}
-        <div className="p-6 border-t border-slate-200 flex items-center justify-between">
+        <div className="p-6 border-t border-black/15 flex items-center justify-between">
           <button
             onClick={onClose}
             className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50"
@@ -717,7 +717,7 @@ const BulkImport = ({ onClose, onComplete }) => {
               <button
                 onClick={parseFiles}
                 disabled={!files.locations || !modelName}
-                className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:bg-slate-300 disabled:cursor-not-allowed"
+                className="uppercase tracking-wide font-bold px-6 py-2 bg-black text-white rounded-lg hover:bg-black/80 disabled:bg-slate-300 disabled:cursor-not-allowed"
               >
                 Validate Files
               </button>
@@ -726,7 +726,7 @@ const BulkImport = ({ onClose, onComplete }) => {
             {step === 2 && errors.length === 0 && (
               <button
                 onClick={() => setStep(3)}
-                className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+                className="uppercase tracking-wide font-bold px-6 py-2 bg-black text-white rounded-lg hover:bg-black/80"
               >
                 Continue to Preview
               </button>
@@ -735,7 +735,7 @@ const BulkImport = ({ onClose, onComplete }) => {
             {step === 3 && (
               <button
                 onClick={handleCreateModel}
-                className="px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 flex items-center gap-2"
+                className="uppercase tracking-wide font-bold px-6 py-2 bg-black text-white rounded-lg hover:bg-black/80 flex items-center gap-2"
               >
                 <FiCheckCircle />
                 Create Model

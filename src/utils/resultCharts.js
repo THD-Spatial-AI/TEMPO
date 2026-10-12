@@ -45,7 +45,7 @@ export function buildCapBarOption(derivedData, { colorFn, isVisible = SHOW_ALL }
     yAxis: { type: 'category', data: sorted.map(([t]) => t.replace(/_/g, ' ')), axisLabel: { fontSize: 9, color: '#475569' } },
     series: [{
       type: 'bar', barMaxWidth: 28,
-      data: sorted.map(([tech, v]) => ({ value: v, itemStyle: { color: colorFn(tech), borderRadius: [0, 4, 4, 0] } })),
+      data: sorted.map(([tech, v]) => ({ value: v, itemStyle: { color: colorFn(tech), borderRadius: 0 } })),
       label: { show: true, position: 'right', formatter: p => fmt(p.value), fontSize: 9, color: '#64748b' },
     }],
     tooltip: { trigger: 'axis', formatter: p => `${p[0].name}<br/><b>${fmt(p[0].value)} ${unit}</b>` },
@@ -87,7 +87,7 @@ export function buildCostsTechOption(result, { colorFn, isVisible = SHOW_ALL } =
     yAxis: { type: 'category', data: sorted.map(([t]) => t.replace(/_/g, ' ')), axisLabel: { fontSize: 9, color: '#475569' } },
     series: [{
       type: 'bar', barMaxWidth: 28,
-      data: sorted.map(([tech, v]) => ({ value: v, itemStyle: { color: colorFn(tech), borderRadius: [0, 4, 4, 0] } })),
+      data: sorted.map(([tech, v]) => ({ value: v, itemStyle: { color: colorFn(tech), borderRadius: 0 } })),
       label: { show: true, position: 'right', formatter: p => fmt(p.value), fontSize: 9, color: '#64748b' },
     }],
     tooltip: { trigger: 'axis', formatter: p => `${p[0].name}<br/><b>${fmt(p[0].value)} ${unit}</b>` },
@@ -243,7 +243,7 @@ export function buildCfOption(result, derivedData, { colorFn, isVisible = SHOW_A
       grid: { left: 140, right: 80, top: 16, bottom: 16 },
       xAxis: { type: 'value', max: 100, ...axisNameStyle('%'), axisLabel: { fontSize: 9, color: '#64748b', formatter: v => v }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
       yAxis: { type: 'category', data: data.map(d => d.tech.replace(/_/g, ' ')), axisLabel: { fontSize: 9, color: '#475569' } },
-      series: [{ type: 'bar', barMaxWidth: 28, data: data.map(d => ({ value: +d.cf.toFixed(1), itemStyle: { color: colorFn(d.tech), borderRadius: [0, 4, 4, 0] } })), label: { show: true, position: 'right', formatter: p => p.value.toFixed(1) + '%', fontSize: 9, color: '#64748b' } }],
+      series: [{ type: 'bar', barMaxWidth: 28, data: data.map(d => ({ value: +d.cf.toFixed(1), itemStyle: { color: colorFn(d.tech), borderRadius: 0 } })), label: { show: true, position: 'right', formatter: p => p.value.toFixed(1) + '%', fontSize: 9, color: '#64748b' } }],
       tooltip: { trigger: 'axis', formatter: p => `${p[0].name}<br/><b>Avg CF: ${p[0].value}%</b>` },
     };
   }
@@ -281,7 +281,7 @@ export function buildCostPerMwhOption(result, derivedData, { colorFn, isVisible 
     grid: { left: 140, right: 60, top: 16, bottom: 16 },
     xAxis: { type: 'value', ...axisNameStyle('€/MWh'), axisLabel: { fontSize: 9, color: '#64748b', formatter: v => fmtNum(v) }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
     yAxis: { type: 'category', data: data.map(d => d.tech.replace(/_/g, ' ')), axisLabel: { fontSize: 9, color: '#475569' } },
-    series: [{ type: 'bar', barMaxWidth: 28, data: data.map(d => ({ value: +d.costPerMwh.toFixed(2), itemStyle: { color: colorFn(d.tech), borderRadius: [0, 4, 4, 0] } })), label: { show: true, position: 'right', formatter: p => p.value.toFixed(1), fontSize: 9, color: '#64748b' } }],
+    series: [{ type: 'bar', barMaxWidth: 28, data: data.map(d => ({ value: +d.costPerMwh.toFixed(2), itemStyle: { color: colorFn(d.tech), borderRadius: 0 } })), label: { show: true, position: 'right', formatter: p => p.value.toFixed(1), fontSize: 9, color: '#64748b' } }],
     tooltip: { trigger: 'axis', formatter: p => `${p[0].name}<br/><b>${p[0].value.toFixed(2)} €/MWh</b>` },
   };
 }

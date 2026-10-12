@@ -17,7 +17,7 @@ const SearchBar = ({ locations, onLocationSelect }) => {
 
   return (
     <div className="relative">
-      <div className="bg-white rounded-lg shadow-lg flex items-center px-3 py-2">
+      <div className="bg-surface-container-lowest rounded-lg flex items-center px-3 py-2 border border-black/15">
         <FiSearch className="text-gray-400 mr-2" />
         <input
           type="text"
@@ -44,14 +44,14 @@ const SearchBar = ({ locations, onLocationSelect }) => {
       </div>
 
       {isOpen && filteredLocations.length > 0 && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden max-h-64 overflow-y-auto z-[10002]">
+        <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-lg shadow-xl border border-black/15 overflow-hidden max-h-64 overflow-y-auto z-[10002]">
           {filteredLocations.map((location, index) => {
             const techCount = location.techs ? Object.keys(location.techs).length : 0;
             return (
               <button
                 key={location.id || index}
                 onClick={() => handleSelect(location)}
-                className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0"
+                className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors border-b border-black/10 last:border-0"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -63,7 +63,7 @@ const SearchBar = ({ locations, onLocationSelect }) => {
                       </p>
                     </div>
                   </div>
-                  <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full">
+                  <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1">
                     {techCount} tech{techCount !== 1 ? 's' : ''}
                   </span>
                 </div>

@@ -222,10 +222,10 @@ const ResultsMap = ({ locations, capacitiesByLoc, dominantTechByLoc, generationB
   }, []);
 
   return (
-    <div style={{ width: '100%', height: '100%', borderRadius: '12px', overflow: 'hidden', position: 'relative' }}>
+    <div style={{ width: '100%', height: '100%', borderRadius: 0, overflow: 'hidden', position: 'relative' }}>
       <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
       {viewMode === 'capacity' && legendEntries.length > 0 && (
-        <div style={{ position: 'absolute', top: 10, right: 10, background: 'rgba(255,255,255,0.95)', borderRadius: 8, padding: '8px 10px', fontSize: 11, boxShadow: '0 2px 8px rgba(0,0,0,0.12)', fontFamily: "'DM Sans',system-ui", border: '1px solid #e2e8f0', maxWidth: 160 }}>
+        <div style={{ position: 'absolute', top: 10, right: 10, background: 'rgba(255,255,255,0.95)', borderRadius: 0, padding: '8px 10px', fontSize: 11, boxShadow: '0 2px 8px rgba(0,0,0,0.12)', fontFamily: "'DM Sans',system-ui", border: '1px solid #e2e8f0', maxWidth: 160 }}>
           <div style={{ fontWeight: 700, color: '#475569', marginBottom: 5, fontSize: 9.5, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Tech Mix</div>
           {legendEntries.map(([tech, color]) => (
             <div key={tech} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
@@ -249,18 +249,18 @@ const ResultsMap = ({ locations, capacitiesByLoc, dominantTechByLoc, generationB
           </div>
           {transmissionLinks.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 7, paddingTop: 7, borderTop: '1px solid #f1f5f9' }}>
-              <div style={{ width: 16, height: 2.5, background: '#94a3b8', borderRadius: 2, flexShrink: 0 }} />
+              <div style={{ width: 16, height: 2.5, background: '#94a3b8', borderRadius: 0, flexShrink: 0 }} />
               <span style={{ color: '#94a3b8', fontSize: 10 }}>TX link</span>
             </div>
           )}
         </div>
       )}
       {viewMode === 'mix' && mixLegendEntries.length > 0 && (
-        <div style={{ position: 'absolute', top: 10, right: 10, background: 'rgba(255,255,255,0.95)', borderRadius: 8, padding: '8px 10px', fontSize: 11, boxShadow: '0 2px 8px rgba(0,0,0,0.12)', fontFamily: "'DM Sans',system-ui", border: '1px solid #e2e8f0', maxWidth: 170 }}>
+        <div style={{ position: 'absolute', top: 10, right: 10, background: 'rgba(255,255,255,0.95)', borderRadius: 0, padding: '8px 10px', fontSize: 11, boxShadow: '0 2px 8px rgba(0,0,0,0.12)', fontFamily: "'DM Sans',system-ui", border: '1px solid #e2e8f0', maxWidth: 170 }}>
           <div style={{ fontWeight: 700, color: '#475569', marginBottom: 5, fontSize: 9.5, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Technology Mix</div>
           {mixLegendEntries.map(([tech, color]) => (
             <div key={tech} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-              <div style={{ width: 10, height: 10, borderRadius: 2, background: color, flexShrink: 0 }} />
+              <div style={{ width: 10, height: 10, borderRadius: 0, background: color, flexShrink: 0 }} />
               <span style={{ color: '#475569', fontSize: 10.5 }}>{tech.replace(/_/g, ' ')}</span>
             </div>
           ))}
@@ -270,16 +270,16 @@ const ResultsMap = ({ locations, capacitiesByLoc, dominantTechByLoc, generationB
         </div>
       )}
       {viewMode === 'generation' && (
-        <div style={{ position: 'absolute', top: 10, right: 10, background: 'rgba(255,255,255,0.95)', borderRadius: 8, padding: '8px 10px', fontSize: 11, boxShadow: '0 2px 8px rgba(0,0,0,0.12)', fontFamily: "'DM Sans',system-ui", border: '1px solid #e2e8f0', minWidth: 130 }}>
+        <div style={{ position: 'absolute', top: 10, right: 10, background: 'rgba(255,255,255,0.95)', borderRadius: 0, padding: '8px 10px', fontSize: 11, boxShadow: '0 2px 8px rgba(0,0,0,0.12)', fontFamily: "'DM Sans',system-ui", border: '1px solid #e2e8f0', minWidth: 130 }}>
           <div style={{ fontWeight: 700, color: '#475569', marginBottom: 5, fontSize: 9.5, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Total Generation</div>
-          <div style={{ width: '100%', height: 7, borderRadius: 4, background: 'linear-gradient(to right, #fbbf24, #f59e0b, #ea580c, #dc2626)', marginBottom: 3 }} />
+          <div style={{ width: '100%', height: 7, borderRadius: 0, background: 'linear-gradient(to right, #fbbf24, #f59e0b, #ea580c, #dc2626)', marginBottom: 3 }} />
           <div style={{ display: 'flex', justifyContent: 'space-between', color: '#94a3b8', fontSize: 9.5 }}>
             <span>0</span>
             <span>{fmtEnergy(maxGenByLoc)}</span>
           </div>
           {transmissionLinks.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5, paddingTop: 5, borderTop: '1px solid #f1f5f9' }}>
-              <div style={{ width: 16, height: 2.5, background: '#94a3b8', borderRadius: 2, flexShrink: 0 }} />
+              <div style={{ width: 16, height: 2.5, background: '#94a3b8', borderRadius: 0, flexShrink: 0 }} />
               <span style={{ color: '#94a3b8', fontSize: 10 }}>TX link</span>
             </div>
           )}
@@ -647,7 +647,7 @@ const TransmissionFlowMap = ({ locations, transmissionFlowData, capacitiesByLoc,
           <button key={id} onClick={() => { setMode(id); if (id === 'peak') setPlaying(false); }}
             style={{ background: mode === id ? '#111827' : 'transparent',
                      color: mode === id ? '#fff' : '#64748b',
-                     border: 'none', borderRadius: 6, padding: '4px 13px', fontSize: 11,
+                     border: 'none', borderRadius: 0, padding: '4px 13px', fontSize: 11,
                      fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', system-ui", transition: 'all 0.15s' }}>
             {label}
           </button>
@@ -663,7 +663,7 @@ const TransmissionFlowMap = ({ locations, transmissionFlowData, capacitiesByLoc,
           <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} />
           {!hasFlow && (
             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-              <div style={{ background: 'rgba(255,255,255,0.97)', color: '#94a3b8', fontSize: 12, padding: '10px 18px', borderRadius: 10, border: '1px solid #e2e8f0', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
+              <div style={{ background: 'rgba(255,255,255,0.97)', color: '#94a3b8', fontSize: 12, padding: '10px 18px', borderRadius: 0, border: '1px solid #e2e8f0', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
                 No transmission flow timeseries in results
               </div>
             </div>
@@ -681,7 +681,7 @@ const TransmissionFlowMap = ({ locations, transmissionFlowData, capacitiesByLoc,
               </div>
               {CONGESTION_LEVELS.map(({ label, threshold, color }) => (
                 <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
-                  <span style={{ width: 20, height: 4, borderRadius: 2, background: color, display: 'block', flexShrink: 0 }} />
+                  <span style={{ width: 20, height: 4, borderRadius: 0, background: color, display: 'block', flexShrink: 0 }} />
                   <span style={{ color: '#374151', fontSize: 10, flex: 1 }}>{label}</span>
                   <span style={{ color: '#94a3b8', fontSize: 9 }}>{threshold}</span>
                 </div>
@@ -706,17 +706,17 @@ const TransmissionFlowMap = ({ locations, transmissionFlowData, capacitiesByLoc,
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginBottom: issues.length ? 8 : 0 }}>
                     {congested.length > 0 && (
-                      <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: '#dc262615', color: '#dc2626', border: '1px solid #dc262630' }}>
+                      <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 0, background: '#dc262615', color: '#dc2626', border: '1px solid #dc262630' }}>
                         {congested.length} congested
                       </span>
                     )}
                     {highLoad.length > 0 && (
-                      <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: '#ea580c15', color: '#ea580c', border: '1px solid #ea580c30' }}>
+                      <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 0, background: '#ea580c15', color: '#ea580c', border: '1px solid #ea580c30' }}>
                         {highLoad.length} high load
                       </span>
                     )}
                     {moderate.length > 0 && (
-                      <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: '#ca8a0415', color: '#ca8a04', border: '1px solid #ca8a0430' }}>
+                      <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 0, background: '#ca8a0415', color: '#ca8a04', border: '1px solid #ca8a0430' }}>
                         {moderate.length} moderate
                       </span>
                     )}
@@ -734,8 +734,8 @@ const TransmissionFlowMap = ({ locations, transmissionFlowData, capacitiesByLoc,
                           </span>
                           <span style={{ color: col, fontSize: 10, fontWeight: 700, marginLeft: 4, flexShrink: 0 }}>{(util * 100).toFixed(0)}%</span>
                         </div>
-                        <div style={{ height: 3, borderRadius: 2, background: '#f1f5f9', overflow: 'hidden' }}>
-                          <div style={{ height: '100%', width: `${Math.min(100, util * 100).toFixed(1)}%`, background: col, borderRadius: 2, transition: 'width 0.2s' }} />
+                        <div style={{ height: 3, borderRadius: 0, background: '#f1f5f9', overflow: 'hidden' }}>
+                          <div style={{ height: '100%', width: `${Math.min(100, util * 100).toFixed(1)}%`, background: col, borderRadius: 0, transition: 'width 0.2s' }} />
                         </div>
                       </div>
                     );
@@ -758,19 +758,19 @@ const TransmissionFlowMap = ({ locations, transmissionFlowData, capacitiesByLoc,
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
             <button onClick={() => setPlaying(p => !p)}
               style={{ background: '#111827', color: '#fff', border: 'none',
-                       borderRadius: 6, padding: '4px 13px', fontSize: 11,
+                       borderRadius: 0, padding: '4px 13px', fontSize: 11,
                        cursor: 'pointer', fontFamily: "'DM Sans', system-ui", fontWeight: 600 }}>
               {playing ? '⏸ Pause' : '▶ Play'}
             </button>
             <button onClick={() => { setPlaying(false); setTimestep(0); }}
               style={{ background: 'transparent', color: '#64748b', border: '1px solid #e2e8f0',
-                       borderRadius: 6, padding: '4px 9px', fontSize: 11,
+                       borderRadius: 0, padding: '4px 9px', fontSize: 11,
                        cursor: 'pointer', fontFamily: "'DM Sans', system-ui" }}>↩ Reset</button>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               <span style={{ color: '#94a3b8', fontSize: 10 }}>Speed:</span>
               <select value={speed} onChange={e => setSpeed(+e.target.value)}
                 style={{ background: '#fff', color: '#374151', border: '1px solid #e2e8f0',
-                         borderRadius: 5, fontSize: 10, padding: '2px 4px', cursor: 'pointer', fontFamily: "'DM Sans', system-ui" }}>
+                         borderRadius: 0, fontSize: 10, padding: '2px 4px', cursor: 'pointer', fontFamily: "'DM Sans', system-ui" }}>
                 <option value={500}>0.5×</option>
                 <option value={200}>1×</option>
                 <option value={80}>2.5×</option>
@@ -1153,9 +1153,9 @@ const RegionChoropleth = ({ metric = {}, metricLabel = 'Value', colorRamp = 'blu
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
       <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
       {/* Legend */}
-      <div style={{ position: 'absolute', bottom: 24, right: 10, background: 'rgba(255,255,255,0.95)', borderRadius: 8, padding: '8px 10px', fontSize: 11, boxShadow: '0 2px 8px rgba(0,0,0,0.12)', border: '1px solid #e2e8f0' }}>
+      <div style={{ position: 'absolute', bottom: 24, right: 10, background: 'rgba(255,255,255,0.95)', borderRadius: 0, padding: '8px 10px', fontSize: 11, boxShadow: '0 2px 8px rgba(0,0,0,0.12)', border: '1px solid #e2e8f0' }}>
         <div style={{ fontWeight: 700, color: '#475569', marginBottom: 5, fontSize: 9.5, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{metricLabel}</div>
-        <div style={{ width: 100, height: 8, borderRadius: 4, background: `linear-gradient(to right, ${lo}, ${hi})`, marginBottom: 3 }} />
+        <div style={{ width: 100, height: 8, borderRadius: 0, background: `linear-gradient(to right, ${lo}, ${hi})`, marginBottom: 3 }} />
         <div style={{ display: 'flex', justifyContent: 'space-between', color: '#94a3b8', fontSize: 9.5 }}>
           <span>0</span>
           <span>{fmt(Math.max(1, ...Object.values(metric)))}</span>

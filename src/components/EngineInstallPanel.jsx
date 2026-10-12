@@ -81,7 +81,7 @@ export default function EngineInstallPanel({ title, icon: Icon, description, che
       {!embedded && (
         <h3 className="text-lg font-semibold text-slate-800 mb-1 flex items-center gap-2">
           {Icon && <Icon className="w-5 h-5 text-gray-500" />} {title}
-          <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-700">Optional</span>
+          <span className="text-xs px-2 py-0.5 font-medium bg-gray-100 text-gray-700">Optional</span>
         </h3>
       )}
       <p className="text-sm text-slate-500 mb-4">{description}</p>
@@ -89,9 +89,9 @@ export default function EngineInstallPanel({ title, icon: Icon, description, che
       {/* Status */}
       {!embedded && (
       <div className={`flex items-center gap-3 p-3 rounded-xl border mb-4 ${
-        statusLoading         ? 'bg-slate-50 border-slate-200'
-        : envStatus?.envExists ? 'bg-gray-50 border-gray-200'
-        : 'bg-slate-50 border-slate-200'
+        statusLoading         ? 'bg-slate-50 border-black/15'
+        : envStatus?.envExists ? 'bg-gray-50 border-black/15'
+        : 'bg-slate-50 border-black/15'
       }`}>
         {statusLoading ? (
           <span className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
@@ -163,13 +163,13 @@ export default function EngineInstallPanel({ title, icon: Icon, description, che
       )}
 
       {success && (
-        <div className="mt-3 flex items-center gap-2 p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-700">
+        <div className="mt-3 flex items-center gap-2 p-3 bg-gray-50 border border-black/15 rounded-xl text-sm text-gray-700">
           <FiCheckCircle className="w-4 h-4 flex-shrink-0" />
           {title} installed and service started.
         </div>
       )}
       {error && (
-        <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-700">
+        <div className="mt-3 p-3 bg-gray-50 border border-black/15 rounded-xl text-sm text-gray-700">
           <p className="font-semibold mb-1">Installation failed:</p>
           <pre className="whitespace-pre-wrap break-all text-xs bg-gray-100 rounded p-2 max-h-24 overflow-y-auto">{error}</pre>
         </div>

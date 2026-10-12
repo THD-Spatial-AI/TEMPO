@@ -29,7 +29,7 @@ import { ModelStructureTutorial } from './ModelStructureTutorial';
 
 // Screenshot caption component with a number badge
 const Step = ({ n, title, children }) => (
-  <div className="bg-white rounded-xl p-5 border border-slate-200">
+  <div className="bg-white rounded-xl p-5 border border-black/15">
     <div className="flex items-start gap-4">
       <div className="w-8 h-8 bg-slate-800 text-white rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0">
         {n}
@@ -44,7 +44,7 @@ const Step = ({ n, title, children }) => (
 
 // Inline tip box
 const Tip = ({ children }) => (
-  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm text-gray-800 mt-3">
+  <div className="bg-gray-50 border border-black/15 rounded-lg p-3 text-sm text-gray-800 mt-3">
     <span className="font-semibold">Tip: </span>{children}
   </div>
 );
@@ -58,10 +58,10 @@ const CodeBlock = ({ children }) => (
 
 // Screenshot with caption
 const Screenshot = ({ src, alt, caption }) => (
-  <figure className="my-4 rounded-xl overflow-hidden border border-slate-200 shadow-md">
+  <figure className="my-4 rounded-xl overflow-hidden border border-black/15 shadow-md">
     <img src={src} alt={alt} className="w-full object-cover" />
     {caption && (
-      <figcaption className="bg-slate-50 px-4 py-2 text-xs text-slate-500 border-t border-slate-200">
+      <figcaption className="bg-slate-50 px-4 py-2 text-xs text-slate-500 border-t border-black/15">
         {caption}
       </figcaption>
     )}
@@ -92,7 +92,7 @@ const Tutorial = () => {
           <div className="space-y-10">
             {/* Hero */}
             <div className="text-center pb-4 pt-2">
-              <h1 className="text-4xl font-bold text-slate-900 mb-3">Welcome to TEMPO</h1>
+              <h1 className="text-4xl font-black tracking-tighter text-black mb-3">Welcome to TEMPO</h1>
               <p className="text-xl text-slate-600 mb-4">Tool for Energy Model Planning and Optimization</p>
               <div className="flex items-center justify-center gap-4 text-sm font-medium text-slate-500 flex-wrap">
                 {['Multi-engine', 'Visual Interface', 'Real GIS Data', 'Multi-format'].map(l => (
@@ -119,7 +119,7 @@ const Tutorial = () => {
                   { label: 'Gen Technologies', desc: '6 supply types (solar, wind, gas…)' },
                   { label: 'Max Capacity', desc: '36.5 GW total across all locations' },
                 ].map(kpi => (
-                  <div key={kpi.label} className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                  <div key={kpi.label} className="bg-slate-50 border border-black/15 rounded-xl p-3">
                     <div className="font-bold text-slate-800 text-sm mb-1">{kpi.label}</div>
                     <div className="text-xs text-slate-500">{kpi.desc}</div>
                   </div>
@@ -153,7 +153,7 @@ const Tutorial = () => {
                     badge: 'Left panel → Link mode'
                   },
                 ].map(({ n, icon: Icon, title, desc, badge }) => (
-                  <div key={n} className="bg-white border border-slate-200 rounded-xl p-5 hover:border-slate-300 transition-colors">
+                  <div key={n} className="bg-white border border-black/15 rounded-xl p-5 hover:border-slate-300 transition-colors">
                     <div className="flex items-center gap-3 mb-3">
                       <div className="w-9 h-9 bg-slate-800 text-white rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0">{n}</div>
                       <Icon className="text-slate-500" size={20} />
@@ -169,7 +169,7 @@ const Tutorial = () => {
             {/* Left sidebar navigation guide */}
             <div>
               <h2 className="text-2xl font-bold text-slate-800 mb-4">Where to Find Everything</h2>
-              <div className="border border-slate-200 rounded-xl overflow-hidden">
+              <div className="border border-black/15 rounded-xl overflow-hidden">
                 {[
                   { label: 'Dashboard',                      desc: 'Model KPIs, location map, capacity overview and cost summary',                                        group: null },
                   { label: 'Creation',                       desc: 'Visual map editor — place locations, draw links, load OSM infrastructure layers',                      group: null },
@@ -188,7 +188,7 @@ const Tutorial = () => {
                   return (
                     <div
                       key={item.label}
-                      className={`flex items-baseline gap-0 border-b border-slate-100 last:border-0 ${
+                      className={`flex items-baseline gap-0 border-b border-black/10 last:border-0 ${
                         item.group === 'Structure' ? 'bg-slate-50' : 'bg-white'
                       } ${isStructureFirst ? 'mt-0' : ''}`}
                     >
@@ -209,7 +209,7 @@ const Tutorial = () => {
             <div>
               <h2 className="text-2xl font-bold text-slate-800 mb-4">Managing Models &amp; Runs</h2>
               <div className="grid md:grid-cols-2 gap-4">
-                <div className="bg-white border border-slate-200 rounded-2xl p-5">
+                <div className="bg-white border border-black/15 rounded-2xl p-5">
                   <div className="flex items-center gap-2 mb-3">
                     <FiSearch size={18} className="text-slate-500" />
                     <h3 className="font-bold text-slate-800">Models (Structure → Models)</h3>
@@ -220,7 +220,7 @@ const Tutorial = () => {
                     <li className="flex gap-2"><FiTrash2 size={14} className="text-gray-500 mt-0.5 flex-shrink-0" /><span>Bulk delete or export selected models as JSON backup files</span></li>
                   </ul>
                 </div>
-                <div className="bg-white border border-slate-200 rounded-2xl p-5">
+                <div className="bg-white border border-black/15 rounded-2xl p-5">
                   <div className="flex items-center gap-2 mb-3">
                     <FiBarChart2 size={18} className="text-slate-500" />
                     <h3 className="font-bold text-slate-800">Completed Runs (Run tab)</h3>
@@ -236,21 +236,21 @@ const Tutorial = () => {
 
             {/* three method cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-white border border-slate-200 rounded-xl p-5 hover:border-slate-300 transition-colors cursor-pointer" onClick={() => { setActiveTab('methods'); setSelectedMethod('manual'); }}>
+              <div className="bg-white border border-black/15 rounded-xl p-5 hover:border-slate-300 transition-colors cursor-pointer" onClick={() => { setActiveTab('methods'); setSelectedMethod('manual'); }}>
                 <h3 className="font-bold text-slate-800 mb-1">Manual Creation</h3>
                 <p className="text-slate-500 text-sm mb-3">Click-and-build on the map. Great for learning and small models.</p>
                 <div className="flex items-center gap-1.5 text-slate-700 font-semibold text-xs">
                   <span>Step-by-step guide</span><FiArrowRight size={12} />
                 </div>
               </div>
-              <div className="bg-white border border-slate-200 rounded-xl p-5 hover:border-slate-300 transition-colors cursor-pointer" onClick={() => { setActiveTab('methods'); setSelectedMethod('import'); }}>
+              <div className="bg-white border border-black/15 rounded-xl p-5 hover:border-slate-300 transition-colors cursor-pointer" onClick={() => { setActiveTab('methods'); setSelectedMethod('import'); }}>
                 <h3 className="font-bold text-slate-800 mb-1">Import a Model</h3>
                 <p className="text-slate-500 text-sm mb-3">YAML archive, CSV wizard, or framework archive — TEMPO auto-detects the format.</p>
                 <div className="flex items-center gap-1.5 text-slate-700 font-semibold text-xs">
                   <span>Import guide</span><FiArrowRight size={12} />
                 </div>
               </div>
-              <div className="bg-white border border-slate-200 rounded-xl p-5 hover:border-slate-300 transition-colors cursor-pointer" onClick={() => setActiveTab('templates')}>
+              <div className="bg-white border border-black/15 rounded-xl p-5 hover:border-slate-300 transition-colors cursor-pointer" onClick={() => setActiveTab('templates')}>
                 <h3 className="font-bold text-slate-800 mb-1">Download Templates</h3>
                 <p className="text-slate-500 text-sm mb-3">CSV/JSON starter files with real example data — ready to populate and import.</p>
                 <div className="flex items-center gap-1.5 text-slate-700 font-semibold text-xs">
@@ -273,24 +273,24 @@ const Tutorial = () => {
             <div className="flex justify-center gap-3 flex-wrap">
               <button
                 onClick={() => setSelectedMethod('manual')}
-                className={`px-5 py-3 rounded-xl font-bold transition-all flex items-center gap-2 ${
-                  selectedMethod === 'manual' ? 'bg-slate-800 text-white shadow-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                className={`px-5 py-3 rounded-xl font-bold uppercase tracking-wide transition-all flex items-center gap-2 ${
+                  selectedMethod === 'manual' ? 'bg-black text-white shadow-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
                 <FiEdit size={18} /> Manual Creation
               </button>
               <button
                 onClick={() => setSelectedMethod('import')}
-                className={`px-5 py-3 rounded-xl font-bold transition-all flex items-center gap-2 ${
-                  selectedMethod === 'import' ? 'bg-slate-800 text-white shadow-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                className={`px-5 py-3 rounded-xl font-bold uppercase tracking-wide transition-all flex items-center gap-2 ${
+                  selectedMethod === 'import' ? 'bg-black text-white shadow-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
                 <FiPackage size={18} /> YAML / Archive Import
               </button>
               <button
                 onClick={() => setSelectedMethod('bulk')}
-                className={`px-5 py-3 rounded-xl font-bold transition-all flex items-center gap-2 ${
-                  selectedMethod === 'bulk' ? 'bg-slate-800 text-white shadow-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                className={`px-5 py-3 rounded-xl font-bold uppercase tracking-wide transition-all flex items-center gap-2 ${
+                  selectedMethod === 'bulk' ? 'bg-black text-white shadow-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
                 <FiUpload size={18} /> CSV Wizard
@@ -299,8 +299,8 @@ const Tutorial = () => {
 
             {/* Manual Creation Steps */}
             {(selectedMethod === 'manual' || !selectedMethod) && (
-              <div className="bg-white rounded-xl p-6 border border-slate-200">
-                <div className="mb-6 pb-4 border-b border-slate-100">
+              <div className="bg-white rounded-xl p-6 border border-black/15">
+                <div className="mb-6 pb-4 border-b border-black/10">
                   <h3 className="text-lg font-bold text-slate-800 mb-1">Manual Creation — Germany Example</h3>
                   <p className="text-sm text-slate-500">12 locations · 12 links · solar + wind + gas + nuclear + hydro + coal + biomass + battery + demand system</p>
                 </div>
@@ -319,9 +319,9 @@ const Tutorial = () => {
                       <table className="text-xs w-full border-collapse">
                         <thead>
                           <tr className="bg-slate-100">
-                            <th className="border border-slate-200 px-3 py-2 text-left font-semibold">Name</th>
-                            <th className="border border-slate-200 px-3 py-2 text-left font-semibold">Approx. coords</th>
-                            <th className="border border-slate-200 px-3 py-2 text-left font-semibold">Role</th>
+                            <th className="border border-black/15 px-3 py-2 text-left font-bold uppercase tracking-widest">Name</th>
+                            <th className="border border-black/15 px-3 py-2 text-left font-bold uppercase tracking-widest">Approx. coords</th>
+                            <th className="border border-black/15 px-3 py-2 text-left font-bold uppercase tracking-widest">Role</th>
                           </tr>
                         </thead>
                         <tbody className="font-mono">
@@ -340,9 +340,9 @@ const Tutorial = () => {
                             ['Node_South', '49.0000, 11.5000', 'Transmission'],
                           ].map(([n, c, r]) => (
                             <tr key={n} className="hover:bg-slate-50">
-                              <td className="border border-slate-200 px-3 py-1.5 text-slate-800 font-semibold">{n}</td>
-                              <td className="border border-slate-200 px-3 py-1.5 text-slate-500">{c}</td>
-                              <td className="border border-slate-200 px-3 py-1.5 text-slate-600">{r}</td>
+                              <td className="border border-black/15 px-3 py-1.5 text-slate-800 font-semibold">{n}</td>
+                              <td className="border border-black/15 px-3 py-1.5 text-slate-500">{c}</td>
+                              <td className="border border-black/15 px-3 py-1.5 text-slate-600">{r}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -374,10 +374,10 @@ const Tutorial = () => {
                       <table className="text-xs w-full border-collapse">
                         <thead>
                           <tr className="bg-slate-100">
-                            <th className="border border-slate-200 px-3 py-2 text-left">From</th>
-                            <th className="border border-slate-200 px-3 py-2 text-left">To</th>
-                            <th className="border border-slate-200 px-3 py-2 text-left">Type</th>
-                            <th className="border border-slate-200 px-3 py-2 text-left">Capacity</th>
+                            <th className="border border-black/15 px-3 py-2 text-left font-bold uppercase tracking-widest">From</th>
+                            <th className="border border-black/15 px-3 py-2 text-left font-bold uppercase tracking-widest">To</th>
+                            <th className="border border-black/15 px-3 py-2 text-left font-bold uppercase tracking-widest">Type</th>
+                            <th className="border border-black/15 px-3 py-2 text-left font-bold uppercase tracking-widest">Capacity</th>
                           </tr>
                         </thead>
                         <tbody className="font-mono">
@@ -396,10 +396,10 @@ const Tutorial = () => {
                             ['Node_North', 'Node_South', 'HVDC Transmission', '450 MW'],
                           ].map(([f, t, ty, c]) => (
                             <tr key={f+t} className="hover:bg-slate-50">
-                              <td className="border border-slate-200 px-3 py-1.5 text-slate-700">{f}</td>
-                              <td className="border border-slate-200 px-3 py-1.5 text-slate-700">{t}</td>
-                              <td className="border border-slate-200 px-3 py-1.5 text-slate-600">{ty}</td>
-                              <td className="border border-slate-200 px-3 py-1.5 font-semibold text-slate-800">{c}</td>
+                              <td className="border border-black/15 px-3 py-1.5 text-slate-700">{f}</td>
+                              <td className="border border-black/15 px-3 py-1.5 text-slate-700">{t}</td>
+                              <td className="border border-black/15 px-3 py-1.5 text-slate-600">{ty}</td>
+                              <td className="border border-black/15 px-3 py-1.5 font-semibold text-slate-800">{c}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -409,7 +409,7 @@ const Tutorial = () => {
 
                   <Step n={5} title="Save & Validate">
                     <p className="text-slate-600 text-sm">TEMPO saves automatically. Switch to <strong>Dashboard</strong> to see the system KPIs update in real time — locations count, link count, installed capacity, and estimated CAPEX.</p>
-                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mt-3 text-sm text-gray-800">
+                    <div className="bg-gray-50 border border-black/15 rounded-lg p-3 mt-3 text-sm text-gray-800">
                       <FiCheckCircle className="inline mr-2" />
                       <strong>Model ready to run</strong> — head to <strong>Run</strong> in the sidebar, configure the time horizon and solver, and start the optimisation.
                     </div>
@@ -420,8 +420,8 @@ const Tutorial = () => {
 
             {/* YAML / Archive Import */}
             {(selectedMethod === 'import' || !selectedMethod) && (
-              <div className="bg-white rounded-xl p-6 border border-slate-200">
-                <div className="mb-6 pb-4 border-b border-slate-100">
+              <div className="bg-white rounded-xl p-6 border border-black/15">
+                <div className="mb-6 pb-4 border-b border-black/10">
                   <h3 className="text-lg font-bold text-slate-800 mb-1">Import a Model — Three Paths</h3>
                   <p className="text-sm text-slate-500">Go to <strong className="text-slate-700">Structure → Models</strong> and click <strong className="text-slate-700">Import Calliope Model</strong> (or drag a ZIP onto the archive target)</p>
                 </div>
@@ -457,7 +457,7 @@ const Tutorial = () => {
                   </Step>
                 </div>
 
-                <div className="border border-slate-200 rounded-lg p-4 mt-5">
+                <div className="border border-black/15 rounded-lg p-4 mt-5">
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Supported engines</p>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
                     {[
@@ -467,7 +467,7 @@ const Tutorial = () => {
                       ['OSeMOSYS', 'Long-run planning (GLPK)'],
                       ['AdOpT-NET0', 'Net-zero pathway (LP)'],
                     ].map(([name, desc]) => (
-                      <div key={name} className="bg-slate-50 border border-slate-200 rounded-lg p-2">
+                      <div key={name} className="bg-slate-50 border border-black/15 rounded-lg p-2">
                         <div className="font-semibold text-slate-800">{name}</div>
                         <div className="text-slate-500">{desc}</div>
                       </div>
@@ -479,8 +479,8 @@ const Tutorial = () => {
 
             {/* CSV Wizard Steps */}
             {(selectedMethod === 'bulk' || !selectedMethod) && (
-              <div className="bg-white rounded-xl p-6 border border-slate-200">
-                <div className="mb-6 pb-4 border-b border-slate-100">
+              <div className="bg-white rounded-xl p-6 border border-black/15">
+                <div className="mb-6 pb-4 border-b border-black/10">
                   <h3 className="text-lg font-bold text-slate-800 mb-1">CSV Wizard Workflow</h3>
                   <p className="text-sm text-slate-500">Import a 12-node German grid from CSV in under 2 minutes</p>
                 </div>
@@ -540,7 +540,7 @@ Node_North,Node_South,450,4000,380,hvdc_transmission`}</CodeBlock>
                   </Step>
                 </div>
 
-                <div className="border border-slate-200 rounded-lg p-4 mt-5">
+                <div className="border border-black/15 rounded-lg p-4 mt-5">
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">After import you can still…</p>
                   <ul className="text-sm text-slate-600 space-y-1">
                     <li>· Click any location marker to add or swap technologies</li>
@@ -572,8 +572,8 @@ Node_North,Node_South,450,4000,380,hvdc_transmission`}</CodeBlock>
             <div>
               <h3 className="text-xl font-bold text-slate-800 mb-4">The OSM Infrastructure Panel (Right Sidebar)</h3>
               <div className="flex gap-6 items-start">
-                <img className="h-[700px] w-auto flex-shrink-0 rounded-xl border border-slate-200 shadow-md object-contain" src="./img/OSMsidebar.png" alt="Creation mode right sidebar" />
-                <img className="h-[350px] w-auto flex-shrink-0 rounded-xl border border-slate-200 shadow-md object-contain" src="./img/Meshgenerator.png" alt="Creation mode right sidebar" />
+                <img className="h-[700px] w-auto flex-shrink-0 rounded-xl border border-black/15 shadow-md object-contain" src="./img/OSMsidebar.png" alt="Creation mode right sidebar" />
+                <img className="h-[350px] w-auto flex-shrink-0 rounded-xl border border-black/15 shadow-md object-contain" src="./img/Meshgenerator.png" alt="Creation mode right sidebar" />
                 <div className="space-y-4 flex-1">
                   {[
                     {
@@ -593,7 +593,7 @@ Node_North,Node_South,450,4000,380,hvdc_transmission`}</CodeBlock>
                       body: 'Click "Generate Mesh Network" to build a graph of intersections from the visible power line layer. Import the result as model Locations & Links with one click.'
                     },
                   ].map(({ icon: Icon, title, body }) => (
-                    <div key={title} className="flex gap-4 bg-white border border-slate-200 rounded-xl p-4">
+                    <div key={title} className="flex gap-4 bg-white border border-black/15 rounded-xl p-4">
                       <Icon className="text-slate-500 flex-shrink-0 mt-0.5" size={20} />
                       <div>
                         <div className="font-semibold text-slate-800 text-sm mb-1">{title}</div>
@@ -608,7 +608,7 @@ Node_North,Node_South,450,4000,380,hvdc_transmission`}</CodeBlock>
             {/* Step-by-step: Download a region */}
             <div>
               <h3 className="text-xl font-bold text-slate-800 mb-4">How to Download a New Region (in-app)</h3>
-              <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+              <div className="bg-white border border-black/15 rounded-xl p-6 space-y-4">
 
 
                 <Step n={1} title='Open Creation → expand "Download GIS Data"'>
@@ -621,7 +621,7 @@ Node_North,Node_South,450,4000,380,hvdc_transmission`}</CodeBlock>
                     {['Europe', 'Spain', 'Asturias (optional)'].map((s, i) => (
                       <div key={s} className="flex items-center gap-1">
                         {i > 0 && <FiArrowRight size={12} className="text-slate-400" />}
-                        <span className="bg-slate-200 text-slate-700 px-3 py-1 rounded-full text-xs font-medium">{s}</span>
+                        <span className="bg-slate-200 text-slate-700 px-3 py-1 text-xs font-medium">{s}</span>
                       </div>
                     ))}
                   </div>
@@ -658,7 +658,7 @@ Node_North,Node_South,450,4000,380,hvdc_transmission`}</CodeBlock>
                   { step: '3', title: 'Generate Mesh', body: 'Click "Generate Mesh Network" — nodes appear at intersections.' },
                   { step: '4', title: 'Import as model', body: 'Click "Import as Locations & Links" → model is populated.' },
                 ].map(({ step, title, body }) => (
-                  <div key={step} className="flex-1 bg-white border border-slate-200 rounded-xl p-4 text-center">
+                  <div key={step} className="flex-1 bg-white border border-black/15 rounded-xl p-4 text-center">
                     <div className="w-8 h-8 bg-slate-800 text-white rounded-lg text-sm font-bold flex items-center justify-center mx-auto mb-2">{step}</div>
                     <div className="font-semibold text-slate-800 text-sm mb-1">{title}</div>
                     <div className="text-slate-500 text-xs">{body}</div>
@@ -680,7 +680,7 @@ Node_North,Node_South,450,4000,380,hvdc_transmission`}</CodeBlock>
             {/* Template cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {/* Locations */}
-              <div className="bg-white border border-slate-200 rounded-xl p-5 hover:border-slate-300 transition-colors">
+              <div className="bg-white border border-black/15 rounded-xl p-5 hover:border-slate-300 transition-colors">
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <div className="flex items-center gap-1.5 mb-0.5">
@@ -704,13 +704,13 @@ Gas_Plant_Berlin,power_plant,52.4500,13.3500,500,,gas
 Berlin_City,demand_center,52.5200,13.4050,2000,,mixed
 Battery_Storage_1,storage_facility,52.4800,13.3800,50,,battery_li_ion`}</CodeBlock>
                 )}
-                <button onClick={() => generateCSVDownload('LOCATIONS')} className="mt-3 w-full border border-slate-200 text-slate-700 px-3 py-2 rounded-lg text-xs font-medium hover:bg-slate-50 transition flex items-center justify-center gap-1.5">
+                <button onClick={() => generateCSVDownload('LOCATIONS')} className="mt-3 w-full border border-black/15 text-slate-700 px-3 py-2 rounded-lg text-xs font-medium hover:bg-slate-50 transition flex items-center justify-center gap-1.5">
                   <FiDownload size={12} /> Download locations_template.csv
                 </button>
               </div>
 
               {/* Transmission */}
-              <div className="bg-white border border-slate-200 rounded-xl p-5 hover:border-slate-300 transition-colors">
+              <div className="bg-white border border-black/15 rounded-xl p-5 hover:border-slate-300 transition-colors">
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <div className="flex items-center gap-1.5 mb-0.5">
@@ -729,13 +729,13 @@ Berlin_Main,Hamburg_Main,ac_transmission,2000,380,255,0.97
 Solar_Farm_1,Berlin_Main,ac_transmission,120,110,35,0.98
 Gas_Plant_Berlin,Berlin_Main,ac_transmission,550,220,15,0.99`}</CodeBlock>
                 )}
-                <button onClick={() => generateCSVDownload('TRANSMISSION_LINES')} className="mt-3 w-full border border-slate-200 text-slate-700 px-3 py-2 rounded-lg text-xs font-medium hover:bg-slate-50 transition flex items-center justify-center gap-1.5">
+                <button onClick={() => generateCSVDownload('TRANSMISSION_LINES')} className="mt-3 w-full border border-black/15 text-slate-700 px-3 py-2 rounded-lg text-xs font-medium hover:bg-slate-50 transition flex items-center justify-center gap-1.5">
                   <FiDownload size={12} /> Download transmission_lines_template.csv
                 </button>
               </div>
 
               {/* Tech Params */}
-              <div className="bg-white border border-slate-200 rounded-xl p-5 hover:border-slate-300 transition-colors">
+              <div className="bg-white border border-black/15 rounded-xl p-5 hover:border-slate-300 transition-colors">
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <div className="flex items-center gap-1.5 mb-0.5">
@@ -756,13 +756,13 @@ Gas_Plant_Berlin,gas_ccgt,energy_cap_max,500,MW
 Gas_Plant_Berlin,gas_ccgt,energy_eff,0.58,
 Berlin_City,power_demand,resource,file=berlin_demand.csv,`}</CodeBlock>
                 )}
-                <button onClick={() => generateCSVDownload('TECHNOLOGY_PARAMETERS')} className="mt-3 w-full border border-slate-200 text-slate-700 px-3 py-2 rounded-lg text-xs font-medium hover:bg-slate-50 transition flex items-center justify-center gap-1.5">
+                <button onClick={() => generateCSVDownload('TECHNOLOGY_PARAMETERS')} className="mt-3 w-full border border-black/15 text-slate-700 px-3 py-2 rounded-lg text-xs font-medium hover:bg-slate-50 transition flex items-center justify-center gap-1.5">
                   <FiDownload size={12} /> Download technology_parameters_template.csv
                 </button>
               </div>
 
               {/* Costs */}
-              <div className="bg-white border border-slate-200 rounded-xl p-5 hover:border-slate-300 transition-colors">
+              <div className="bg-white border border-black/15 rounded-xl p-5 hover:border-slate-300 transition-colors">
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <div className="flex items-center gap-1.5 mb-0.5">
@@ -783,13 +783,13 @@ Gas_Plant_Berlin,gas_ccgt,monetary,energy_cap,750,EUR/kW
 Gas_Plant_Berlin,gas_ccgt,monetary,om_var,3.5,EUR/MWh
 Gas_Plant_Berlin,gas_ccgt,monetary,fuel_cost,35,EUR/MWh`}</CodeBlock>
                 )}
-                <button onClick={() => generateCSVDownload('COST_PARAMETERS')} className="mt-3 w-full border border-slate-200 text-slate-700 px-3 py-2 rounded-lg text-xs font-medium hover:bg-slate-50 transition flex items-center justify-center gap-1.5">
+                <button onClick={() => generateCSVDownload('COST_PARAMETERS')} className="mt-3 w-full border border-black/15 text-slate-700 px-3 py-2 rounded-lg text-xs font-medium hover:bg-slate-50 transition flex items-center justify-center gap-1.5">
                   <FiDownload size={12} /> Download cost_parameters_template.csv
                 </button>
               </div>
 
               {/* Demand time series */}
-              <div className="bg-white border border-slate-200 rounded-xl p-5 hover:border-slate-300 transition-colors">
+              <div className="bg-white border border-black/15 rounded-xl p-5 hover:border-slate-300 transition-colors">
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <div className="flex items-center gap-1.5 mb-0.5">
@@ -809,13 +809,13 @@ Gas_Plant_Berlin,gas_ccgt,monetary,fuel_cost,35,EUR/MWh`}</CodeBlock>
 2023-01-01 02:00,4700,-4400,-2800
 ...8760 rows — one per hour of the year`}</CodeBlock>
                 )}
-                <button onClick={() => generateCSVDownload('TIMESERIES_DEMAND')} className="mt-3 w-full border border-slate-200 text-slate-700 px-3 py-2 rounded-lg text-xs font-medium hover:bg-slate-50 transition flex items-center justify-center gap-1.5">
+                <button onClick={() => generateCSVDownload('TIMESERIES_DEMAND')} className="mt-3 w-full border border-black/15 text-slate-700 px-3 py-2 rounded-lg text-xs font-medium hover:bg-slate-50 transition flex items-center justify-center gap-1.5">
                   <FiDownload size={12} /> Download demand_timeseries_template.csv
                 </button>
               </div>
 
               {/* Solar CF */}
-              <div className="bg-white border border-slate-200 rounded-xl p-5 hover:border-slate-300 transition-colors">
+              <div className="bg-white border border-black/15 rounded-xl p-5 hover:border-slate-300 transition-colors">
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <div className="flex items-center gap-1.5 mb-0.5">
@@ -835,14 +835,14 @@ Gas_Plant_Berlin,gas_ccgt,monetary,fuel_cost,35,EUR/MWh`}</CodeBlock>
 2023-01-01 12:00,0.812,0.798,0.835
 2023-06-21 12:00,0.980,0.972,0.991`}</CodeBlock>
                 )}
-                <button onClick={() => generateCSVDownload('TIMESERIES_SOLAR')} className="mt-3 w-full border border-slate-200 text-slate-700 px-3 py-2 rounded-lg text-xs font-medium hover:bg-slate-50 transition flex items-center justify-center gap-1.5">
+                <button onClick={() => generateCSVDownload('TIMESERIES_SOLAR')} className="mt-3 w-full border border-black/15 text-slate-700 px-3 py-2 rounded-lg text-xs font-medium hover:bg-slate-50 transition flex items-center justify-center gap-1.5">
                   <FiDownload size={12} /> Download solar_timeseries_template.csv
                 </button>
               </div>
             </div>
 
             {/* JSON */}
-            <div className="bg-white border border-slate-200 rounded-xl p-5">
+            <div className="bg-white border border-black/15 rounded-xl p-5">
               <div className="flex items-center justify-between flex-wrap gap-4">
                 <div>
                   <div className="flex items-center gap-1.5 mb-0.5">
@@ -851,7 +851,7 @@ Gas_Plant_Berlin,gas_ccgt,monetary,fuel_cost,35,EUR/MWh`}</CodeBlock>
                   </div>
                   <p className="text-slate-400 text-xs">Full model structure — locations, links, technologies, costs, time series — in a single file.</p>
                 </div>
-                <button onClick={generateJSONDownload} className="border border-slate-200 text-slate-700 px-4 py-2 rounded-lg text-xs font-medium hover:bg-slate-50 transition flex items-center gap-1.5">
+                <button onClick={generateJSONDownload} className="border border-black/15 text-slate-700 px-4 py-2 rounded-lg text-xs font-medium hover:bg-slate-50 transition flex items-center gap-1.5">
                   <FiDownload size={12} /> Download model_template.json
                 </button>
               </div>
@@ -879,7 +879,7 @@ Gas_Plant_Berlin,gas_ccgt,monetary,fuel_cost,35,EUR/MWh`}</CodeBlock>
                     { col: 'voltage_kv', req: false, desc: 'kV — determines rendered line colour' },
                   ]},
                 ].map(({ file, cols }) => (
-                  <div key={file} className="bg-white border border-slate-200 rounded-xl p-4">
+                  <div key={file} className="bg-white border border-black/15 rounded-xl p-4">
                     <div className="font-bold text-slate-700 text-sm mb-3 font-mono">{file}</div>
                     <div className="space-y-2">
                       {cols.map(({ col, req, desc }) => (
@@ -910,7 +910,7 @@ Gas_Plant_Berlin,gas_ccgt,monetary,fuel_cost,35,EUR/MWh`}</CodeBlock>
               {Object.values(ENTITY_TYPES).map((entity) => (
                 <div
                   key={entity.id}
-                  className="bg-white border border-slate-200 rounded-xl p-5 hover:border-slate-300 transition-colors"
+                  className="bg-white border border-black/15 rounded-xl p-5 hover:border-slate-300 transition-colors"
                 >
                   <div className="flex items-start gap-3 mb-4">
                     <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
@@ -923,7 +923,7 @@ Gas_Plant_Berlin,gas_ccgt,monetary,fuel_cost,35,EUR/MWh`}</CodeBlock>
                   </div>
 
                   {entity.allowedTechTypes && entity.allowedTechTypes.length > 0 && (
-                    <div className="mt-4 pt-4 border-t border-slate-200">
+                    <div className="mt-4 pt-4 border-t border-black/15">
                       <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Technologies</p>
                       <div className="flex flex-wrap gap-1.5">
                         {entity.allowedTechTypes.map((tech) => (
@@ -935,7 +935,7 @@ Gas_Plant_Berlin,gas_ccgt,monetary,fuel_cost,35,EUR/MWh`}</CodeBlock>
                     </div>
                   )}
 
-                  <div className="mt-4 pt-4 border-t border-slate-200">
+                  <div className="mt-4 pt-4 border-t border-black/15">
                     <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Required fields</p>
                     <div className="flex flex-wrap gap-1.5">
                       {entity.requiredFields.map((field) => (
@@ -962,17 +962,17 @@ Gas_Plant_Berlin,gas_ccgt,monetary,fuel_cost,35,EUR/MWh`}</CodeBlock>
   return (
     <div className="flex-1 flex flex-col h-screen bg-slate-50">
       {/* Tab Navigation */}
-      <div className="bg-white border-b border-slate-200 shadow-sm">
+      <div className="bg-white border-b border-black/15 shadow-sm">
         <div className="max-w-7xl mx-auto px-8">
           <div className="flex gap-2">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-6 py-4 font-semibold border-b-2 transition-colors ${
+                className={`flex items-center gap-2 px-6 py-4 text-[0.8125rem] font-semibold uppercase tracking-tight border-b-2 transition-colors ${
                   activeTab === tab.id
-                    ? 'border-gray-600 text-gray-600'
-                    : 'border-transparent text-slate-500 hover:text-slate-700'
+                    ? 'border-black text-black'
+                    : 'border-transparent text-black/60 hover:text-black'
                 }`}
               >
                 <tab.icon size={20} />

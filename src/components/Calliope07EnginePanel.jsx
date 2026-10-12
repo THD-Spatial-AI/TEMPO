@@ -74,7 +74,7 @@ export default function Calliope07EnginePanel({ onInstallSuccess, embedded = fal
       {!embedded && (
         <h3 className="text-lg font-semibold text-slate-800 mb-1 flex items-center gap-2">
           <FiZap className="w-5 h-5 text-gray-500" /> Calliope 0.7 Engine
-          <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-700">Experimental</span>
+          <span className="text-xs px-2 py-0.5 font-medium bg-gray-100 text-gray-700">Experimental</span>
         </h3>
       )}
       <p className="text-sm text-slate-500 mb-4">
@@ -87,9 +87,9 @@ export default function Calliope07EnginePanel({ onInstallSuccess, embedded = fal
       {/* Status */}
       {!embedded && (
       <div className={`flex items-center gap-3 p-3 rounded-xl border mb-4 ${
-        statusLoading         ? 'bg-slate-50 border-slate-200'
-        : envStatus?.envExists ? 'bg-gray-50 border-gray-200'
-        : 'bg-slate-50 border-slate-200'
+        statusLoading         ? 'bg-slate-50 border-black/15'
+        : envStatus?.envExists ? 'bg-gray-50 border-black/15'
+        : 'bg-slate-50 border-black/15'
       }`}>
         {statusLoading ? (
           <span className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
@@ -135,12 +135,12 @@ export default function Calliope07EnginePanel({ onInstallSuccess, embedded = fal
         </button>
       ) : (
         <div className="space-y-3">
-          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl">
+          <div className="p-4 bg-slate-50 border border-black/15 rounded-xl">
             <p className="text-sm font-medium text-slate-700 mb-1">Option 1 — Docker (recommended)</p>
             <pre className="text-xs font-mono bg-slate-900 text-green-400 rounded-lg p-3 select-all overflow-x-auto whitespace-pre">docker compose up calliope07-runner</pre>
             <p className="text-xs text-slate-400 mt-1">Run from the TEMPO repo root. The service starts on port 5002 automatically.</p>
           </div>
-          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl">
+          <div className="p-4 bg-slate-50 border border-black/15 rounded-xl">
             <p className="text-sm font-medium text-slate-700 mb-1">Option 2 — native install (Python 3.10+ from python.org required)</p>
             <pre className="text-xs font-mono bg-slate-900 text-green-400 rounded-lg p-3 select-all overflow-x-auto whitespace-pre">powershell -ExecutionPolicy Bypass -File scripts\install_calliope07.ps1</pre>
             <p className="text-xs text-slate-400 mt-1">After install, launch TEMPO with <code className="bg-slate-200 px-1 rounded">npm run dev:electron</code>.</p>
@@ -172,13 +172,13 @@ export default function Calliope07EnginePanel({ onInstallSuccess, embedded = fal
       )}
 
       {success && (
-        <div className="mt-3 flex items-center gap-2 p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-700">
+        <div className="mt-3 flex items-center gap-2 p-3 bg-gray-50 border border-black/15 rounded-xl text-sm text-gray-700">
           <FiCheckCircle className="w-4 h-4 flex-shrink-0" />
           Calliope 0.7 engine installed and service started.
         </div>
       )}
       {error && (
-        <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-700">
+        <div className="mt-3 p-3 bg-gray-50 border border-black/15 rounded-xl text-sm text-gray-700">
           <p className="font-semibold mb-1">Installation failed:</p>
           <pre className="whitespace-pre-wrap break-all text-xs bg-gray-100 rounded p-2 max-h-24 overflow-y-auto">{error}</pre>
         </div>

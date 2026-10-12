@@ -868,9 +868,9 @@ const MapDeckGL = () => {
   return (
     <div className="flex-1 h-screen overflow-hidden flex">
       {/* Left Panel - Sidebar */}
-      <div className={`${leftSidebarCollapsed ? 'w-16' : 'w-80'} bg-white border-r border-slate-200 flex flex-col transition-all duration-200 overflow-hidden`}>
+      <div className={`${leftSidebarCollapsed ? 'w-16' : 'w-80'} bg-white border-r border-black/15 flex flex-col transition-all duration-200 overflow-hidden`}>
         {/* Header */}
-        <div className="p-3 border-b border-slate-200 flex items-center gap-1.5 shrink-0">
+        <div className="p-3 border-b border-black/15 flex items-center gap-1.5 shrink-0">
           {!leftSidebarCollapsed && (
             <h2 className="text-base font-bold text-slate-800 truncate flex-1">Map View</h2>
           )}
@@ -905,7 +905,7 @@ const MapDeckGL = () => {
 
         {/* Model Panel */}
         {!leftSidebarCollapsed && showModelPanel && (
-          <div className="border-b border-slate-200 bg-slate-50 shrink-0">
+          <div className="border-b border-black/15 bg-slate-50 shrink-0">
             <div className="px-3 pt-2 pb-1">
               <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">Saved Models</p>
               {models.length === 0 ? (
@@ -942,7 +942,7 @@ const MapDeckGL = () => {
         )}
 
         {/* Edit tools — add nodes, links, polylines to the imported model */}
-        <div className={`border-b border-slate-200 shrink-0 ${leftSidebarCollapsed ? 'p-2' : 'p-3'}`}>
+        <div className={`border-b border-black/15 shrink-0 ${leftSidebarCollapsed ? 'p-2' : 'p-3'}`}>
           {leftSidebarCollapsed ? (
             <div className="flex flex-col items-center gap-1.5">
               {[
@@ -954,8 +954,8 @@ const MapDeckGL = () => {
                   key={m}
                   onClick={() => { setMode(mode === m ? 'view' : m); setLinkStart(null); if (m !== 'polyline') setLastPolylineLocation(null); }}
                   title={title}
-                  className={`p-2 rounded-lg border-2 w-full flex justify-center transition-all ${
-                    mode === m ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 hover:border-gray-400 text-gray-600'
+                  className={`uppercase tracking-wide font-bold p-2 rounded-lg border-2 w-full flex justify-center transition-all ${
+                    mode === m ? 'border-gray-900 bg-black text-white' : 'border-black/15 hover:border-gray-400 text-gray-600'
                   }`}
                 >
                   <Icon size={16} />
@@ -964,7 +964,7 @@ const MapDeckGL = () => {
             </div>
           ) : (
             <>
-              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">Edit tools</label>
+              <label className="block text-[0.6875rem] font-bold text-black/60 uppercase mb-2 tracking-widest">Edit tools</label>
               <div className="grid grid-cols-3 gap-1.5">
                 {[
                   { m: 'add-location', Icon: FiMapPin, label: 'Add' },
@@ -974,8 +974,8 @@ const MapDeckGL = () => {
                   <button
                     key={m}
                     onClick={() => { setMode(mode === m ? 'view' : m); setLinkStart(null); if (m !== 'polyline') setLastPolylineLocation(null); }}
-                    className={`p-2.5 rounded-lg border-2 transition-all ${
-                      mode === m ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 hover:border-gray-400 text-gray-700'
+                    className={`uppercase tracking-wide font-bold p-2.5 rounded-lg border-2 transition-all ${
+                      mode === m ? 'border-gray-900 bg-black text-white' : 'border-black/15 hover:border-gray-400 text-gray-700'
                     }`}
                   >
                     <Icon className="mx-auto mb-0.5" size={16} />
@@ -1142,7 +1142,7 @@ const MapDeckGL = () => {
               
               {/* Technologies */}
               {techMapEntries.size > 0 && (
-                <div className="mb-4 pt-3 border-t border-gray-200">
+                <div className="mb-4 pt-3 border-t border-black/15">
                   <div className="text-xs font-semibold text-gray-700 mb-2">Technologies</div>
                   <div className="space-y-1.5 text-xs">
                     {Array.from(techMapEntries.entries()).map(([techName, { color, displayName }]) => {
@@ -1196,7 +1196,7 @@ const MapDeckGL = () => {
                 });
                 
                 return (
-                  <div className="pt-3 border-t border-gray-200">
+                  <div className="pt-3 border-t border-black/15">
                     <div className="text-xs font-semibold text-gray-700 mb-2">
                       Transmission Lines ({links.length} links)
                     </div>

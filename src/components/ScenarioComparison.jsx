@@ -599,9 +599,9 @@ export default function ScenarioComparison() {
     <div className="flex gap-4 h-full">
 
       {/* ══ Left: Job Picker ══════════════════════════════════════════════ */}
-      <div className="w-64 flex-shrink-0 flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="w-64 flex-shrink-0 flex flex-col bg-white rounded-2xl border border-black/15 shadow-sm overflow-hidden">
 
-        <div className="px-3 pt-3 pb-2 border-b border-slate-100 flex-shrink-0 space-y-2">
+        <div className="px-3 pt-3 pb-2 border-b border-black/10 flex-shrink-0 space-y-2">
           <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
             Completed Runs
           </p>
@@ -614,7 +614,7 @@ export default function ScenarioComparison() {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Filter…"
-              className="w-full pl-7 pr-2.5 py-1.5 text-xs rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:ring-1 focus:ring-gray-400"
+              className="w-full pl-7 pr-2.5 py-1.5 text-xs rounded-lg bg-slate-50 border border-black/15 focus:outline-none focus:ring-1 focus:ring-gray-400"
             />
           </div>
 
@@ -655,7 +655,7 @@ export default function ScenarioComparison() {
                 onClick={() => toggleJob(job.id)}
                 className={`w-full text-left flex items-start gap-2 px-2 py-2 rounded-xl text-xs transition-all ${
                   checked
-                    ? 'bg-gray-50 border border-gray-200'
+                    ? 'bg-gray-50 border border-black/15'
                     : 'hover:bg-slate-50 border border-transparent'
                 }`}
               >
@@ -682,7 +682,7 @@ export default function ScenarioComparison() {
       <div className="flex-1 min-w-0 flex flex-col">
 
         {selectedJobs.length === 0 ? (
-          <div className="flex-1 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center p-12">
+          <div className="flex-1 bg-white rounded-2xl border border-black/15 shadow-sm flex flex-col items-center justify-center text-center p-12">
             <FiLayers size={44} className="text-slate-200 mb-4" />
             <p className="text-slate-600 font-semibold text-lg mb-2">Select runs to compare</p>
             <p className="text-slate-400 text-sm max-w-xs leading-relaxed">
@@ -708,24 +708,24 @@ export default function ScenarioComparison() {
                 })}
               </div>
               {manySelected && chartView !== 'parallel' && chartView !== 'scatter' && chartView !== 'table' && (
-                <span className="flex items-center gap-1.5 text-gray-600 text-xs bg-gray-50 border border-gray-200 px-2.5 py-1.5 rounded-lg">
+                <span className="flex items-center gap-1.5 text-gray-600 text-xs bg-gray-50 border border-black/15 px-2.5 py-1.5 rounded-lg">
                   <FiInfo size={12} />
                   {selectedJobs.length} runs — <b>Parallel</b> or <b>Scatter</b> views scale better
                 </span>
               )}
               <button onClick={() => exportCSV(kpisPerJob)}
-                className="ml-auto flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 bg-white text-slate-600 rounded-xl hover:bg-slate-50 text-xs font-medium transition shadow-sm">
+                className="ml-auto flex items-center gap-1.5 px-3 py-1.5 border border-black/15 bg-white text-slate-600 rounded-xl hover:bg-slate-50 text-xs font-medium transition shadow-sm">
                 <FiDownload size={12} /> Export CSV
               </button>
             </div>
 
             {allTechs.length > 1 && chartView !== 'maps' && (
-              <div className="flex-shrink-0 flex items-center gap-1.5 flex-wrap mb-3 px-3 py-2 bg-white rounded-xl border border-slate-200 shadow-sm">
+              <div className="flex-shrink-0 flex items-center gap-1.5 flex-wrap mb-3 px-3 py-2 bg-white rounded-xl border border-black/15 shadow-sm">
                 <FiFilter size={11} className="text-slate-400 flex-shrink-0" />
                 <button onClick={clearTechFilter}
-                  className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-all flex-shrink-0 ${
+                  className={`px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wide transition-all flex-shrink-0 ${
                     techFilter.size === 0
-                      ? 'bg-gray-900 text-white'
+                      ? 'bg-black text-white'
                       : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                   }`}>All</button>
                 {activeGroups.map(grp => {
@@ -739,7 +739,7 @@ export default function ScenarioComparison() {
                           ? 'border-transparent text-white'
                           : anyInGroup
                             ? 'border-dashed'
-                            : 'bg-white border-slate-200 text-slate-300 line-through opacity-40'
+                            : 'bg-white border-black/15 text-slate-300 line-through opacity-40'
                       }`}
                       style={allInGroup || anyInGroup ? {
                         background: allInGroup ? grp.color : grp.color + '22',
@@ -758,8 +758,8 @@ export default function ScenarioComparison() {
 
             <div className="flex-1 min-h-0">
               {chartView === 'table' && (
-                <div className="h-full bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col">
-                  <div className="flex-shrink-0 px-4 py-3 border-b border-slate-100 flex items-center gap-3">
+                <div className="h-full bg-white rounded-2xl border border-black/15 shadow-sm flex flex-col">
+                  <div className="flex-shrink-0 px-4 py-3 border-b border-black/10 flex items-center gap-3">
                     <span className="font-semibold text-slate-800 text-sm">
                       KPI Summary — {kpisPerJob.length} run{kpisPerJob.length !== 1 ? 's' : ''}
                     </span>
@@ -768,10 +768,10 @@ export default function ScenarioComparison() {
                   <div className="flex-1 overflow-auto">
                     <table className="w-full text-xs">
                       <thead>
-                        <tr className="bg-slate-50 border-b border-slate-100 sticky top-0 z-10">
-                          <th className="text-left px-4 py-2.5 text-slate-500 font-semibold min-w-[160px] bg-slate-50">Metric</th>
+                        <tr className="bg-slate-50 border-b border-black/10 sticky top-0 z-10">
+                          <th className="text-left px-4 py-2.5 text-black/60 font-bold min-w-[160px] bg-slate-50 uppercase tracking-widest">Metric</th>
                           {kpisPerJob.map(({ job }, i) => (
-                            <th key={job.id} className="px-3 py-2.5 text-left min-w-[130px] bg-slate-50">
+                            <th key={job.id} className="px-3 py-2.5 text-left min-w-[130px] bg-slate-50 font-bold uppercase tracking-widest">
                               <span className="flex items-center gap-1.5">
                                 <span className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                                   style={{ background: colorMap[job.id] || jobColor(i) }} />
@@ -818,7 +818,7 @@ export default function ScenarioComparison() {
               )}
 
               {['capacity', 'gen', 'costs'].includes(chartView) && (
-                <div className="h-full bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex flex-col">
+                <div className="h-full bg-white rounded-2xl border border-black/15 shadow-sm p-4 flex flex-col">
                   <div className="flex-shrink-0 mb-1">
                     <p className="font-semibold text-slate-800 text-sm">
                       {chartView === 'capacity' && 'Installed Capacity by Technology'}
@@ -842,7 +842,7 @@ export default function ScenarioComparison() {
               )}
 
               {chartView === 'parallel' && (
-                <div className="h-full bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex flex-col">
+                <div className="h-full bg-white rounded-2xl border border-black/15 shadow-sm p-4 flex flex-col">
                   <div className="flex-shrink-0 mb-1">
                     <p className="font-semibold text-slate-800 text-sm">Parallel Coordinates</p>
                     <p className="text-xs text-slate-400">One line per run · drag an axis band to filter</p>
@@ -858,7 +858,7 @@ export default function ScenarioComparison() {
               )}
 
               {chartView === 'scatter' && (
-                <div className="h-full bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex flex-col">
+                <div className="h-full bg-white rounded-2xl border border-black/15 shadow-sm p-4 flex flex-col">
                   <div className="flex-shrink-0 flex items-center gap-4 mb-1 flex-wrap">
                     <div>
                       <p className="font-semibold text-slate-800 text-sm">Scatter Plot</p>
@@ -868,14 +868,14 @@ export default function ScenarioComparison() {
                       <label className="flex items-center gap-1.5 text-xs text-slate-500">
                         X:
                         <select value={scatterX} onChange={e => setScatterX(e.target.value)}
-                          className="border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-gray-400">
+                          className="border border-black/15 rounded-lg px-2 py-1 text-xs text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-gray-400">
                           {SCATTER_METRICS.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
                         </select>
                       </label>
                       <label className="flex items-center gap-1.5 text-xs text-slate-500">
                         Y:
                         <select value={scatterY} onChange={e => setScatterY(e.target.value)}
-                          className="border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-gray-400">
+                          className="border border-black/15 rounded-lg px-2 py-1 text-xs text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-gray-400">
                           {SCATTER_METRICS.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
                         </select>
                       </label>
@@ -892,9 +892,9 @@ export default function ScenarioComparison() {
               )}
 
               {chartView === 'maps' && (
-                <div className="h-full bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+                <div className="h-full bg-white rounded-2xl border border-black/15 shadow-sm flex flex-col overflow-hidden">
                   {/* Header + metric selector */}
-                  <div className="flex-shrink-0 px-4 pt-3 pb-2 border-b border-slate-100 flex items-center gap-3 flex-wrap">
+                  <div className="flex-shrink-0 px-4 pt-3 pb-2 border-b border-black/10 flex items-center gap-3 flex-wrap">
                     <div>
                       <p className="font-semibold text-slate-800 text-sm">Region Maps</p>
                       <p className="text-xs text-slate-400">Side-by-side choropleth by commune</p>
@@ -904,8 +904,8 @@ export default function ScenarioComparison() {
                         <span className="text-xs text-slate-500">Show:</span>
                         {CHORO_MAP_OPTIONS.map(opt => (
                           <button key={opt.id} onClick={() => setMapMetric(opt.id)}
-                            className={`px-2 py-0.5 rounded text-[11px] font-medium transition-all ${
-                              mapMetric === opt.id ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                            className={`px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide transition-all ${
+                              mapMetric === opt.id ? 'bg-black text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                             }`}>
                             {opt.label}
                           </button>
@@ -940,7 +940,7 @@ export default function ScenarioComparison() {
                                     style={{ background: colorMap[job.id] || jobColor(i) }} />
                                   <span className="text-xs font-medium text-slate-700 truncate" title={job.modelName}>{job.modelName}</span>
                                 </div>
-                                <div style={{ flex: 1, borderRadius: 10, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+                                <div style={{ flex: 1, borderRadius: 0, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
                                   <RegionChoropleth
                                     key={job.id + '-choro-' + mapMetric}
                                     metric={choro[opt.id] || {}}
@@ -961,11 +961,11 @@ export default function ScenarioComparison() {
             </div>
 
             {kpisPerJob.length > 0 && (
-              <div className="flex-shrink-0 bg-white rounded-2xl border border-slate-200 shadow-sm px-4 py-2.5 mt-3">
+              <div className="flex-shrink-0 bg-white rounded-2xl border border-black/15 shadow-sm px-4 py-2.5 mt-3">
                 <div className="flex flex-wrap gap-2">
                   {kpisPerJob.map(({ job }, i) => (
                     <span key={job.id}
-                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs text-slate-700 border border-slate-100 bg-slate-50">
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs text-slate-700 border border-black/10 bg-slate-50">
                       <span className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                         style={{ background: colorMap[job.id] || jobColor(i) }} />
                       {job.modelName}

@@ -40,7 +40,7 @@ const StatusBadge = ({ status }) => {
     error:   <FiAlertCircle size={13} />,
   };
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${styles[status] || ''}`}>
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold ${styles[status] || ''}`}>
       {icons[status]}
       {status === 'running' ? 'Importing…' : status === 'done' ? 'Done' : 'Error'}
     </span>
@@ -202,13 +202,13 @@ const OSMDownloader = () => {
   return (
     <div className="flex flex-col h-full bg-slate-50">
       {/* ── header ── */}
-      <div className="px-6 py-5 border-b border-slate-200 bg-white">
+      <div className="px-6 py-5 border-b border-black/15 bg-white">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-electric-500 to-electric-600 flex items-center justify-center shadow-sm">
+          <div className="w-10 h-10 rounded-xl bg-black flex items-center justify-center shadow-sm">
             <FiDownloadCloud size={20} className="text-white" />
           </div>
           <div>
-            <h1 className="text-lg font-bold text-slate-900">GIS Data Download</h1>
+            <h1 className="text-lg font-black tracking-tighter text-black">GIS Data Download</h1>
             <p className="text-xs text-slate-500">Import OSM power-infrastructure data by country or region</p>
           </div>
         </div>
@@ -216,8 +216,8 @@ const OSMDownloader = () => {
 
       <div className="flex flex-1 overflow-hidden">
         {/* ── left panel: country selector ── */}
-        <div className="w-72 border-r border-slate-200 bg-white flex flex-col">
-          <div className="px-4 py-3 border-b border-slate-100">
+        <div className="w-72 border-r border-black/15 bg-white flex flex-col">
+          <div className="px-4 py-3 border-b border-black/10">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Select Region</p>
           </div>
 
@@ -268,7 +268,7 @@ const OSMDownloader = () => {
 
           {/* already loaded */}
           {loadedRegions.length > 0 && (
-            <div className="border-t border-slate-100 px-4 py-3">
+            <div className="border-t border-black/10 px-4 py-3">
               <div className="flex items-center gap-1.5 mb-2">
                 <FiDatabase size={13} className="text-gray-500" />
                 <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Loaded</p>
@@ -298,7 +298,7 @@ const OSMDownloader = () => {
                   <h2 className="text-xl font-bold text-slate-900">{selectedCountry}</h2>
                   <p className="text-sm text-slate-500">{selectedContinent}</p>
                   {isLoaded(selectedContinent, selectedCountry) && (
-                    <span className="inline-flex items-center gap-1 text-xs text-gray-600 bg-gray-50 px-2 py-0.5 rounded-full mt-1">
+                    <span className="inline-flex items-center gap-1 text-xs text-gray-600 bg-gray-50 px-2 py-0.5 mt-1">
                       <FiCheckCircle size={11} /> In database
                     </span>
                   )}
@@ -311,11 +311,11 @@ const OSMDownloader = () => {
               {/* region selector (if country has sub-regions) */}
               {countryData?.has_regions && countryData.regions?.length > 0 && (
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                  <label className="block text-[0.6875rem] font-bold text-black/60 uppercase mb-2 tracking-widest">
                     Sub-region (optional)
                   </label>
                   <select
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-electric-500"
+                    className="w-full border border-black/15 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-electric-500"
                     value={selectedRegion}
                     onChange={e => setSelectedRegion(e.target.value)}
                   >
@@ -334,7 +334,7 @@ const OSMDownloader = () => {
               )}
 
               {/* info box */}
-              <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 text-xs text-gray-700 space-y-1">
+              <div className="bg-gray-50 border border-black/10 rounded-xl p-4 text-xs text-gray-700 space-y-1">
                 <p className="font-semibold">What will be downloaded?</p>
                 <p>Power substations, plants, transmission lines, and admin boundaries from OpenStreetMap via Geofabrik.</p>
                 <p>Data is automatically uploaded to PostGIS and made available in GeoServer for map layers and model creation.</p>
@@ -346,7 +346,7 @@ const OSMDownloader = () => {
                 <button
                   onClick={startDownload}
                   disabled={!selectedCountry}
-                  className="flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-electric-500 to-electric-600 text-white font-semibold rounded-xl shadow-md hover:shadow-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="flex items-center justify-center gap-2 px-6 py-3 bg-black text-white font-bold uppercase tracking-wide hover:opacity-80 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <FiDownloadCloud size={18} />
                   {downloadStatus === 'done' ? 'Re-import' : (
@@ -358,7 +358,7 @@ const OSMDownloader = () => {
               ) : (
                 <button
                   onClick={cancelDownload}
-                  className="flex items-center justify-center gap-2 px-6 py-3 border-2 border-gray-200 text-gray-600 font-semibold rounded-xl hover:bg-gray-50 transition-all"
+                  className="flex items-center justify-center gap-2 px-6 py-3 border-2 border-black/15 text-gray-600 font-semibold rounded-xl hover:bg-gray-50 transition-all"
                 >
                   <FiX size={16} /> Cancel
                 </button>

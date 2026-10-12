@@ -673,9 +673,9 @@ const TimeSeries = () => {
     <div className="flex-1 flex flex-col h-screen bg-gray-50">
       <SaveBar label="Time Series" />
       {/* Header */}
-      <div className="bg-white border-b border-slate-200 px-4 py-2">
+      <div className="bg-white border-b border-black/15 px-4 py-2">
         <div className="flex items-center justify-between">
-          <h1 className="text-lg font-bold text-slate-800">
+          <h1 className="text-lg font-black tracking-tighter text-black">
             Time Series
             <span className="text-xs text-slate-500 ml-2 font-normal">
               {currentModel ? currentModel.name : 'No model'} • {modelTimeSeries.length} files
@@ -698,7 +698,7 @@ const TimeSeries = () => {
 
       <div className="flex-1 overflow-hidden flex flex-col">
         {/* Uploaded Time Series Section - Above Graph (Compact) */}
-        <div className="bg-white border-b border-slate-200 px-4 py-1.5">
+        <div className="bg-white border-b border-black/15 px-4 py-1.5">
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold text-slate-600 flex items-center gap-1">
               <FiDatabase size={12} />
@@ -786,7 +786,7 @@ const TimeSeries = () => {
           ) : (
             <div className="h-full flex flex-col">
               {/* Data Info - Above Graph */}
-              <div className="bg-white border-b border-slate-200 px-4 py-1.5">
+              <div className="bg-white border-b border-black/15 px-4 py-1.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-xs">
                     <FiFileText size={12} />
@@ -804,7 +804,7 @@ const TimeSeries = () => {
                   <div className="flex gap-1.5">
                     <button
                       onClick={exportModifiedData}
-                      className="px-2 py-1 text-[11px] bg-gray-700 text-white rounded hover:bg-gray-800 transition-colors flex items-center gap-1"
+                      className="uppercase tracking-wide font-bold px-2 py-1 text-[11px] bg-black text-white rounded hover:bg-black/80 transition-colors flex items-center gap-1"
                     >
                       <FiDownload size={10} />
                       Export
@@ -816,7 +816,7 @@ const TimeSeries = () => {
 
               {/* Generated-demand banner: regenerate against current model dates/resolution */}
               {demandMeta && (
-                <div className={`px-4 py-1.5 border-b flex items-center justify-between gap-2 ${demandMeta.stale ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-200'}`}>
+                <div className={`px-4 py-1.5 border-b flex items-center justify-between gap-2 ${demandMeta.stale ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-black/15'}`}>
                   <span className={`text-[11px] ${demandMeta.stale ? 'text-amber-700' : 'text-slate-500'}`}>
                     {demandMeta.stale
                       ? `Demand series out of date — ${demandMeta.rows} rows vs ${demandMeta.expected} model timesteps. Regenerate to match.`
@@ -824,7 +824,7 @@ const TimeSeries = () => {
                   </span>
                   <button
                     onClick={handleRegenerateDemand} disabled={regeneratingDemand}
-                    className={`px-2 py-1 text-[11px] rounded text-white disabled:opacity-60 flex items-center gap-1 ${demandMeta.stale ? 'bg-amber-500 hover:bg-amber-600' : 'bg-slate-600 hover:bg-slate-700'}`}
+                    className={`uppercase tracking-wide font-bold px-2 py-1 text-[11px] rounded text-white disabled:opacity-60 flex items-center gap-1 ${demandMeta.stale ? 'bg-amber-500 hover:bg-amber-600' : 'bg-black hover:bg-black/80'}`}
                   >
                     <FiClock size={10} />
                     {regeneratingDemand ? 'Regenerating…' : 'Regenerate from demandlib'}

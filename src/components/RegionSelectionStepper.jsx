@@ -72,7 +72,7 @@ const RegionSelectionStepper = ({
   };
 
   return (
-    <div className="bg-white rounded-lg p-4 border border-slate-200">
+    <div className="bg-white rounded-lg p-4 border border-black/15">
       <div className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-4">
         Region Selection
       </div>
@@ -85,12 +85,12 @@ const RegionSelectionStepper = ({
               type="button"
               onClick={() => canGoBack(step.id) && onGoBackToStep && onGoBackToStep(step.id)}
               title={canGoBack(step.id) ? `Go back to ${step.title}` : undefined}
-              className={`
+              className={`uppercase tracking-wide font-bold 
                 w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 z-10
-                ${step.status === 'completed' ? 'bg-gray-900 text-white' : ''}
+                ${step.status === 'completed' ? 'bg-black text-white' : ''}
                 ${step.status === 'active' ? 'border-2 border-gray-900 text-gray-900 bg-white' : ''}
                 ${step.status === 'pending' ? 'border-2 border-slate-300 text-slate-400 bg-white' : ''}
-                ${canGoBack(step.id) ? 'cursor-pointer hover:bg-gray-700 hover:scale-110 transition-transform' : 'cursor-default'}
+                ${canGoBack(step.id) ? 'cursor-pointer hover:bg-black/80 transition-colors' : 'cursor-default'}
               `}
             >
               {step.status === 'completed' ? (
@@ -127,7 +127,7 @@ const RegionSelectionStepper = ({
                   className={`
                     w-full px-3 py-2 text-sm border rounded-lg 
                     focus:ring-2 focus:ring-gray-500 focus:border-gray-500 bg-white
-                    ${step.disabled ? 'opacity-50 cursor-not-allowed border-slate-200' : 'border-slate-300'}
+                    ${step.disabled ? 'opacity-50 cursor-not-allowed border-black/15' : 'border-slate-300'}
                     ${step.status === 'completed' ? 'border-gray-900' : ''}
                   `}
                 >

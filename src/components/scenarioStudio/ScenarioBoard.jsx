@@ -55,14 +55,14 @@ function AddMenu({ onPickYear, onPickConfig, onClose, style }) {
     <>
       <div className="fixed inset-0 z-[90]" onClick={onClose} />
       <div style={style}
-        className="absolute z-[91] bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden w-56">
-        <div className="px-3 py-2 border-b border-slate-100 bg-slate-50 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+        className="absolute z-[91] bg-white border border-black/15 rounded-xl shadow-xl overflow-hidden w-56">
+        <div className="px-3 py-2 border-b border-black/10 bg-slate-50 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
           Add a card
         </div>
         <div className="max-h-72 overflow-y-auto">
           <button onClick={onPickYear}
-            className="w-full flex items-center gap-2 px-3 py-2 hover:bg-slate-50 text-left transition-colors border-b border-slate-100">
-            <span className="w-7 h-7 shrink-0 rounded-lg bg-gradient-to-br from-electric-500 to-electric-600 flex items-center justify-center text-white">
+            className="w-full flex items-center gap-2 px-3 py-2 hover:bg-slate-50 text-left transition-colors border-b border-black/10">
+            <span className="w-7 h-7 shrink-0 rounded-lg bg-black flex items-center justify-center text-white">
               <FiCalendar size={13} />
             </span>
             <span className="text-xs font-semibold text-slate-700">Year</span>
@@ -144,7 +144,7 @@ function Flow({
             maskColor="rgba(248,250,252,0.7)" />
           <Panel position="top-left">
             <button onClick={(e) => openMenuAt(e.clientX, e.clientY)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-200 shadow-sm text-xs font-semibold text-electric-700 hover:border-electric-300 hover:shadow transition-all">
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-black/15 shadow-sm text-xs font-semibold text-electric-700 hover:border-electric-300 hover:shadow transition-all">
               <FiPlus size={14} /> Add card
             </button>
           </Panel>

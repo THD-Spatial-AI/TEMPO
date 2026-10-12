@@ -16,7 +16,7 @@ export default function SaveModelDialog({
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000] p-4">
           <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             {/* Header */}
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+            <div className="p-6 border-b border-black/15 flex items-center justify-between">
               <div>
                 <h3 className="text-xl font-bold text-gray-800">Save as New Model</h3>
                 <p className="text-sm text-gray-500 mt-0.5">{locationManager.tempLocations.length} locations · {locationManager.tempLinks.length} links</p>
@@ -30,7 +30,7 @@ export default function SaveModelDialog({
               {/* Name + Description */}
               <div className="grid grid-cols-1 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Model Name <span className="text-gray-500">*</span></label>
+                  <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Model Name <span className="text-gray-500">*</span></label>
                   <input
                     type="text"
                     value={modelName}
@@ -41,7 +41,7 @@ export default function SaveModelDialog({
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Description</label>
+                  <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Description</label>
                   <textarea
                     value={modelConfig.description || ''}
                     onChange={(e) => setModelConfig(c => ({ ...c, description: e.target.value }))}
@@ -52,14 +52,14 @@ export default function SaveModelDialog({
                 </div>
               </div>
 
-              <hr className="border-gray-200" />
+              <hr className="border-black/15" />
 
               {/* Time horizon */}
               <div>
                 <h4 className="text-sm font-semibold text-gray-700 mb-3">Time Horizon</h4>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Start Date</label>
+                    <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Start Date</label>
                     <input
                       type="date"
                       value={modelConfig.startDate}
@@ -68,7 +68,7 @@ export default function SaveModelDialog({
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">End Date</label>
+                    <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">End Date</label>
                     <input
                       type="date"
                       value={modelConfig.endDate}
@@ -79,20 +79,20 @@ export default function SaveModelDialog({
                 </div>
               </div>
 
-              <hr className="border-gray-200" />
+              <hr className="border-black/15" />
 
               {/* Solver + Mode */}
               <div>
                 <h4 className="text-sm font-semibold text-gray-700 mb-3">Solver &amp; Mode</h4>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Solver</label>
-                    <div className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-700">
+                    <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Solver</label>
+                    <div className="w-full px-3 py-2 border border-black/15 rounded-lg text-sm bg-gray-50 text-gray-700">
                       HiGHS
                     </div>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Mode</label>
+                    <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Mode</label>
                     <select
                       value={modelConfig.mode}
                       onChange={(e) => setModelConfig(c => ({ ...c, mode: e.target.value }))}
@@ -103,7 +103,7 @@ export default function SaveModelDialog({
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Calliope Version</label>
+                    <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Calliope Version</label>
                     <select
                       value={modelConfig.calliopeVersion}
                       onChange={(e) => setModelConfig(c => ({ ...c, calliopeVersion: e.target.value }))}
@@ -114,7 +114,7 @@ export default function SaveModelDialog({
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Objective Cost Class</label>
+                    <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Objective Cost Class</label>
                     <select
                       value={modelConfig.objectiveCostClass}
                       onChange={(e) => setModelConfig(c => ({ ...c, objectiveCostClass: e.target.value }))}
@@ -127,7 +127,7 @@ export default function SaveModelDialog({
                 </div>
               </div>
 
-              <hr className="border-gray-200" />
+              <hr className="border-black/15" />
 
               {/* Advanced toggles */}
               <div>
@@ -157,7 +157,7 @@ export default function SaveModelDialog({
               {/* Solver threads */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Solver Threads</label>
+                  <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Solver Threads</label>
                   <input
                     type="number"
                     min={1}
@@ -168,7 +168,7 @@ export default function SaveModelDialog({
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">MIP Relative Gap</label>
+                  <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">MIP Relative Gap</label>
                   <input
                     type="number"
                     step="0.001"
@@ -182,7 +182,7 @@ export default function SaveModelDialog({
             </div>
 
             {/* Footer */}
-            <div className="p-6 border-t border-gray-200 flex justify-end gap-3 bg-gray-50 rounded-b-xl">
+            <div className="p-6 border-t border-black/15 flex justify-end gap-3 bg-gray-50 rounded-b-xl">
               <button
                 onClick={() => setShowSaveDialog(false)}
                 className="px-5 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors text-sm font-medium"
@@ -192,7 +192,7 @@ export default function SaveModelDialog({
               <button
                 onClick={saveToMainData}
                 disabled={!modelName.trim()}
-                className="px-5 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+                className="px-5 py-2 bg-black text-white rounded-lg hover:bg-black/80 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors text-sm font-bold uppercase tracking-wide"
               >
                 Save Model
               </button>

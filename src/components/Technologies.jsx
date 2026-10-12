@@ -23,7 +23,7 @@ function CarrierPill({ carrierId }) {
   const icon  = CARRIERS[carrierId]?.icon ?? '•';
   return (
     <span
-      className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium border"
+      className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium border"
       style={{ backgroundColor: `${color}18`, borderColor: `${color}40`, color }}
     >
       {icon} {label}
@@ -62,7 +62,7 @@ function MultiCarrierEditor({ values = [], onChange }) {
       {values.map(id => (
         <span
           key={id}
-          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border"
+          className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium border"
           style={{ backgroundColor: `${getCarrierColor(id)}18`, borderColor: `${getCarrierColor(id)}40`, color: getCarrierColor(id) }}
         >
           {CARRIERS[id]?.icon ?? '•'} {getCarrierLabel(id)}
@@ -77,7 +77,7 @@ function MultiCarrierEditor({ values = [], onChange }) {
         <button
           type="button"
           onClick={() => setAdding(true)}
-          className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs border border-dashed border-slate-400 text-slate-500 hover:border-gray-500 hover:text-gray-700"
+          className="inline-flex items-center gap-0.5 px-2 py-0.5 text-xs border border-dashed border-slate-400 text-slate-500 hover:border-gray-500 hover:text-gray-700"
         >
           <FiPlus size={10}/> Add
         </button>
@@ -137,7 +137,7 @@ function CategoryIcon({ iconKey, size = 14, color }) {
 function OpenTechBadge({ isApiLoading, isApiLive, techCount }) {
   if (isApiLoading) {
     return (
-      <div className="mx-3 mb-3 p-3 bg-slate-50 border border-slate-200 rounded-lg">
+      <div className="mx-3 mb-3 p-3 bg-slate-50 border border-black/15 rounded-lg">
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-slate-300 animate-pulse flex-shrink-0" />
           <span className="text-xs text-slate-500">Connecting to OpenTech·DB…</span>
@@ -148,7 +148,7 @@ function OpenTechBadge({ isApiLoading, isApiLive, techCount }) {
 
   if (!isApiLive) {
     return (
-      <div className="mx-3 mb-3 p-3 bg-slate-50 border border-slate-200 rounded-lg">
+      <div className="mx-3 mb-3 p-3 bg-slate-50 border border-black/15 rounded-lg">
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-slate-400 flex-shrink-0" />
           <span className="text-xs text-slate-500 font-medium">Static fallback</span>
@@ -191,7 +191,7 @@ function SkeletonGrid() {
           <div className="h-5 w-48 bg-slate-200 rounded animate-pulse mb-3" />
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
             {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="bg-white rounded-lg border border-slate-200 h-32 animate-pulse" />
+              <div key={i} className="bg-white rounded-lg border border-black/15 h-32 animate-pulse" />
             ))}
           </div>
         </div>
@@ -270,7 +270,7 @@ const TechCard = ({ techName, tech, isCustom, onDuplicate, onEdit, onDelete, onO
       {/* Instance count badge — compact stacked dot indicator */}
       {instances.length > 1 && (
         <span
-          className="absolute top-2 right-2 text-[8px] font-bold px-1.5 py-0.5 rounded-full leading-none tabular-nums"
+          className="absolute top-2 right-2 text-[8px] font-bold px-1.5 py-0.5 leading-none tabular-nums"
           style={{ backgroundColor: `${meta.color}25`, color: meta.color }}
         >
           {instances.length}
@@ -401,7 +401,7 @@ const CategorySection = ({ categoryKey, items, isCustomSection = false }) => {
 
   return (
     <div className="mb-7">
-      <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-100">
+      <div className="flex items-center gap-2 mb-3 pb-2 border-b border-black/10">
         <span
           className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0"
           style={{ backgroundColor: `${meta.color}1a` }}
@@ -410,13 +410,13 @@ const CategorySection = ({ categoryKey, items, isCustomSection = false }) => {
         </span>
         <h3 className="text-sm font-semibold text-slate-700">{label}</h3>
         <span
-          className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
+          className="text-[10px] px-1.5 py-0.5 font-semibold"
           style={{ backgroundColor: `${meta.color}15`, color: meta.color }}
         >
           {items.length}
         </span>
         {isCustomSection && (
-          <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200 ml-1">
+          <span className="text-[10px] px-2 py-0.5 bg-gray-100 text-gray-500 border border-black/15 ml-1">
             custom
           </span>
         )}
@@ -685,10 +685,10 @@ function DetailPanel({ tech, onClose, onDuplicate }) {
   const rows = paramRows.length > 0 ? paramRows : fallbackRows;
 
   return (
-    <aside className="absolute top-0 right-0 bottom-0 w-96 bg-white border-l border-slate-200 flex flex-col overflow-hidden shadow-2xl z-40">
+    <aside className="absolute top-0 right-0 bottom-0 w-96 bg-white border-l border-black/15 flex flex-col overflow-hidden shadow-2xl z-40">
       {/* Header */}
       <div
-        className="px-4 py-3 flex items-start justify-between border-b border-slate-200"
+        className="px-4 py-3 flex items-start justify-between border-b border-black/15"
         style={{ borderTopWidth: 3, borderTopColor: meta.color }}
       >
         <div className="flex-1 min-w-0 pr-2">
@@ -697,7 +697,7 @@ function DetailPanel({ tech, onClose, onDuplicate }) {
               {tech.essentials?.name || formatName(tech.name)}
             </h3>
             <span
-              className="text-[10px] px-2 py-0.5 rounded-full font-semibold flex-shrink-0"
+              className="text-[10px] px-2 py-0.5 font-semibold flex-shrink-0"
               style={{ backgroundColor: `${meta.color}18`, color: meta.color }}
             >
               {meta.label}
@@ -731,14 +731,14 @@ function DetailPanel({ tech, onClose, onDuplicate }) {
 
       {/* Instance selector — dropdown */}
       {instances.length > 0 && (
-        <div className="px-3 py-2 border-b border-slate-100 flex-shrink-0 flex items-center gap-2">
+        <div className="px-3 py-2 border-b border-black/10 flex-shrink-0 flex items-center gap-2">
           <span className="text-[9px] text-slate-400 flex-shrink-0">
             {instances.length} variant{instances.length !== 1 ? 's' : ''}
           </span>
           <select
             value={safeActiveIdx}
             onChange={e => setActiveIdx(Number(e.target.value))}
-            className="flex-1 text-[11px] font-medium text-slate-700 bg-slate-50 border border-slate-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-slate-400 cursor-pointer"
+            className="flex-1 text-[11px] font-medium text-slate-700 bg-slate-50 border border-black/15 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-slate-400 cursor-pointer"
           >
             {instances.map((i, idx) => (
               <option key={idx} value={idx}>
@@ -751,15 +751,15 @@ function DetailPanel({ tech, onClose, onDuplicate }) {
       )}
 
       {/* Tab strip */}
-      <div className="flex border-b border-slate-200 bg-white sticky top-0 z-10 flex-shrink-0">
+      <div className="flex border-b border-black/15 bg-white sticky top-0 z-10 flex-shrink-0">
         {[['framework', 'Framework Export'], ['source', 'Source Data']].map(([id, label]) => (
           <button
             key={id}
             onClick={() => setParamView(id)}
-            className={`flex-1 py-2 text-[11px] font-medium transition-colors border-b-2 ${
+            className={`flex-1 py-2 text-[11px] font-semibold uppercase tracking-tight transition-colors border-b-2 ${
               paramView === id
-                ? 'text-slate-800 border-slate-800'
-                : 'text-slate-400 border-transparent hover:text-slate-600'
+                ? 'text-black border-black'
+                : 'text-black/60 border-transparent hover:text-black'
             }`}
           >
             {label}
@@ -774,14 +774,14 @@ function DetailPanel({ tech, onClose, onDuplicate }) {
         {paramView === 'framework' && (
           <div className="flex flex-col">
             {/* Engine selector */}
-            <div className="flex items-center gap-1.5 px-3 py-2.5 border-b border-slate-100 flex-wrap">
+            <div className="flex items-center gap-1.5 px-3 py-2.5 border-b border-black/10 flex-wrap">
               {ENGINES.map(eng => (
                 <button
                   key={eng.id}
                   onClick={() => setEngine(eng.id)}
-                  className={`px-2.5 py-1 rounded-full text-[10px] font-semibold transition-colors ${
+                  className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide transition-colors ${
                     engine === eng.id
-                      ? 'bg-slate-800 text-white'
+                      ? 'bg-black text-white'
                       : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                   }`}
                 >
@@ -798,7 +798,7 @@ function DetailPanel({ tech, onClose, onDuplicate }) {
               </div>
             ) : frameworkLoading ? (
               <div className="px-4 py-8 text-center">
-                <div className="w-4 h-4 border-2 border-slate-200 border-t-slate-600 rounded-full animate-spin mx-auto mb-2" />
+                <div className="w-4 h-4 border-2 border-black/15 border-t-slate-600 rounded-full animate-spin mx-auto mb-2" />
                 <p className="text-[11px] text-slate-400">Loading {engine} parameters…</p>
               </div>
             ) : frameworkError ? (
@@ -821,11 +821,11 @@ function DetailPanel({ tech, onClose, onDuplicate }) {
           rows.length > 0 ? (
             <table className="w-full text-xs">
               <thead className="sticky top-0 z-10">
-                <tr className="bg-slate-50 border-b border-slate-200">
-                  <th className="text-left px-4 py-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500 w-2/5">Parameter</th>
-                  <th className="text-right px-2 py-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Value</th>
-                  <th className="text-left px-2 py-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Unit</th>
-                  <th className="text-left px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Source</th>
+                <tr className="bg-slate-50 border-b border-black/15">
+                  <th className="text-left px-4 py-2 text-[10px] font-bold uppercase text-black/60 w-2/5 tracking-widest">Parameter</th>
+                  <th className="text-right px-2 py-2 text-[10px] font-bold uppercase text-black/60 tracking-widest">Value</th>
+                  <th className="text-left px-2 py-2 text-[10px] font-bold uppercase text-black/60 tracking-widest">Unit</th>
+                  <th className="text-left px-3 py-2 text-[10px] font-bold uppercase text-black/60 tracking-widest">Source</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -866,10 +866,10 @@ function DetailPanel({ tech, onClose, onDuplicate }) {
       </div>
 
       {/* Footer */}
-      <div className="px-4 py-3 border-t border-slate-200 bg-slate-50">
+      <div className="px-4 py-3 border-t border-black/15 bg-slate-50">
         <button
           onClick={() => onDuplicate(tech.name || tech.id, tech)}
-          className="w-full flex items-center justify-center gap-2 px-4 py-2 text-xs font-medium bg-slate-800 text-white rounded-lg hover:bg-slate-900 transition-colors"
+          className="w-full flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wide bg-black text-white rounded-lg hover:bg-black/80 transition-colors"
         >
           <FiCopy size={12} /> Duplicate to My Technologies
         </button>
@@ -1021,12 +1021,12 @@ function Technologies() {
         <style>{customScrollbarStyles}</style>
 
         {/* ── Sidebar ──────────────────────────────────────────────────────── */}
-        <aside className="w-60 flex-shrink-0 bg-white border-r border-slate-200 flex flex-col overflow-hidden">
-          <div className="px-4 pt-4 pb-3 border-b border-slate-100">
+        <aside className="w-60 flex-shrink-0 bg-white border-r border-black/15 flex flex-col overflow-hidden">
+          <div className="px-4 pt-4 pb-3 border-b border-black/10">
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-bold text-slate-800">Technology Library</h2>
               {currentModelId && technologies.filter(t => t.uuid).length > 0 && (
-                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600">
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-indigo-50 text-indigo-600">
                   {technologies.filter(t => t.uuid).length} in model
                 </span>
               )}
@@ -1044,7 +1044,7 @@ function Technologies() {
           </div>
 
           {/* Search */}
-          <div className="px-3 pb-3 border-b border-slate-100">
+          <div className="px-3 pb-3 border-b border-black/10">
             <div className="relative">
               <FiSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
               <input
@@ -1052,7 +1052,7 @@ function Technologies() {
                 placeholder="Search technologies…"
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-300 bg-slate-50"
+                className="w-full pl-8 pr-3 py-1.5 text-xs border border-black/15 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-300 bg-slate-50"
               />
             </div>
           </div>
@@ -1061,9 +1061,9 @@ function Technologies() {
           <nav className="flex-1 overflow-y-auto p-3 custom-scrollbar space-y-0.5">
             <button
               onClick={() => { setSelectedCategory('all'); setShowOnlyCustom(false); setDetailTech(null); }}
-              className={`w-full text-left flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-colors ${
+              className={`uppercase tracking-wide font-bold w-full text-left flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-colors ${
                 selectedCategory === 'all' && !showOnlyCustom
-                  ? 'bg-slate-800 text-white'
+                  ? 'bg-black text-white'
                   : 'text-slate-600 hover:bg-slate-100'
               }`}
             >
@@ -1087,8 +1087,8 @@ function Technologies() {
                 <button
                   key={key}
                   onClick={() => { setSelectedCategory(key); setShowOnlyCustom(false); setDetailTech(null); }}
-                  className={`w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-colors ${
-                    active ? 'bg-slate-800 text-white' : 'text-slate-600 hover:bg-slate-100'
+                  className={`uppercase tracking-wide font-bold w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-colors ${
+                    active ? 'bg-black text-white' : 'text-slate-600 hover:bg-slate-100'
                   }`}
                 >
                   <CategoryIcon iconKey={meta.icon} size={12} color={active ? 'white' : meta.color} />
@@ -1105,8 +1105,8 @@ function Technologies() {
                 </div>
                 <button
                   onClick={() => { setShowOnlyCustom(true); setSelectedCategory('all'); setDetailTech(null); }}
-                  className={`w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-colors ${
-                    showOnlyCustom ? 'bg-slate-800 text-white' : 'text-slate-600 hover:bg-slate-100'
+                  className={`uppercase tracking-wide font-bold w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-colors ${
+                    showOnlyCustom ? 'bg-black text-white' : 'text-slate-600 hover:bg-slate-100'
                   }`}
                 >
                   <FiStar size={12} style={{ color: showOnlyCustom ? 'white' : '#f59e0b' }} />
@@ -1122,7 +1122,7 @@ function Technologies() {
         <main className="flex-1 overflow-y-auto p-5 custom-scrollbar min-w-0">
           {/* API attribution banner */}
           {isApiLive && !isApiLoading && (
-            <div className="flex items-center gap-2 mb-5 px-3 py-2 bg-white border border-slate-200 rounded-lg text-[11px] text-slate-500">
+            <div className="flex items-center gap-2 mb-5 px-3 py-2 bg-white border border-black/15 rounded-lg text-[11px] text-slate-500">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
               <span>
                 Data sourced from{' '}
@@ -1274,7 +1274,7 @@ function Technologies() {
                       }
                       return (
                         <div key={key}>
-                          <label className="block text-xs font-medium text-slate-600 mb-1">{key}</label>
+                          <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">{key}</label>
                           {key === 'color' ? (
                             <div className="flex items-center gap-2">
                               <input type="color" value={value} onChange={e => setEss(e.target.value)}
@@ -1284,7 +1284,7 @@ function Technologies() {
                             </div>
                           ) : key === 'parent' ? (
                             <input type="text" value={value} disabled
-                              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-100 text-slate-500" />
+                              className="w-full px-3 py-2 text-sm border border-black/15 rounded-lg bg-slate-100 text-slate-500" />
                           ) : (
                             <input type="text" value={value} onChange={e => setEss(e.target.value)}
                               className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-gray-400 focus:outline-none" />
@@ -1308,13 +1308,13 @@ function Technologies() {
                     ];
                     if (toAdd.length === 0) return null;
                     return (
-                      <div className="mt-3 pt-3 border-t border-slate-100">
+                      <div className="mt-3 pt-3 border-t border-black/10">
                         <p className="text-xs text-slate-400 mb-2">Missing carrier fields for <strong>{parent}</strong>:</p>
                         <div className="flex flex-wrap gap-2">
                           {toAdd.map(field => (
                             <button key={field} type="button"
                               onClick={() => setEditForm({ ...editForm, essentials: { ...editForm.essentials, [field]: field === 'carrier' ? 'electricity' : [] } })}
-                              className="px-2.5 py-1 text-xs bg-gray-50 text-gray-600 border border-gray-200 rounded-full hover:bg-gray-100">
+                              className="px-2.5 py-1 text-xs bg-gray-50 text-gray-600 border border-black/15 hover:bg-gray-100">
                               + {field}
                             </button>
                           ))}
@@ -1365,7 +1365,7 @@ function Technologies() {
                         <div className="mt-3 grid grid-cols-3 gap-3">
                           {storageFields.map(({ key, label, placeholder }) => (
                             <div key={key}>
-                              <label className="block text-xs font-medium text-amber-700 mb-1">{label}</label>
+                              <label className="block text-[0.6875rem] font-bold text-amber-700 mb-1 uppercase tracking-widest">{label}</label>
                               <input
                                 type="text"
                                 placeholder={placeholder}
@@ -1408,7 +1408,7 @@ function Technologies() {
                 </section>
               </div>
 
-              <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-xl">
+              <div className="flex items-center justify-between px-6 py-4 border-t border-black/15 bg-slate-50 rounded-b-xl">
                 <button
                   onClick={handleDeleteTech}
                   className="flex items-center gap-1.5 px-4 py-2 text-sm bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-700 hover:text-white transition-colors"
@@ -1419,7 +1419,7 @@ function Technologies() {
                   <button onClick={handleCancelEdit} className="px-4 py-2 text-sm bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition-colors">
                     Cancel
                   </button>
-                  <button onClick={handleSaveEdit} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-slate-800 text-white rounded-lg hover:bg-slate-900 transition-colors">
+                  <button onClick={handleSaveEdit} className="uppercase tracking-wide font-bold flex items-center gap-1.5 px-4 py-2 text-sm bg-black text-white rounded-lg hover:bg-black/80 transition-colors">
                     <FiSave size={14} /> Save
                   </button>
                 </div>

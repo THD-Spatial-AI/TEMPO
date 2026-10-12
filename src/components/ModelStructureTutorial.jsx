@@ -28,15 +28,15 @@ export const ModelStructureTutorial = () => {
   return (
     <div className="space-y-6">
       {/* Sub-navigation */}
-      <div className="flex gap-1 border-b border-slate-200 overflow-x-auto">
+      <div className="flex gap-1 border-b border-black/15 overflow-x-auto">
         {tabs.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveSection(tab.id)}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+            className={`px-4 py-2.5 text-[0.8125rem] font-semibold uppercase tracking-tight border-b-2 whitespace-nowrap transition-colors ${
               activeSection === tab.id
-                ? 'border-slate-700 text-slate-800'
-                : 'border-transparent text-slate-400 hover:text-slate-600'
+                ? 'border-black text-black'
+                : 'border-transparent text-black/60 hover:text-black'
             }`}
           >
             {tab.label}
@@ -72,7 +72,7 @@ const OverviewSection = () => (
     {/* Engine badge row */}
     <div className="flex flex-wrap gap-2">
       {['Calliope 0.6.8', 'Calliope 0.7', 'PyPSA', 'OSeMOSYS', 'AdOpT-NET0'].map(e => (
-        <span key={e} className="px-2.5 py-1 border border-slate-200 rounded text-xs text-slate-600 font-mono">{e}</span>
+        <span key={e} className="px-2.5 py-1 border border-black/15 rounded text-xs text-slate-600 font-mono">{e}</span>
       ))}
     </div>
 
@@ -90,7 +90,7 @@ const OverviewSection = () => (
         ].map((item) => {
           const BlockIcon = item.icon;
           return (
-          <div key={item.title} className="bg-white border border-slate-200 rounded-xl p-4">
+          <div key={item.title} className="bg-white border border-black/15 rounded-xl p-4">
             <div className="flex items-center gap-2 mb-1.5">
               <BlockIcon size={14} className="text-slate-500 flex-shrink-0" />
               <span className="font-semibold text-slate-800 text-sm">{item.title}</span>
@@ -114,7 +114,7 @@ const OverviewSection = () => (
           { n: '4', title: 'Attach time series', body: 'Upload hourly demand and resource profiles (CSV).' },
           { n: '5', title: 'Run & analyse',      body: 'Select an engine and solver, run the optimisation, inspect results in the Results tab.' },
         ].map(({ n, title, body }) => (
-          <div key={n} className="flex-1 bg-white border border-slate-200 rounded-xl p-4">
+          <div key={n} className="flex-1 bg-white border border-black/15 rounded-xl p-4">
             <div className="w-6 h-6 bg-slate-800 text-white rounded text-xs font-bold flex items-center justify-center mb-2">{n}</div>
             <div className="font-semibold text-slate-800 text-xs mb-1">{title}</div>
             <div className="text-slate-500 text-xs">{body}</div>
@@ -204,7 +204,7 @@ const ParentTypesSection = () => (
         example: { parent: 'demand', carrier: 'electricity', resource: '[negative time series]' },
       },
     ].map(({ title, description, useCases, requirements, example }) => (
-      <div key={title} className="bg-white border border-slate-200 rounded-xl p-5">
+      <div key={title} className="bg-white border border-black/15 rounded-xl p-5">
         <div className="flex items-start justify-between mb-3">
           <div>
             <code className="text-sm font-mono font-semibold text-slate-800">{title}</code>
@@ -255,18 +255,18 @@ const CarriersSection = () => (
         { name: 'gas',         description: 'Natural gas or biogas.',                     examples: ['Natural gas grid', 'Biogas production', 'Gas turbine fuel'],              unit: 'kWh (LHV)' },
         { name: 'water',       description: 'Water for hydro or industrial processes.',   examples: ['Hydroelectric', 'Water supply', 'Industrial process'],                    unit: 'm³ or kWh' },
       ].map(({ name, description, examples, unit }) => (
-        <div key={name} className="bg-white border border-slate-200 rounded-xl p-4">
+        <div key={name} className="bg-white border border-black/15 rounded-xl p-4">
           <code className="text-sm font-mono font-semibold text-slate-800">{name}</code>
           <p className="text-xs text-slate-500 mt-0.5 mb-2">{description}</p>
           <ul className="space-y-0.5 mb-2">
             {examples.map(e => <li key={e} className="text-xs text-slate-500">· {e}</li>)}
           </ul>
-          <div className="text-[10px] text-slate-400 font-mono border-t border-slate-100 pt-1.5 mt-1.5">Unit: {unit}</div>
+          <div className="text-[10px] text-slate-400 font-mono border-t border-black/10 pt-1.5 mt-1.5">Unit: {unit}</div>
         </div>
       ))}
     </div>
 
-    <div className="bg-white border border-slate-200 rounded-xl p-5">
+    <div className="bg-white border border-black/15 rounded-xl p-5">
       <h3 className="text-sm font-semibold text-slate-700 mb-3">Demand technology notes</h3>
       <ul className="space-y-1.5">
         {[
@@ -292,7 +292,7 @@ const CarriersSection = () => (
           { name: 'cooling_demand', carrier: 'cooling',     desc: 'Cooling energy consumption',  typical: 'AC, refrigeration, data centres' },
           { name: 'h2_demand',      carrier: 'hydrogen',    desc: 'Hydrogen consumption',        typical: 'Fuel cell vehicles, industrial processes, steel' },
         ].map(({ name, carrier, desc, typical }) => (
-          <div key={name} className="bg-white border border-slate-200 rounded-xl p-4">
+          <div key={name} className="bg-white border border-black/15 rounded-xl p-4">
             <code className="text-sm font-mono font-semibold text-slate-800">{name}</code>
             <div className="mt-2 space-y-1 text-xs">
               <div className="flex gap-2">
@@ -361,7 +361,7 @@ const StorageConversionSection = () => {
         <div className="grid md:grid-cols-2 gap-3">
           {storageTechs.map(tech => <TechnologyCard key={tech.name} tech={tech} />)}
         </div>
-        <div className="mt-4 bg-white border border-slate-200 rounded-xl p-4">
+        <div className="mt-4 bg-white border border-black/15 rounded-xl p-4">
           <p className="text-xs font-semibold text-slate-600 mb-2">Key parameters</p>
           <div className="grid md:grid-cols-2 gap-3 text-xs">
             {[
@@ -391,7 +391,7 @@ const StorageConversionSection = () => {
 
 // ─── Technology Card ──────────────────────────────────────────────────────────
 const TechnologyCard = ({ tech }) => (
-  <div className="bg-white border border-slate-200 rounded-xl p-4 hover:border-slate-300 transition-colors">
+  <div className="bg-white border border-black/15 rounded-xl p-4 hover:border-slate-300 transition-colors">
     <h4 className="text-sm font-semibold text-slate-800 mb-1">{tech.essentials?.name || tech.name}</h4>
     <p className="text-xs text-slate-500 mb-2">{tech.description}</p>
     <div className="space-y-1 text-xs">
@@ -427,7 +427,7 @@ const TechnologyCard = ({ tech }) => (
       )}
     </div>
     {tech.costs?.monetary && (
-      <div className="mt-2 pt-2 border-t border-slate-100 grid grid-cols-2 gap-1 text-xs">
+      <div className="mt-2 pt-2 border-t border-black/10 grid grid-cols-2 gap-1 text-xs">
         {tech.costs.monetary.energy_cap  && <div><span className="text-slate-400">CAPEX </span><span className="text-slate-600">${tech.costs.monetary.energy_cap}/kW</span></div>}
         {tech.costs.monetary.storage_cap && <div><span className="text-slate-400">Storage </span><span className="text-slate-600">${tech.costs.monetary.storage_cap}/kWh</span></div>}
         {tech.costs.monetary.om_annual   && <div><span className="text-slate-400">O&M </span><span className="text-slate-600">${tech.costs.monetary.om_annual}/kW/yr</span></div>}
@@ -510,7 +510,7 @@ const ConstraintsSection = () => (
 );
 
 const ConstraintCard = ({ name, type, description, example, notes }) => (
-  <div className="bg-white border border-slate-200 rounded-xl p-4">
+  <div className="bg-white border border-black/15 rounded-xl p-4">
     <div className="flex items-start justify-between mb-1.5">
       <code className="text-xs font-mono font-semibold text-slate-800">{name}</code>
       <code className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded ml-2 flex-shrink-0">{type}</code>

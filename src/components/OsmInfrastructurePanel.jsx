@@ -329,9 +329,9 @@ const OsmInfrastructurePanel = ({
   };
 
   return (
-    <div className="flex flex-col h-full w-full bg-white border-l border-slate-200 shadow-lg">
+    <div className="flex flex-col h-full w-full bg-surface-container-lowest border-l border-black/15">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-slate-200">
+      <div className="flex items-center justify-between p-4 border-b border-black/15">
         {!collapsed && (
           <div className="flex items-center gap-2">
             <FiMap className="text-slate-700" size={20} />
@@ -407,7 +407,7 @@ const OsmInfrastructurePanel = ({
                 {/* Commune (if available) - Keep this separate as it's optional */}
                 {selectedSubregion && availableCommunes.length > 0 && (
                   <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                    <label className="block text-[0.6875rem] font-bold text-black/60 mb-1.5 uppercase tracking-widest">
                       <FiMapPin className="inline mr-1" size={12} />
                       Commune (Optional)
                     </label>
@@ -428,7 +428,7 @@ const OsmInfrastructurePanel = ({
             
             {/* Selection Summary */}
             {selectedSubregion && (
-              <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+              <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-black/15">
                 <div className="text-xs font-semibold text-gray-900 mb-1">Selected:</div>
                 <div className="text-xs text-gray-700 space-y-1">
                   <div>🌍 {selectedContinent}</div>
@@ -453,7 +453,7 @@ const OsmInfrastructurePanel = ({
           >
             <FiMap size={20} />
           </button>
-          <div className="border-t border-slate-200 w-8 my-2"></div>
+          <div className="border-t border-black/15 w-8 my-2"></div>
           <button
             className="p-2 rounded-lg hover:bg-slate-100"
             title="Layers"

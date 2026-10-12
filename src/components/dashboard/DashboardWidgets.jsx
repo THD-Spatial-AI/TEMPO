@@ -62,12 +62,12 @@ export const TsViewControls = ({ opts, onChange, ts, locSearch, onLocSearch, acc
             <div>
               <label className="text-[10px] text-slate-400 block mb-0.5">From</label>
               <input type="date" value={opts.customStart || ''} onChange={e => onChange({ ...opts, customStart: e.target.value })}
-                className="w-full px-2 py-1 border border-slate-200 rounded text-[11px] bg-white" />
+                className="w-full px-2 py-1 border border-black/15 rounded text-[11px] bg-white" />
             </div>
             <div>
               <label className="text-[10px] text-slate-400 block mb-0.5">To</label>
               <input type="date" value={opts.customEnd || ''} onChange={e => onChange({ ...opts, customEnd: e.target.value })}
-                className="w-full px-2 py-1 border border-slate-200 rounded text-[11px] bg-white" />
+                className="w-full px-2 py-1 border border-black/15 rounded text-[11px] bg-white" />
             </div>
             {opts.customStart && opts.customEnd && (
               <span className="text-[10px] text-slate-400 text-center">
@@ -100,7 +100,7 @@ export const TsViewControls = ({ opts, onChange, ts, locSearch, onLocSearch, acc
           <div className="relative">
             <FiFilter size={10} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-300" />
             <input type="text" placeholder="Search locations…" value={locSearch} onChange={e => onLocSearch(e.target.value)}
-              className="w-full pl-6 pr-2 py-1 border border-slate-200 rounded text-[11px] bg-white" />
+              className="w-full pl-6 pr-2 py-1 border border-black/15 rounded text-[11px] bg-white" />
           </div>
           <div className="flex flex-col gap-0.5 max-h-48 overflow-y-auto pr-0.5">
             {visibleCols.slice(0, 150).map(c => {

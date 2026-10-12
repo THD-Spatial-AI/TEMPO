@@ -9,7 +9,7 @@ const TOTAL = 4;
 
 const FileRow = ({ icon: Icon, label, hint, accept, onUpload, status, optional = true }) => (
   <div className={`border rounded-lg px-3 py-2.5 flex items-center gap-3 transition-all ${
-    status ? 'border-gray-300 bg-gray-50' : 'border-dashed border-gray-200 hover:border-gray-300'
+    status ? 'border-gray-300 bg-gray-50' : 'border-dashed border-black/15 hover:border-gray-300'
   }`}>
     <Icon size={14} className="text-gray-500 flex-shrink-0" />
     <div className="flex-1 min-w-0">
@@ -19,7 +19,7 @@ const FileRow = ({ icon: Icon, label, hint, accept, onUpload, status, optional =
       <p className="text-xs text-gray-400 truncate">{hint}</p>
     </div>
     {status
-      ? <span className="text-xs text-gray-600 bg-white border border-gray-200 px-2 py-0.5 rounded flex-shrink-0">{status}</span>
+      ? <span className="text-xs text-gray-600 bg-white border border-black/15 px-2 py-0.5 rounded flex-shrink-0">{status}</span>
       : <label className="cursor-pointer px-2.5 py-1 bg-gray-700 text-white rounded text-xs font-medium hover:bg-gray-800 flex-shrink-0 transition-colors">
           <input type="file" accept={accept} className="hidden"
             onChange={e => { if (e.target.files[0]) { onUpload(e.target.files[0]); e.target.value = ''; } }} />
@@ -64,7 +64,7 @@ export default function CSVImportWizard({
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-xl flex flex-col" style={{ maxHeight: '85vh' }}>
 
         {/* Header */}
-        <div className="border-b border-gray-200 px-5 py-3 flex items-center justify-between flex-shrink-0">
+        <div className="border-b border-black/15 px-5 py-3 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-3">
             <span className="font-semibold text-sm text-gray-800">CSV Import Wizard</span>
             <span className="text-xs text-gray-400">Step {step} of {TOTAL}</span>
@@ -93,7 +93,7 @@ export default function CSVImportWizard({
               <p className="text-xs text-gray-500">Give your model a name to get started.</p>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">
                   Model Name <span className="text-gray-400 font-normal">*</span>
                 </label>
                 <input
@@ -107,7 +107,7 @@ export default function CSVImportWizard({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Description (optional)</label>
+                <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Description (optional)</label>
                 <textarea
                   value={wizardData.description}
                   onChange={e => setWizardData(p => ({ ...p, description: e.target.value }))}
@@ -117,7 +117,7 @@ export default function CSVImportWizard({
                 />
               </div>
 
-              <div className="bg-gray-50 border border-dashed border-gray-200 rounded-lg p-3">
+              <div className="bg-gray-50 border border-dashed border-black/15 rounded-lg p-3">
                 <p className="text-xs font-semibold text-gray-700 mb-1">Need example files?</p>
                 <p className="text-xs text-gray-500 mb-2">Download templates to see the expected CSV / JSON format.</p>
                 <div className="flex gap-2 flex-wrap">
@@ -128,7 +128,7 @@ export default function CSVImportWizard({
                     { type: 'wind', label: 'Wind CSV' },
                   ].map(({ type, label }) => (
                     <button key={type} onClick={() => downloadTemplate(type)}
-                      className="flex items-center gap-1 px-2 py-1 bg-white border border-gray-200 rounded text-xs text-gray-600 hover:bg-gray-50 transition-colors">
+                      className="flex items-center gap-1 px-2 py-1 bg-white border border-black/15 rounded text-xs text-gray-600 hover:bg-gray-50 transition-colors">
                       <FiDownload size={11} /> {label}
                     </button>
                   ))}
@@ -153,7 +153,7 @@ export default function CSVImportWizard({
                         Locations <span className="text-gray-400 font-normal text-xs">*</span>
                       </p>
                       {wizardData.locationsData && (
-                        <span className="text-xs font-semibold text-gray-600 bg-white border border-gray-200 px-2 py-0.5 rounded-full">
+                        <span className="text-xs font-semibold text-gray-600 bg-white border border-black/15 px-2 py-0.5">
                           ✓ {wizardData.locationsData.length} rows
                         </span>
                       )}
@@ -182,7 +182,7 @@ export default function CSVImportWizard({
                         Links <span className="text-gray-400 font-normal text-xs">*</span>
                       </p>
                       {wizardData.linksData && (
-                        <span className="text-xs font-semibold text-gray-600 bg-white border border-gray-200 px-2 py-0.5 rounded-full">
+                        <span className="text-xs font-semibold text-gray-600 bg-white border border-black/15 px-2 py-0.5">
                           ✓ {wizardData.linksData.length} rows
                         </span>
                       )}
@@ -234,7 +234,7 @@ export default function CSVImportWizard({
 
               {/* Resource timeseries — multi-file */}
               <div className={`border rounded-lg px-3 py-2.5 transition-all ${
-                wizardData.resourceFiles.length > 0 ? 'border-gray-300 bg-gray-50' : 'border-dashed border-gray-200'
+                wizardData.resourceFiles.length > 0 ? 'border-gray-300 bg-gray-50' : 'border-dashed border-black/15'
               }`}>
                 <div className="flex items-center gap-3 mb-2">
                   <FiUploadCloud size={14} className="text-gray-500 flex-shrink-0" />
@@ -259,7 +259,7 @@ export default function CSVImportWizard({
                 {wizardData.resourceFiles.length > 0 && (
                   <div className="space-y-1">
                     {wizardData.resourceFiles.map((rf, i) => (
-                      <div key={i} className="flex items-center gap-2 text-xs bg-white border border-gray-200 rounded px-2 py-1">
+                      <div key={i} className="flex items-center gap-2 text-xs bg-white border border-black/15 rounded px-2 py-1">
                         <span className="font-mono font-semibold text-gray-600 uppercase">{rf.type}</span>
                         <span className="flex-1 truncate text-gray-700">{rf.name}</span>
                         <span className="text-gray-400">{rf.data.length} rows</span>
@@ -278,7 +278,7 @@ export default function CSVImportWizard({
           {step === 4 && (
             <div className="space-y-3">
               {/* Model identity */}
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+              <div className="bg-gray-50 border border-black/15 rounded-lg p-3">
                 <p className="font-semibold text-gray-800 text-sm">{wizardData.modelName}</p>
                 {wizardData.description && (
                   <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{wizardData.description}</p>
@@ -292,7 +292,7 @@ export default function CSVImportWizard({
                   { icon: FiZap,      value: wizardData.linksData?.length ?? 0,           label: 'Links' },
                   { icon: FiActivity, value: wizardData.demandData?.length ?? 0,          label: 'Demand rows' },
                 ].map(({ icon: Icon, value, label }) => (
-                  <div key={label} className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                  <div key={label} className="flex items-center gap-2 bg-gray-50 border border-black/15 rounded-lg px-3 py-2">
                     <Icon size={13} className="text-gray-400" />
                     <span className="text-sm font-bold text-gray-700">{value}</span>
                     <span className="text-xs text-gray-500">{label}</span>
@@ -304,18 +304,18 @@ export default function CSVImportWizard({
               {(wizardData.technologiesData || wizardData.scenariosData || wizardData.parsedConfig || wizardData.resourceFiles.length > 0) && (
                 <div className="flex flex-wrap gap-1.5">
                   {wizardData.technologiesData && (
-                    <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">
+                    <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5">
                       ✓ {Object.keys(wizardData.technologiesData).length} techs
                     </span>
                   )}
                   {wizardData.scenariosData && (
-                    <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">✓ Scenarios</span>
+                    <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5">✓ Scenarios</span>
                   )}
                   {wizardData.parsedConfig && (
-                    <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">✓ Config</span>
+                    <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5">✓ Config</span>
                   )}
                   {wizardData.resourceFiles.map((rf, i) => (
-                    <span key={i} className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">
+                    <span key={i} className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5">
                       ✓ {rf.name} ({rf.type.toUpperCase()})
                     </span>
                   ))}
@@ -324,22 +324,22 @@ export default function CSVImportWizard({
 
               {/* Locations preview */}
               {wizardData.locationsData && (
-                <div className="border border-gray-200 rounded-lg overflow-hidden">
-                  <div className="bg-gray-50 px-3 py-1.5 border-b border-gray-200 flex items-center justify-between">
+                <div className="border border-black/15 rounded-lg overflow-hidden">
+                  <div className="bg-gray-50 px-3 py-1.5 border-b border-black/15 flex items-center justify-between">
                     <span className="text-xs font-semibold text-gray-600">Locations preview</span>
                     <span className="text-xs text-gray-400">{wizardData.locationsData.length} total</span>
                   </div>
                   <table className="w-full text-xs">
-                    <thead className="border-b border-gray-200 bg-gray-50/50">
+                    <thead className="border-b border-black/15 bg-gray-50/50">
                       <tr>
-                        <th className="text-left px-3 py-1.5 text-gray-600 font-semibold">Name</th>
-                        <th className="text-left px-3 py-1.5 text-gray-600 font-semibold">Type</th>
-                        <th className="text-left px-3 py-1.5 text-gray-600 font-semibold">Lat, Lon</th>
+                        <th className="text-left px-3 py-1.5 text-black/60 font-bold uppercase tracking-widest">Name</th>
+                        <th className="text-left px-3 py-1.5 text-black/60 font-bold uppercase tracking-widest">Type</th>
+                        <th className="text-left px-3 py-1.5 text-black/60 font-bold uppercase tracking-widest">Lat, Lon</th>
                       </tr>
                     </thead>
                     <tbody>
                       {wizardData.locationsData.slice(0, 5).map((loc, i) => (
-                        <tr key={i} className="border-b border-gray-100 last:border-0">
+                        <tr key={i} className="border-b border-black/10 last:border-0">
                           <td className="px-3 py-1.5 font-mono text-gray-800">
                             {loc.name || loc.Name || loc.location_name || `#${i + 1}`}
                           </td>
@@ -352,7 +352,7 @@ export default function CSVImportWizard({
                     </tbody>
                   </table>
                   {wizardData.locationsData.length > 5 && (
-                    <div className="text-center py-1.5 text-xs text-gray-400 bg-gray-50 border-t border-gray-100">
+                    <div className="text-center py-1.5 text-xs text-gray-400 bg-gray-50 border-t border-black/10">
                       +{wizardData.locationsData.length - 5} more
                     </div>
                   )}
@@ -364,22 +364,22 @@ export default function CSVImportWizard({
         </div>
 
         {/* Footer */}
-        <div className="border-t border-gray-200 px-5 py-3 bg-gray-50 flex items-center justify-between flex-shrink-0">
+        <div className="border-t border-black/15 px-5 py-3 bg-gray-50 flex items-center justify-between flex-shrink-0">
           <button
             onClick={() => setStep(s => s - 1)}
             disabled={step === 1}
-            className="px-3 py-1.5 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="px-3 py-1.5 text-sm text-gray-600 bg-white border border-black/15 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             ← Back
           </button>
           {step < TOTAL ? (
             <button onClick={handleNext}
-              className="px-4 py-1.5 bg-gray-700 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors">
+              className="px-4 py-1.5 bg-black text-white rounded-lg text-sm font-bold uppercase tracking-wide hover:bg-black/80 transition-colors">
               Continue →
             </button>
           ) : (
             <button onClick={onComplete}
-              className="px-4 py-1.5 bg-gray-700 text-white rounded-lg text-sm font-medium hover:bg-gray-800 flex items-center gap-2 transition-colors">
+              className="px-4 py-1.5 bg-black text-white rounded-lg text-sm font-bold uppercase tracking-wide hover:bg-black/80 flex items-center gap-2 transition-colors">
               <FiCheck size={14} /> Create Model
             </button>
           )}

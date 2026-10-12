@@ -11,7 +11,7 @@ export default function HoverTooltip({
               pointerEvents: 'none',
               backgroundColor: 'white',
               padding: '10px 14px',
-              borderRadius: '8px',
+              borderRadius: 0,
               boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
               fontSize: '12px',
               zIndex: 1000,

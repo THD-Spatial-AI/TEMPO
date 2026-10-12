@@ -320,7 +320,7 @@ export default function SporesTab({
                 <div className="space-y-4">
 
                   {/* Banner */}
-                  <div className="bg-gradient-to-r from-electric-50 to-gray-50 border border-electric-200 rounded-2xl p-4 flex items-start gap-3">
+                  <div className="bg-surface-container-low border border-black/15 rounded-2xl p-4 flex items-start gap-3">
                     <FiGitMerge className="text-electric-500 mt-0.5 shrink-0" size={16} />
                     <div>
                       <p className="text-sm font-semibold text-electric-700">{sporesData.length} near-optimal solutions explored</p>
@@ -331,17 +331,17 @@ export default function SporesTab({
                   </div>
 
                   {/* Cost summary table */}
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                  <div className="bg-white rounded-2xl border border-black/15 shadow-sm p-5">
                     <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
                       <FiDollarSign size={14} /> Cost Summary
                     </h3>
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
-                          <tr className="border-b border-slate-100">
-                            <th className="text-left py-2 pr-4 text-xs font-semibold text-slate-500 uppercase tracking-wide">Solution</th>
-                            <th className="text-right py-2 pr-4 text-xs font-semibold text-slate-500 uppercase tracking-wide">Total cost</th>
-                            <th className="text-right py-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">% above optimal</th>
+                          <tr className="border-b border-black/10">
+                            <th className="text-left py-2 pr-4 text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">Solution</th>
+                            <th className="text-right py-2 pr-4 text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">Total cost</th>
+                            <th className="text-right py-2 text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">% above optimal</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
@@ -370,7 +370,7 @@ export default function SporesTab({
                   </div>
 
                   {/* Fig 1 — Technology mix + cost line */}
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                  <div className="bg-white rounded-2xl border border-black/15 shadow-sm p-5">
                     <h3 className="text-sm font-semibold text-slate-700 mb-1 flex items-center gap-2">
                       <FiBarChart2 size={14} /> Fig 1 — Technology Mix &amp; System Cost per Solution
                     </h3>
@@ -381,7 +381,7 @@ export default function SporesTab({
                   </div>
 
                   {/* Fig 2 — Technology variability strip chart */}
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                  <div className="bg-white rounded-2xl border border-black/15 shadow-sm p-5">
                     <h3 className="text-sm font-semibold text-slate-700 mb-1 flex items-center gap-2">
                       <FiActivity size={14} /> Fig 2 — Technology Deployment Variability
                     </h3>
@@ -392,7 +392,7 @@ export default function SporesTab({
                   </div>
 
                   {/* Fig 3 — Pairwise trade-off scatter */}
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                  <div className="bg-white rounded-2xl border border-black/15 shadow-sm p-5">
                     <h3 className="text-sm font-semibold text-slate-700 mb-1 flex items-center gap-2">
                       <FiShare2 size={14} /> Fig 3 — Pairwise Technology Trade-off
                     </h3>
@@ -401,21 +401,21 @@ export default function SporesTab({
                     </p>
                     <div className="flex gap-3 mb-3">
                       <div className="flex-1">
-                        <label className="block text-xs text-slate-500 mb-1">X-axis technology</label>
+                        <label className="block text-[0.6875rem] text-black/60 mb-1 font-bold uppercase tracking-widest">X-axis technology</label>
                         <select
                           value={scatterTechA}
                           onChange={e => setSporeScatterA(e.target.value)}
-                          className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-700"
+                          className="w-full text-xs border border-black/15 rounded-lg px-2 py-1.5 bg-white text-slate-700"
                         >
                           {activeTechs.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
                         </select>
                       </div>
                       <div className="flex-1">
-                        <label className="block text-xs text-slate-500 mb-1">Y-axis technology</label>
+                        <label className="block text-[0.6875rem] text-black/60 mb-1 font-bold uppercase tracking-widest">Y-axis technology</label>
                         <select
                           value={scatterTechB}
                           onChange={e => setSporeScatterB(e.target.value)}
-                          className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-700"
+                          className="w-full text-xs border border-black/15 rounded-lg px-2 py-1.5 bg-white text-slate-700"
                         >
                           {activeTechs.filter(t => t !== scatterTechA).map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
                         </select>
@@ -426,7 +426,7 @@ export default function SporesTab({
 
                   {/* Fig 4 — Parallel coordinates */}
                   {activeTechs.length >= 2 && (
-                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                    <div className="bg-white rounded-2xl border border-black/15 shadow-sm p-5">
                       <h3 className="text-sm font-semibold text-slate-700 mb-1 flex items-center gap-2">
                         <FiFilter size={14} /> Fig 4 — Near-Optimal Space (Parallel Coordinates)
                       </h3>
@@ -440,7 +440,7 @@ export default function SporesTab({
 
                   {/* Fig 5 — Per-SPORE geographic map */}
                   {modelLocations && modelLocations.length > 0 && (
-                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                    <div className="bg-white rounded-2xl border border-black/15 shadow-sm p-5">
                       <h3 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
                         <FiMap size={14} /> Fig 5 — Geographic Capacity Distribution per Solution
                       </h3>
@@ -449,7 +449,7 @@ export default function SporesTab({
                         <select
                           value={safeSpore}
                           onChange={e => setSelectedSpore(+e.target.value)}
-                          className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-700"
+                          className="text-xs border border-black/15 rounded-lg px-2 py-1.5 bg-white text-slate-700"
                         >
                           {sporesData.map(s => (
                             <option key={s.spore_id} value={s.spore_id}>
@@ -474,7 +474,7 @@ export default function SporesTab({
 
                   {/* Technology Deployment Correlation — grouped location×tech matrix */}
                   {ltAtoms.length >= 3 && sporesData.length >= 3 && (
-                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                    <div className="bg-white rounded-2xl border border-black/15 shadow-sm p-5">
                       <h3 className="text-sm font-semibold text-slate-700 mb-1 flex items-center gap-2">
                         <FiGrid size={14} /> Technology Deployment Correlation
                       </h3>
@@ -499,7 +499,7 @@ export default function SporesTab({
                                   setCorrLocFilter(next);
                                 }}
                                 style={{
-                                  fontSize: 11, padding: '2px 9px', borderRadius: 5, border: 'none',
+                                  fontSize: 11, padding: '2px 9px', borderRadius: 0, border: 'none',
                                   cursor: 'pointer', fontFamily: "'DM Sans', system-ui", fontWeight: 600,
                                   background: selected ? '#1e293b' : '#f1f5f9',
                                   color: selected ? '#fff' : '#94a3b8',
@@ -511,7 +511,7 @@ export default function SporesTab({
                           })}
                           {corrLocFilter.size > 0 && corrLocFilter.size < ltGroups.length && (
                             <button onClick={() => setCorrLocFilter(new Set(ltGroups.map(g => g.loc)))}
-                              style={{ fontSize: 10, padding: '2px 8px', borderRadius: 5,
+                              style={{ fontSize: 10, padding: '2px 8px', borderRadius: 0,
                                        border: '1px solid #e2e8f0', cursor: 'pointer',
                                        background: 'white', color: '#64748b', fontFamily: "'DM Sans', system-ui" }}>
                               Select all
@@ -519,7 +519,7 @@ export default function SporesTab({
                           )}
                           {corrLocFilter.size > 0 && (
                             <button onClick={() => setCorrLocFilter(new Set())}
-                              style={{ fontSize: 10, padding: '2px 8px', borderRadius: 5,
+                              style={{ fontSize: 10, padding: '2px 8px', borderRadius: 0,
                                        border: '1px solid #e2e8f0', cursor: 'pointer',
                                        background: 'white', color: '#64748b', fontFamily: "'DM Sans', system-ui" }}>
                               Clear
@@ -538,7 +538,7 @@ export default function SporesTab({
                   )}
 
                   {/* Classification table */}
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                  <div className="bg-white rounded-2xl border border-black/15 shadow-sm p-5">
                     <h3 className="text-sm font-semibold text-slate-700 mb-1 flex items-center gap-2">
                       <FiLayers size={14} /> Technology Classification
                     </h3>
@@ -550,12 +550,12 @@ export default function SporesTab({
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
-                          <tr className="border-b border-slate-100">
-                            <th className="text-left py-2 pr-4 text-xs font-semibold text-slate-500 uppercase tracking-wide">Technology</th>
-                            <th className="text-right py-2 pr-4 text-xs font-semibold text-slate-500 uppercase tracking-wide">Min</th>
-                            <th className="text-right py-2 pr-4 text-xs font-semibold text-slate-500 uppercase tracking-wide">Max</th>
-                            <th className="text-right py-2 pr-4 text-xs font-semibold text-slate-500 uppercase tracking-wide">Present in</th>
-                            <th className="text-left py-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">Role</th>
+                          <tr className="border-b border-black/10">
+                            <th className="text-left py-2 pr-4 text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">Technology</th>
+                            <th className="text-right py-2 pr-4 text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">Min</th>
+                            <th className="text-right py-2 pr-4 text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">Max</th>
+                            <th className="text-right py-2 pr-4 text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">Present in</th>
+                            <th className="text-left py-2 text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">Role</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">

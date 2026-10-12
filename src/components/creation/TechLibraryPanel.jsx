@@ -23,7 +23,7 @@ function ParentBadge({ parent }) {
   const meta = PARENT_META[parent] || { color: '#94a3b8', label: formatName(parent) };
   return (
     <span
-      className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
+      className="text-[9px] font-semibold px-1.5 py-0.5 flex-shrink-0"
       style={{ background: `${meta.color}18`, color: meta.color }}
     >
       {meta.label}
@@ -86,14 +86,14 @@ export default function TechLibraryPanel({ onClose, liveTechTemplates, isApiLive
   };
 
   return (
-    <div className="absolute top-4 left-4 z-40 w-72 bg-white rounded-xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden"
+    <div className="absolute top-4 left-4 z-40 w-72 bg-white rounded-xl shadow-2xl border border-black/15 flex flex-col overflow-hidden"
       style={{ maxHeight: 'calc(100vh - 8rem)' }}
     >
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2.5 border-b border-slate-100 flex-shrink-0">
+      <div className="flex items-center gap-2 px-3 py-2.5 border-b border-black/10 flex-shrink-0">
         <span className="text-[11px] font-bold text-slate-700 flex-1 tracking-wide uppercase">Tech Library</span>
         {oeoInModel.length > 0 && (
-          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600">
+          <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-indigo-50 text-indigo-600">
             {oeoInModel.length} in model
           </span>
         )}
@@ -106,7 +106,7 @@ export default function TechLibraryPanel({ onClose, liveTechTemplates, isApiLive
       </div>
 
       {/* Search */}
-      <div className="px-2.5 py-2 border-b border-slate-100 flex-shrink-0">
+      <div className="px-2.5 py-2 border-b border-black/10 flex-shrink-0">
         <div className="relative">
           <FiSearch size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
           <input
@@ -114,7 +114,7 @@ export default function TechLibraryPanel({ onClose, liveTechTemplates, isApiLive
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search catalog to add…"
-            className="w-full pl-7 pr-2.5 py-1.5 text-[11px] bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-300 focus:border-indigo-300 placeholder:text-slate-400"
+            className="w-full pl-7 pr-2.5 py-1.5 text-[11px] bg-slate-50 border border-black/15 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-300 focus:border-indigo-300 placeholder:text-slate-400"
           />
           {search && (
             <button

@@ -33,7 +33,7 @@ export default function MapSidebarLists({
   return (
           <div className="flex-1 overflow-y-auto">
             {/* Locations Section */}
-            <div className="border-b border-slate-200">
+            <div className="border-b border-black/15">
               <div className="flex items-center">
                 <button
                   onClick={() => setLocationsExpanded(!locationsExpanded)}
@@ -41,7 +41,7 @@ export default function MapSidebarLists({
                 >
                   <FiMapPin size={14} className="text-slate-600" />
                   <span className="text-sm font-semibold text-slate-700">Locations</span>
-                  <span className="text-xs bg-slate-200 text-slate-600 rounded-full px-1.5">{locations.length}</span>
+                  <span className="text-xs bg-slate-200 text-slate-600 px-1.5">{locations.length}</span>
                   <span className="ml-auto">{locationsExpanded ? <FiChevronDown size={14} /> : <FiChevronRight size={14} />}</span>
                 </button>
                 {locations.length > 0 && (
@@ -77,7 +77,7 @@ export default function MapSidebarLists({
                           className={`rounded-lg border p-2.5 cursor-pointer transition-all hover:shadow-sm ${
                             selectedLocation?.name === loc.name
                               ? 'border-gray-700 bg-gray-50'
-                              : 'border-slate-200 hover:border-slate-400 bg-white'
+                              : 'border-black/15 hover:border-slate-400 bg-white'
                           }`}
                         >
                           <div className="flex items-start justify-between gap-1">
@@ -126,7 +126,7 @@ export default function MapSidebarLists({
             </div>
 
             {/* Links Section */}
-            <div className="border-b border-slate-200">
+            <div className="border-b border-black/15">
               <div className="flex items-center">
                 <button
                   onClick={() => setLinksExpanded(!linksExpanded)}
@@ -134,7 +134,7 @@ export default function MapSidebarLists({
                 >
                   <FiLink size={14} className="text-slate-600" />
                   <span className="text-sm font-semibold text-slate-700">Links</span>
-                  <span className="text-xs bg-slate-200 text-slate-600 rounded-full px-1.5">{links.length}</span>
+                  <span className="text-xs bg-slate-200 text-slate-600 px-1.5">{links.length}</span>
                   <span className="ml-auto">{linksExpanded ? <FiChevronDown size={14} /> : <FiChevronRight size={14} />}</span>
                 </button>
                 {links.length > 0 && (
@@ -163,7 +163,7 @@ export default function MapSidebarLists({
                     links.map((link, idx) => (
                       <div
                         key={`${link.from}-${link.to}-${idx}`}
-                        className="rounded-lg border border-slate-200 p-2.5 bg-white hover:border-slate-400 transition-all"
+                        className="rounded-lg border border-black/15 p-2.5 bg-white hover:border-slate-400 transition-all"
                       >
                         <div className="flex items-start justify-between gap-1">
                           <div className="flex-1 min-w-0">
@@ -199,7 +199,7 @@ export default function MapSidebarLists({
             {(() => {
               const locationsWithDemand = locations.filter(loc => loc.demandProfile);
               return locationsWithDemand.length > 0 ? (
-                <div className="border-b border-slate-200">
+                <div className="border-b border-black/15">
                   <button
                     onClick={() => setShowTimeseriesSection(!showTimeseriesSection)}
                     className="w-full p-4 flex items-center justify-between hover:bg-slate-50 transition-colors"
@@ -219,7 +219,7 @@ export default function MapSidebarLists({
                         const totalGWh = totalMWh / 1000;
                         const avgMWh = totalMWh / locationsWithDemand.length;
                         return (
-                          <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-3 rounded-lg border border-gray-200">
+                          <div className="bg-surface-container-low p-3 rounded-lg border border-black/15">
                             <div className="text-xs font-bold text-gray-900 mb-2 uppercase tracking-wide">Demand Statistics</div>
                             <div className="grid grid-cols-2 gap-2 text-xs">
                               <div className="bg-white/60 p-2 rounded">
@@ -311,7 +311,7 @@ export default function MapSidebarLists({
                                       transitionDuration: 1000
                                     });
                                   }}
-                                  className="p-2.5 bg-white rounded border border-slate-200 hover:border-gray-400 hover:shadow-sm cursor-pointer transition-all"
+                                  className="p-2.5 bg-white rounded border border-black/15 hover:border-gray-400 hover:shadow-sm cursor-pointer transition-all"
                                 >
                                   <div className="text-xs font-semibold text-slate-800 mb-1">{loc.name}</div>
                                   <div className="grid grid-cols-2 gap-1 text-xs">
@@ -329,7 +329,7 @@ export default function MapSidebarLists({
                                     </div>
                                   </div>
                                   {timeseriesPreview === loc.name && loc.demandProfile.timeseries && (
-                                    <div className="mt-2 pt-2 border-t border-slate-200">
+                                    <div className="mt-2 pt-2 border-t border-black/15">
                                       <div className="h-12 flex items-end gap-0.5">
                                         {loc.demandProfile.timeseries.slice(0, 168).map((val, idx) => {
                                           const height = (val / parseFloat(loc.demandProfile.maxMW)) * 100;

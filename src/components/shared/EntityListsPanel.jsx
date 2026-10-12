@@ -76,7 +76,7 @@ export default function EntityListsPanel({
                   className={`p-3 border rounded-lg cursor-pointer transition-colors ${
                     selectedLocationId != null && selectedLocationId === loc.id
                       ? 'border-gray-500 bg-gray-50'
-                      : 'border-gray-200 hover:border-gray-300'
+                      : 'border-black/15 hover:border-gray-300'
                   }`}
                   onClick={() => onSelectLocation?.(loc, index)}
                   onDoubleClick={() => onEditLocation?.(loc, index)}
@@ -157,7 +157,7 @@ export default function EntityListsPanel({
               <select
                 value={currentLinkType}
                 onChange={e => setCurrentLinkType(e.target.value)}
-                className="flex-1 text-xs border border-gray-200 rounded px-1.5 py-1 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                className="flex-1 text-xs border border-black/15 rounded px-1.5 py-1 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-gray-400"
               >
                 {Object.entries(LINK_TYPES_BY_GROUP).map(([group, types]) => (
                   <optgroup key={group} label={group}>
@@ -178,7 +178,7 @@ export default function EntityListsPanel({
           ) : (
             <div className="space-y-2">
               {links.map((link, linkIndex) => (
-                <div key={link.id ?? linkIndex} className="p-3 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors">
+                <div key={link.id ?? linkIndex} className="p-3 border border-black/15 rounded-lg hover:border-gray-300 transition-colors">
                   <div className="flex justify-between items-start">
                     <div className="flex-1 min-w-0">
                       <h4 className="font-medium text-sm text-gray-800 flex items-center gap-1">
@@ -205,7 +205,7 @@ export default function EntityListsPanel({
                                 carrier: lt ? (LINK_TYPES[lt]?.carrier || null) : link.carrier,
                               }, linkIndex);
                             }}
-                            className="w-full text-[10px] border border-gray-200 rounded px-1 py-0.5 bg-white text-gray-600 focus:outline-none"
+                            className="w-full text-[10px] border border-black/15 rounded px-1 py-0.5 bg-white text-gray-600 focus:outline-none"
                           >
                             <option value="">— no type —</option>
                             {Object.entries(LINK_TYPES_BY_GROUP).map(([group, types]) => (

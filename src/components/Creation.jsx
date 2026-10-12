@@ -1984,7 +1984,7 @@ const Creation = ({ onNavigate }) => {
         {/* Breathing badge while calculating; the contour glows around the area */}
         {calculating && (
           <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[500] pointer-events-none">
-            <div className="tempo-calc-badge flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-600/95 text-white text-xs font-medium shadow-lg">
+            <div className="tempo-calc-badge flex items-center gap-2 px-3.5 py-1.5 bg-blue-600/95 text-white text-xs font-medium shadow-lg">
               <span className="inline-block w-2 h-2 rounded-full bg-white animate-ping" />
               {osmLoading
                 ? 'Calculating power lines, substations & plants…'
@@ -1996,7 +1996,7 @@ const Creation = ({ onNavigate }) => {
         {/* Loading Overlay */}
         {geoServerLoading && (
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-            <div className="bg-white rounded-lg p-6 shadow-xl">
+            <div className="bg-surface-container-lowest rounded-lg p-6 border border-black/15">
               <div className="flex items-center space-x-3">
                 <div className="animate-spin h-8 w-8 border-4 border-gray-500 border-t-transparent rounded-full"></div>
                 <span className="text-lg font-semibold text-gray-800">Loading infrastructure data...</span>
@@ -2538,13 +2538,13 @@ const Creation = ({ onNavigate }) => {
           className={`absolute top-4 left-4 z-30 flex items-center gap-1.5 px-3 py-1.5 rounded-lg shadow-md text-[11px] font-semibold transition-colors border ${
             showTechLibrary
               ? 'bg-indigo-600 text-white border-indigo-700'
-              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+              : 'bg-white text-slate-600 border-black/15 hover:bg-slate-50'
           }`}
         >
           <FiCpu size={12} />
           Tech Library
           {technologies.filter(t => t.uuid).length > 0 && (
-            <span className={`text-[9px] font-bold px-1 py-0.5 rounded-full ml-0.5 ${
+            <span className={`text-[9px] font-bold px-1 py-0.5 ml-0.5 ${
               showTechLibrary ? 'bg-indigo-500 text-white' : 'bg-indigo-50 text-indigo-600'
             }`}>
               {technologies.filter(t => t.uuid).length}

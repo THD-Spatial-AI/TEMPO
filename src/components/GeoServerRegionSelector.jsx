@@ -44,7 +44,7 @@ function isValidBbox(b) {
 function CountBadge({ n }) {
   if (!n) return null;
   return (
-    <span className="ml-1 px-1.5 py-0.5 text-xs bg-gray-100 text-gray-700 rounded-full font-mono">
+    <span className="ml-1 px-1.5 py-0.5 text-xs bg-gray-100 text-gray-700 font-mono">
       {n}
     </span>
   );
@@ -141,7 +141,7 @@ const GeoServerRegionSelector = ({
   const loading = parentLoading || regionsLoading;
 
   return (
-    <div className="bg-white rounded-lg shadow-lg border border-gray-200">
+    <div className="bg-surface-container-lowest rounded-lg border border-black/15">
       {/* ── Header ── */}
       <div
         className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50"
@@ -151,7 +151,7 @@ const GeoServerRegionSelector = ({
           <FiGlobe className="text-gray-600" size={20} />
           <h3 className="font-semibold text-gray-800">OSM Infrastructure</h3>
           {totalLoaded > 0 && (
-            <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-700 rounded-full font-medium">
+            <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-700 font-medium">
               {totalLoaded} region{totalLoaded !== 1 ? 's' : ''} loaded
             </span>
           )}
@@ -160,7 +160,7 @@ const GeoServerRegionSelector = ({
       </div>
 
       {!collapsed && (
-        <div className="border-t border-gray-200 divide-y divide-gray-100">
+        <div className="border-t border-black/15 divide-y divide-black/10">
 
           {/* ── Available Regions Tree ─────────────────────────────────── */}
           <div className="p-3">
@@ -268,7 +268,7 @@ const GeoServerRegionSelector = ({
 
             {/* Selected region indicator */}
             {selectedPath && (
-              <div className="mt-2 flex items-center justify-between text-xs bg-gray-50 border border-gray-200 rounded px-2 py-1.5">
+              <div className="mt-2 flex items-center justify-between text-xs bg-gray-50 border border-black/15 rounded px-2 py-1.5">
                 <span className="text-gray-700 font-medium truncate">{selectedPath.replace(/\//g, ' › ')}</span>
                 <button
                   className="ml-2 text-gray-400 hover:text-gray-600 flex-shrink-0"
@@ -290,7 +290,7 @@ const GeoServerRegionSelector = ({
 
             <button
               onClick={handleCurrentViewport}
-              className="w-full px-3 py-2 bg-gray-700 text-white rounded hover:bg-gray-800 disabled:bg-gray-300 flex items-center justify-center gap-2 text-sm transition-colors"
+              className="uppercase tracking-wide font-bold w-full px-3 py-2 bg-black text-white rounded hover:bg-black/80 disabled:bg-gray-300 flex items-center justify-center gap-2 text-sm transition-colors"
               disabled={loading || !viewport}
               title="Load data for the current map view"
             >
@@ -317,7 +317,7 @@ const GeoServerRegionSelector = ({
             </div>
             <button
               onClick={handleCustomBboxSubmit}
-              className="w-full px-3 py-1.5 bg-gray-700 text-white rounded hover:bg-gray-800 disabled:bg-gray-300 text-sm transition-colors"
+              className="uppercase tracking-wide font-bold w-full px-3 py-1.5 bg-black text-white rounded hover:bg-black/80 disabled:bg-gray-300 text-sm transition-colors"
               disabled={loading || !parseBboxFloats(customBbox)}
             >
               Load Custom Bbox

@@ -23,14 +23,14 @@ function JobCard({ job, expandedLog, setExpandedLog, handleStopJob, logEndRef })
   const isFromStudio = job.source === 'scenario_studio';
 
   return (
-    <div className="p-4 bg-gray-50 border border-gray-100 rounded-xl">
+    <div className="p-4 bg-gray-50 border border-black/10 rounded-xl">
       {/* header */}
       <div className="flex justify-between items-start mb-2">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <div className="font-semibold text-sm text-slate-800 truncate">{job.modelName ?? job.displayName}</div>
             {isFromStudio && (
-              <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-electric-50 text-electric-700 border border-electric-200 flex-shrink-0">
+              <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 bg-electric-50 text-electric-700 border border-electric-200 flex-shrink-0">
                 <FiLayers size={8} /> Scenario Studio
               </span>
             )}
@@ -51,11 +51,11 @@ function JobCard({ job, expandedLog, setExpandedLog, handleStopJob, logEndRef })
 
       {/* resource stats */}
       <div className="mb-3 grid grid-cols-4 gap-2">
-        <div className="bg-white border border-gray-100 rounded-lg p-2 text-center">
+        <div className="bg-white border border-black/10 rounded-lg p-2 text-center">
           <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Elapsed</div>
           <div className="text-xs font-bold text-slate-700">{elapsed}</div>
         </div>
-        <div className="bg-white border border-gray-100 rounded-lg p-2 text-center">
+        <div className="bg-white border border-black/10 rounded-lg p-2 text-center">
           <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">CPU</div>
           <div className="text-xs font-bold text-slate-700">{s?.cpu_pct != null ? `${s.cpu_pct}%` : '—'}</div>
           {s?.cpu_pct != null && (
@@ -64,13 +64,13 @@ function JobCard({ job, expandedLog, setExpandedLog, handleStopJob, logEndRef })
             </div>
           )}
         </div>
-        <div className="bg-white border border-gray-100 rounded-lg p-2 text-center">
+        <div className="bg-white border border-black/10 rounded-lg p-2 text-center">
           <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Proc RAM</div>
           <div className="text-xs font-bold text-slate-700">
             {s?.proc_ram_mb != null ? (s.proc_ram_mb >= 1024 ? `${(s.proc_ram_mb / 1024).toFixed(1)} GB` : `${s.proc_ram_mb} MB`) : '—'}
           </div>
         </div>
-        <div className="bg-white border border-gray-100 rounded-lg p-2 text-center">
+        <div className="bg-white border border-black/10 rounded-lg p-2 text-center">
           <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Sys RAM</div>
           <div className="text-xs font-bold text-slate-700">{s?.sys_ram_pct != null ? `${s.sys_ram_pct}%` : '—'}</div>
           {s?.sys_ram_pct != null && (
@@ -118,12 +118,12 @@ export default function ActiveJobsPanel({ expandedLog, handleStopJob, logEndRef,
 
   return (
     <div className="xl:col-span-2">
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 h-full">
+      <div className="bg-white rounded-2xl shadow-sm border border-black/15 p-5 h-full">
         <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1 flex items-center gap-2">
           <FiActivity size={13} className="text-gray-500" />
           Active runs
           {runningJobs.length > 0 && (
-            <span className="ml-1 px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-bold animate-pulse">
+            <span className="ml-1 px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold animate-pulse">
               {runningJobs.length} LIVE
             </span>
           )}

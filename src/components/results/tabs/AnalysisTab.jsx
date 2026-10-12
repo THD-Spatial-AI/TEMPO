@@ -17,7 +17,7 @@ export default function AnalysisTab({
   return (
               <div className="space-y-4">
                 {/* Capacity factor chart */}
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="bg-white rounded-2xl border border-black/15 shadow-sm overflow-hidden">
                   <button onClick={() => toggleSection('cf-chart')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
                     <FiGrid size={14} className="text-gray-600 flex-shrink-0" />
                     <span className="font-semibold text-slate-800 text-sm flex-1">
@@ -51,12 +51,12 @@ export default function AnalysisTab({
                         .reduce((s,[,v]) => s + v, 0);
                       const share = derivedData.totalGen > 0 ? (renewGen / derivedData.totalGen * 100) : 0;
                       return (
-                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                        <div className="bg-white rounded-2xl border border-black/15 shadow-sm p-5">
                           <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Renewable Share</div>
                           <div className="text-4xl font-bold text-gray-900 mb-1">{share.toFixed(1)}<span className="text-xl font-normal text-slate-400">%</span></div>
                           <div className="text-xs text-slate-400 mb-3">of total generation</div>
                           <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
-                            <div className="h-full rounded-full bg-gradient-to-r from-gray-600 to-gray-900 transition-all" style={{ width: `${share}%` }} />
+                            <div className="h-full rounded-full bg-black transition-all" style={{ width: `${share}%` }} />
                           </div>
                           <div className="mt-2 text-xs text-slate-500">{fmtEnergy(renewGen)} renewables / {fmtEnergy(derivedData.totalGen)} total</div>
                         </div>
@@ -68,7 +68,7 @@ export default function AnalysisTab({
                       const totalCost = Object.values(result.costs_by_tech).reduce((s,v) => s+(Number(v)||0),0);
                       const lcoe = derivedData.totalGen > 0 ? totalCost / derivedData.totalGen : null;
                       return (
-                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                        <div className="bg-white rounded-2xl border border-black/15 shadow-sm p-5">
                           <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">System Average LCOE</div>
                           <div className="text-4xl font-bold text-gray-900 mb-1">
                             {lcoe != null ? lcoe.toFixed(2) : '—'}<span className="text-xl font-normal text-slate-400"> €/MWh</span>
@@ -85,7 +85,7 @@ export default function AnalysisTab({
                       const locCount = Object.keys(derivedData.capByLoc).length;
                       const topTech = Object.entries(derivedData.capByTech).sort(([,a],[,b]) => b-a)[0];
                       return (
-                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                        <div className="bg-white rounded-2xl border border-black/15 shadow-sm p-5">
                           <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">System Profile</div>
                           <div className="space-y-2 text-sm">
                             <div className="flex justify-between"><span className="text-slate-500">Technologies</span> <strong className="text-slate-800">{techCount}</strong></div>
@@ -106,7 +106,7 @@ export default function AnalysisTab({
 
                 {/* Per-location generation bars */}
                 {derivedData?.capByLoc && Object.keys(derivedData.capByLoc).length > 0 && (
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                  <div className="bg-white rounded-2xl border border-black/15 shadow-sm p-5">
                     {(() => {
                       const allEntries = Object.entries(derivedData.capByLoc).sort(([,a],[,b]) => b-a);
                       const entries = isLargeModel ? allEntries.slice(0, LOC_CHART_LIMIT) : allEntries;

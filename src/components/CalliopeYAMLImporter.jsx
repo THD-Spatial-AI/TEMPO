@@ -392,7 +392,7 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
   // ─── sub-components ───────────────────────────────────────────────────────
 
   const StatBadge = ({ icon: Icon, label, value }) => (
-    <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+    <div className="flex items-center gap-2 bg-gray-50 border border-black/15 rounded-lg px-3 py-2">
       <Icon size={14} className="text-gray-400" />
       <span className="text-sm font-bold text-gray-700">{value}</span>
       <span className="text-xs text-gray-500">{label}</span>
@@ -413,7 +413,7 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
           <p className="text-slate-700 font-medium text-sm mb-1">Drop a .zip file here</p>
           <p className="text-slate-400 text-xs mb-3">or click to browse</p>
           <button onClick={() => zipRef.current?.click()}
-            className="px-3 py-1.5 bg-gray-700 text-white rounded-md text-xs font-medium hover:bg-gray-800 transition-colors">
+            className="px-3 py-1.5 bg-black text-white rounded-md text-xs font-bold uppercase tracking-wide hover:bg-black/80 transition-colors">
             Select ZIP
           </button>
           <input ref={zipRef} type="file" accept=".zip" className="hidden"
@@ -425,7 +425,7 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
           <p className="text-slate-400 text-xs mb-3">or use the buttons below</p>
           <div className="flex justify-center gap-2">
             <button onClick={() => folderRef.current?.click()}
-              className="px-3 py-1.5 bg-gray-700 text-white rounded-md text-xs font-medium hover:bg-gray-800 transition-colors flex items-center gap-1.5">
+              className="px-3 py-1.5 bg-black text-white rounded-md text-xs font-bold uppercase tracking-wide hover:bg-black/80 transition-colors flex items-center gap-1.5">
               <FiFolder size={12} /> Select Folder
             </button>
             <button onClick={() => filesRef.current?.click()}
@@ -449,8 +449,8 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
   // ─── render ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-      <div className="border-b border-gray-200 px-5 py-3 flex items-center justify-between">
+    <div className="bg-white rounded-xl border border-black/15 overflow-hidden">
+      <div className="border-b border-black/15 px-5 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <FiPackage size={15} className="text-gray-500" />
           <span className="font-semibold text-sm text-gray-800">Import Calliope YAML</span>
@@ -487,7 +487,7 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
                   const available = tplAvailable[tpl.id] !== false; // default true while checking
                   const checking  = !(tpl.id in tplAvailable);
                   return (
-                  <div key={tpl.id} className={`border rounded-lg px-4 py-3 flex items-center gap-3 ${available ? 'border-gray-200 bg-gray-50' : 'border-gray-200 bg-gray-50 opacity-50'}`}>
+                  <div key={tpl.id} className={`border rounded-lg px-4 py-3 flex items-center gap-3 ${available ? 'border-black/15 bg-gray-50' : 'border-black/15 bg-gray-50 opacity-50'}`}>
                     <span className="text-xl flex-shrink-0">{tpl.flag}</span>
                     <div className="flex-1 min-w-0">
                       <p className={`text-sm font-semibold leading-tight ${available ? 'text-gray-800' : 'text-gray-500'}`}>{tpl.name}</p>
@@ -499,7 +499,7 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
                     <button
                       onClick={() => loadServerTemplate(tpl)}
                       disabled={loadingTpl !== null || !available || checking}
-                      className={`px-3 py-1.5 rounded-md text-xs font-semibold text-white flex items-center gap-1.5 flex-shrink-0 ${available && !checking ? 'bg-gray-700 hover:bg-gray-800 disabled:opacity-50 disabled:cursor-wait' : 'bg-gray-300 cursor-not-allowed text-gray-500'}`}
+                      className={`px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-wide text-white flex items-center gap-1.5 flex-shrink-0 ${available && !checking ? 'bg-black hover:bg-black/80 disabled:opacity-50 disabled:cursor-wait' : 'bg-gray-300 cursor-not-allowed text-gray-500'}`}
                     >
                       {loadingTpl === tpl.id && <FiRefreshCw size={11} className="animate-spin" />}
                       {checking ? '…' : loadingTpl === tpl.id ? 'Loading…' : available ? 'Load' : 'Unavailable'}
@@ -507,17 +507,17 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
                   </div>
                   );
                 })}
-                <div className="bg-gray-50 border border-dashed border-gray-200 rounded-lg p-3 text-center text-xs text-gray-400">
-                  Add templates by placing YAML models in <code className="bg-white border border-gray-200 px-1 rounded">public/templates/</code>
+                <div className="bg-gray-50 border border-dashed border-black/15 rounded-lg p-3 text-center text-xs text-gray-400">
+                  Add templates by placing YAML models in <code className="bg-white border border-black/15 px-1 rounded">public/templates/</code>
                 </div>
               </div>
             )}
 
             {uploadMode === 'zip' && (
               <>
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-2.5 flex gap-2 text-xs text-gray-600">
+                <div className="bg-gray-50 border border-black/15 rounded-lg p-2.5 flex gap-2 text-xs text-gray-600">
                   <FiInfo size={13} className="flex-shrink-0 mt-0.5 text-gray-400" />
-                  <span>Upload a <strong>.zip</strong> of the model folder — <code className="bg-white border border-gray-200 px-1 rounded">import:</code> chains are resolved automatically from files inside the archive.</span>
+                  <span>Upload a <strong>.zip</strong> of the model folder — <code className="bg-white border border-black/15 px-1 rounded">import:</code> chains are resolved automatically from files inside the archive.</span>
                 </div>
                 <DropZone />
               </>
@@ -525,9 +525,9 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
 
             {uploadMode === 'files' && (
               <>
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-2.5 flex gap-2 text-xs text-gray-600">
+                <div className="bg-gray-50 border border-black/15 rounded-lg p-2.5 flex gap-2 text-xs text-gray-600">
                   <FiInfo size={13} className="flex-shrink-0 mt-0.5 text-gray-400" />
-                  <span>Use <strong>Select Folder</strong> (or drag the folder) to load the whole model directory including <code className="bg-white border border-gray-200 px-1 rounded">model_config/</code> and <code className="bg-white border border-gray-200 px-1 rounded">timeseries_data/</code>.</span>
+                  <span>Use <strong>Select Folder</strong> (or drag the folder) to load the whole model directory including <code className="bg-white border border-black/15 px-1 rounded">model_config/</code> and <code className="bg-white border border-black/15 px-1 rounded">timeseries_data/</code>.</span>
                 </div>
                 <DropZone />
               </>
@@ -538,13 +538,13 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
         {/* Root picker — multiple model definitions found */}
         {status === 'chooseRoot' && (
           <div className="space-y-3">
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-2.5 flex gap-2 text-xs text-gray-600">
+            <div className="bg-gray-50 border border-black/15 rounded-lg p-2.5 flex gap-2 text-xs text-gray-600">
               <FiInfo size={13} className="flex-shrink-0 mt-0.5 text-gray-400" />
               <span>This folder contains <strong>{rootCandidates.length} model definitions</strong>. Choose which one to import.</span>
             </div>
             {rootCandidates.map(c => (
               <button key={c.key} onClick={() => doParse(pendingFilesMap, c.key)}
-                className="w-full text-left border border-gray-200 rounded-lg px-4 py-3 flex items-center gap-3 hover:border-gray-400 hover:bg-gray-50 transition-colors">
+                className="w-full text-left border border-black/15 rounded-lg px-4 py-3 flex items-center gap-3 hover:border-gray-400 hover:bg-gray-50 transition-colors">
                 <FiPackage size={16} className="text-gray-400 flex-shrink-0" />
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-gray-800 leading-tight truncate">
@@ -577,7 +577,7 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
         {/* Error */}
         {status === 'error' && (
           <div className="space-y-4">
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 flex gap-3">
+            <div className="bg-gray-50 border border-black/15 rounded-lg p-4 flex gap-3">
               <FiAlertTriangle size={20} className="text-gray-500 flex-shrink-0 mt-0.5" />
               <div>
                 <p className="font-semibold text-gray-700 mb-1">Import failed</p>
@@ -600,7 +600,7 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
         {status === 'preview' && preview && (
           <div className="space-y-5">
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">Model Name</label>
+              <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Model Name</label>
               <input value={modelName} onChange={e => setModelName(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" />
             </div>
@@ -613,10 +613,10 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
             </div>
 
             <div className="bg-slate-50 rounded-lg p-3 text-xs flex flex-wrap gap-2">
-              <span className="bg-white border border-slate-200 rounded px-2 py-1">Solver: <strong>{preview.runConfig.solver}</strong></span>
-              <span className="bg-white border border-slate-200 rounded px-2 py-1">Mode: <strong>{preview.runConfig.mode}</strong></span>
+              <span className="bg-white border border-black/15 rounded px-2 py-1">Solver: <strong>{preview.runConfig.solver}</strong></span>
+              <span className="bg-white border border-black/15 rounded px-2 py-1">Mode: <strong>{preview.runConfig.mode}</strong></span>
               {preview.subsetTime && (
-                <span className="bg-white border border-slate-200 rounded px-2 py-1">
+                <span className="bg-white border border-black/15 rounded px-2 py-1">
                   Subset: <strong>{Array.isArray(preview.subsetTime) ? preview.subsetTime.join(' → ') : preview.subsetTime}</strong>
                 </span>
               )}
@@ -628,7 +628,7 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
                 <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
                   {preview.technologies.map(t => (
                     <span key={t.name}
-                      className="inline-flex items-center gap-1.5 bg-gray-100 rounded-full px-2.5 py-1 text-xs font-medium text-slate-700">
+                      className="inline-flex items-center gap-1.5 bg-gray-100 px-2.5 py-1 text-xs font-medium text-slate-700">
                       <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: t.essentials.color }} />
                       {t.name}
                     </span>
@@ -668,7 +668,7 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
                     </div>
                   )}
                   {otherMissing.length > 0 && (
-                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 flex gap-2 text-sm text-gray-800">
+                    <div className="bg-gray-50 border border-black/15 rounded-lg p-3 flex gap-2 text-sm text-gray-800">
                       <FiAlertTriangle size={15} className="flex-shrink-0 mt-0.5 text-gray-500" />
                       <span>{otherMissing.length} timeseries CSV file{otherMissing.length > 1 ? 's were' : ' was'} not found. The model imports without them — you can add them later in the TimeSeries section.</span>
                     </div>
@@ -679,7 +679,7 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
 
             <div className="flex gap-2 pt-1">
               <button onClick={doImport}
-                className="flex-1 py-2 bg-gray-700 hover:bg-gray-800 text-white rounded-lg font-semibold text-sm flex items-center justify-center gap-2">
+                className="flex-1 py-2 bg-black hover:bg-black/80 text-white rounded-lg font-bold uppercase tracking-wide text-sm flex items-center justify-center gap-2">
                 <FiCheckCircle size={14} /> Import Model
               </button>
               <button onClick={reset}
@@ -700,7 +700,7 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
             </p>
             {onClose && (
               <button onClick={onClose}
-                className="mt-1 px-4 py-1.5 bg-gray-700 hover:bg-gray-800 text-white rounded-md font-medium text-sm">
+                className="mt-1 px-4 py-1.5 bg-black hover:bg-black/80 text-white rounded-md font-bold uppercase tracking-wide text-sm">
                 Close
               </button>
             )}

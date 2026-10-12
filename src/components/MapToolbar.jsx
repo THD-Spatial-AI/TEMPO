@@ -89,8 +89,8 @@ const MapToolbar = ({
   return (
     <div className="absolute top-0 left-20 right-0 z-10 pointer-events-none">
       <div className="flex justify-center pt-4" style={{ marginLeft: '256px', marginRight: rightSidebarCollapsed ? '64px' : '384px' }}>
-        <div className="map-toolbar-container bg-white rounded-lg shadow-lg border border-slate-200 pointer-events-auto">
-          <div className="flex items-center divide-x divide-slate-200">
+        <div className="map-toolbar-container bg-surface-container-lowest rounded-lg border border-black/15 pointer-events-auto">
+          <div className="flex items-center divide-x divide-black/15">
             
             {/* Zoom Controls */}
             <div className="flex items-center gap-1 px-3 py-2">
@@ -146,7 +146,7 @@ const MapToolbar = ({
               </div>
               
               {showSearchResults && filteredLocations.length > 0 && (
-                <div className="absolute top-full mt-2 left-3 bg-white rounded-lg shadow-xl border border-slate-200 overflow-hidden max-h-64 overflow-y-auto z-50 min-w-[250px]">
+                <div className="absolute top-full mt-2 left-3 bg-white rounded-lg shadow-xl border border-black/15 overflow-hidden max-h-64 overflow-y-auto z-50 min-w-[250px]">
                   {filteredLocations.map((location) => (
                     <button
                       key={location.id}
@@ -155,7 +155,7 @@ const MapToolbar = ({
                         setSearchQuery('');
                         setShowSearchResults(false);
                       }}
-                      className="w-full px-4 py-3 text-left hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0"
+                      className="w-full px-4 py-3 text-left hover:bg-slate-50 transition-colors border-b border-black/10 last:border-b-0"
                     >
                       <div className="font-medium text-sm text-slate-800">{location.name}</div>
                       <div className="text-xs text-slate-500 mt-0.5">
@@ -196,7 +196,7 @@ const MapToolbar = ({
               </button>
               
               {showLayerMenu && (
-                <div className="absolute top-full mt-2 right-0 bg-white rounded-lg shadow-xl border border-slate-200 w-56 py-2">
+                <div className="absolute top-full mt-2 right-0 bg-white rounded-lg shadow-xl border border-black/15 w-56 py-2">
                   <div className="px-3 py-1 text-xs font-semibold text-slate-500 uppercase">Model Layers</div>
                   {layers.filter(l => l.category === 'model').map(layer => (
                     <label key={layer.id} className="flex items-center gap-2 px-3 py-2 hover:bg-slate-50 cursor-pointer">
@@ -210,7 +210,7 @@ const MapToolbar = ({
                     </label>
                   ))}
                   
-                  <div className="border-t border-slate-200 my-1"></div>
+                  <div className="border-t border-black/15 my-1"></div>
                   <div className="px-3 py-1 text-xs font-semibold text-slate-500 uppercase">OSM Layers</div>
                   {layers.filter(l => l.category === 'osm').map(layer => (
                     <label key={layer.id} className="flex items-center gap-2 px-3 py-2 hover:bg-slate-50 cursor-pointer">
