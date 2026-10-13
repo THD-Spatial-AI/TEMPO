@@ -251,7 +251,7 @@ const Option = ({ Icon, title, selected, setSelected, open, notifs, isNested = f
             animate={{
               opacity: 1,
               scale: 1,
-            }}Wixhausen, 64291 Darmstadt
+            }}
             style={{ y: "-50%" }}
             transition={{ delay: 0.5, type: "spring" }}
             className="absolute right-3 top-1/2 flex h-5 w-5 items-center justify-center rounded-full bg-gray-500 text-[10px] font-bold text-white shadow-sm"
