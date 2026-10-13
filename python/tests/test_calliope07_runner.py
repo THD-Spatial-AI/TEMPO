@@ -43,3 +43,14 @@ def test_empty_or_malformed():
     assert r._looks_like_07_overrides({}) is False
     assert r._looks_like_07_overrides(None) is False
     assert r._looks_like_07_overrides({'x': 'not-a-dict'}) is False
+
+
+def test_capacities_use_output_carrier_for_conversion():
+    xr = __import__('pytest').importorskip('xarray')
+    import numpy as np
+    cap = xr.DataArray(
+        np.array([[[154.5, 85.0]], [[np.nan, 300.0]]]),
+        dims=('techs', 'nodes', 'carriers'),
+        coords={'techs': ['ccgt', 'pv'], 'nodes': ['south'], 'carriers': ['gas', 'electricity']})
+    caps = r._capacities_from_flow_cap(cap, {'ccgt': 'electricity'})
+    assert caps == {'south::ccgt': 85.0, 'south::pv': 300.0}

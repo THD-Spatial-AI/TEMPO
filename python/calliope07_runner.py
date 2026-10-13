@@ -581,6 +581,24 @@ def _extract_shadow_prices(model, timestamps):
 # Result extraction — must reproduce the 0.6 runner's result JSON contract
 # ---------------------------------------------------------------------------
 
+def _capacities_from_flow_cap(cap, out_carrier_by_tid: dict) -> dict:
+    """flow_cap → {node::tech}. Conversion techs report the output carrier
+    (0.6 energy_cap semantics); others take the max over carriers to match
+    the 0.6 per-loc::tech granularity."""
+    caps = {}
+    for tid in [str(x) for x in cap['techs'].values]:
+        arr = cap.sel(techs=tid)
+        if 'carriers' in arr.dims:
+            carrier = out_carrier_by_tid.get(tid)
+            if carrier and carrier in [str(c) for c in arr['carriers'].values]:
+                arr = arr.sel(carriers=carrier)
+            else:
+                arr = arr.max(dim='carriers')
+        for nid, v in arr.to_series().dropna().items():
+            caps[f"{nid}::{tid}"] = float(v)
+    return caps
+
+
 def _extract_results(model, techs_07, technologies, model_name, solver):
     import numpy as np
 
@@ -645,19 +663,16 @@ def _extract_results(model, techs_07, technologies, model_name, solver):
         except Exception as e:
             log(f"  Could not extract objective: {e}")
 
-    # Capacities {node::tech} from flow_cap (max over carriers to match the
-    # 0.6 per-loc::tech granularity)
+    # Capacities {node::tech} from flow_cap
     if 'flow_cap' in ds:
         try:
-            cap = ds['flow_cap']
-            if 'carriers' in cap.dims:
-                cap = cap.max(dim='carriers')
-            ser = cap.to_series().dropna()
-            results['capacities'] = {
-                f"{idx[ser.index.names.index('nodes')]}::{idx[ser.index.names.index('techs')]}":
-                    _clean(v)
-                for idx, v in ser.items()
+            out_carrier_by_tid = {
+                translate.tech_id(t): translate.output_carrier(t)
+                for t in (technologies or [])
+                if ((t.get('essentials') or {}).get('parent') or t.get('parent'))
+                in (translate.CARRIER_INDEXED.get('parents') or [])
             }
+            results['capacities'] = _capacities_from_flow_cap(ds['flow_cap'], out_carrier_by_tid)
         except Exception as e:
             log(f"  Could not extract capacities: {e}")
 
@@ -830,14 +845,16 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
         )
 
     requested_solver = model_data.get('solver') or 'highs'
-    solver = translate.normalize_solver_07(requested_solver)
-    if solver != requested_solver:
+    solver_dir = os.environ.get('CALLIOPE_SOLVER_DIR')
+    if solver_dir and os.path.isdir(solver_dir):
+        os.environ['PATH'] = solver_dir + os.pathsep + os.environ.get('PATH', '')
+    solver, solver_note = translate.resolve_solver_07(requested_solver)
+    if solver_note:
+        log(f"  {solver_note}")
+    elif solver != requested_solver:
         log(f"  Solver '{requested_solver}' mapped to '{solver}' for Calliope 0.7")
     if solver == 'cbc':
         import shutil as _shutil
-        solver_dir = os.environ.get('CALLIOPE_SOLVER_DIR')
-        if solver_dir and os.path.isdir(solver_dir):
-            os.environ['PATH'] = solver_dir + os.pathsep + os.environ.get('PATH', '')
         if not (_shutil.which('cbc') or _shutil.which('cbc.exe')):
             raise RuntimeError(
                 "The CBC solver binary is not available. Reinstall the "
@@ -981,13 +998,16 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
             log(f"  Applied {len(model_doc['overrides'])} override(s) verbatim (native 0.7 vocabulary)")
         else:
             parent_by_tid = {}
+            carrier_by_tid = {}
             for tech in technologies or []:
                 tid = translate.tech_id(tech)
                 ess = tech.get('essentials') or {}
                 parent_by_tid[tid] = ess.get('parent') or tech.get('parent') or 'supply'
+                carrier_by_tid[tid] = translate.output_carrier(tech)
             ov_warnings: list[str] = []
             model_doc['overrides'] = {
-                name: translate.translate_override_07(ov, parent_by_tid, ov_warnings, name)
+                name: translate.translate_override_07(ov, parent_by_tid, ov_warnings, name,
+                                                      carrier_by_tid)
                 for name, ov in overrides.items() if isinstance(ov, dict)
             }
             for w in ov_warnings:

@@ -133,6 +133,20 @@ def osemosys_to_internal(csv_dir: str) -> tuple[dict, list[str]]:
     for row in _r("TotalAnnualMaxCapacity.csv"):
         if row.get("REGION") == region and int(row.get("YEAR", 0)) == year:
             cap_max[row["TECHNOLOGY"]] = _float(row["VALUE"])
+    cap_min: dict = {}
+    for row in _r("TotalAnnualMinCapacity.csv"):
+        if row.get("REGION") == region and int(row.get("YEAR", 0)) == year:
+            cap_min[row["TECHNOLOGY"]] = _float(row["VALUE"])
+
+    def _cap_constraints(t: str) -> dict:
+        """kW capacity bounds: min == max → energy_cap_equals; 999 GW stand-in = unbounded."""
+        mn, mx = cap_min.get(t, 0), cap_max.get(t, 0)
+        if mn > 0 and math.isclose(mn, mx, rel_tol=1e-9):
+            return {"energy_cap_equals": round(mn * 1e6, 3)}
+        out = {"energy_cap_min": round(mn * 1e6, 3)} if mn > 0 else {}
+        if mx and mx < 900.0:
+            out["energy_cap_max"] = round(mx * 1e6, 3)
+        return out
 
     # IAR/OAR: {tech: {fuel: value}}
     iar: dict = {}
@@ -246,17 +260,13 @@ def osemosys_to_internal(csv_dir: str) -> tuple[dict, list[str]]:
                 tid_sid = tid_sid[len(loc_sid) + 1:]
         if to_loc_sid and tid_sid.startswith(to_loc_sid + "_"):
             tid_sid = tid_sid[len(to_loc_sid) + 1:]
-        cap_max_gw = cap_cost_val = 0.0
-        cap_max_val = cap_max.get(t, 0)
-        if cap_max_val and cap_max_val < 900.0:
-            cap_max_gw = cap_max_val
         capex_per_dir = cap_cost.get(t, 0)
         tx_links.append({
             "from": _unsid(from_loc_sid),
             "to": _unsid(to_loc_sid),
             "tech": tid_sid.lower(),
             "_capex_each": capex_per_dir * 2,  # each direction is half
-            "_cap_max_gw": cap_max_gw,
+            "_cap": _cap_constraints(t),
             "_eff": eff,
             "_life": op_life.get(t, 40),
         })
@@ -378,9 +388,7 @@ def osemosys_to_internal(csv_dir: str) -> tuple[dict, list[str]]:
 
             # Build constraints
             constraints: dict = {}
-            max_gw = cap_max.get(t, 0)
-            if max_gw and max_gw < 900.0:
-                constraints["energy_cap_max"] = round(max_gw * 1e6, 3)
+            constraints.update(_cap_constraints(t))
             life = op_life.get(t, 25)
             constraints["lifetime"] = life
             if parent == "conversion":
@@ -430,7 +438,6 @@ def osemosys_to_internal(csv_dir: str) -> tuple[dict, list[str]]:
             ch_iar = next(iter(in_fuels_ch.values()), 1.0)
             eff_rt = round((1.0 / max(1e-6, ch_iar)) ** 2, 4)
 
-            max_gw = cap_max.get(ch_id, 0)
             life = op_life.get(ch_id, 15)
             capex_m_per_gw = cap_cost.get(ch_id, 0.0)
             costs_m: dict = {}
@@ -443,7 +450,7 @@ def osemosys_to_internal(csv_dir: str) -> tuple[dict, list[str]]:
                 "constraints": {
                     "energy_eff": eff_rt,
                     "lifetime": life,
-                    **({"energy_cap_max": round(max_gw * 1e6, 3)} if max_gw and max_gw < 900 else {}),
+                    **_cap_constraints(ch_id),
                 },
             }
             if costs_m:
@@ -494,7 +501,6 @@ def osemosys_to_internal(csv_dir: str) -> tuple[dict, list[str]]:
             eff = lnk_info.get("_eff", 0.97)
             capex = lnk_info.get("_capex_each", 0.0) * _M_EUR_GW_TO_EUR_KW
             life = lnk_info.get("_life", 40)
-            cap_max_gw = lnk_info.get("_cap_max_gw", 0.0)
             tx_def: dict = {
                 "name": tx_tid,
                 "essentials": {"parent": "transmission", "carrier": "electricity",
@@ -502,7 +508,7 @@ def osemosys_to_internal(csv_dir: str) -> tuple[dict, list[str]]:
                 "constraints": {
                     "energy_eff": round(eff, 4),
                     "lifetime": life,
-                    **({"energy_cap_max": round(cap_max_gw * 1e6, 3)} if cap_max_gw and cap_max_gw < 900 else {}),
+                    **lnk_info.get("_cap", {}),
                 },
             }
             if capex > 0:

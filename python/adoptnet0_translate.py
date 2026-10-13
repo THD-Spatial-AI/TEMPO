@@ -4,19 +4,22 @@ AdOpT-NET0 translation: TEMPO internal model → case directory structure.
 Shared by adoptnet0_runner.py (run) and adoptnet0_service.py (/export, /import).
 
 Public interface:
-    build_model_dir(model_data, model_dir) -> (carriers, report)
+    build_model_dir(model_data, model_dir, capex_scale=1.0) -> (carriers, report)
+    compute_capfactors(model_data, report) -> {(node, tech): [cf, ...]}
     generate_timestamps(start_date, end_date) -> pd.DatetimeIndex
 """
 
 import csv as _csv
 import itertools
 import json
-import math
 import os
 import re
 from pathlib import Path
 
+from engine_common import annuity, finite, merged_link_def, merged_tech_def, resource_to_cf
 from engine_overlay import engine_overlay, coerce_overlay
+
+_KW_PER_MW = 1_000.0
 
 # ---------------------------------------------------------------------------
 # Numeric helpers
@@ -39,9 +42,33 @@ def _to_float(val, default: float = 0.0) -> float:
         return default
 
 
-def _cap_max(val, default: float = 1_000_000.0) -> float:
-    v = _to_float(val, default)
-    return v if v > 0 else default
+# Unbounded (inf / unset) capacity → 1e6 MW. AdOpT needs a finite size_max; this is
+# far above any regional system (Chile regions are GW-scale) so it never binds, and the
+# model stays an LP (no big-M: the *_precise disjunctions are switched off below).
+_UNBOUNDED_KW = 1e9
+
+
+def _cap_max(val) -> float:
+    v = finite(val)
+    return _UNBOUNDED_KW if v is None or v < 0 else v
+
+
+def _size_bounds(constr: dict, prefix: str = "energy_cap") -> tuple:
+    """(size_min, size_max) in MW/MWh per calliope 0.6: <prefix>_equals fixes both."""
+    eq = finite(constr.get(f"{prefix}_equals"))
+    if eq is not None and eq >= 0:
+        return eq / _KW_PER_MW, eq / _KW_PER_MW
+    mn = finite(constr.get(f"{prefix}_min"))
+    return (mn / _KW_PER_MW if mn and mn > 0 else 0), _cap_max(constr.get(f"{prefix}_max")) / _KW_PER_MW
+
+
+def _report_unbounded(constr: dict, keys: tuple, ctx: str, report: list) -> None:
+    for k in keys:
+        v = finite(constr.get(k))
+        if finite(constr.get(k.replace("_max", "_equals"))) is not None:
+            continue  # fixed capacity — no sentinel used
+        if v is None or v < 0:
+            report.append(f"{ctx}: unbounded {k} → {_UNBOUNDED_KW / _KW_PER_MW:.0e} MW sentinel")
 
 
 # ---------------------------------------------------------------------------
@@ -150,60 +177,59 @@ def _get_carriers_in(tech: dict) -> list:
 # Cost / constraint extraction
 # ---------------------------------------------------------------------------
 
-def _costs(tech: dict) -> dict:
-    monetary = (tech.get("costs") or {}).get("monetary") or {}
-    return {
-        "energy_cap": _to_float(monetary.get("energy_cap") or monetary.get("capex"), 0.0),
-        "om_annual": _to_float(monetary.get("om_annual") or monetary.get("opex_fixed"), 0.0),
-        "om_prod": _to_float(monetary.get("om_prod") or monetary.get("opex_variable"), 0.0),
-        "interest_rate": _to_float(monetary.get("interest_rate"), 0.07),
-    }
-
-
-def _constraints(tech: dict) -> dict:
-    c = tech.get("constraints") or {}
-    return {
-        "energy_cap_max": _cap_max(c.get("energy_cap_max")),
-        "energy_cap_min": _to_float(c.get("energy_cap_min"), 0.0),
-        "energy_eff": max(0.01, min(1.0, _to_float(c.get("energy_eff"), 1.0))),
-        "lifetime": max(1, int(_to_float(c.get("lifetime"), 25.0))),
-        "storage_cap_max": _cap_max(c.get("storage_cap_max")),
-        "storage_loss": _to_float(c.get("storage_loss"), 0.0),
-    }
-
-
-def _economics(tech: dict) -> dict:
-    """Build AdOpT-NET0 Economics block. Converts EUR/kW → EUR/MW (×1000)."""
-    c = _costs(tech)
-    unit_capex = c["energy_cap"] * 1_000
-    opex_var = c["om_prod"] * 1_000
-    opex_fixed = (c["om_annual"] * 1_000 / unit_capex) if unit_capex > 0 else 0.0
+def _economics(costs: dict, constr: dict, capex_scale: float = 1.0) -> dict:
+    """AdOpT-NET0 Economics block. €/kW → €/MW (×1000); investment scaled by
+    capex_scale (n_hours/8760 in the run path — AdOpT's own fraction_of_year
+    is 1 when the topology is the modelled window)."""
+    unit_capex = _to_float(costs.get("energy_cap", costs.get("capex")), 0.0) * _KW_PER_MW
+    opex_var = _to_float(costs.get("om_prod", costs.get("opex_variable")), 0.0) * _KW_PER_MW
+    om_annual = _to_float(costs.get("om_annual", costs.get("opex_fixed")), 0.0)
+    opex_fixed = (om_annual * _KW_PER_MW / unit_capex) if unit_capex > 0 else 0.0
+    rate = _to_float(costs.get("interest_rate"), 0.0)
+    life = max(1, int(_to_float(constr.get("lifetime"), 25)))
+    if om_annual * _KW_PER_MW > unit_capex:
+        # OPEX_fixed is a fraction of capex (≤ 1): when om_annual exceeds capex (incl.
+        # zero capex) fold om_annual / CRF into capex instead (AdOpT annualises capex
+        # with the same CRF — exactly equivalent).
+        unit_capex += om_annual / annuity(rate, life) * _KW_PER_MW
+        opex_fixed = 0.0
     return {
         "CAPEX_model": 1,
-        "unit_CAPEX": round(unit_capex, 4),
+        "unit_CAPEX": round(unit_capex * capex_scale, 6),
         "fix_CAPEX": 0,
         "OPEX_variable": round(opex_var, 6),
-        "OPEX_fixed": round(min(opex_fixed, 1.0), 6),
-        "discount_rate": c["interest_rate"],
-        "lifetime": _constraints(tech)["lifetime"],
+        "OPEX_fixed": round(min(opex_fixed, 1.0), 12),
+        "discount_rate": rate,
+        "lifetime": life,
         "decommission_cost": 0,
     }
+
+
+def _eff(constr: dict) -> float:
+    return max(0.01, min(1.0, _to_float(constr.get("energy_eff"), 1.0)))
+
+
+def _economics_per_input(costs: dict, constr: dict, capex_scale: float, out_per_in: float) -> dict:
+    """AdOpT charges CONV/STOR OPEX_variable on the main *input*; Calliope om_prod is
+    per unit of *output*. Rescale by output-per-input so the cost per output matches."""
+    econ = _economics(costs, constr, capex_scale)
+    econ["OPEX_variable"] = round(econ["OPEX_variable"] * out_per_in, 6)
+    return econ
 
 
 # ---------------------------------------------------------------------------
 # Technology JSON builders
 # ---------------------------------------------------------------------------
 
-def _build_res_json(tech: dict) -> dict:
-    constr = _constraints(tech)
+def _build_res_json(tech: dict, constr: dict, costs: dict, capex_scale: float = 1.0) -> dict:
     carrier = _get_carrier_out(tech)
     return {
         "tec_type": "RES",
-        "size_min": 0,
-        "size_max": constr["energy_cap_max"],
+        "size_min": _size_bounds(constr)[0],
+        "size_max": _size_bounds(constr)[1],
         "size_is_int": 0,
         "decommission": "impossible",
-        "Economics": _economics(tech),
+        "Economics": _economics(costs, constr, capex_scale),
         "Performance": {
             "output_carrier": [carrier],
             "curtailment": 1,
@@ -213,19 +239,18 @@ def _build_res_json(tech: dict) -> dict:
     }
 
 
-def _build_conv1_json(tech: dict) -> dict:
-    constr = _constraints(tech)
+def _build_conv1_json(tech: dict, constr: dict, costs: dict, capex_scale: float = 1.0) -> dict:
     cout = _get_carrier_out(tech)
     cin = _get_carrier_in(tech)
-    eff = constr["energy_eff"]
+    eff = _eff(constr)
     return {
         "tec_type": "CONV1",
-        "size_min": 0,
-        "size_max": constr["energy_cap_max"],
+        "size_min": _size_bounds(constr)[0],
+        "size_max": _size_bounds(constr)[1],
         "size_is_int": 0,
         "size_based_on": "output",
         "decommission": "impossible",
-        "Economics": _economics(tech),
+        "Economics": _economics_per_input(costs, constr, capex_scale, eff),
         "Performance": {
             "performance_function_type": 1,
             "input_carrier": [cin],
@@ -247,21 +272,20 @@ def _build_conv1_json(tech: dict) -> dict:
     }
 
 
-def _build_conv2_json(tech: dict) -> dict:
-    constr = _constraints(tech)
+def _build_conv2_json(tech: dict, constr: dict, costs: dict, capex_scale: float = 1.0) -> dict:
     couts = _get_carriers_out(tech)
     cins = _get_carriers_in(tech)
-    eff = constr["energy_eff"]
+    eff = _eff(constr)
     main_in = cins[0] if cins else "electricity"
     per_out = round(eff / max(len(couts), 1), 4)
     return {
         "tec_type": "CONV2",
-        "size_min": 0,
-        "size_max": constr["energy_cap_max"],
+        "size_min": _size_bounds(constr)[0],
+        "size_max": _size_bounds(constr)[1],
         "size_is_int": 0,
         "size_based_on": "output",
         "decommission": "impossible",
-        "Economics": _economics(tech),
+        "Economics": _economics_per_input(costs, constr, capex_scale, per_out),
         "Performance": {
             "performance_function_type": 1,
             "input_carrier": cins,
@@ -282,34 +306,53 @@ def _build_conv2_json(tech: dict) -> dict:
     }
 
 
-def _build_stor_json(tech: dict) -> dict:
-    constr = _constraints(tech)
+_STOR_RATE = 1e4  # MW per MWh (0.36 s duration) — never binds
+
+
+def _build_stor_json(tech: dict, constr: dict, costs: dict, capex_scale: float = 1.0) -> dict:
     carrier = _get_carrier_out(tech)
-    one_way = round(math.sqrt(max(0.01, constr["energy_eff"])), 4)
+    eff = max(0.01, min(1.0, _to_float(constr.get("energy_eff"), 1.0)))  # calliope: applied each way
+    # om_prod is per discharged kWh in Calliope; per charged MWh here → ×eff² (approximate)
+    econ = _economics_per_input(costs, constr, capex_scale, eff * eff)
+    econ["CAPEX_model"] = 4
+    econ["unit_CAPEX"] = round(_to_float(costs.get("storage_cap"), 0.0) * _KW_PER_MW * capex_scale, 6)
+    # om_annual (per kW/yr) folded into the power capex: AdOpT annualises capex with the
+    # same CRF (annuity), so om_annual / CRF is an exactly equivalent investment cost.
+    om_annual = _to_float(costs.get("om_annual"), 0.0)
+    power_capex = (_to_float(costs.get("energy_cap"), 0.0)
+                   + om_annual / annuity(econ["discount_rate"], econ["lifetime"])) * _KW_PER_MW * capex_scale
+    econ["OPEX_fixed"] = 0
+    e_min, e_max = _size_bounds(constr, "storage_cap")
     return {
         "tec_type": "STOR",
-        "size_min": 0,
-        "size_max": constr["storage_cap_max"],
+        "size_min": e_min,
+        "size_max": e_max,
         "size_is_int": 0,
         "decommission": "impossible",
-        "Economics": _economics(tech),
+        "Economics": econ,
         "Performance": {
             "input_carrier": [carrier],
             "main_input_carrier": carrier,
             "output_carrier": [carrier],
             "emission_factor": 0,
-            "allow_only_one_direction": 1,
+            # Calliope 0.6 is an LP and lets storage charge/discharge in the same step:
+            # no one-direction cut and no big-M disjunction.
+            "allow_only_one_direction": 0,
             "performance": {
-                "eta_in": one_way,
-                "eta_out": one_way,
-                "lambda": constr["storage_loss"],
+                "eta_in": round(eff, 6),
+                "eta_out": round(eff, 6),
+                "lambda": _to_float(constr.get("storage_loss"), 0.0),
                 "theta": 0.0,
             },
         },
         "Flexibility": {
-            "power_energy_ratio": "fixedratio",
-            "charge_rate": 1.0,
-            "discharge_rate": 1.0,
+            "power_energy_ratio": "flexratio",
+            # Calliope has no C-rate: power ≤ rate × size is a loose relaxation. The runner
+            # ties charge == discharge capacity and applies energy_cap_max (_tie_storage_power).
+            "charge_rate": _STOR_RATE,
+            "discharge_rate": _STOR_RATE,
+            "capex_charging_power": 0,
+            "capex_discharging_power": round(power_capex, 6),
         },
         "Units": {
             "size": "MWh",
@@ -328,10 +371,10 @@ _PARENT_BUILDER = {
 }
 
 
-def _build_tech_json(tech: dict):
+def _build_tech_json(tech: dict, constr: dict, costs: dict, capex_scale: float = 1.0):
     parent = _get_parent(tech)
     builder = _PARENT_BUILDER.get(parent)
-    return builder(tech) if builder else None
+    return builder(tech, constr, costs, capex_scale) if builder else None
 
 
 # ---------------------------------------------------------------------------
@@ -474,59 +517,92 @@ def _write_period_topology(period_dir: str, locations: list, carriers: list,
     })
 
 
-_LINK_LOSS_BY_TYPE: dict = {
-    "hvac_overhead": 0.02, "hvdc_overhead": 0.03, "hvac_cable": 0.03,
-    "hvdc_subsea": 0.04, "district_heat": 0.10, "district_cooling": 0.08,
-    "h2_pipeline": 0.02, "h2_truck": 0.05, "gas_pipeline": 0.01,
-    "biogas_pipeline": 0.02, "co2_pipeline": 0.01, "biomass_truck": 0.03,
-    "biomass_train": 0.02, "oil_pipeline": 0.005, "oil_truck": 0.02,
-    "water_pipeline": 0.01,
-}
+def network_name(tid: str, a: str, b: str) -> str:
+    """AdOpT network id for one TEMPO link (one network per link → exact distance/loss)."""
+    return f"{_safe_id(tid)}__{_safe_id(a)}__{_safe_id(b)}"
 
 
-def _write_networks(period_dir: str, locations: list, links: list, carriers: list) -> None:
+def _resolve_links(links: list, technologies: list) -> list:
+    """[(link, tech | None, net_name | None)]. Duplicate links (same tech + node pair,
+    either direction) get a __2, __3… suffix so every link is its own network."""
+    by_ref = {t.get("name"): t for t in technologies}
+    by_ref.update({t.get("id"): t for t in technologies if t.get("id")})
+    out, seen = [], {}
+    for lnk in links:
+        tech = by_ref.get(lnk.get("tech"))
+        if tech is None:
+            out.append((lnk, None, None))
+            continue
+        tid = tech.get("name") or tech.get("id")
+        a, b = lnk.get("from") or "", lnk.get("to") or ""
+        key = (_safe_id(tid), frozenset((_safe_id(a), _safe_id(b))))
+        seen[key] = seen.get(key, 0) + 1
+        name = network_name(tid, a, b) + (f"__{seen[key]}" if seen[key] > 1 else "")
+        out.append((lnk, tech, name))
+    return out
+
+
+def network_names(links: list, technologies: list) -> dict:
+    """{AdOpT network id: TEMPO transmission tech name} for every resolvable link."""
+    return {name: tech.get("name") or tech.get("id")
+            for _, tech, name in _resolve_links(links, technologies) if tech is not None}
+
+
+def _write_networks(period_dir: str, locations: list, links: list, technologies: list,
+                    capex_scale: float = 1.0, report: list | None = None) -> None:
+    report = report if report is not None else []
     network_data_dir = os.path.join(period_dir, "network_data")
     os.makedirs(network_data_dir, exist_ok=True)
 
     node_names = [_safe_id(loc.get("name") or loc.get("id", f"node_{i}"))
                   for i, loc in enumerate(locations)]
 
-    carrier_links: dict = {}
-    for link in links:
-        c = (link.get("carrier") or "electricity").lower()
-        carrier_links.setdefault(c, []).append(link)
-
-    network_names: list = []
-    for carrier in carriers:
-        if carrier not in carrier_links and len(locations) < 2:
+    net_names: list = []
+    for lnk, tech, net_name in _resolve_links(links, technologies):
+        a, b = _safe_id(lnk.get("from") or ""), _safe_id(lnk.get("to") or "")
+        if tech is None or a not in node_names or b not in node_names:
+            report.append(f"link {a}→{b}: tech '{lnk.get('tech')}' or node not found — skipped")
             continue
-
-        net_name = f"{carrier}_network"
-        network_names.append(net_name)
-
-        link_list = carrier_links.get(carrier, [])
-        if link_list:
-            avg_loss = sum(
-                _LINK_LOSS_BY_TYPE.get(lnk.get("linkType", ""), 0.02) for lnk in link_list
-            ) / len(link_list)
-        else:
-            avg_loss = 0.02
+        constr, costs = merged_link_def(tech, lnk)
+        carrier = _get_carrier_out(tech) or "electricity"
+        km = _to_float(lnk.get("distance"), 0.0)
+        eff = _to_float(constr.get("energy_eff"), 1.0)
+        if km <= 0:
+            km = 1.0
+            report.append(f"link {a}↔{b}: no distance — 1 km used (loss and per-distance cost apply to 1 km)")
+        net_names.append(net_name)
+        _report_unbounded(constr, ("energy_cap_max",), f"link {net_name}", report)
+        rate = _to_float(costs.get("interest_rate"), 0.0)
+        life = max(1, int(_to_float(constr.get("lifetime"), 40)))
+        # Calliope halves transmission capex per link end (one full cost per link) but
+        # charges om_annual on *both* ends; AdOpT counts gamma2 once per pair, and
+        # om_annual / CRF is an exactly equivalent investment cost (same annuity).
+        om_annual_capex = 2 * _to_float(costs.get("om_annual"), 0.0) / annuity(rate, life)
 
         _write_json(os.path.join(network_data_dir, f"{net_name}.json"), {
             "network_type": carrier,
             "size_is_int": 0,
             "decommission": "impossible",
-            "size_min": 0,
-            "size_max": 10_000,
+            "size_min": _size_bounds(constr)[0],
+            "size_max": _size_bounds(constr)[1],
             "Economics": {
-                "gamma1": 0, "gamma2": 0, "gamma3": 0, "gamma4": 0,
-                "OPEX_variable": 0, "OPEX_fixed": 0,
-                "discount_rate": 0.07, "lifetime": 40, "decommission_cost": 0,
+                "gamma1": 0,
+                "gamma2": round((_to_float(costs.get("energy_cap"), 0.0) + om_annual_capex)
+                                * _KW_PER_MW * capex_scale, 6),
+                "gamma3": 0,
+                "gamma4": round(_to_float(costs.get("energy_cap_per_distance"), 0.0) * _KW_PER_MW * capex_scale, 6),
+                # Calliope om_prod is per delivered kWh; AdOpT charges sent flow → ×eff
+                "OPEX_variable": round(_to_float(costs.get("om_prod"), 0.0) * eff * _KW_PER_MW, 6),
+                "OPEX_fixed": 0,
+                "discount_rate": rate,
+                "lifetime": life,
+                "decommission_cost": 0,
             },
             "Performance": {
                 "carrier": carrier,
                 "bidirectional_network": 1,
-                "loss": round(avg_loss, 4),
+                "bidirectional_network_precise": 0,  # LP like Calliope: cut only, no big-M
+                "loss": round((1.0 - eff) / km, 12),
                 "min_transport": 0,
                 "loss2emissions": 0,
                 "emissionfactor": 0,
@@ -538,29 +614,19 @@ def _write_networks(period_dir: str, locations: list, links: list, carriers: lis
         # AdOpT-NET0 requires node×node adjacency and distance matrices (semicolon-separated)
         topo_dir = os.path.join(period_dir, "network_topology", "new", net_name)
         os.makedirs(topo_dir, exist_ok=True)
-
-        conn: dict = {n: {n2: 0 for n2 in node_names} for n in node_names}
-        dist: dict = {n: {n2: 0 for n2 in node_names} for n in node_names}
-        for lnk in link_list:
-            fn = _safe_id(lnk.get("from") or "")
-            tn = _safe_id(lnk.get("to") or "")
-            km = float(lnk.get("distance") or 0) or 100.0
-            if fn in conn and tn in conn:
-                conn[fn][tn] = conn[tn][fn] = 1
-                dist[fn][tn] = dist[tn][fn] = km
-
-        def _write_matrix(path: str, matrix: dict) -> None:
-            with open(path, "w", encoding="utf-8") as fh:
+        conn = {n: {n2: 0 for n2 in node_names} for n in node_names}
+        dist = {n: {n2: 0 for n2 in node_names} for n in node_names}
+        conn[a][b] = conn[b][a] = 1
+        dist[a][b] = dist[b][a] = km
+        for fname, matrix in (("connection.csv", conn), ("distance.csv", dist)):
+            with open(os.path.join(topo_dir, fname), "w", encoding="utf-8") as fh:
                 fh.write(";" + ";".join(node_names) + "\n")
                 for n in node_names:
                     fh.write(n + ";" + ";".join(str(matrix[n][n2]) for n2 in node_names) + "\n")
 
-        _write_matrix(os.path.join(topo_dir, "connection.csv"), conn)
-        _write_matrix(os.path.join(topo_dir, "distance.csv"), dist)
-
     _write_json(os.path.join(period_dir, "Networks.json"), {
         "existing": [],
-        "new": network_names,
+        "new": net_names,
     })
 
 
@@ -624,9 +690,41 @@ def _resolve_demand_ref(ref, time_series: list) -> list:
     return []
 
 
+def _placed_techs(loc: dict, i: int, technologies: list, location_tech_assignments: dict) -> list:
+    """[(ref_key, tech, loc_cfg)] placed at this location — the single source of truth
+    for node technologies, capacity factors and storage power caps.
+    locationTechAssignments (ids, names or dict refs) wins; without any assignments
+    the location's own `techs` are used. Techs resolve by id or name."""
+    loc_id = str(loc.get("id") or f"node_{i}")
+    loc_name = _safe_id(loc.get("name") or loc_id)
+    tech_by_id = {t.get("id", ""): t for t in technologies}
+    tech_by_name = {t.get("name", ""): t for t in technologies}
+    lta = location_tech_assignments or {}
+    refs = lta.get(loc_id) or lta.get(loc_name) or lta.get(loc.get("name", "")) or []
+    if not refs and not lta:
+        # Direct loc.techs mode (same source of truth as the Calliope/PyPSA runners)
+        refs = list((loc.get("techs") or {}).keys())
+    loc_techs = loc.get("techs") or {}
+    out = []
+    for ref in refs:
+        if isinstance(ref, dict):
+            ref_key = str(ref.get("id") or ref.get("name") or ref.get("techId") or "")
+        else:
+            ref_key = str(ref)
+        tech = tech_by_id.get(ref_key) or tech_by_name.get(ref_key)
+        if tech is None:
+            continue
+        loc_cfg = (loc_techs.get(ref_key) or loc_techs.get(tech.get("name"))
+                   or loc_techs.get(tech.get("id")))
+        out.append((ref_key, tech, loc_cfg))
+    return out
+
+
 def _write_node_data(period_dir: str, locations: list, technologies: list,
                      location_tech_assignments: dict, time_series: list,
-                     carriers: list, start_date: str, end_date: str) -> None:
+                     carriers: list, start_date: str, end_date: str,
+                     capex_scale: float = 1.0, report: list | None = None) -> None:
+    report = report if report is not None else []
     node_data_dir = os.path.join(period_dir, "node_data")
     os.makedirs(node_data_dir, exist_ok=True)
 
@@ -649,46 +747,28 @@ def _write_node_data(period_dir: str, locations: list, technologies: list,
         os.makedirs(tech_data_dir, exist_ok=True)
         os.makedirs(carrier_data_dir, exist_ok=True)
 
-        assigned_refs: list = (
-            location_tech_assignments.get(loc_id)
-            or location_tech_assignments.get(loc_name)
-            or location_tech_assignments.get(loc.get("name", ""))
-            or []
-        )
-        if not assigned_refs and not location_tech_assignments:
-            assigned_refs = [t.get("id") or t.get("name", "") for t in technologies]
-
         node_techs_new: list = []
 
-        for ref in assigned_refs:
-            if isinstance(ref, dict):
-                ref_key = str(ref.get("id") or ref.get("name") or ref.get("techId") or "")
-            else:
-                ref_key = str(ref)
-
-            tech = _find_tech(ref_key)
-            if tech is None:
-                continue
-
+        for ref_key, tech, _loc_cfg in _placed_techs(loc, i, technologies, location_tech_assignments):
             parent = _get_parent(tech)
             if parent in ("demand", "transmission"):
                 continue
 
-            tech_json = _build_tech_json(tech)
+            constr, costs = merged_tech_def(tech, _loc_cfg)
+            tech_json = _build_tech_json(tech, constr, costs, capex_scale)
             if tech_json is None:
                 continue
             # Engine-specific (AdOpT-NET0) overrides on top of the translation.
-            # assigned_refs may be ids, so resolve the per-location config by
-            # ref_key or the tech's name/id.
-            _loc_techs = loc.get("techs") or {}
-            _loc_cfg = (_loc_techs.get(ref_key)
-                        or _loc_techs.get(tech.get("name"))
-                        or _loc_techs.get(tech.get("id")))
             _ep = coerce_overlay(engine_overlay(tech, _loc_cfg, "adoptnet0"))
             if _ep:
                 tech_json.update(_ep)
 
             tid = _safe_id(tech.get("name") or tech.get("id") or f"tech_{i}")
+            _report_unbounded(constr, ("storage_cap_max",) if parent == "storage" else ("energy_cap_max",),
+                              f"{loc_name}/{tid}", report)
+            if parent == "storage":
+                if costs.get("om_prod"):
+                    report.append(f"{loc_name}/{tid}: storage om_prod charged on input ×eff² (approximation)")
             _write_json(os.path.join(tech_data_dir, f"{tid}.json"), tech_json)
             node_techs_new.append(tid)
 
@@ -710,37 +790,53 @@ def _write_node_data(period_dir: str, locations: list, technologies: list,
         # Fall back to demand-parent techs on the node (OSM study-area importer
         # attaches a `power_demand` tech whose resource is a `file=name:col`
         # series or a scalar). The resource lives on the per-location inline tech
-        # config; the parent is resolved from the global tech. Sum across techs.
-        if not demand_vals:
-            for _ref, _loc_tech in (loc.get("techs") or {}).items():
+        # config (merged over the tech-level one); the parent is resolved from the
+        # global tech. Series are summed per carrier and written to that carrier only.
+        demand_by_carrier: dict = {}
+        if demand_vals:
+            demand_by_carrier[str(dp.get("carrier") or "electricity").lower()] = demand_vals
+        else:
+            # Placed techs (assignment mode too) plus inline loc.techs demand configs.
+            _cands = [(t, cfg) for _, t, cfg in _placed_techs(loc, i, technologies, location_tech_assignments)]
+            _seen = {id(t) for t, _ in _cands}
+            for _ref, _cfg in (loc.get("techs") or {}).items():
+                _g = _find_tech(_ref)
+                if _g is None or id(_g) not in _seen:
+                    _cands.append((_g, _cfg))
+            for _global, _loc_tech in _cands:
                 _loc_tech = _loc_tech or {}
-                _global = _find_tech(_ref)
                 _is_demand = (_global is not None and _get_parent(_global) == "demand") or _get_parent(_loc_tech) == "demand"
                 if not _is_demand:
                     continue
-                _res = (_loc_tech.get("constraints") or {}).get("resource")
+                _res = merged_tech_def(_global or {}, _loc_tech)[0].get("resource")
                 _series = _resolve_demand_ref(_res, time_series)
                 if not _series:
                     _scalar = abs(_to_float(_res, 0.0))
                     _series = [_scalar] * n_hours if _scalar > 0 else []
                 if _series:
-                    demand_vals = ([a + b for a, b in zip(demand_vals, _series)]
-                                   if demand_vals else list(_series))
+                    _car = _get_carrier_in(_global if _global is not None else _loc_tech)
+                    _prev = demand_by_carrier.get(_car)
+                    demand_by_carrier[_car] = ([a + b for a, b in zip(_prev, _series)]
+                                               if _prev else list(_series))
 
         def _tile(vals: list, n: int) -> list:
             if not vals:
                 return [0.0] * n
             return list(itertools.islice(itertools.cycle(vals), n))
 
-        demand_vals = _tile(demand_vals, n_hours)
-        has_demand = any(v != 0 for v in demand_vals)
+        for _car in demand_by_carrier:
+            if _car not in carriers:
+                report.append(f"{loc_name}: demand carrier '{_car}' not among model carriers — demand dropped")
 
         header = ";Demand;Import limit;Export limit;Import price;Export price;Import emission factor;Export emission factor;Generic production"
         for carrier in carriers:
+            # Demand only on its own carrier (not every carrier at the node)
+            demand_vals = _tile(demand_by_carrier.get(carrier) or [], n_hours)
+            has_demand = any(v != 0 for v in demand_vals)
             lines = [header]
             for j, ts in enumerate(timestamps):
                 ts_str = _fmt_ts(ts)
-                dem = str(demand_vals[j]) if has_demand else ""
+                dem = str(round(demand_vals[j] / _KW_PER_MW, 9)) if has_demand else ""
                 lines.append(f"{ts_str};{dem};;;;;;;")
             _write_text(os.path.join(carrier_data_dir, f"{carrier}.csv"), "\n".join(lines) + "\n")
 
@@ -764,9 +860,13 @@ def _write_node_data(period_dir: str, locations: list, technologies: list,
 # Public API
 # ---------------------------------------------------------------------------
 
-def build_model_dir(model_data: dict, model_dir: str) -> tuple:
+def build_model_dir(model_data: dict, model_dir: str, capex_scale: float = 1.0) -> tuple:
     """
     Write the AdOpT-NET0 case directory from a TEMPO model dict.
+
+    capex_scale multiplies investment costs (unit_CAPEX / network gammas).
+    The run path passes n_hours/8760 so a sub-annual window carries only its
+    share of the annualised capex; export keeps the default 1.0.
 
     Returns (carriers, report) where:
       carriers — list of carrier strings written to Topology
@@ -809,9 +909,9 @@ def build_model_dir(model_data: dict, model_dir: str) -> tuple:
     os.makedirs(period_dir, exist_ok=True)
 
     _write_period_topology(period_dir, locations, carriers, start_date, end_date)
-    _write_networks(period_dir, locations, links, carriers)
+    _write_networks(period_dir, locations, links, technologies, capex_scale, report)
     _write_node_data(period_dir, locations, technologies, loc_tech_assign,
-                     time_series, carriers, start_date, end_date)
+                     time_series, carriers, start_date, end_date, capex_scale, report)
 
     return carriers, report
 
@@ -819,6 +919,56 @@ def build_model_dir(model_data: dict, model_dir: str) -> tuple:
 def generate_timestamps(start_date: str, end_date: str):
     """Return hourly pd.DatetimeIndex for start_date..end_date (inclusive)."""
     return _generate_timestamps(start_date, end_date)
+
+
+def compute_capfactors(model_data: dict, report: list) -> dict:
+    """{(node, tech): hourly CF list} for supply techs with a resource.
+    Supply techs without one are unconstrained (CF 1.0, Calliope semantics)."""
+    cfg = model_data.get("modelConfig") or {}
+    n = len(_generate_timestamps((cfg.get("startDate") or "2024-01-01")[:10],
+                                 (cfg.get("endDate") or "2024-12-31")[:10]))
+    techs = model_data.get("technologies") or []
+    lta = model_data.get("locationTechAssignments") or {}
+    out = {}
+    for i, loc in enumerate(model_data.get("locations") or []):
+        node = _safe_id(loc.get("name") or loc.get("id", f"node_{i}"))
+        for ref, tech, loc_cfg in _placed_techs(loc, i, techs, lta):
+            if _get_parent(tech) not in ("supply", "supply_plus"):
+                continue
+            constr, _ = merged_tech_def(tech, loc_cfg)
+            cf = resource_to_cf(constr, n, report, f"{node}/{ref}", model_data)
+            if cf is not None:
+                out[(node, _safe_id(tech.get("name") or tech.get("id") or ref))] = cf
+    return out
+
+
+def storage_power_caps(model_data: dict) -> dict:
+    """Finite storage energy_cap_max (or _equals) in MW per placed storage tech: {(node, tech): MW}.
+    The runner enforces it on AdOpT's discharge capacity (AdOpT STOR sizes only energy)."""
+    return _storage_power_bound(model_data, "energy_cap_max")
+
+
+def storage_power_mins(model_data: dict) -> dict:
+    """Positive storage energy_cap_min (or _equals) in MW per placed storage tech."""
+    return _storage_power_bound(model_data, "energy_cap_min")
+
+
+def _storage_power_bound(model_data: dict, key: str) -> dict:
+    techs = model_data.get("technologies") or []
+    lta = model_data.get("locationTechAssignments") or {}
+    out = {}
+    for i, loc in enumerate(model_data.get("locations") or []):
+        node = _safe_id(loc.get("name") or loc.get("id", f"node_{i}"))
+        for ref, tech, loc_cfg in _placed_techs(loc, i, techs, lta):
+            if _get_parent(tech) != "storage":
+                continue
+            constr = merged_tech_def(tech, loc_cfg)[0]
+            v = finite(constr.get("energy_cap_equals"))
+            if v is None:
+                v = finite(constr.get(key))
+            if v is not None and (key == "energy_cap_max" or v > 0):
+                out[(node, _safe_id(tech.get("name") or tech.get("id") or ref))] = v / _KW_PER_MW
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -858,9 +1008,9 @@ def _parse_tech_json(tid: str, tdata: dict, report: list) -> dict:
     opex_fixed = _to_float(econ.get("OPEX_fixed"), 0.0)
     om_annual = round(opex_fixed * unit_capex / 1_000, 6) if unit_capex > 0 else 0.0
     om_prod = _to_float(econ.get("OPEX_variable"), 0.0) / 1_000  # EUR/MWh → EUR/kWh
-    interest_rate = _to_float(econ.get("discount_rate"), 0.07)
+    interest_rate = _to_float(econ.get("discount_rate"), 0.0)  # Calliope 0.6 default
     lifetime = max(1, int(_to_float(econ.get("lifetime"), 25.0)))
-    size_max = _to_float(tdata.get("size_max"), 1_000_000.0)
+    size_max = _to_float(tdata.get("size_max"), 1_000.0) * _KW_PER_MW
 
     costs = {"monetary": {
         "energy_cap": round(energy_cap, 4),
@@ -884,6 +1034,8 @@ def _parse_tech_json(tid: str, tdata: dict, report: list) -> dict:
         perf_data = perf.get("performance") or {}
         out_vals = perf_data.get("out", [0, 1])
         eff = _to_float(out_vals[-1] if isinstance(out_vals, list) else 1.0, 1.0)
+        if eff > 0:  # export charges om_prod per input (×eff) — back to per output
+            costs["monetary"]["om_prod"] = round(om_prod / eff, 6)
         return {
             "name": tid,
             "essentials": {"parent": "conversion", "carrier_out": cout, "carrier_in": cin, "name": tid},
@@ -894,6 +1046,11 @@ def _parse_tech_json(tid: str, tdata: dict, report: list) -> dict:
     if tec_type == "CONV2":
         couts = perf.get("output_carrier") or ["electricity"]
         cins = perf.get("input_carrier") or ["electricity"]
+        outs = (perf.get("performance") or {}).get("out") or {}
+        first = next(iter(outs.values()), None) if isinstance(outs, dict) else None
+        per_out = _to_float(first[-1] if isinstance(first, list) and first else 1.0, 1.0)
+        if per_out > 0:  # export charges om_prod per input (×per-output efficiency)
+            costs["monetary"]["om_prod"] = round(om_prod / per_out, 6)
         return {
             "name": tid,
             "essentials": {"parent": "conversion_plus", "carrier_out": couts, "carrier_in": cins, "name": tid},
@@ -902,13 +1059,17 @@ def _parse_tech_json(tid: str, tdata: dict, report: list) -> dict:
         }
 
     if tec_type == "STOR":
-        carrier = perf.get("carrier_out", "electricity")
-        charge_eff = _to_float(perf.get("charging_efficiency"), 1.0)
-        discharge_eff = _to_float(perf.get("discharging_efficiency"), 1.0)
-        rt_eff = round(charge_eff * discharge_eff, 4)
-        storage_loss = _to_float(perf.get("self_discharge"), 0.0)
+        carrier = (perf.get("output_carrier") or [perf.get("carrier_out", "electricity")])[0]
+        stor_perf = perf.get("performance") or {}
+        flex = tdata.get("Flexibility") or {}
+        # Calliope energy_eff is applied each way, same as AdOpT eta_in/eta_out.
+        eff = _to_float(stor_perf.get("eta_out"), 1.0)
+        storage_loss = _to_float(stor_perf.get("lambda"), 0.0)
+        report.append(f"Technology '{tid}': storage om_annual (if any) was folded into the power "
+                      "capex on export — imported as part of energy_cap.")
         stor_costs = {"monetary": {
-            "storage_cap": round(energy_cap, 4),
+            "storage_cap": round(unit_capex / 1_000, 4),
+            "energy_cap": round(_to_float(flex.get("capex_discharging_power"), 0.0) / 1_000, 4),
             "interest_rate": interest_rate,
         }}
         return {
@@ -917,7 +1078,7 @@ def _parse_tech_json(tid: str, tdata: dict, report: list) -> dict:
             "constraints": {
                 "storage_cap_max": size_max,
                 "energy_cap_max": size_max,
-                "energy_eff": rt_eff,
+                "energy_eff": eff,
                 "storage_loss": storage_loss,
                 "lifetime": lifetime,
             },
@@ -1003,35 +1164,37 @@ def adoptnet0_to_internal(model_dir: str) -> tuple:
                     else:
                         report.append(f"technology_data/{tid}.json not found — tech '{tid}' skipped.")
 
-            carrier_csv = node_dir / "carrier_data" / f"{primary_carrier}.csv"
-            if carrier_csv.exists():
-                vals_mw = _parse_demand_csv(carrier_csv)
-                if any(v != 0 for v in vals_mw):
-                    # Runner writes kW (TEMPO internal) as MW; convert back to kW
-                    demand_by_node[node_name] = [round(v * 1_000, 3) for v in vals_mw[:24]]
+            for carrier in carriers:
+                carrier_csv = node_dir / "carrier_data" / f"{carrier}.csv"
+                if carrier_csv.exists():
+                    vals_mw = _parse_demand_csv(carrier_csv)
+                    if any(v != 0 for v in vals_mw):
+                        # carrier CSV is MW → kW
+                        demand_by_node.setdefault(node_name, {})[carrier] = \
+                            [round(v * 1_000, 3) for v in vals_mw[:24]]
 
-    # Create demand technologies for carriers with demand
+    # Create demand technologies only for carriers that actually carry demand
     demand_techs_by_carrier: dict = {}
-    nodes_with_demand = [n for n in nodes if n in demand_by_node]
-    if nodes_with_demand:
-        for carrier in carriers:
-            tid = "power_demand" if carrier == "electricity" else f"{carrier}_demand"
-            if tid not in tech_defs:
-                peak = max((max(demand_by_node.get(n, [0.0])) for n in nodes_with_demand), default=0.0)
-                tech_defs[tid] = {
-                    "name": tid,
-                    "essentials": {"parent": "demand", "carrier_in": carrier, "name": tid},
-                    "constraints": {"resource": -round(peak, 2), "force_resource": True},
-                }
-            demand_techs_by_carrier[carrier] = tid
+    for carrier in carriers:
+        series = [d[carrier] for d in demand_by_node.values() if carrier in d]
+        if not series:
+            continue
+        tid = "power_demand" if carrier == "electricity" else f"{carrier}_demand"
+        if tid not in tech_defs:
+            peak = max(max(s) for s in series)
+            tech_defs[tid] = {
+                "name": tid,
+                "essentials": {"parent": "demand", "carrier_in": carrier, "name": tid},
+                "constraints": {"resource": -round(peak, 2), "force_resource": True},
+            }
+        demand_techs_by_carrier[carrier] = tid
 
     # Build locations
     locations = []
     for node_name in nodes:
         techs = {tid: None for tid in loc_tech_map.get(node_name, [])}
-        if node_name in demand_by_node:
-            for dtid in demand_techs_by_carrier.values():
-                techs[dtid] = None
+        for carrier in demand_by_node.get(node_name, {}):
+            techs[demand_techs_by_carrier[carrier]] = None
 
         loc: dict = {
             "name": node_name,
@@ -1040,7 +1203,9 @@ def adoptnet0_to_internal(model_dir: str) -> tuple:
             "techs": techs,
         }
         if node_name in demand_by_node:
-            loc["demandProfile"] = {"timeseries": demand_by_node[node_name]}
+            node_dem = demand_by_node[node_name]
+            dcar = primary_carrier if primary_carrier in node_dem else next(iter(node_dem))
+            loc["demandProfile"] = {"timeseries": node_dem[dcar], "carrier": dcar}
         locations.append(loc)
 
     model = {

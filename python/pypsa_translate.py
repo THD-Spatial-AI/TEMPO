@@ -26,24 +26,45 @@ Conventions (mirroring the Calliope runners so results are comparable):
     fraction of the year)
 
 Deliberate approximations (always noted in the report):
-  - storage = Store + charge/discharge Links (charge capacity uncosted)
-  - transmission = two directed Links, each carrying half the pair cost
+  - storage = Store + charge/discharge Links tied to one energy_cap (cost on discharge, output side)
+  - transmission = two directed Links tied to equal p_nom, each carrying half the pair cost
   - absolute (non-per-unit) supply resource series approximated as
-    p_max_pu = resource / energy_cap_max
+    CF = resource / energy_cap_max
 """
 
 from __future__ import annotations
 
-import math
 import re
 from datetime import datetime, timedelta
 from itertools import cycle, islice
 
 from engine_overlay import engine_overlay, coerce_overlay
+from engine_common import (  # noqa: F401  (convert_value re-exported for callers)
+    HOURS_PER_YEAR,
+    annuity as _annuity,
+    convert_value,
+    finite as _finite,
+    is_file_ref as _is_file_ref,
+    merged_link_def as _merged_link_def,
+    merged_tech_def as _merged_tech_def,
+    resolve_file_series as _resolve_file_series,
+    resource_to_cf,
+)
 
-HOURS_PER_YEAR = 8760.0
-_INF_SENTINEL = 1e14
 UNMET_DEMAND_COST = 1e6  # mirrors calliope's ensure_feasibility bigM slack
+
+
+def _cap_bounds(constraints, prefix='energy_cap'):
+    """(min, max) per calliope 0.6: <prefix>_equals fixes both, else _min/_max."""
+    eq = _finite(constraints.get(f'{prefix}_equals'))
+    if eq is not None:
+        return eq, eq
+    return _finite(constraints.get(f'{prefix}_min')), _finite(constraints.get(f'{prefix}_max'))
+
+
+def _per_input(v, eff):
+    """Output-side calliope capacity → input-side (p0) pypsa Link capacity."""
+    return (v / eff) if (v is not None and eff) else v
 
 
 # ---------------------------------------------------------------------------
@@ -61,45 +82,6 @@ def safe_id(name) -> str:
     return (s or 'unknown').lower()
 
 
-def convert_value(val):
-    """JS 'inf' strings / sanitised-infinity sentinels → Python float."""
-    if isinstance(val, str):
-        low = val.lower()
-        if low in ('inf', '.inf'):
-            return float('inf')
-        if low in ('-inf', '-.inf'):
-            return float('-inf')
-        try:
-            val = float(val)
-        except (TypeError, ValueError):
-            return val
-    if isinstance(val, (int, float)) and not isinstance(val, bool):
-        if val >= _INF_SENTINEL:
-            return float('inf')
-        if val <= -_INF_SENTINEL:
-            return float('-inf')
-    return val
-
-
-def _finite(val):
-    v = convert_value(val)
-    if isinstance(v, (int, float)) and not isinstance(v, bool) \
-            and not math.isinf(v) and not math.isnan(v):
-        return float(v)
-    return None
-
-
-def _annuity(rate, lifetime):
-    """Calliope 0.6 depreciation rate: i/(1-(1+i)^-n), or 1/n at zero interest."""
-    life = _finite(lifetime)
-    if not life or life <= 0:
-        return 1.0
-    r = _finite(rate)
-    if r and r > 0:
-        return r / (1.0 - (1.0 + r) ** -life)
-    return 1.0 / life
-
-
 def _snapshots(model_config):
     """Hourly ISO timestamps, endDate inclusive (matches the Calliope runners)."""
     start = str(model_config.get('startDate') or '2024-01-01')[:10]
@@ -110,93 +92,6 @@ def _snapshots(model_config):
         t1 = t0 + timedelta(hours=47)
     n = int((t1 - t0).total_seconds() // 3600) + 1
     return [(t0 + timedelta(hours=h)).strftime('%Y-%m-%d %H:%M:%S') for h in range(n)]
-
-
-def _is_file_ref(val):
-    return isinstance(val, str) and val.startswith('file=')
-
-
-def _resolve_file_series(ref, model_data, n, report, ctx):
-    """Resolve 'file=name.csv:column' against the payload's inline timeSeries.
-    Returns a list of length n (cycled/truncated), or None."""
-    body = ref[len('file='):]
-    fname, _, col = body.partition(':')
-    fname_l = fname.strip().lower()
-    stem = fname_l[:-4] if fname_l.endswith('.csv') else fname_l
-
-    for ts in model_data.get('timeSeries') or []:
-        candidates = {str(ts.get(k) or '').lower() for k in ('fileName', 'file', 'name')}
-        candidates |= {c[:-4] for c in list(candidates) if c.endswith('.csv')}
-        if fname_l not in candidates and stem not in candidates:
-            continue
-        columns = ts.get('columns') or []
-        data = ts.get('data') or []
-        date_col = ts.get('dateColumn') or (columns[0] if columns else None)
-        data_cols = [c for c in columns if c and c != date_col]
-        target = None
-        if col:
-            for c in data_cols:
-                if c == col or safe_id(c) == safe_id(col):
-                    target = c
-                    break
-        elif len(data_cols) == 1:
-            target = data_cols[0]
-        if target is None:
-            report.append(f"{ctx}: column '{col}' not found in time series '{fname}' — reference dropped")
-            return None
-        vals = []
-        for row in data:
-            v = row.get(target) if isinstance(row, dict) else None
-            if v is None and not isinstance(row, dict):
-                try:
-                    v = row[columns.index(target)]
-                except Exception:
-                    v = None
-            v = _finite(v)
-            vals.append(v if v is not None else 0.0)
-        if not vals:
-            report.append(f"{ctx}: time series '{fname}' is empty — reference dropped")
-            return None
-        return list(islice(cycle(vals), n))
-
-    report.append(f"{ctx}: time series file '{fname}' not found in payload — reference dropped")
-    return None
-
-
-def _merged_tech_def(tech, loc_cfg):
-    """Tech-level constraints/costs with per-location overrides shallow-merged in."""
-    constraints = dict(tech.get('constraints') or {})
-    costs = dict((tech.get('costs') or {}).get('monetary') or {})
-    if isinstance(loc_cfg, dict):
-        constraints.update(loc_cfg.get('constraints') or {})
-        costs.update((loc_cfg.get('costs') or {}).get('monetary') or {})
-    return constraints, costs
-
-
-def _resource_to_p_max_pu(resource, cap_max, n, report, ctx, model_data):
-    """Map a supply tech's resource to a per-unit availability series/scalar.
-
-    Values ≤ 1 are treated as capacity factors; larger values are absolute
-    energy and approximated by dividing through energy_cap_max."""
-    series = None
-    if _is_file_ref(resource):
-        series = _resolve_file_series(resource, model_data, n, report, ctx)
-        if series is None:
-            return None
-    else:
-        r = _finite(resource)
-        if r is None:  # inf / unset → unconstrained
-            return None
-        series = [abs(r)] * n
-
-    peak = max(series) if series else 0.0
-    if peak <= 1.001:
-        return [max(0.0, min(1.0, v)) for v in series]
-    if cap_max:
-        report.append(f"{ctx}: absolute resource series approximated as p_max_pu = resource / energy_cap_max ({cap_max})")
-        return [max(0.0, min(1.0, v / cap_max)) for v in series]
-    report.append(f"{ctx}: absolute resource series with unbounded energy_cap_max cannot be mapped — dropped")
-    return None
 
 
 # ---------------------------------------------------------------------------
@@ -224,8 +119,9 @@ def translate_model(model_data: dict) -> tuple[dict, list]:
         'carriers': set(),
         'generators': [],   # {name, bus, carrier, p_nom_max, efficiency, capital_cost, marginal_cost, p_max_pu, p_min_pu}
         'loads': [],        # {name, bus, p_set}
-        'stores': [],       # {name, bus, e_nom_max, standing_loss, capital_cost}
+        'stores': [],       # {name, bus, e_nom_max, standing_loss, capital_cost, e_cyclic}
         'links': [],        # {name, bus0, bus1, efficiency, p_nom_max, capital_cost, marginal_cost}
+        'link_ties': [],    # {a, b, ratio}: p_nom[a] == ratio * p_nom[b] (runner adds the constraint)
         'meta': {
             'name': model_data.get('name') or 'tempo_model',
             'solver': model_data.get('solver') or model_config.get('solver') or 'highs',
@@ -275,10 +171,10 @@ def translate_model(model_data: dict) -> tuple[dict, list]:
             # component and forwarded to PyPSA in build_network()).
             ep_pypsa = coerce_overlay(engine_overlay(tech, loc_cfg, 'pypsa'))
 
-            cap_max = _finite(constraints.get('energy_cap_max'))
+            cap_min, cap_max = _cap_bounds(constraints)
             eff = _finite(constraints.get('energy_eff')) or 1.0
             annuity = _annuity(costs.get('interest_rate'), constraints.get('lifetime'))
-            om_var = _finite(costs.get('om_var')) or 0.0
+            om_var = _finite(costs.get('om_prod')) or 0.0  # calliope 0.6 variable O&M
             om_con = _finite(costs.get('om_con')) or 0.0
 
             if parent in ('supply', 'supply_plus'):
@@ -286,11 +182,11 @@ def translate_model(model_data: dict) -> tuple[dict, list]:
                 bus = ensure_bus(lid, carrier, x, y)
                 capex = _finite(costs.get('energy_cap')) or 0.0
                 om_annual = _finite(costs.get('om_annual')) or 0.0
-                p_max_pu = _resource_to_p_max_pu(
-                    constraints.get('resource'), cap_max, n, report, ctx, model_data)
+                p_max_pu = resource_to_cf(constraints, n, report, ctx, model_data)
                 gen = {
                     'name': comp_name, 'bus': bus, 'carrier': tid,
                     'p_nom_extendable': True,
+                    'p_nom_min': cap_min,
                     'p_nom_max': cap_max,
                     'efficiency': eff,
                     'capital_cost': (capex * annuity + om_annual) * year_frac,
@@ -330,31 +226,41 @@ def translate_model(model_data: dict) -> tuple[dict, list]:
                 carrier = ess.get('carrier') or ess.get('carrier_out') or 'electricity'
                 bus = ensure_bus(lid, carrier, x, y)
                 store_bus = ensure_bus(lid, f"{tid}_store")
-                e_nom_max = _finite(constraints.get('storage_cap_max'))
+                e_nom_min, e_nom_max = _cap_bounds(constraints, 'storage_cap')
                 standing_loss = _finite(constraints.get('storage_loss')) or 0.0
                 cap_storage = _finite(costs.get('storage_cap')) or 0.0
                 cap_energy = _finite(costs.get('energy_cap')) or 0.0
                 om_annual = _finite(costs.get('om_annual')) or 0.0
                 spec['stores'].append({
                     'name': comp_name, 'bus': store_bus,
+                    'e_nom_min': e_nom_min,
                     'e_nom_max': e_nom_max,
                     'standing_loss': standing_loss,
-                    'capital_cost': (cap_storage * annuity + om_annual) * year_frac,
+                    'capital_cost': cap_storage * annuity * year_frac,
+                    # calliope 0.6 default cyclic_storage: true (None keeps the default)
+                    'e_cyclic': model_config.get('cyclicStorage') is None or bool(model_config['cyclicStorage']),
                 })
                 if ep_pypsa:
                     spec['stores'][-1]['_engine_params'] = ep_pypsa
+                # calliope energy_cap bounds charge (bus side, = charge p0) and discharge
+                # output (= discharge p0 * eff). Cost lives on the discharge link per p0
+                # unit (hence * eff); the charge link is tied to it.
                 spec['links'].append({
                     'name': f"{comp_name}::charge", 'bus0': bus, 'bus1': store_bus,
-                    'efficiency': eff, 'p_nom_max': cap_max,
+                    'efficiency': eff, 'p_nom_min': cap_min, 'p_nom_max': cap_max,
                     'capital_cost': 0.0, 'marginal_cost': 0.0,
                 })
                 spec['links'].append({
                     'name': f"{comp_name}::discharge", 'bus0': store_bus, 'bus1': bus,
-                    'efficiency': eff, 'p_nom_max': cap_max,
-                    'capital_cost': cap_energy * annuity * year_frac,
+                    'efficiency': eff,
+                    'p_nom_min': _per_input(cap_min, eff),
+                    'p_nom_max': _per_input(cap_max, eff),
+                    'capital_cost': (cap_energy * annuity + om_annual) * year_frac * eff,
                     'marginal_cost': om_var * eff,
                 })
-                report.append(f"{ctx}: storage mapped to Store + charge/discharge Links (charge capacity uncosted)")
+                spec['link_ties'].append({'a': f"{comp_name}::charge",
+                                          'b': f"{comp_name}::discharge", 'ratio': eff})
+                report.append(f"{ctx}: storage mapped to Store + charge/discharge Links (tied to one energy_cap)")
 
             elif parent in ('conversion', 'conversion_plus'):
                 cin = ess.get('carrier_in') or 'electricity'
@@ -371,7 +277,8 @@ def translate_model(model_data: dict) -> tuple[dict, list]:
                 spec['links'].append({
                     'name': comp_name, 'bus0': bus0, 'bus1': bus1,
                     'efficiency': eff,
-                    'p_nom_max': (cap_max / eff) if (cap_max is not None and eff) else cap_max,
+                    'p_nom_min': _per_input(cap_min, eff),
+                    'p_nom_max': _per_input(cap_max, eff),
                     'capital_cost': (capex * annuity + om_annual) * year_frac * eff,
                     'marginal_cost': (om_var * eff) + om_con,
                 })
@@ -398,17 +305,17 @@ def translate_model(model_data: dict) -> tuple[dict, list]:
         tid = safe_id(tname)
         ess = tech.get('essentials') or {}
         carrier = ess.get('carrier') or ess.get('carrier_out') or 'electricity'
-        constraints, costs = _merged_tech_def(tech, None)
+        constraints, costs = _merged_link_def(tech, link)
         ep_pypsa = coerce_overlay(engine_overlay(tech, None, 'pypsa'))
 
-        cap_max = _finite(constraints.get('energy_cap_max'))
+        cap_min, cap_max = _cap_bounds(constraints)
         eff = _finite(constraints.get('energy_eff')) or 1.0
         annuity = _annuity(costs.get('interest_rate'), constraints.get('lifetime'))
         distance = _finite(link.get('distance')) or 0.0
         capex = (_finite(costs.get('energy_cap')) or 0.0) \
             + (_finite(costs.get('energy_cap_per_distance')) or 0.0) * distance
         om_annual = _finite(costs.get('om_annual')) or 0.0
-        om_var = _finite(costs.get('om_var')) or 0.0
+        om_var = _finite(costs.get('om_prod')) or 0.0  # calliope 0.6 variable O&M
         pair_cost = (capex * annuity + om_annual) * (n / HOURS_PER_YEAR)
 
         bus_a = ensure_bus(a, carrier, *loc_coords.get(a, (None, None)))
@@ -418,13 +325,15 @@ def translate_model(model_data: dict) -> tuple[dict, list]:
             spec['links'].append({
                 'name': f"{x0}::{tid}:{x1}", 'bus0': bus0, 'bus1': bus1,
                 'efficiency': eff,
+                'p_nom_min': cap_min,
                 'p_nom_max': cap_max,
                 'capital_cost': pair_cost / 2.0,
                 'marginal_cost': om_var * eff,
             })
             if ep_pypsa:
                 spec['links'][-1]['_engine_params'] = ep_pypsa
-        report.append(f"link {a}↔{b} ({tid}): mapped to two directed Links, half pair cost each")
+        spec['link_ties'].append({'a': f"{a}::{tid}:{b}", 'b': f"{b}::{tid}:{a}", 'ratio': 1.0})
+        report.append(f"link {a}↔{b} ({tid}): two directed Links tied to equal capacity, half pair cost each")
 
     # ── ensure_feasibility slack (mirrors calliope's unmet-demand bigM) ─────
     if model_config.get('ensureFeasibility'):
@@ -482,6 +391,8 @@ def build_network(spec: dict):
             kwargs['p_nom_extendable'] = True
             if gen.get('p_nom_max') is not None:
                 kwargs['p_nom_max'] = gen['p_nom_max']
+            if gen.get('p_nom_min') is not None:
+                kwargs['p_nom_min'] = gen['p_nom_min']
         else:
             kwargs['p_nom'] = gen.get('p_nom', 0.0)
         if gen.get('p_max_pu') is not None:
@@ -503,8 +414,12 @@ def build_network(spec: dict):
             'capital_cost': store['capital_cost'],
             'e_cyclic': True,
         }
+        if store.get('e_cyclic') is not None:
+            kwargs['e_cyclic'] = store['e_cyclic']
         if store.get('e_nom_max') is not None:
             kwargs['e_nom_max'] = store['e_nom_max']
+        if store.get('e_nom_min') is not None:
+            kwargs['e_nom_min'] = store['e_nom_min']
         kwargs.update(store.get('_engine_params') or {})  # engine-specific overrides
         n.add('Store', store['name'], **kwargs)
 
@@ -519,6 +434,8 @@ def build_network(spec: dict):
         }
         if link.get('p_nom_max') is not None:
             kwargs['p_nom_max'] = link['p_nom_max']
+        if link.get('p_nom_min') is not None:
+            kwargs['p_nom_min'] = link['p_nom_min']
         kwargs.update(link.get('_engine_params') or {})  # engine-specific overrides
         n.add('Link', link['name'], **kwargs)
 
@@ -701,7 +618,7 @@ def network_to_internal(n) -> tuple[dict, list]:
             costs['energy_cap'] = round(cap / year_frac, 6)
         marg = _fin(row.get('marginal_cost'))
         if marg:
-            costs['om_var'] = marg
+            costs['om_prod'] = marg
 
         tech_def = {
             'name': tid,
@@ -762,15 +679,21 @@ def network_to_internal(n) -> tuple[dict, list]:
             consumed_links.update((discharge, charge))
             lrow = n.links.loc[discharge]
             carrier = _bus_carrier(lrow['bus1']) or 'electricity'
-            p_max = _fin(lrow.get('p_nom_max'))
-            if p_max is not None:
-                constraints['energy_cap_max'] = p_max
             eff = _fin(lrow.get('efficiency'))
             if eff is not None and eff != 1.0:
                 constraints['energy_eff'] = eff
+            # energy_cap = charge p_nom (bus side); discharge p_nom and cost
+            # are per store-side unit (÷eff / ×eff of the calliope values)
+            crow = n.links.loc[charge] if charge in n.links.index else None
+            p_max = _fin(crow.get('p_nom_max')) if crow is not None else None
+            if p_max is None:
+                d_max = _fin(lrow.get('p_nom_max'))
+                p_max = round(d_max * (eff or 1.0), 6) if d_max is not None else None
+            if p_max is not None:
+                constraints['energy_cap_max'] = p_max
             cap_energy = _fin(lrow.get('capital_cost'))
             if cap_energy:
-                costs['energy_cap'] = round(cap_energy / year_frac, 6)
+                costs['energy_cap'] = round(cap_energy / (year_frac * (eff or 1.0)), 6)
         else:
             report.append(f"{name}: Store without TEMPO charge/discharge links — power capacity unknown")
 

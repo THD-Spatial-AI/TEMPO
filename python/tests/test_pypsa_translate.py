@@ -225,9 +225,9 @@ def test_storage_store_plus_links(ref_spec):
     assert charge['bus0'] == 'north::electricity' and charge['bus1'] == 'north::battery_store'
     assert discharge['bus0'] == 'north::battery_store' and discharge['bus1'] == 'north::electricity'
     assert charge['efficiency'] == 0.95 and discharge['efficiency'] == 0.95
-    assert charge['p_nom_max'] == 1000 and discharge['p_nom_max'] == 1000
+    assert charge['p_nom_max'] == 1000 and discharge['p_nom_max'] == pytest.approx(1000 / 0.95)
     assert charge['capital_cost'] == 0.0
-    assert discharge['capital_cost'] == pytest.approx(100 * annuity * (168 / 8760))
+    assert discharge['capital_cost'] == pytest.approx(100 * annuity * (168 / 8760) * 0.95)
     assert any('Store + charge/discharge' in r for r in report)
 
 
@@ -235,7 +235,7 @@ def test_storage_store_plus_links(ref_spec):
 # Transmission
 # ---------------------------------------------------------------------------
 
-def test_transmission_two_directed_links_half_cost(ref_spec):
+def test_transmission_two_directed_links_tied(ref_spec):
     spec, report = ref_spec
     fwd = next(l for l in spec['links'] if l['name'] == 'north::grid_link:south')
     rev = next(l for l in spec['links'] if l['name'] == 'south::grid_link:north')
@@ -247,7 +247,18 @@ def test_transmission_two_directed_links_half_cost(ref_spec):
     pair_cost = (0.5 * 400) * annuity * (168 / 8760)
     assert fwd['capital_cost'] == pytest.approx(pair_cost / 2)
     assert rev['capital_cost'] == pytest.approx(pair_cost / 2)
-    assert any('two directed Links' in r for r in report)
+    assert {'a': fwd['name'], 'b': rev['name'], 'ratio': 1.0} in spec['link_ties']
+    assert any('equal capacity' in r for r in report)
+
+
+@needs_pypsa
+def test_link_ties_build_equal_capacities(ref_model):
+    import pypsa_runner
+    spec, _ = t.translate_model(ref_model)
+    n = t.build_network(spec)
+    n.optimize(solver_name='highs', extra_functionality=pypsa_runner._tie_links(spec))
+    p = n.links.p_nom_opt
+    assert p['north::grid_link:south'] == pytest.approx(p['south::grid_link:north'], rel=1e-6)
 
 
 # ---------------------------------------------------------------------------
@@ -383,6 +394,11 @@ def test_roundtrip_reference_model(ref_model):
     cap2 = {g['name']: g['capital_cost'] for g in spec2['generators'] if g['carrier'] != 'unmet_demand'}
     for name, v in cap1.items():
         assert cap2[name] == pytest.approx(v, rel=1e-4), name
+    for kind in ('stores', 'links'):
+        c1 = {c['name']: c['capital_cost'] for c in spec1[kind]}
+        c2 = {c['name']: c['capital_cost'] for c in spec2[kind]}
+        for name, v in c1.items():
+            assert c2[name] == pytest.approx(v, rel=1e-4), name
 
     # loss documented
     assert any('annual-cost equivalents' in r for r in report)
@@ -439,3 +455,94 @@ def test_build_network_reference_model(ref_spec):
     assert bool(n.generators.loc['north::solar_pv', 'p_nom_extendable'])
     # consistency check must not raise
     n.consistency_check()
+
+
+# ---------------------------------------------------------------------------
+# Cost parity with calliope 0.6
+# ---------------------------------------------------------------------------
+
+def test_om_prod_becomes_marginal_cost(ref_model):
+    m = ref_model
+    solar = next(x for x in m['technologies'] if x['name'] == 'solar_pv')
+    solar['costs']['monetary']['om_prod'] = 0.05
+    link = next(x for x in m['technologies'] if x['name'] == 'grid_link')
+    link['costs']['monetary']['om_prod'] = 0.002
+    spec, _ = t.translate_model(m)
+    gen = next(g for g in spec['generators'] if g['name'] == 'north::solar_pv')
+    assert gen['marginal_cost'] == pytest.approx(0.05)
+    fwd = next(l for l in spec['links'] if l['name'] == 'north::grid_link:south')
+    assert fwd['marginal_cost'] == pytest.approx(0.002 * 0.97)
+
+
+def test_storage_power_cost_on_output_side_and_tied(ref_model):
+    batt = next(x for x in ref_model['technologies'] if x['name'] == 'battery')
+    batt['costs']['monetary']['om_annual'] = 2
+    spec, _ = t.translate_model(ref_model)
+    annuity = 0.05 / (1 - 1.05 ** -15)
+    yf = 168 / 8760
+    store = next(s for s in spec['stores'] if s['name'] == 'north::battery')
+    dis = next(l for l in spec['links'] if l['name'] == 'north::battery::discharge')
+    ch = next(l for l in spec['links'] if l['name'] == 'north::battery::charge')
+    assert store['capital_cost'] == pytest.approx(300 * annuity * yf)
+    assert dis['capital_cost'] == pytest.approx((100 * annuity + 2) * yf * 0.95)
+    assert dis['p_nom_max'] == pytest.approx(1000 / 0.95)
+    assert ch['capital_cost'] == 0.0 and ch['p_nom_max'] == 1000
+    assert {'a': ch['name'], 'b': dis['name'], 'ratio': 0.95} in spec['link_ties']
+    assert store['e_cyclic'] is True
+
+
+# ---------------------------------------------------------------------------
+# energy_cap_equals / energy_cap_min (Calliope 0.6 fixed / floor capacity)
+# ---------------------------------------------------------------------------
+
+def test_energy_cap_equals_fixes_generator_and_storage(ref_model):
+    north = next(l for l in ref_model['locations'] if l['name'] == 'north')
+    north['techs']['solar_pv'] = {'constraints': {'energy_cap_equals': 349.5}}
+    north['techs']['battery'] = {'constraints': {'energy_cap_equals': 15.0,
+                                                 'storage_cap_equals': 60.0}}
+    spec, _ = t.translate_model(ref_model)
+    gen = next(g for g in spec['generators'] if g['name'] == 'north::solar_pv')
+    assert gen['p_nom_min'] == 349.5 and gen['p_nom_max'] == 349.5
+    dis = next(l for l in spec['links'] if l['name'] == 'north::battery::discharge')
+    ch = next(l for l in spec['links'] if l['name'] == 'north::battery::charge')
+    assert dis['p_nom_min'] == pytest.approx(15.0 / 0.95)
+    assert dis['p_nom_max'] == pytest.approx(15.0 / 0.95)
+    assert ch['p_nom_min'] == 15.0 and ch['p_nom_max'] == 15.0
+    store = next(s for s in spec['stores'] if s['name'] == 'north::battery')
+    assert store['e_nom_min'] == 60.0 and store['e_nom_max'] == 60.0
+
+
+def test_energy_cap_min_sets_floor_only(ref_model):
+    north = next(l for l in ref_model['locations'] if l['name'] == 'north')
+    north['techs']['solar_pv'] = {'constraints': {'energy_cap_min': 100}}
+    spec, _ = t.translate_model(ref_model)
+    gen = next(g for g in spec['generators'] if g['name'] == 'north::solar_pv')
+    assert gen['p_nom_min'] == 100 and gen['p_nom_max'] == 2000
+
+
+def test_transmission_energy_cap_equals(ref_model):
+    link = next(x for x in ref_model['technologies'] if x['name'] == 'grid_link')
+    link['constraints']['energy_cap_equals'] = 500
+    spec, _ = t.translate_model(ref_model)
+    fwd = next(l for l in spec['links'] if l['name'] == 'north::grid_link:south')
+    assert fwd['p_nom_min'] == 500 and fwd['p_nom_max'] == 500
+
+
+@needs_pypsa
+def test_build_network_passes_min_bounds(ref_model):
+    north = next(l for l in ref_model['locations'] if l['name'] == 'north')
+    north['techs']['solar_pv'] = {'constraints': {'energy_cap_min': 100}}
+    north['techs']['battery'] = {'constraints': {'storage_cap_min': 40}}
+    spec, _ = t.translate_model(ref_model)
+    n = t.build_network(spec)
+    assert n.generators.loc['north::solar_pv', 'p_nom_min'] == 100
+    assert n.stores.loc['north::battery', 'e_nom_min'] == 40
+
+
+def test_per_link_capacity_key_and_link_config(ref_model):
+    ref_model['links'][0].update({'capacity': 400, 'capacityKey': 'energy_cap_equals',
+                                  'linkConfig': {'constraints': {'energy_eff': 0.9}}})
+    spec, _ = t.translate_model(ref_model)
+    for name in ('north::grid_link:south', 'south::grid_link:north'):
+        l = next(x for x in spec['links'] if x['name'] == name)
+        assert l['p_nom_min'] == 400 and l['p_nom_max'] == 400 and l['efficiency'] == 0.9

@@ -22,6 +22,16 @@ const BASE_TECH = mapping.base_tech;           // 0.6 parent → {base_tech, ext
 const MODE_MAP = mapping.mode_map;             // 0.6 plan → 0.7 base
 // 0.7-native params with no 0.6 equivalent — kept verbatim across the round-trip.
 const PASSTHROUGH_07 = new Set((mapping.passthrough_07?.params) || []);
+// Extra 0.7 targets per 0.6 parent (e.g. storage energy_eff → flow_in_eff too).
+const PARENT_EXTRA_PARAMS = Object.fromEntries(
+  Object.entries(mapping.parent_extra_params || {}).filter(([k]) => !k.startsWith('_')),
+);
+// Conversion techs: capacity/cost params indexed on the output carrier.
+const CARRIER_INDEXED = mapping.carrier_indexed_params || {};
+// 0.6 params whose values are renamed as well (e.g. resource_unit → source_unit).
+const VALUE_PARAMS = Object.fromEntries(
+  Object.entries(mapping.value_params || {}).filter(([k]) => !k.startsWith('_')),
+);
 
 // 0.6 keys that are deprecated aliases — excluded when building the
 // 0.7 → 0.6 inverse so the canonical name wins.
@@ -365,6 +375,11 @@ function techToInternal(id, tech07, log) {
   }
   const { constraints, costs, rawCosts07, fileRefs } = paramsToInternal(params, log, id);
   for (const [param, ref] of Object.entries(fileRefs)) constraints[param] = ref;
+  // Internal storage energy_eff also drives flow_in_eff on export; pin the
+  // 0.7 default so a native charge efficiency of 1 survives the round-trip.
+  if (base === 'storage' && 'energy_eff' in constraints && !('flow_in_eff' in constraints)) {
+    constraints.flow_in_eff = 1;
+  }
 
   return {
     name: id,
@@ -448,6 +463,11 @@ export function from07ToInternal(doc, filesMap, papa) {
       if (tcfg && typeof tcfg === 'object') {
         const { constraints, costs, rawCosts07, fileRefs } = paramsToInternal(tcfg, log, `${name}.${tid}`);
         for (const [param, ref] of Object.entries(fileRefs)) constraints[param] = ref;
+        // Same storage guard as techToInternal: inherit the tech's effective flow_in_eff.
+        const techDef = technologies.find(t => t.name === tid);
+        if (techDef?.parent === 'storage' && 'energy_eff' in constraints && !('flow_in_eff' in constraints)) {
+          constraints.flow_in_eff = techDef.constraints.flow_in_eff ?? 1;
+        }
         const costObj = buildCosts(costs, rawCosts07);
         techs[tid] = Object.keys(constraints).length || Object.keys(costObj).length
           ? { constraints, ...(Object.keys(costObj).length ? { costs: costObj } : {}) }
@@ -723,8 +743,32 @@ function toNumberOrInf(val) {
   return val;
 }
 
+/** 0.6 output carrier energy_cap refers to (mirrors Python output_carrier). */
+function outputCarrier(tech) {
+  const ess = tech.essentials || {};
+  for (let val of [ess.primary_carrier_out, ess.carrier_out, ess.carrier]) {
+    if (Array.isArray(val)) val = val[0];
+    if (val) return val;
+  }
+  return null;
+}
+
+/** Conversion parents: re-index `keys` of `out` on the output carrier. */
+function indexOnCarrier(out, keys, parent, carrier, log, ctx, wrap) {
+  if (!(CARRIER_INDEXED.parents || []).includes(parent)) return;
+  const present = (keys || []).filter(k => k in out
+    && (out[k] === null || typeof out[k] !== 'object'
+      || (out[k].dims === 'costs' && typeof out[k].index === 'string')));
+  if (!present.length) return;
+  if (!carrier) {
+    log.push(`⚠ ${ctx}: no output carrier resolvable, ${present.join(', ')} left unindexed (applies to all carriers on 0.7)`);
+    return;
+  }
+  for (const k of present) out[k] = wrap(out[k], carrier);
+}
+
 /** Internal constraints dict → flat 0.7 params (mirrors the Python translate). */
-function constraintsTo07(constraints, parent, log, ctx) {
+function constraintsTo07(constraints, parent, log, ctx, carrier = null) {
   const out = {};
   const c = { ...(constraints || {}) };
   const force = !!c.force_resource;
@@ -755,16 +799,26 @@ function constraintsTo07(constraints, parent, log, ctx) {
       for (const target of EQUALS_PARAMS[key]) out[target] = val;
     } else if (key in TECH_PARAMS) {
       out[TECH_PARAMS[key]] = val;
+      for (const extra of PARENT_EXTRA_PARAMS[parent]?.[key] || []) {
+        if (!(extra in c)) out[extra] = val;   // explicit 0.7-native value wins
+      }
+    } else if (key in VALUE_PARAMS) {
+      const spec = VALUE_PARAMS[key];
+      const role = (parent === 'demand' || parent === 'unmet_demand') ? 'demand' : 'supply';
+      if (val in spec.values) out[spec.to[role]] = spec.values[val];
+      else log.push(`⚠ ${ctx}: unsupported ${key} value '${val}' — dropped`);
     } else if (PASSTHROUGH_07.has(key)) {
       out[key] = val;   // 0.7-native param stored verbatim on import
     } else {
       log.push(`⚠ ${ctx}: parameter '${key}' has no Calliope 0.7 equivalent — dropped`);
     }
   }
+  indexOnCarrier(out, CARRIER_INDEXED.params, parent, carrier, log, ctx,
+    (v, c) => ({ data: v, index: c, dims: 'carriers' }));
   return out;
 }
 
-function costsTo07(costs, log, ctx) {
+function costsTo07(costs, log, ctx, parent = '', carrier = null) {
   const out = {};
   for (const [costClass, vals] of Object.entries(costs || {})) {
     if (costClass === '__raw07__') {
@@ -782,6 +836,8 @@ function costsTo07(costs, log, ctx) {
       else log.push(`⚠ ${ctx}: cost '${key}' has no Calliope 0.7 equivalent — dropped`);
     }
   }
+  indexOnCarrier(out, CARRIER_INDEXED.costs, parent, carrier, log, ctx,
+    (v, c) => ({ data: v.data, index: [[v.index, c]], dims: ['costs', 'carriers'] }));
   return out;
 }
 
@@ -834,12 +890,13 @@ export function internalTo07Yaml(model, timeSeriesList) {
       out.carrier_out = cOut || 'electricity';
     }
 
-    const translated = constraintsTo07(tech.constraints, parent, log, id);
+    const oc = outputCarrier(tech);
+    const translated = constraintsTo07(tech.constraints, parent, log, id, oc);
     if (translated.__resource_file__) {
       // file refs are re-expressed as data tables below via timeSeries entries
       delete translated.__resource_file__;
     }
-    Object.assign(out, translated, costsTo07(tech.costs, log, id));
+    Object.assign(out, translated, costsTo07(tech.costs, log, id, parent, oc));
 
     if (baseMap.base_tech === 'transmission') transmissionDefs[id] = out;
     else techs07[id] = out;
@@ -896,7 +953,7 @@ export function internalTo07Yaml(model, timeSeriesList) {
       if (parent === 'transmission') continue; // links carry these in 0.7
       if (tcfg && typeof tcfg === 'object') {
         const per = tcfg.constraints || tcfg;
-        const translated = constraintsTo07(per, parent, log, `${nodeId}.${tid}`);
+        const translated = constraintsTo07(per, parent, log, `${nodeId}.${tid}`, outputCarrier(techDef));
         delete translated.__resource_file__;
         techsAtNode[techId(techDef)] = Object.keys(translated).length ? translated : null;
       } else {

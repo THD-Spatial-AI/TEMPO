@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 from pathlib import Path
 
 _MAPPING = json.loads(
@@ -28,6 +29,14 @@ COST_PARAMS = _MAPPING["cost_params"]
 BASE_TECH = _MAPPING["base_tech"]
 RESULT_VARS = _MAPPING["result_vars"]
 DROPPED_PARAMS = set(_MAPPING["dropped_params"])
+# Extra 0.7 targets per 0.6 parent (e.g. storage energy_eff → flow_in_eff too)
+PARENT_EXTRA_PARAMS = {k: v for k, v in (_MAPPING.get("parent_extra_params") or {}).items()
+                       if not k.startswith('_')}
+# Conversion techs: capacity/cost params indexed on the output carrier
+CARRIER_INDEXED = _MAPPING.get("carrier_indexed_params") or {}
+# 0.6 params whose values are renamed as well (e.g. resource_unit → source_unit)
+VALUE_PARAMS = {k: v for k, v in (_MAPPING.get("value_params") or {}).items()
+                if not k.startswith('_')}
 MODE_MAP = _MAPPING["mode_map"]
 # 0.7-native params with no 0.6 equivalent — re-emitted verbatim.
 PASSTHROUGH_07 = set((_MAPPING.get("passthrough_07") or {}).get("params") or [])
@@ -90,8 +99,39 @@ def _is_file_ref(val) -> bool:
     return isinstance(val, str) and val.startswith('file=')
 
 
+def output_carrier(tech: dict):
+    """The 0.6 output carrier that energy_cap refers to: primary_carrier_out,
+    else carrier_out (first entry if a list), else carrier. None if unset."""
+    ess = tech.get('essentials') or {}
+    for val in (ess.get('primary_carrier_out'), ess.get('carrier_out'), ess.get('carrier')):
+        if isinstance(val, (list, tuple)):
+            val = val[0] if val else None
+        if val:
+            return val
+    return None
+
+
+def _index_on_carrier(out: dict, keys: list, parent: str, carrier, warnings: list,
+                      tech_name: str, wrap) -> None:
+    """Conversion parents: re-index `keys` in `out` on the output carrier.
+    Values already carrier-indexed (e.g. verbatim 0.7 costs) are left alone."""
+    if parent not in (CARRIER_INDEXED.get('parents') or []):
+        return
+    present = [k for k in keys if k in out
+               and (not isinstance(out[k], dict)
+                    or (out[k].get('dims') == 'costs' and isinstance(out[k].get('index'), str)))]
+    if not present:
+        return
+    if not carrier:
+        warnings.append(f"{tech_name}: no output carrier resolvable, "
+                        f"{', '.join(present)} left unindexed (applies to all carriers on 0.7)")
+        return
+    for k in present:
+        out[k] = wrap(out[k], carrier)
+
+
 def translate_constraints(constraints: dict, parent: str, warnings: list,
-                          tech_name: str = '') -> dict:
+                          tech_name: str = '', carrier=None) -> dict:
     """Apply the rename/expansion tables to a 0.6 constraints dict.
 
     Returns flat 0.7 params. `file=` resource references are passed through
@@ -127,16 +167,29 @@ def translate_constraints(constraints: dict, parent: str, warnings: list,
                 out[target] = val
         elif key in TECH_PARAMS:
             out[TECH_PARAMS[key]] = val
+            for extra in PARENT_EXTRA_PARAMS.get(parent, {}).get(key, []):
+                if extra not in constraints:   # explicit 0.7-native value wins
+                    out[extra] = val
+        elif key in VALUE_PARAMS:
+            spec = VALUE_PARAMS[key]
+            role = 'demand' if parent in ('demand', 'unmet_demand') else 'supply'
+            if val in spec['values']:
+                out[spec['to'][role]] = spec['values'][val]
+            else:
+                warnings.append(f"{tech_name}: unsupported {key} value {val!r} — dropped")
         elif key in PASSTHROUGH_07:
             out[key] = val   # 0.7-native param kept verbatim on import
         elif key in DROPPED_PARAMS:
             warnings.append(f"{tech_name}: parameter '{key}' has no Calliope 0.7 equivalent — dropped")
         else:
             warnings.append(f"{tech_name}: unknown 0.6 parameter '{key}' — dropped")
+    _index_on_carrier(out, CARRIER_INDEXED.get('params') or [], parent, carrier, warnings,
+                      tech_name, lambda v, c: {'data': v, 'index': c, 'dims': 'carriers'})
     return out
 
 
-def translate_costs(costs: dict, warnings: list, tech_name: str = '') -> dict:
+def translate_costs(costs: dict, warnings: list, tech_name: str = '',
+                    parent: str = '', carrier=None) -> dict:
     """0.6 costs.monetary.X → 0.7 cost_X indexed over the costs dimension.
     Non-monetary cost classes (e.g. spores_score, emissions) are not
     translated — SPORES is gated on the 0.7 engine."""
@@ -161,6 +214,9 @@ def translate_costs(costs: dict, warnings: list, tech_name: str = '') -> dict:
                 warnings.append(f"{tech_name}: cost '{key}' has no Calliope 0.7 equivalent — dropped")
             else:
                 warnings.append(f"{tech_name}: unknown 0.6 cost parameter '{key}' — dropped")
+    _index_on_carrier(out, CARRIER_INDEXED.get('costs') or [], parent, carrier, warnings,
+                      tech_name, lambda v, c: {'data': v['data'], 'index': [[v['index'], c]],
+                                               'dims': ['costs', 'carriers']})
     return out
 
 
@@ -208,8 +264,9 @@ def translate_tech(tech: dict, warnings: list) -> dict | None:
     else:  # supply
         out['carrier_out'] = carrier_out or 'electricity'
 
-    out.update(translate_constraints(tech.get('constraints'), parent, warnings, tid))
-    out.update(translate_costs(tech.get('costs'), warnings, tid))
+    oc = output_carrier(tech)
+    out.update(translate_constraints(tech.get('constraints'), parent, warnings, tid, oc))
+    out.update(translate_costs(tech.get('costs'), warnings, tid, parent, oc))
     return out
 
 
@@ -251,6 +308,7 @@ def build_nodes_07(locations: list, location_tech_assignments: dict,
     normalisation, hub-label skipping, assignment fallbacks."""
     tech_ref_map = {}
     parent_by_tid = {}
+    carrier_by_tid = {}
     for tech in technologies or []:
         tid = tech_id(tech)
         tech_ref_map[tid] = tid
@@ -258,6 +316,7 @@ def build_nodes_07(locations: list, location_tech_assignments: dict,
         tech_ref_map[tech.get('name', tid)] = tid
         ess = tech.get('essentials') or {}
         parent_by_tid[tid] = ess.get('parent') or tech.get('parent') or 'supply'
+        carrier_by_tid[tid] = output_carrier(tech)
 
     # Calliope 0.7 requires node coordinates to be all-or-nothing: every node
     # must define latitude+longitude, or none may. Emitting them for only some
@@ -309,7 +368,8 @@ def build_nodes_07(locations: list, location_tech_assignments: dict,
                     parent = parent_by_tid.get(tkey, 'supply')
                     per_constraints = per_loc.get('constraints') if 'constraints' in per_loc else per_loc
                     resolved[tkey] = translate_constraints(
-                        per_constraints, parent, warnings, f"{loc_id}.{tkey}") or None
+                        per_constraints, parent, warnings, f"{loc_id}.{tkey}",
+                        carrier_by_tid.get(tkey)) or None
                 else:
                     resolved[tkey] = None
             elif normalized in HUB_LABELS:
@@ -411,7 +471,7 @@ def _expand_dots(d: dict) -> dict:
 
 
 def translate_override_07(override: dict, parent_by_tid: dict, warnings: list,
-                          override_name: str = '') -> dict:
+                          override_name: str = '', carrier_by_tid: dict | None = None) -> dict:
     """Translate one 0.6-format override document into 0.7 vocabulary.
 
     Handles the common override shapes: techs.* (essentials/constraints/
@@ -419,6 +479,7 @@ def translate_override_07(override: dict, parent_by_tid: dict, warnings: list,
     Anything without a 0.7 equivalent is dropped with a warning.
     """
     src = _expand_dots(override)
+    carrier_by_tid = carrier_by_tid or {}
     out: dict = {}
     label = f"override '{override_name}'" if override_name else 'override'
 
@@ -437,8 +498,10 @@ def translate_override_07(override: dict, parent_by_tid: dict, warnings: list,
                 warnings.append(f"{label}: changing tech class of '{tid}' is not supported on 0.7 — dropped")
             else:
                 warnings.append(f"{label}: essentials.{k} on '{tid}' dropped")
-        tgt.update(translate_constraints(tdef.get('constraints'), parent, warnings, f"{label}:{tid}"))
-        tgt.update(translate_costs(tdef.get('costs'), warnings, f"{label}:{tid}"))
+        oc = carrier_by_tid.get(tid)
+        tgt.update(translate_constraints(tdef.get('constraints'), parent, warnings,
+                                         f"{label}:{tid}", oc))
+        tgt.update(translate_costs(tdef.get('costs'), warnings, f"{label}:{tid}", parent, oc))
         for k in tdef:
             if k not in ('essentials', 'constraints', 'costs'):
                 warnings.append(f"{label}: techs.{tid}.{k} dropped")
@@ -463,7 +526,8 @@ def translate_override_07(override: dict, parent_by_tid: dict, warnings: list,
             parent = parent_by_tid.get(tid, 'supply')
             per = tdef.get('constraints') if isinstance(tdef, dict) and 'constraints' in tdef else tdef
             translated = translate_constraints(per if isinstance(per, dict) else {},
-                                               parent, warnings, f"{label}:{ctx_id}.{tid}")
+                                               parent, warnings, f"{label}:{ctx_id}.{tid}",
+                                               carrier_by_tid.get(tid))
             node_tgt.setdefault('techs', {})[tid] = translated or None
         if 'exists' in ldef:
             node_tgt['active'] = bool(ldef['exists'])
@@ -539,3 +603,16 @@ def normalize_solver_07(solver: str) -> str:
     # Everything else → highs: covers 'highs', 'appsi_highs', 'highs_direct',
     # 'gurobi', 'gurobi_direct', 'cplex', '', None, …
     return 'highs'
+
+
+def resolve_solver_07(requested: str, which=None) -> tuple[str, str | None]:
+    """Normalised solver plus an optional log note.
+
+    'highs' on the 0.7 engine is solved through an LP file and the `highs`
+    command-line binary (see calliope07_runner._install_highs_lp_patch). TEMPO
+    only bundles CBC, so without that binary on PATH fall back to CBC."""
+    which = which or shutil.which
+    solver = normalize_solver_07(requested)
+    if solver == 'highs' and not which('highs'):
+        return 'cbc', "HiGHS command-line binary not found — using bundled CBC for Calliope 0.7"
+    return solver, None

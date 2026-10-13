@@ -38,6 +38,7 @@ _OSEMOSYS_TXT = os.path.join(_this_dir, "osemosys", "osemosys.txt")
 _SOLVERS_DIR = os.path.join(os.path.dirname(_this_dir), "solvers")
 
 _thread_local = threading.local()
+_MAX_STORAGE_PASSES = 3
 
 
 def log(msg: str) -> None:
@@ -88,8 +89,13 @@ def _write_datafile(csv_dir: str, results_dir: str, discount_rate: float = 0.05)
 
     lines: list[str] = ["data;", ""]
 
-    # ResultsPath — forward slashes required on all platforms
-    rp = results_dir.replace("\\", "/")
+    # ResultsPath — forward slashes required on all platforms. Relative to the
+    # datafile directory (glpsol runs there): MathProg string literals are
+    # limited to ~100 characters, which long absolute temp paths exceed.
+    try:
+        rp = os.path.relpath(results_dir, csv_dir).replace("\\", "/")
+    except ValueError:  # different drive on Windows
+        rp = results_dir.replace("\\", "/")
     lines.append(f'param ResultsPath := "{rp}" ;')
     lines.append("")
 
@@ -108,9 +114,10 @@ def _write_datafile(csv_dir: str, results_dir: str, discount_rate: float = 0.05)
         rows = _read(fname)
         vals = " ".join(r["VALUE"] for r in rows)
         lines.append(f"set {set_name} := {vals} ;")
-    # Additional sets required by OSeMOSYS 2017 (empty — not used in single-period model)
+    # Additional sets required by OSeMOSYS 2017 (written only in parity mode; empty otherwise)
     for extra in ("SEASON", "DAYTYPE", "DAILYTIMEBRACKET"):
-        lines.append(f"set {extra} :=  ;")
+        rows = _read(f"{extra}.csv")
+        lines.append(f"set {extra} := {' '.join(r['VALUE'] for r in rows)} ;")
     lines.append("")
 
     # ── Required scalar params ────────────────────────────────────────────────
@@ -149,16 +156,35 @@ def _write_datafile(csv_dir: str, results_dir: str, discount_rate: float = 0.05)
         # Capacity constraints
         ("TotalAnnualMaxCapacity.csv",           "TotalAnnualMaxCapacity",           ["REGION", "TECHNOLOGY", "YEAR"]),
         ("TotalAnnualMaxCapacityInvestment.csv", "TotalAnnualMaxCapacityInvestment", ["REGION", "TECHNOLOGY", "YEAR"]),
+        ("TotalAnnualMinCapacity.csv",           "TotalAnnualMinCapacity",           ["REGION", "TECHNOLOGY", "YEAR"]),
         # Demand
         ("SpecifiedAnnualDemand.csv",      "SpecifiedAnnualDemand",     ["REGION", "FUEL", "YEAR"]),
         ("SpecifiedDemandProfile.csv",     "SpecifiedDemandProfile",    ["REGION", "FUEL", "TIMESLICE", "YEAR"]),
         ("YearSplit.csv",                  "YearSplit",                 ["TIMESLICE", "YEAR"]),
+        # Time structure + storage (written only in parity mode; skipped when absent)
+        ("Conversionls.csv",              "Conversionls",              ["TIMESLICE", "SEASON"]),
+        ("Conversionld.csv",              "Conversionld",              ["TIMESLICE", "DAYTYPE"]),
+        ("Conversionlh.csv",              "Conversionlh",              ["TIMESLICE", "DAILYTIMEBRACKET"]),
+        ("DaySplit.csv",                  "DaySplit",                  ["DAILYTIMEBRACKET", "YEAR"]),
+        ("DaysInDayType.csv",             "DaysInDayType",             ["SEASON", "DAYTYPE", "YEAR"]),
+        ("TechnologyToStorage.csv",       "TechnologyToStorage",       ["REGION", "TECHNOLOGY", "STORAGE", "MODE_OF_OPERATION"]),
+        ("TechnologyFromStorage.csv",     "TechnologyFromStorage",     ["REGION", "TECHNOLOGY", "STORAGE", "MODE_OF_OPERATION"]),
+        ("StorageLevelStart.csv",         "StorageLevelStart",         ["REGION", "STORAGE"]),
+        ("StorageMaxChargeRate.csv",      "StorageMaxChargeRate",      ["REGION", "STORAGE"]),
+        ("StorageMaxDischargeRate.csv",   "StorageMaxDischargeRate",   ["REGION", "STORAGE"]),
+        ("OperationalLifeStorage.csv",    "OperationalLifeStorage",    ["REGION", "STORAGE"]),
+        ("DiscountRateStorage.csv",       "DiscountRateStorage",       ["REGION", "STORAGE"]),
+        ("CapitalCostStorage.csv",        "CapitalCostStorage",        ["REGION", "STORAGE", "YEAR"]),
+        ("MinStorageCharge.csv",          "MinStorageCharge",          ["REGION", "STORAGE", "YEAR"]),
+        ("ResidualStorageCapacity.csv",   "ResidualStorageCapacity",   ["REGION", "STORAGE", "YEAR"]),
     ]
 
+    written: set[str] = set()
     for fname, param_name, idx_cols in param_defs:
         rows = _read(fname)
         if not rows:
             continue
+        written.add(param_name)
         lines.append(f"param {param_name} default 0 :=")
         for row in rows:
             idx = ",".join(row[c] for c in idx_cols)
@@ -189,6 +215,8 @@ def _write_datafile(csv_dir: str, results_dir: str, discount_rate: float = 0.05)
         ("REMinProductionTarget",                        0),
     ]
     for pname, dval in _optional_defaults:
+        if pname in written:
+            continue
         lines.append(f"param {pname} default {dval} := ;")
     lines.append("")
 
@@ -202,9 +230,11 @@ def _write_datafile(csv_dir: str, results_dir: str, discount_rate: float = 0.05)
 # ─── Run glpsol ──────────────────────────────────────────────────────────────
 
 def _run_glpsol(glpsol: str, osemosys_txt: str, dat_path: str,
-                output_path: str, log_fn) -> None:
+                output_path: str, log_fn, presolve: bool = True) -> None:
     """Run glpsol; stream stdout/stderr to log_fn line by line."""
     cmd = [glpsol, "--math", osemosys_txt, "--data", dat_path, "-o", output_path]
+    if not presolve:
+        cmd.append("--nopresol")
     # Ensure glpsol DLL (Windows) is found beside the binary
     env = os.environ.copy()
     glpsol_dir = os.path.dirname(glpsol)
@@ -216,6 +246,7 @@ def _run_glpsol(glpsol: str, osemosys_txt: str, dat_path: str,
     proc = subprocess.Popen(
         cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         text=True, encoding="utf-8", errors="replace", env=env,
+        cwd=os.path.dirname(os.path.abspath(dat_path)),  # ResultsPath is relative to it
     )
     for line in proc.stdout:
         line = line.rstrip()
@@ -252,10 +283,55 @@ def _parse_glpsol_output(output_path: str) -> tuple[str, float | None]:
     return termination, objective
 
 
+# ─── Storage day start (parity mode) ─────────────────────────────────────────
+
+def _min_level_hour(net_by_bracket: list, start_hour: int) -> int:
+    """Clock hour at which the storage level is minimal within the representative day.
+
+    net_by_bracket[i] is the net charge during daily bracket i+1 (1-hour brackets),
+    the day opening at clock hour start_hour. Level before bracket i+1 =
+    sum(net[:i]). Among minimal-level hours, pick the one where the empty spell
+    ends (storage starts charging next); the start hour if storage is unused."""
+    levels, acc = [], 0.0
+    for v in net_by_bracket:
+        levels.append(acc)
+        acc += v
+    lo = min(levels)
+    tol = 1e-9 * max(abs(x) for x in levels + [acc]) + 1e-15
+    nxt = levels[1:] + [acc]
+    ends = [i for i, x in enumerate(levels) if x <= lo + tol and nxt[i] > lo + tol]
+    return (start_hour + ends[-1]) % 24 if ends else start_hour
+
+
+def _storage_net_by_bracket(csv_dir: str, results_dir: str) -> list:
+    """Net charge into all storages per daily bracket (storage units, summed
+    over storages and seasons), from RateOfActivity × TechnologyTo/FromStorage —
+    the same terms as OSeMOSYS S1/S2."""
+    ratio: dict = {}
+    for name, sign in (("TechnologyToStorage.csv", 1.0), ("TechnologyFromStorage.csv", -1.0)):
+        for r in _read_csv(os.path.join(csv_dir, name)):
+            key = (r["TECHNOLOGY"], r["MODE_OF_OPERATION"])
+            ratio[key] = ratio.get(key, 0.0) + sign * float(r["VALUE"])
+    bracket = {r["TIMESLICE"]: int(r["DAILYTIMEBRACKET"])
+               for r in _read_csv(os.path.join(csv_dir, "Conversionlh.csv")) if r["VALUE"] == "1"}
+    ys = {r["TIMESLICE"]: float(r["VALUE"]) for r in _read_csv(os.path.join(csv_dir, "YearSplit.csv"))}
+    net = [0.0] * (max(bracket.values()) if bracket else 24)
+    for r in _read_csv(os.path.join(results_dir, "RateOfActivity.csv")):
+        f = ratio.get((r["TECHNOLOGY"], r["MODE_OF_OPERATION"]))
+        if f and r["TIMESLICE"] in bracket:
+            net[bracket[r["TIMESLICE"]] - 1] += float(r["VALUE"]) * f * ys.get(r["TIMESLICE"], 0.0)
+    return net
+
+
 # ─── Result extraction ────────────────────────────────────────────────────────
 
-def _reverse_tech_map(model_data: dict) -> dict:
-    """Build {osem_tech_id: (loc_name, tid, parent)} from model_data."""
+def _reverse_tech_map(model_data: dict, parity: bool = False) -> dict:
+    """Build {osem_tech_id: (loc_name, tid, parent)} from model_data.
+
+    In parity mode storage is one tech "{LOC}_{TID}" → (loc, tid, "storage") and
+    each link is one two-mode tech "TX_{FROM}_{TO}_{TID}" →
+    (from_name, tid, "transmission", to_name) (4-tuple for transmission only).
+    """
     technologies = model_data.get("technologies") or []
     locations = model_data.get("locations") or []
     links = model_data.get("links") or []
@@ -280,6 +356,8 @@ def _reverse_tech_map(model_data: dict) -> dict:
             p = translate._parent(tech)
             if p in ("supply", "supply_plus", "conversion", "conversion_plus"):
                 reverse[f"{loc_s}_{tid_s}"] = (loc_name, tid, p)
+            elif p == "storage" and parity:
+                reverse[f"{loc_s}_{tid_s}"] = (loc_name, tid, "storage")
             elif p == "storage":
                 reverse[f"{loc_s}_{tid_s}_CH"] = (loc_name, tid, "storage_charge")
                 reverse[f"{loc_s}_{tid_s}_DC"] = (loc_name, tid, "storage_discharge")
@@ -292,6 +370,9 @@ def _reverse_tech_map(model_data: dict) -> dict:
         from_s = translate._sid(from_name)
         to_s = translate._sid(to_name)
         tid_s = translate._sid(tid)
+        if parity:
+            reverse[f"TX_{from_s}_{to_s}_{tid_s}"] = (from_name, tid, "transmission", to_name)
+            continue
         reverse[f"{from_s}_{to_s}_{tid_s}"] = (from_name, tid, "transmission_fwd")
         reverse[f"{to_s}_{from_s}_{tid_s}"] = (to_name, tid, "transmission_rev")
 
@@ -300,14 +381,24 @@ def _reverse_tech_map(model_data: dict) -> dict:
 
 def _build_contract(results_dir: str, model_data: dict, model_name: str,
                     year: int, scheme: dict, n_hours: int,
-                    termination: str, objective: float | None) -> dict:
-    """Read OSeMOSYS result CSVs and build the frozen TEMPO contract."""
+                    termination: str, objective: float | None,
+                    parity: bool = False, csv_dir: str | None = None) -> dict:
+    """Read OSeMOSYS result CSVs and build the frozen TEMPO contract.
+
+    parity: results come from an annualised single year (translate parity mode);
+    activity, costs and objective are scaled back to the window by
+    wf = n_hours / 8760, and storage/transmission are two-mode techs.
+    csv_dir is needed in parity mode to read CapitalCostStorage.
+    """
     _KWH_TO_PJ = 3.6e-9
+    wf = n_hours / 8760.0 if parity else 1.0
+    slice_hours_base = 8760.0 if parity else n_hours
 
     def _r(name: str) -> list[dict]:
         return _read_csv(os.path.join(results_dir, name))
 
-    reverse = _reverse_tech_map(model_data)
+    reverse = _reverse_tech_map(model_data, parity)
+    ess_map = {t.get("name"): t for t in (model_data.get("technologies") or [])}
 
     # ── capacities ────────────────────────────────────────────────────────────
     capacities: dict = {}
@@ -317,10 +408,16 @@ def _build_contract(results_dir: str, model_data: dict, model_name: str,
         if cap_gw <= 0:
             continue
         if tech in reverse:
-            loc_name, tid, p = reverse[tech]
+            loc_name, tid, p = reverse[tech][:3]
             key = f"{loc_name}::{tid}"
             if p in ("storage_charge",):
                 key = f"{loc_name}::{tid}"  # combine under base tid
+            elif p == "transmission":
+                # Calliope reports the same link capacity at both ends
+                to_name = reverse[tech][3]
+                capacities[f"{loc_name}::{tid}:{to_name}"] = cap_gw * 1e6
+                capacities[f"{to_name}::{tid}:{loc_name}"] = cap_gw * 1e6
+                continue
             elif p.startswith("transmission"):
                 continue  # tx capacity excluded from capacities dict
             if key not in capacities or cap_gw > capacities[key]:
@@ -331,7 +428,9 @@ def _build_contract(results_dir: str, model_data: dict, model_name: str,
     year_split = timeslices.year_split_for_n_hours(n_hours, scheme)
 
     # Aggregate ProductionByTechnology [r, l, t, f, y] → {tech: {slice: PJ}}
+    # (and, for parity two-mode techs, {tech: {fuel: {slice: PJ}}})
     prod_by_slice: dict = {}
+    prod_by_fuel: dict = {}
     for row in _r("ProductionByTechnology.csv"):
         tech = row.get("TECHNOLOGY", "")
         lbl = row.get("TIMESLICE", "")
@@ -340,6 +439,16 @@ def _build_contract(results_dir: str, model_data: dict, model_name: str,
             continue
         prod_by_slice.setdefault(tech, {})
         prod_by_slice[tech][lbl] = prod_by_slice[tech].get(lbl, 0.0) + val_pj
+        by_lbl = prod_by_fuel.setdefault(tech, {}).setdefault(row.get("FUEL", ""), {})
+        by_lbl[lbl] = by_lbl.get(lbl, 0.0) + val_pj
+
+    def _slice_mean_kw(slices_pj: dict) -> dict:
+        """PJ per timeslice → mean kW per timeslice (window hours)."""
+        out = {}
+        for lbl in labels:
+            n_in_slice = year_split.get(lbl, 1.0 / len(labels)) * slice_hours_base
+            out[lbl] = (slices_pj.get(lbl, 0.0) / _KWH_TO_PJ / n_in_slice) if n_in_slice > 0 else 0.0
+        return out
 
     # ── Generation totals ─────────────────────────────────────────────────────
     generation: dict = {}
@@ -349,40 +458,78 @@ def _build_contract(results_dir: str, model_data: dict, model_name: str,
         if val_pj <= 0:
             continue
         if tech in reverse:
-            loc_name, tid, p = reverse[tech]
-            if p.startswith("transmission"):
-                continue
-            ess_map = {t.get("name"): t for t in (model_data.get("technologies") or [])}
+            loc_name, tid, p = reverse[tech][:3]
+            if p.startswith("transmission") or (parity and p == "storage"):
+                continue  # parity two-mode techs: activity mixes both modes → see below
             eff_tech = ess_map.get(tid) or {}
             carrier = translate._carrier_out(eff_tech)
             key = f"{loc_name}::{tid}::{carrier}"
-            generation[key] = generation.get(key, 0.0) + val_pj / _KWH_TO_PJ  # PJ → kWh
+            generation[key] = generation.get(key, 0.0) + val_pj / _KWH_TO_PJ * wf  # PJ → kWh
+
+    if parity:
+        # Storage discharge / delivered transmission flow = production by fuel
+        for tech, by_fuel in prod_by_fuel.items():
+            rec = reverse.get(tech)
+            if not rec or rec[2] not in ("storage", "transmission"):
+                continue
+            loc_name, tid, p = rec[:3]
+            carrier = translate._carrier_out(ess_map.get(tid) or {})
+            for fuel, by_lbl in by_fuel.items():
+                kwh = sum(by_lbl.values()) / _KWH_TO_PJ * wf
+                if p == "storage":
+                    key = f"{loc_name}::{tid}::{carrier}"
+                else:
+                    to_name = rec[3]
+                    if fuel == f"{translate._sid(to_name)}_{translate._sid(carrier)}":
+                        key = f"{to_name}::{tid}:{loc_name}::{carrier}"
+                    else:
+                        key = f"{loc_name}::{tid}:{to_name}::{carrier}"
+                generation[key] = generation.get(key, 0.0) + kwh
 
     # ── Dispatch (hourly) ─────────────────────────────────────────────────────
     dispatch: dict = {}
     for tech, slices_prod in prod_by_slice.items():
         if tech not in reverse:
             continue
-        loc_name, tid, p = reverse[tech]
+        loc_name, tid, p = reverse[tech][:3]
         if p.startswith("transmission") or p == "demand":
             continue
         # Convert PJ per timeslice → mean kW per timeslice
-        slices_mean: dict = {}
-        for lbl in labels:
-            pj = slices_prod.get(lbl, 0.0)
-            n_in_slice = year_split.get(lbl, 1.0 / len(labels)) * n_hours
-            slices_mean[lbl] = (pj / _KWH_TO_PJ / n_in_slice) if n_in_slice > 0 else 0.0
+        slices_mean = _slice_mean_kw(slices_prod)
         hourly = timeslices.broadcast(slices_mean, year_split, scheme, n_hours)
         if max(hourly) > 1e-6:
+            if parity and tid in dispatch:  # same tech at several locations → sum
+                hourly = [a + b for a, b in zip(dispatch[tid], hourly)]
             dispatch[tid] = [round(v, 3) for v in hourly]
 
     # ── Transmission flow ─────────────────────────────────────────────────────
+    transmission_flow: dict = {}
+    if parity:
+        # One two-mode tech per link: net = delivered(to) − delivered(from)
+        for tech, rec in reverse.items():
+            if rec[2] != "transmission" or tech not in prod_by_fuel:
+                continue
+            from_n, tid, _p, to_n = rec
+            carrier_s = translate._sid(translate._carrier_out(ess_map.get(tid) or {}))
+            to_fuel = f"{translate._sid(to_n)}_{carrier_s}"
+            from_fuel = f"{translate._sid(from_n)}_{carrier_s}"
+            m_to = _slice_mean_kw(prod_by_fuel[tech].get(to_fuel, {}))
+            m_from = _slice_mean_kw(prod_by_fuel[tech].get(from_fuel, {}))
+            net = {lbl: m_to[lbl] - m_from[lbl] for lbl in labels}
+            a, b = sorted([from_n, to_n])
+            if (a, b) != (from_n, to_n):
+                net = {lbl: -v for lbl, v in net.items()}
+            hourly_tx = timeslices.broadcast(net, year_split, scheme, n_hours)
+            key = f"{a}::{b}"
+            if key not in transmission_flow:
+                transmission_flow[key] = {"from": a, "to": b, "timeseries": [round(v, 3) for v in hourly_tx]}
+
     # TX techs are conversion pairs; ProductionByTechnology gives delivered at destination
     tx_fwd: dict = {}  # (from, to, tid) → {slice: kW}
     for tech, slices_prod in prod_by_slice.items():
         if tech not in reverse:
             continue
-        loc_name, tid, p = reverse[tech]
+        loc_name, tid, p = reverse[tech][:3]
         if p != "transmission_fwd":
             continue
         # tech = {from}_{to}_{tid} → find 'to' location from the link
@@ -392,16 +539,11 @@ def _build_contract(results_dir: str, model_data: dict, model_name: str,
             lt = _find_link_tech(lnk, model_data)
             lt_tid = (lt.get("name") or lt.get("id") or "TX") if lt else "TX"
             if (translate._sid(from_n) + "_" + translate._sid(to_n) + "_" + translate._sid(lt_tid)) == tech:
-                slices_mean_tx: dict = {}
-                for lbl in labels:
-                    pj = slices_prod.get(lbl, 0.0)
-                    n_in_slice = year_split.get(lbl, 1.0 / len(labels)) * n_hours
-                    slices_mean_tx[lbl] = (pj / _KWH_TO_PJ / n_in_slice) if n_in_slice > 0 else 0.0
+                slices_mean_tx = _slice_mean_kw(slices_prod)
                 hourly_tx = timeslices.broadcast(slices_mean_tx, year_split, scheme, n_hours)
                 tx_fwd[(from_n, to_n, lt_tid)] = [round(v, 3) for v in hourly_tx]
                 break
 
-    transmission_flow: dict = {}
     for (from_n, to_n, tid), hourly_vals in tx_fwd.items():
         key = "::".join(sorted([from_n, to_n]))
         if key not in transmission_flow:
@@ -439,14 +581,23 @@ def _build_contract(results_dir: str, model_data: dict, model_name: str,
             val = float(row.get("VALUE", 0)) * scale
             if val <= 0 or tech not in reverse:
                 continue
-            loc_name, tid, p = reverse[tech]
+            loc_name, tid, p = reverse[tech][:3]
             costs_by_tech[tid] = costs_by_tech.get(tid, 0.0) + val
             costs_by_location.setdefault(loc_name, {})
             costs_by_location[loc_name][tid] = costs_by_location[loc_name].get(tid, 0.0) + val
 
-    _add_cost_row(_r("CapitalInvestment.csv"))
-    _add_cost_row(_r("AnnualFixedOperatingCost.csv"))
-    _add_cost_row(_r("AnnualVariableOperatingCost.csv"))
+    # Parity: results are M€ for the annualised year → € for the window
+    cost_scale = 1e6 * wf if parity else 1.0
+    _add_cost_row(_r("CapitalInvestment.csv"), scale=cost_scale)
+    _add_cost_row(_r("AnnualFixedOperatingCost.csv"), scale=cost_scale)
+    _add_cost_row(_r("AnnualVariableOperatingCost.csv"), scale=cost_scale)
+    if parity and csv_dir:
+        # Storage energy capex (not in CapitalInvestment): NewStorageCapacity × CapitalCostStorage
+        ccs = {r["STORAGE"]: float(r["VALUE"])
+               for r in _read_csv(os.path.join(csv_dir, "CapitalCostStorage.csv"))}
+        _add_cost_row([{"TECHNOLOGY": r.get("STORAGE", "")[:-2],
+                        "VALUE": float(r.get("VALUE", 0)) * ccs.get(r.get("STORAGE", ""), 0.0)}
+                       for r in _r("NewStorageCapacity.csv")], scale=cost_scale)
 
     # ── Tech metadata ─────────────────────────────────────────────────────────
     tech_meta: dict = {}
@@ -480,6 +631,8 @@ def _build_contract(results_dir: str, model_data: dict, model_name: str,
         # Fall back to sum of TotalDiscountedCost.csv
         total_cost = sum(float(r.get("VALUE", 0)) for r in _r("TotalDiscountedCost.csv"))
         objective = total_cost if total_cost > 0 else None
+    if parity and objective is not None:
+        objective = objective * 1e6 * wf  # M€ for the annualised year → € for the window
 
     contract = {
         "model_name": model_name,
@@ -536,56 +689,86 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
     except Exception:
         n_hours = 8760
 
-    scheme_raw = (model_data.get("modelConfig") or {}).get("osemosysScheme") or {}
-    scheme = {
-        "seasons": int(scheme_raw.get("seasons", 4)),
-        "dayBlocks": int(scheme_raw.get("dayBlocks", 3)),
-    }
+    scheme_raw = model_config.get("osemosysScheme")
+    scheme = ({"seasons": int(scheme_raw.get("seasons", 4)), "dayBlocks": int(scheme_raw.get("dayBlocks", 3)),
+               "wholeDays": True}   # clock-hour labels; DaySplit × DaysInDayType == YearSplit
+              if scheme_raw else timeslices.parity_scheme(n_hours))
+    discount_rate = 1e-9   # parity mode: CRF/PvAnnuity/discount factors ≡ 1, salvage 0
 
-    discount_rate = 0.05
-
-    # ── Paths ─────────────────────────────────────────────────────────────────
-    csv_dir = os.path.join(work_dir, "csvs")
-    results_dir = os.path.join(work_dir, "results")
-    os.makedirs(csv_dir, exist_ok=True)
-    os.makedirs(results_dir, exist_ok=True)
-
-    # ── Step 1: Translate ─────────────────────────────────────────────────────
-    log(f"Translating '{model_name}' to OSeMOSYS CSVs…")
-    _csv_dir, report = translate.translate_model(model_data, csv_dir, scheme)
-    for line in report:
-        log(f"  [translate] {line}")
-
-    # ── Step 2: Write GLPK datafile ───────────────────────────────────────────
-    log("Writing GLPK datafile…")
-    dat_path = _write_datafile(csv_dir, results_dir, discount_rate)
-    log(f"  Datafile: {dat_path}")
-
-    # ── Step 3: Solve ─────────────────────────────────────────────────────────
+    # ── Steps 1–4 per pass: translate → datafile → glpsol → parse ─────────────
+    # OSeMOSYS 2017 storage starts every representative day at StorageLevelStart
+    # (= 0), so the storage day must open at the hour where storage is naturally
+    # empty. Pass 1 opens it at 00:00; later passes re-open it at the clock hour
+    # of the minimum level of the previous solution; once the hour is stable,
+    # one hour earlier is checked (max _MAX_STORAGE_PASSES solves). The
+    # lowest-objective pass is kept.
     glpsol = _find_glpsol()
     log(f"Solving with glpsol: {glpsol}")
-    output_path = os.path.join(work_dir, "glpsol_output.txt")
-    _run_glpsol(glpsol, _OSEMOSYS_TXT, dat_path, output_path, log_fn or log)
+    passes: list = []   # (objective, k, termination, report, csv_dir, results_dir)
+    k, tried = 0, set()
+    while True:
+        tried.add(k)
+        pass_dir = os.path.join(work_dir, f"pass{len(passes) + 1}")
+        csv_dir = os.path.join(pass_dir, "csvs")
+        results_dir = os.path.join(pass_dir, "results")
+        os.makedirs(csv_dir, exist_ok=True)
+        os.makedirs(results_dir, exist_ok=True)
 
-    # ── Step 4: Parse termination status ─────────────────────────────────────
-    termination, objective = _parse_glpsol_output(output_path)
-    log(f"Solver finished: {termination}"
-        + (f", objective={objective:.4f}" if objective is not None else ""))
+        log(f"Translating '{model_name}' to OSeMOSYS CSVs (pass {len(passes) + 1}, storage day start {k:02d}:00)…")
+        _csv_dir, report = translate.translate_model(model_data, csv_dir, scheme, parity=True,
+                                                     storage_day_start=k)
+        if not passes:
+            for line in report:
+                log(f"  [translate] {line}")
+        dat_path = _write_datafile(csv_dir, results_dir, discount_rate)
+        output_path = os.path.join(pass_dir, "glpsol_output.txt")
+        # GLPK 4.65's LP presolver can return "optimal" solutions that violate
+        # TotalAnnualMinCapacity at these (kW-in-GW) magnitudes — skip it when set.
+        has_min_cap = bool(_read_csv(os.path.join(csv_dir, "TotalAnnualMinCapacity.csv")))
+        _run_glpsol(glpsol, _OSEMOSYS_TXT, dat_path, output_path, log_fn or log,
+                    presolve=not has_min_cap)
+        termination, objective = _parse_glpsol_output(output_path)
+        log(f"Pass {len(passes) + 1} (storage day start {k:02d}:00): {termination}"
+            + (f", objective={objective:.6f}" if objective is not None else ""))
+        if termination != "optimal":
+            if not passes:
+                return {
+                    "model_name": model_name,
+                    "solver": "glpk",
+                    "success": False,
+                    "termination_condition": termination,
+                    "translation_report": report,
+                }
+            break
+        passes.append((objective if objective is not None else float("inf"), k, termination,
+                       report, csv_dir, results_dir))
 
-    if termination != "optimal":
-        return {
-            "model_name": model_name,
-            "solver": "glpk",
-            "success": False,
-            "termination_condition": termination,
-            "translation_report": report,
-        }
+        has_storage = bool(_read_csv(os.path.join(csv_dir, "STORAGE.csv")))
+        if not has_storage or int(scheme.get("dayBlocks", 3)) != 24 or len(passes) >= _MAX_STORAGE_PASSES:
+            break
+        net = _storage_net_by_bracket(csv_dir, results_dir)
+        if max((abs(v) for v in net), default=0.0) <= 1e-12:
+            break  # storage unused — the start hour cannot matter
+        k_next = _min_level_hour(net, k)
+        if k_next in tried:
+            # Converged. Opening the day at k forbids charging in hour k-1, so a
+            # too-late start confirms itself — check one hour earlier.
+            k_next = (k_next - 1) % 24
+            if k_next in tried:
+                break
+        k = k_next
+
+    objective, k, termination, report, csv_dir, results_dir = min(passes, key=lambda p: p[0])
+    if len(passes) > 1:
+        log(f"Kept pass with storage day start {k:02d}:00 (objective={objective:.6f}).")
+        report = report + [f"Storage day start chosen over {len(passes)} solves: {k:02d}:00 "
+                           f"(tried {', '.join(f'{p[1]:02d}:00' for p in passes)})."]
 
     # ── Step 5: Extract results ───────────────────────────────────────────────
     log("Extracting results…")
     result = _build_contract(
         results_dir, model_data, model_name, year, scheme, n_hours,
-        termination, objective)
+        termination, objective, parity=True, csv_dir=csv_dir)
     result["translation_report"] = report
     log(f"Done. Capacities: {len(result.get('capacities', {}))}, "
         f"dispatch techs: {len(result.get('dispatch', {}))}")

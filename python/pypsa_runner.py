@@ -260,6 +260,25 @@ def _extract_results(n, spec, technologies, model_name, solver, termination):
 # Main entry point (same contract as calliope_runner.run_model)
 # ---------------------------------------------------------------------------
 
+def _tie_links(spec):
+    """extra_functionality enforcing p_nom[a] == ratio * p_nom[b] for spec['link_ties']."""
+    ties = spec.get('link_ties') or []
+
+    def _apply(n, snapshots):
+        if not ties:
+            return
+        p_nom = n.model['Link-p_nom']
+        dim = p_nom.dims[0]
+        ext = set(p_nom.coords[dim].values)
+        for i, tie in enumerate(ties):
+            if tie['a'] in ext and tie['b'] in ext:
+                n.model.add_constraints(
+                    p_nom.sel({dim: tie['a']}) - tie['ratio'] * p_nom.sel({dim: tie['b']}) == 0,
+                    name=f"tempo_link_tie_{i}")
+
+    return _apply
+
+
 def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
     _thread_local.log_fn = log_fn
 
@@ -300,7 +319,7 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
     try:
         log(f"Solving with {solver}…")
         status, condition = 'ok', 'optimal'
-        res = n.optimize(solver_name=solver)
+        res = n.optimize(solver_name=solver, extra_functionality=_tie_links(spec))
         if isinstance(res, tuple) and len(res) == 2:
             status, condition = str(res[0]), str(res[1])
     finally:

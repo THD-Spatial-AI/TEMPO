@@ -89,8 +89,27 @@
     "cost": "cost"
   },
 
+  "parent_extra_params": {
+    "_comment": "Extra 0.7 targets for a 0.6 param, per 0.6 parent, on top of tech_params. 0.6 storage applies energy_eff on charge AND discharge (calliope 0.6.8 balance_storage); 0.7 storage charges with flow_in_eff (default 1). An explicit flow_in_eff in the constraints wins.",
+    "storage": { "energy_eff": ["flow_in_eff"] }
+  },
+
+  "carrier_indexed_params": {
+    "_comment": "0.7 flow_cap is indexed over carriers, so on a conversion tech a carrier-less flow_cap_*/cost_flow_cap/cost_om_annual applies to the input AND output carriers (calliope v0.7.0.dev7 math/base.yaml). 0.6 energy_cap is the output side only, so these are indexed on the output carrier (primary_carrier_out, else carrier_out, first if a list).",
+    "parents": ["conversion", "conversion_plus"],
+    "params": ["flow_cap_max", "flow_cap_min", "flow_cap_max_systemwide", "flow_cap_min_systemwide", "flow_cap_per_unit"],
+    "costs": ["cost_flow_cap", "cost_om_annual"]
+  },
+
+  "value_params": {
+    "_comment": "0.6 params whose VALUES are renamed too. 'to' picks the 0.7 key by resource role (demand/unmet_demand vs everything else, as in resource_params). Verified against calliope v0.7.0.dev7 math/base.yaml (source_unit/sink_unit one_of [absolute, per_area, per_cap]).",
+    "resource_unit": {
+      "to": { "demand": "sink_unit", "supply": "source_unit" },
+      "values": { "energy": "absolute", "energy_per_cap": "per_cap", "energy_per_area": "per_area" }
+    }
+  },
+
   "dropped_params": [
-    "resource_unit",
     "energy_ramping_cost",
     "carrier_ratios",
     "primary_carrier_in",

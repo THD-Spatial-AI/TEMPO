@@ -1,47 +1,57 @@
 """
-Multi-engine verification: run the reference model on any combination of
-Calliope 0.6.8, Calliope 0.7, PyPSA, and OSeMOSYS engines, then compare results.
+Multi-engine verification: run reference models on any combination of
+Calliope 0.6.8, Calliope 0.7, PyPSA, OSeMOSYS, and AdOpT-NET0 engines, then compare
+every engine against the Calliope baseline (0.6.8, else 0.7).
 
 Supersedes verify_dual_engine.py — all original flags still work.
 
 Usage (from repo root):
+    python scripts/verify_engines.py --auto
     python scripts/verify_engines.py \\
         [--python06         <calliope-venv/Scripts/python.exe>]   \\
         [--python07         <calliope07-venv/Scripts/python.exe>] \\
         [--python-pypsa     <pypsa-venv/Scripts/python.exe>]      \\
         [--python-osemosys  <osemosys-venv/Scripts/python.exe>]   \\
         [--python-adoptnet0 <adoptnet0-venv/Scripts/python.exe>]  \\
-        [--payload scripts/reference_model.json]                  \\
+        [--payload scripts/reference_model.json ...]              \\
         [--solver-dir solvers/windows]
 
-At least one --python* flag is required. Any combination of engines can be
-provided; all applicable pairwise comparisons run automatically.
+At least one --python* flag (or --auto) is required. --auto uses every engine venv
+found under %APPDATA%/TEMPO (Windows) or ~/.config/TEMPO (Linux); explicit --python*
+flags take precedence. --payload is repeatable; the default runs both
+scripts/reference_model.json and scripts/reference_model_rich.json. A payload may
+carry a top-level "_verify" object overriding tolerances for that payload, e.g.
+{"_verify": {"osemosys_cap_tol": 10}} (keys are the tolerance option names below
+with underscores).
 
-Tolerances:
-  --obj-tol          (default 0.5%)  Calliope 0.6 vs 0.7 objective
-  --cap-tol          (default 1.0%)  Calliope 0.6 vs 0.7 per-tech capacity
-  --pypsa-obj-tol    (default 2.0%)  PyPSA vs Calliope objective
-  --pypsa-cap-tol    (default 5.0%)  PyPSA vs Calliope per-tech capacity
-  --osemosys-obj-tol (default 30.0%) OSeMOSYS vs Calliope objective
-  --osemosys-cap-tol (default 15.0%) OSeMOSYS vs Calliope per-tech capacity
-
-AdOpT-NET0 note: contract checks only (no pairwise comparison) — its multi-period
-investment formulation produces objectives on a different scale than Calliope/PyPSA.
+Tolerances (each engine vs the Calliope baseline):
+  --obj-tol           (default 0.5%)  Calliope 0.7 objective
+  --cap-tol           (default 1.0%)  Calliope 0.7 per-tech capacity / energy
+  --pypsa-obj-tol     (default 0.5%)  PyPSA objective
+  --pypsa-cap-tol     (default 1.0%)  PyPSA per-tech capacity / energy
+  --osemosys-obj-tol  (default 2.0%)  OSeMOSYS objective
+  --osemosys-cap-tol  (default 5.0%)  OSeMOSYS per-tech capacity / energy
+  --adoptnet0-obj-tol (default 2.0%)  AdOpT-NET0 objective
+  --adoptnet0-cap-tol (default 5.0%)  AdOpT-NET0 per-tech capacity / energy
 
 Checks (per engine):
   * terminates 'optimal'
   * all frozen contract keys present
   * capacities keys use 'loc::tech' format
   * transmission_flow entries have {from, to, timeseries}
+  * objective is a positive number and capacities is non-empty
 
 Cross-engine checks:
   * objective within tolerance
-  * per-tech installed capacity (aggregated, non-transmission) within tolerance
+  * per-tech installed capacity (aggregated) within tolerance
+  * per-tech produced energy (generation, summed over locations/carriers) within
+    the capacity tolerance
+  * transmission and demand techs are excluded from the capacity/energy checks
   * total demand within capacity tolerance
   * dispatch / demand series lengths match snapshot count
   * all CONTRACT_KEYS present on every engine (key-set consistency)
 
-Myopic residual check (opt-in, --check-myopic):
+Myopic residual check (opt-in, --check-myopic; uses only the first payload):
   Runs a 2-step Scenario Studio myopic pathway per engine — solve, then fix the
   solved capacity forward as free `<tech>_existing` residual (vintageResidual) —
   and asserts: step-2 stays optimal, residual objective does not exceed greenfield
@@ -51,8 +61,10 @@ Myopic residual check (opt-in, --check-myopic):
   assignment-mode model to exercise.
 
 OSeMOSYS note: dispatch is broadcast from timeslices (not hourly resolution), so
-timestep counts match Calliope only when both use the same date range. Tolerances
-are wider because the GLPK/OSeMOSYS formulation differs from HiGHS/Calliope.
+timestep counts match Calliope only when both use the same date range. OSeMOSYS runs
+in parity mode (annualised single year, hour-of-day timeslices, OSeMOSYS STORAGE with
+a solved storage-day start hour) -- exact when daily profiles repeat; storage_loss is
+unmapped.
 """
 
 import argparse
@@ -115,6 +127,11 @@ def check_contract(tag, r, failures):
     for k, v in (r.get('transmission_flow') or {}).items():
         if '::' not in k or set(v.keys()) != {'from', 'to', 'timeseries'}:
             failures.append(f"[{tag}] malformed transmission_flow entry: {k}")
+    obj = r.get('objective')
+    if not isinstance(obj, (int, float)) or obj <= 0:
+        failures.append(f"[{tag}] objective missing or non-positive: {obj!r}")
+    if not r.get('capacities'):
+        failures.append(f"[{tag}] capacities empty — result extraction failed")
 
 
 def _cap_by_tech(result, non_tx_techs):
@@ -130,6 +147,21 @@ def _cap_by_tech(result, non_tx_techs):
             base = next((t for t in non_tx_techs if tech_full.startswith(t + '_')), None)
             if base:
                 agg[base] = agg.get(base, 0.0) + (val or 0.0)
+    return agg
+
+
+def _gen_by_tech(result, comparable_techs):
+    """Total produced energy per tech (summed over locations and carriers).
+    Keys look like 'loc::tech::carrier' (transmission 'loc::tech:remote::carrier' is skipped)."""
+    agg = {}
+    for key, val in (result.get('generation') or {}).items():
+        parts = key.split('::')
+        if len(parts) < 2:
+            continue
+        tech = parts[1]
+        if ':' in tech or tech not in comparable_techs:
+            continue
+        agg[tech] = agg.get(tech, 0.0) + (val or 0.0)
     return agg
 
 
@@ -160,6 +192,18 @@ def compare_pair(tag_a, r_a, tag_b, r_b, obj_tol, cap_tol, non_tx_techs, failure
         if d > cap_tol:
             failures.append(
                 f"[{tag_a} vs {tag_b}] capacity '{tech}' differs by {d:.3f}% (> {cap_tol}%)")
+
+    # Per-tech produced energy (catches dispatch/cost-ordering differences)
+    ga, gb = _gen_by_tech(r_a, non_tx_techs), _gen_by_tech(r_b, non_tx_techs)
+    for tech in sorted(set(ga) | set(gb)):
+        va, vb = ga.get(tech, 0.0), gb.get(tech, 0.0)
+        if max(abs(va), abs(vb)) < 1e-3:
+            continue
+        d = pct_diff(va, vb)
+        print(f"energy {tech}:  {tag_a}={va:.1f}  {tag_b}={vb:.1f}  diff={d:.3f}%")
+        if d > cap_tol:
+            failures.append(
+                f"[{tag_a} vs {tag_b}] energy '{tech}' differs by {d:.3f}% (> {cap_tol}%)")
 
     # Series lengths
     n_a = len(r_a.get('timestamps') or [])
@@ -372,26 +416,34 @@ def main():
                     help='OSeMOSYS venv Python executable')
     ap.add_argument('--python-adoptnet0', default=None, dest='python_adoptnet0',
                     help='AdOpT-NET0 venv Python executable')
-    ap.add_argument('--payload',
-                    default=str(REPO / 'scripts' / 'reference_model.json'))
+    ap.add_argument('--payload', action='append', default=None,
+                    help='Payload JSON (repeatable). Default: reference_model.json and '
+                         'reference_model_rich.json')
     ap.add_argument('--solver-dir',
                     default=str(REPO / 'solvers' / 'windows'))
     ap.add_argument('--obj-tol', type=float, default=0.5,
                     help='Calliope 0.6 vs 0.7 objective tolerance %% (default 0.5)')
     ap.add_argument('--cap-tol', type=float, default=1.0,
                     help='Calliope 0.6 vs 0.7 capacity tolerance %% (default 1.0)')
-    ap.add_argument('--pypsa-obj-tol', type=float, default=2.0,
+    ap.add_argument('--pypsa-obj-tol', type=float, default=0.5,
                     dest='pypsa_obj_tol',
-                    help='PyPSA vs Calliope objective tolerance %% (default 2.0)')
-    ap.add_argument('--pypsa-cap-tol', type=float, default=5.0,
+                    help='PyPSA vs Calliope objective tolerance %% (default 0.5)')
+    ap.add_argument('--pypsa-cap-tol', type=float, default=1.0,
                     dest='pypsa_cap_tol',
-                    help='PyPSA vs Calliope per-tech capacity tolerance %% (default 5.0)')
-    ap.add_argument('--osemosys-obj-tol', type=float, default=30.0,
+                    help='PyPSA vs Calliope per-tech capacity tolerance %% (default 1.0)')
+    ap.add_argument('--osemosys-obj-tol', type=float, default=2.0,
                     dest='osemosys_obj_tol',
-                    help='OSeMOSYS vs Calliope objective tolerance %% (default 30.0)')
-    ap.add_argument('--osemosys-cap-tol', type=float, default=15.0,
+                    help='OSeMOSYS vs Calliope objective tolerance %% (default 2.0)')
+    ap.add_argument('--osemosys-cap-tol', type=float, default=5.0,
                     dest='osemosys_cap_tol',
-                    help='OSeMOSYS vs Calliope per-tech capacity tolerance %% (default 15.0)')
+                    help='OSeMOSYS vs Calliope per-tech capacity tolerance %% (default 5.0)')
+    ap.add_argument('--adoptnet0-obj-tol', type=float, default=2.0, dest='adoptnet0_obj_tol',
+                    help='AdOpT-NET0 vs Calliope objective tolerance %% (default 2.0)')
+    ap.add_argument('--adoptnet0-cap-tol', type=float, default=5.0, dest='adoptnet0_cap_tol',
+                    help='AdOpT-NET0 vs Calliope per-tech capacity tolerance %% (default 5.0)')
+    ap.add_argument('--auto', action='store_true',
+                    help='Use every engine venv found under %%APPDATA%%/TEMPO (Windows) '
+                         'or ~/.config/TEMPO (Linux)')
     ap.add_argument('--check-myopic', action='store_true', dest='check_myopic',
                     help='Also run a 2-step myopic residual pathway per engine and assert '
                          'residual (sunk) capacity semantics (Scenario Studio). Doubles runtime.')
@@ -400,6 +452,17 @@ def main():
     ap.add_argument('--myopic-cap-tol', type=float, default=2.0, dest='myopic_cap_tol',
                     help='Myopic: tolerance %% on the monotonic residual-capacity check (default 2.0)')
     args = ap.parse_args()
+    if args.auto:
+        root = Path(os.environ.get('APPDATA') or Path.home() / '.config') / 'TEMPO'
+        exe = 'Scripts/python.exe' if os.name == 'nt' else 'bin/python'
+        for dest, venv in (('python06', 'calliope-venv'), ('python07', 'calliope07-venv'),
+                           ('python_pypsa', 'pypsa-venv'), ('python_osemosys', 'osemosys-venv'),
+                           ('python_adoptnet0', 'adoptnet0-venv')):
+            p = root / venv / exe
+            if getattr(args, dest) is None and p.exists():
+                setattr(args, dest, str(p))
+    payload_paths = args.payload or [str(REPO / 'scripts' / 'reference_model.json'),
+                                     str(REPO / 'scripts' / 'reference_model_rich.json')]
 
     engines_to_run = {}
     if args.python06:
@@ -417,100 +480,78 @@ def main():
         ap.error('Provide at least one of --python06, --python07, --python-pypsa, '
                  '--python-osemosys, --python-adoptnet0')
 
-    payload = json.loads(Path(args.payload).read_text(encoding='utf-8'))
-    tech_parents = {
-        t['name']: (t.get('essentials') or {}).get('parent', t.get('parent', ''))
-        for t in payload.get('technologies', [])
-    }
-    non_tx_techs = {name for name, parent in tech_parents.items()
-                    if parent != 'transmission'}
-
-    # ── Run all engines ───────────────────────────────────────────────────────
-    results = {}
-    for tag, (py_exe, module) in engines_to_run.items():
-        results[tag] = run_engine(py_exe, module, args.payload, args.solver_dir)
-
     failures = []
+    for payload_path in payload_paths:
+        payload = json.loads(Path(payload_path).read_text(encoding='utf-8'))
+        name = Path(payload_path).name
+        print(f"\n################ PAYLOAD {name} ################")
 
-    # ── Per-engine contract checks ────────────────────────────────────────────
-    print("\n=== CONTRACT CHECKS ===")
-    for tag, r in results.items():
-        n_before = len(failures)
-        check_contract(tag, r, failures)
-        status = 'OK' if len(failures) == n_before else f'{len(failures) - n_before} issue(s)'
-        print(f"[{tag}] {status}")
+        # Per-payload tolerance overrides: {"_verify": {"osemosys_cap_tol": 10, ...}}
+        tol = {k: getattr(args, k) for k in (
+            'obj_tol', 'cap_tol', 'pypsa_obj_tol', 'pypsa_cap_tol', 'osemosys_obj_tol',
+            'osemosys_cap_tol', 'adoptnet0_obj_tol', 'adoptnet0_cap_tol')}
+        tol.update(payload.get('_verify') or {})
 
-    # ── Pairwise comparisons ──────────────────────────────────────────────────
-    print("\n=== COMPARISONS ===")
+        tech_parents = {
+            t['name']: (t.get('essentials') or {}).get('parent', t.get('parent', ''))
+            for t in payload.get('technologies', [])
+        }
+        non_tx_techs = {n for n, p in tech_parents.items() if p not in ('transmission', 'demand')}
 
-    # Calliope 0.6 vs 0.7 (tight tolerances — same formulation)
-    if 'calliope-0.6.8' in results and 'calliope-0.7' in results:
-        compare_pair(
-            'calliope-0.6.8', results['calliope-0.6.8'],
-            'calliope-0.7', results['calliope-0.7'],
-            args.obj_tol, args.cap_tol, non_tx_techs, failures)
+        results = {}
+        for tag, (py_exe, module) in engines_to_run.items():
+            try:
+                results[tag] = run_engine(py_exe, module, payload_path, args.solver_dir)
+            except (SystemExit, subprocess.TimeoutExpired) as exc:
+                failures.append(f"[{name}] {exc}")
 
-    # PyPSA vs Calliope 0.6 (preferred baseline — loose tolerances for different solver/formulation)
-    if 'pypsa' in results and 'calliope-0.6.8' in results:
-        compare_pair(
-            'calliope-0.6.8', results['calliope-0.6.8'],
-            'pypsa', results['pypsa'],
-            args.pypsa_obj_tol, args.pypsa_cap_tol, non_tx_techs, failures)
+        print("\n=== CONTRACT CHECKS ===")
+        for tag, r in results.items():
+            n_before = len(failures)
+            check_contract(f'{name}:{tag}', r, failures)
+            print(f"[{tag}] " + ('OK' if len(failures) == n_before else f'{len(failures) - n_before} issue(s)'))
 
-    # PyPSA vs Calliope 0.7 (only when 0.6 is absent)
-    elif 'pypsa' in results and 'calliope-0.7' in results:
-        compare_pair(
-            'calliope-0.7', results['calliope-0.7'],
-            'pypsa', results['pypsa'],
-            args.pypsa_obj_tol, args.pypsa_cap_tol, non_tx_techs, failures)
+        print("\n=== COMPARISONS ===")
+        baseline = next((t for t in ('calliope-0.6.8', 'calliope-0.7') if t in results), None)
+        pair_tol = {
+            'calliope-0.7': (tol['obj_tol'], tol['cap_tol']),
+            'pypsa': (tol['pypsa_obj_tol'], tol['pypsa_cap_tol']),
+            'osemosys': (tol['osemosys_obj_tol'], tol['osemosys_cap_tol']),
+            'adoptnet0': (tol['adoptnet0_obj_tol'], tol['adoptnet0_cap_tol']),
+        }
+        if baseline is None:
+            print("  (no Calliope baseline — pairwise checks skipped)")
+        else:
+            for tag in results:
+                if tag == baseline:
+                    continue
+                o_tol, c_tol = pair_tol[tag]
+                compare_pair(f'{name}:{baseline}', results[baseline], f'{name}:{tag}', results[tag],
+                             o_tol, c_tol, non_tx_techs, failures)
 
-    # OSeMOSYS vs Calliope 0.6 (wide tolerances — different solver/formulation)
-    if 'osemosys' in results and 'calliope-0.6.8' in results:
-        compare_pair(
-            'calliope-0.6.8', results['calliope-0.6.8'],
-            'osemosys', results['osemosys'],
-            args.osemosys_obj_tol, args.osemosys_cap_tol, non_tx_techs, failures)
+        if len(results) > 1:
+            print("\n--- Contract key-set consistency ---")
+            key_sets = {tag: set(r.keys()) for tag, r in results.items()}
+            inconsistent = False
+            for key in sorted(set().union(*key_sets.values())):
+                absent = sorted(t for t, ks in key_sets.items() if key not in ks)
+                if absent:
+                    inconsistent = True
+                    print(f"  '{key}': absent in {absent}")
+                    if key in CONTRACT_KEYS:
+                        failures.append(f"[{name}] contract key '{key}' missing from {absent}")
+            if not inconsistent:
+                print("  All keys consistent across engines.")
 
-    # OSeMOSYS vs Calliope 0.7 (only when 0.6 is absent)
-    elif 'osemosys' in results and 'calliope-0.7' in results:
-        compare_pair(
-            'calliope-0.7', results['calliope-0.7'],
-            'osemosys', results['osemosys'],
-            args.osemosys_obj_tol, args.osemosys_cap_tol, non_tx_techs, failures)
-
-    # AdOpT-NET0: contract-only, no pairwise comparison (different formulation/scale)
-    if 'adoptnet0' in results:
-        print("  [adoptnet0] pairwise comparison skipped — multi-period formulation "
-              "produces objectives on a different scale than Calliope/PyPSA")
-
-    # Single-engine: no pairwise check possible, only contract was checked above
-    comparable = set(results) - {'adoptnet0'}
-    if len(comparable) <= 1 and 'adoptnet0' not in results:
-        print(f"  (only one engine provided — pairwise checks skipped)")
-
-    # ── Myopic residual pathway checks (opt-in) ───────────────────────────────
     if args.check_myopic:
         print("\n=== MYOPIC RESIDUAL PATHWAY CHECKS ===")
+        payload = json.loads(Path(payload_paths[0]).read_text(encoding='utf-8'))
         for tag, (py_exe, module) in engines_to_run.items():
-            check_myopic(tag, py_exe, module, payload, args.solver_dir,
-                         args.myopic_obj_tol, args.myopic_cap_tol, failures)
-
-    # ── Cross-engine contract key-set consistency ─────────────────────────────
-    if len(results) > 1:
-        print("\n--- Contract key-set consistency ---")
-        key_sets = {tag: set(r.keys()) for tag, r in results.items()}
-        all_keys = set().union(*key_sets.values())
-        inconsistent = False
-        for key in sorted(all_keys):
-            absent = {tag for tag, ks in key_sets.items() if key not in ks}
-            if absent:
-                inconsistent = True
-                print(f"  '{key}': absent in {sorted(absent)}")
-                if key in CONTRACT_KEYS:
-                    failures.append(
-                        f"contract key '{key}' missing from {sorted(absent)}")
-        if not inconsistent:
-            print("  All keys consistent across engines.")
+            try:
+                check_myopic(tag, py_exe, module, payload, args.solver_dir,
+                             args.myopic_obj_tol, args.myopic_cap_tol, failures)
+            except (SystemExit, subprocess.TimeoutExpired) as exc:
+                failures.append(f"[{tag} myopic] {exc}")
 
     # ── Summary ───────────────────────────────────────────────────────────────
     print()
@@ -518,8 +559,8 @@ def main():
         for f in failures:
             print(f"FAIL: {f}")
         sys.exit(1)
-    engines_run = ', '.join(sorted(results))
-    print(f"CROSS-ENGINE VERIFICATION PASSED  [{engines_run}]")
+    print(f"CROSS-ENGINE VERIFICATION PASSED  [{', '.join(sorted(engines_to_run))}] "
+          f"on {', '.join(Path(p).name for p in payload_paths)}")
 
 
 if __name__ == '__main__':

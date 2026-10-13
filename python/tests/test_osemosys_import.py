@@ -359,3 +359,22 @@ def test_otoole_csv_set_detection():
     assert "technology.csv" in files
     assert "region.csv" in files
     assert "yearsplit.csv" in files
+
+
+def test_min_capacity_round_trip():
+    import copy
+    md = copy.deepcopy(REFERENCE_MODEL)
+    north = next(l for l in md["locations"] if l["name"] == "north")
+    north["techs"]["solar_pv"] = {"constraints": {"energy_cap_equals": 349.5}}
+    north["techs"]["battery"] = {"constraints": {"energy_cap_min": 15.0}}
+    next(t for t in md["technologies"] if t["name"] == "grid_link")["constraints"]["energy_cap_min"] = 500
+    with tempfile.TemporaryDirectory() as tmp:
+        tr.translate_model(md, tmp, SCHEME_4X3)
+        model, _ = imp.osemosys_to_internal(tmp)
+    solar = _tech(model, "solar_pv")["constraints"]
+    assert solar["energy_cap_equals"] == 349.5
+    assert "energy_cap_max" not in solar and "energy_cap_min" not in solar
+    batt = _tech(model, "battery")["constraints"]
+    assert batt["energy_cap_min"] == 15.0 and batt["energy_cap_max"] == 1000
+    tx = next(t for t in model["technologies"] if t["essentials"]["parent"] == "transmission")
+    assert tx["constraints"]["energy_cap_min"] == 500 and tx["constraints"]["energy_cap_max"] == 3000

@@ -68,8 +68,53 @@ def test_unknown_param_warns_not_silently_dropped():
 
 def test_dropped_param_warns():
     warnings = []
-    t.translate_constraints({'resource_unit': 'energy'}, 'supply', warnings, 'x')
-    assert any('resource_unit' in w for w in warnings)
+    t.translate_constraints({'energy_ramping_cost': 1}, 'supply', warnings, 'x')
+    assert any('energy_ramping_cost' in w for w in warnings)
+
+
+def test_resource_unit_energy_per_cap_becomes_source_unit_per_cap():
+    warnings = []
+    out = t.translate_constraints({'resource_unit': 'energy_per_cap'}, 'supply', warnings)
+    assert out == {'source_unit': 'per_cap'}
+    assert warnings == []
+
+
+def test_resource_unit_energy_becomes_source_unit_absolute():
+    out = t.translate_constraints({'resource_unit': 'energy'}, 'supply_plus', [])
+    assert out == {'source_unit': 'absolute'}
+
+
+def test_resource_unit_energy_per_area_becomes_per_area():
+    out = t.translate_constraints({'resource_unit': 'energy_per_area'}, 'supply', [])
+    assert out == {'source_unit': 'per_area'}
+
+
+def test_demand_resource_unit_becomes_sink_unit():
+    out = t.translate_constraints({'resource_unit': 'energy_per_cap'}, 'demand', [])
+    assert out == {'sink_unit': 'per_cap'}
+
+
+def test_storage_energy_eff_applies_to_charge_and_discharge():
+    # 0.6 storage applies energy_eff on both carrier_con and carrier_prod
+    out = t.translate_constraints({'energy_eff': 0.95}, 'storage', [])
+    assert out == {'flow_out_eff': 0.95, 'flow_in_eff': 0.95}
+
+
+def test_storage_explicit_flow_in_eff_wins_over_energy_eff():
+    out = t.translate_constraints({'flow_in_eff': 0.9, 'energy_eff': 0.95}, 'storage', [])
+    assert out == {'flow_out_eff': 0.95, 'flow_in_eff': 0.9}
+
+
+def test_non_storage_energy_eff_is_outflow_only():
+    assert t.translate_constraints({'energy_eff': 0.55}, 'conversion', []) == {'flow_out_eff': 0.55}
+    assert t.translate_constraints({'energy_eff': 0.9}, 'supply_plus', []) == {'flow_out_eff': 0.9}
+
+
+def test_unknown_resource_unit_value_warns_and_drops():
+    warnings = []
+    out = t.translate_constraints({'resource_unit': 'bogus'}, 'supply', warnings, 'pv')
+    assert out == {}
+    assert any('resource_unit' in w and 'bogus' in w for w in warnings)
 
 
 # ---------------------------------------------------------------------------
@@ -461,3 +506,101 @@ def test_safe_id_matches_06_runner_semantics():
     assert t.safe_id('a::b') == 'a_b'
     assert t.safe_id('x:y') == 'x_y'
     assert t.safe_id('  weird//name  ') == 'weird_name'
+
+
+# ---------------------------------------------------------------------------
+# Conversion techs: capacity/cost params indexed on the output carrier
+# (0.7 flow_cap is per carrier; 0.6 energy_cap is the output side only)
+# ---------------------------------------------------------------------------
+
+_CCGT = {'name': 'ccgt',
+         'essentials': {'parent': 'conversion', 'carrier_in': 'gas', 'carrier_out': 'electricity'},
+         'constraints': {'energy_cap_max': 700, 'energy_eff': 0.55},
+         'costs': {'monetary': {'energy_cap': 800, 'om_annual': 15, 'om_prod': 0.004}}}
+
+
+def test_conversion_capacity_and_costs_indexed_on_carrier_out():
+    out = t.translate_tech(_CCGT, [])
+    assert out['flow_cap_max'] == {'data': 700, 'index': 'electricity', 'dims': 'carriers'}
+    assert out['flow_out_eff'] == 0.55
+    assert out['cost_flow_cap'] == {'data': 800, 'index': [['monetary', 'electricity']],
+                                    'dims': ['costs', 'carriers']}
+    assert out['cost_om_annual'] == {'data': 15, 'index': [['monetary', 'electricity']],
+                                     'dims': ['costs', 'carriers']}
+    assert out['cost_flow_out'] == {'data': 0.004, 'index': 'monetary', 'dims': 'costs'}
+
+
+def test_conversion_equals_and_per_unit_indexed():
+    out = t.translate_constraints({'energy_cap_equals': 85, 'energy_cap_per_unit': 5},
+                                  'conversion', [], carrier='electricity')
+    idx = lambda v: {'data': v, 'index': 'electricity', 'dims': 'carriers'}
+    assert out == {'flow_cap_min': idx(85), 'flow_cap_max': idx(85), 'flow_cap_per_unit': idx(5)}
+
+
+def test_conversion_plus_uses_primary_carrier_out_else_first():
+    ess = {'parent': 'conversion_plus', 'carrier_in': 'gas',
+           'carrier_out': ['electricity', 'heat'], 'primary_carrier_out': 'heat'}
+    assert t.output_carrier({'essentials': ess}) == 'heat'
+    ess2 = {k: v for k, v in ess.items() if k != 'primary_carrier_out'}
+    assert t.output_carrier({'essentials': ess2}) == 'electricity'
+    out = t.translate_tech({'name': 'chp', 'essentials': ess,
+                            'constraints': {'energy_cap_max': 10}}, [])
+    assert out['flow_cap_max'] == {'data': 10, 'index': 'heat', 'dims': 'carriers'}
+
+
+def test_conversion_without_resolvable_carrier_warns_unindexed():
+    warnings = []
+    out = t.translate_constraints({'energy_cap_max': 10}, 'conversion', warnings, 'cx')
+    assert out == {'flow_cap_max': 10}
+    assert any('cx' in w and 'carrier' in w for w in warnings)
+
+
+def test_non_conversion_params_stay_unindexed():
+    out = t.translate_tech({'name': 'pv', 'essentials': {'parent': 'supply', 'carrier_out': 'electricity'},
+                            'constraints': {'energy_cap_max': 5},
+                            'costs': {'monetary': {'energy_cap': 600}}}, [])
+    assert out['flow_cap_max'] == 5
+    assert out['cost_flow_cap'] == {'data': 600, 'index': 'monetary', 'dims': 'costs'}
+
+
+def test_node_override_on_conversion_indexed():
+    nodes = t.build_nodes_07(
+        [{'name': 'S', 'techs': {'ccgt': {'constraints': {'energy_cap_max': 300}}}}],
+        {}, [_CCGT], [])
+    assert nodes['s']['techs']['ccgt'] == {
+        'flow_cap_max': {'data': 300, 'index': 'electricity', 'dims': 'carriers'}}
+
+
+def test_scenario_override_on_conversion_indexed():
+    out = t.translate_override_07(
+        {'techs.ccgt.constraints.energy_cap_max': 900,
+         'techs.ccgt.costs.monetary.energy_cap': 700,
+         'locations': {'S': {'techs': {'ccgt': {'constraints': {'energy_cap_max': 50}}}}}},
+        {'ccgt': 'conversion'}, [], 'x', carrier_by_tid={'ccgt': 'electricity'})
+    assert out['techs']['ccgt']['flow_cap_max'] == {
+        'data': 900, 'index': 'electricity', 'dims': 'carriers'}
+    assert out['techs']['ccgt']['cost_flow_cap']['index'] == [['monetary', 'electricity']]
+    assert out['nodes']['s']['techs']['ccgt']['flow_cap_max']['index'] == 'electricity'
+
+
+def test_conversion_systemwide_caps_indexed():
+    out = t.translate_constraints({'energy_cap_max_systemwide': 100, 'energy_cap_min_systemwide': 10},
+                                  'conversion', [], carrier='electricity')
+    assert out == {
+        'flow_cap_max_systemwide': {'data': 100, 'index': 'electricity', 'dims': 'carriers'},
+        'flow_cap_min_systemwide': {'data': 10, 'index': 'electricity', 'dims': 'carriers'}}
+
+
+def test_already_carrier_indexed_values_left_untouched():
+    pre = {'data': 5, 'index': 'heat', 'dims': 'carriers'}
+    out = t.translate_constraints({'energy_cap_max': pre}, 'conversion', [], carrier='electricity')
+    assert out == {'flow_cap_max': pre}
+    raw = {'data': 9, 'index': [['monetary', 'heat']], 'dims': ['costs', 'carriers']}
+    out = t.translate_costs({'__raw07__': {'cost_flow_cap': raw}}, [], 'x', 'conversion', 'electricity')
+    assert out == {'cost_flow_cap': raw}
+
+
+def test_cost_with_non_string_index_not_reindexed():
+    multi = {'data': [1, 2], 'index': ['monetary', 'co2'], 'dims': 'costs'}
+    out = t.translate_costs({'__raw07__': {'cost_om_annual': multi}}, [], 'x', 'conversion', 'electricity')
+    assert out == {'cost_om_annual': multi}

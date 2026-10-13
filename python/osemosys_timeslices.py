@@ -51,14 +51,25 @@ def slice_labels(scheme: dict) -> list:
     return [f"s{s}d{d}" for s in range(1, seasons + 1) for d in range(1, day_blocks + 1)]
 
 
-def _assign_slices(n_hours: int, seasons: int, day_blocks: int) -> list:
+def _assign_slices(n_hours: int, seasons: int, day_blocks: int, whole_days: bool = False) -> list:
     """
     Return a list of length n_hours where each entry is a slice label.
 
     Hours are first divided into seasons (contiguous blocks of equal size,
     with any remainder absorbed into the last season), then each season's
     hours are divided into day-blocks using daily 24-hour cycles.
+    whole_days (parity scheme): seasons are split on day boundaries so every
+    season starts at midnight and day-blocks follow the clock hour.
     """
+    if whole_days:
+        n_days = -(-n_hours // 24)
+        base_days, rem_days = divmod(n_days, seasons)
+        labels = []
+        for s in range(1, seasons + 1):
+            days = base_days + (1 if s > seasons - rem_days else 0)
+            labels.extend(lbl.replace("s1d", f"s{s}d", 1) for lbl in _assign_slices(days * 24, 1, day_blocks))
+        return labels[:n_hours]
+
     labels = []
     hours_per_season_base = n_hours // seasons
     remainder_seasons = n_hours % seasons
@@ -113,7 +124,7 @@ def aggregate(hourly_series: list, scheme: dict | None = None) -> tuple:
     if n_hours == 0:
         raise ValueError("hourly_series must not be empty")
 
-    assignments = _assign_slices(n_hours, seasons, day_blocks)
+    assignments = _assign_slices(n_hours, seasons, day_blocks, bool(scheme.get("wholeDays")))
     labels = slice_labels(scheme)
 
     totals: dict = {lbl: 0.0 for lbl in labels}
@@ -149,7 +160,7 @@ def broadcast(slices_df: dict, year_split: dict, scheme: dict, n_hours: int) -> 
     """
     seasons = int(scheme.get("seasons", 4))
     day_blocks = int(scheme.get("dayBlocks", 3))
-    assignments = _assign_slices(n_hours, seasons, day_blocks)
+    assignments = _assign_slices(n_hours, seasons, day_blocks, bool(scheme.get("wholeDays")))
     return [slices_df.get(lbl, 0.0) for lbl in assignments]
 
 
@@ -160,9 +171,23 @@ def year_split_for_n_hours(n_hours: int, scheme: dict) -> dict:
     """
     seasons = int(scheme.get("seasons", 4))
     day_blocks = int(scheme.get("dayBlocks", 3))
-    assignments = _assign_slices(n_hours, seasons, day_blocks)
+    assignments = _assign_slices(n_hours, seasons, day_blocks, bool(scheme.get("wholeDays")))
     labels = slice_labels(scheme)
     counts: dict = {lbl: 0 for lbl in labels}
     for lbl in assignments:
         counts[lbl] += 1
     return {lbl: counts[lbl] / n_hours for lbl in labels}
+
+
+def parity_scheme(n_hours: int) -> dict:
+    """Hour-of-day scheme used by the runner's parity mode: 24 daily brackets so
+    OSeMOSYS STORAGE can cycle within the day; one season for windows shorter
+    than four weeks, four otherwise. Seasons are split on whole days."""
+    return {"seasons": 1 if n_hours < 28 * 24 else 4, "dayBlocks": 24, "wholeDays": True}
+
+
+def bracket_hours(scheme: dict) -> list:
+    """Hours in each daily time bracket (same split rule as _assign_slices)."""
+    day_blocks = int(scheme.get("dayBlocks", 3))
+    base, rem = divmod(24, day_blocks)
+    return [base + (1 if d <= rem else 0) for d in range(1, day_blocks + 1)]

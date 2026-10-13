@@ -572,6 +572,135 @@ describe('internalTo07Yaml – constraint renames', () => {
   });
 });
 
+describe('internalTo07Yaml – resource_unit value mapping', () => {
+  it('maps supply resource_unit energy_per_cap → source_unit per_cap', () => {
+    const model = baseModel({ technologies: [makeTech('pv', 'supply', { resource_unit: 'energy_per_cap' })] });
+    const { modelDoc } = internalTo07Yaml(model, []);
+    expect(modelDoc.techs.pv.source_unit).toBe('per_cap');
+    expect(modelDoc.techs.pv.resource_unit).toBeUndefined();
+  });
+
+  it('maps demand resource_unit energy → sink_unit absolute', () => {
+    const model = baseModel({ technologies: [makeTech('load', 'demand', { resource_unit: 'energy' })] });
+    const { modelDoc } = internalTo07Yaml(model, []);
+    expect(modelDoc.techs.load.sink_unit).toBe('absolute');
+  });
+
+  it('drops an unknown resource_unit value with a warning', () => {
+    const model = baseModel({ technologies: [makeTech('pv', 'supply', { resource_unit: 'bogus' })] });
+    const { modelDoc, log } = internalTo07Yaml(model, []);
+    expect(modelDoc.techs.pv.source_unit).toBeUndefined();
+    expect(log.some(l => l.includes('resource_unit') && l.includes('bogus'))).toBe(true);
+  });
+});
+
+describe('internalTo07Yaml – storage efficiency', () => {
+  it('applies storage energy_eff to both flow_in_eff and flow_out_eff', () => {
+    const model = baseModel({ technologies: [makeTech('bat', 'storage', { energy_eff: 0.95 })] });
+    const { modelDoc } = internalTo07Yaml(model, []);
+    expect(modelDoc.techs.bat.flow_out_eff).toBe(0.95);
+    expect(modelDoc.techs.bat.flow_in_eff).toBe(0.95);
+  });
+
+  it('keeps an explicit flow_in_eff on storage', () => {
+    const model = baseModel({ technologies: [makeTech('bat', 'storage', { flow_in_eff: 0.9, energy_eff: 0.95 })] });
+    const { modelDoc } = internalTo07Yaml(model, []);
+    expect(modelDoc.techs.bat.flow_in_eff).toBe(0.9);
+  });
+
+  it('does not add flow_in_eff for conversion', () => {
+    const model = baseModel({ technologies: [makeTech('ccgt', 'conversion', { energy_eff: 0.55 })] });
+    const { modelDoc } = internalTo07Yaml(model, []);
+    expect(modelDoc.techs.ccgt.flow_in_eff).toBeUndefined();
+  });
+});
+
+describe('internalTo07Yaml – conversion techs indexed on output carrier', () => {
+  const ccgt = () => ({
+    name: 'ccgt',
+    essentials: { parent: 'conversion', carrier_in: 'gas', carrier_out: 'electricity' },
+    constraints: { energy_cap_max: 700, energy_eff: 0.55 },
+    costs: { monetary: { energy_cap: 800, om_annual: 15, om_prod: 0.004 } },
+  });
+
+  it('indexes flow_cap_max, cost_flow_cap, cost_om_annual on carrier_out', () => {
+    const { modelDoc } = internalTo07Yaml(baseModel({ technologies: [ccgt()] }), []);
+    const t = modelDoc.techs.ccgt;
+    expect(t.flow_cap_max).toEqual({ data: 700, index: 'electricity', dims: 'carriers' });
+    expect(t.flow_out_eff).toBe(0.55);
+    expect(t.cost_flow_cap).toEqual({ data: 800, index: [['monetary', 'electricity']], dims: ['costs', 'carriers'] });
+    expect(t.cost_om_annual).toEqual({ data: 15, index: [['monetary', 'electricity']], dims: ['costs', 'carriers'] });
+    expect(t.cost_flow_out).toEqual({ data: 0.004, index: 'monetary', dims: 'costs' });
+  });
+
+  it('uses primary_carrier_out for conversion_plus', () => {
+    const chp = {
+      name: 'chp',
+      essentials: { parent: 'conversion_plus', carrier_in: 'gas', carrier_out: ['electricity', 'heat'], primary_carrier_out: 'heat' },
+      constraints: { energy_cap_max: 10 },
+      costs: {},
+    };
+    const { modelDoc } = internalTo07Yaml(baseModel({ technologies: [chp] }), []);
+    expect(modelDoc.techs.chp.flow_cap_max).toEqual({ data: 10, index: 'heat', dims: 'carriers' });
+  });
+
+  it('indexes a per-node override on a conversion tech', () => {
+    const model = baseModel({
+      technologies: [ccgt()],
+      locations: [{ name: 'S', techs: { ccgt: { constraints: { energy_cap_max: 300 } } } }],
+    });
+    const { modelDoc } = internalTo07Yaml(model, []);
+    expect(modelDoc.nodes.s.techs.ccgt.flow_cap_max).toEqual({ data: 300, index: 'electricity', dims: 'carriers' });
+  });
+
+  it('leaves supply techs unindexed', () => {
+    const model = baseModel({ technologies: [makeTech('pv', 'supply', { energy_cap_max: 5 }, { monetary: { energy_cap: 600 } })] });
+    const { modelDoc } = internalTo07Yaml(model, []);
+    expect(modelDoc.techs.pv.flow_cap_max).toBe(5);
+    expect(modelDoc.techs.pv.cost_flow_cap).toEqual({ data: 600, index: 'monetary', dims: 'costs' });
+  });
+});
+
+describe('Task 4b review – systemwide caps, native storage round-trip, cost index guard', () => {
+  it('indexes systemwide flow caps on a conversion tech', () => {
+    const tech = {
+      name: 'ccgt',
+      essentials: { parent: 'conversion', carrier_in: 'gas', carrier_out: 'electricity' },
+      constraints: { energy_cap_max_systemwide: 100 },
+      costs: {},
+    };
+    const { modelDoc } = internalTo07Yaml(baseModel({ technologies: [tech] }), []);
+    expect(modelDoc.techs.ccgt.flow_cap_max_systemwide).toEqual({ data: 100, index: 'electricity', dims: 'carriers' });
+  });
+
+  it('native storage without flow_in_eff keeps 0.7 default 1 through import → export', () => {
+    const doc = {
+      techs: { bat: { base_tech: 'storage', carrier_in: 'electricity', carrier_out: 'electricity', flow_out_eff: 0.9 } },
+      nodes: { a: { techs: { bat: { flow_out_eff: 0.8 } } } },
+      config: {},
+    };
+    const internal = from07ToInternal(doc, new Map(), papa);
+    const model = baseModel({ technologies: internal.technologies, locations: internal.locations });
+    const { modelDoc } = internalTo07Yaml(model, []);
+    expect(modelDoc.techs.bat.flow_out_eff).toBe(0.9);
+    expect(modelDoc.techs.bat.flow_in_eff).toBe(1);
+    expect(modelDoc.nodes.a.techs.bat.flow_out_eff).toBe(0.8);
+    expect(modelDoc.nodes.a.techs.bat.flow_in_eff).toBe(1);
+  });
+
+  it('does not re-index a raw cost whose index is not a string', () => {
+    const multi = { data: [1, 2], index: ['monetary', 'co2'], dims: 'costs' };
+    const tech = {
+      name: 'ccgt',
+      essentials: { parent: 'conversion', carrier_in: 'gas', carrier_out: 'electricity' },
+      constraints: {},
+      costs: { __raw07__: { cost_om_annual: multi } },
+    };
+    const { modelDoc } = internalTo07Yaml(baseModel({ technologies: [tech] }), []);
+    expect(modelDoc.techs.ccgt.cost_om_annual).toEqual(multi);
+  });
+});
+
 describe('internalTo07Yaml – cost wrapping', () => {
   it('wraps monetary.energy_cap as {data, index, dims}', () => {
     const model = baseModel({

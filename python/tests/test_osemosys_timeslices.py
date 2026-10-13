@@ -188,3 +188,41 @@ def test_24_hours_1season_3blocks():
     slices, ys = ts.aggregate(hourly, scheme)
     assert abs(sum(ys.values()) - 1.0) < 1e-9
     _sum_check(hourly, slices, ys, tol=1e-4)
+
+
+def test_parity_scheme_short_window_single_season():
+    assert ts.parity_scheme(168) == {"seasons": 1, "dayBlocks": 24, "wholeDays": True}
+    assert ts.parity_scheme(8760) == {"seasons": 4, "dayBlocks": 24, "wholeDays": True}
+
+
+def test_bracket_hours_sum_to_24():
+    assert ts.bracket_hours({"seasons": 1, "dayBlocks": 24}) == [1] * 24
+    assert ts.bracket_hours({"seasons": 4, "dayBlocks": 3}) == [8, 8, 8]
+    assert sum(ts.bracket_hours({"seasons": 1, "dayBlocks": 5})) == 24
+
+
+def test_parity_year_split_uniform_for_whole_days():
+    ys = ts.year_split_for_n_hours(168, ts.parity_scheme(168))
+    assert all(abs(v - 1 / 24) < 1e-12 for v in ys.values())
+
+
+def _labels_by_hour(n_hours, scheme):
+    lbls = ts.slice_labels(scheme)
+    idx = ts.broadcast({l: i for i, l in enumerate(lbls)}, {}, scheme, n_hours)
+    return [lbls[int(i)] for i in idx]
+
+
+def test_parity_seasons_start_on_whole_days():
+    sch = ts.parity_scheme(8760)            # 365 days → 91, 91, 91, 92
+    lab = _labels_by_hour(8760, sch)
+    assert lab[91 * 24 - 1] == "s1d24"
+    assert lab[91 * 24] == "s2d1"           # season 2 starts at midnight of day 92
+    assert lab[91 * 24 + 6] == "s2d7"       # clock hour 6 → bracket 7
+    assert lab[273 * 24] == "s4d1"
+    ys = ts.year_split_for_n_hours(8760, sch)
+    assert abs(sum(ys[f"s4d{d}"] for d in range(1, 25)) - 92 / 365) < 1e-12
+
+
+def test_legacy_season_split_unchanged():
+    lab = _labels_by_hour(8760, {"seasons": 4, "dayBlocks": 24})
+    assert lab[2190] == "s2d1"              # legacy: season 2 starts at hour 2190
