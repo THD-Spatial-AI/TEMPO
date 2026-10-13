@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import Footer from '../components/Footer'
 import model from '../public/img/Model.png'
 import InteractiveQGIS from '../public/img/InteractiveQGIS.png'
@@ -99,6 +100,7 @@ export default function Features() {
                   tag: 'Parameters',
                   title: 'Engine-neutral technology parameters',
                   desc: 'Enter capacity, efficiency, lifetime and CAPEX once and TEMPO translates them for each engine. The same parameter list drives the editor and the PyPSA, OSeMOSYS and AdOpT-NET0 translators. Engine-specific fields are there if you want them.',
+                  link: { to: '/interoperability', label: 'How the translation works' },
                 },
                 {
                   icon: 'grid_view',
@@ -133,6 +135,11 @@ export default function Features() {
                   <div>
                     <h3 className="text-xl font-bold uppercase mt-8 mb-3">{item.title}</h3>
                     <p className="text-white/60 text-sm leading-relaxed">{item.desc}</p>
+                    {item.link && (
+                      <Link to={item.link.to} className="inline-block mt-4 text-sm font-bold text-white underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
+                        {item.link.label}
+                      </Link>
+                    )}
                   </div>
                 </div>
               ))}

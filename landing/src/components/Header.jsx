@@ -7,6 +7,7 @@ export default function Header() {
   const GITHUB = 'https://github.com/THD-Spatial-AI/TEMPO'
   const navLinks = [
     { label: 'Features', to: '/features', internal: true },
+    { label: 'Interoperability', to: '/interoperability', internal: true },
     { label: 'Documentation', to: '/docs', internal: true },
     { label: 'GitHub', href: GITHUB, external: true },
   ]

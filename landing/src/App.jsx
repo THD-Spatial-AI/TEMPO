@@ -3,6 +3,7 @@ import Header from './components/Header'
 import CookieConsent from './components/CookieConsent'
 import Home from './pages/Home'
 import Features from './pages/Features'
+import Interoperability from './pages/Interoperability'
 import Docs from './pages/Docs'
 import ApiRef from './pages/ApiRef'
 import License from './pages/License'
@@ -18,6 +19,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/features" element={<Features />} />
+        <Route path="/interoperability" element={<Interoperability />} />
         <Route path="/docs" element={<Docs />} />
         <Route path="/docs/api" element={<ApiRef />} />
         <Route path="/license" element={<License />} />

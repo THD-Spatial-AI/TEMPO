@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { HeroSection } from '../components/ui/HeroSection'
 import { ImageComparison } from '../components/ui/ImageComparison'
 import { ShadowOverlay } from '../components/ui/ShadowOverlay'
@@ -278,6 +279,30 @@ export default function Home() {
           </div>
           </div>
         </DottedSurface>
+        </section>
+
+        {/* Interoperability teaser */}
+        <section className="py-16 px-4 sm:px-8 bg-black text-white">
+          <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-8">
+            <div className="flex items-start gap-5">
+              <span className="inline-block w-4 h-4 bg-white mt-2 shrink-0" aria-hidden="true" />
+              <div>
+                <h2 className="text-2xl md:text-3xl font-black tracking-tighter uppercase leading-none mb-3">
+                  One model, five engines
+                </h2>
+                <p className="text-sm text-neutral-400 max-w-xl">
+                  Every model is stored once and translated for Calliope, PyPSA, OSeMOSYS or AdOpT-NET0 when you
+                  run or export it. See what each engine receives and how the results are checked against each other.
+                </p>
+              </div>
+            </div>
+            <Link
+              to="/interoperability"
+              className="inline-flex items-center justify-center min-h-[44px] px-6 bg-white text-black font-bold text-[13px] uppercase tracking-tight hover:bg-neutral-200 shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+            >
+              How the translation works
+            </Link>
+          </div>
         </section>
 
         {/* About the Project */}
