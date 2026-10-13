@@ -9,7 +9,8 @@
  * Usage:  <SaveBar label="Locations" />
  */
 import React, { useState, useEffect } from 'react';
-import { FiSave, FiRefreshCw, FiCheck, FiAlertCircle } from 'react-icons/fi';
+import { FiCheck, FiAlertCircle } from 'react-icons/fi';
+import { LuSave, LuRefreshCw } from 'react-icons/lu';
 import { useData } from '../../context/DataContext';
 
 const SaveBar = ({ label = 'Model' }) => {
@@ -77,7 +78,7 @@ const SaveBar = ({ label = 'Model' }) => {
         onClick={handleSave}
         disabled={saving}
         title="Save model now (Ctrl+S)"
-        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
+        className={`inline-flex h-9 items-center gap-2 px-4 rounded-lg text-[13px] font-semibold
                    transition-all disabled:opacity-60 shrink-0
                    ${dirty
                      ? 'bg-gray-700 hover:bg-gray-800 text-white shadow-sm'
@@ -85,8 +86,8 @@ const SaveBar = ({ label = 'Model' }) => {
                    }`}
       >
         {saving
-          ? <FiRefreshCw size={11} className="animate-spin" />
-          : <FiSave size={11} />}
+          ? <LuRefreshCw size={15} className="animate-spin" />
+          : <LuSave size={15} />}
         {saving ? 'Saving…' : 'Save'}
       </button>
     </div>

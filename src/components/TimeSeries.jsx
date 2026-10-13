@@ -22,11 +22,13 @@ import { useData } from '../context/DataContext';
 import { regenerateDemandSeries } from '../services/demandlibClient';
 import { expectedTimestepCount } from '../services/demandProfiles';
 import SaveBar from './ui/SaveBar';
+import TimeSeriesGuide from './timeseries/TimeSeriesGuide';
 
 const TimeSeries = () => {
   const { timeSeries, setTimeSeries, getCurrentModel } = useData();
   const currentModel = getCurrentModel();
   const chartRef = useRef(null);
+  const [showGuide, setShowGuide] = useState(false);
   
   const [selectedTimeSeries, setSelectedTimeSeries] = useState(null);
   const [regeneratingDemand, setRegeneratingDemand] = useState(false);
@@ -343,6 +345,8 @@ const TimeSeries = () => {
   }, [timeSeries, currentModel]);
 
   // Handle file upload
+  const uploadFile = (file) => handleFileUpload({ target: { files: [file], value: null } });
+
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -672,116 +676,115 @@ const TimeSeries = () => {
   return (
     <div className="flex-1 flex flex-col h-screen bg-gray-50">
       <SaveBar label="Time Series" />
-      {/* Header */}
-      <div className="bg-white border-b border-slate-200 px-4 py-2">
-        <div className="flex items-center justify-between">
-          <h1 className="text-lg font-bold text-slate-800">
-            Time Series
-            <span className="text-xs text-slate-500 ml-2 font-normal">
-              {currentModel ? currentModel.name : 'No model'} • {modelTimeSeries.length} files
-            </span>
-          </h1>
-          
-          {/* Upload Button */}
-          <label className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 text-white text-xs rounded-lg font-medium hover:bg-gray-800 transition-all cursor-pointer">
+      <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 bg-white px-6 py-4">
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold tracking-tight text-slate-900">Time Series</h1>
+          <p className="text-xs text-slate-500">Demand profiles and resource availability used by your model</p>
+        </div>
+        {currentModel && (
+          <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700 shadow-sm">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            {currentModel.name} · {modelTimeSeries.length} file{modelTimeSeries.length === 1 ? '' : 's'}
+          </span>
+        )}
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={() => setShowGuide(v => !v)}
+            className={`flex h-9 items-center gap-1.5 rounded-lg border px-3 text-[13px] font-medium shadow-sm transition-colors ${
+              showGuide ? 'border-slate-300 bg-slate-50 text-slate-900' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            <FiFileText size={14} /> File format
+          </button>
+          <label className="flex h-9 cursor-pointer items-center gap-1.5 rounded-lg bg-slate-900 px-3 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-slate-800">
             <FiUpload size={14} />
-            Upload
-            <input
-              type="file"
-              accept=".csv"
-              onChange={handleFileUpload}
-              className="hidden"
-            />
+            Upload CSV
+            <input type="file" accept=".csv" onChange={handleFileUpload} className="hidden" />
           </label>
         </div>
       </div>
 
       <div className="flex-1 overflow-hidden flex flex-col">
-        {/* Uploaded Time Series Section - Above Graph (Compact) */}
-        <div className="bg-white border-b border-slate-200 px-4 py-1.5">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-slate-600 flex items-center gap-1">
-              <FiDatabase size={12} />
-              Files:
-            </span>
-
-            {modelTimeSeries.length === 0 ? (
-              <div className="text-slate-400 text-xs flex items-center gap-2">
-                {loading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
-                    <span>Loading...</span>
-                  </>
-                ) : (
-                  <span>No time series data available</span>
-                )}
-              </div>
-            ) : (
-              <div className="flex-1 flex items-center gap-2 overflow-x-auto">
-                {modelTimeSeries.map(ts => (
+        {modelTimeSeries.length > 0 && (
+          <div className="border-b border-slate-200 bg-white px-6 py-3">
+            <div className="flex items-center gap-2 overflow-x-auto pb-0.5">
+              {modelTimeSeries.map(ts => {
+                const sel = selectedTimeSeries?.id === ts.id;
+                return (
                   <div
                     key={ts.id}
-                    className={`flex-shrink-0 px-3 py-1.5 rounded-lg border transition-all text-xs font-medium flex items-center gap-2 cursor-pointer ${
-                      selectedTimeSeries?.id === ts.id
-                        ? 'border-gray-900 bg-gray-900 text-white shadow-md'
-                        : 'border-slate-300 bg-white text-slate-700 hover:border-gray-400 hover:shadow-sm'
-                    }`}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => {
                       setSelectedTimeSeries(ts);
                       const dataColumns = getDataColumns(ts);
-                      const columnsToSelect = dataColumns.slice(0, Math.min(5, dataColumns.length));
-                      setSelectedColumns(columnsToSelect);
+                      setSelectedColumns(dataColumns.slice(0, Math.min(5, dataColumns.length)));
                     }}
                     title={`${ts.fileName} - ${ts.rowCount} rows, ${ts.columns?.length} columns`}
+                    className={`group flex w-60 shrink-0 cursor-pointer items-center gap-2.5 rounded-xl border px-3 py-2 transition-all ${
+                      sel ? 'border-slate-900 bg-slate-900 text-white shadow-md' : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
+                    }`}
                   >
-                    <span className="truncate max-w-[150px]">{ts.name}</span>
-                    {ts.type === 'data_table' && (
-                      <span className="px-1.5 py-0.5 text-[9px] font-semibold bg-indigo-100 text-indigo-700 rounded">DT</span>
-                    )}
-                    {ts.source === 'template' && (
-                      <span className="px-1.5 py-0.5 text-[9px] font-semibold bg-gray-100 text-gray-700 rounded">T</span>
-                    )}
-                    {ts.modified && (
-                      <span className="px-1.5 py-0.5 text-[9px] font-semibold bg-gray-100 text-gray-800 rounded">M</span>
-                    )}
-                    <div className="flex gap-1">
+                    <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${sel ? 'bg-white/15' : 'bg-slate-100 text-slate-500'}`}>
+                      {ts.type === 'data_table' ? <FiDatabase size={14} /> : <FiTrendingUp size={14} />}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[13px] font-semibold">{ts.name}</span>
+                      <span className={`block truncate text-[11px] ${sel ? 'text-white/60' : 'text-slate-500'}`}>
+                        {ts.type === 'data_table' ? 'Data table' : 'Time series'} · {ts.rowCount} × {Math.max(0, (ts.columns?.length || 1) - 1)}
+                        {ts.source === 'template' ? ' · template' : ''}{ts.modified ? ' · edited' : ''}
+                      </span>
+                    </span>
+                    <span className="flex shrink-0 gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDownload(ts);
-                        }}
-                        className="p-0.5 hover:text-gray-500"
+                        onClick={(e) => { e.stopPropagation(); handleDownload(ts); }}
+                        className={`grid h-6 w-6 place-items-center rounded-md ${sel ? 'hover:bg-white/15' : 'text-slate-400 hover:bg-slate-100 hover:text-slate-900'}`}
                         title="Download"
                       >
                         <FiDownload size={12} />
                       </button>
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDelete(ts.id);
-                        }}
-                        className="p-0.5 hover:text-gray-500"
+                        onClick={(e) => { e.stopPropagation(); handleDelete(ts.id); }}
+                        className={`grid h-6 w-6 place-items-center rounded-md ${sel ? 'hover:bg-white/15' : 'text-slate-400 hover:bg-red-50 hover:text-red-600'}`}
                         title="Delete"
                       >
                         <FiTrash2 size={12} />
                       </button>
-                    </div>
+                    </span>
                   </div>
-                ))}
-              </div>
-            )}
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
+
+        {showGuide && modelTimeSeries.length > 0 && (
+          <div className="border-b border-slate-200 bg-slate-50 px-6 py-5">
+            <TimeSeriesGuide onFile={uploadFile} compact />
+          </div>
+        )}
 
         {/* Main Content - Chart, Data Info and Stats */}
         <div className="flex-1 overflow-hidden">
           {!selectedTimeSeries ? (
-            <div className="h-full flex items-center justify-center">
-              <div className="text-center text-slate-400">
-                <FiBarChart2 className="mx-auto mb-4 text-6xl" />
-                <p className="text-lg font-medium">Select a time series to visualize</p>
-                <p className="text-sm mt-2">Choose from the list on the left or upload a new CSV file</p>
-              </div>
+            <div className="h-full overflow-y-auto px-6 py-8">
+              {loading ? (
+                <div className="flex h-full items-center justify-center gap-2 text-sm text-slate-500">
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-700" /> Loading…
+                </div>
+              ) : modelTimeSeries.length === 0 ? (
+                <div className="mx-auto max-w-6xl">
+                  <h2 className="text-lg font-semibold text-slate-900">Add your first time series</h2>
+                  <p className="mb-5 text-sm text-slate-500">Upload a CSV with hourly demand or resource data. Here is the format TEMPO expects.</p>
+                  <TimeSeriesGuide onFile={uploadFile} />
+                </div>
+              ) : (
+                <div className="flex h-full flex-col items-center justify-center text-center">
+                  <div className="mb-3 grid h-12 w-12 place-items-center rounded-full bg-slate-100 text-slate-500"><FiBarChart2 size={20} /></div>
+                  <p className="text-sm font-semibold text-slate-800">Select a file to visualise</p>
+                  <p className="mt-1 text-sm text-slate-500">Pick one of the files above, or upload a new CSV.</p>
+                </div>
+              )}
             </div>
           ) : (
             <div className="h-full flex flex-col">

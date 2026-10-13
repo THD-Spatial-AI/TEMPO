@@ -1,25 +1,11 @@
 import React, { useState } from "react";
 import { createPortal } from "react-dom";
+import { FiChevronDown, FiChevronRight } from "react-icons/fi";
 import {
-  FiHome,
-  FiMap,
-  FiLayers,
-  FiSettings,
-  FiGrid,
-  FiMapPin,
-  FiActivity,
-  FiChevronDown,
-  FiChevronRight,
-  FiFolder,
-  FiCpu,
-  FiBarChart2,
-  FiEdit,
-  FiBook,
-  FiDownload,
-  FiPlay,
-  FiPieChart,
-} from "react-icons/fi";
-import { LuPanelLeftClose, LuPanelLeftOpen } from "react-icons/lu";
+  LuLayoutDashboard, LuGraduationCap, LuPencilRuler, LuFolderTree, LuBoxes, LuMap, LuMapPin,
+  LuWaypoints, LuChartLine, LuLayers, LuDatabase, LuFileDown, LuCirclePlay, LuChartPie, LuSettings,
+  LuPanelLeftClose, LuPanelLeftOpen,
+} from "react-icons/lu";
 import { motion, AnimatePresence } from "framer-motion";
 import tempoLogo from '../assets/Logo_TEMPO.PNG';
 
@@ -43,21 +29,21 @@ const Sidebar = ({ selected, setSelected }) => {
 
       <div className="space-y-1 flex-1 overflow-y-auto overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <Option
-          Icon={FiHome}
+          Icon={LuLayoutDashboard}
           title="Dashboard"
           selected={selected}
           setSelected={setSelected}
           open={open}
         />
         <Option
-          Icon={FiBook}
+          Icon={LuGraduationCap}
           title="Tutorial"
           selected={selected}
           setSelected={setSelected}
           open={open}
         />
         <Option
-          Icon={FiEdit}
+          Icon={LuPencilRuler}
           title="Creation"
           selected={selected}
           setSelected={setSelected}
@@ -66,7 +52,7 @@ const Sidebar = ({ selected, setSelected }) => {
 
         {/* Structure Dropdown Section */}
         <DropdownSection
-          Icon={FiFolder}
+          Icon={LuFolderTree}
           title="Structure"
           open={open}
           setOpen={setOpen}
@@ -74,7 +60,7 @@ const Sidebar = ({ selected, setSelected }) => {
           setIsExpanded={setStructureOpen}
         >
           <Option
-            Icon={FiGrid}
+            Icon={LuBoxes}
             title="Models"
             selected={selected}
             setSelected={setSelected}
@@ -82,7 +68,7 @@ const Sidebar = ({ selected, setSelected }) => {
             isNested
           />
           <Option
-            Icon={FiMap}
+            Icon={LuMap}
             title="Map View"
             selected={selected}
             setSelected={setSelected}
@@ -90,7 +76,7 @@ const Sidebar = ({ selected, setSelected }) => {
             isNested
           />
           <Option
-            Icon={FiMapPin}
+            Icon={LuMapPin}
             title="Locations"
             selected={selected}
             setSelected={setSelected}
@@ -98,7 +84,7 @@ const Sidebar = ({ selected, setSelected }) => {
             isNested
           />
           <Option
-            Icon={FiActivity}
+            Icon={LuWaypoints}
             title="Links"
             selected={selected}
             setSelected={setSelected}
@@ -106,7 +92,7 @@ const Sidebar = ({ selected, setSelected }) => {
             isNested
           />
           <Option
-            Icon={FiBarChart2}
+            Icon={LuChartLine}
             title="TimeSeries"
             selected={selected}
             setSelected={setSelected}
@@ -114,7 +100,7 @@ const Sidebar = ({ selected, setSelected }) => {
             isNested
           />
           <Option
-            Icon={FiLayers}
+            Icon={LuLayers}
             title="Scenarios"
             selected={selected}
             setSelected={setSelected}
@@ -124,35 +110,35 @@ const Sidebar = ({ selected, setSelected }) => {
         </DropdownSection>
 
         <Option
-          Icon={FiCpu}
+          Icon={LuDatabase}
           title="Tech Database"
           selected={selected}
           setSelected={setSelected}
           open={open}
         />
         <Option
-          Icon={FiDownload}
+          Icon={LuFileDown}
           title="Export"
           selected={selected}
           setSelected={setSelected}
           open={open}
         />
         <Option
-          Icon={FiPlay}
+          Icon={LuCirclePlay}
           title="Run"
           selected={selected}
           setSelected={setSelected}
           open={open}
         />
         <Option
-          Icon={FiPieChart}
+          Icon={LuChartPie}
           title="Results"
           selected={selected}
           setSelected={setSelected}
           open={open}
         />
         <Option
-          Icon={FiSettings}
+          Icon={LuSettings}
           title="Settings"
           selected={selected}
           setSelected={setSelected}

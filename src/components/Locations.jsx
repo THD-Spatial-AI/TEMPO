@@ -1,7 +1,10 @@
 import React, { useState, useMemo, useEffect, useCallback } from "react";
-import { FiEdit2, FiTrash2, FiCheck, FiX, FiPlus, FiChevronDown, FiChevronRight, FiCpu, FiSun, FiWind, FiBattery, FiZap, FiActivity, FiDroplet, FiHome, FiCircle, FiSearch, FiArrowRight, FiHelpCircle, FiSave } from "react-icons/fi";
+import { LuPencil, LuTrash2, LuCheck, LuX, LuPlus, LuChevronDown, LuChevronRight, LuCpu, LuSun, LuWind, LuBatteryCharging, LuZap, LuActivity, LuDroplet, LuMapPin, LuHouse, LuCircle, LuSearch, LuArrowRight, LuCircleHelp, LuSave, LuLayers } from "react-icons/lu";
 import { useData } from "../context/DataContext";
 import SaveBar from './ui/SaveBar';
+import { KpiCard } from './dashboard/DashboardWidgets';
+import SortHeader from './ui/SortHeader';
+import { nextSort, compareValues } from '../utils/sorting';
 import { TECH_TEMPLATES, useLiveTechTemplates } from "./TechnologiesData";
 import { CONSTRAINT_DEFINITIONS, COST_DEFINITIONS, PARENT_CONSTRAINTS } from '../utils/constraintDefinitions';
 
@@ -133,18 +136,27 @@ const Locations = () => {
     );
   });
 
+  const [sort, setSort] = useState({ key: null, dir: 'asc' });
+  const onSort = (key) => setSort(prev => nextSort(prev, key));
+  const sortedLocations = useMemo(() => {
+    if (!sort.key) return filteredLocations;
+    const value = (l) => sort.key === 'techs' ? Object.keys(l.techs || {}).length : l[sort.key];
+    const sorted = [...filteredLocations].sort((a, b) => compareValues(value(a), value(b)));
+    return sort.dir === 'desc' ? sorted.reverse() : sorted;
+  }, [filteredLocations, sort]);
+
   // Get icon for technology type
   const getTechIcon = (techName) => {
     const name = techName.toLowerCase();
-    if (name.includes('solar') || name.includes('pv')) return <FiSun className="text-gray-600" />;
-    if (name.includes('wind')) return <FiWind className="text-gray-600" />;
-    if (name.includes('battery') || name.includes('storage')) return <FiBattery className="text-gray-600" />;
-    if (name.includes('gas') || name.includes('ccgt')) return <FiZap className="text-gray-600" />;
-    if (name.includes('coal')) return <FiActivity className="text-gray-700" />;
-    if (name.includes('biomass')) return <FiDroplet className="text-gray-600" />;
-    if (name.includes('demand')) return <FiHome className="text-gray-600" />;
-    if (name.includes('transmission')) return <FiZap className="text-gray-600" />;
-    return <FiCpu className="text-slate-600" />;
+    if (name.includes('solar') || name.includes('pv')) return <LuSun className="text-gray-600" />;
+    if (name.includes('wind')) return <LuWind className="text-gray-600" />;
+    if (name.includes('battery') || name.includes('storage')) return <LuBatteryCharging className="text-gray-600" />;
+    if (name.includes('gas') || name.includes('ccgt')) return <LuZap className="text-gray-600" />;
+    if (name.includes('coal')) return <LuActivity className="text-gray-700" />;
+    if (name.includes('biomass')) return <LuDroplet className="text-gray-600" />;
+    if (name.includes('demand')) return <LuHouse className="text-gray-600" />;
+    if (name.includes('transmission')) return <LuZap className="text-gray-600" />;
+    return <LuCpu className="text-slate-600" />;
   };
 
   // Format technology name
@@ -155,7 +167,7 @@ const Locations = () => {
   // Get unique tech types for location icons
   const getLocationTechIcons = (location) => {
     if (!location.techs || Object.keys(location.techs).length === 0) {
-      return location.type === 'node' ? [<FiCircle key="node" className="text-slate-400" />] : [];
+      return location.type === 'node' ? [<LuCircle key="node" className="text-slate-400" />] : [];
     }
     
     const icons = new Set();
@@ -426,196 +438,235 @@ const Locations = () => {
   return (
     <div className="flex-1 flex flex-col bg-gray-50 min-h-0">
       <SaveBar label="Locations" />
-      <div className="flex-1 p-8 overflow-y-auto">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-800 mb-2">Locations</h1>
-        <p className="text-slate-600">Manage energy system nodes and locations</p>
+      <div className="flex-1 overflow-y-auto">
+      <div className="w-full px-8 py-8">
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Locations</h1>
+          <p className="mt-1 text-[15px] text-slate-500">Manage energy system nodes and locations</p>
+        </div>
         {currentModel && (
-          <p className="text-sm text-gray-600 mt-1">Model: {currentModel.name}</p>
+          <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            {currentModel.name}
+          </span>
         )}
       </div>
 
-      <div className="bg-white rounded-lg shadow-lg p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-slate-800">
-            Location List ({locations.length})
+      {locations.length > 0 && (
+        <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4 2xl:grid-cols-6">
+          <KpiCard icon={LuMapPin} label="Locations" value={locations.length} sub="nodes" />
+          <KpiCard icon={LuCpu} label="With technologies" value={locations.filter(l => l.techs && Object.keys(l.techs).length > 0).length} sub="locations" />
+          <KpiCard icon={LuLayers} label="Location types" value={new Set(locations.map(l => l.type).filter(Boolean)).size} sub="types" />
+        </div>
+      )}
+
+      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+          <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
+            All locations
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">{locations.length}</span>
           </h2>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <div className="relative">
-              <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={16} />
+              <LuSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
               <input
                 type="text"
-                placeholder="Search locations..."
+                placeholder="Search locations"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 pr-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 text-sm w-64"
+                className="h-10 w-64 rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-[13px] text-slate-800 placeholder:text-slate-400 transition-colors focus:border-slate-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-200"
               />
             </div>
             {hasChanges && (
               <button
                 onClick={saveChanges}
-                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors text-sm flex items-center gap-2 shadow-lg animate-pulse"
+                className="flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 shadow-sm transition-colors hover:bg-slate-50"
               >
-                <FiSave /> Save Changes
+                <span className="h-2 w-2 rounded-full bg-amber-500" />
+                <LuSave size={16} /> Save changes
               </button>
             )}
             <button
               onClick={() => setIsAdding(true)}
-              className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors text-sm flex items-center gap-2"
+              className="flex h-10 items-center gap-1.5 rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800"
             >
-              <FiPlus /> Add Location
+              <LuPlus size={16} /> Add location
             </button>
           </div>
         </div>
 
+        <div className="p-3">
         {locations.length === 0 ? (
-          <div className="border-2 border-dashed border-slate-300 rounded-lg h-96 flex items-center justify-center bg-slate-50">
-            <p className="text-slate-500">No locations configured yet. Load a model to get started.</p>
+          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 px-6 py-20 text-center">
+            <div className="mb-3 grid h-12 w-12 place-items-center rounded-full bg-slate-100 text-slate-500">
+              <LuMapPin size={20} />
+            </div>
+            <p className="text-sm font-semibold text-slate-800">No locations yet</p>
+            <p className="mt-1 max-w-sm text-sm text-slate-500">Load a model from Structure → Models, or add your first location here.</p>
+            <button
+              onClick={() => setIsAdding(true)}
+              className="mt-5 flex h-9 items-center gap-1.5 rounded-lg bg-slate-900 px-3 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-slate-800"
+            >
+              <LuPlus size={14} /> Add location
+            </button>
           </div>
         ) : filteredLocations.length === 0 ? (
-          <div className="border-2 border-dashed border-slate-300 rounded-lg h-96 flex items-center justify-center bg-slate-50">
-            <p className="text-slate-500">No locations match your search.</p>
+          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 px-6 py-16 text-center">
+            <LuSearch size={20} className="mb-2 text-slate-400" />
+            <p className="text-sm font-semibold text-slate-800">No matches</p>
+            <p className="mt-1 text-sm text-slate-500">No locations match “{searchQuery}”.</p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {filteredLocations.map((location) => {
+          <div className="overflow-hidden rounded-xl border border-slate-200">
+            <div className="grid grid-cols-[28px_minmax(0,2fr)_130px_minmax(0,1.6fr)_104px_104px_68px] items-center gap-3 sticky top-0 z-10 border-b border-slate-200 bg-slate-50/95 px-3 py-2.5 backdrop-blur">
+              <span />
+              <SortHeader label="Name" sortKey="name" sort={sort} onSort={onSort} />
+              <SortHeader label="Type" sortKey="type" sort={sort} onSort={onSort} />
+              <SortHeader label="Technologies" sortKey="techs" sort={sort} onSort={onSort} />
+              <SortHeader label="Latitude" sortKey="latitude" sort={sort} onSort={onSort} align="right" className="justify-self-end" />
+              <SortHeader label="Longitude" sortKey="longitude" sort={sort} onSort={onSort} align="right" className="justify-self-end" />
+              <span />
+            </div>
+            <div className="divide-y divide-slate-100">
+            {sortedLocations.map((location) => {
               const originalIndex = locations.indexOf(location);
+              const isEditing = editingIndex === originalIndex;
+              const isExpanded = expandedLocation === originalIndex;
+              const techCount = location.techs ? Object.keys(location.techs).length : 0;
               return (
-              <div key={originalIndex} className="border border-slate-200 rounded-lg overflow-hidden hover:border-slate-300 transition-colors">
-                {/* Location Header */}
-                <div className="bg-slate-50 p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3 flex-1">
-                      <button
-                        onClick={() => setExpandedLocation(expandedLocation === originalIndex ? null : originalIndex)}
-                        className="text-slate-600 hover:text-slate-800"
-                      >
-                        {expandedLocation === originalIndex ? <FiChevronDown size={20} /> : <FiChevronRight size={20} />}
-                      </button>
-                      
-                      {editingIndex === originalIndex ? (
-                        <input
-                          type="text"
-                          value={editData.name}
-                          onChange={(e) => setEditData({ ...editData, name: e.target.value })}
-                          className="px-3 py-1 border border-slate-300 rounded text-sm font-medium flex-1 max-w-xs"
-                        />
-                      ) : (
-                        <span className="text-lg font-semibold text-slate-800">{location.name}</span>
-                      )}
-                      
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        location.type === 'demand' ? 'bg-gray-100 text-gray-800' :
-                        location.type === 'supply' ? 'bg-gray-100 text-gray-800' :
-                        location.type === 'supply_plus' ? 'bg-gray-100 text-gray-800' :
-                        location.type === 'storage' ? 'bg-gray-100 text-gray-800' :
-                        location.type === 'conversion' ? 'bg-gray-100 text-gray-800' :
-                        location.type === 'conversion_plus' ? 'bg-gray-100 text-gray-800' :
-                        location.type === 'transmission' ? 'bg-gray-100 text-gray-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {location.type}
-                      </span>
+              <div key={originalIndex} className={`group transition-colors ${isExpanded || isEditing ? 'bg-slate-50/60' : 'hover:bg-slate-50/70'}`}>
+                <div className="grid grid-cols-[28px_minmax(0,2fr)_130px_minmax(0,1.6fr)_104px_104px_68px] items-center gap-3 px-3 py-2">
+                  <button
+                    onClick={() => setExpandedLocation(isExpanded ? null : originalIndex)}
+                    className="grid h-7 w-7 place-items-center rounded-md text-slate-400 transition-colors hover:bg-slate-200/70 hover:text-slate-800"
+                    aria-label={isExpanded ? 'Collapse' : 'Expand'}
+                  >
+                    {isExpanded ? <LuChevronDown size={16} /> : <LuChevronRight size={16} />}
+                  </button>
 
-                      {/* Technology Icons */}
-                      <div className="flex items-center gap-1">
-                        {getLocationTechIcons(location).map((icon, iconIdx) => (
-                          <div key={iconIdx} className="p-1">
-                            {icon}
-                          </div>
-                        ))}
-                      </div>
-
-                      {location.techs && Object.keys(location.techs).length > 0 && (
-                        <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium flex items-center gap-1">
-                          <FiCpu size={12} />
-                          {Object.keys(location.techs).length} techs
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-slate-500">
-                        {location.latitude?.toFixed(4) || 'N/A'}, {location.longitude?.toFixed(4) || 'N/A'}
-                      </span>
-                      {editingIndex !== originalIndex && (
-                        <>
-                          <button
-                            onClick={() => startEdit(originalIndex)}
-                            className="p-2 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
-                          >
-                            <FiEdit2 size={16} />
-                          </button>
-                          <button
-                            onClick={() => deleteLocation(originalIndex)}
-                            className="p-2 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
-                          >
-                            <FiTrash2 size={16} />
-                          </button>
-                        </>
-                      )}
-                      {editingIndex === originalIndex && (
-                        <>
-                          <button onClick={saveEdit} className="p-2 text-gray-600 hover:bg-gray-50 rounded-lg">
-                            <FiCheck size={18} />
-                          </button>
-                          <button onClick={cancelEdit} className="p-2 text-gray-600 hover:bg-gray-50 rounded-lg">
-                            <FiX size={18} />
-                          </button>
-                        </>
-                      )}
-                    </div>
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-slate-100 text-xs font-semibold uppercase text-slate-600">
+                      {(location.name || '?').slice(0, 2)}
+                    </span>
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        value={editData.name}
+                        onChange={(e) => setEditData({ ...editData, name: e.target.value })}
+                        className="h-8 w-full rounded-lg border border-slate-300 bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 font-medium"
+                      />
+                    ) : (
+                      <span className="truncate text-sm font-semibold text-slate-900">{location.name}</span>
+                    )}
                   </div>
 
-                  {/* Edit mode: Coordinates */}
-                  {editingIndex === originalIndex && (
-                    <div className="mt-3 flex gap-3">
-                      <div className="flex-1">
-                        <label className="block text-xs text-slate-600 mb-1">Latitude</label>
-                        <input
-                          type="number"
-                          step="0.0001"
-                          value={editData.latitude}
-                          onChange={(e) => setEditData({ ...editData, latitude: parseFloat(e.target.value) })}
-                          className="w-full px-3 py-1 border border-slate-300 rounded text-sm"
-                        />
-                      </div>
-                      <div className="flex-1">
-                        <label className="block text-xs text-slate-600 mb-1">Longitude</label>
-                        <input
-                          type="number"
-                          step="0.0001"
-                          value={editData.longitude}
-                          onChange={(e) => setEditData({ ...editData, longitude: parseFloat(e.target.value) })}
-                          className="w-full px-3 py-1 border border-slate-300 rounded text-sm"
-                        />
-                      </div>
-                      <div className="flex-1">
-                        <label className="block text-xs text-slate-600 mb-1">Type</label>
-                        <select
-                          value={editData.type}
-                          onChange={(e) => setEditData({ ...editData, type: e.target.value })}
-                          className="w-full px-3 py-1 border border-slate-300 rounded text-sm"
-                        >
-                          <option value="demand">demand</option>
-                          <option value="supply">supply</option>
-                          <option value="supply_plus">supply_plus</option>
-                          <option value="storage">storage</option>
-                          <option value="conversion">conversion</option>
-                          <option value="conversion_plus">conversion_plus</option>
-                          <option value="transmission">transmission</option>
-                        </select>
-                      </div>
-                    </div>
+                  {isEditing ? (
+                    <select
+                      value={editData.type}
+                      onChange={(e) => setEditData({ ...editData, type: e.target.value })}
+                      className="h-8 w-full rounded-lg border border-slate-300 bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 text-xs"
+                    >
+                      <option value="demand">demand</option>
+                      <option value="supply">supply</option>
+                      <option value="supply_plus">supply_plus</option>
+                      <option value="storage">storage</option>
+                      <option value="conversion">conversion</option>
+                      <option value="conversion_plus">conversion_plus</option>
+                      <option value="transmission">transmission</option>
+                    </select>
+                  ) : (
+                    <span className="w-fit rounded-md border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[11px] text-slate-600">
+                      {location.type || '—'}
+                    </span>
                   )}
+
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    {techCount > 0 ? (
+                      <>
+                        <div className="flex items-center text-slate-400">
+                          {getLocationTechIcons(location).map((icon, iconIdx) => (
+                            <div key={iconIdx} className="p-0.5">{icon}</div>
+                          ))}
+                        </div>
+                        <span className="flex shrink-0 items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-600">
+                          <LuCpu size={11} />
+                          {techCount}
+                        </span>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => setExpandedLocation(originalIndex)}
+                        className="text-xs text-slate-400 transition-colors hover:text-slate-800"
+                      >
+                        + Add technologies
+                      </button>
+                    )}
+                  </div>
+
+                  {isEditing ? (
+                    <>
+                      <input
+                        type="number"
+                        step="0.0001"
+                        value={editData.latitude}
+                        onChange={(e) => setEditData({ ...editData, latitude: parseFloat(e.target.value) })}
+                        className="h-8 w-full rounded-lg border border-slate-300 bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 text-right font-mono text-xs"
+                        aria-label="Latitude"
+                      />
+                      <input
+                        type="number"
+                        step="0.0001"
+                        value={editData.longitude}
+                        onChange={(e) => setEditData({ ...editData, longitude: parseFloat(e.target.value) })}
+                        className="h-8 w-full rounded-lg border border-slate-300 bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 text-right font-mono text-xs"
+                        aria-label="Longitude"
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-right font-mono text-xs tabular-nums text-slate-600">{location.latitude?.toFixed(4) ?? '—'}</span>
+                      <span className="text-right font-mono text-xs tabular-nums text-slate-600">{location.longitude?.toFixed(4) ?? '—'}</span>
+                    </>
+                  )}
+
+                  <div className="flex justify-end gap-0.5">
+                    {isEditing ? (
+                      <>
+                        <button onClick={saveEdit} title="Save" className="grid h-7 w-7 place-items-center rounded-md bg-slate-900 text-white hover:bg-slate-800">
+                          <LuCheck size={14} />
+                        </button>
+                        <button onClick={cancelEdit} title="Cancel" className="grid h-7 w-7 place-items-center rounded-md text-slate-500 hover:bg-slate-200/70">
+                          <LuX size={14} />
+                        </button>
+                      </>
+                    ) : (
+                      <span className="flex gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+                        <button
+                          onClick={() => startEdit(originalIndex)}
+                          className="grid h-7 w-7 place-items-center rounded-md text-slate-400 transition-colors hover:bg-slate-200/70 hover:text-slate-900"
+                          title="Edit location"
+                        >
+                          <LuPencil size={14} />
+                        </button>
+                        <button
+                          onClick={() => deleteLocation(originalIndex)}
+                          className="grid h-7 w-7 place-items-center rounded-md text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                          title="Delete location"
+                        >
+                          <LuTrash2 size={14} />
+                        </button>
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Expanded Details: Technologies */}
                 {expandedLocation === originalIndex && (
-                  <div className="bg-white p-4 border-t border-slate-200">
+                  <div className="border-t border-slate-100 px-4 pb-4 pl-[52px] pt-3">
                     <div className="flex items-center justify-between mb-3">
                       <h4 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                        <FiCpu className="text-gray-600" />
+                        <LuCpu className="text-gray-600" />
                         Technologies at this Location
                       </h4>
                       {editingTech && editingTech.locationIndex === originalIndex && (
@@ -623,7 +674,7 @@ const Locations = () => {
                           onClick={saveEditTech}
                           className="px-3 py-1 bg-gray-600 text-white rounded text-xs hover:bg-gray-700"
                         >
-                          <FiCheck className="inline mr-1" /> Done Editing
+                          <LuCheck className="inline mr-1" /> Done Editing
                         </button>
                       )}
                     </div>
@@ -652,14 +703,14 @@ const Locations = () => {
                                       onClick={() => startEditTech(originalIndex, techName)}
                                       className="p-1 text-gray-600 hover:bg-gray-100 rounded"
                                     >
-                                      <FiEdit2 size={14} />
+                                      <LuPencil size={14} />
                                     </button>
                                   )}
                                   <button
                                     onClick={() => removeTechnology(originalIndex, techName)}
                                     className="p-1 text-gray-600 hover:bg-gray-100 rounded"
                                   >
-                                    <FiTrash2 size={14} />
+                                    <LuTrash2 size={14} />
                                   </button>
                                 </div>
                               </div>
@@ -673,7 +724,7 @@ const Locations = () => {
                                       onClick={() => setExpandedSections({ ...expandedSections, [`${sectionKey}_essentials`]: !expandedSections[`${sectionKey}_essentials`] })}
                                       className="flex items-center gap-2 text-xs font-semibold text-slate-700 mb-2 hover:text-gray-600"
                                     >
-                                      {expandedSections[`${sectionKey}_essentials`] ? <FiChevronDown size={14} /> : <FiChevronRight size={14} />}
+                                      {expandedSections[`${sectionKey}_essentials`] ? <LuChevronDown size={14} /> : <LuChevronRight size={14} />}
                                       <span>Essentials</span>
                                     </button>
                                     {expandedSections[`${sectionKey}_essentials`] && (
@@ -731,7 +782,7 @@ const Locations = () => {
                                       onClick={() => setExpandedSections({ ...expandedSections, [`${sectionKey}_constraints`]: !expandedSections[`${sectionKey}_constraints`] })}
                                       className="flex items-center gap-2 text-xs font-semibold text-slate-700 mb-2 hover:text-gray-600"
                                     >
-                                      {expandedSections[`${sectionKey}_constraints`] ? <FiChevronDown size={14} /> : <FiChevronRight size={14} />}
+                                      {expandedSections[`${sectionKey}_constraints`] ? <LuChevronDown size={14} /> : <LuChevronRight size={14} />}
                                       <span>Constraints ({mergedTechData.constraints ? Object.keys(mergedTechData.constraints).length : 0})</span>
                                     </button>
                                     {expandedSections[`${sectionKey}_constraints`] && (
@@ -763,7 +814,7 @@ const Locations = () => {
                                                       onClick={() => removeTechConstraint(originalIndex, techName, key)}
                                                       className="text-gray-500 hover:text-gray-600"
                                                     >
-                                                      <FiX size={16} />
+                                                      <LuX size={16} />
                                                     </button>
                                                   </>
                                                 ) : (
@@ -805,7 +856,7 @@ const Locations = () => {
                                               className="group flex h-9 w-full items-center gap-2 rounded-full bg-gray-200 pl-3 pr-4 transition-all duration-300 ease-in-out hover:bg-gray-600 hover:pl-2 hover:text-white active:bg-gray-700 text-sm font-medium text-gray-800"
                                             >
                                               <span className="rounded-full bg-gray-600 p-1 text-sm transition-colors duration-300 group-hover:bg-white">
-                                                <FiArrowRight className="-translate-x-[200%] text-[0px] transition-all duration-300 group-hover:translate-x-0 group-hover:text-base group-hover:text-gray-600" />
+                                                <LuArrowRight className="-translate-x-[200%] text-[0px] transition-all duration-300 group-hover:translate-x-0 group-hover:text-base group-hover:text-gray-600" />
                                               </span>
                                               <span>Add Constraint</span>
                                             </button>
@@ -823,7 +874,7 @@ const Locations = () => {
                                       onClick={() => setExpandedSections({ ...expandedSections, [`${sectionKey}_costs`]: !expandedSections[`${sectionKey}_costs`] })}
                                       className="flex items-center gap-2 text-xs font-semibold text-slate-700 mb-2 hover:text-gray-600"
                                     >
-                                      {expandedSections[`${sectionKey}_costs`] ? <FiChevronDown size={14} /> : <FiChevronRight size={14} />}
+                                      {expandedSections[`${sectionKey}_costs`] ? <LuChevronDown size={14} /> : <LuChevronRight size={14} />}
                                       <span>Costs ({mergedTechData.costs ? Object.keys(mergedTechData.costs.monetary || mergedTechData.costs || {}).length : 0})</span>
                                     </button>
                                     {expandedSections[`${sectionKey}_costs`] && (
@@ -845,7 +896,7 @@ const Locations = () => {
                                               className="group flex h-9 w-full items-center gap-2 rounded-full bg-gray-200 pl-3 pr-4 transition-all duration-300 ease-in-out hover:bg-gray-600 hover:pl-2 hover:text-white active:bg-gray-700 text-sm font-medium text-gray-800"
                                             >
                                               <span className="rounded-full bg-gray-600 p-1 text-sm transition-colors duration-300 group-hover:bg-white">
-                                                <FiArrowRight className="-translate-x-[200%] text-[0px] transition-all duration-300 group-hover:translate-x-0 group-hover:text-base group-hover:text-gray-600" />
+                                                <LuArrowRight className="-translate-x-[200%] text-[0px] transition-all duration-300 group-hover:translate-x-0 group-hover:text-base group-hover:text-gray-600" />
                                               </span>
                                               <span>Add Cost</span>
                                             </button>
@@ -905,7 +956,7 @@ const Locations = () => {
                                   <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">
                                     {categoryLabel} ({techsInCategory.length})
                                   </span>
-                                  {isCategoryExpanded ? <FiChevronDown size={14} /> : <FiChevronRight size={14} />}
+                                  {isCategoryExpanded ? <LuChevronDown size={14} /> : <LuChevronRight size={14} />}
                                 </button>
                                 {isCategoryExpanded && (
                                   <div className="bg-white divide-y divide-slate-100">
@@ -928,7 +979,7 @@ const Locations = () => {
                                               {instances.length > 0 && (
                                                 <span className="text-[10px] text-slate-400">{instances.length} variant{instances.length !== 1 ? 's' : ''}</span>
                                               )}
-                                              {isSubExpanded ? <FiChevronDown size={12} className="text-slate-400" /> : <FiChevronRight size={12} className="text-slate-400" />}
+                                              {isSubExpanded ? <LuChevronDown size={12} className="text-slate-400" /> : <LuChevronRight size={12} className="text-slate-400" />}
                                             </div>
                                           </button>
                                           {/* Instance rows */}
@@ -999,8 +1050,14 @@ const Locations = () => {
               </div>
               );
             })}
+            </div>
+            <div className="border-t border-slate-100 bg-slate-50/60 px-4 py-2 text-xs text-slate-500">
+              Showing {sortedLocations.length} of {locations.length} locations
+            </div>
           </div>
         )}
+        </div>
+      </div>
       </div>
 
       {/* Constraint Search Modals - Browsable like Creation */}
@@ -1056,7 +1113,7 @@ const Locations = () => {
                             <span className="text-sm font-semibold text-gray-900">
                               {formatTechName(group)} ({constraints.length})
                             </span>
-                            {isExpanded ? <FiChevronDown size={16} className="text-gray-600" /> : <FiChevronRight size={16} className="text-gray-600" />}
+                            {isExpanded ? <LuChevronDown size={16} className="text-gray-600" /> : <LuChevronRight size={16} className="text-gray-600" />}
                           </button>
                           {isExpanded && (
                             <div className="divide-y divide-slate-100 bg-white">
@@ -1162,7 +1219,7 @@ const Locations = () => {
                             <span className="text-sm font-semibold text-gray-900">
                               {formatTechName(group)} ({costs.length})
                             </span>
-                            {isExpanded ? <FiChevronDown size={16} className="text-gray-600" /> : <FiChevronRight size={16} className="text-gray-600" />}
+                            {isExpanded ? <LuChevronDown size={16} className="text-gray-600" /> : <LuChevronRight size={16} className="text-gray-600" />}
                           </button>
                           {isExpanded && (
                             <div className="divide-y divide-slate-100 bg-white">
@@ -1221,28 +1278,39 @@ const Locations = () => {
 
       {/* Add Location Modal */}
       {isAdding && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000]">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="p-6 border-b border-slate-200">
-              <h3 className="text-xl font-bold text-slate-800">Add New Location</h3>
-            </div>
-            <div className="p-6 space-y-4">
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-900/5">
+            <div className="flex items-start justify-between border-b border-slate-100 px-6 py-5">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
+                <h3 className="text-base font-semibold text-slate-900">Add location</h3>
+                <p className="mt-0.5 text-xs text-slate-500">Create a new node in the active model.</p>
+              </div>
+              <button
+                onClick={() => { setIsAdding(false); setNewLocation({ name: '', latitude: '', longitude: '', type: 'demand' }); }}
+                className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                aria-label="Close"
+              >
+                <LuX size={16} />
+              </button>
+            </div>
+            <div className="space-y-4 px-6 py-5">
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-slate-700">Name</label>
                 <input
                   type="text"
                   value={newLocation.name}
                   onChange={(e) => setNewLocation({ ...newLocation, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500"
-                  placeholder="Location name"
+                  className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                  placeholder="e.g. Berlin"
+                  autoFocus
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Type</label>
+                <label className="mb-1.5 block text-xs font-medium text-slate-700">Type</label>
                 <select
                   value={newLocation.type}
                   onChange={(e) => setNewLocation({ ...newLocation, type: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500"
+                  className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-200"
                 >
                   <option value="demand">Demand</option>
                   <option value="supply">Supply</option>
@@ -1253,45 +1321,47 @@ const Locations = () => {
                   <option value="transmission">Transmission</option>
                 </select>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Latitude</label>
-                <input
-                  type="number"
-                  step="0.0001"
-                  value={newLocation.latitude}
-                  onChange={(e) => setNewLocation({ ...newLocation, latitude: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500"
-                  placeholder="e.g., 52.5200"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Longitude</label>
-                <input
-                  type="number"
-                  step="0.0001"
-                  value={newLocation.longitude}
-                  onChange={(e) => setNewLocation({ ...newLocation, longitude: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500"
-                  placeholder="e.g., 13.4050"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-slate-700">Latitude</label>
+                  <input
+                    type="number"
+                    step="0.0001"
+                    value={newLocation.latitude}
+                    onChange={(e) => setNewLocation({ ...newLocation, latitude: e.target.value })}
+                    className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-200 font-mono"
+                    placeholder="52.5200"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-slate-700">Longitude</label>
+                  <input
+                    type="number"
+                    step="0.0001"
+                    value={newLocation.longitude}
+                    onChange={(e) => setNewLocation({ ...newLocation, longitude: e.target.value })}
+                    className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-200 font-mono"
+                    placeholder="13.4050"
+                  />
+                </div>
               </div>
             </div>
-            <div className="p-6 border-t border-slate-200 flex gap-3 justify-end">
+            <div className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50/60 px-6 py-4">
               <button
                 onClick={() => {
                   setIsAdding(false);
                   setNewLocation({ name: '', latitude: '', longitude: '', type: 'demand' });
                 }}
-                className="px-4 py-2 border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50 transition-colors"
+                className="h-9 rounded-lg border border-slate-200 bg-white px-4 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-50"
               >
                 Cancel
               </button>
               <button
                 onClick={addLocation}
                 disabled={!newLocation.name || !newLocation.latitude || !newLocation.longitude}
-                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors disabled:bg-slate-300 disabled:cursor-not-allowed"
+                className="h-9 rounded-lg bg-slate-900 px-4 text-[13px] font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
               >
-                Add Location
+                Add location
               </button>
             </div>
           </div>

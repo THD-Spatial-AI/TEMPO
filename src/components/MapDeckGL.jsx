@@ -4,6 +4,7 @@ import { WebMercatorViewport } from '@deck.gl/core';
 import { ScatterplotLayer, IconLayer, LineLayer } from '@deck.gl/layers';
 import { Map as MapGL } from 'react-map-gl/maplibre';
 import { useData } from '../context/DataContext';
+import { LuPanelLeftClose, LuPanelLeftOpen } from 'react-icons/lu';
 import { FiLayers, FiLink, FiEye, FiEdit2, FiMapPin, FiTrash2, FiCpu, FiChevronDown, FiChevronRight, FiChevronLeft, FiZoomIn, FiZoomOut, FiMaximize2, FiX, FiCheck, FiHelpCircle, FiArrowRight, FiActivity, FiZap, FiCircle, FiNavigation, FiSave, FiFolder } from 'react-icons/fi';
 import ChangeHistoryIcon from '@mui/icons-material/ChangeHistory';
 import { TECH_TEMPLATES, useLiveTechTemplates } from './TechnologiesData';
@@ -868,62 +869,86 @@ const MapDeckGL = () => {
   return (
     <div className="flex-1 h-screen overflow-hidden flex">
       {/* Left Panel - Sidebar */}
-      <div className={`${leftSidebarCollapsed ? 'w-16' : 'w-80'} bg-white border-r border-slate-200 flex flex-col transition-all duration-200 overflow-hidden`}>
+      <div className={`${leftSidebarCollapsed ? 'w-14' : 'w-72'} shrink-0 bg-white border-r border-slate-200 transition-[width] duration-300 ease-out overflow-hidden`}>
+      <div className={`flex h-full flex-col ${leftSidebarCollapsed ? 'w-14' : 'w-72'}`}>
         {/* Header */}
-        <div className="p-3 border-b border-slate-200 flex items-center gap-1.5 shrink-0">
-          {!leftSidebarCollapsed && (
-            <h2 className="text-base font-bold text-slate-800 truncate flex-1">Map View</h2>
-          )}
+        <div className={`flex items-center border-b border-slate-200 shrink-0 ${leftSidebarCollapsed ? 'justify-center py-3' : 'gap-1 px-4 py-3'}`}>
           {!leftSidebarCollapsed && (
             <>
-              {/* Save current model */}
+              <div className="min-w-0 flex-1">
+                <h2 className="text-sm font-semibold text-slate-900">Map View</h2>
+                <p className="truncate text-[11px] text-slate-500">Edit the active model on the map</p>
+              </div>
               <button
                 onClick={() => { updateCurrentModel(); showNotification('Model saved!', 'success'); }}
-                className="p-1.5 rounded hover:bg-gray-100 text-slate-500 hover:text-gray-700 transition-colors"
+                className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors"
                 title="Save current model"
               >
                 <FiSave size={16} />
-              </button>
-              {/* Load model panel toggle */}
-              <button
-                onClick={() => setShowModelPanel(v => !v)}
-                className={`p-1.5 rounded transition-colors ${showModelPanel ? 'bg-gray-100 text-gray-700' : 'hover:bg-gray-100 text-slate-500 hover:text-gray-700'}`}
-                title="Switch / load model"
-              >
-                <FiFolder size={16} />
               </button>
             </>
           )}
           <button
             onClick={() => setLeftSidebarCollapsed(!leftSidebarCollapsed)}
-            className="p-1.5 rounded hover:bg-slate-100 text-slate-600 transition-colors"
-            title={leftSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+            title={leftSidebarCollapsed ? 'Expand panel' : 'Collapse panel'}
           >
-            {leftSidebarCollapsed ? <FiChevronRight size={18} /> : <FiChevronLeft size={18} />}
+            {leftSidebarCollapsed ? <LuPanelLeftOpen size={18} /> : <LuPanelLeftClose size={18} />}
           </button>
         </div>
 
-        {/* Model Panel */}
-        {!leftSidebarCollapsed && showModelPanel && (
-          <div className="border-b border-slate-200 bg-slate-50 shrink-0">
-            <div className="px-3 pt-2 pb-1">
-              <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">Saved Models</p>
+        {leftSidebarCollapsed ? (
+          <div className="flex flex-col items-center gap-1 py-3">
+            {[
+              { m: 'add-location', Icon: FiMapPin, title: 'Add location' },
+              { m: 'add-link', Icon: FiLink, title: 'Link' },
+              { m: 'polyline', Icon: FiNavigation, title: 'Polyline' },
+            ].map(({ m, Icon, title }) => (
+              <button
+                key={m}
+                onClick={() => { setMode(mode === m ? 'view' : m); setLinkStart(null); if (m !== 'polyline') setLastPolylineLocation(null); }}
+                title={title}
+                className={`grid h-9 w-9 place-items-center rounded-lg transition-colors ${
+                  mode === m ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                <Icon size={16} />
+              </button>
+            ))}
+          </div>
+        ) : (
+        <div className="flex min-h-0 flex-1 flex-col" style={{ animation: 'panelContentIn 0.15s ease-out 0.25s both' }}>
+        <div className="border-b border-slate-200 px-4 py-3 shrink-0">
+          <button
+            onClick={() => setShowModelPanel(v => !v)}
+            className={`flex h-9 w-full items-center gap-2 rounded-lg border px-2.5 text-left transition-colors ${
+              showModelPanel ? 'border-slate-300 bg-slate-50' : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+            }`}
+            title="Switch / load model"
+          >
+            <FiFolder size={14} className="shrink-0 text-slate-400" />
+            <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-slate-800">
+              {models.find(m => m.id === currentModelId)?.name || 'No model loaded'}
+            </span>
+            <FiChevronDown size={14} className={`shrink-0 text-slate-400 transition-transform ${showModelPanel ? 'rotate-180' : ''}`} />
+          </button>
+
+          {showModelPanel && (
+            <div className="mt-2 rounded-lg border border-slate-200 bg-white p-1 shadow-sm">
               {models.length === 0 ? (
-                <p className="text-xs text-slate-400 pb-2">No saved models yet</p>
+                <p className="px-2 py-2 text-xs text-slate-400">No saved models yet</p>
               ) : (
-                <div className="space-y-1 max-h-44 overflow-y-auto">
+                <div className="max-h-44 space-y-0.5 overflow-y-auto">
                   {models.map(m => (
                     <button
                       key={m.id}
                       onClick={() => { loadModel(m.id); setShowModelPanel(false); showNotification(`Loaded "${m.name}"`, 'success'); }}
-                      className={`w-full text-left px-2 py-1.5 rounded text-xs transition-colors ${
-                        m.id === currentModelId
-                          ? 'bg-gray-100 text-gray-800 font-semibold'
-                          : 'hover:bg-white text-slate-700'
+                      className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors ${
+                        m.id === currentModelId ? 'bg-slate-100 font-semibold text-slate-900' : 'text-slate-700 hover:bg-slate-50'
                       }`}
                     >
-                      <span className="truncate block">{m.name}</span>
-                      {m.id === currentModelId && <span className="text-gray-500 text-xs">● current</span>}
+                      <span className="min-w-0 flex-1 truncate">{m.name}</span>
+                      {m.id === currentModelId && <FiCheck size={12} className="shrink-0 text-slate-500" />}
                     </button>
                   ))}
                 </div>
@@ -933,68 +958,44 @@ const MapDeckGL = () => {
                   const name = prompt('New model name:');
                   if (name) { createModel(name); setShowModelPanel(false); }
                 }}
-                className="mt-2 mb-1 w-full text-xs text-center py-1.5 rounded border border-dashed border-slate-300 text-slate-500 hover:border-gray-400 hover:text-gray-600 transition-colors"
+                className="mt-1 w-full rounded-md border border-dashed border-slate-200 py-1.5 text-xs text-slate-500 transition-colors hover:border-slate-300 hover:text-slate-800"
               >
                 + New empty model
               </button>
             </div>
-          </div>
-        )}
-
-        {/* Edit tools — add nodes, links, polylines to the imported model */}
-        <div className={`border-b border-slate-200 shrink-0 ${leftSidebarCollapsed ? 'p-2' : 'p-3'}`}>
-          {leftSidebarCollapsed ? (
-            <div className="flex flex-col items-center gap-1.5">
-              {[
-                { m: 'add-location', Icon: FiMapPin, title: 'Add Location' },
-                { m: 'add-link', Icon: FiLink, title: 'Link' },
-                { m: 'polyline', Icon: FiNavigation, title: 'Polyline' },
-              ].map(({ m, Icon, title }) => (
-                <button
-                  key={m}
-                  onClick={() => { setMode(mode === m ? 'view' : m); setLinkStart(null); if (m !== 'polyline') setLastPolylineLocation(null); }}
-                  title={title}
-                  className={`p-2 rounded-lg border-2 w-full flex justify-center transition-all ${
-                    mode === m ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 hover:border-gray-400 text-gray-600'
-                  }`}
-                >
-                  <Icon size={16} />
-                </button>
-              ))}
-            </div>
-          ) : (
-            <>
-              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">Edit tools</label>
-              <div className="grid grid-cols-3 gap-1.5">
-                {[
-                  { m: 'add-location', Icon: FiMapPin, label: 'Add' },
-                  { m: 'add-link', Icon: FiLink, label: 'Link' },
-                  { m: 'polyline', Icon: FiNavigation, label: 'Polyline' },
-                ].map(({ m, Icon, label }) => (
-                  <button
-                    key={m}
-                    onClick={() => { setMode(mode === m ? 'view' : m); setLinkStart(null); if (m !== 'polyline') setLastPolylineLocation(null); }}
-                    className={`p-2.5 rounded-lg border-2 transition-all ${
-                      mode === m ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 hover:border-gray-400 text-gray-700'
-                    }`}
-                  >
-                    <Icon className="mx-auto mb-0.5" size={16} />
-                    <div className="text-[11px] font-medium">{label}</div>
-                  </button>
-                ))}
-              </div>
-              <div className="mt-2 p-2 bg-slate-100 rounded text-xs text-slate-600">
-                {mode === 'view' && 'Click a location to edit it. Pick a tool to add nodes/links.'}
-                {mode === 'add-location' && 'Click the map to add a location and edit it'}
-                {mode === 'add-link' && (linkStart ? `Select destination for link from "${linkStart.name}"` : 'Click a location to start a link')}
-                {mode === 'polyline' && (lastPolylineLocation ? `Continue from "${lastPolylineLocation.name}" — click to extend` : 'Click the map to start a polyline chain')}
-              </div>
-            </>
           )}
         </div>
 
+        {/* Edit tools — add nodes, links, polylines to the imported model */}
+        <div className="border-b border-slate-200 px-4 py-3 shrink-0">
+          <div className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1">
+            {[
+              { m: 'add-location', Icon: FiMapPin, label: 'Location' },
+              { m: 'add-link', Icon: FiLink, label: 'Link' },
+              { m: 'polyline', Icon: FiNavigation, label: 'Polyline' },
+            ].map(({ m, Icon, label }) => (
+              <button
+                key={m}
+                onClick={() => { setMode(mode === m ? 'view' : m); setLinkStart(null); if (m !== 'polyline') setLastPolylineLocation(null); }}
+                aria-pressed={mode === m}
+                className={`flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-medium transition-all ${
+                  mode === m ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <Icon size={13} />
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 px-0.5 text-[11px] leading-snug text-slate-500">
+            {mode === 'view' && 'Click a location to edit it, or pick a tool to add nodes and links'}
+            {mode === 'add-location' && 'Click the map to add a location and edit it'}
+            {mode === 'add-link' && (linkStart ? `Select the destination for the link from "${linkStart.name}"` : 'Click a location to start a link')}
+            {mode === 'polyline' && (lastPolylineLocation ? `Continue from "${lastPolylineLocation.name}" — click to extend` : 'Click the map to start a polyline chain')}
+          </p>
+        </div>
+
         {/* Locations & Links List */}
-        {!leftSidebarCollapsed && (
           <EntityListsPanel
             locations={locations}
             links={links}
@@ -1020,7 +1021,9 @@ const MapDeckGL = () => {
             linksExpanded={linksExpanded}
             setLinksExpanded={setLinksExpanded}
           />
+        </div>
         )}
+      </div>
       </div>
 
       {/* Right Panel - Map */}

@@ -261,10 +261,10 @@ function CarbonCapConfig({ params, setParam }) {
           onChange={v => setParam('interpolation', v)} />
         <Hint>Exponential decay = faster reduction early on</Hint>
       </div>
-      <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex gap-2">
+      <div className="flex gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-relaxed text-amber-800">
         <FiInfo size={13} className="shrink-0 mt-0.5" />
-        Requires model technologies to have CO₂ costs defined (<code className="bg-amber-100 px-1 rounded">costs.co2.*</code>).
-      </div>
+          <span>Requires model technologies to have CO₂ costs defined (<code className="rounded bg-amber-100 px-1 font-mono">costs.co2.*</code>).</span>
+        </div>
     </div>
   );
 }
@@ -277,7 +277,7 @@ function CostSensitivityConfig({ params, setParam, model }) {
         <Label>Technology</Label>
         <select value={params.techName}
           onChange={e => setParam('techName', e.target.value)}
-          className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-electric-400 bg-white">
+          className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 focus:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-200">
           <option value="">— select a technology —</option>
           {allTechs.map(n => <option key={n} value={n}>{n}</option>)}
         </select>
@@ -286,7 +286,7 @@ function CostSensitivityConfig({ params, setParam, model }) {
         <Label>Parameter to sweep</Label>
         <select value={params.paramPath}
           onChange={e => setParam('paramPath', e.target.value)}
-          className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-electric-400 bg-white">
+          className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 focus:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-200">
           {COST_PARAM_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label} ({o.value})</option>)}
         </select>
       </div>
@@ -345,7 +345,7 @@ function OpRow({ op, index, onChange, onDelete }) {
     <div className="flex flex-col gap-1.5 p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
       <div className="flex items-center gap-2">
         <select value={op.op} onChange={e => onChange(index, defaultOp(e.target.value))}
-          className="flex-1 px-2 py-1 border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-electric-400">
+          className="flex-1 h-8 rounded-lg border border-slate-200 bg-white px-2 focus:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-200">
           {OP_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
         </select>
         <button onClick={() => onDelete(index)} className="p-1 text-red-400 hover:text-red-600 rounded transition-colors">
@@ -356,15 +356,15 @@ function OpRow({ op, index, onChange, onDelete }) {
       {(op.op === 'setParam' || op.op === 'scaleParam' || op.op === 'disableTech') && (
         <div className="flex gap-2">
           <div className="flex-1">
-            <span className="text-slate-500 block mb-0.5">Tech name</span>
+            <span className="mb-1 block text-xs font-medium text-slate-600">Tech name</span>
             <input value={op.techMatch} onChange={e => set('techMatch', e.target.value)} placeholder="solar_pv"
-              className="w-full px-2 py-1 border border-slate-200 rounded-md font-mono focus:outline-none focus:ring-1 focus:ring-electric-400" />
+              className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2 font-mono focus:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-200" />
           </div>
           {op.op !== 'disableTech' && (
             <div className="flex-1">
-              <span className="text-slate-500 block mb-0.5">Param path</span>
+              <span className="mb-1 block text-xs font-medium text-slate-600">Param path</span>
               <input value={op.path} onChange={e => set('path', e.target.value)} placeholder="constraints.energy_cap_max"
-                className="w-full px-2 py-1 border border-slate-200 rounded-md font-mono focus:outline-none focus:ring-1 focus:ring-electric-400" />
+                className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2 font-mono focus:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-200" />
             </div>
           )}
         </div>
@@ -373,14 +373,14 @@ function OpRow({ op, index, onChange, onDelete }) {
       {op.op === 'setParam' && (
         <div className="flex gap-2">
           <div className="flex-1">
-            <span className="text-slate-500 block mb-0.5">Value</span>
+            <span className="mb-1 block text-xs font-medium text-slate-600">Value</span>
             <input type="number" value={op.value} onChange={e => set('value', parseFloat(e.target.value) || 0)}
-              className="w-full px-2 py-1 border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-electric-400" />
+              className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2 focus:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-200" />
           </div>
           <div>
-            <span className="text-slate-500 block mb-0.5">Apply to</span>
+            <span className="mb-1 block text-xs font-medium text-slate-600">Apply to</span>
             <select value={op.level || 'global'} onChange={e => set('level', e.target.value)}
-              className="px-2 py-1 border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-electric-400">
+              className="h-8 rounded-lg border border-slate-200 bg-white px-2 focus:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-200">
               <option value="global">Global tech</option>
               <option value="location">Location overrides</option>
               <option value="both">Both</option>
@@ -392,14 +392,14 @@ function OpRow({ op, index, onChange, onDelete }) {
       {op.op === 'scaleParam' && (
         <div className="flex gap-2">
           <div className="w-28">
-            <span className="text-slate-500 block mb-0.5">Factor</span>
+            <span className="mb-1 block text-xs font-medium text-slate-600">Factor</span>
             <input type="number" step="0.01" value={op.factor} onChange={e => set('factor', parseFloat(e.target.value) || 1)}
-              className="w-full px-2 py-1 border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-electric-400" />
+              className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2 focus:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-200" />
           </div>
           <div>
-            <span className="text-slate-500 block mb-0.5">Apply to</span>
+            <span className="mb-1 block text-xs font-medium text-slate-600">Apply to</span>
             <select value={op.level || 'global'} onChange={e => set('level', e.target.value)}
-              className="px-2 py-1 border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-electric-400">
+              className="h-8 rounded-lg border border-slate-200 bg-white px-2 focus:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-200">
               <option value="global">Global tech</option>
               <option value="location">Location overrides</option>
               <option value="both">Both</option>
@@ -411,17 +411,17 @@ function OpRow({ op, index, onChange, onDelete }) {
       {op.op === 'systemConstraint' && (
         <div className="flex gap-2">
           <div>
-            <span className="text-slate-500 block mb-0.5">Kind</span>
+            <span className="mb-1 block text-xs font-medium text-slate-600">Kind</span>
             <select value={op.kind} onChange={e => set('kind', e.target.value)}
-              className="px-2 py-1 border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-electric-400">
+              className="h-8 rounded-lg border border-slate-200 bg-white px-2 focus:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-200">
               {SYS_KINDS.map(k => <option key={k} value={k}>{k}</option>)}
             </select>
           </div>
           <div className="flex-1">
-            <span className="text-slate-500 block mb-0.5">Value</span>
+            <span className="mb-1 block text-xs font-medium text-slate-600">Value</span>
             <input type="number" value={typeof op.value === 'number' ? op.value : 0}
               onChange={e => set('value', parseFloat(e.target.value) || 0)}
-              className="w-full px-2 py-1 border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-electric-400" />
+              className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2 focus:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-200" />
           </div>
         </div>
       )}
@@ -516,7 +516,7 @@ function DemandCardConfig({ params, setParam, model, timeSeries }) {
         <div className="flex items-center gap-2">
           <input type="range" min={0.2} max={3} step={0.01} value={scale}
             onChange={e => setParam('scale', parseFloat(e.target.value))}
-            className="flex-1 accent-electric-600" />
+            className="flex-1 accent-slate-900" />
           <NumInput value={scale} onChange={v => setParam('scale', v)} min={0.2} max={5} step={0.01} className="w-20" />
           <span className="text-xs text-slate-500">×</span>
         </div>
@@ -553,7 +553,7 @@ function ConstraintCardConfig({ params, setParam }) {
       <div>
         <Label>Constraint</Label>
         <select value={params.kind} onChange={e => setParam('kind', e.target.value)}
-          className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-electric-400 bg-white">
+          className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 focus:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-200">
           {SYS_KINDS.map(k => <option key={k} value={k}>{k}</option>)}
         </select>
       </div>
@@ -563,9 +563,9 @@ function ConstraintCardConfig({ params, setParam }) {
         <Hint>{params.kind === 'co2_cap' ? 'CO₂ cap (0 = net-zero)' : params.kind === 'renewable_min' ? 'Minimum renewable share (fraction 0–1)' : 'Reserve margin'}</Hint>
       </div>
       {params.kind === 'co2_cap' && (
-        <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex gap-2">
+        <div className="flex gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-relaxed text-amber-800">
           <FiInfo size={13} className="shrink-0 mt-0.5" />
-          Requires technologies to have CO₂ costs (<code className="bg-amber-100 px-1 rounded">costs.co2.*</code>).
+          <span>Requires technologies to have CO₂ costs (<code className="rounded bg-amber-100 px-1 font-mono">costs.co2.*</code>).</span>
         </div>
       )}
     </div>
@@ -592,7 +592,7 @@ function MatchedTechs({ names }) {
 function GroupSelect({ value, model, onChange }) {
   return (
     <select value={value} onChange={e => onChange(e.target.value)}
-      className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-electric-400 bg-white">
+      className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 focus:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-200">
       {techGroupsForModel(model).map(g => {
         const n = resolveTechGroup(model, g.id).length;
         return <option key={g.id} value={g.id}>{g.label} ({n})</option>;
@@ -626,7 +626,7 @@ function TechCardConfig({ params, setParam, model }) {
           <Label>Technology</Label>
           {multi && <MatchedTechs names={params.techMatch} />}
           <select value={multi ? '' : params.techMatch} onChange={e => setParam('techMatch', e.target.value)}
-            className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-electric-400 bg-white">
+            className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 focus:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-200">
             <option value="">— select a technology —</option>
             {allTechs.map(n => <option key={n} value={n}>{n}</option>)}
           </select>
@@ -644,7 +644,7 @@ function TechCardConfig({ params, setParam, model }) {
           <div>
             <Label>Param path</Label>
             <input value={params.path} onChange={e => setParam('path', e.target.value)} placeholder="constraints.energy_cap_max"
-              className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg font-mono focus:outline-none focus:ring-2 focus:ring-electric-400" />
+              className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 focus:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-200 font-mono" />
           </div>
           <div className="flex gap-3 items-end">
             <div>
@@ -690,7 +690,7 @@ function EmissionsCardConfig({ params, setParam, model }) {
           <div className="flex items-center gap-2">
             <input type="range" min={0} max={100} step={5} value={params.reducePct ?? 50}
               onChange={e => setParam('reducePct', parseInt(e.target.value, 10))}
-              className="flex-1 accent-electric-600" />
+              className="flex-1 accent-slate-900" />
             <span className="text-xs font-mono text-slate-700 w-10 text-right">{params.reducePct ?? 50}%</span>
           </div>
           <Hint>Caps the group's <code className="bg-slate-100 px-1 rounded">energy_cap_max</code> at {(100 - (params.reducePct ?? 50))}% of its current value.</Hint>
@@ -711,7 +711,7 @@ function LocationCardConfig({ params, setParam, model }) {
       <div>
         <Label>Location (from model)</Label>
         <select value={params.location} onChange={e => setParam('location', e.target.value)}
-          className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-electric-400 bg-white">
+          className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 focus:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-200">
           <option value="">— select a location —</option>
           {locations.map(n => <option key={n} value={n}>{n}</option>)}
         </select>
@@ -736,7 +736,7 @@ function LocationCardConfig({ params, setParam, model }) {
             </>
           ) : (
             <select value={params.techMatch} onChange={e => setParam('techMatch', e.target.value)}
-              className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-electric-400 bg-white">
+              className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 focus:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-200">
               <option value="">— select a technology —</option>
               {allTechs.map(n => <option key={n} value={n}>{n}</option>)}
             </select>
@@ -748,7 +748,7 @@ function LocationCardConfig({ params, setParam, model }) {
           <div>
             <Label>Param path</Label>
             <input value={params.path} onChange={e => setParam('path', e.target.value)} placeholder="constraints.energy_cap_max"
-              className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg font-mono focus:outline-none focus:ring-2 focus:ring-electric-400" />
+              className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 focus:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-200 font-mono" />
           </div>
           <div>
             <Label>{params.mode === 'scale' ? 'Factor' : 'Value'}</Label>
@@ -783,7 +783,7 @@ function RenewablesCardConfig({ params, setParam, model }) {
         <div className="flex items-center gap-2">
           <input type="range" min={0} max={300} step={10} value={params.boostPct ?? 50}
             onChange={e => setParam('boostPct', parseInt(e.target.value, 10))}
-            className="flex-1 accent-electric-600" />
+            className="flex-1 accent-slate-900" />
           <span className="text-xs font-mono text-slate-700 w-12 text-right">+{params.boostPct ?? 50}%</span>
         </div>
         <Hint>Scales the group's <code className="bg-slate-100 px-1 rounded">energy_cap_max</code> to {100 + (params.boostPct ?? 50)}% of its current value.</Hint>
@@ -824,7 +824,7 @@ function TimeseriesCardConfig({ params, setParam, model, timeSeries }) {
         <Label>With</Label>
         <input list="ts-available" value={params.toFile} onChange={e => setParam('toFile', e.target.value)}
           placeholder="e.g. pv_1989.csv"
-          className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg font-mono focus:outline-none focus:ring-2 focus:ring-electric-400" />
+          className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 focus:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-200 font-mono" />
         <datalist id="ts-available">{available.map(f => <option key={f} value={f} />)}</datalist>
         <Hint>A time series of this model, or a CSV bundled with its template (weather years, demand scenarios). Columns must match the original.</Hint>
       </div>

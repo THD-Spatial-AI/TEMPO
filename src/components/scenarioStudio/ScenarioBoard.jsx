@@ -18,6 +18,7 @@ import { FiPlus, FiCalendar } from 'react-icons/fi';
 import YearNode from './YearNode.jsx';
 import ScenarioCardNode from './ScenarioCardNode.jsx';
 import { BoardCtx } from './boardContext.js';
+import CategoryTile from './categoryIcon.jsx';
 import { CARD_CATEGORIES, CATEGORY_BY_ID } from '../../services/scenarioStudio/scenario.js';
 
 const nodeTypes = { year: YearNode, config: ScenarioCardNode };
@@ -33,7 +34,7 @@ function DeletableEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition,
         <button
           style={{ position: 'absolute', transform: `translate(-50%,-50%) translate(${labelX}px,${labelY}px)`, pointerEvents: 'all' }}
           onClick={(e) => { e.stopPropagation(); ctx.onDeleteEdge?.(id); }}
-          className="nodrag nopan w-4 h-4 flex items-center justify-center rounded-full bg-white border border-slate-300 text-slate-400 hover:text-red-500 hover:border-red-300 text-[10px] leading-none shadow-sm"
+          className="nodrag nopan grid h-5 w-5 place-items-center rounded-full border border-slate-200 bg-white text-[11px] leading-none text-slate-400 shadow-sm transition-colors hover:border-red-300 hover:text-red-600"
           title="Remove connection"
         >×</button>
       </EdgeLabelRenderer>
@@ -46,34 +47,42 @@ const edgeTypes = { deletable: DeletableEdge };
 const defaultEdgeOptions = {
   type: 'deletable',
   animated: true,
-  style: { stroke: '#3b82f6', strokeWidth: 2 },
-  markerEnd: { type: MarkerType.ArrowClosed, color: '#3b82f6', width: 16, height: 16 },
+  style: { stroke: '#475569', strokeWidth: 2 },
+  markerEnd: { type: MarkerType.ArrowClosed, color: '#475569', width: 16, height: 16 },
 };
 
+function MenuItem({ c, onPick }) {
+  return (
+    <button onClick={() => onPick(c.id)}
+      className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-slate-100">
+      <CategoryTile meta={c} size="sm" />
+      <span className="truncate text-xs font-medium text-slate-700">{c.label}</span>
+    </button>
+  );
+}
+
 function AddMenu({ onPickYear, onPickConfig, onClose, style }) {
+  const yearCats = CARD_CATEGORIES.filter(c => c.lanes.includes('year'));
+  const globalCats = CARD_CATEGORIES.filter(c => !c.lanes.includes('year'));
   return (
     <>
       <div className="fixed inset-0 z-[90]" onClick={onClose} />
-      <div style={style}
-        className="absolute z-[91] bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden w-56">
-        <div className="px-3 py-2 border-b border-slate-100 bg-slate-50 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-          Add a card
-        </div>
-        <div className="max-h-72 overflow-y-auto">
+      <div style={style} className="absolute z-[91] w-64 overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-xl">
+        <div className="max-h-80 overflow-y-auto">
           <button onClick={onPickYear}
-            className="w-full flex items-center gap-2 px-3 py-2 hover:bg-slate-50 text-left transition-colors border-b border-slate-100">
-            <span className="w-7 h-7 shrink-0 rounded-lg bg-gradient-to-br from-electric-500 to-electric-600 flex items-center justify-center text-white">
-              <FiCalendar size={13} />
+            className="mb-1 flex w-full items-center gap-2.5 rounded-lg bg-slate-50 px-2 py-2 text-left transition-colors hover:bg-slate-100">
+            <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-slate-900 text-white"><FiCalendar size={12} /></span>
+            <span>
+              <span className="block text-xs font-semibold text-slate-900">Year</span>
+              <span className="block text-[10px] text-slate-500">A snapshot year that holds cards</span>
             </span>
-            <span className="text-xs font-semibold text-slate-700">Year</span>
           </button>
-          {CARD_CATEGORIES.map(c => (
-            <button key={c.id} onClick={() => onPickConfig(c.id)}
-              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-slate-50 text-left transition-colors">
-              <span className={`w-7 h-7 shrink-0 rounded-lg bg-gradient-to-br ${c.color}`} />
-              <span className="text-xs font-medium text-slate-700 truncate">{c.label}</span>
-            </button>
-          ))}
+          <p className="px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Config cards</p>
+          {yearCats.map(c => <MenuItem key={c.id} c={c} onPick={onPickConfig} />)}
+          {globalCats.length > 0 && (
+            <p className="px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Whole scenario</p>
+          )}
+          {globalCats.map(c => <MenuItem key={c.id} c={c} onPick={onPickConfig} />)}
         </div>
       </div>
     </>
@@ -134,19 +143,30 @@ function Flow({
           onPaneContextMenu={handlePaneContextMenu}
           deleteKeyCode={['Backspace', 'Delete']}
           fitView
+          fitViewOptions={{ maxZoom: 1, padding: 0.25 }}
           proOptions={{ hideAttribution: true }}
           className="bg-slate-50"
         >
           <Background variant={BackgroundVariant.Dots} gap={20} size={1.5} color="#cbd5e1" />
-          <Controls showInteractive={false} />
+          <Controls
+            showInteractive={false}
+            className="!overflow-hidden !rounded-xl !border !border-slate-200 !shadow-lg [&>button]:!h-8 [&>button]:!w-8 [&>button]:!border-slate-100"
+          />
           <MiniMap pannable zoomable
-            nodeColor={(n) => (n.type === 'year' ? '#3b82f6' : '#93c5fd')}
-            maskColor="rgba(248,250,252,0.7)" />
+            className="!overflow-hidden !rounded-xl !border !border-slate-200 !shadow-lg"
+            nodeColor={(n) => (n.type === 'year' ? '#cbd5e1' : '#475569')}
+            nodeBorderRadius={6}
+            maskColor="rgba(241,245,249,0.75)" />
           <Panel position="top-left">
-            <button onClick={(e) => openMenuAt(e.clientX, e.clientY)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-200 shadow-sm text-xs font-semibold text-electric-700 hover:border-electric-300 hover:shadow transition-all">
-              <FiPlus size={14} /> Add card
-            </button>
+            <div className="flex items-center gap-2">
+              <button onClick={(e) => openMenuAt(e.clientX, e.clientY)}
+                className="flex h-9 items-center gap-1.5 rounded-lg bg-slate-900 px-3 text-[13px] font-semibold text-white shadow-lg shadow-slate-900/20 transition-colors hover:bg-slate-800">
+                <FiPlus size={15} /> Add card
+              </button>
+              <span className="hidden rounded-lg border border-slate-200 bg-white/90 px-2.5 py-1.5 text-[11px] text-slate-500 shadow-sm backdrop-blur md:inline">
+                Cards inside a year apply to that year · cards on the canvas apply to all years · right-click to add
+              </span>
+            </div>
           </Panel>
         </ReactFlow>
       </BoardCtx.Provider>
