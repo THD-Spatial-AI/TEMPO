@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   FiDownload,
   FiMapPin,
@@ -21,57 +22,150 @@ import {
   FiBarChart2,
   FiSearch,
   FiTrash2,
+  FiInfo,
+  FiCopy,
+  FiCheck,
+  FiBookOpen,
+  FiChevronLeft,
+  FiChevronRight,
+  FiX,
+  FiMaximize2,
+  FiCpu,
+  FiHome,
+  FiMap,
+  FiGrid,
+  FiActivity,
+  FiSettings,
+  FiPieChart,
 } from 'react-icons/fi';
+import tempoLogo from '../assets/Logo_TEMPO.PNG';
 import { ENTITY_TYPES } from '../config/domainModel';
 import { generateCSVDownload, generateJSONDownload } from '../config/dataTemplates';
 import { ModelStructureTutorial } from './ModelStructureTutorial';
 
 
-// Screenshot caption component with a number badge
+const PageHeader = ({ title, children }) => (
+  <header className="mb-2">
+    <h2 className="text-3xl font-bold tracking-tight text-slate-900">{title}</h2>
+    {children && <p className="mt-2 max-w-3xl text-[15px] leading-relaxed text-slate-500">{children}</p>}
+  </header>
+);
+
+const SectionTitle = ({ title, children }) => (
+  <div className="mb-5">
+    <h2 className="text-xl font-semibold tracking-tight text-slate-900">{title}</h2>
+    {children && <p className="mt-1 text-sm text-slate-500">{children}</p>}
+  </div>
+);
+
+// Timeline step — the connector line hides on the last step of a list.
 const Step = ({ n, title, children }) => (
-  <div className="bg-white rounded-xl p-5 border border-slate-200">
-    <div className="flex items-start gap-4">
-      <div className="w-8 h-8 bg-slate-800 text-white rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0">
+  <div className="group/step relative flex gap-4 pb-8 last:pb-0">
+    <div className="flex flex-col items-center">
+      <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-900 text-sm font-semibold text-white shadow-sm ring-4 ring-white">
         {n}
       </div>
-      <div className="flex-1">
-        <h4 className="text-base font-bold text-slate-800 mb-2">{title}</h4>
-        {children}
-      </div>
+      <div className="mt-2 w-px flex-1 bg-gradient-to-b from-slate-300 to-slate-200 group-last/step:hidden" />
+    </div>
+    <div className="min-w-0 flex-1 pt-1">
+      <h4 className="mb-2 text-[15px] font-semibold text-slate-900">{title}</h4>
+      {children}
     </div>
   </div>
 );
 
-// Inline tip box
 const Tip = ({ children }) => (
-  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm text-gray-800 mt-3">
-    <span className="font-semibold">Tip: </span>{children}
+  <div className="mt-3 flex gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3.5 text-sm leading-relaxed text-slate-700">
+    <FiInfo className="mt-0.5 shrink-0 text-slate-500" size={16} />
+    <div><span className="font-semibold text-slate-900">Tip — </span>{children}</div>
   </div>
 );
 
-// Inline code / CSV preview
-const CodeBlock = ({ children }) => (
-  <pre className="bg-slate-900 text-slate-300 rounded-lg p-4 text-xs overflow-x-auto mt-3 font-mono leading-relaxed">
-    {children}
-  </pre>
-);
+const CodeBlock = ({ children, label = 'csv' }) => {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard?.writeText(String(children)).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
+  return (
+    <div className="mt-3 overflow-hidden rounded-xl border border-slate-800 bg-slate-900 shadow-sm">
+      <div className="flex items-center justify-between border-b border-white/10 px-4 py-2">
+        <span className="font-mono text-[11px] uppercase tracking-wider text-slate-400">{label}</span>
+        <button
+          onClick={copy}
+          className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
+        >
+          {copied ? <FiCheck size={12} /> : <FiCopy size={12} />}
+          {copied ? 'Copied' : 'Copy'}
+        </button>
+      </div>
+      <pre className="overflow-x-auto p-4 font-mono text-xs leading-relaxed text-slate-300">{children}</pre>
+    </div>
+  );
+};
 
-// Screenshot with caption
-const Screenshot = ({ src, alt, caption }) => (
-  <figure className="my-4 rounded-xl overflow-hidden border border-slate-200 shadow-md">
-    <img src={src} alt={alt} className="w-full object-cover" />
-    {caption && (
-      <figcaption className="bg-slate-50 px-4 py-2 text-xs text-slate-500 border-t border-slate-200">
-        {caption}
-      </figcaption>
-    )}
-  </figure>
-);
+// Screenshot in a browser-style frame; click to view full size.
+const Screenshot = ({ src, alt, caption }) => {
+  const [zoomed, setZoomed] = useState(false);
+  return (
+    <>
+      <figure className="group my-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg shadow-slate-900/5">
+        <div className="flex items-center gap-1.5 border-b border-slate-200 bg-slate-50 px-4 py-2.5">
+          <span className="h-2.5 w-2.5 rounded-full bg-slate-300" />
+          <span className="h-2.5 w-2.5 rounded-full bg-slate-300" />
+          <span className="h-2.5 w-2.5 rounded-full bg-slate-300" />
+          <span className="ml-3 truncate text-[11px] text-slate-400">{alt}</span>
+        </div>
+        <button onClick={() => setZoomed(true)} className="relative block w-full cursor-zoom-in" aria-label={`Enlarge: ${alt}`}>
+          <img src={src} alt={alt} className="w-full object-cover" />
+          <span className="absolute right-3 top-3 flex items-center gap-1.5 rounded-lg bg-slate-900/70 px-2.5 py-1.5 text-[11px] font-medium text-white opacity-0 backdrop-blur transition-opacity group-hover:opacity-100">
+            <FiMaximize2 size={12} /> Enlarge
+          </span>
+        </button>
+        {caption && (
+          <figcaption className="border-t border-slate-200 bg-slate-50/70 px-4 py-2.5 text-xs leading-relaxed text-slate-500">
+            {caption}
+          </figcaption>
+        )}
+      </figure>
+      <AnimatePresence>
+        {zoomed && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setZoomed(false)}
+            className="fixed inset-0 z-[10000] flex cursor-zoom-out items-center justify-center bg-slate-950/80 p-8 backdrop-blur-sm"
+          >
+            <motion.img
+              initial={{ scale: 0.96 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.96 }}
+              src={src}
+              alt={alt}
+              className="max-h-full max-w-full rounded-xl shadow-2xl"
+            />
+            <button className="absolute right-5 top-5 rounded-full bg-white/10 p-2 text-white hover:bg-white/20" aria-label="Close">
+              <FiX size={18} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
+  );
+};
 
 const Tutorial = () => {
   const [activeTab, setActiveTab] = useState('start');
   const [selectedMethod, setSelectedMethod] = useState(null);
   const [expandedCSV, setExpandedCSV] = useState(null);
+  const scrollRef = useRef(null);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: 0 });
+  }, [activeTab]);
 
   const tabs = [
     { id: 'start', label: 'Get Started', icon: FiPlay },
@@ -89,223 +183,269 @@ const Tutorial = () => {
       
       case 'start':
         return (
-          <div className="space-y-10">
+          <div className="space-y-14">
             {/* Hero */}
-            <div className="text-center pb-4 pt-2">
-              <h1 className="text-4xl font-bold text-slate-900 mb-3">Welcome to TEMPO</h1>
-              <p className="text-xl text-slate-600 mb-4">Tool for Energy Model Planning and Optimization</p>
-              <div className="flex items-center justify-center gap-4 text-sm font-medium text-slate-500 flex-wrap">
-                {['Multi-engine', 'Visual Interface', 'Real GIS Data', 'Multi-format'].map(l => (
-                  <div key={l} className="flex items-center gap-1.5">
-                    <FiCheckCircle className="text-gray-500" />
-                    <span>{l}</span>
+            <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-8 shadow-sm md:p-10">
+              <div
+                className="pointer-events-none absolute inset-0 opacity-60"
+                style={{ backgroundImage: 'radial-gradient(#cbd5e1 1px, transparent 1px)', backgroundSize: '18px 18px', maskImage: 'linear-gradient(to left, black, transparent 70%)' }}
+              />
+              <div className="relative grid items-center gap-10 lg:grid-cols-[1fr_auto]">
+                <div>
+                  <div className="mb-5 flex items-center gap-3">
+                    <div className="grid h-12 w-12 place-items-center rounded-2xl border border-slate-200 bg-white shadow-sm">
+                      <img src={tempoLogo} alt="" className="h-8 w-8 object-contain" style={{ mixBlendMode: 'multiply' }} />
+                    </div>
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">Getting started guide</span>
                   </div>
-                ))}
+                  <h1 className="text-4xl font-bold tracking-tight text-slate-900 md:text-5xl">Welcome to TEMPO</h1>
+                  <p className="mt-3 max-w-xl text-lg text-slate-500">Tool for Energy Model Planning and Optimization — build, run and compare energy system models on a map.</p>
+                  <div className="mt-6 flex flex-wrap gap-2">
+                    {[
+                      { icon: FiCpu, label: 'Multi-engine' },
+                      { icon: FiEye, label: 'Visual interface' },
+                      { icon: FiGlobe, label: 'Real GIS data' },
+                      { icon: FiLayers, label: 'Multi-format' },
+                    ].map(({ icon: Icon, label }) => (
+                      <span key={label} className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm">
+                        <Icon size={13} className="text-slate-500" /> {label}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="mt-8 flex flex-wrap gap-3">
+                    <button
+                      onClick={() => { setActiveTab('methods'); setSelectedMethod('manual'); }}
+                      className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800"
+                    >
+                      Build your first model <FiArrowRight size={15} />
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('templates')}
+                      className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
+                    >
+                      <FiDownload size={15} /> Browse templates
+                    </button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-3 lg:grid-cols-1">
+                  {[
+                    ['5', 'optimisation engines'],
+                    ['60+', 'technology templates'],
+                    ['4', 'export frameworks'],
+                  ].map(([value, label]) => (
+                    <div key={label} className="rounded-2xl border border-slate-200 bg-white/90 px-5 py-4 shadow-sm backdrop-blur lg:w-56">
+                      <div className="text-2xl font-bold tracking-tight text-slate-900">{value}</div>
+                      <div className="text-xs text-slate-500">{label}</div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            </section>
 
-            {/* Dashboard screenshot with callouts */}
-            <div>
-              <h2 className="text-2xl font-bold text-slate-800 mb-4">The Interface at a Glance</h2>
+            {/* Interface tour */}
+            <section>
+              <SectionTitle title="The interface at a glance">A real 12-node model of Germany, as it appears on the Dashboard.</SectionTitle>
               <Screenshot
                 src="./img/Dashboard.png"
                 alt="TEMPO Model Dashboard"
                 caption="Model Dashboard — a real model for Germany with 12 locations, 12 links, 6 generation technologies, 36.5 GW capacity, 20.9 M€ CAPEX."
               />
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+              <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
                 {[
-                  { label: 'Locations', desc: '12 nodes — cities, substations, plants' },
-                  { label: 'Links', desc: '12 transmission lines between nodes' },
-                  { label: 'Gen Technologies', desc: '6 supply types (solar, wind, gas…)' },
-                  { label: 'Max Capacity', desc: '36.5 GW total across all locations' },
-                ].map(kpi => (
-                  <div key={kpi.label} className="bg-slate-50 border border-slate-200 rounded-xl p-3">
-                    <div className="font-bold text-slate-800 text-sm mb-1">{kpi.label}</div>
-                    <div className="text-xs text-slate-500">{kpi.desc}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Express 4-step tour */}
-            <div>
-              <h2 className="text-2xl font-bold text-slate-800 mb-6">Build Your First Model in 4 Steps</h2>
-              <div className="grid md:grid-cols-2 gap-4">
-                {[
-                  {
-                    n: 1, icon: FiGlobe, title: 'Select a Region',
-                    desc: 'Open Creation. In the right sidebar choose a continent → country → region. The map zooms to your area and loads real power infrastructure.',
-                    badge: 'Right sidebar → SELECT REGION'
-                  },
-                  {
-                    n: 2, icon: FiMapPin, title: 'Place Locations',
-                    desc: 'Click "Add Location" in the left panel, then click the map to drop nodes — city demand centers, substations, power plants. Each click adds another node.',
-                    badge: 'Left panel → Add Location → click map'
-                  },
-                  {
-                    n: 3, icon: FiZap, title: 'Assign Technologies',
-                    desc: 'Click a location marker to open the configuration dialog. Pick from 60+ technology templates: Solar PV, Wind, Gas CCGT, Battery Storage, Demand…',
-                    badge: 'Click marker → "Configure Location"'
-                  },
-                  {
-                    n: 4, icon: FiLink, title: 'Connect the Network',
-                    desc: 'Switch mode to "Link", then click two locations to create a transmission line. Set voltage (kV) and capacity (MW) in the dialog.',
-                    badge: 'Left panel → Link mode'
-                  },
-                ].map(({ n, icon: Icon, title, desc, badge }) => (
-                  <div key={n} className="bg-white border border-slate-200 rounded-xl p-5 hover:border-slate-300 transition-colors">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-9 h-9 bg-slate-800 text-white rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0">{n}</div>
-                      <Icon className="text-slate-500" size={20} />
-                      <h3 className="font-bold text-slate-800">{title}</h3>
+                  { icon: FiMapPin, label: 'Locations', desc: '12 nodes — cities, substations, plants' },
+                  { icon: FiLink, label: 'Links', desc: '12 transmission lines between nodes' },
+                  { icon: FiZap, label: 'Gen Technologies', desc: '6 supply types (solar, wind, gas…)' },
+                  { icon: FiActivity, label: 'Max Capacity', desc: '36.5 GW total across all locations' },
+                ].map(({ icon: Icon, label, desc }) => (
+                  <div key={label} className="flex gap-3 rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm">
+                    <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-600"><Icon size={15} /></div>
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-slate-900">{label}</div>
+                      <div className="text-xs leading-snug text-slate-500">{desc}</div>
                     </div>
-                    <p className="text-slate-600 text-sm leading-relaxed mb-3">{desc}</p>
-                    <div className="bg-slate-100 text-slate-600 rounded-lg px-3 py-1.5 text-xs font-mono">{badge}</div>
                   </div>
                 ))}
               </div>
-            </div>
+            </section>
 
-            {/* Left sidebar navigation guide */}
-            <div>
-              <h2 className="text-2xl font-bold text-slate-800 mb-4">Where to Find Everything</h2>
-              <div className="border border-slate-200 rounded-xl overflow-hidden">
+            {/* 4-step stepper */}
+            <section>
+              <SectionTitle title="Build your first model in 4 steps">From an empty map to a model that's ready to optimise.</SectionTitle>
+              <div className="relative grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <div className="pointer-events-none absolute left-8 right-8 top-[34px] hidden h-px bg-slate-200 xl:block" />
                 {[
-                  { label: 'Dashboard',                      desc: 'Model KPIs, location map, capacity overview and cost summary',                                        group: null },
-                  { label: 'Creation',                       desc: 'Visual map editor — place locations, draw links, load OSM infrastructure layers',                      group: null },
-                  { label: 'Structure → Models',             desc: 'Import, search and filter models. Multi-select for bulk delete or JSON export.',                       group: 'Structure' },
-                  { label: 'Structure → Map View',           desc: 'Interactive map of active model locations and transmission links',                                     group: 'Structure' },
-                  { label: 'Structure → Locations',          desc: 'Table view of all nodes with coordinates and assigned technologies',                                   group: 'Structure' },
-                  { label: 'Structure → Links',              desc: 'Transmission line table — from/to, capacity, voltage, type',                                           group: 'Structure' },
-                  { label: 'Structure → TimeSeries',         desc: 'Upload and manage CSV demand & resource capacity-factor profiles',                                     group: 'Structure' },
-                  { label: 'Structure → Overrides / Scenarios', desc: 'Define named parameter overrides and scenario combinations for sensitivity runs',                   group: 'Structure' },
-                  { label: 'Export',                         desc: 'Download the active model as Calliope 0.6/0.7, PyPSA, OSeMOSYS, or AdOpT-NET0 archive',              group: null },
-                  { label: 'Run',                            desc: 'Launch optimisation. Search, filter and bulk-manage completed runs by name or status.',                group: null },
-                  { label: 'Results',                        desc: 'Dispatch, costs, capacity maps, shadow prices — plus Model Advisor tab for LLM-powered insights',    group: null },
-                  { label: 'Settings',                       desc: 'Engine install panels, Model Advisor API key, backend connection, solver paths',                     group: null },
-                ].map((item, i, arr) => {
-                  const isStructureFirst = item.group === 'Structure' && (!arr[i - 1] || arr[i - 1].group !== 'Structure');
-                  return (
-                    <div
-                      key={item.label}
-                      className={`flex items-baseline gap-0 border-b border-slate-100 last:border-0 ${
-                        item.group === 'Structure' ? 'bg-slate-50' : 'bg-white'
-                      } ${isStructureFirst ? 'mt-0' : ''}`}
-                    >
-                      {item.group === 'Structure' && (
-                        <div className="w-1 self-stretch bg-slate-300 flex-shrink-0" />
-                      )}
-                      <div className="flex items-baseline gap-4 px-5 py-3 flex-1 min-w-0">
-                        <span className="font-mono text-xs font-semibold text-slate-800 whitespace-nowrap flex-shrink-0 w-52">{item.label}</span>
-                        <span className="text-xs text-slate-500 leading-snug">{item.desc}</span>
+                  { n: 1, icon: FiGlobe, title: 'Select a region', desc: 'Open Creation. In the right sidebar choose a continent → country → region. The map zooms to your area and loads real power infrastructure.', path: ['Right sidebar', 'Select region'] },
+                  { n: 2, icon: FiMapPin, title: 'Place locations', desc: 'Click "Add Location" in the left panel, then click the map to drop nodes — city demand centers, substations, power plants.', path: ['Add Location', 'Click map'] },
+                  { n: 3, icon: FiZap, title: 'Assign technologies', desc: 'Click a location marker to open the configuration dialog. Pick from 60+ templates: Solar PV, Wind, Gas CCGT, Battery Storage, Demand…', path: ['Click marker', 'Configure'] },
+                  { n: 4, icon: FiLink, title: 'Connect the network', desc: 'Switch mode to "Link", then click two locations to create a transmission line. Set voltage (kV) and capacity (MW) in the dialog.', path: ['Left panel', 'Link mode'] },
+                ].map(({ n, icon: Icon, title, desc, path }) => (
+                  <div key={n} className="relative flex flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+                    <div className="mb-4 flex items-center justify-between">
+                      <div className="grid h-9 w-9 place-items-center rounded-full bg-slate-900 text-sm font-semibold text-white ring-4 ring-white">{n}</div>
+                      <Icon className="text-slate-400" size={18} />
+                    </div>
+                    <h3 className="text-base font-semibold text-slate-900">{title}</h3>
+                    <p className="mt-1.5 flex-1 text-sm leading-relaxed text-slate-500">{desc}</p>
+                    <div className="mt-4 flex flex-wrap items-center gap-1 text-[11px] font-medium text-slate-600">
+                      {path.map((part, i) => (
+                        <React.Fragment key={part}>
+                          {i > 0 && <FiChevronRight size={11} className="text-slate-400" />}
+                          <span className="rounded-md bg-slate-100 px-2 py-1">{part}</span>
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* Navigation map */}
+            <section>
+              <SectionTitle title="Where to find everything">Every page in the left sidebar, grouped by what you'll use it for.</SectionTitle>
+              <div className="grid gap-4 lg:grid-cols-3">
+                {[
+                  { group: 'Build', items: [
+                    { icon: FiHome, label: 'Dashboard', desc: 'Model KPIs, location map, capacity overview and cost summary' },
+                    { icon: FiEdit, label: 'Creation', desc: 'Visual map editor — place locations, draw links, load OSM infrastructure layers' },
+                    { icon: FiCpu, label: 'Tech Database', desc: 'Browse the technology catalog and its parameters' },
+                  ]},
+                  { group: 'Structure', items: [
+                    { icon: FiGrid, label: 'Models', desc: 'Import, search and filter models. Multi-select for bulk delete or JSON export.' },
+                    { icon: FiMap, label: 'Map View', desc: 'Interactive map of active model locations and transmission links' },
+                    { icon: FiMapPin, label: 'Locations', desc: 'Table view of all nodes with coordinates and assigned technologies' },
+                    { icon: FiActivity, label: 'Links', desc: 'Transmission line table — from/to, capacity, voltage, type' },
+                    { icon: FiBarChart2, label: 'TimeSeries', desc: 'Upload and manage CSV demand & resource capacity-factor profiles' },
+                    { icon: FiLayers, label: 'Scenarios', desc: 'Named parameter overrides and scenario combinations for sensitivity runs' },
+                  ]},
+                  { group: 'Run & analyse', items: [
+                    { icon: FiDownload, label: 'Export', desc: 'Download the active model as Calliope 0.6/0.7, PyPSA, OSeMOSYS, or AdOpT-NET0 archive' },
+                    { icon: FiPlay, label: 'Run', desc: 'Launch optimisation. Search, filter and bulk-manage completed runs by name or status.' },
+                    { icon: FiPieChart, label: 'Results', desc: 'Dispatch, costs, capacity maps, shadow prices — plus Model Advisor for LLM-powered insights' },
+                    { icon: FiSettings, label: 'Settings', desc: 'Engine install panels, Model Advisor API key, backend connection, solver paths' },
+                  ]},
+                ].map(({ group, items }) => (
+                  <div key={group} className="rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+                    <div className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{group}</div>
+                    {items.map(({ icon: Icon, label, desc }) => (
+                      <div key={label} className="flex gap-3 rounded-xl p-3 transition-colors hover:bg-slate-50">
+                        <Icon className="mt-0.5 shrink-0 text-slate-500" size={16} />
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-slate-900">{label}</div>
+                          <div className="text-xs leading-snug text-slate-500">{desc}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* Model & run management */}
+            <section>
+              <SectionTitle title="Managing models & runs" />
+              <div className="grid gap-4 md:grid-cols-2">
+                {[
+                  { icon: FiSearch, title: 'Models', where: 'Structure → Models', points: [
+                    [FiCheckCircle, 'Search models by name; filter by engine type (Calliope, PyPSA, OSeMOSYS, AdOpT-NET0)'],
+                    [FiCheckCircle, 'Tick the "Select all" checkbox or pick individual models'],
+                    [FiTrash2, 'Bulk delete or export selected models as JSON backup files'],
+                  ]},
+                  { icon: FiBarChart2, title: 'Completed runs', where: 'Run tab', points: [
+                    [FiCheckCircle, 'Search runs by model name; filter by status (Done / Failed)'],
+                    [FiCheckCircle, 'Tick the "Select all" checkbox or pick individual runs'],
+                    [FiTrash2, 'Bulk download as JSON or bulk delete selected runs'],
+                  ]},
+                ].map(({ icon: Icon, title, where, points }) => (
+                  <div key={title} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <div className="mb-4 flex items-center gap-3">
+                      <div className="grid h-9 w-9 place-items-center rounded-xl bg-slate-100 text-slate-600"><Icon size={16} /></div>
+                      <div>
+                        <h3 className="text-base font-semibold text-slate-900">{title}</h3>
+                        <div className="text-xs text-slate-400">{where}</div>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Model & run management features */}
-            <div>
-              <h2 className="text-2xl font-bold text-slate-800 mb-4">Managing Models &amp; Runs</h2>
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="bg-white border border-slate-200 rounded-2xl p-5">
-                  <div className="flex items-center gap-2 mb-3">
-                    <FiSearch size={18} className="text-slate-500" />
-                    <h3 className="font-bold text-slate-800">Models (Structure → Models)</h3>
+                    <ul className="space-y-2 text-sm text-slate-600">
+                      {points.map(([PointIcon, text]) => (
+                        <li key={text} className="flex gap-2.5"><PointIcon size={14} className="mt-0.5 shrink-0 text-slate-400" /><span>{text}</span></li>
+                      ))}
+                    </ul>
                   </div>
-                  <ul className="text-sm text-slate-600 space-y-1.5">
-                    <li className="flex gap-2"><FiCheckCircle size={14} className="text-gray-500 mt-0.5 flex-shrink-0" /><span>Search models by name; filter by engine type (Calliope, PyPSA, OSeMOSYS, AdOpT-NET0)</span></li>
-                    <li className="flex gap-2"><FiCheckCircle size={14} className="text-gray-500 mt-0.5 flex-shrink-0" /><span>Tick the "Select all" checkbox or pick individual models</span></li>
-                    <li className="flex gap-2"><FiTrash2 size={14} className="text-gray-500 mt-0.5 flex-shrink-0" /><span>Bulk delete or export selected models as JSON backup files</span></li>
-                  </ul>
-                </div>
-                <div className="bg-white border border-slate-200 rounded-2xl p-5">
-                  <div className="flex items-center gap-2 mb-3">
-                    <FiBarChart2 size={18} className="text-slate-500" />
-                    <h3 className="font-bold text-slate-800">Completed Runs (Run tab)</h3>
-                  </div>
-                  <ul className="text-sm text-slate-600 space-y-1.5">
-                    <li className="flex gap-2"><FiCheckCircle size={14} className="text-gray-500 mt-0.5 flex-shrink-0" /><span>Search runs by model name; filter by status (Done / Failed)</span></li>
-                    <li className="flex gap-2"><FiCheckCircle size={14} className="text-gray-500 mt-0.5 flex-shrink-0" /><span>Tick the "Select all" checkbox or pick individual runs</span></li>
-                    <li className="flex gap-2"><FiTrash2 size={14} className="text-gray-500 mt-0.5 flex-shrink-0" /><span>Bulk download as JSON or bulk delete selected runs</span></li>
-                  </ul>
-                </div>
+                ))}
               </div>
-            </div>
+            </section>
 
-            {/* three method cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-white border border-slate-200 rounded-xl p-5 hover:border-slate-300 transition-colors cursor-pointer" onClick={() => { setActiveTab('methods'); setSelectedMethod('manual'); }}>
-                <h3 className="font-bold text-slate-800 mb-1">Manual Creation</h3>
-                <p className="text-slate-500 text-sm mb-3">Click-and-build on the map. Great for learning and small models.</p>
-                <div className="flex items-center gap-1.5 text-slate-700 font-semibold text-xs">
-                  <span>Step-by-step guide</span><FiArrowRight size={12} />
-                </div>
+            {/* Choose a path */}
+            <section>
+              <SectionTitle title="Choose your path">Three ways to get a model into TEMPO.</SectionTitle>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                {[
+                  { icon: FiEdit, title: 'Manual creation', desc: 'Click-and-build on the map. Great for learning and small models.', cta: 'Step-by-step guide', go: () => { setActiveTab('methods'); setSelectedMethod('manual'); } },
+                  { icon: FiPackage, title: 'Import a model', desc: 'YAML archive, CSV wizard, or framework archive — TEMPO auto-detects the format.', cta: 'Import guide', go: () => { setActiveTab('methods'); setSelectedMethod('import'); } },
+                  { icon: FiFileText, title: 'Download templates', desc: 'CSV/JSON starter files with real example data — ready to populate and import.', cta: 'Browse templates', go: () => setActiveTab('templates') },
+                ].map(({ icon: Icon, title, desc, cta, go }) => (
+                  <button
+                    key={title}
+                    onClick={go}
+                    className="group flex flex-col rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
+                  >
+                    <div className="mb-4 grid h-10 w-10 place-items-center rounded-xl bg-slate-900 text-white"><Icon size={17} /></div>
+                    <h3 className="text-base font-semibold text-slate-900">{title}</h3>
+                    <p className="mt-1 flex-1 text-sm leading-relaxed text-slate-500">{desc}</p>
+                    <span className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-slate-900">
+                      {cta}
+                      <FiArrowRight size={13} className="transition-transform group-hover:translate-x-1" />
+                    </span>
+                  </button>
+                ))}
               </div>
-              <div className="bg-white border border-slate-200 rounded-xl p-5 hover:border-slate-300 transition-colors cursor-pointer" onClick={() => { setActiveTab('methods'); setSelectedMethod('import'); }}>
-                <h3 className="font-bold text-slate-800 mb-1">Import a Model</h3>
-                <p className="text-slate-500 text-sm mb-3">YAML archive, CSV wizard, or framework archive — TEMPO auto-detects the format.</p>
-                <div className="flex items-center gap-1.5 text-slate-700 font-semibold text-xs">
-                  <span>Import guide</span><FiArrowRight size={12} />
-                </div>
-              </div>
-              <div className="bg-white border border-slate-200 rounded-xl p-5 hover:border-slate-300 transition-colors cursor-pointer" onClick={() => setActiveTab('templates')}>
-                <h3 className="font-bold text-slate-800 mb-1">Download Templates</h3>
-                <p className="text-slate-500 text-sm mb-3">CSV/JSON starter files with real example data — ready to populate and import.</p>
-                <div className="flex items-center gap-1.5 text-slate-700 font-semibold text-xs">
-                  <span>Browse templates</span><FiArrowRight size={12} />
-                </div>
-              </div>
-            </div>
+            </section>
           </div>
         );
 
       case 'methods':
         return (
           <div className="space-y-8">
-            <div className="text-center pb-2">
-              <h2 className="text-3xl font-bold text-slate-800 mb-2">Step-by-Step: Building a Model</h2>
-              <p className="text-slate-600">This example models a simplified Bavarian energy system.</p>
-            </div>
+            <PageHeader title="Step-by-Step: Building a Model">This example models a simplified Bavarian energy system.</PageHeader>
 
             {/* Method Selector */}
-            <div className="flex justify-center gap-3 flex-wrap">
+            <div className="flex justify-center">
+              <div className="inline-flex flex-wrap gap-1 rounded-xl bg-slate-100 p-1">
               <button
                 onClick={() => setSelectedMethod('manual')}
-                className={`px-5 py-3 rounded-xl font-bold transition-all flex items-center gap-2 ${
-                  selectedMethod === 'manual' ? 'bg-slate-800 text-white shadow-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 ${
+                  selectedMethod === 'manual' || (!selectedMethod && 'manual' === 'manual') ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                <FiEdit size={18} /> Manual Creation
+                <FiEdit size={16} /> Manual Creation
               </button>
               <button
                 onClick={() => setSelectedMethod('import')}
-                className={`px-5 py-3 rounded-xl font-bold transition-all flex items-center gap-2 ${
-                  selectedMethod === 'import' ? 'bg-slate-800 text-white shadow-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 ${
+                  selectedMethod === 'import' || (!selectedMethod && 'import' === 'manual') ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                <FiPackage size={18} /> YAML / Archive Import
+                <FiPackage size={16} /> YAML / Archive Import
               </button>
               <button
                 onClick={() => setSelectedMethod('bulk')}
-                className={`px-5 py-3 rounded-xl font-bold transition-all flex items-center gap-2 ${
-                  selectedMethod === 'bulk' ? 'bg-slate-800 text-white shadow-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 ${
+                  selectedMethod === 'bulk' || (!selectedMethod && 'bulk' === 'manual') ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                <FiUpload size={18} /> CSV Wizard
+                <FiUpload size={16} /> CSV Wizard
               </button>
+              </div>
             </div>
 
             {/* Manual Creation Steps */}
             {(selectedMethod === 'manual' || !selectedMethod) && (
-              <div className="bg-white rounded-xl p-6 border border-slate-200">
+              <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm">
                 <div className="mb-6 pb-4 border-b border-slate-100">
                   <h3 className="text-lg font-bold text-slate-800 mb-1">Manual Creation — Germany Example</h3>
                   <p className="text-sm text-slate-500">12 locations · 12 links · solar + wind + gas + nuclear + hydro + coal + biomass + battery + demand system</p>
                 </div>
 
-                <div className="space-y-5">
+                <div>
                   <Step n={1} title="Open Creation Mode & Pick a Region">
                     <p className="text-slate-600 text-sm">Click <strong>Creation</strong> in the left sidebar. The map appears with an empty canvas.</p>
                     <Screenshot src="./img/Model.png" alt="Creation mode with region selector" caption="Creation Mode — left panel shows mode selector; right sidebar shows the Region Selection stepper (Continent → Country → Region → Subregion) and Infrastructure Layers toggles." />
@@ -315,13 +455,13 @@ const Tutorial = () => {
                     <p className="text-slate-600 text-sm mb-2">
                       In the left panel, click <strong>Add Location</strong>. Then click four spots on the map — each click drops another node:
                     </p>
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto rounded-xl border border-slate-200">
                       <table className="text-xs w-full border-collapse">
                         <thead>
-                          <tr className="bg-slate-100">
-                            <th className="border border-slate-200 px-3 py-2 text-left font-semibold">Name</th>
-                            <th className="border border-slate-200 px-3 py-2 text-left font-semibold">Approx. coords</th>
-                            <th className="border border-slate-200 px-3 py-2 text-left font-semibold">Role</th>
+                          <tr className="bg-slate-50 text-slate-500">
+                            <th className="border-b border-slate-200 px-3 py-2 text-left font-semibold">Name</th>
+                            <th className="border-b border-slate-200 px-3 py-2 text-left font-semibold">Approx. coords</th>
+                            <th className="border-b border-slate-200 px-3 py-2 text-left font-semibold">Role</th>
                           </tr>
                         </thead>
                         <tbody className="font-mono">
@@ -339,10 +479,10 @@ const Tutorial = () => {
                             ['Node_North', '53.0000, 10.0000', 'Transmission'],
                             ['Node_South', '49.0000, 11.5000', 'Transmission'],
                           ].map(([n, c, r]) => (
-                            <tr key={n} className="hover:bg-slate-50">
-                              <td className="border border-slate-200 px-3 py-1.5 text-slate-800 font-semibold">{n}</td>
-                              <td className="border border-slate-200 px-3 py-1.5 text-slate-500">{c}</td>
-                              <td className="border border-slate-200 px-3 py-1.5 text-slate-600">{r}</td>
+                            <tr key={n} className="hover:bg-slate-50 last:[&>td]:border-0">
+                              <td className="border-b border-slate-100 px-3 py-1.5 text-slate-800 font-semibold">{n}</td>
+                              <td className="border-b border-slate-100 px-3 py-1.5 text-slate-500">{c}</td>
+                              <td className="border-b border-slate-100 px-3 py-1.5 text-slate-600">{r}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -370,14 +510,14 @@ const Tutorial = () => {
 
                   <Step n={4} title="Connect with Transmission Links">
                     <p className="text-slate-600 text-sm mb-2">Switch to <strong>Link</strong> mode in the top-left panel. Click a source location, then a destination:</p>
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto rounded-xl border border-slate-200">
                       <table className="text-xs w-full border-collapse">
                         <thead>
-                          <tr className="bg-slate-100">
-                            <th className="border border-slate-200 px-3 py-2 text-left">From</th>
-                            <th className="border border-slate-200 px-3 py-2 text-left">To</th>
-                            <th className="border border-slate-200 px-3 py-2 text-left">Type</th>
-                            <th className="border border-slate-200 px-3 py-2 text-left">Capacity</th>
+                          <tr className="bg-slate-50 text-slate-500">
+                            <th className="border-b border-slate-200 px-3 py-2 text-left font-semibold">From</th>
+                            <th className="border-b border-slate-200 px-3 py-2 text-left font-semibold">To</th>
+                            <th className="border-b border-slate-200 px-3 py-2 text-left font-semibold">Type</th>
+                            <th className="border-b border-slate-200 px-3 py-2 text-left font-semibold">Capacity</th>
                           </tr>
                         </thead>
                         <tbody className="font-mono">
@@ -395,11 +535,11 @@ const Tutorial = () => {
                             ['Frankfurt', 'Stuttgart', 'AC Transmission', '152 MW'],
                             ['Node_North', 'Node_South', 'HVDC Transmission', '450 MW'],
                           ].map(([f, t, ty, c]) => (
-                            <tr key={f+t} className="hover:bg-slate-50">
-                              <td className="border border-slate-200 px-3 py-1.5 text-slate-700">{f}</td>
-                              <td className="border border-slate-200 px-3 py-1.5 text-slate-700">{t}</td>
-                              <td className="border border-slate-200 px-3 py-1.5 text-slate-600">{ty}</td>
-                              <td className="border border-slate-200 px-3 py-1.5 font-semibold text-slate-800">{c}</td>
+                            <tr key={f+t} className="hover:bg-slate-50 last:[&>td]:border-0">
+                              <td className="border-b border-slate-100 px-3 py-1.5 text-slate-700">{f}</td>
+                              <td className="border-b border-slate-100 px-3 py-1.5 text-slate-700">{t}</td>
+                              <td className="border-b border-slate-100 px-3 py-1.5 text-slate-600">{ty}</td>
+                              <td className="border-b border-slate-100 px-3 py-1.5 font-semibold text-slate-800">{c}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -420,13 +560,13 @@ const Tutorial = () => {
 
             {/* YAML / Archive Import */}
             {(selectedMethod === 'import' || !selectedMethod) && (
-              <div className="bg-white rounded-xl p-6 border border-slate-200">
+              <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm">
                 <div className="mb-6 pb-4 border-b border-slate-100">
                   <h3 className="text-lg font-bold text-slate-800 mb-1">Import a Model — Three Paths</h3>
                   <p className="text-sm text-slate-500">Go to <strong className="text-slate-700">Structure → Models</strong> and click <strong className="text-slate-700">Import Calliope Model</strong> (or drag a ZIP onto the archive target)</p>
                 </div>
 
-                <div className="space-y-5">
+                <div>
                   <Step n={1} title="YAML Archive (Calliope 0.6.8 or 0.7)">
                     <p className="text-slate-600 text-sm mb-2">
                       Click <strong>YAML Archive</strong> in the import chooser. Drop a Calliope <code className="bg-slate-100 px-1 rounded">.zip</code> bundle — the file must contain a <code className="bg-slate-100 px-1 rounded">model.yaml</code> (or similar entry point) and any referenced CSV time-series files.
@@ -479,13 +619,13 @@ const Tutorial = () => {
 
             {/* CSV Wizard Steps */}
             {(selectedMethod === 'bulk' || !selectedMethod) && (
-              <div className="bg-white rounded-xl p-6 border border-slate-200">
+              <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm">
                 <div className="mb-6 pb-4 border-b border-slate-100">
                   <h3 className="text-lg font-bold text-slate-800 mb-1">CSV Wizard Workflow</h3>
                   <p className="text-sm text-slate-500">Import a 12-node German grid from CSV in under 2 minutes</p>
                 </div>
 
-                <div className="space-y-5">
+                <div>
                   <Step n={1} title="Download the Locations Template">
                     <p className="text-slate-600 text-sm mb-3">Go to the <strong>Templates</strong> tab and download <code className="bg-slate-100 px-1 rounded">locations_template.csv</code>. Open it in Excel or Google Sheets.</p>
                     <p className="text-slate-600 text-sm mb-2">The template already contains a Berlin example. Replace it with your own rows:</p>
@@ -557,20 +697,17 @@ Node_North,Node_South,450,4000,380,hvdc_transmission`}</CodeBlock>
       case 'gis':
         return (
           <div className="space-y-8">
-            <div className="text-center pb-2">
-              <h2 className="text-3xl font-bold text-slate-800 mb-2">GIS Data & OSM Infrastructure</h2>
-              <p className="text-slate-600 max-w-2xl mx-auto">TEMPO can overlay real power infrastructure from OpenStreetMap — power lines, substations, and plants — to help you ground your model in physical reality.</p>
-            </div>
+            <PageHeader title="GIS Data & OSM Infrastructure">TEMPO can overlay real power infrastructure from OpenStreetMap — power lines, substations, and plants — to help you ground your model in physical reality.</PageHeader>
 
             {/* Infrastructure screenshot */}
             <div>
-              <h3 className="text-xl font-bold text-slate-800 mb-3">What the Infrastructure Overlay Looks Like</h3>
+              <h3 className="text-lg font-semibold tracking-tight text-slate-900 mb-3">What the Infrastructure Overlay Looks Like</h3>
               <Screenshot src="./img/GISdata.png" alt="OSM infrastructure layers — Bavaria" caption="Bavaria with OSM power infrastructure loaded: red/orange/yellow lines = 220 kV / 110–220 kV / 20–110 kV transmission lines; coloured squares = power plants (solar=orange, coal=grey, gas=navy, nuclear=pink, hydro=blue, biomass=green)." />
             </div>
 
             {/* Right sidebar walk-through */}
             <div>
-              <h3 className="text-xl font-bold text-slate-800 mb-4">The OSM Infrastructure Panel (Right Sidebar)</h3>
+              <h3 className="text-lg font-semibold tracking-tight text-slate-900 mb-4">The OSM Infrastructure Panel (Right Sidebar)</h3>
               <div className="flex gap-6 items-start">
                 <img className="h-[700px] w-auto flex-shrink-0 rounded-xl border border-slate-200 shadow-md object-contain" src="./img/OSMsidebar.png" alt="Creation mode right sidebar" />
                 <img className="h-[350px] w-auto flex-shrink-0 rounded-xl border border-slate-200 shadow-md object-contain" src="./img/Meshgenerator.png" alt="Creation mode right sidebar" />
@@ -607,8 +744,8 @@ Node_North,Node_South,450,4000,380,hvdc_transmission`}</CodeBlock>
 
             {/* Step-by-step: Download a region */}
             <div>
-              <h3 className="text-xl font-bold text-slate-800 mb-4">How to Download a New Region (in-app)</h3>
-              <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+              <h3 className="text-lg font-semibold tracking-tight text-slate-900 mb-4">How to Download a New Region (in-app)</h3>
+              <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm">
 
 
                 <Step n={1} title='Open Creation → expand "Download GIS Data"'>
@@ -649,7 +786,7 @@ Node_North,Node_South,450,4000,380,hvdc_transmission`}</CodeBlock>
 
             {/* Power Mesh workflow */}
             <div>
-              <h3 className="text-xl font-bold text-slate-800 mb-3">From Real Infrastructure to Model Nodes</h3>
+              <h3 className="text-lg font-semibold tracking-tight text-slate-900 mb-3">From Real Infrastructure to Model Nodes</h3>
               <p className="text-slate-600 text-sm mb-4">Use the Power Mesh Generator to automatically extract a network topology from OSM data.</p>
               <div className="flex flex-col md:flex-row gap-3 items-start">
                 {[
@@ -672,15 +809,12 @@ Node_North,Node_South,450,4000,380,hvdc_transmission`}</CodeBlock>
       case 'templates':
         return (
           <div className="space-y-8">
-            <div className="text-center pb-2">
-              <h2 className="text-3xl font-bold text-slate-800 mb-2">Download Templates</h2>
-              <p className="text-slate-600">CSV/JSON files with real example data — ready to populate and import.</p>
-            </div>
+            <PageHeader title="Download Templates">CSV/JSON files with real example data — ready to populate and import.</PageHeader>
 
             {/* Template cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {/* Locations */}
-              <div className="bg-white border border-slate-200 rounded-xl p-5 hover:border-slate-300 transition-colors">
+              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:border-slate-300 hover:shadow-md transition-all">
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <div className="flex items-center gap-1.5 mb-0.5">
@@ -710,7 +844,7 @@ Battery_Storage_1,storage_facility,52.4800,13.3800,50,,battery_li_ion`}</CodeBlo
               </div>
 
               {/* Transmission */}
-              <div className="bg-white border border-slate-200 rounded-xl p-5 hover:border-slate-300 transition-colors">
+              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:border-slate-300 hover:shadow-md transition-all">
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <div className="flex items-center gap-1.5 mb-0.5">
@@ -735,7 +869,7 @@ Gas_Plant_Berlin,Berlin_Main,ac_transmission,550,220,15,0.99`}</CodeBlock>
               </div>
 
               {/* Tech Params */}
-              <div className="bg-white border border-slate-200 rounded-xl p-5 hover:border-slate-300 transition-colors">
+              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:border-slate-300 hover:shadow-md transition-all">
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <div className="flex items-center gap-1.5 mb-0.5">
@@ -762,7 +896,7 @@ Berlin_City,power_demand,resource,file=berlin_demand.csv,`}</CodeBlock>
               </div>
 
               {/* Costs */}
-              <div className="bg-white border border-slate-200 rounded-xl p-5 hover:border-slate-300 transition-colors">
+              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:border-slate-300 hover:shadow-md transition-all">
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <div className="flex items-center gap-1.5 mb-0.5">
@@ -789,7 +923,7 @@ Gas_Plant_Berlin,gas_ccgt,monetary,fuel_cost,35,EUR/MWh`}</CodeBlock>
               </div>
 
               {/* Demand time series */}
-              <div className="bg-white border border-slate-200 rounded-xl p-5 hover:border-slate-300 transition-colors">
+              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:border-slate-300 hover:shadow-md transition-all">
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <div className="flex items-center gap-1.5 mb-0.5">
@@ -815,7 +949,7 @@ Gas_Plant_Berlin,gas_ccgt,monetary,fuel_cost,35,EUR/MWh`}</CodeBlock>
               </div>
 
               {/* Solar CF */}
-              <div className="bg-white border border-slate-200 rounded-xl p-5 hover:border-slate-300 transition-colors">
+              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:border-slate-300 hover:shadow-md transition-all">
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <div className="flex items-center gap-1.5 mb-0.5">
@@ -859,7 +993,7 @@ Gas_Plant_Berlin,gas_ccgt,monetary,fuel_cost,35,EUR/MWh`}</CodeBlock>
 
             {/* Column reference */}
             <div>
-              <h3 className="text-xl font-bold text-slate-800 mb-4">Column Reference</h3>
+              <h3 className="text-lg font-semibold tracking-tight text-slate-900 mb-4">Column Reference</h3>
               <div className="grid md:grid-cols-2 gap-4">
                 {[
                   { file: 'locations.csv', cols: [
@@ -901,20 +1035,17 @@ Gas_Plant_Berlin,gas_ccgt,monetary,fuel_cost,35,EUR/MWh`}</CodeBlock>
       case 'entities':
         return (
           <div className="space-y-6">
-            <div className="text-center pb-4">
-              <h2 className="text-3xl font-bold text-slate-800 mb-2">Entity Types</h2>
-              <p className="text-lg text-slate-600">Different location types for your model</p>
-            </div>
+            <PageHeader title="Entity Types">Different location types for your model</PageHeader>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {Object.values(ENTITY_TYPES).map((entity) => (
                 <div
                   key={entity.id}
-                  className="bg-white border border-slate-200 rounded-xl p-5 hover:border-slate-300 transition-colors"
+                  className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:border-slate-300 hover:shadow-md transition-all"
                 >
                   <div className="flex items-start gap-3 mb-4">
                     <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
-                      <entity.icon className="text-slate-500" size={16} />
+                      <span className="text-lg leading-none" aria-hidden="true">{entity.icon}</span>
                     </div>
                     <div className="flex-1">
                       <h3 className="font-semibold text-slate-800 text-sm mb-0.5">{entity.name}</h3>
@@ -959,34 +1090,89 @@ Gas_Plant_Berlin,gas_ccgt,monetary,fuel_cost,35,EUR/MWh`}</CodeBlock>
     }
   };
 
+  const tabIndex = tabs.findIndex((t) => t.id === activeTab);
+  const prevTab = tabs[tabIndex - 1];
+  const nextTab = tabs[tabIndex + 1];
+
   return (
     <div className="flex-1 flex flex-col h-screen bg-slate-50">
-      {/* Tab Navigation */}
-      <div className="bg-white border-b border-slate-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-8">
-          <div className="flex gap-2">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-6 py-4 font-semibold border-b-2 transition-colors ${
-                  activeTab === tab.id
-                    ? 'border-gray-600 text-gray-600'
-                    : 'border-transparent text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                <tab.icon size={20} />
-                {tab.label}
-              </button>
-            ))}
+      <div className="z-20 border-b border-slate-200 bg-white/80 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-3 px-8 py-3">
+          <div className="flex shrink-0 items-center gap-2.5">
+            <div className="grid h-8 w-8 place-items-center rounded-lg bg-slate-900 text-white"><FiBookOpen size={15} /></div>
+            <div className="leading-tight">
+              <div className="text-sm font-semibold text-slate-900">Learn TEMPO</div>
+              <div className="text-[11px] text-slate-400">Section {tabIndex + 1} of {tabs.length}</div>
+            </div>
           </div>
+          <nav className="flex gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1" aria-label="Tutorial sections">
+            {tabs.map((tab) => {
+              const active = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  aria-current={active ? 'page' : undefined}
+                  className={`relative flex shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors ${
+                    active ? 'text-slate-900' : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  {active && (
+                    <motion.span
+                      layoutId="tutorial-tab"
+                      className="absolute inset-0 rounded-lg bg-white shadow-sm"
+                      transition={{ type: 'spring', stiffness: 500, damping: 40 }}
+                    />
+                  )}
+                  <tab.icon size={15} className="relative" />
+                  <span className="relative">{tab.label}</span>
+                </button>
+              );
+            })}
+          </nav>
         </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-7xl mx-auto px-8 py-8">
-          {renderContent()}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-6xl px-8 py-10">
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+            >
+              {renderContent()}
+            </motion.div>
+          </AnimatePresence>
+
+          <div className="mt-14 grid gap-3 border-t border-slate-200 pt-6 sm:grid-cols-2">
+            {prevTab ? (
+              <button
+                onClick={() => setActiveTab(prevTab.id)}
+                className="group flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-all hover:border-slate-300 hover:shadow-md"
+              >
+                <FiChevronLeft className="text-slate-400 transition-transform group-hover:-translate-x-0.5" />
+                <div>
+                  <div className="text-[11px] text-slate-400">Previous</div>
+                  <div className="text-sm font-semibold text-slate-900">{prevTab.label}</div>
+                </div>
+              </button>
+            ) : <div />}
+            {nextTab && (
+              <button
+                onClick={() => setActiveTab(nextTab.id)}
+                className="group flex items-center justify-end gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-right shadow-sm transition-all hover:border-slate-300 hover:shadow-md sm:col-start-2"
+              >
+                <div>
+                  <div className="text-[11px] text-slate-400">Next</div>
+                  <div className="text-sm font-semibold text-slate-900">{nextTab.label}</div>
+                </div>
+                <FiChevronRight className="text-slate-400 transition-transform group-hover:translate-x-0.5" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

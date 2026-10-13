@@ -146,14 +146,16 @@ export const Panel = ({ title, icon: Icon, defaultOpen = true, children, classNa
 
 // ── KPI card ─────────────────────────────────────────────────────────────────
 export const KpiCard = ({ icon: Ic, label, value, sub, accent }) => (
-  <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-4 flex items-center gap-3">
-    <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${accent || 'bg-slate-100'}`}>
-      <Ic size={17} className={accent ? 'text-white' : 'text-slate-500'} />
+  <div className="bg-white rounded-lg border border-slate-200 shadow-sm px-3 py-2 flex items-center gap-2.5">
+    <div className={`w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 ${accent || 'bg-slate-100'}`}>
+      <Ic size={14} className={accent ? 'text-white' : 'text-slate-500'} />
     </div>
     <div className="min-w-0">
-      <p className="text-[11px] text-slate-500 truncate">{label}</p>
-      <p className="text-xl font-bold text-slate-800 leading-tight">{value}</p>
-      <p className="text-[10px] text-slate-400">{sub}</p>
+      <p className="text-[11px] text-slate-500 truncate leading-tight">{label}</p>
+      <p className="flex items-baseline gap-1 min-w-0 leading-tight">
+        <span className="text-base font-bold text-slate-800">{value}</span>
+        <span className="text-[10px] text-slate-400 truncate">{sub}</span>
+      </p>
     </div>
   </div>
 );

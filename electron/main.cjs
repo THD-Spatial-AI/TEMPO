@@ -586,7 +586,9 @@ function resolveVenv() {
  * Only accepts 3.9–3.11 — calliope 0.6.8 is incompatible with 3.12+.
  */
 function findSystemPython() {
-  const candidates = IS_WIN ? ['python', 'python3', 'py'] : ['python3', 'python'];
+  const candidates = IS_WIN
+    ? ['python', 'python3', 'py']
+    : ['python3.11', 'python3.10', 'python3.9', 'python3', 'python'];
   for (const cmd of candidates) {
     try {
       const out = execFileSync(cmd, ['--version'], { timeout: 5000, stdio: ['ignore', 'pipe', 'pipe'] }).toString();

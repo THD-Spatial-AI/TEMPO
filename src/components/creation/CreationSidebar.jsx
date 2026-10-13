@@ -1,8 +1,15 @@
 // Left sidebar (mode selection + shared Locations/Links lists) for the Creation
 // map view. The Locations/Links sections come from the shared EntityListsPanel
 // so Creation and the Map View stay identical. State/handlers passed as props.
-import { FiActivity, FiChevronLeft, FiChevronRight, FiLink, FiMapPin } from 'react-icons/fi';
+import { FiActivity, FiLink, FiMapPin } from 'react-icons/fi';
+import { LuPanelLeftClose, LuPanelLeftOpen } from 'react-icons/lu';
 import EntityListsPanel from '../shared/EntityListsPanel';
+
+const MODES = [
+  { id: 'add', label: 'Location', icon: FiMapPin, hint: 'Click the map to drop a location' },
+  { id: 'link', label: 'Link', icon: FiLink, hint: 'Click two locations to connect them' },
+  { id: 'polyline', label: 'Polyline', icon: FiActivity, hint: 'Click repeatedly to add auto-linked points' },
+];
 
 export default function CreationSidebar({
   clearAll,
@@ -23,76 +30,75 @@ export default function CreationSidebar({
   setShowSaveDialog,
   showNotification,
 }) {
+  const selectMode = (id) => {
+    if (id === 'add') {
+      setMode(mode === 'add' ? null : 'add');
+    } else {
+      setMode(id);
+      if (id === 'link') locationManager.setLinkStart(null);
+    }
+    polylineMode.resetPolyline();
+  };
+  const activeMode = MODES.find((m) => m.id === mode);
+  const ToggleIcon = leftSidebarCollapsed ? LuPanelLeftOpen : LuPanelLeftClose;
+
   return (
-      <div className={`bg-white border-r border-gray-200 transition-all duration-300 ${leftSidebarCollapsed ? 'w-16' : 'w-80'} flex flex-col overflow-hidden`}>
+      <div className={`bg-white border-r border-slate-200 transition-[width] duration-300 ease-out ${leftSidebarCollapsed ? 'w-14' : 'w-72'} shrink-0 overflow-hidden`}>
+      <div className={`flex h-full flex-col ${leftSidebarCollapsed ? 'w-14' : 'w-72'}`}>
         {/* Header */}
-        <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+        <div className={`flex items-center border-b border-slate-200 ${leftSidebarCollapsed ? 'justify-center py-3' : 'justify-between px-4 py-3'}`}>
           {!leftSidebarCollapsed && (
-            <div>
-              <h2 className="text-lg font-bold text-gray-800">Creation Mode</h2>
-              <p className="text-xs text-gray-600">Build your energy system</p>
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold text-slate-900">Creation Mode</h2>
+              <p className="text-[11px] text-slate-500">Build your energy system</p>
             </div>
           )}
           <button
             onClick={() => setLeftSidebarCollapsed(!leftSidebarCollapsed)}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors ml-auto"
+            className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+            title={leftSidebarCollapsed ? 'Expand panel' : 'Collapse panel'}
           >
-            {leftSidebarCollapsed ? <FiChevronRight size={20} /> : <FiChevronLeft size={20} />}
+            <ToggleIcon size={18} />
           </button>
         </div>
 
-        {!leftSidebarCollapsed && (
-          <>
+        {leftSidebarCollapsed ? (
+          <div className="flex flex-col items-center gap-1 py-3">
+            {MODES.map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                onClick={() => selectMode(id)}
+                title={label}
+                className={`grid h-9 w-9 place-items-center rounded-lg transition-colors ${
+                  mode === id ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                <Icon size={16} />
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="flex min-h-0 flex-1 flex-col" style={{ animation: 'panelContentIn 0.15s ease-out 0.25s both' }}>
             {/* Mode Selection */}
-            <div className="p-4 border-b border-gray-200">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Mode</label>
-              <div className="mb-2">
-                <button
-                  onClick={() => {
-                    setMode(mode === 'add' ? null : 'add');
-                    polylineMode.resetPolyline();
-                  }}
-                  className={`w-full p-3 rounded-lg border-2 transition-all ${
-                    mode === 'add'
-                      ? 'border-gray-500 bg-gray-50 text-gray-700'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <FiMapPin className="mx-auto mb-1" size={20} />
-                  <div className="text-xs font-medium">Add Location</div>
-                </button>
+            <div className="px-4 py-3 border-b border-slate-200">
+              <div className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1">
+                {MODES.map(({ id, label, icon: Icon }) => (
+                  <button
+                    key={id}
+                    onClick={() => selectMode(id)}
+                    aria-pressed={mode === id}
+                    className={`flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-medium transition-all ${
+                      mode === id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    <Icon size={13} />
+                    {label}
+                  </button>
+                ))}
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => {
-                    setMode('link');
-                    locationManager.setLinkStart(null);
-                    polylineMode.resetPolyline();
-                  }}
-                  className={`p-3 rounded-lg border-2 transition-all ${
-                    mode === 'link'
-                      ? 'border-gray-500 bg-gray-50 text-gray-700'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <FiLink className="mx-auto mb-1" size={20} />
-                  <div className="text-xs font-medium">Link</div>
-                </button>
-                <button
-                  onClick={() => {
-                    setMode('polyline');
-                    polylineMode.resetPolyline();
-                  }}
-                  className={`p-3 rounded-lg border-2 transition-all ${
-                    mode === 'polyline'
-                      ? 'border-gray-500 bg-gray-50 text-gray-700'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <FiActivity className="mx-auto mb-1" size={20} />
-                  <div className="text-xs font-medium">Polyline</div>
-                </button>
-              </div>
+              <p className="mt-2 px-0.5 text-[11px] leading-snug text-slate-500">
+                {activeMode ? activeMode.hint : 'Pick a mode to start editing the map'}
+              </p>
             </div>
 
             {/* Shared Locations + Links lists */}
@@ -116,8 +122,9 @@ export default function CreationSidebar({
               setCurrentLinkType={setCurrentLinkType}
               showNotification={showNotification}
             />
-          </>
+          </div>
         )}
+      </div>
       </div>
   );
 }

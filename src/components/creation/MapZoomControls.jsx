@@ -1,30 +1,37 @@
 import React from "react";
-import { FiMaximize2, FiMinimize2, FiMapPin } from "react-icons/fi";
+import { FiPlus, FiMinus, FiMaximize } from "react-icons/fi";
+
+const ControlButton = ({ onClick, label, children }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    title={label}
+    aria-label={label}
+    className="group w-9 h-9 flex items-center justify-center text-slate-600 transition-colors hover:bg-slate-900/5 hover:text-slate-900 active:bg-slate-900/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-slate-400"
+  >
+    {children}
+  </button>
+);
 
 const MapZoomControls = ({ onZoomIn, onZoomOut, onFitBounds }) => {
   return (
-    <div className="bg-white rounded-lg shadow-lg flex gap-1 p-1">
-      <button
-        onClick={onZoomIn}
-        className="p-2 hover:bg-gray-100 rounded transition-colors"
-        title="Zoom In"
-      >
-        <FiMaximize2 className="text-gray-700" size={18} />
-      </button>
-      <button
-        onClick={onZoomOut}
-        className="p-2 hover:bg-gray-100 rounded transition-colors"
-        title="Zoom Out"
-      >
-        <FiMinimize2 className="text-gray-700" size={18} />
-      </button>
-      <button
-        onClick={onFitBounds}
-        className="p-2 hover:bg-gray-100 rounded transition-colors"
-        title="Fit All Locations"
-      >
-        <FiMapPin className="text-gray-700" size={18} />
-      </button>
+    <div className="self-end flex flex-col gap-2">
+      {/* Zoom */}
+      <div className="flex flex-col overflow-hidden rounded-xl bg-white/90 backdrop-blur-md shadow-lg shadow-slate-900/10 ring-1 ring-slate-900/5 divide-y divide-slate-200/80">
+        <ControlButton onClick={onZoomIn} label="Zoom in">
+          <FiPlus size={17} strokeWidth={2.25} />
+        </ControlButton>
+        <ControlButton onClick={onZoomOut} label="Zoom out">
+          <FiMinus size={17} strokeWidth={2.25} />
+        </ControlButton>
+      </div>
+
+      {/* Fit to data */}
+      <div className="overflow-hidden rounded-xl bg-white/90 backdrop-blur-md shadow-lg shadow-slate-900/10 ring-1 ring-slate-900/5">
+        <ControlButton onClick={onFitBounds} label="Fit all locations">
+          <FiMaximize size={15} strokeWidth={2.25} />
+        </ControlButton>
+      </div>
     </div>
   );
 };

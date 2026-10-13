@@ -52,7 +52,7 @@ const ModelSelector = () => {
             className="fixed inset-0 z-[999]"
             onClick={() => setIsOpen(false)}
           />
-          <div className="absolute top-full left-0 mt-2 bg-white rounded-lg shadow-xl border border-slate-200 min-w-[300px] max-h-[400px] overflow-y-auto z-[1000]">
+          <div className="absolute top-full right-0 mt-2 bg-white rounded-lg shadow-xl border border-slate-200 min-w-[300px] max-h-[400px] overflow-y-auto z-[1000]">
             <div className="p-2">
               {models.length === 0 ? (
                 <div className="p-4 text-center text-slate-500 text-sm">

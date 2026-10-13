@@ -486,25 +486,22 @@ export default function ZonalStudyAreaPanel({
   }
 
   return (
-    <div className="p-4 space-y-4">
-      <div className="flex items-center gap-2">
-        <FiLayers className="text-electric-600" size={16} />
-        <h3 className="text-sm font-semibold text-slate-800">Study Area</h3>
+    <div className="px-3 py-3 space-y-3">
+      <div className="flex items-center gap-1.5 px-1 text-xs font-semibold uppercase tracking-wider text-slate-500">
+        <FiLayers size={13} />
+        Study area
       </div>
-      <p className="text-[11px] text-slate-500 -mt-2">
-        Search a country, region, province or district. The map loads its transmission grid.
-      </p>
 
       {/* Search */}
       <div className="relative">
         {searching
-          ? <FiLoader size={13} className="absolute left-2.5 top-2.5 text-slate-400 animate-spin" />
-          : <FiSearch size={13} className="absolute left-2.5 top-2.5 text-slate-400" />}
+          ? <FiLoader size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 animate-spin" />
+          : <FiSearch size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />}
         <input
           value={query}
           onChange={e => onQueryChange(e.target.value)}
-          placeholder="Search any place…  e.g. Niederbayern"
-          className="w-full pl-8 pr-2 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-electric-400 focus:outline-none"
+          placeholder="Search a country, region or district"
+          className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-[13px] text-slate-800 placeholder:text-slate-400 transition-colors focus:border-slate-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-200"
         />
         {results.length > 0 && (
           <div className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
@@ -525,6 +522,27 @@ export default function ZonalStudyAreaPanel({
         )}
       </div>
       {error && <p className="text-[11px] text-amber-600">{error}</p>}
+
+      {units.length === 0 && !query && (
+        <div className="rounded-xl border border-dashed border-slate-200 px-3 py-4 text-center">
+          <div className="mx-auto mb-2 grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-slate-500">
+            <FiMapPin size={15} />
+          </div>
+          <p className="text-xs font-medium text-slate-700">No study area yet</p>
+          <p className="mt-0.5 text-[11px] leading-snug text-slate-500">Search a place and the map loads its transmission grid.</p>
+          <div className="mt-3 flex flex-wrap justify-center gap-1.5">
+            {['Niederbayern', 'Bavaria', 'Austria'].map(example => (
+              <button
+                key={example}
+                onClick={() => onQueryChange(example)}
+                className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-900"
+              >
+                {example}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Chips */}
       {units.length > 0 && (

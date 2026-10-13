@@ -110,7 +110,7 @@ const Models = () => {
       name: 'Calliope',
       shortDesc: 'Multi-carrier LP energy system model',
       longDesc: 'Supports Calliope 0.6.8 and 0.7. Import via YAML archive or CSV wizard.',
-      icon: <FiZap size={28} />,
+      icon: <FiZap size={18} />,
       color: 'blue',
       enabled: true,
     },
@@ -119,7 +119,7 @@ const Models = () => {
       name: 'AdOpT-NET0',
       shortDesc: 'Net-zero transition pathway optimization',
       longDesc: 'Capacity expansion model focused on net-zero energy system transitions.',
-      icon: <FiActivity size={28} />,
+      icon: <FiActivity size={18} />,
       color: 'gray',
       enabled: false,
     },
@@ -128,7 +128,7 @@ const Models = () => {
       name: 'OSeMOSYS',
       shortDesc: 'Open Source energy Modelling SYStem',
       longDesc: 'Long-run energy planning model widely used for policy analysis.',
-      icon: <FiDatabase size={28} />,
+      icon: <FiDatabase size={18} />,
       color: 'gray',
       enabled: false,
     },
@@ -137,7 +137,7 @@ const Models = () => {
       name: 'PyPSA',
       shortDesc: 'Python for Power System Analysis',
       longDesc: 'Network-constrained power flow and capacity expansion model.',
-      icon: <FiCpu size={28} />,
+      icon: <FiCpu size={18} />,
       color: 'gray',
       enabled: false,
     },
@@ -821,33 +821,34 @@ const Models = () => {
           <h2 className="text-2xl font-semibold text-slate-800">Create New Model</h2>
           <p className="text-sm text-slate-500 mt-1">Select a model format to import. TEMPO can translate between formats.</p>
         </div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {MODEL_TYPES.map((mt) => (
             <button
               key={mt.id}
               disabled={!mt.enabled}
               onClick={() => mt.enabled && setShowCreatePanel(true)}
-              className={`relative text-left p-5 rounded-xl border-2 transition-all shadow-sm ${
+              className={`text-left px-3 py-2.5 rounded-lg border transition-all shadow-sm flex items-center gap-3 ${
                 mt.enabled
                   ? 'bg-white border-gray-200 hover:border-gray-300 hover:shadow-md cursor-pointer'
                   : 'bg-gray-50 border-gray-200 cursor-not-allowed opacity-60'
               }`}
             >
-              {!mt.enabled && (
-                <span className="absolute top-3 right-3 px-2 py-0.5 bg-gray-200 text-gray-600 text-[10px] font-bold rounded-full uppercase tracking-wide">
-                  Coming soon
-                </span>
-              )}
-              <div className={`mb-3 ${mt.enabled ? 'text-gray-600' : 'text-gray-400'}`}>
+              <div className={`w-8 h-8 rounded-md bg-slate-100 flex items-center justify-center flex-shrink-0 ${mt.enabled ? 'text-gray-600' : 'text-gray-400'}`}>
                 {mt.icon}
               </div>
-              <div className="font-bold text-slate-800 text-base mb-1">{mt.name}</div>
-              <div className="text-xs text-slate-500 leading-snug">{mt.shortDesc}</div>
-              {mt.enabled && (
-                <div className="mt-3 flex items-center gap-1 text-gray-600 text-xs font-semibold">
-                  <FiPlus size={13} />
-                  Import model
-                </div>
+              <div className="min-w-0 flex-1">
+                <div className="font-bold text-slate-800 text-sm truncate">{mt.name}</div>
+                <div className="text-[11px] text-slate-500 leading-snug truncate">{mt.shortDesc}</div>
+              </div>
+              {mt.enabled ? (
+                <span className="flex-shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-gray-800 text-white text-[11px] font-semibold whitespace-nowrap shadow-sm">
+                  <FiPlus size={12} />
+                  Import
+                </span>
+              ) : (
+                <span className="flex-shrink-0 px-2 py-0.5 bg-gray-200 text-gray-600 text-[9px] font-bold rounded-full uppercase tracking-wide whitespace-nowrap">
+                  Soon
+                </span>
               )}
             </button>
           ))}
