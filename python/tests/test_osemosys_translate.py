@@ -610,28 +610,6 @@ def test_parity_datafile_has_time_structure_and_storage():
     assert "[REGION1] 1e-09" in dat
 
 
-def test_parity_storage_day_start_remaps_conversionlh():
-    import osemosys_timeslices as tsl
-    md = json.loads(RICH.read_text(encoding="utf-8"))
-    d = tempfile.mkdtemp()
-    _, report = tr.translate_model(md, d, tsl.parity_scheme(168), parity=True, storage_day_start=8)
-    lh = {r["TIMESLICE"]: r["DAILYTIMEBRACKET"] for r in _rows(d, "Conversionlh.csv") if r["VALUE"] == "1"}
-    assert lh["s1d9"] == "1"      # clock hour 8 opens the storage day
-    assert lh["s1d8"] == "24"     # clock hour 7 closes it
-    assert lh["s1d13"] == "5"
-    assert len(lh) == 24
-    assert any("08:00" in line for line in report)
-
-
-def test_parity_storage_day_start_ignored_for_coarse_brackets():
-    md = json.loads(RICH.read_text(encoding="utf-8"))
-    d = tempfile.mkdtemp()
-    _, report = tr.translate_model(md, d, {"seasons": 1, "dayBlocks": 3}, parity=True, storage_day_start=8)
-    lh = {r["TIMESLICE"]: r["DAILYTIMEBRACKET"] for r in _rows(d, "Conversionlh.csv") if r["VALUE"] == "1"}
-    assert lh == {"s1d1": "1", "s1d2": "2", "s1d3": "3"}
-    assert any("storage day start" in line.lower() for line in report)
-
-
 def test_parity_tiny_variable_cost_replaces_zeros():
     md = json.loads(RICH.read_text(encoding="utf-8"))
     d = _parity(md)
@@ -644,20 +622,24 @@ def test_parity_tiny_variable_cost_replaces_zeros():
     assert min(vc.values()) > 0
 
 
+def test_parity_unused_mode_two_has_tiny_cost():
+    # MODE_OF_OPERATION is {1, 2} in parity; a single-mode tech's mode 2 has no
+    # ratios, so at zero cost it is free phantom activity in spare capacity.
+    md = json.loads(RICH.read_text(encoding="utf-8"))
+    d = _parity(md)
+    vc = {(r["TECHNOLOGY"], r["MODE_OF_OPERATION"]): float(r["VALUE"]) for r in _rows(d, "VariableCost.csv")}
+    techs = [r["VALUE"] for r in _rows(d, "TECHNOLOGY.csv")]
+    for t in techs:
+        assert vc.get((t, "2"), 0) > 0, t
+    assert vc[("SOUTH_CCGT", "2")] == pytest.approx(1e-4)
+
+
 def test_legacy_variable_cost_keeps_zeros():
     md = json.loads(RICH.read_text(encoding="utf-8"))
     d = tempfile.mkdtemp()
     tr.translate_model(md, d)
     vc = {(r["TECHNOLOGY"], r["MODE_OF_OPERATION"]): float(r["VALUE"]) for r in _rows(d, "VariableCost.csv")}
     assert vc[("NORTH_SOLAR_PV", "1")] == 0.0
-
-
-def test_min_level_hour_picks_last_empty_hour_before_charging():
-    import osemosys_runner as R
-    by_clock = [0.0] * 8 + [1.0] * 4 + [-0.5] * 8 + [0.0] * 4   # empty until 08:00
-    assert R._min_level_hour(by_clock, 0) == 8
-    for k in (5, 8, 20):   # same trajectory listed in bracket order starting at clock hour k
-        assert R._min_level_hour([by_clock[(k + i) % 24] for i in range(24)], k) == 8
 
 
 def test_datafile_results_path_is_short():
@@ -672,106 +654,59 @@ def test_datafile_results_path_is_short():
     assert line == 'param ResultsPath := "../results" ;'
 
 
-# ── Runner multi-pass storage-day-start loop (solver mocked) ───────────────
+# ── Runner (solver mocked) ──────────────────────────────────────────────────
 
-def _by_clock_empty_until(h):
-    return [0.0] * h + [1.0] * 4 + [-0.5] * 8 + [0.0] * (12 - h)
-
-
-def _mock_runner(monkeypatch, parses, net_by_clock=None):
-    """Mock glpsol; returns (starts, kept) — storage_day_start per solve and the
-    results_dir handed to _build_contract."""
+def _mock_runner(monkeypatch, parses):
+    """Mock glpsol; returns (R, solves, kept) — one entry per translate call and
+    the results_dir handed to _build_contract."""
     import osemosys_runner as R
-    starts, kept = [], {}
+    solves, kept = [], {}
     real_tr = R.translate.translate_model
 
-    def spy_tr(md, csv_dir, scheme=None, parity=False, storage_day_start=0):
-        starts.append(storage_day_start)
+    def spy_tr(md, csv_dir, scheme=None, parity=False):
+        solves.append(csv_dir)
         kept.setdefault("schemes", []).append(dict(scheme))
-        return real_tr(md, csv_dir, scheme, parity=parity, storage_day_start=storage_day_start)
+        return real_tr(md, csv_dir, scheme, parity=parity)
 
     seq = iter(parses)
     monkeypatch.setattr(R.translate, "translate_model", spy_tr)
     monkeypatch.setattr(R, "_find_glpsol", lambda: "glpsol")
     monkeypatch.setattr(R, "_run_glpsol", lambda *a, **k: None)
     monkeypatch.setattr(R, "_parse_glpsol_output", lambda path: next(seq))
-    monkeypatch.setattr(R, "_storage_net_by_bracket",
-                        lambda c, r: [0.0] * 24 if net_by_clock is None
-                        else [net_by_clock[(starts[-1] + i) % 24] for i in range(24)])
 
     def fake_contract(results_dir, *a, **kw):
         kept["results_dir"] = results_dir
         return {"termination_condition": "optimal", "objective": a[-1] if a else None}
 
     monkeypatch.setattr(R, "_build_contract", fake_contract)
-    return R, starts, kept
+    return R, solves, kept
 
 
-def test_runner_keeps_best_pass_and_retries_one_hour_earlier(monkeypatch):
+def test_runner_single_solve_with_storage(monkeypatch):
+    # Storage is cyclic in the patched model: one solve, no storage-day start passes.
     md = json.loads(RICH.read_text(encoding="utf-8"))
-    R, starts, kept = _mock_runner(
-        monkeypatch, [("optimal", 3.0), ("optimal", 2.0), ("optimal", 2.5)], _by_clock_empty_until(9))
+    R, solves, kept = _mock_runner(monkeypatch, [("optimal", 3.0)])
     res = R.run_model(md, tempfile.mkdtemp())
-    assert starts == [0, 9, 8]                    # 9 stabilises → check 8
-    assert Path(kept["results_dir"]).parent.name == "pass2"   # lowest objective, not last
-    assert any("09:00" in line and "3 solves" in line for line in res["translation_report"])
-
-
-def test_runner_later_non_optimal_pass_keeps_earlier_best(monkeypatch):
-    md = json.loads(RICH.read_text(encoding="utf-8"))
-    R, starts, kept = _mock_runner(
-        monkeypatch, [("optimal", 3.0), ("infeasible", None)], _by_clock_empty_until(9))
-    res = R.run_model(md, tempfile.mkdtemp())
-    assert starts == [0, 9]
-    assert Path(kept["results_dir"]).parent.name == "pass1"
+    assert len(solves) == 1
     assert res["termination_condition"] == "optimal"
+    lh = {r["TIMESLICE"]: r["DAILYTIMEBRACKET"] for r in _rows(solves[0], "Conversionlh.csv") if r["VALUE"] == "1"}
+    assert lh["s1d1"] == "1" and lh["s1d24"] == "24"
 
 
-def test_runner_single_solve_without_storage(monkeypatch):
+def test_runner_non_optimal_returns_failure(monkeypatch):
     md = json.loads(RICH.read_text(encoding="utf-8"))
-    md["technologies"] = [t for t in md["technologies"] if t["name"] != "battery"]
-    for loc in md["locations"]:
-        loc["techs"].pop("battery", None)
-    R, starts, kept = _mock_runner(monkeypatch, [("optimal", 3.0)])
-    R.run_model(md, tempfile.mkdtemp())
-    assert starts == [0]
-
-
-def test_runner_single_solve_when_storage_unused(monkeypatch):
-    md = json.loads(RICH.read_text(encoding="utf-8"))
-    R, starts, kept = _mock_runner(monkeypatch, [("optimal", 3.0), ("optimal", 3.0)])
-    R.run_model(md, tempfile.mkdtemp())
-    assert starts == [0]
+    R, solves, kept = _mock_runner(monkeypatch, [("infeasible", None)])
+    res = R.run_model(md, tempfile.mkdtemp())
+    assert res["success"] is False and res["termination_condition"] == "infeasible"
+    assert "results_dir" not in kept
 
 
 def test_runner_user_scheme_uses_whole_days(monkeypatch):
     md = json.loads(RICH.read_text(encoding="utf-8"))
     md["modelConfig"]["osemosysScheme"] = {"seasons": 1, "dayBlocks": 3}
-    R, starts, kept = _mock_runner(monkeypatch, [("optimal", 3.0)])
+    R, solves, kept = _mock_runner(monkeypatch, [("optimal", 3.0)])
     R.run_model(md, tempfile.mkdtemp())
     assert kept["schemes"][0] == {"seasons": 1, "dayBlocks": 3, "wholeDays": True}
-
-
-def test_storage_net_by_bracket_from_synthetic_csvs():
-    import osemosys_runner as R
-    c, r = tempfile.mkdtemp(), tempfile.mkdtemp()
-    tr._write_csv(os.path.join(c, "TechnologyToStorage.csv"),
-                  ["REGION", "TECHNOLOGY", "STORAGE", "MODE_OF_OPERATION", "VALUE"],
-                  [{"REGION": "R", "TECHNOLOGY": "B", "STORAGE": "B_S", "MODE_OF_OPERATION": 1, "VALUE": 0.9}])
-    tr._write_csv(os.path.join(c, "TechnologyFromStorage.csv"),
-                  ["REGION", "TECHNOLOGY", "STORAGE", "MODE_OF_OPERATION", "VALUE"],
-                  [{"REGION": "R", "TECHNOLOGY": "B", "STORAGE": "B_S", "MODE_OF_OPERATION": 2, "VALUE": 2.0}])
-    tr._write_csv(os.path.join(c, "Conversionlh.csv"), ["TIMESLICE", "DAILYTIMEBRACKET", "VALUE"],
-                  [{"TIMESLICE": f"s1d{h}", "DAILYTIMEBRACKET": d, "VALUE": int(d == (h % 3) + 1)}
-                   for h in (1, 2, 3) for d in (1, 2, 3)])          # rotated: d1→2, d2→3, d3→1
-    tr._write_csv(os.path.join(c, "YearSplit.csv"), ["TIMESLICE", "YEAR", "VALUE"],
-                  [{"TIMESLICE": f"s1d{h}", "YEAR": 2005, "VALUE": 0.5} for h in (1, 2, 3)])
-    tr._write_csv(os.path.join(r, "RateOfActivity.csv"),
-                  ["REGION", "TIMESLICE", "TECHNOLOGY", "MODE_OF_OPERATION", "YEAR", "VALUE"],
-                  [{"REGION": "R", "TIMESLICE": "s1d1", "TECHNOLOGY": "B", "MODE_OF_OPERATION": 1, "YEAR": 2005, "VALUE": 10},
-                   {"REGION": "R", "TIMESLICE": "s1d3", "TECHNOLOGY": "B", "MODE_OF_OPERATION": 2, "YEAR": 2005, "VALUE": 4},
-                   {"REGION": "R", "TIMESLICE": "s1d2", "TECHNOLOGY": "X", "MODE_OF_OPERATION": 1, "YEAR": 2005, "VALUE": 7}])
-    assert R._storage_net_by_bracket(c, r) == pytest.approx([-4.0, 4.5, 0.0])
 
 
 def test_parity_summary_wording():
@@ -894,3 +829,116 @@ def test_parity_storage_cap_min_equals_reported():
     _, report = tr.translate_model(md, tempfile.mkdtemp(), tsl.parity_scheme(168), parity=True)
     assert any("storage_cap_min" in r and "not enforced" in r for r in report)
     assert any("storage_cap_equals" in r and "not enforced" in r for r in report)
+
+
+def test_parity_linkconfig_distance():
+    md = json.loads(REF.read_text(encoding="utf-8"))
+    md['links'][0]['linkConfig'] = {'distance': 200}
+    d = _parity(md)
+    cc = {r["TECHNOLOGY"]: float(r["VALUE"]) for r in _rows(d, "CapitalCost.csv")}
+    assert cc["TX_NORTH_SOUTH_GRID_LINK"] == pytest.approx(0.5 * 200 * (0.05 / (1 - 1.05 ** -40)), rel=1e-6)
+
+
+def test_parity_storage_cyclic_and_loss_params():
+    md = json.loads(REF.read_text(encoding="utf-8"))          # battery storage_loss 0.01
+    d = _parity(md)
+    cyc = {r["STORAGE"]: int(float(r["VALUE"])) for r in _rows(d, "StorageCyclicYear.csv")}
+    loss = {r["STORAGE"]: float(r["VALUE"]) for r in _rows(d, "StorageLossRate.csv")}
+    assert cyc == {"NORTH_BATTERY_S": 1}
+    assert loss == {"NORTH_BATTERY_S": pytest.approx(0.01)}
+    import osemosys_runner as R
+    dat = Path(R._write_datafile(d, str(Path(d) / "results"), discount_rate=1e-9)).read_text(encoding="utf-8")
+    assert "param StorageCyclicYear :=" in dat        # default lives in the model file
+    assert "param StorageLossRate :=" in dat
+    # Tempo storage levels are ~1e-6 PJ in parity: scale them to O(1) for GLPK.
+    assert [float(r["VALUE"]) for r in _rows(d, "TempoLevelScale.csv")] == [1e6]
+    assert "param TempoLevelScale := 1000000.0 ;" in dat
+
+
+@pytest.mark.parametrize("flag,expected", [(None, 1), (True, 1), (False, 0)])
+def test_parity_cyclic_storage_follows_model_config(flag, expected):
+    md = json.loads(REF.read_text(encoding="utf-8"))
+    if flag is not None:
+        md["modelConfig"]["cyclicStorage"] = flag
+    d = _parity(md)
+    cyc = {r["STORAGE"]: int(float(r["VALUE"])) for r in _rows(d, "StorageCyclicYear.csv")}
+    assert cyc == {"NORTH_BATTERY_S": expected}
+
+
+def test_parity_non_cyclic_storage_initial_reported():
+    import osemosys_timeslices as tsl
+    md = json.loads(REF.read_text(encoding="utf-8"))
+    md["modelConfig"]["cyclicStorage"] = False
+    next(t for t in md["technologies"] if t["name"] == "battery")["constraints"]["storage_initial"] = 0.5
+    _, report = tr.translate_model(md, tempfile.mkdtemp(), tsl.parity_scheme(168), parity=True)
+    assert any("storage_initial" in r for r in report)
+
+
+def test_parity_non_cyclic_storage_reported_approximate():
+    import osemosys_timeslices as tsl
+    md = json.loads(REF.read_text(encoding="utf-8"))
+    md["modelConfig"]["cyclicStorage"] = False
+    _, report = tr.translate_model(md, tempfile.mkdtemp(), tsl.parity_scheme(168), parity=True)
+    assert any("non-cyclic" in r and "approximate" in r for r in report)
+    md["modelConfig"]["cyclicStorage"] = True
+    _, report = tr.translate_model(md, tempfile.mkdtemp(), tsl.parity_scheme(168), parity=True)
+    assert not any("approximate" in r for r in report)
+
+
+def test_parity_tiny_cost_report_mentions_mode_two():
+    import osemosys_timeslices as tsl
+    md = json.loads(RICH.read_text(encoding="utf-8"))
+    _, report = tr.translate_model(md, tempfile.mkdtemp(), tsl.parity_scheme(168), parity=True)
+    line = next(r for r in report if "zero VariableCost" in r)
+    assert "mode 2" in line
+
+
+# ─── Myopic `_existing` shadows: fixed zero-capex capacity → ResidualCapacity ──
+
+def _with_shadow(md, name, loc_idx, cap):
+    base = next(t for t in md["technologies"] if t["name"] == name)
+    shadow = json.loads(json.dumps(base))
+    shadow["name"] = f"{name}_existing"
+    for k in ("energy_cap", "storage_cap"):
+        if k in shadow.get("costs", {}).get("monetary", {}):
+            shadow["costs"]["monetary"][k] = 0
+    shadow["constraints"].pop("energy_cap_max", None)
+    md["technologies"].append(shadow)
+    md["locations"][loc_idx]["techs"][f"{name}_existing"] = {"constraints": {"energy_cap_equals": cap}}
+    return md
+
+
+def test_zero_capex_equals_becomes_residual_capacity():
+    d = _parity(_with_shadow(json.loads(REF.read_text(encoding="utf-8")), "solar_pv", 0, 349.485))
+    resid = {r["TECHNOLOGY"]: float(r["VALUE"]) for r in _rows(d, "ResidualCapacity.csv")}
+    assert resid["NORTH_SOLAR_PV_EXISTING"] == pytest.approx(349.485 / 1e6)
+    assert "NORTH_SOLAR_PV_EXISTING" not in {r["TECHNOLOGY"] for r in _rows(d, "TotalAnnualMinCapacity.csv")}
+    inv = {r["TECHNOLOGY"]: float(r["VALUE"]) for r in _rows(d, "TotalAnnualMaxCapacityInvestment.csv")}
+    assert inv["NORTH_SOLAR_PV_EXISTING"] == 0.0
+    assert inv["NORTH_SOLAR_PV"] == pytest.approx(2000 / 1e6)          # others unchanged
+    mx = {r["TECHNOLOGY"]: float(r["VALUE"]) for r in _rows(d, "TotalAnnualMaxCapacity.csv")}
+    assert mx["NORTH_SOLAR_PV_EXISTING"] == pytest.approx(349.485 / 1e6)
+
+
+def test_zero_capex_storage_shadow_becomes_residual_capacity():
+    d = _parity(_with_shadow(json.loads(REF.read_text(encoding="utf-8")), "battery", 0, 15.155))
+    resid = {r["TECHNOLOGY"]: float(r["VALUE"]) for r in _rows(d, "ResidualCapacity.csv")}
+    assert resid["NORTH_BATTERY_EXISTING"] == pytest.approx(15.155 / 1e6)
+    assert _rows(d, "TotalAnnualMinCapacity.csv") == []
+    inv = {r["TECHNOLOGY"]: float(r["VALUE"]) for r in _rows(d, "TotalAnnualMaxCapacityInvestment.csv")}
+    assert inv["NORTH_BATTERY_EXISTING"] == 0.0
+
+
+def test_equals_with_capex_keeps_min_capacity():
+    d = _parity(_with_fixed_caps(json.loads(REF.read_text(encoding="utf-8"))))
+    mins = {r["TECHNOLOGY"] for r in _rows(d, "TotalAnnualMinCapacity.csv")}
+    assert "NORTH_SOLAR_PV" in mins            # energy_cap_equals with capex = a real minimum
+
+
+def test_runner_keeps_presolve_with_existing_shadow(monkeypatch):
+    R, _, _ = _mock_runner(monkeypatch, [("optimal", 3.0)])
+    calls = []
+    monkeypatch.setattr(R, "_run_glpsol", lambda *a, **k: calls.append(k.get("presolve", True)))
+    md = _with_shadow(json.loads(REF.read_text(encoding="utf-8")), "solar_pv", 0, 349.485)
+    R.run_model(md, tempfile.mkdtemp())
+    assert calls == [True]

@@ -6,7 +6,8 @@ override with a capacity-factor file (resource_unit energy_per_cap), a two-carri
 conversion chain (gas_supply → ccgt) with om_prod fuel costs, storage with
 om_annual, three links of different length. Daily demand / CF shapes repeat
 exactly every 24 h (keeps OSeMOSYS hour-of-day timeslices exact) and
-storage_loss is 0 (OSeMOSYS 2017 has no self-discharge).
+storage_loss is 0. Also writes scripts/reference_model_rich_lossy.json, the same
+model with battery storage_loss 0.01/h.
 
     python scripts/make_reference_rich.py
 """
@@ -89,3 +90,11 @@ model = {
 
 OUT.write_text(json.dumps(model, indent=1), encoding='utf-8')
 print(f'wrote {OUT} ({HOURS} h, {len(model["locations"])} nodes, {len(model["links"])} links)')
+
+lossy = json.loads(json.dumps(model))
+lossy['name'] = 'Rich Parity Reference (lossy storage)'
+lossy['_comment'] = model['_comment'] + ' Lossy variant: battery storage_loss 0.01/h.'
+next(t for t in lossy['technologies'] if t['name'] == 'battery')['constraints']['storage_loss'] = 0.01
+OUT_LOSSY = Path(__file__).parent / 'reference_model_rich_lossy.json'
+OUT_LOSSY.write_text(json.dumps(lossy, indent=1), encoding='utf-8')
+print(f'wrote {OUT_LOSSY}')

@@ -24,6 +24,7 @@ Approximations and losses (noted in translation report):
 from __future__ import annotations
 
 import csv as _csv
+import json
 import math
 import os
 import re
@@ -34,6 +35,7 @@ if _this_dir not in sys.path:
     sys.path.insert(0, _this_dir)
 
 import osemosys_timeslices as timeslices
+from osemosys_translate import _LARGE_CAP_GW
 
 _KWH_TO_PJ = 3.6e-9
 _M_EUR_GW_TO_EUR_KW = 1.0       # reverse of the translate unit coincidence
@@ -75,8 +77,16 @@ def osemosys_to_internal(csv_dir: str) -> tuple[dict, list[str]]:
     """
     report: list[str] = []
 
+    tempo_json = os.path.join(csv_dir, "tempo_model.json")
+    if os.path.exists(tempo_json):
+        with open(tempo_json, encoding="utf-8") as fh:
+            return json.load(fh), ["Imported the original TEMPO model from tempo_model.json (lossless)."]
+
     def _r(name: str) -> list[dict]:
         return _read_csv(csv_dir, name)
+
+    if _r("REGION.csv") and _is_parity_layout(csv_dir):
+        return _parity_to_internal(csv_dir, report), report
 
     # ── Sets ─────────────────────────────────────────────────────────────────
     regions = [row["VALUE"] for row in _r("REGION.csv")]
@@ -551,3 +561,264 @@ def osemosys_to_internal(csv_dir: str) -> tuple[dict, list[str]]:
         )
 
     return model, report
+
+
+# ─── Parity datasets (TEMPO's own export) ────────────────────────────────────
+
+_PARITY_EPS_VAR_COST = 1e-4      # osemosys_translate's tiny-cost substitution (M€/PJ)
+
+
+def _is_parity_layout(csv_dir: str) -> bool:
+    """TEMPO parity export: STORAGE rows, two-mode TX_ techs or the storage extension CSVs."""
+    return (bool(_read_csv(csv_dir, "STORAGE.csv"))
+            or os.path.exists(os.path.join(csv_dir, "StorageCyclicYear.csv"))
+            or any(r["VALUE"].startswith("TX_") for r in _read_csv(csv_dir, "TECHNOLOGY.csv")))
+
+
+def _parity_to_internal(csv_dir: str, report: list) -> dict:
+    """Reverse of translate_model(parity=True): one annualised year, two-mode
+    transmission (TX_{A}_{B}_{TID}) and storage (TechnologyTo/FromStorage) techs,
+    capex pre-annualised with OperationalLife 1. Rebuilt as a one-calendar-year
+    TEMPO model with absolute hourly demand and capacity-factor series."""
+    from datetime import datetime, timedelta
+
+    def _r(name):
+        return _read_csv(csv_dir, name)
+
+    region = _r("REGION.csv")[0]["VALUE"]
+    years = sorted(int(r["VALUE"]) for r in _r("YEAR.csv")) or [2024]
+    year = years[0]
+    if len(years) > 1:
+        report.append(f"Multi-year dataset: kept {year}, dropped {years[1:]}.")
+
+    def _rows(name, by_year=True):
+        return [r for r in _r(name) if r.get("REGION", region) == region
+                and (not by_year or int(r.get("YEAR", year)) == year)]
+
+    labels_raw = [r["VALUE"] for r in _r("TIMESLICE.csv")]
+    scheme = {"seasons": max(int(re.search(r"s(\d+)", lb).group(1)) for lb in labels_raw),
+              "dayBlocks": max(int(re.search(r"d(\d+)", lb).group(1)) for lb in labels_raw),
+              "wholeDays": True}
+    year_split = {r["TIMESLICE"]: _float(r["VALUE"]) for r in _rows("YearSplit.csv")}
+    n_hours = int(round((datetime(year + 1, 1, 1) - datetime(year, 1, 1)).total_seconds() / 3600))
+
+    techs = [r["VALUE"] for r in _r("TECHNOLOGY.csv")]
+    fuels = [r["VALUE"] for r in _r("FUEL.csv")]
+    cap_cost = {r["TECHNOLOGY"]: _float(r["VALUE"]) for r in _rows("CapitalCost.csv")}
+    fix_cost = {r["TECHNOLOGY"]: _float(r["VALUE"]) for r in _rows("FixedCost.csv")}
+    var_cost = {(r["TECHNOLOGY"], int(r["MODE_OF_OPERATION"])): _float(r["VALUE"])
+                for r in _rows("VariableCost.csv")}
+    op_life = {r["TECHNOLOGY"]: int(_float(r["VALUE"], 1)) for r in _rows("OperationalLife.csv", False)}
+    cap_max = {r["TECHNOLOGY"]: _float(r["VALUE"]) for r in _rows("TotalAnnualMaxCapacity.csv")}
+    cap_min = {r["TECHNOLOGY"]: _float(r["VALUE"]) for r in _rows("TotalAnnualMinCapacity.csv")}
+    max_inv = {r["TECHNOLOGY"]: _float(r["VALUE"], -1) for r in _rows("TotalAnnualMaxCapacityInvestment.csv")}
+    residual = {r["TECHNOLOGY"]: _float(r["VALUE"]) for r in _rows("ResidualCapacity.csv")}
+    iar: dict = {}
+    oar: dict = {}
+    for name, dst in (("InputActivityRatio.csv", iar), ("OutputActivityRatio.csv", oar)):
+        for r in _rows(name):
+            dst.setdefault((r["TECHNOLOGY"], int(r["MODE_OF_OPERATION"])), {})[r["FUEL"]] = _float(r["VALUE"])
+    cf: dict = {}
+    for r in _rows("CapacityFactor.csv"):
+        cf.setdefault(r["TECHNOLOGY"], {})[r["TIMESLICE"]] = _float(r["VALUE"], 1.0)
+
+    def _caps(t):
+        # Fixed existing capacity (translate writes zero-capex energy_cap_equals as
+        # ResidualCapacity with no investment allowed)
+        if residual.get(t, 0.0) > 0 and max_inv.get(t) == 0:
+            return {"energy_cap_equals": round(residual[t] * 1e6, 6)}
+        mn, mx = cap_min.get(t, 0.0), cap_max.get(t, 0.0)
+        if mn > 0 and math.isclose(mn, mx, rel_tol=1e-9):
+            return {"energy_cap_equals": round(mn * 1e6, 6)}
+        out = {"energy_cap_min": round(mn * 1e6, 6)} if mn > 0 else {}
+        if mx and mx < _LARGE_CAP_GW:   # translate's stand-in for unbounded
+            out["energy_cap_max"] = round(mx * 1e6, 6)
+        return out
+
+    def _om_prod(t, mode):
+        v = var_cost.get((t, mode), 0.0)
+        return 0.0 if math.isclose(v, _PARITY_EPS_VAR_COST, rel_tol=1e-9) else v * _M_EUR_PJ_TO_EUR_KWH
+
+    def _life_costs(t, extra=None):
+        """Annualised capex: OperationalLife 1 → lifetime 1 / interest 0 (CRF = 1)."""
+        life = op_life.get(t, 1)
+        costs = {"energy_cap": cap_cost.get(t, 0.0) * _M_EUR_GW_TO_EUR_KW,
+                 "om_annual": fix_cost.get(t, 0.0) * _M_EUR_GW_TO_EUR_KW}
+        costs.update(extra or {})
+        costs = {k: round(v, 9) for k, v in costs.items() if v}
+        if life == 1:
+            costs["interest_rate"] = 0
+        return life, costs
+
+    # Locations: fuel prefixes {LOC}_{CARRIER} that are also prefixes of {LOC}_{TID} techs
+    tech_prefixes = {"_".join(t.split("_")[:i]) for t in techs if not t.startswith("TX_")
+                     for i in range(1, len(t.split("_")))}
+    loc_set: set = set()
+    for f in fuels:
+        parts = f.split("_")
+        hit = next(("_".join(parts[:i]) for i in range(1, len(parts))
+                    if "_".join(parts[:i]) in tech_prefixes), None)
+        loc_set.add(hit or parts[0])
+
+    def _loc_of(name):
+        return max((lc for lc in loc_set if name.startswith(lc + "_")), key=len, default=None)
+
+    def _carrier(fuel):
+        loc = _loc_of(fuel)
+        return fuel[len(loc) + 1:].lower() if loc else fuel.lower()
+
+    # Hourly calendar-year series from per-timeslice means
+    stamps = [(datetime(year, 1, 1) + timedelta(hours=h)).strftime("%Y-%m-%d %H:%M:%S")
+              for h in range(n_hours)]
+
+    def _hourly(slices):
+        return timeslices.broadcast(slices, year_split, scheme, n_hours)
+
+    tech_defs: dict = {}
+    loc_techs: dict = {lc: {} for lc in loc_set}
+    time_series: list = []
+
+    def _add_def(tid, tdef, loc, loc_entry):
+        if tid not in tech_defs:
+            tech_defs[tid] = tdef
+        elif tdef.get("costs") != tech_defs[tid].get("costs"):
+            loc_entry["costs"] = tdef["costs"]        # differs from the first location's
+        loc_techs[loc][tid] = loc_entry or None
+
+    # ── Storage (two-mode tech + STORAGE) ─────────────────────────────────────
+    to_s = {r["TECHNOLOGY"]: (r["STORAGE"], _float(r["VALUE"]))
+            for r in _rows("TechnologyToStorage.csv", False) if int(r["MODE_OF_OPERATION"]) == 1}
+    ccs = {r["STORAGE"]: _float(r["VALUE"]) for r in _rows("CapitalCostStorage.csv")}
+    loss = {r["STORAGE"]: _float(r["VALUE"]) for r in _rows("StorageLossRate.csv", False)}
+    cyclic = {r["STORAGE"]: int(_float(r["VALUE"])) for r in _rows("StorageCyclicYear.csv", False)}
+    for t, (stor, eff) in to_s.items():
+        loc = _loc_of(t)
+        tid = t[len(loc) + 1:].lower()
+        fuel = next(iter(iar.get((t, 1), {})), f"{loc}_ELECTRICITY")
+        # CapitalCostStorage is M€/PJ of storage (NewStorageCapacity is in PJ, not scaled
+        # by TempoLevelScale) → €/kWh.
+        life, costs = _life_costs(t, {"storage_cap": ccs.get(stor, 0.0) * _M_EUR_PJ_TO_EUR_KWH,
+                                      "om_prod": _om_prod(t, 2)})
+        tdef = {"name": tid,
+                "essentials": {"parent": "storage", "carrier": _carrier(fuel), "name": _unsid(tid.upper())},
+                "constraints": {"energy_eff": round(eff, 9), "storage_loss": loss.get(stor, 0.0),
+                                "lifetime": life},
+                "costs": {"monetary": costs}}
+        _add_def(tid, tdef, loc, {"constraints": _caps(t)} if _caps(t) else {})
+
+    # ── Transmission (one two-mode tech per link) ─────────────────────────────
+    links: list = []
+    for t in techs:
+        if not t.startswith("TX_"):
+            continue
+        fin = next(iter(iar.get((t, 1), {})), "")
+        fout, eff = next(iter(oar.get((t, 1), {}).items()), ("", 1.0))
+        a, b = _loc_of(fin), _loc_of(fout)
+        if not a or not b:
+            report.append(f"Transmission tech {t}: endpoints not recognised — skipped.")
+            continue
+        tid = t[len(f"TX_{a}_{b}_"):].lower()
+        life, costs = _life_costs(t)
+        if tid not in tech_defs:
+            tech_defs[tid] = {"name": tid,
+                              "essentials": {"parent": "transmission", "carrier": _carrier(fin),
+                                             "name": _unsid(tid.upper())},
+                              "constraints": {"lifetime": life},
+                              "costs": {"monetary": {"interest_rate": 0} if life == 1 else {}}}
+        link_cfg = {"constraints": {"energy_eff": round(eff, 9), **_caps(t)}}
+        if costs.get("energy_cap"):
+            link_cfg["costs"] = {"monetary": {"energy_cap": costs["energy_cap"]}}
+        links.append({"from": _unsid(a), "to": _unsid(b), "tech": tid, "linkConfig": link_cfg})
+
+    # ── Supply / conversion ───────────────────────────────────────────────────
+    for t in techs:
+        if t.startswith("TX_") or t in to_s:
+            continue
+        loc = _loc_of(t)
+        if not loc:
+            report.append(f"Tech {t}: location not recognised — skipped.")
+            continue
+        tid = t[len(loc) + 1:].lower()
+        ins, outs = iar.get((t, 1), {}), oar.get((t, 1), {})
+        if not outs:
+            report.append(f"Tech {t}: no output fuel — skipped.")
+            continue
+        life, costs = _life_costs(t, {"om_prod": _om_prod(t, 1)})
+        cout = _carrier(next(iter(outs)))
+        if ins:
+            essentials = {"parent": "conversion", "carrier_in": _carrier(next(iter(ins))), "carrier_out": cout}
+            constraints = {"energy_eff": round(1.0 / max(1e-9, next(iter(ins.values()))), 9), "lifetime": life}
+        else:
+            essentials = {"parent": "supply", "carrier_out": cout}
+            constraints = {"lifetime": life}
+        essentials["name"] = _unsid(tid.upper())
+        loc_constr = dict(_caps(t))
+        slices = cf.get(t, {})
+        if slices and any(not math.isclose(v, 1.0) for v in slices.values()):
+            fname = f"cf_{loc.lower()}_{tid}.csv"
+            time_series.append({"name": fname[:-4], "fileName": fname, "columns": ["datetime", "cf"],
+                                "dateColumn": "datetime",
+                                "data": [{"datetime": d, "cf": round(v, 9)}
+                                         for d, v in zip(stamps, _hourly(slices))]})
+            loc_constr.update({"resource": f"file={fname}:cf", "resource_unit": "energy_per_cap"})
+        tdef = {"name": tid, "essentials": essentials, "constraints": constraints,
+                "costs": {"monetary": costs}}
+        _add_def(tid, tdef, loc, {"constraints": loc_constr} if loc_constr else {})
+
+    # ── Demand: annualised PJ × slice share → absolute kW ─────────────────────
+    profile: dict = {}
+    for r in _rows("SpecifiedDemandProfile.csv"):
+        profile.setdefault(r["FUEL"], {})[r["TIMESLICE"]] = _float(r["VALUE"])
+    demand_kw: dict = {}
+    for r in _rows("SpecifiedAnnualDemand.csv"):
+        fuel, pj = r["FUEL"], _float(r["VALUE"])
+        loc = _loc_of(fuel)
+        if not loc or pj <= 0:
+            continue
+        if loc in demand_kw:
+            report.append(f"{_unsid(loc)}: several demand carriers — only the first kept as demandProfile.")
+            continue
+        kwh = pj / _KWH_TO_PJ
+        slices = {lb: profile.get(fuel, {}).get(lb, 0.0) * kwh / (ys * 8760.0) if ys else 0.0
+                  for lb, ys in year_split.items()}
+        hourly = _hourly(slices)
+        demand_kw[loc] = [round(v, 6) for v in (hourly[:24] if scheme["seasons"] == 1 else hourly)]
+        dem_tid = f"demand_{_carrier(fuel)}"
+        tech_defs.setdefault(dem_tid, {"name": dem_tid,
+                                       "essentials": {"parent": "demand", "carrier_in": _carrier(fuel),
+                                                      "name": f"Demand ({_carrier(fuel)})"},
+                                       "constraints": {"resource": -1000, "force_resource": True}})
+        loc_techs[loc][dem_tid] = None
+
+    locations = []
+    for loc in sorted(loc_set):
+        entry = {"name": _unsid(loc), "latitude": 0.0, "longitude": 0.0, "techs": loc_techs[loc]}
+        if loc in demand_kw:
+            entry["demandProfile"] = {"timeseries": demand_kw[loc]}
+        locations.append(entry)
+
+    model_config = {"startDate": f"{year}-01-01", "endDate": f"{year}-12-31", "mode": "plan",
+                    "ensureFeasibility": True}
+    if cyclic:
+        model_config["cyclicStorage"] = all(v == 1 for v in cyclic.values())
+
+    report.append(f"Parity dataset: imported {len(locations)} locations, {len(tech_defs)} techs, "
+                  f"{len(links)} links as one calendar year {year} ({scheme['seasons']} season(s) x "
+                  f"{scheme['dayBlocks']} daily brackets; hourly series rebuilt from timeslices).")
+    report.append("SpecifiedAnnualDemand is the annualised value of the exported window — demand and "
+                  "costs are annual; the original modelling window is not recoverable without "
+                  "tempo_model.json.")
+    report.append("Capex is pre-annualised (OperationalLife 1): imported with lifetime 1 / interest 0 — "
+                  "the original lifetime and interest rate are not recoverable without tempo_model.json.")
+    report.append("Location coordinates set to 0/0 (not available in otoole CSVs).")
+    return {
+        "name": f"OSeMOSYS Import ({year})",
+        "modelConfig": model_config,
+        "technologies": list(tech_defs.values()),
+        "locations": locations,
+        "links": links,
+        "timeSeries": time_series,
+        "scenarios": {},
+        "overrides": {},
+        "locationTechAssignments": {},
+    }

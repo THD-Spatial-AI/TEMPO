@@ -367,6 +367,101 @@ def _build_file_ref_data_tables(techs_07, nodes, config_dir, warnings):
 # HiGHS LP-file solver patch
 # ---------------------------------------------------------------------------
 
+def _parse_highs_solution(text: str):
+    """Parse a HiGHS raw-style solution file (CLI --solution_file / highspy
+    writeSolution(style=0)). Returns (status, values, objective, duals) where
+    status is 'optimal' | 'infeasible' | 'unknown'."""
+    status, values, objective, duals = 'unknown', {}, None, {}
+    section, block = None, None
+    for line in text.splitlines():
+        ls = line.strip()
+        if ls == '# Primal solution values':
+            section, block = 'primal', None
+            continue
+        if ls == '# Dual solution values':
+            section, block = 'dual', None
+            continue
+        if ls == '# Basis':
+            section, block = None, None
+            continue
+        if ls.startswith('# Columns'):
+            block = 'cols'
+            continue
+        if ls.startswith('# Rows'):
+            block = 'rows'
+            continue
+        if ls.startswith('#'):
+            block = None
+            continue
+        if ls == 'Optimal':
+            status = 'optimal'
+        elif ls == 'Infeasible':
+            status = 'infeasible'
+        parts = ls.split()
+        if len(parts) != 2:
+            continue
+        try:
+            val = float(parts[1])
+        except ValueError:
+            continue
+        if section == 'primal' and parts[0] == 'Objective':
+            objective = val
+        elif section == 'primal' and block == 'cols':
+            values[parts[0]] = val
+        elif section == 'dual' and block == 'rows':
+            duals[parts[0]] = val
+    return status, values, objective, duals
+
+
+def _coerce_highs_option(v):
+    """CLI-style string option values ('300', '1e-6', 'true') → int/float/bool;
+    other strings (e.g. presolve='on') pass through."""
+    if not isinstance(v, str):
+        return v
+    for cast in (int, float):
+        try:
+            return cast(v)
+        except ValueError:
+            pass
+    if v.lower() in ('true', 'false'):
+        return v.lower() == 'true'
+    return v
+
+
+def _solve_lp_with_highs(lp_path, sol_path, options, log, which=None):
+    """Solve an LP file with HiGHS, writing a raw-style solution file.
+    Uses the `highs` CLI when on PATH, otherwise the highspy Python API
+    (installed in calliope07-venv; no binary needs to be shipped)."""
+    import shutil
+    import subprocess
+    exe = (which or shutil.which)('highs')
+    if exe:
+        cmd = [exe, '--model_file', lp_path, '--solution_file', sol_path]
+        for k, v in (options or {}).items():
+            cmd += [f'--{k}', str(v)]
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        for line in (proc.stdout + proc.stderr).splitlines():
+            log(f"[HiGHS] {line}")
+        return
+    import highspy
+    h = highspy.Highs()
+    h.setOptionValue('output_flag', False)
+    for k, v in (options or {}).items():
+        v = _coerce_highs_option(v)
+        try:
+            ok = h.setOptionValue(k, v) == highspy.HighsStatus.kOk
+        except Exception:
+            ok = False
+        if not ok:
+            log(f"[HiGHS] option {k}={v!r} rejected by HiGHS — skipped")
+    h.readModel(lp_path)
+    h.run()
+    h.writeSolution(sol_path, 0)  # 0 = raw style, same format as the CLI
+    from importlib.metadata import version
+    log(f"[HiGHS] highspy {version('highspy')}: "
+        f"{h.modelStatusToString(h.getModelStatus())}")
+
+
 def _install_highs_lp_patch():
     """Patch PyomoBackendModel._solve to use HiGHS via LP file roundtrip.
 
@@ -375,7 +470,7 @@ def _install_highs_lp_patch():
     AttributeError on kernel models) are broken for HiGHS.  The LP writer
     works fine with kernel models, and HiGHS binary reads LP files natively.
     """
-    import os, shutil, subprocess, tempfile
+    import os, tempfile
     from calliope.backend.pyomo_backend_model import PyomoBackendModel
     from pyomo.opt import SolverResults, SolverStatus, TerminationCondition
     from pyomo.opt.results.solution import SolutionStatus
@@ -392,7 +487,6 @@ def _install_highs_lp_patch():
         if solve_config.solver != 'highs':
             return _orig(self, solve_config, warmstart=warmstart)
 
-        highs_exe = shutil.which('highs') or 'highs'
         instance = self._instance
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -404,17 +498,7 @@ def _install_highs_lp_patch():
                                         symbolic_solver_labels=False)
             log(f"[HiGHS] LP written ({os.path.getsize(lp_path)//1024} KB)")
 
-            cmd = [highs_exe, '--model_file', lp_path, '--solution_file', sol_path]
-            if solve_config.solver_options:
-                for k, v in solve_config.solver_options.items():
-                    cmd += [f'--{k}', str(v)]
-
-            proc = subprocess.run(cmd, capture_output=True, text=True)
-            for line in proc.stdout.splitlines():
-                log(f"[HiGHS] {line}")
-            if proc.stderr:
-                for line in proc.stderr.splitlines():
-                    log(f"[HiGHS stderr] {line}")
+            _solve_lp_with_highs(lp_path, sol_path, solve_config.solver_options or {}, log)
 
             # Build pyomo SolverResults that load_solution expects
             pyomo_results = SolverResults()
@@ -429,62 +513,13 @@ def _install_highs_lp_patch():
                 log("[HiGHS] ERROR: solver produced no solution file")
                 tc = TerminationCondition.error
             else:
-                sol_text = open(sol_path).read()
-                MAJOR = {'# Primal solution values', '# Dual solution values',
-                         '# Basis'}
-                in_primal = False
-                in_dual = False
-                in_cols = False
-                in_rows = False
-                dual_rows = {}
-
-                for line in sol_text.splitlines():
-                    ls = line.strip()
-
-                    if ls in MAJOR:
-                        in_primal = (ls == '# Primal solution values')
-                        in_dual = (ls == '# Dual solution values')
-                        in_cols = False
-                        in_rows = False
-                        continue
-                    if ls.startswith('# Columns'):
-                        in_cols = True; in_rows = False; continue
-                    if ls.startswith('# Rows'):
-                        in_rows = True; in_cols = False; continue
-                    if ls.startswith('#'):
-                        in_cols = False; in_rows = False; continue
-
-                    if ls == 'Optimal':
-                        tc = TerminationCondition.optimal
-                    elif ls == 'Infeasible':
-                        tc = TerminationCondition.infeasible
-
-                    if in_primal and in_cols and ls and ls not in ('Feasible',
-                                                                    'Infeasible'):
-                        parts = ls.split()
-                        if len(parts) == 2:
-                            try:
-                                soln.variable[parts[0]] = {'Value': float(parts[1])}
-                            except ValueError:
-                                pass
-
-                    if in_primal and ls.startswith('Objective'):
-                        parts = ls.split()
-                        if len(parts) == 2:
-                            try:
-                                soln.objective['__default_objective__'] = {
-                                    'Value': float(parts[1])}
-                            except ValueError:
-                                pass
-
-                    if in_dual and in_rows and ls:
-                        parts = ls.split()
-                        if len(parts) == 2:
-                            try:
-                                dual_rows[parts[0]] = float(parts[1])
-                            except ValueError:
-                                pass
-
+                status, values, objective, dual_rows = _parse_highs_solution(open(sol_path).read())
+                tc = {'optimal': TerminationCondition.optimal,
+                      'infeasible': TerminationCondition.infeasible}.get(status, TerminationCondition.unknown)
+                for name, val in values.items():
+                    soln.variable[name] = {'Value': val}
+                if objective is not None:
+                    soln.objective['__default_objective__'] = {'Value': objective}
                 _thread_local.highs_symbol_map = symbol_map
                 _thread_local.highs_dual_rows = dual_rows
 
@@ -1067,9 +1102,11 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
     #   pyomo.kernel parameter_dict objects have no .mutable attribute → AttributeError.
     #
     # Fix: patch PyomoBackendModel._solve so that when solver='highs', we write
-    # an LP file (pyomo LP writer works with kernel models), call the highs binary
-    # directly on it (highs --model_file model.lp --solution_file model.sol),
-    # parse the solution, and return a proper pyomo SolverResults object.
+    # an LP file (pyomo LP writer works with kernel models) and solve it with
+    # _solve_lp_with_highs: the `highs` CLI if on PATH, otherwise the highspy
+    # Python API (installed in calliope07-venv; no binary is shipped). Both write
+    # a raw-style solution file, which _parse_highs_solution turns into a proper
+    # pyomo SolverResults object (plus the dual rows used for shadow prices).
     # This bypasses both the ASL-NL and APPSI incompatibilities.
     _install_highs_lp_patch()
 

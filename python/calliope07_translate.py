@@ -605,14 +605,20 @@ def normalize_solver_07(solver: str) -> str:
     return 'highs'
 
 
-def resolve_solver_07(requested: str, which=None) -> tuple[str, str | None]:
+def _highspy_available() -> bool:
+    import importlib.util
+    return importlib.util.find_spec('highspy') is not None
+
+
+def resolve_solver_07(requested: str, which=None, has_highspy=None) -> tuple[str, str | None]:
     """Normalised solver plus an optional log note.
 
-    'highs' on the 0.7 engine is solved through an LP file and the `highs`
-    command-line binary (see calliope07_runner._install_highs_lp_patch). TEMPO
-    only bundles CBC, so without that binary on PATH fall back to CBC."""
+    'highs' is solved through an LP file by the `highs` CLI if on PATH, else by
+    highspy (calliope07_runner._solve_lp_with_highs). Only when neither exists
+    fall back to the bundled CBC."""
     which = which or shutil.which
+    has_highspy = has_highspy or _highspy_available
     solver = normalize_solver_07(requested)
-    if solver == 'highs' and not which('highs'):
-        return 'cbc', "HiGHS command-line binary not found — using bundled CBC for Calliope 0.7"
+    if solver == 'highs' and not which('highs') and not has_highspy():
+        return 'cbc', "HiGHS not available (no highs CLI, no highspy) — using bundled CBC for Calliope 0.7"
     return solver, None

@@ -38,7 +38,8 @@ _OSEMOSYS_TXT = os.path.join(_this_dir, "osemosys", "osemosys.txt")
 _SOLVERS_DIR = os.path.join(os.path.dirname(_this_dir), "solvers")
 
 _thread_local = threading.local()
-_MAX_STORAGE_PASSES = 3
+# TEMPO storage extension params: declared with "default 0" in osemosys.txt.
+_MODEL_DEFAULT_PARAMS = {"StorageCyclicYear", "StorageLossRate"}
 
 
 def log(msg: str) -> None:
@@ -177,6 +178,8 @@ def _write_datafile(csv_dir: str, results_dir: str, discount_rate: float = 0.05)
         ("CapitalCostStorage.csv",        "CapitalCostStorage",        ["REGION", "STORAGE", "YEAR"]),
         ("MinStorageCharge.csv",          "MinStorageCharge",          ["REGION", "STORAGE", "YEAR"]),
         ("ResidualStorageCapacity.csv",   "ResidualStorageCapacity",   ["REGION", "STORAGE", "YEAR"]),
+        ("StorageCyclicYear.csv",         "StorageCyclicYear",         ["REGION", "STORAGE"]),
+        ("StorageLossRate.csv",           "StorageLossRate",           ["REGION", "STORAGE"]),
     ]
 
     written: set[str] = set()
@@ -185,12 +188,19 @@ def _write_datafile(csv_dir: str, results_dir: str, discount_rate: float = 0.05)
         if not rows:
             continue
         written.add(param_name)
-        lines.append(f"param {param_name} default 0 :=")
+        # GLPK rejects a data-section default for params whose model declaration has one.
+        default = "" if param_name in _MODEL_DEFAULT_PARAMS else " default 0"
+        lines.append(f"param {param_name}{default} :=")
         for row in rows:
             idx = ",".join(row[c] for c in idx_cols)
             val = row.get("VALUE", "0")
             lines.append(f"  [{idx}] {val}")
         lines.append(";")
+        lines.append("")
+
+    # TEMPO storage extension: scalar numerical scaling of the storage level variables
+    for row in _read("TempoLevelScale.csv")[:1]:
+        lines.append(f"param TempoLevelScale := {row['VALUE']} ;")
         lines.append("")
 
     # OSeMOSYS optional params — write defaults so GLPK always has a value for
@@ -281,46 +291,6 @@ def _parse_glpsol_output(output_path: str) -> tuple[str, float | None]:
                     except ValueError:
                         pass
     return termination, objective
-
-
-# ─── Storage day start (parity mode) ─────────────────────────────────────────
-
-def _min_level_hour(net_by_bracket: list, start_hour: int) -> int:
-    """Clock hour at which the storage level is minimal within the representative day.
-
-    net_by_bracket[i] is the net charge during daily bracket i+1 (1-hour brackets),
-    the day opening at clock hour start_hour. Level before bracket i+1 =
-    sum(net[:i]). Among minimal-level hours, pick the one where the empty spell
-    ends (storage starts charging next); the start hour if storage is unused."""
-    levels, acc = [], 0.0
-    for v in net_by_bracket:
-        levels.append(acc)
-        acc += v
-    lo = min(levels)
-    tol = 1e-9 * max(abs(x) for x in levels + [acc]) + 1e-15
-    nxt = levels[1:] + [acc]
-    ends = [i for i, x in enumerate(levels) if x <= lo + tol and nxt[i] > lo + tol]
-    return (start_hour + ends[-1]) % 24 if ends else start_hour
-
-
-def _storage_net_by_bracket(csv_dir: str, results_dir: str) -> list:
-    """Net charge into all storages per daily bracket (storage units, summed
-    over storages and seasons), from RateOfActivity × TechnologyTo/FromStorage —
-    the same terms as OSeMOSYS S1/S2."""
-    ratio: dict = {}
-    for name, sign in (("TechnologyToStorage.csv", 1.0), ("TechnologyFromStorage.csv", -1.0)):
-        for r in _read_csv(os.path.join(csv_dir, name)):
-            key = (r["TECHNOLOGY"], r["MODE_OF_OPERATION"])
-            ratio[key] = ratio.get(key, 0.0) + sign * float(r["VALUE"])
-    bracket = {r["TIMESLICE"]: int(r["DAILYTIMEBRACKET"])
-               for r in _read_csv(os.path.join(csv_dir, "Conversionlh.csv")) if r["VALUE"] == "1"}
-    ys = {r["TIMESLICE"]: float(r["VALUE"]) for r in _read_csv(os.path.join(csv_dir, "YearSplit.csv"))}
-    net = [0.0] * (max(bracket.values()) if bracket else 24)
-    for r in _read_csv(os.path.join(results_dir, "RateOfActivity.csv")):
-        f = ratio.get((r["TECHNOLOGY"], r["MODE_OF_OPERATION"]))
-        if f and r["TIMESLICE"] in bracket:
-            net[bracket[r["TIMESLICE"]] - 1] += float(r["VALUE"]) * f * ys.get(r["TIMESLICE"], 0.0)
-    return net
 
 
 # ─── Result extraction ────────────────────────────────────────────────────────
@@ -662,6 +632,100 @@ def _find_link_tech(lnk: dict, model_data: dict):
     return techs.get(str(ref))
 
 
+# ─── Time horizon / scheme ───────────────────────────────────────────────────
+
+def _n_hours(model_data: dict) -> int:
+    """Hours in the model window (whole days, end date inclusive); 8760 if unparseable."""
+    cfg = model_data.get("modelConfig") or {}
+    try:
+        from datetime import date
+        d0 = date.fromisoformat((cfg.get("startDate") or "2024-01-01")[:10])
+        d1 = date.fromisoformat((cfg.get("endDate") or "2024-12-31")[:10])
+        return (d1 - d0).days * 24 + 24
+    except Exception:
+        return 8760
+
+
+def _parity_scheme(model_data: dict) -> dict:
+    """modelConfig.osemosysScheme (whole-day clock-hour labels) or the parity default."""
+    raw = (model_data.get("modelConfig") or {}).get("osemosysScheme")
+    if raw:   # clock-hour labels; DaySplit × DaysInDayType == YearSplit
+        return {"seasons": int(raw.get("seasons", 4)), "dayBlocks": int(raw.get("dayBlocks", 3)),
+                "wholeDays": True}
+    return timeslices.parity_scheme(_n_hours(model_data))
+
+
+# ─── Export (otoole CSV datasets in a ZIP) ────────────────────────────────────
+
+_PARITY_DISCOUNT_RATE = 1e-9   # CRF/PvAnnuity/discount factors ≡ 1, salvage 0
+
+_PARITY_README = """TEMPO OSeMOSYS export (parity representation)
+
+This dataset is exactly what TEMPO solves: one annualised year, hour-of-day
+timeslices, STORAGE with TEMPO's cyclic/lossy storage extension.
+Run it with the bundled model file from this folder:
+    glpsol --math osemosys.txt --data osemosys.dat
+(add --nopresol when TotalAnnualMinCapacity.csv has rows, as TEMPO does).
+Results are written to ./results. Costs are M EUR for the annualised year;
+TEMPO scales them back to the modelled window (x hours/8760).
+osemosys.txt is OSeMOSYS 2017 plus TEMPO's opt-in storage extension
+(StorageCyclicYear / StorageLossRate / TempoLevelScale) — upstream OSeMOSYS
+ignores those CSVs. tempo_model.json is the original TEMPO model, used for
+lossless re-import. Delete tempo_model.json to import edited CSVs (otherwise
+TEMPO restores the original model).
+"""
+
+
+def export_datasets_to_zip(datasets: list, scheme: dict | None = None, legacy: bool = False) -> dict:
+    """Translate each {"name", "model"} dataset to otoole CSVs and pack them in a ZIP.
+
+    Default (parity): the dataset TEMPO actually solves, self-contained — CSVs,
+    DiscountRate/DepreciationMethod, osemosys.dat, the patched osemosys.txt,
+    tempo_model.json and a README. legacy=True: the old representation (CSVs only).
+    Returns {"zip": base64 str, "report": [...]}.
+    """
+    import base64
+    import io
+    import json
+    import tempfile
+    import zipfile
+
+    buf = io.BytesIO()
+    report_all: list = []
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for ds in datasets:
+            ds_name = ds.get("name", "base")
+            model = ds.get("model") or {}
+            with tempfile.TemporaryDirectory() as tmp:
+                csv_dir = os.path.join(tmp, "csvs")
+                os.makedirs(csv_dir)
+                try:
+                    ds_scheme = scheme or (timeslices.default_scheme() if legacy else _parity_scheme(model))
+                    _out, rpt = translate.translate_model(model, csv_dir, ds_scheme, parity=not legacy)
+                    if not legacy:
+                        regions = [r["VALUE"] for r in _read_csv(os.path.join(csv_dir, "REGION.csv"))]
+                        translate._write_csv(os.path.join(csv_dir, "DiscountRate.csv"), ["REGION", "VALUE"],
+                                             [{"REGION": r, "VALUE": _PARITY_DISCOUNT_RATE} for r in regions])
+                        translate._write_csv(os.path.join(csv_dir, "DepreciationMethod.csv"), ["REGION", "VALUE"],
+                                             [{"REGION": r, "VALUE": 1} for r in regions])
+                        _write_datafile(csv_dir, os.path.join(csv_dir, "results"), _PARITY_DISCOUNT_RATE)
+                        shutil.copy(_OSEMOSYS_TXT, os.path.join(csv_dir, "osemosys.txt"))
+                        Path(csv_dir, "tempo_model.json").write_text(json.dumps(model), encoding="utf-8")
+                        Path(csv_dir, "README.txt").write_text(_PARITY_README, encoding="utf-8")
+                        zf.writestr(f"{ds_name}/results/.keep", "")
+                except Exception as exc:
+                    report_all.append(f"[{ds_name}] translate failed: {exc}")
+                    continue
+                report_all.extend(f"[{ds_name}] {r}" for r in rpt)
+                for fpath in sorted(Path(csv_dir).rglob("*")):
+                    if fpath.is_file():
+                        zf.write(str(fpath), f"{ds_name}/{fpath.relative_to(csv_dir).as_posix()}")
+        if report_all:
+            zf.writestr("report.txt", "\n".join(report_all) + "\n")
+    buf.seek(0)
+    return {"zip": base64.b64encode(buf.read()).decode(), "report": report_all}
+
+
 # ─── Main entry point ─────────────────────────────────────────────────────────
 
 def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
@@ -678,91 +742,40 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
         )
 
     # ── Determine time horizon ────────────────────────────────────────────────
-    start_date = (model_config.get("startDate") or "2024-01-01")[:10]
-    end_date = (model_config.get("endDate") or "2024-12-31")[:10]
-    year = int(start_date[:4])
-    try:
-        from datetime import date
-        d0 = date.fromisoformat(start_date)
-        d1 = date.fromisoformat(end_date)
-        n_hours = (d1 - d0).days * 24 + 24
-    except Exception:
-        n_hours = 8760
+    year = int((model_config.get("startDate") or "2024-01-01")[:4])
+    n_hours = _n_hours(model_data)
+    scheme = _parity_scheme(model_data)
+    discount_rate = _PARITY_DISCOUNT_RATE
 
-    scheme_raw = model_config.get("osemosysScheme")
-    scheme = ({"seasons": int(scheme_raw.get("seasons", 4)), "dayBlocks": int(scheme_raw.get("dayBlocks", 3)),
-               "wholeDays": True}   # clock-hour labels; DaySplit × DaysInDayType == YearSplit
-              if scheme_raw else timeslices.parity_scheme(n_hours))
-    discount_rate = 1e-9   # parity mode: CRF/PvAnnuity/discount factors ≡ 1, salvage 0
+    # ── Steps 1–4: translate → datafile → glpsol → parse ─────────────────────
+    csv_dir = os.path.join(work_dir, "csvs")
+    results_dir = os.path.join(work_dir, "results")
+    os.makedirs(csv_dir, exist_ok=True)
+    os.makedirs(results_dir, exist_ok=True)
 
-    # ── Steps 1–4 per pass: translate → datafile → glpsol → parse ─────────────
-    # OSeMOSYS 2017 storage starts every representative day at StorageLevelStart
-    # (= 0), so the storage day must open at the hour where storage is naturally
-    # empty. Pass 1 opens it at 00:00; later passes re-open it at the clock hour
-    # of the minimum level of the previous solution; once the hour is stable,
-    # one hour earlier is checked (max _MAX_STORAGE_PASSES solves). The
-    # lowest-objective pass is kept.
+    log(f"Translating '{model_name}' to OSeMOSYS CSVs…")
+    _csv_dir, report = translate.translate_model(model_data, csv_dir, scheme, parity=True)
+    for line in report:
+        log(f"  [translate] {line}")
+    dat_path = _write_datafile(csv_dir, results_dir, discount_rate)
+    output_path = os.path.join(work_dir, "glpsol_output.txt")
     glpsol = _find_glpsol()
     log(f"Solving with glpsol: {glpsol}")
-    passes: list = []   # (objective, k, termination, report, csv_dir, results_dir)
-    k, tried = 0, set()
-    while True:
-        tried.add(k)
-        pass_dir = os.path.join(work_dir, f"pass{len(passes) + 1}")
-        csv_dir = os.path.join(pass_dir, "csvs")
-        results_dir = os.path.join(pass_dir, "results")
-        os.makedirs(csv_dir, exist_ok=True)
-        os.makedirs(results_dir, exist_ok=True)
-
-        log(f"Translating '{model_name}' to OSeMOSYS CSVs (pass {len(passes) + 1}, storage day start {k:02d}:00)…")
-        _csv_dir, report = translate.translate_model(model_data, csv_dir, scheme, parity=True,
-                                                     storage_day_start=k)
-        if not passes:
-            for line in report:
-                log(f"  [translate] {line}")
-        dat_path = _write_datafile(csv_dir, results_dir, discount_rate)
-        output_path = os.path.join(pass_dir, "glpsol_output.txt")
-        # GLPK 4.65's LP presolver can return "optimal" solutions that violate
-        # TotalAnnualMinCapacity at these (kW-in-GW) magnitudes — skip it when set.
-        has_min_cap = bool(_read_csv(os.path.join(csv_dir, "TotalAnnualMinCapacity.csv")))
-        _run_glpsol(glpsol, _OSEMOSYS_TXT, dat_path, output_path, log_fn or log,
-                    presolve=not has_min_cap)
-        termination, objective = _parse_glpsol_output(output_path)
-        log(f"Pass {len(passes) + 1} (storage day start {k:02d}:00): {termination}"
-            + (f", objective={objective:.6f}" if objective is not None else ""))
-        if termination != "optimal":
-            if not passes:
-                return {
-                    "model_name": model_name,
-                    "solver": "glpk",
-                    "success": False,
-                    "termination_condition": termination,
-                    "translation_report": report,
-                }
-            break
-        passes.append((objective if objective is not None else float("inf"), k, termination,
-                       report, csv_dir, results_dir))
-
-        has_storage = bool(_read_csv(os.path.join(csv_dir, "STORAGE.csv")))
-        if not has_storage or int(scheme.get("dayBlocks", 3)) != 24 or len(passes) >= _MAX_STORAGE_PASSES:
-            break
-        net = _storage_net_by_bracket(csv_dir, results_dir)
-        if max((abs(v) for v in net), default=0.0) <= 1e-12:
-            break  # storage unused — the start hour cannot matter
-        k_next = _min_level_hour(net, k)
-        if k_next in tried:
-            # Converged. Opening the day at k forbids charging in hour k-1, so a
-            # too-late start confirms itself — check one hour earlier.
-            k_next = (k_next - 1) % 24
-            if k_next in tried:
-                break
-        k = k_next
-
-    objective, k, termination, report, csv_dir, results_dir = min(passes, key=lambda p: p[0])
-    if len(passes) > 1:
-        log(f"Kept pass with storage day start {k:02d}:00 (objective={objective:.6f}).")
-        report = report + [f"Storage day start chosen over {len(passes)} solves: {k:02d}:00 "
-                           f"(tried {', '.join(f'{p[1]:02d}:00' for p in passes)})."]
+    # GLPK 4.65's LP presolver can return "optimal" solutions that violate
+    # TotalAnnualMinCapacity at these (kW-in-GW) magnitudes — skip it when set.
+    has_min_cap = bool(_read_csv(os.path.join(csv_dir, "TotalAnnualMinCapacity.csv")))
+    _run_glpsol(glpsol, _OSEMOSYS_TXT, dat_path, output_path, log_fn or log,
+                presolve=not has_min_cap)
+    termination, objective = _parse_glpsol_output(output_path)
+    log(f"glpsol: {termination}" + (f", objective={objective:.6f}" if objective is not None else ""))
+    if termination != "optimal":
+        return {
+            "model_name": model_name,
+            "solver": "glpk",
+            "success": False,
+            "termination_condition": termination,
+            "translation_report": report,
+        }
 
     # ── Step 5: Extract results ───────────────────────────────────────────────
     log("Extracting results…")

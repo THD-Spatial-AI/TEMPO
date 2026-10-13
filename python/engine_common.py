@@ -125,6 +125,16 @@ def merged_tech_def(tech, loc_cfg):
     return constraints, costs
 
 
+def link_distance(link):
+    """Link length in km: link.linkConfig.distance overrides link.distance
+    (calliope_runner.build_links_config semantics). None when absent."""
+    link = link or {}
+    cfg = link.get('linkConfig') or {}
+    if cfg.get('distance') is not None:
+        return finite(cfg.get('distance'))
+    return finite(link.get('distance'))
+
+
 def merged_link_def(tech, link):
     """Transmission tech constraints/costs with this link's overrides merged in,
     mirroring calliope_runner.build_links_config: link.linkConfig is the per-link

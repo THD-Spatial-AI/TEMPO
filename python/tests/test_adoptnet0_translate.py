@@ -410,3 +410,13 @@ def test_per_link_capacity_sets_network_size():
     net = json.loads((Path(tmp) / "period1" / "network_data" / "grid_link__north__south.json")
                      .read_text(encoding="utf-8"))
     assert net["size_min"] == pytest.approx(0.4) and net["size_max"] == pytest.approx(0.4)
+
+
+def test_linkconfig_distance_in_network_topology():
+    md = json.loads(REF.read_text(encoding="utf-8"))
+    md['links'][0]['linkConfig'] = {'distance': 200}
+    tmp = tempfile.mkdtemp()
+    tr.build_model_dir(md, tmp)
+    name = tr._resolve_links(md['links'], md['technologies'])[0][2]
+    dist = (Path(tmp) / "period1" / "network_topology" / "new" / name / "distance.csv").read_text().splitlines()
+    assert dist[1].split(";")[2] in ("200", "200.0")

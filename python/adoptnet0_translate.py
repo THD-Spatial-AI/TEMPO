@@ -16,7 +16,7 @@ import os
 import re
 from pathlib import Path
 
-from engine_common import annuity, finite, merged_link_def, merged_tech_def, resource_to_cf
+from engine_common import annuity, finite, link_distance, merged_link_def, merged_tech_def, resource_to_cf
 from engine_overlay import engine_overlay, coerce_overlay
 
 _KW_PER_MW = 1_000.0
@@ -565,7 +565,7 @@ def _write_networks(period_dir: str, locations: list, links: list, technologies:
             continue
         constr, costs = merged_link_def(tech, lnk)
         carrier = _get_carrier_out(tech) or "electricity"
-        km = _to_float(lnk.get("distance"), 0.0)
+        km = link_distance(lnk) or 0.0
         eff = _to_float(constr.get("energy_eff"), 1.0)
         if km <= 0:
             km = 1.0

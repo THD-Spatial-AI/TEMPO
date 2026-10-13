@@ -822,7 +822,7 @@ const Run = ({ onNavigate }) => {
                         <option value="0.6.8">0.6.8 (stable)</option>
                         <option value="0.7">0.7.0.dev7 (experimental)</option>
                       </select>
-                      <p className="mt-1 text-xs text-slate-400">Solver: {calliopeEngine === '0.7' ? 'CBC' : 'HiGHS'}</p>
+                      <p className="mt-1 text-xs text-slate-400">Solver: HiGHS</p>
                     </>
                   ) : (
                     <>

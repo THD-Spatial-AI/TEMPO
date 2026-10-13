@@ -1379,7 +1379,7 @@ calliope run model.yaml --scenario=Main
               {selectedFormat === 'calliope' && ' Uses nested folder structure compatible with Calliope 0.6.8.'}
               {selectedFormat === 'pypsa' && ' Contains both model.nc (netCDF) and a CSV folder — loadable with pypsa.Network(). Requires the PyPSA engine (Settings).'}
               {selectedFormat === 'adoptnet0' && ' Generates the AdOpT-NET0 case-directory structure (Topology, ConfigModel, node_data). Requires the AdOpT-NET0 engine (Settings).'}
-              {selectedFormat === 'osemosys' && ' otoole-compatible CSV dataset (22 files). Run with otoole + GLPK via the OSeMOSYS engine (Settings), or load into any otoole workflow.'}
+              {selectedFormat === 'osemosys' && ' Self-contained OSeMOSYS dataset (otoole CSVs + model file + datafile) that reproduces the TEMPO result; run with glpsol.'}
             </p>
             <button
               onClick={() => {

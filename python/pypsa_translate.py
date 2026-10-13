@@ -45,6 +45,7 @@ from engine_common import (  # noqa: F401  (convert_value re-exported for caller
     convert_value,
     finite as _finite,
     is_file_ref as _is_file_ref,
+    link_distance as _link_distance,
     merged_link_def as _merged_link_def,
     merged_tech_def as _merged_tech_def,
     resolve_file_series as _resolve_file_series,
@@ -311,7 +312,7 @@ def translate_model(model_data: dict) -> tuple[dict, list]:
         cap_min, cap_max = _cap_bounds(constraints)
         eff = _finite(constraints.get('energy_eff')) or 1.0
         annuity = _annuity(costs.get('interest_rate'), constraints.get('lifetime'))
-        distance = _finite(link.get('distance')) or 0.0
+        distance = _link_distance(link) or 0.0
         capex = (_finite(costs.get('energy_cap')) or 0.0) \
             + (_finite(costs.get('energy_cap_per_distance')) or 0.0) * distance
         om_annual = _finite(costs.get('om_annual')) or 0.0

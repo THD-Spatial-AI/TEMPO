@@ -18,21 +18,19 @@ POST /run              body: JSON  → {"job_id": "<uuid>"}
 GET  /run/{job_id}/stream          → SSE stream of log/done/error events
 GET  /run/{job_id}/result          → Full result dict
 DELETE /run/{job_id}               → {"cancelled": "<uuid>"}
-POST /export           body: JSON  → ZIP archive (otoole CSVs + datafile + report)
+POST /export           body: JSON  → ZIP archive (parity: CSVs + model file + datafile; options.legacy)
 POST /import           body: ZIP   → {"model": {...}, "report": [...]}
 """
 
 from __future__ import annotations
 
 import asyncio
-import base64
 import io
 import os
 import shutil
 import sys
 import tempfile
 import zipfile
-from pathlib import Path
 from typing import Optional
 
 from fastapi import HTTPException, Request
@@ -43,7 +41,6 @@ if _this_dir not in sys.path:
 
 import engine_service_base as base  # noqa: E402
 import osemosys_runner  # noqa: E402
-import osemosys_translate as translate  # noqa: E402
 import osemosys_import as ose_import  # noqa: E402
 
 _otoole_version: Optional[str] = None
@@ -78,36 +75,12 @@ app = base.create_engine_app(
 
 @app.post("/export")
 async def export_model(payload: dict) -> dict:
+    """Parity dataset by default (what TEMPO solves, self-contained); options.legacy
+    = true gives the old CH/DC representation (default scheme 4×3)."""
     datasets = payload.get("datasets") or [{"name": "base", "model": payload.get("model") or {}}]
     options = payload.get("options") or {}
-    scheme = options.get("scheme") or {"seasons": 4, "dayBlocks": 3}
-    return await asyncio.to_thread(_export_datasets_to_zip, datasets, scheme)
-
-
-def _export_datasets_to_zip(datasets: list, scheme: dict) -> dict:
-    buf = io.BytesIO()
-    report_all: list = []
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for ds in datasets:
-            ds_name = ds.get("name", "base")
-            model = ds.get("model") or {}
-            with tempfile.TemporaryDirectory() as tmp:
-                csv_dir = os.path.join(tmp, "csvs")
-                os.makedirs(csv_dir)
-                try:
-                    _out_dir, rpt = translate.translate_model(model, csv_dir, scheme)
-                except Exception as exc:
-                    report_all.append(f"[{ds_name}] translate failed: {exc}")
-                    continue
-                report_all.extend(f"[{ds_name}] {r}" for r in rpt)
-                for fpath in Path(csv_dir).rglob("*"):
-                    if fpath.is_file():
-                        arc = f"{ds_name}/{fpath.relative_to(csv_dir).as_posix()}"
-                        zf.write(str(fpath), arc)
-        if report_all:
-            zf.writestr("report.txt", "\n".join(report_all) + "\n")
-    buf.seek(0)
-    return {"zip": base64.b64encode(buf.read()).decode(), "report": report_all}
+    return await asyncio.to_thread(osemosys_runner.export_datasets_to_zip, datasets,
+                                   options.get("scheme"), bool(options.get("legacy")))
 
 
 @app.post("/import")

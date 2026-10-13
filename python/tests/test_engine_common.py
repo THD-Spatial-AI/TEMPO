@@ -105,3 +105,9 @@ def test_merged_link_def_capacity_defaults_to_cap_max_and_ignores_nonpositive():
     assert ec.merged_link_def(tech, {"capacity": 250})[0]["energy_cap_max"] == 250
     assert ec.merged_link_def(tech, {"capacity": 0})[0]["energy_cap_max"] == 3000
     assert ec.merged_link_def(tech, {})[0]["energy_cap_max"] == 3000
+
+
+def test_link_distance_linkconfig_overrides_link():
+    assert ec.link_distance({'distance': 400, 'linkConfig': {'distance': 250}}) == 250.0
+    assert ec.link_distance({'distance': '400'}) == 400.0
+    assert ec.link_distance({}) is None

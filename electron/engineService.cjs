@@ -14,9 +14,13 @@ const { app, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn, execFile, execFileSync } = require('child_process');
+const { ensureServiceLayer, SERVICE_LAYER_CHECK } = require('./serviceLayer.cjs');
 
 const IS_WIN = process.platform === 'win32';
 const MAX_RESTARTS = 5;
+
+const runQuiet = (cmd, args) => new Promise((resolve, reject) =>
+  execFile(cmd, args, { timeout: 600000, windowsHide: true }, (err, stdout) => (err ? reject(err) : resolve(stdout))));
 
 // ─── System Python discovery ────────────────────────────────────────────────
 
@@ -284,6 +288,14 @@ function createEngineService(spec) {
     }
 
     const { pythonDir } = getServicePaths();
+    const layer = await ensureServiceLayer({
+      python, requirementsPath: path.join(pythonDir, 'requirements.service.txt'),
+      run: runQuiet, log: (l) => console.log(`[${logTag}] ${l}`),
+    });
+    if (!layer.ok) {
+      console.warn(`[${logTag}] Service layer unavailable — not starting: ${layer.error}`);
+      return;
+    }
     const childEnv = buildEnv ? buildEnv() : undefined;
 
     console.log(`[${logTag}] Starting uvicorn on port ${getPort()}`);
@@ -342,10 +354,18 @@ function createEngineService(spec) {
       });
     }
 
+    let serviceLayerOk = false;
+    if (importOk) {
+      serviceLayerOk = await new Promise((resolve) => {
+        execFile(python, ['-c', SERVICE_LAYER_CHECK], { timeout: 30000, windowsHide: true }, (err) => resolve(!err));
+      });
+    }
+
     return {
       envExists: importOk,
       venvPath: importOk ? venvDir : null,
       serviceRunning,
+      serviceLayerOk,
       ...(extraCheck ? extraCheck() : {}),
       platform: process.platform,
     };

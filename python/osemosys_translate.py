@@ -59,6 +59,9 @@ _EUR_KW_TO_M_EUR_GW = 1.0      # 1 EUR/kW = 1 M€/GW (unit coincidence)
 _EUR_KWH_TO_M_EUR_PJ = 277.778
 _LARGE_CAP_GW = 999.0           # stand-in for unconstrained capacity
 _PARITY_EPS_VAR_COST = 1e-4     # M€/PJ (≈3.6e-7 €/kWh) — breaks free-curtailment degeneracy
+# TEMPO storage extension: Tempo* level variables hold level × this (parity storage
+# levels are ~1e-6 PJ; O(1) keeps them clear of GLPK's absolute tolerances).
+_PARITY_LEVEL_SCALE = 1e6
 
 
 # ─── Utilities ───────────────────────────────────────────────────────────────
@@ -175,7 +178,7 @@ def _resolve_file_ref(ref, ts_list: list) -> list:
 # ─── Public API ──────────────────────────────────────────────────────────────
 
 def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
-                    parity: bool = False, storage_day_start: int = 0) -> tuple:
+                    parity: bool = False) -> tuple:
     """
     Write otoole-compatible CSV dataset from a TEMPO model dict.
 
@@ -191,10 +194,6 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
                         transmission/storage use two-mode techs and OSeMOSYS STORAGE.
                         The runner must pair it with DiscountRate ≈ 0 and scale
                         results back by n_hours/8760. Export keeps parity=False.
-    storage_day_start : int  Parity only: clock hour that opens the storage day
-                        (DAILYTIMEBRACKET 1). OSeMOSYS 2017 starts each day at
-                        StorageLevelStart, so the runner picks the hour at which
-                        storage is naturally empty. Needs 24 daily brackets.
 
     Returns
     -------
@@ -222,7 +221,7 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
         n_hours = 8760
 
     from engine_common import annuity as _crf, merged_tech_def as _merged, resource_to_cf as _res_cf
-    from engine_common import merged_link_def as _merged_link
+    from engine_common import merged_link_def as _merged_link, link_distance as _link_distance
     annualise = 8760.0 / n_hours if parity else 1.0
 
     labels = timeslices.slice_labels(scheme)
@@ -287,13 +286,17 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
     storage_params: dict = {k: [] for k in (
         "StorageLevelStart", "StorageMaxChargeRate", "StorageMaxDischargeRate",
         "OperationalLifeStorage", "DiscountRateStorage", "CapitalCostStorage",
-        "MinStorageCharge", "ResidualStorageCapacity")}
+        "MinStorageCharge", "ResidualStorageCapacity", "StorageCyclicYear", "StorageLossRate")}
     # Engine-specific overrides, applied to the tables below after the main loop:
     # each entry is (base_technology_id, {osemosys_table_name: value}).
     engine_overlays: list = []
 
+    # Parity: fixed zero-capex capacity (myopic `_existing` shadows) {tech_id: GW} —
+    # written as ResidualCapacity with no investment, not as a TotalAnnualMinCapacity row.
+    fixed_existing: dict = {}
+
     def _add_cap_min(tech_id: str, min_kw: float) -> None:
-        if min_kw > 0:
+        if min_kw > 0 and tech_id not in fixed_existing:
             cap_min.append({"REGION": REGION, "TECHNOLOGY": tech_id, "YEAR": year,
                             "VALUE": round(min(min_kw / 1e6, _LARGE_CAP_GW), 9)})
 
@@ -330,6 +333,10 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
             opex_v = _float(costs.get("om_prod")) * _EUR_KWH_TO_M_EUR_PJ
             life = max(1, int(_float(constr.get("lifetime"), 25)))
             eff = min(1.0, max(0.01, _float(constr.get("energy_eff"), 1.0)))
+            if (parity and constr.get("energy_cap_equals") is not None
+                    and p in ("supply", "supply_plus", "conversion", "conversion_plus", "storage")
+                    and not _float(costs.get("energy_cap")) and not _float(costs.get("storage_cap"))):
+                fixed_existing[f"{loc_s}_{tid_s}"] = cap_max_gw
             if parity and p in ("supply", "supply_plus", "conversion", "conversion_plus"):
                 capex = capex * _crf(costs.get("interest_rate"), constr.get("lifetime"))
                 life = 1
@@ -411,8 +418,21 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
                          "VALUE": round(_float(costs.get("storage_cap")) * crf * _EUR_KWH_TO_M_EUR_PJ, 9)})
                     storage_params["MinStorageCharge"].append({"REGION": REGION, "STORAGE": stor_id, "YEAR": year, "VALUE": 0.0})
                     storage_params["ResidualStorageCapacity"].append({"REGION": REGION, "STORAGE": stor_id, "YEAR": year, "VALUE": 0.0})
-                    if _float(constr.get("storage_loss")) > 0:
-                        report.append(f"{loc_name}/{tid}: storage_loss has no OSeMOSYS 2017 equivalent — omitted.")
+                    # TEMPO extension of the vendored osemosys.txt: cyclic year + hourly loss.
+                    # Calliope 0.6 default cyclic_storage: true (None keeps the default).
+                    cyclic = model_config.get("cyclicStorage") is None or bool(model_config["cyclicStorage"])
+                    storage_params["StorageCyclicYear"].append(
+                        {"REGION": REGION, "STORAGE": stor_id, "VALUE": int(cyclic)})
+                    if not cyclic:
+                        report.append(f"{loc_name}/{tid}: non-cyclic storage is approximate — OSeMOSYS repeats "
+                                      "each season as identical days chained from the year start, so every "
+                                      "day starts like the first (Calliope: only the window start; ≈1% "
+                                      "storage capacity difference in tests).")
+                    if not cyclic and _float(constr.get("storage_initial")) > 0:
+                        report.append(f"{loc_name}/{tid}: storage_initial (fraction of storage capacity) "
+                                      "not mapped — non-cyclic storage starts empty.")
+                    storage_params["StorageLossRate"].append(
+                        {"REGION": REGION, "STORAGE": stor_id, "VALUE": round(_float(constr.get("storage_loss")), 9)})
                     for k in ("storage_cap_max", "storage_cap_min", "storage_cap_equals"):
                         if constr.get(k) is not None:
                             report.append(f"{loc_name}/{tid}: {k} not enforced (OSeMOSYS 2017 has no storage capacity limit).")
@@ -493,7 +513,7 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
             cap_max_gw_tx = min(cap_max_kw / 1e6, _LARGE_CAP_GW)
             eff_tx = min(1.0, max(0.01, _float(constr.get("energy_eff"), 0.97)))
             carrier = _carrier_out(tech)
-            dist = _float(lnk.get("distance"), 0.0)
+            dist = _link_distance(lnk) or 0.0
             capex_tx = (_float(costs.get("energy_cap")) + _float(costs.get("energy_cap_per_distance")) * dist) * _EUR_KW_TO_M_EUR_GW
             life_tx = max(1, int(_float(constr.get("lifetime"), 40)))
         else:
@@ -628,8 +648,15 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
         for row in var_cost:
             if not row["VALUE"]:
                 row["VALUE"] = _PARITY_EPS_VAR_COST
+        # MODE_OF_OPERATION is {1, 2}: a single-mode tech's mode 2 has no ratios and
+        # would be free phantom activity in spare capacity (pollutes activity results).
+        with_mode2 = {r["TECHNOLOGY"] for r in var_cost if r["MODE_OF_OPERATION"] == 2}
+        for t in sorted(set(osem_techs) - with_mode2):
+            var_cost.append({"REGION": REGION, "TECHNOLOGY": t, "MODE_OF_OPERATION": 2,
+                             "YEAR": year, "VALUE": _PARITY_EPS_VAR_COST})
         report.append(f"Parity: zero VariableCost set to {_PARITY_EPS_VAR_COST} M€/PJ "
-                      "(≈3.6e-7 €/kWh) to remove free-curtailment degeneracy.")
+                      "(≈3.6e-7 €/kWh) to remove free-curtailment degeneracy; same cost on the "
+                      "unused mode 2 of single-mode techs (no free phantom activity).")
 
     # ── Apply engine-specific (OSeMOSYS) overrides to the built tables ─────────
     _osemosys_tables = {
@@ -661,6 +688,14 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
             if not hit:
                 report.append(f"OSeMOSYS override '{pname}' for {base_id}: no matching rows — skipped.")
 
+    if fixed_existing:
+        for row in resid_cap:
+            if row["TECHNOLOGY"] in fixed_existing:
+                row["VALUE"] = round(fixed_existing[row["TECHNOLOGY"]], 9)
+        report.append(f"Fixed zero-capex capacity as ResidualCapacity (no investment): "
+                      f"{', '.join(sorted(fixed_existing))}.")
+    cap_max_inv = [dict(r, VALUE=0.0) if r["TECHNOLOGY"] in fixed_existing else r for r in cap_max]
+
     # Sets
     _write_csv(_p("REGION.csv"), ["VALUE"], [{"VALUE": REGION}])
     _write_csv(_p("TECHNOLOGY.csv"), ["VALUE"], [{"VALUE": t} for t in sorted(set(osem_techs))])
@@ -679,7 +714,7 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
     _write_csv(_p("VariableCost.csv"), ["REGION", "TECHNOLOGY", "MODE_OF_OPERATION", "YEAR", "VALUE"], var_cost)
     _write_csv(_p("OperationalLife.csv"), ["REGION", "TECHNOLOGY", "VALUE"], op_life)
     _write_csv(_p("TotalAnnualMaxCapacity.csv"), ["REGION", "TECHNOLOGY", "YEAR", "VALUE"], cap_max)
-    _write_csv(_p("TotalAnnualMaxCapacityInvestment.csv"), ["REGION", "TECHNOLOGY", "YEAR", "VALUE"], cap_max)
+    _write_csv(_p("TotalAnnualMaxCapacityInvestment.csv"), ["REGION", "TECHNOLOGY", "YEAR", "VALUE"], cap_max_inv)
     _write_csv(_p("TotalAnnualMinCapacity.csv"), ["REGION", "TECHNOLOGY", "YEAR", "VALUE"], cap_min)
     _write_csv(_p("InputActivityRatio.csv"), ["REGION", "TECHNOLOGY", "FUEL", "MODE_OF_OPERATION", "YEAR", "VALUE"], inp_act)
     _write_csv(_p("OutputActivityRatio.csv"), ["REGION", "TECHNOLOGY", "FUEL", "MODE_OF_OPERATION", "YEAR", "VALUE"], out_act)
@@ -695,13 +730,6 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
     if parity:
         seasons = int(scheme.get("seasons", 1))
         bh = timeslices.bracket_hours(scheme)
-        day_start = int(storage_day_start) % 24 if len(bh) == 24 else 0
-        if len(bh) != 24 and storage_day_start:
-            report.append(f"Storage day start {storage_day_start}:00 ignored — needs 24 daily brackets "
-                          f"(scheme has {len(bh)}); storage day starts at bracket 1.")
-        elif storages:
-            report.append(f"Storage day starts at {day_start:02d}:00 (OSeMOSYS 2017 storage starts each "
-                          "representative day at StorageLevelStart = 0).")
         _write_csv(_p("SEASON.csv"), ["VALUE"], [{"VALUE": s} for s in range(1, seasons + 1)])
         _write_csv(_p("DAYTYPE.csv"), ["VALUE"], [{"VALUE": 1}])
         _write_csv(_p("DAILYTIMEBRACKET.csv"), ["VALUE"], [{"VALUE": d} for d in range(1, len(bh) + 1)])
@@ -713,7 +741,7 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
             conv_ld.append({"TIMESLICE": lbl, "DAYTYPE": 1, "VALUE": 1})
             for d in range(1, len(bh) + 1):
                 conv_lh.append({"TIMESLICE": lbl, "DAILYTIMEBRACKET": d,
-                                "VALUE": int(d == (d_idx - 1 - day_start) % len(bh) + 1)})
+                                "VALUE": int(d == d_idx)})
         _write_csv(_p("Conversionls.csv"), ["TIMESLICE", "SEASON", "VALUE"], conv_ls)
         _write_csv(_p("Conversionld.csv"), ["TIMESLICE", "DAYTYPE", "VALUE"], conv_ld)
         _write_csv(_p("Conversionlh.csv"), ["TIMESLICE", "DAILYTIMEBRACKET", "VALUE"], conv_lh)
@@ -733,6 +761,8 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
         for k, rows in storage_params.items():
             cols = ["REGION", "STORAGE", "YEAR", "VALUE"] if rows and "YEAR" in rows[0] else ["REGION", "STORAGE", "VALUE"]
             _write_csv(_p(f"{k}.csv"), cols, rows)
+        if storages:
+            _write_csv(_p("TempoLevelScale.csv"), ["VALUE"], [{"VALUE": _PARITY_LEVEL_SCALE}])
 
     report.append(
         f"Single REGION ({REGION}), year {year}, {len(labels)} timeslices ({scheme}). "

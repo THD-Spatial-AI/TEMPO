@@ -18,8 +18,9 @@ Usage (from repo root):
 
 At least one --python* flag (or --auto) is required. --auto uses every engine venv
 found under %APPDATA%/TEMPO (Windows) or ~/.config/TEMPO (Linux); explicit --python*
-flags take precedence. --payload is repeatable; the default runs both
-scripts/reference_model.json and scripts/reference_model_rich.json. A payload may
+flags take precedence. --payload is repeatable; the default runs
+scripts/reference_model.json, scripts/reference_model_rich.json and
+scripts/reference_model_rich_lossy.json. A payload may
 carry a top-level "_verify" object overriding tolerances for that payload, e.g.
 {"_verify": {"osemosys_cap_tol": 10}} (keys are the tolerance option names below
 with underscores).
@@ -417,8 +418,8 @@ def main():
     ap.add_argument('--python-adoptnet0', default=None, dest='python_adoptnet0',
                     help='AdOpT-NET0 venv Python executable')
     ap.add_argument('--payload', action='append', default=None,
-                    help='Payload JSON (repeatable). Default: reference_model.json and '
-                         'reference_model_rich.json')
+                    help='Payload JSON (repeatable). Default: reference_model.json, '
+                         'reference_model_rich.json and reference_model_rich_lossy.json')
     ap.add_argument('--solver-dir',
                     default=str(REPO / 'solvers' / 'windows'))
     ap.add_argument('--obj-tol', type=float, default=0.5,
@@ -462,7 +463,8 @@ def main():
             if getattr(args, dest) is None and p.exists():
                 setattr(args, dest, str(p))
     payload_paths = args.payload or [str(REPO / 'scripts' / 'reference_model.json'),
-                                     str(REPO / 'scripts' / 'reference_model_rich.json')]
+                                     str(REPO / 'scripts' / 'reference_model_rich.json'),
+                                     str(REPO / 'scripts' / 'reference_model_rich_lossy.json')]
 
     engines_to_run = {}
     if args.python06:

@@ -123,6 +123,35 @@ param OperationalLifeStorage{r in REGION, s in STORAGE};
 param CapitalCostStorage{r in REGION, s in STORAGE, y in YEAR};
 param ResidualStorageCapacity{r in REGION, s in STORAGE, y in YEAR};
 #
+#########			TEMPO storage extension (parameters)	#############
+#
+# Opt-in per storage. With both parameters 0 (default) the upstream
+# OSeMOSYS 2017 storage equations apply unchanged.
+param StorageCyclicYear{r in REGION, s in STORAGE}, binary, default 0;
+param StorageLossRate{r in REGION, s in STORAGE}, >= 0, < 1, default 0;
+# Numerical scaling only: the Tempo* level variables hold level × TempoLevelScale.
+# Set it so levels are O(1) — GLPK's absolute tolerances (~1e-7) are otherwise
+# exploited by tiny levels (TEMPO parity datasets: ~1e-6 PJ → 1e6).
+param TempoLevelScale, > 0, default 1;
+param TempoStorage{r in REGION, s in STORAGE} :=
+	if StorageCyclicYear[r,s] = 1 or StorageLossRate[r,s] > 0 then 1 else 0;
+# Fraction of the level kept over one bracket / one whole day / the brackets after lh.
+param BracketRetention{r in REGION, s in STORAGE, lh in DAILYTIMEBRACKET, y in YEAR} :=
+	(1 - StorageLossRate[r,s]) ^ (DaySplit[lh,y] * 8760);
+param DayRetention{r in REGION, s in STORAGE, y in YEAR} :=
+	prod{lh in DAILYTIMEBRACKET} BracketRetention[r,s,lh,y];
+param RetentionAfter{r in REGION, s in STORAGE, lh in DAILYTIMEBRACKET, y in YEAR} :=
+	prod{lhlh in DAILYTIMEBRACKET: lhlh > lh} BracketRetention[r,s,lhlh,y];
+# Over all days of the day type (n = 0) or up to the start of its last instance (n = 1):
+# fraction of the level kept, and geometric carry of one day's net charge. Retention
+# below 1e-12 is set to 0 — GLPK mis-scales coefficients like 1e-39 (false infeasibility).
+param DayTypeRetention{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, y in YEAR, n in 0..1} :=
+	if DayRetention[r,s,y] ^ (DaysInDayType[ls,ld,y] - n) < 1e-12 then 0
+	else DayRetention[r,s,y] ^ (DaysInDayType[ls,ld,y] - n);
+param CarryDays{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, y in YEAR, n in 0..1} :=
+	if DayRetention[r,s,y] = 1 then DaysInDayType[ls,ld,y] - n
+	else (1 - DayRetention[r,s,y] ^ (DaysInDayType[ls,ld,y] - n)) / (1 - DayRetention[r,s,y]);
+#
 #########			Capacity Constraints		#############
 #
 param CapacityOfOneTechnologyUnit{r in REGION, t in TECHNOLOGY, y in YEAR};
@@ -238,6 +267,14 @@ var DiscountedCapitalInvestmentStorage{r in REGION, s in STORAGE, y in YEAR} >=0
 var SalvageValueStorage{r in REGION, s in STORAGE, y in YEAR} >=0;
 var DiscountedSalvageValueStorage{r in REGION, s in STORAGE, y in YEAR} >=0;
 var TotalDiscountedStorageCost{r in REGION, s in STORAGE, y in YEAR} >=0;
+# TEMPO storage extension: level at the year start, at the start of each day type,
+# a day's net charge (retention-weighted to the day end), and the level at the start
+# of each bracket of the first / last instance of each day type.
+var TempoYearStart{r in REGION, s in STORAGE, y in YEAR} >= 0;
+var TempoDayStart{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, y in YEAR} >= 0;
+var TempoDayNet{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, y in YEAR};
+var TempoLevelFirst{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, lh in DAILYTIMEBRACKET, y in YEAR} >= 0;
+var TempoLevelLast{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, lh in DAILYTIMEBRACKET, y in YEAR} >= 0;
 #
 #########		    Capacity Variables 			#############
 #
@@ -552,7 +589,7 @@ s.t. S4_NetChargeWithinDay{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYP
 	=
 	NetChargeWithinDay[r,s,ls,ld,lh,y];
 
-s.t. S5_and_S6_StorageLevelYearStart{r in REGION, s in STORAGE, y in YEAR}:
+s.t. S5_and_S6_StorageLevelYearStart{r in REGION, s in STORAGE, y in YEAR: TempoStorage[r,s] = 0}:
 	if y = min{yy in YEAR} min(yy)
 	then StorageLevelStart[r,s]
 	else StorageLevelYearStart[r,s,y-1] + sum{ls in SEASON, ld in DAYTYPE, lh in DAILYTIMEBRACKET}
@@ -560,7 +597,7 @@ s.t. S5_and_S6_StorageLevelYearStart{r in REGION, s in STORAGE, y in YEAR}:
 	=
 	StorageLevelYearStart[r,s,y];
 
-s.t. S7_and_S8_StorageLevelYearFinish{r in REGION, s in STORAGE, y in YEAR}:
+s.t. S7_and_S8_StorageLevelYearFinish{r in REGION, s in STORAGE, y in YEAR: TempoStorage[r,s] = 0}:
 	if y < max{yy in YEAR} max(yy)
 	then StorageLevelYearStart[r,s,y+1]
 	else StorageLevelYearStart[r,s,y] + sum{ls in SEASON, ld in DAYTYPE, lh in DAILYTIMEBRACKET}
@@ -568,7 +605,7 @@ s.t. S7_and_S8_StorageLevelYearFinish{r in REGION, s in STORAGE, y in YEAR}:
 	=
 	StorageLevelYearFinish[r,s,y];
 
-s.t. S9_and_S10_StorageLevelSeasonStart{r in REGION, s in STORAGE, ls in SEASON, y in YEAR}:
+s.t. S9_and_S10_StorageLevelSeasonStart{r in REGION, s in STORAGE, ls in SEASON, y in YEAR: TempoStorage[r,s] = 0}:
 	if ls = min{lsls in SEASON} min(lsls)
 	then StorageLevelYearStart[r,s,y]
 	else StorageLevelSeasonStart[r,s,ls-1,y] + sum{ld in DAYTYPE, lh in DAILYTIMEBRACKET}
@@ -576,7 +613,7 @@ s.t. S9_and_S10_StorageLevelSeasonStart{r in REGION, s in STORAGE, ls in SEASON,
 	=
 	StorageLevelSeasonStart[r,s,ls,y];
 
-s.t. S11_and_S12_StorageLevelDayTypeStart{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, y in YEAR}:
+s.t. S11_and_S12_StorageLevelDayTypeStart{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, y in YEAR: TempoStorage[r,s] = 0}:
 	if ld = min{ldld in DAYTYPE} min(ldld)
 	then StorageLevelSeasonStart[r,s,ls,y]
 	else StorageLevelDayTypeStart[r,s,ls,ld-1,y] + sum{lh in DAILYTIMEBRACKET}
@@ -584,7 +621,7 @@ s.t. S11_and_S12_StorageLevelDayTypeStart{r in REGION, s in STORAGE, ls in SEASO
 	=
 	StorageLevelDayTypeStart[r,s,ls,ld,y];
 
-s.t. S13_and_S14_and_S15_StorageLevelDayTypeFinish{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, y in YEAR}:
+s.t. S13_and_S14_and_S15_StorageLevelDayTypeFinish{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, y in YEAR: TempoStorage[r,s] = 0}:
 	if ls = max{lsls in SEASON} max(lsls) && ld = max{ldld in DAYTYPE} max(ldld)
 	then StorageLevelYearFinish[r,s,y]
 	else if ld = max{ldld in DAYTYPE} max(ldld)
@@ -597,16 +634,83 @@ s.t. S13_and_S14_and_S15_StorageLevelDayTypeFinish{r in REGION, s in STORAGE, ls
 #
 ##########		Storage Constraints				#############
 #
-s.t. SC1_LowerLimit_BeginningOfDailyTimeBracketOfFirstInstanceOfDayTypeInFirstWeekConstraint{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, lh in DAILYTIMEBRACKET, y in YEAR}: 0 <= (StorageLevelDayTypeStart[r,s,ls,ld,y]+sum{lhlh in DAILYTIMEBRACKET:lh-lhlh>0} NetChargeWithinDay[r,s,ls,ld,lhlh,y])-StorageLowerLimit[r,s,y];
-s.t. SC1_UpperLimit_BeginningOfDailyTimeBracketOfFirstInstanceOfDayTypeInFirstWeekConstraint{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, lh in DAILYTIMEBRACKET, y in YEAR}: (StorageLevelDayTypeStart[r,s,ls,ld,y]+sum{lhlh in DAILYTIMEBRACKET:lh-lhlh>0} NetChargeWithinDay[r,s,ls,ld,lhlh,y])-StorageUpperLimit[r,s,y] <= 0;
-s.t. SC2_LowerLimit_EndOfDailyTimeBracketOfLastInstanceOfDayTypeInFirstWeekConstraint{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, lh in DAILYTIMEBRACKET, y in YEAR}: 0 <= if ld > min{ldld in DAYTYPE} min(ldld) then (StorageLevelDayTypeStart[r,s,ls,ld,y]-sum{lhlh in DAILYTIMEBRACKET:lh-lhlh<0} NetChargeWithinDay[r,s,ls,ld-1,lhlh,y])-StorageLowerLimit[r,s,y];
-s.t. SC2_UpperLimit_EndOfDailyTimeBracketOfLastInstanceOfDayTypeInFirstWeekConstraint{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, lh in DAILYTIMEBRACKET, y in YEAR}: if ld > min{ldld in DAYTYPE} min(ldld) then (StorageLevelDayTypeStart[r,s,ls,ld,y]-sum{lhlh in DAILYTIMEBRACKET:lh-lhlh<0} NetChargeWithinDay[r,s,ls,ld-1,lhlh,y])-StorageUpperLimit[r,s,y] <= 0;
-s.t. SC3_LowerLimit_EndOfDailyTimeBracketOfLastInstanceOfDayTypeInLastWeekConstraint{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, lh in DAILYTIMEBRACKET, y in YEAR}:  0 <= (StorageLevelDayTypeFinish[r,s,ls,ld,y] - sum{lhlh in DAILYTIMEBRACKET:lh-lhlh<0} NetChargeWithinDay[r,s,ls,ld,lhlh,y])-StorageLowerLimit[r,s,y];
-s.t. SC3_UpperLimit_EndOfDailyTimeBracketOfLastInstanceOfDayTypeInLastWeekConstraint{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, lh in DAILYTIMEBRACKET, y in YEAR}:  (StorageLevelDayTypeFinish[r,s,ls,ld,y] - sum{lhlh in DAILYTIMEBRACKET:lh-lhlh<0} NetChargeWithinDay[r,s,ls,ld,lhlh,y])-StorageUpperLimit[r,s,y] <= 0;
-s.t. SC4_LowerLimit_BeginningOfDailyTimeBracketOfFirstInstanceOfDayTypeInLastWeekConstraint{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, lh in DAILYTIMEBRACKET, y in YEAR}: 	0 <= if ld > min{ldld in DAYTYPE} min(ldld) then (StorageLevelDayTypeFinish[r,s,ls,ld-1,y]+sum{lhlh in DAILYTIMEBRACKET:lh-lhlh>0} NetChargeWithinDay[r,s,ls,ld,lhlh,y])-StorageLowerLimit[r,s,y];
-s.t. SC4_UpperLimit_BeginningOfDailyTimeBracketOfFirstInstanceOfDayTypeInLastWeekConstraint{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, lh in DAILYTIMEBRACKET, y in YEAR}: if ld > min{ldld in DAYTYPE} min(ldld) then (StorageLevelDayTypeFinish[r,s,ls,ld-1,y]+sum{lhlh in DAILYTIMEBRACKET:lh-lhlh>0} NetChargeWithinDay[r,s,ls,ld,lhlh,y])-StorageUpperLimit[r,s,y] <= 0;
+s.t. SC1_LowerLimit_BeginningOfDailyTimeBracketOfFirstInstanceOfDayTypeInFirstWeekConstraint{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, lh in DAILYTIMEBRACKET, y in YEAR: TempoStorage[r,s] = 0}: 0 <= (StorageLevelDayTypeStart[r,s,ls,ld,y]+sum{lhlh in DAILYTIMEBRACKET:lh-lhlh>0} NetChargeWithinDay[r,s,ls,ld,lhlh,y])-StorageLowerLimit[r,s,y];
+s.t. SC1_UpperLimit_BeginningOfDailyTimeBracketOfFirstInstanceOfDayTypeInFirstWeekConstraint{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, lh in DAILYTIMEBRACKET, y in YEAR: TempoStorage[r,s] = 0}: (StorageLevelDayTypeStart[r,s,ls,ld,y]+sum{lhlh in DAILYTIMEBRACKET:lh-lhlh>0} NetChargeWithinDay[r,s,ls,ld,lhlh,y])-StorageUpperLimit[r,s,y] <= 0;
+s.t. SC2_LowerLimit_EndOfDailyTimeBracketOfLastInstanceOfDayTypeInFirstWeekConstraint{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, lh in DAILYTIMEBRACKET, y in YEAR: TempoStorage[r,s] = 0}: 0 <= if ld > min{ldld in DAYTYPE} min(ldld) then (StorageLevelDayTypeStart[r,s,ls,ld,y]-sum{lhlh in DAILYTIMEBRACKET:lh-lhlh<0} NetChargeWithinDay[r,s,ls,ld-1,lhlh,y])-StorageLowerLimit[r,s,y];
+s.t. SC2_UpperLimit_EndOfDailyTimeBracketOfLastInstanceOfDayTypeInFirstWeekConstraint{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, lh in DAILYTIMEBRACKET, y in YEAR: TempoStorage[r,s] = 0}: if ld > min{ldld in DAYTYPE} min(ldld) then (StorageLevelDayTypeStart[r,s,ls,ld,y]-sum{lhlh in DAILYTIMEBRACKET:lh-lhlh<0} NetChargeWithinDay[r,s,ls,ld-1,lhlh,y])-StorageUpperLimit[r,s,y] <= 0;
+s.t. SC3_LowerLimit_EndOfDailyTimeBracketOfLastInstanceOfDayTypeInLastWeekConstraint{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, lh in DAILYTIMEBRACKET, y in YEAR: TempoStorage[r,s] = 0}:  0 <= (StorageLevelDayTypeFinish[r,s,ls,ld,y] - sum{lhlh in DAILYTIMEBRACKET:lh-lhlh<0} NetChargeWithinDay[r,s,ls,ld,lhlh,y])-StorageLowerLimit[r,s,y];
+s.t. SC3_UpperLimit_EndOfDailyTimeBracketOfLastInstanceOfDayTypeInLastWeekConstraint{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, lh in DAILYTIMEBRACKET, y in YEAR: TempoStorage[r,s] = 0}:  (StorageLevelDayTypeFinish[r,s,ls,ld,y] - sum{lhlh in DAILYTIMEBRACKET:lh-lhlh<0} NetChargeWithinDay[r,s,ls,ld,lhlh,y])-StorageUpperLimit[r,s,y] <= 0;
+s.t. SC4_LowerLimit_BeginningOfDailyTimeBracketOfFirstInstanceOfDayTypeInLastWeekConstraint{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, lh in DAILYTIMEBRACKET, y in YEAR: TempoStorage[r,s] = 0}: 	0 <= if ld > min{ldld in DAYTYPE} min(ldld) then (StorageLevelDayTypeFinish[r,s,ls,ld-1,y]+sum{lhlh in DAILYTIMEBRACKET:lh-lhlh>0} NetChargeWithinDay[r,s,ls,ld,lhlh,y])-StorageLowerLimit[r,s,y];
+s.t. SC4_UpperLimit_BeginningOfDailyTimeBracketOfFirstInstanceOfDayTypeInLastWeekConstraint{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, lh in DAILYTIMEBRACKET, y in YEAR: TempoStorage[r,s] = 0}: if ld > min{ldld in DAYTYPE} min(ldld) then (StorageLevelDayTypeFinish[r,s,ls,ld-1,y]+sum{lhlh in DAILYTIMEBRACKET:lh-lhlh>0} NetChargeWithinDay[r,s,ls,ld,lhlh,y])-StorageUpperLimit[r,s,y] <= 0;
 s.t. SC5_MaxChargeConstraint{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, lh in DAILYTIMEBRACKET, y in YEAR}: RateOfStorageCharge[r,s,ls,ld,lh,y] <= StorageMaxChargeRate[r,s];
 s.t. SC6_MaxDischargeConstraint{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, lh in DAILYTIMEBRACKET, y in YEAR}: RateOfStorageDischarge[r,s,ls,ld,lh,y] <= StorageMaxDischargeRate[r,s];
+#
+#########		TEMPO storage extension (equations)		#############
+#
+# Calliope 0.6 storage: s_t = s_{t-1} * (1 - loss)^hours + charge * eff - discharge / eff.
+# Active only for storages with TempoStorage = 1 (upstream S5-S15 and SC1-SC4 are off for them).
+s.t. TS1_DayNet{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, y in YEAR: TempoStorage[r,s] = 1}:
+	TempoLevelScale * sum{lh in DAILYTIMEBRACKET} NetChargeWithinDay[r,s,ls,ld,lh,y] * RetentionAfter[r,s,lh,y]
+	= TempoDayNet[r,s,ls,ld,y];
+s.t. TS2_FirstDayStart{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, lh in DAILYTIMEBRACKET, y in YEAR:
+		TempoStorage[r,s] = 1 && lh = min{l in DAILYTIMEBRACKET} min(l)}:
+	TempoLevelFirst[r,s,ls,ld,lh,y] = TempoDayStart[r,s,ls,ld,y];
+s.t. TS3_FirstDayNext{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, lh in DAILYTIMEBRACKET, y in YEAR:
+		TempoStorage[r,s] = 1 && lh > min{l in DAILYTIMEBRACKET} min(l)}:
+	TempoLevelFirst[r,s,ls,ld,lh,y] = BracketRetention[r,s,lh-1,y] * TempoLevelFirst[r,s,ls,ld,lh-1,y]
+	                                  + TempoLevelScale * NetChargeWithinDay[r,s,ls,ld,lh-1,y];
+s.t. TS4_LastDayStart{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, lh in DAILYTIMEBRACKET, y in YEAR:
+		TempoStorage[r,s] = 1 && lh = min{l in DAILYTIMEBRACKET} min(l) && DaysInDayType[ls,ld,y] >= 1}:
+	TempoLevelLast[r,s,ls,ld,lh,y] = DayTypeRetention[r,s,ls,ld,y,1] * TempoDayStart[r,s,ls,ld,y]
+	                                 + CarryDays[r,s,ls,ld,y,1] * TempoDayNet[r,s,ls,ld,y];
+s.t. TS5_LastDayNext{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, lh in DAILYTIMEBRACKET, y in YEAR:
+		TempoStorage[r,s] = 1 && lh > min{l in DAILYTIMEBRACKET} min(l) && DaysInDayType[ls,ld,y] >= 1}:
+	TempoLevelLast[r,s,ls,ld,lh,y] = BracketRetention[r,s,lh-1,y] * TempoLevelLast[r,s,ls,ld,lh-1,y]
+	                                 + TempoLevelScale * NetChargeWithinDay[r,s,ls,ld,lh-1,y];
+s.t. TS6_DayChainWithinSeason{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, y in YEAR:
+		TempoStorage[r,s] = 1 && ld > min{d in DAYTYPE} min(d)}:
+	TempoDayStart[r,s,ls,ld,y] =
+		DayTypeRetention[r,s,ls,ld-1,y,0] * TempoDayStart[r,s,ls,ld-1,y]
+		+ CarryDays[r,s,ls,ld-1,y,0] * TempoDayNet[r,s,ls,ld-1,y];
+s.t. TS6_DayChainAcrossSeasons{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, y in YEAR:
+		TempoStorage[r,s] = 1 && ld = min{d in DAYTYPE} min(d) && ls > min{ss in SEASON} min(ss)}:
+	TempoDayStart[r,s,ls,ld,y] =
+		DayTypeRetention[r,s,ls-1,max{d in DAYTYPE} max(d),y,0] * TempoDayStart[r,s,ls-1,max{d in DAYTYPE} max(d),y]
+		+ CarryDays[r,s,ls-1,max{d in DAYTYPE} max(d),y,0] * TempoDayNet[r,s,ls-1,max{d in DAYTYPE} max(d),y];
+s.t. TS6_DayChainYearStart{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, y in YEAR:
+		TempoStorage[r,s] = 1 && ld = min{d in DAYTYPE} min(d) && ls = min{ss in SEASON} min(ss)}:
+	TempoDayStart[r,s,ls,ld,y] = TempoYearStart[r,s,y];
+s.t. TS7_YearStartCyclic{r in REGION, s in STORAGE, y in YEAR: TempoStorage[r,s] = 1 && StorageCyclicYear[r,s] = 1}:
+	TempoYearStart[r,s,y] =
+		DayTypeRetention[r,s,max{ss in SEASON} max(ss),max{d in DAYTYPE} max(d),y,0]
+			* TempoDayStart[r,s,max{ss in SEASON} max(ss),max{d in DAYTYPE} max(d),y]
+		+ CarryDays[r,s,max{ss in SEASON} max(ss),max{d in DAYTYPE} max(d),y,0]
+			* TempoDayNet[r,s,max{ss in SEASON} max(ss),max{d in DAYTYPE} max(d),y];
+s.t. TS7_YearStartFromPreviousYear{r in REGION, s in STORAGE, y in YEAR:
+		TempoStorage[r,s] = 1 && StorageCyclicYear[r,s] = 0 && y > min{yy in YEAR} min(yy)}:
+	TempoYearStart[r,s,y] =
+		DayTypeRetention[r,s,max{ss in SEASON} max(ss),max{d in DAYTYPE} max(d),y-1,0]
+			* TempoDayStart[r,s,max{ss in SEASON} max(ss),max{d in DAYTYPE} max(d),y-1]
+		+ CarryDays[r,s,max{ss in SEASON} max(ss),max{d in DAYTYPE} max(d),y-1,0]
+			* TempoDayNet[r,s,max{ss in SEASON} max(ss),max{d in DAYTYPE} max(d),y-1];
+s.t. TS7_YearStartFirstYear{r in REGION, s in STORAGE, y in YEAR:
+		TempoStorage[r,s] = 1 && StorageCyclicYear[r,s] = 0 && y = min{yy in YEAR} min(yy)}:
+	TempoYearStart[r,s,y] = TempoLevelScale * StorageLevelStart[r,s];
+s.t. TS8_LowerFirst{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, lh in DAILYTIMEBRACKET, y in YEAR: TempoStorage[r,s] = 1}:
+	TempoLevelFirst[r,s,ls,ld,lh,y] >= TempoLevelScale * StorageLowerLimit[r,s,y];
+s.t. TS9_UpperFirst{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, lh in DAILYTIMEBRACKET, y in YEAR: TempoStorage[r,s] = 1}:
+	TempoLevelFirst[r,s,ls,ld,lh,y] <= TempoLevelScale * StorageUpperLimit[r,s,y];
+s.t. TS10_LowerLast{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, lh in DAILYTIMEBRACKET, y in YEAR: TempoStorage[r,s] = 1 && DaysInDayType[ls,ld,y] >= 1}:
+	TempoLevelLast[r,s,ls,ld,lh,y] >= TempoLevelScale * StorageLowerLimit[r,s,y];
+s.t. TS11_UpperLast{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, lh in DAILYTIMEBRACKET, y in YEAR: TempoStorage[r,s] = 1 && DaysInDayType[ls,ld,y] >= 1}:
+	TempoLevelLast[r,s,ls,ld,lh,y] <= TempoLevelScale * StorageUpperLimit[r,s,y];
+# Level at the end of the last instance of each day type (the year-end level when not cyclic).
+s.t. TS12_LowerDayTypeEnd{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, lh in DAILYTIMEBRACKET, y in YEAR:
+		TempoStorage[r,s] = 1 && lh = max{l in DAILYTIMEBRACKET} max(l) && DaysInDayType[ls,ld,y] >= 1}:
+	BracketRetention[r,s,lh,y] * TempoLevelLast[r,s,ls,ld,lh,y] + TempoLevelScale * NetChargeWithinDay[r,s,ls,ld,lh,y] >= TempoLevelScale * StorageLowerLimit[r,s,y];
+s.t. TS13_UpperDayTypeEnd{r in REGION, s in STORAGE, ls in SEASON, ld in DAYTYPE, lh in DAILYTIMEBRACKET, y in YEAR:
+		TempoStorage[r,s] = 1 && lh = max{l in DAILYTIMEBRACKET} max(l) && DaysInDayType[ls,ld,y] >= 1}:
+	BracketRetention[r,s,lh,y] * TempoLevelLast[r,s,ls,ld,lh,y] + TempoLevelScale * NetChargeWithinDay[r,s,ls,ld,lh,y] <= TempoLevelScale * StorageUpperLimit[r,s,y];
 #
 #########		Storage Investments				#############
 #

@@ -546,3 +546,11 @@ def test_per_link_capacity_key_and_link_config(ref_model):
     for name in ('north::grid_link:south', 'south::grid_link:north'):
         l = next(x for x in spec['links'] if x['name'] == name)
         assert l['p_nom_min'] == 400 and l['p_nom_max'] == 400 and l['efficiency'] == 0.9
+
+
+def test_linkconfig_distance_used_for_per_distance_cost(ref_model):
+    ref_model['links'][0]['linkConfig'] = {'distance': 200}
+    spec, _ = t.translate_model(ref_model)
+    fwd = next(l for l in spec['links'] if l['name'] == 'north::grid_link:south')
+    annuity = 0.05 / (1 - 1.05 ** -40)
+    assert fwd['capital_cost'] == pytest.approx((0.5 * 200) * annuity * (168 / 8760) / 2)

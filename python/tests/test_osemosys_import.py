@@ -378,3 +378,117 @@ def test_min_capacity_round_trip():
     assert batt["energy_cap_min"] == 15.0 and batt["energy_cap_max"] == 1000
     tx = next(t for t in model["technologies"] if t["essentials"]["parent"] == "transmission")
     assert tx["constraints"]["energy_cap_min"] == 500 and tx["constraints"]["energy_cap_max"] == 3000
+
+
+# ── Parity datasets (TEMPO's own export) ──────────────────────────────────────
+
+import json  # noqa: E402
+
+import pytest  # noqa: E402
+
+ROOT = Path(__file__).parent.parent.parent
+RICH = ROOT / "scripts" / "reference_model_rich.json"
+
+
+def _parity_dir(md, tmp_path):
+    tr.translate_model(md, str(tmp_path), timeslices.parity_scheme(168), parity=True)
+    return str(tmp_path)
+
+
+def test_import_prefers_tempo_model_json(tmp_path):
+    md = json.loads(RICH.read_text(encoding="utf-8"))
+    (tmp_path / "tempo_model.json").write_text(json.dumps(md), encoding="utf-8")
+    (tmp_path / "REGION.csv").write_text("VALUE\nREGION1\n")
+    model, report = imp.osemosys_to_internal(str(tmp_path))
+    assert model == md
+    assert any("tempo_model.json" in r for r in report)
+
+
+def test_import_parity_csvs_without_tempo_json(tmp_path):
+    md = json.loads(RICH.read_text(encoding="utf-8"))
+    model, report = imp.osemosys_to_internal(_parity_dir(md, tmp_path))
+    techs = {t["name"]: t for t in model["technologies"]}
+    bat = techs["battery"]
+    assert bat["essentials"]["parent"] == "storage"
+    assert bat["constraints"]["energy_eff"] == pytest.approx(0.95)
+    assert bat["constraints"]["storage_loss"] == pytest.approx(0.0)
+    crf15 = 0.05 / (1 - 1.05 ** -15)
+    assert bat["costs"]["monetary"]["storage_cap"] == pytest.approx(150 * crf15, rel=1e-5)
+    assert bat["costs"]["monetary"]["energy_cap"] == pytest.approx(80 * crf15, rel=1e-6)
+    # annualised capex imported with lifetime 1 / interest 0 → same annual cost
+    solar = techs["solar_pv"]
+    assert solar["constraints"]["lifetime"] == 1
+    assert solar["costs"]["monetary"]["interest_rate"] == 0
+    assert solar["costs"]["monetary"]["energy_cap"] == pytest.approx(600 * 0.05 / (1 - 1.05 ** -25), rel=1e-6)
+    assert "om_prod" not in solar["costs"]["monetary"]          # parity ε cost dropped
+    assert techs["ccgt"]["costs"]["monetary"]["om_prod"] == pytest.approx(0.004, rel=1e-4)
+    assert techs["ccgt"]["constraints"]["energy_eff"] == pytest.approx(0.55, rel=1e-5)
+    assert model["modelConfig"]["cyclicStorage"] is True
+    assert any("annualised" in r for r in report)
+
+
+def test_import_parity_links_are_two_mode(tmp_path):
+    md = json.loads(RICH.read_text(encoding="utf-8"))
+    model, _ = imp.osemosys_to_internal(_parity_dir(md, tmp_path))
+    links = {(l["from"], l["to"]): l for l in model["links"]}
+    assert set(links) == {("North", "South"), ("South", "East"), ("East", "North")}
+    ns = links[("North", "South")]
+    assert ns["tech"] == "hvac"
+    crf40 = 0.05 / (1 - 1.05 ** -40)
+    assert ns["linkConfig"]["costs"]["monetary"]["energy_cap"] == pytest.approx((20 + 0.8 * 400) * crf40, rel=1e-6)
+    assert ns["linkConfig"]["constraints"]["energy_eff"] == pytest.approx(0.98)
+    assert ns["linkConfig"]["constraints"]["energy_cap_max"] == pytest.approx(3000)
+
+
+def test_import_parity_demand_and_cf_absolute(tmp_path):
+    md = json.loads(RICH.read_text(encoding="utf-8"))
+    model, _ = imp.osemosys_to_internal(_parity_dir(md, tmp_path))
+    locs = {l["name"]: l for l in model["locations"]}
+    orig = {l["name"]: l for l in md["locations"]}
+    assert locs["North"]["demandProfile"]["timeseries"] == pytest.approx(
+        orig["north"]["demandProfile"]["timeseries"], rel=1e-6)
+    north_solar = locs["North"]["techs"]["solar_pv"]
+    assert north_solar["constraints"]["energy_cap_max"] == pytest.approx(1500)
+    assert north_solar["constraints"]["resource_unit"] == "energy_per_cap"
+    ref = north_solar["constraints"]["resource"]
+    ts = next(t for t in model["timeSeries"] if f"file={t['fileName']}:cf" == ref)
+    cf_orig = [r["cf"] for r in md["timeSeries"][0]["data"][:24]]
+    assert [r["cf"] for r in ts["data"][:24]] == pytest.approx(cf_orig, abs=1e-6)
+    assert len(ts["data"]) == 8760
+
+
+def test_import_parity_lossy_non_cyclic(tmp_path):
+    md = json.loads(RICH.read_text(encoding="utf-8"))
+    md["modelConfig"]["cyclicStorage"] = False
+    next(t for t in md["technologies"] if t["name"] == "battery")["constraints"]["storage_loss"] = 0.01
+    model, _ = imp.osemosys_to_internal(_parity_dir(md, tmp_path))
+    bat = next(t for t in model["technologies"] if t["name"] == "battery")
+    assert bat["constraints"]["storage_loss"] == pytest.approx(0.01)
+    assert model["modelConfig"]["cyclicStorage"] is False
+
+
+def test_import_parity_cap_sentinel_is_shared(tmp_path, monkeypatch):
+    # 950 GW is below translate's 999 GW "unbounded" stand-in → a real bound
+    md = json.loads(RICH.read_text(encoding="utf-8"))
+    next(t for t in md["technologies"] if t["name"] == "gas_supply")["constraints"]["energy_cap_max"] = 950e6
+    model, _ = imp.osemosys_to_internal(_parity_dir(md, tmp_path))
+    south = next(l for l in model["locations"] if l["name"] == "South")
+    assert south["techs"]["gas_supply"]["constraints"]["energy_cap_max"] == pytest.approx(950e6)
+
+
+def test_import_parity_existing_shadow_round_trips_as_equals(tmp_path):
+    md = json.loads(RICH.read_text(encoding="utf-8"))
+    solar = next(t for t in md["technologies"] if t["name"] == "solar_pv")
+    shadow = json.loads(json.dumps(solar))
+    shadow["name"] = "solar_pv_existing"
+    shadow["costs"]["monetary"]["energy_cap"] = 0
+    shadow["constraints"].pop("energy_cap_max", None)
+    md["technologies"].append(shadow)
+    md["locations"][0]["techs"]["solar_pv_existing"] = {"constraints": {"energy_cap_equals": 349.485}}
+    model, _ = imp.osemosys_to_internal(_parity_dir(md, tmp_path))
+    north = next(l for l in model["locations"] if l["name"] == "North")
+    cons = north["techs"]["solar_pv_existing"]["constraints"]
+    assert cons["energy_cap_equals"] == pytest.approx(349.485)
+    assert "energy_cap_max" not in cons
+    sh = next(t for t in model["technologies"] if t["name"] == "solar_pv_existing")
+    assert not sh["costs"]["monetary"].get("energy_cap")
