@@ -8,6 +8,7 @@ import {
   FiMapPin, FiLink, FiZap, FiBarChart2, FiPieChart, FiActivity, FiDollarSign,
   FiChevronDown, FiChevronUp, FiCpu, FiLayers, FiMap, FiClock, FiGrid, FiSun, FiFilter,
 } from 'react-icons/fi';
+import { LuLayoutDashboard, LuFactory, LuGauge, LuWaypoints, LuCoins, LuChartLine } from 'react-icons/lu';
 import 'leaflet/dist/leaflet.css';
 import { TsViewControls, Panel, KpiCard, InputMap } from './dashboard/DashboardWidgets';
 
@@ -163,12 +164,12 @@ function buildFilteredChart(ts, opts, lineColor = '#6b7280') {
 
 // ── Tabs definition ───────────────────────────────────────────────────────────
 const TABS = [
-  { id: 'overview',    label: 'Overview',     icon: FiGrid },
-  { id: 'generation',  label: 'Generation',   icon: FiZap },
-  { id: 'demand',      label: 'Demand',       icon: FiActivity },
-  { id: 'network',     label: 'Network',      icon: FiLink },
-  { id: 'cost',        label: 'Cost',         icon: FiDollarSign },
-  { id: 'timeseries',  label: 'Time Series',  icon: FiClock },
+  { id: 'overview',    label: 'Overview',     icon: LuLayoutDashboard },
+  { id: 'generation',  label: 'Generation',   icon: LuFactory },
+  { id: 'demand',      label: 'Demand',       icon: LuGauge },
+  { id: 'network',     label: 'Network',      icon: LuWaypoints },
+  { id: 'cost',        label: 'Cost',         icon: LuCoins },
+  { id: 'timeseries',  label: 'Time Series',  icon: LuChartLine },
 ];
 
 // ══════════════════════════════════════════════════════════════════════════════

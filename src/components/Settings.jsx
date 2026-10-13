@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { FiDownload, FiRefreshCw, FiTerminal, FiCheckCircle, FiAlertCircle, FiBox, FiCpu, FiZap, FiShield, FiChevronDown, FiServer, FiMessageSquare } from 'react-icons/fi';
 import { LuSlidersHorizontal, LuCpu, LuServer, LuMessageSquare, LuShield, LuInfo, LuTrash2 } from 'react-icons/lu';
 import tempoLogo from '../assets/Logo_TEMPO.PNG';
+import Select from './ui/Select';
 import Calliope07EnginePanel from './Calliope07EnginePanel';
 import EngineInstallPanel from './EngineInstallPanel';
 import { getSettings, setSetting } from '../services/appSettings';
@@ -369,14 +370,16 @@ function GeneralPanel() {
   return (
     <div className="divide-y divide-slate-100">
       <SettingRow title="Default view" description="The page TEMPO opens to on launch.">
-        <select
-          value={settings.defaultView}
-          onChange={(e) => update('defaultView', e.target.value)}
-          className="h-9 w-48 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 focus:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-200"
-        >
-          <option value="Dashboard">Dashboard</option>
-          <option value="Map View">Map View</option>
-        </select>
+        <div className="w-48">
+          <Select
+            value={settings.defaultView}
+            onChange={(v) => update('defaultView', v)}
+            options={[
+              { value: 'Dashboard', label: 'Dashboard' },
+              { value: 'Map View', label: 'Map View' },
+            ]}
+          />
+        </div>
       </SettingRow>
       <SettingRow
         title="Auto-save"
@@ -624,13 +627,20 @@ function AIPanel() {
         {/* Provider */}
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-2">Provider</label>
-          <select
+          <Select
             value={cfg.provider}
-            onChange={(e) => changeProvider(e.target.value)}
-            className="w-full h-10 px-3 border border-slate-200 bg-white rounded-lg text-sm focus:outline-none focus:border-slate-300 focus:ring-2 focus:ring-slate-200"
-          >
-            {AI_PROVIDERS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
-          </select>
+            onChange={changeProvider}
+            options={AI_PROVIDERS.map(p => ({
+              value: p.id,
+              label: p.label,
+              description: [
+                p.local ? 'Runs on your own hardware · no key needed'
+                  : p.needsBaseUrl ? 'Your own endpoint URL'
+                  : 'Cloud · API key required',
+                p.defaultModel ? `default ${p.defaultModel}` : null,
+              ].filter(Boolean).join(' · '),
+            }))}
+          />
         </div>
 
         {/* Base URL (compatible + Ollama) */}

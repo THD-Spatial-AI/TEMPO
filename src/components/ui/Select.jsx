@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { LuCheck, LuChevronDown } from 'react-icons/lu';
 
-// Styled replacement for <select>. options: [{ value, label, description?, disabled? }]
+// options: [{ value, label, description?, disabled? }]
 export default function Select({ value, onChange, options, placeholder = 'Select…', className = '' }) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);

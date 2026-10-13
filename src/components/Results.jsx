@@ -12,6 +12,15 @@ import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import ScenarioComparison from './ScenarioComparison';
+import Select from './ui/Select';
+
+const RUN_ENGINE_LABELS = {
+  calliope:   'Calliope 0.6',
+  calliope07: 'Calliope 0.7',
+  pypsa:      'PyPSA',
+  osemosys:   'OSeMOSYS',
+  adoptnet0:  'AdOpT-NET0',
+};
 
 import {
   techColor, TECH_GROUPS, classifyTech,
@@ -559,20 +568,20 @@ const Results = ({ onNavigate }) => {
           <div className="flex-shrink-0 px-6 pt-5 pb-0">
             <div className="flex items-end justify-between gap-4 flex-wrap">
               <div>
-                <h1 className="text-3xl font-bold tracking-tight text-gray-900 mb-1">Results Dashboard</h1>
-                <p className="text-slate-500 text-sm">Calliope optimisation results · interactive analysis</p>
+                <h1 className="text-3xl font-bold tracking-tight text-slate-900">Results Dashboard</h1>
+                <p className="mt-1 text-[15px] text-slate-500">Optimisation results · interactive analysis</p>
               </div>
               <div className="flex items-center gap-2">
-                <div className="flex gap-1 bg-slate-100 rounded-xl p-1">
+                <div className="inline-flex gap-1 rounded-xl bg-slate-200/80 p-1 ring-1 ring-inset ring-slate-300/50">
                   <button onClick={() => setCompareMode(false)}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                      !compareMode ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                      !compareMode ? 'bg-slate-900 text-white shadow-md' : 'text-slate-600 hover:bg-white/70 hover:text-slate-900'
                     }`}>
                     <FiLayers size={12} /> Single Run
                   </button>
                   <button onClick={() => setCompareMode(true)}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                      compareMode ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                      compareMode ? 'bg-slate-900 text-white shadow-md' : 'text-slate-600 hover:bg-white/70 hover:text-slate-900'
                     }`}>
                     <FiGitMerge size={12} /> Compare Scenarios
                   </button>
@@ -591,23 +600,23 @@ const Results = ({ onNavigate }) => {
           {/* ── Header ── */}
           <div className="flex items-end justify-between gap-4 flex-wrap">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight text-gray-900 mb-1">Results Dashboard</h1>
-              <p className="text-slate-500 text-sm">Calliope optimisation results · interactive analysis</p>
+              <h1 className="text-3xl font-bold tracking-tight text-slate-900">Results Dashboard</h1>
+              <p className="mt-1 text-[15px] text-slate-500">Optimisation results · interactive analysis</p>
             </div>
             <div className="flex items-center gap-2">
               {/* View toggle */}
-              <div className="flex gap-1 bg-slate-100 rounded-xl p-1">
+              <div className="inline-flex gap-1 rounded-xl bg-slate-200/80 p-1 ring-1 ring-inset ring-slate-300/50">
                 <button
                   onClick={() => setCompareMode(false)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                    !compareMode ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                    !compareMode ? 'bg-slate-900 text-white shadow-md' : 'text-slate-600 hover:bg-white/70 hover:text-slate-900'
                   }`}>
                   <FiLayers size={12} /> Single Run
                 </button>
                 <button
                   onClick={() => setCompareMode(true)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                    compareMode ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                    compareMode ? 'bg-slate-900 text-white shadow-md' : 'text-slate-600 hover:bg-white/70 hover:text-slate-900'
                   }`}>
                   <FiGitMerge size={12} /> Compare Scenarios
                 </button>
@@ -616,7 +625,7 @@ const Results = ({ onNavigate }) => {
                 <div className="relative" ref={downloadRef}>
                   <button
                     onClick={() => setDownloadOpen(v => !v)}
-                    className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white text-slate-700 rounded-xl hover:bg-slate-50 transition text-sm shadow-sm">
+                    className="flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-[13px] font-medium text-slate-700 shadow-sm transition hover:bg-slate-50">
                     <FiDownload size={14} /> Download <FiChevronDown size={12} />
                   </button>
                   {downloadOpen && (
@@ -640,38 +649,37 @@ const Results = ({ onNavigate }) => {
 
         {/* ── Model selector (dropdown) ── */}
         {!compareMode && (
-          <div className="border-b border-slate-200 pb-3">
-            <div className="flex items-center gap-3">
-              <select
-                value={selectedJobId || ''}
-                onChange={e => { const id = e.target.value; setSelectedJobId(id || null); if (id) setTab('overview'); }}
-                className="flex-1 max-w-sm px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300">
-                <option value="">{completedJobs.length === 0 ? 'No completed runs' : 'Select a run…'}</option>
-                {completedJobs.map(job => (
-                  <option key={job.id} value={job.id}>
-                    {job.modelName}{job.duration ? ` · ${job.duration}` : ''}{job.status === 'failed' ? ' ⚠ failed' : ''}
-                  </option>
-                ))}
-              </select>
+          <div className="border-b border-slate-200 pb-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="w-full max-w-md">
+                <Select
+                  value={selectedJobId || ''}
+                  onChange={id => { setSelectedJobId(id || null); if (id) setTab('overview'); }}
+                  placeholder={completedJobs.length === 0 ? 'No completed runs yet' : 'Select a run'}
+                  options={completedJobs.map(job => ({
+                    value: job.id,
+                    label: `${job.status === 'failed' ? '⚠ ' : ''}${job.modelName}`,
+                    description: [
+                      RUN_ENGINE_LABELS[job.framework] || job.framework,
+                      job.duration,
+                      job.completedAt ? new Date(job.completedAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : null,
+                      job.status === 'failed' ? 'failed' : null,
+                    ].filter(Boolean).join(' · ') || undefined,
+                  }))}
+                />
+              </div>
               {(() => {
                 const fw = result?.framework || selectedJob?.framework;
-                const ENGINE_LABELS = {
-                  calliope:   'Calliope 0.6',
-                  calliope07: 'Calliope 0.7',
-                  pypsa:      'PyPSA',
-                  osemosys:   'OSeMOSYS',
-                  adoptnet0:  'AdOpT-NET0',
-                };
-                const label = ENGINE_LABELS[fw];
+                const label = RUN_ENGINE_LABELS[fw];
                 return label ? (
-                  <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-slate-100 text-slate-600 border border-slate-200 whitespace-nowrap">
+                  <span className="whitespace-nowrap rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-600">
                     {label}
                   </span>
                 ) : null;
               })()}
               {selectedJobId && (
                 <button onClick={() => { removeCompletedJob(selectedJobId); setSelectedJobId(null); }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-gray-600 transition-colors rounded-lg hover:bg-gray-100">
+                  className="ml-auto flex h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-medium text-slate-500 transition-colors hover:bg-red-50 hover:text-red-600">
                   <FiTrash2 size={11} /> Remove
                 </button>
               )}
@@ -681,10 +689,19 @@ const Results = ({ onNavigate }) => {
 
         {/* ── Main content ── */}
         {!compareMode && !selectedJob && (
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-24 text-center text-slate-400">
-            <FiBarChart2 size={56} className="mx-auto mb-4 opacity-15" />
-            <h3 className="text-xl font-semibold mb-1 text-slate-600">Select a run above</h3>
-            <p className="text-sm">Run a model from the Run section, then select it here</p>
+          <div className="flex flex-col items-center rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-20 text-center">
+            <div className="mb-3 grid h-12 w-12 place-items-center rounded-full bg-slate-100 text-slate-500"><FiBarChart2 size={20} /></div>
+            <h3 className="text-sm font-semibold text-slate-800">{completedJobs.length === 0 ? 'No results yet' : 'Select a run'}</h3>
+            <p className="mt-1 max-w-sm text-sm text-slate-500">
+              {completedJobs.length === 0
+                ? 'Run a model from the Run page — finished runs appear here for analysis.'
+                : 'Pick a completed run from the dropdown above to explore its results.'}
+            </p>
+            {completedJobs.length === 0 && onNavigate && (
+              <button onClick={() => onNavigate('Run')} className="mt-5 inline-flex h-10 items-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white shadow-sm hover:bg-slate-800">
+                Go to Run
+              </button>
+            )}
           </div>
         )}
         {!compareMode && selectedJob?.status === 'failed' && (

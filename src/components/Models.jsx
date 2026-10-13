@@ -11,6 +11,7 @@ import TranslationReport from './TranslationReport';
 import { detectArchiveFormat } from '../services/archiveFormat';
 import { importModelArchive } from '../services/engineClient';
 import { useCsvImportWizard } from '../hooks/useCsvImportWizard';
+import Select from './ui/Select';
 
 const Models = () => {
   const { models, setModels, currentModelId, loadModel, deleteModel, renameModel, createModel, setTimeSeries, setOverrides, setScenarios, showNotification } = useData();
@@ -930,44 +931,49 @@ const Models = () => {
       )}
 
       {/* Your Models Section */}
-      <div className="bg-white rounded-xl shadow-lg p-5 mb-8">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-slate-800">Your Models</h2>
-          <span className="px-2.5 py-1 bg-gray-100 text-gray-600 rounded-full text-xs font-medium">
-            {filteredModels.length !== models.length
-              ? `${filteredModels.length} of ${models.length}`
-              : `${models.length} ${models.length === 1 ? 'model' : 'models'}`}
-          </span>
+      <div className="mb-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+              Your Models
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
+                {filteredModels.length !== models.length ? `${filteredModels.length} of ${models.length}` : models.length}
+              </span>
+            </h2>
+            <p className="text-xs text-slate-500">Models saved on this device.</p>
+          </div>
         </div>
 
         {models.length > 0 && (
-          <div className="flex gap-2 mb-4">
-            <div className="relative flex-1">
-              <FiSearch size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <div className="mb-4 flex flex-wrap gap-2">
+            <div className="relative min-w-[220px] flex-1">
+              <FiSearch size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
-                placeholder="Search models…"
+                placeholder="Search models"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="w-full pl-8 pr-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300"
+                className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-[13px] text-slate-800 placeholder:text-slate-400 transition-colors focus:border-slate-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-200"
               />
             </div>
-            <select
-              value={filterType}
-              onChange={e => setFilterType(e.target.value)}
-              className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300"
-            >
-              <option value="all">All types</option>
-              <option value="calliope">Calliope</option>
-              <option value="pypsa">PyPSA</option>
-              <option value="osemosys">OSeMOSYS</option>
-              <option value="adoptnet0">AdOpT-NET0</option>
-            </select>
+            <div className="w-52">
+              <Select
+                value={filterType}
+                onChange={setFilterType}
+                options={[
+                  { value: 'all', label: 'All types', description: `${models.length} model${models.length === 1 ? '' : 's'}` },
+                  ...[['calliope', 'Calliope'], ['pypsa', 'PyPSA'], ['osemosys', 'OSeMOSYS'], ['adoptnet0', 'AdOpT-NET0']].map(([value, label]) => {
+                    const n = models.filter(m => (m.modelType || m.metadata?.modelType || 'calliope') === value).length;
+                    return { value, label, description: `${n} model${n === 1 ? '' : 's'}` };
+                  }),
+                ]}
+              />
+            </div>
           </div>
         )}
 
         {someSelected && (
-          <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-gray-800 text-white rounded-lg text-sm">
+          <div className="mb-4 flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm text-white shadow-lg shadow-slate-900/20">
             <span className="flex-1 font-medium">{selectedIds.size} selected</span>
             <button
               onClick={handleBulkExport}
@@ -994,104 +1000,115 @@ const Models = () => {
         )}
 
         {models.length === 0 ? (
-          <div className="text-center py-10">
-            <FiFolder className="mx-auto text-5xl text-slate-300 mb-3" />
-            <p className="text-slate-500 mb-1">No models yet</p>
-            <p className="text-xs text-slate-400 mb-4">Select a model type above or load a template below</p>
+          <div className="flex flex-col items-center rounded-xl border border-dashed border-slate-200 px-6 py-12 text-center">
+            <div className="mb-3 grid h-12 w-12 place-items-center rounded-full bg-slate-100 text-slate-500"><FiFolder size={20} /></div>
+            <p className="text-sm font-semibold text-slate-800">No models yet</p>
+            <p className="mb-5 mt-1 text-sm text-slate-500">Pick a model type above, or load a template below.</p>
             <button
               onClick={() => setShowCreatePanel(true)}
-              className="px-5 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 transition-colors inline-flex items-center gap-2 text-sm font-medium"
+              className="inline-flex h-10 items-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800"
             >
               <FiPlus size={16} />
               Create Your First Model
             </button>
           </div>
         ) : filteredModels.length === 0 ? (
-          <p className="text-center py-8 text-sm text-slate-400">No models match your search.</p>
+          <div className="flex flex-col items-center rounded-xl border border-dashed border-slate-200 px-6 py-10 text-center">
+            <FiSearch size={18} className="mb-2 text-slate-400" />
+            <p className="text-sm font-semibold text-slate-800">No matches</p>
+            <p className="mt-1 text-sm text-slate-500">No models match your search or type filter.</p>
+          </div>
         ) : (
-          <div className="space-y-2">
-            <div className="flex items-center gap-3 px-4 py-1.5 text-xs text-gray-500 border-b border-gray-100 mb-1">
+          <div className="overflow-hidden rounded-xl border border-slate-200">
+            <label className="flex cursor-pointer items-center gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
               <input
                 type="checkbox"
                 checked={allSelected}
                 onChange={toggleSelectAll}
-                className="rounded w-3.5 h-3.5 cursor-pointer"
+                className="h-4 w-4 cursor-pointer rounded border-slate-300 accent-slate-900"
               />
-              <span>Select all ({filteredModels.length})</span>
-            </div>
-            {filteredModels.map((model) => (
+              Select all ({filteredModels.length})
+            </label>
+            <div className="divide-y divide-slate-100">
+            {filteredModels.map((model) => {
+              const active = currentModelId === model.id;
+              const selected = selectedIds.has(model.id);
+              const stats = [
+                [model.locations?.length || 0, 'locations'],
+                [model.links?.length || 0, 'links'],
+                [model.technologies?.length || 0, 'techs'],
+                ...((model.timeSeries?.length || 0) > 0 ? [[model.timeSeries.length, 'time series']] : []),
+                ...(Object.keys(model.scenarios || {}).length > 0 ? [[Object.keys(model.scenarios).length, 'scenarios']] : []),
+              ];
+              return (
               <div
                 key={model.id}
-                className={`px-4 py-3 rounded-lg border transition-all flex items-center gap-3 ${
-                  selectedIds.has(model.id)
-                    ? 'border-gray-300 bg-gray-50'
-                    : currentModelId === model.id
-                    ? 'border-gray-300 bg-gray-50/40'
-                    : 'border-slate-200 hover:border-slate-300 bg-white'
+                className={`group flex items-center gap-3 px-4 py-3 transition-colors ${
+                  selected ? 'bg-slate-100' : active ? 'bg-emerald-50/40' : 'hover:bg-slate-50'
                 }`}
               >
                 <input
                   type="checkbox"
-                  checked={selectedIds.has(model.id)}
+                  checked={selected}
                   onChange={() => toggleSelect(model.id)}
                   onClick={e => e.stopPropagation()}
-                  className="rounded w-3.5 h-3.5 cursor-pointer flex-shrink-0"
+                  className="h-4 w-4 shrink-0 cursor-pointer rounded border-slate-300 accent-slate-900"
                 />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <span className="font-semibold text-slate-800 text-sm">{model.name}</span>
-                    {currentModelId === model.id && (
-                      <span className="px-2 py-0.5 bg-gray-700 text-white text-[10px] rounded-full font-bold">ACTIVE</span>
+                <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${active ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                  <FiPackage size={17} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="mb-1 flex flex-wrap items-center gap-2">
+                    <span className="truncate text-sm font-semibold text-slate-900">{model.name}</span>
+                    {active && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Active
+                      </span>
                     )}
                     {model.metadata?.template && (
-                      <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-[10px] rounded-full font-semibold">TEMPLATE</span>
+                      <span className="rounded-md bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-700">Template</span>
                     )}
-                    <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-[10px] rounded-full font-medium">
+                    <span className="rounded-md border border-slate-200 px-1.5 py-0.5 text-[11px] font-medium text-slate-600">
                       {getModelTypeBadgeLabel(model)}
                     </span>
                   </div>
-                  <div className="flex items-center gap-1.5 text-xs text-slate-500 flex-wrap">
-                    <span>{model.locations?.length || 0} locations</span>
-                    <span className="text-slate-300">·</span>
-                    <span>{model.links?.length || 0} links</span>
-                    <span className="text-slate-300">·</span>
-                    <span>{model.technologies?.length || 0} techs</span>
-                    {(model.timeSeries?.length || 0) > 0 && (
-                      <><span className="text-slate-300">·</span><span>{model.timeSeries.length} time series</span></>
-                    )}
-                    {Object.keys(model.scenarios || {}).length > 0 && (
-                      <><span className="text-slate-300">·</span><span>{Object.keys(model.scenarios).length} scenarios</span></>
-                    )}
-                    <span className="text-slate-300">·</span>
-                    <span className="text-[10px] text-slate-400">{new Date(model.updatedAt).toLocaleDateString()}</span>
+                  <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
+                    {stats.map(([n, label]) => (
+                      <span key={label} className="rounded-md bg-slate-100 px-1.5 py-0.5">
+                        <span className="font-semibold tabular-nums text-slate-800">{n}</span> {label}
+                      </span>
+                    ))}
+                    <span className="ml-1 text-[11px] text-slate-400">Updated {new Date(model.updatedAt).toLocaleDateString()}</span>
                   </div>
                 </div>
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  {currentModelId !== model.id && (
+                <div className="flex shrink-0 items-center gap-1">
+                  {!active && (
                     <button
                       onClick={() => loadModel(model.id)}
-                      className="px-3 py-1.5 bg-slate-700 text-white rounded-lg text-xs font-medium hover:bg-slate-800 transition-colors"
+                      className="h-8 rounded-lg bg-slate-900 px-3 text-xs font-semibold text-white transition-colors hover:bg-slate-800"
                     >
                       Load
                     </button>
                   )}
                   <button
                     onClick={() => openEditModal(model)}
-                    className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                    className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 opacity-0 transition-all hover:bg-slate-200/70 hover:text-slate-900 focus:opacity-100 group-hover:opacity-100"
                     title="Edit model"
                   >
                     <FiEdit2 size={15} />
                   </button>
                   <button
                     onClick={() => handleDelete(model.id)}
-                    className="p-1.5 text-slate-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                    className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 opacity-0 transition-all hover:bg-red-50 hover:text-red-600 focus:opacity-100 group-hover:opacity-100"
                     title="Delete"
                   >
                     <FiTrash2 size={15} />
                   </button>
                 </div>
               </div>
-            ))}
+              );
+            })}
+            </div>
           </div>
         )}
       </div>
@@ -1229,52 +1246,62 @@ const Models = () => {
       })()}
 
       {/* Template Models Section */}
-      <div className="bg-white rounded-xl shadow-lg p-5 mb-8">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-slate-800">Template Models</h2>
-          <span className="px-2.5 py-1 bg-gray-100 text-gray-600 rounded-full text-xs font-medium">
-            {TEMPLATE_MODELS.length} templates
-          </span>
+      <div className="mb-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="mb-4">
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+            Template Models
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">{TEMPLATE_MODELS.length}</span>
+          </h2>
+          <p className="text-xs text-slate-500">Ready-made example systems to explore or start from.</p>
         </div>
 
-        <div className="space-y-2">
+        <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
           {TEMPLATE_MODELS.map((template) => (
-            <div key={template.id} className="border border-slate-200 rounded-lg overflow-hidden hover:border-slate-300 transition-all">
+            <div key={template.id} className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-all hover:border-slate-300 hover:shadow-md">
 
-              {/* Main row */}
-              <div className="px-4 py-3 flex items-center gap-3">
-                <span className="text-lg flex-shrink-0">{template.country.split(' ')[0]}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                    <span className="font-semibold text-slate-800 text-sm">{template.name}</span>
-                    <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-[10px] rounded-full font-medium">
-                      {template.locations} loc · {template.links} links
-                    </span>
+              <div className="flex flex-1 flex-col p-4">
+                <div className="flex items-start gap-3">
+                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-slate-50 text-2xl ring-1 ring-slate-200">{template.country.split(' ')[0]}</span>
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold text-slate-900">{template.name}</div>
+                    <div className="text-xs text-slate-500">{template.country.split(' ').slice(1).join(' ')}</div>
                   </div>
-                  <p className="text-xs text-slate-500 line-clamp-1">{template.description}</p>
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <button
-                    onClick={() => setViewingTemplate(viewingTemplate === template.id ? null : template.id)}
-                    className="p-1.5 text-gray-400 hover:text-gray-600 rounded transition-colors"
-                    title="View files"
-                  >
-                    {viewingTemplate === template.id
-                      ? <FiChevronDown size={14} />
-                      : <FiChevronRight size={14} />}
-                  </button>
-                  <button
-                    onClick={() => loadTemplateModel(template)}
-                    className="px-3 py-1.5 bg-gray-700 text-white rounded-md text-xs font-semibold hover:bg-gray-800 transition-colors"
-                  >
-                    Load
-                  </button>
+                <p className="mt-3 line-clamp-2 text-xs leading-relaxed text-slate-500" title={template.description}>{template.description}</p>
+                <div className="mt-3 flex flex-wrap gap-1.5 text-xs text-slate-500">
+                  <span className="rounded-md bg-slate-100 px-1.5 py-0.5"><span className="font-semibold tabular-nums text-slate-800">{template.locations.toLocaleString()}</span> locations</span>
+                  <span className="rounded-md bg-slate-100 px-1.5 py-0.5"><span className="font-semibold tabular-nums text-slate-800">{template.links.toLocaleString()}</span> links</span>
+                  <span className="rounded-md bg-slate-100 px-1.5 py-0.5"><span className="font-semibold tabular-nums text-slate-800">{template.technologies.length}</span> techs</span>
                 </div>
+                <div className="mt-2.5 flex flex-wrap gap-1">
+                  {template.technologies.slice(0, 4).map((tech, i) => (
+                    <span key={i} className="rounded-full border border-slate-200 px-2 py-0.5 text-[10px] text-slate-600">{tech}</span>
+                  ))}
+                  {template.technologies.length > 4 && (
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500">+{template.technologies.length - 4}</span>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 border-t border-slate-100 px-4 py-2.5">
+                <button
+                  onClick={() => setViewingTemplate(viewingTemplate === template.id ? null : template.id)}
+                  aria-expanded={viewingTemplate === template.id}
+                  className="flex h-8 items-center gap-1 rounded-lg px-2 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+                >
+                  {viewingTemplate === template.id ? <FiChevronDown size={14} /> : <FiChevronRight size={14} />}
+                  Files
+                </button>
+                <button
+                  onClick={() => loadTemplateModel(template)}
+                  className="ml-auto h-8 rounded-lg bg-slate-900 px-4 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-slate-800"
+                >
+                  Load template
+                </button>
               </div>
 
               {/* Expanded: files + tech tags */}
               {viewingTemplate === template.id && (
-                <div className="border-t border-gray-100 px-4 py-3 bg-gray-50/50 space-y-3">
+                <div className="space-y-3 border-t border-slate-100 bg-slate-50/60 px-4 py-3">
 
                   {/* File list */}
                   <div className="space-y-1.5">
@@ -1312,7 +1339,7 @@ const Models = () => {
                   {/* Download all */}
                   <button
                     onClick={() => downloadAllTemplateFiles(template)}
-                    className="w-full py-1.5 border border-gray-200 bg-white text-gray-600 rounded-md text-xs font-medium hover:bg-gray-50 flex items-center justify-center gap-1.5 transition-colors"
+                    className="flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50"
                   >
                     <FiDownload size={11} />
                     Download all (
@@ -1323,17 +1350,6 @@ const Models = () => {
                     ].filter(Boolean).length} files)
                   </button>
 
-                  {/* Tech tags */}
-                  <div className="flex flex-wrap gap-1">
-                    {template.technologies.slice(0, 8).map((tech, i) => (
-                      <span key={i} className="px-2 py-0.5 bg-white border border-gray-200 text-gray-600 text-[10px] rounded-full">{tech}</span>
-                    ))}
-                    {template.technologies.length > 8 && (
-                      <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-[10px] rounded-full">
-                        +{template.technologies.length - 8} more
-                      </span>
-                    )}
-                  </div>
                 </div>
               )}
 

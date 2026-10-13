@@ -9,7 +9,7 @@ const parseISO = (s) => {
   return y && m && d ? new Date(y, m - 1, d) : null;
 };
 
-// Calendar date picker; values are 'YYYY-MM-DD' strings. rangeStart/rangeEnd shade a period.
+// Values are 'YYYY-MM-DD' strings.
 export default function DatePicker({ value, onChange, min, rangeStart, rangeEnd, placeholder = 'Pick a date' }) {
   const selected = parseISO(value);
   const [open, setOpen] = useState(false);

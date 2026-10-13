@@ -4,8 +4,10 @@ import { FiChevronDown, FiChevronRight } from "react-icons/fi";
 import {
   LuLayoutDashboard, LuGraduationCap, LuPencilRuler, LuFolderTree, LuBoxes, LuMap, LuMapPin,
   LuWaypoints, LuChartLine, LuLayers, LuDatabase, LuFileDown, LuCirclePlay, LuChartPie, LuSettings,
-  LuPanelLeftClose, LuPanelLeftOpen,
+  LuPanelLeftClose, LuPanelLeftOpen, LuSparkles,
 } from "react-icons/lu";
+import WhatsNewDialog from "./WhatsNewDialog";
+import { useReleases } from "../services/releases";
 import { motion, AnimatePresence } from "framer-motion";
 import tempoLogo from '../assets/Logo_TEMPO.PNG';
 
@@ -147,6 +149,7 @@ const Sidebar = ({ selected, setSelected }) => {
 
       </div>
 
+      <VersionButton open={open} />
       <ToggleClose open={open} setOpen={setOpen} />
     </motion.nav>
   );
@@ -347,6 +350,36 @@ const Logo = () => {
   );
 };
 
+const VersionButton = ({ open }) => {
+  const [showNotes, setShowNotes] = useState(false);
+  const releaseInfo = useReleases();
+  const versionLabel = releaseInfo.latest ? `v${releaseInfo.latest.version}` : 'Release notes';
+  const { tooltip, handlers } = useCollapsedTooltip(`${versionLabel} · What's new`, !open);
+
+  return (
+    <>
+      <button
+        onClick={() => setShowNotes(true)}
+        aria-label={`${versionLabel} — what's new`}
+        {...handlers}
+        className="mt-3 flex h-10 items-center rounded-xl pl-0.5 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900"
+      >
+        <div className="grid h-full w-11 shrink-0 place-items-center">
+          <LuSparkles size={17} strokeWidth={1.75} />
+        </div>
+        <Label open={open} className="flex flex-1 items-center gap-2 pr-2 text-sm">
+          <span className="font-medium">{versionLabel}</span>
+          <span className="ml-auto rounded-full bg-slate-900 px-2 py-0.5 text-[10px] font-semibold text-white">What's new</span>
+        </Label>
+      </button>
+      {tooltip}
+      <AnimatePresence>
+        {showNotes && <WhatsNewDialog {...releaseInfo} onClose={() => setShowNotes(false)} />}
+      </AnimatePresence>
+    </>
+  );
+};
+
 const ToggleClose = ({ open, setOpen }) => {
   const { tooltip, handlers } = useCollapsedTooltip("Expand sidebar", !open);
   const ToggleIcon = open ? LuPanelLeftClose : LuPanelLeftOpen;
@@ -357,7 +390,7 @@ const ToggleClose = ({ open, setOpen }) => {
         onClick={() => setOpen((pv) => !pv)}
         aria-label={open ? "Collapse sidebar" : "Expand sidebar"}
         {...handlers}
-        className="mt-3 border-t border-slate-200 pt-2"
+        className="border-t border-slate-200 pt-2"
       >
         <div className="flex h-11 items-center rounded-xl pl-0.5 text-slate-500 transition-colors duration-200 hover:bg-slate-50 hover:text-slate-900">
           <div className="grid h-full w-11 shrink-0 place-content-center">

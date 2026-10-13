@@ -4,7 +4,6 @@ import { LuUpload, LuDownload, LuCalendarClock, LuColumns3, LuHash, LuLink } fro
 const pad = (n) => String(n).padStart(2, '0');
 const hourStamp = (h) => `2024-01-01 ${pad(h)}:00`;
 
-// Small, realistic example files the user can download and edit.
 const EXAMPLES = {
   demand: {
     file: 'demand_example.csv',
@@ -48,7 +47,6 @@ const SAMPLE = [
   ['…', '…', '…'],
 ];
 
-// Explains the CSV structure TEMPO expects, with a drop zone and example downloads.
 export default function TimeSeriesGuide({ onFile, compact = false }) {
   const [dragging, setDragging] = useState(false);
 

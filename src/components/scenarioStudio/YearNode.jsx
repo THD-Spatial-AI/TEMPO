@@ -9,6 +9,7 @@
  */
 
 import React, { memo, useContext, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Handle, Position, NodeResizer } from '@xyflow/react';
 import { FiCalendar, FiTrash2, FiCopy, FiPlus } from 'react-icons/fi';
 import { BoardCtx } from './boardContext.js';
@@ -20,7 +21,9 @@ const YEAR_CATEGORIES = CARD_CATEGORIES.filter(c => c.lanes.includes('year'));
 
 function YearNodeImpl({ id, data, selected }) {
   const ctx = useContext(BoardCtx) || {};
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState(null);
+  const menuOpen = !!menuPos;
+  const setMenuOpen = (open) => setMenuPos(open ? menuPos : null);
 
   return (
     <div
@@ -51,7 +54,12 @@ function YearNodeImpl({ id, data, selected }) {
         />
         <div className="ml-auto flex items-center gap-0.5">
           <button
-            onClick={(e) => { e.stopPropagation(); setMenuOpen(o => !o); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (menuPos) { setMenuPos(null); return; }
+              const r = e.currentTarget.getBoundingClientRect();
+              setMenuPos({ top: r.bottom + 6, left: Math.max(8, r.right - 224) });
+            }}
             className="nodrag flex h-6 items-center gap-1 rounded-md px-1.5 text-[11px] font-semibold text-slate-700 transition-colors hover:bg-slate-100"
             title="Add a config card to this year"
           >
@@ -74,23 +82,27 @@ function YearNodeImpl({ id, data, selected }) {
         </div>
       </div>
 
-      {menuOpen && (
+      {menuOpen && createPortal(
         <>
-          <div className="fixed inset-0 z-[80]" onClick={(e) => { e.stopPropagation(); setMenuOpen(false); }} />
-          <div className="nodrag nopan absolute right-2 top-[42px] z-[81] w-52 overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-xl">
+          <div className="fixed inset-0 z-[1000]" onClick={(e) => { e.stopPropagation(); setMenuOpen(false); }} />
+          <div
+            style={{ top: menuPos.top, left: menuPos.left }}
+            className="fixed z-[1001] max-h-[60vh] w-56 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-2xl shadow-slate-900/15"
+          >
             <div className="px-2 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
               Add to {data.year}
             </div>
             {YEAR_CATEGORIES.map(c => (
               <button key={c.id}
                 onClick={(e) => { e.stopPropagation(); ctx.onAddConfigToYear?.(id, c.id); setMenuOpen(false); }}
-                className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-slate-100">
+                className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-slate-100">
                 <CategoryTile meta={c} size="sm" />
-                <span className="truncate text-xs font-medium text-slate-700">{c.label}</span>
+                <span className="truncate text-[13px] font-medium text-slate-700">{c.label}</span>
               </button>
             ))}
           </div>
-        </>
+        </>,
+        document.body
       )}
 
       {!data._hasChildren && (

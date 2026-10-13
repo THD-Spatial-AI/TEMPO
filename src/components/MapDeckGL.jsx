@@ -42,6 +42,7 @@ const MapDeckGL = () => {
   const [mode, setMode] = useState('view');
   const [linkStart, setLinkStart] = useState(null);
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false);
+  const [legendOpen, setLegendOpen] = useState(true);
   const [locationsExpanded, setLocationsExpanded] = useState(true);
   const [linksExpanded, setLinksExpanded] = useState(true);
   const [lastPolylineLocation, setLastPolylineLocation] = useState(null);
@@ -1110,33 +1111,46 @@ const MapDeckGL = () => {
           const totalNodes = kindCounts.substation + kindCounts.plant + kindCounts.transmission_node;
 
           return (
-            <div className="absolute bottom-4 right-4 bg-white rounded-lg shadow-xl p-4 z-50 max-w-xs max-h-96 overflow-y-auto">
-              <h4 className="font-bold text-sm text-gray-900 mb-3 flex items-center gap-2">
-                <FiLayers size={16} />
-                Map Legend
-              </h4>
+            <div className="absolute bottom-4 right-4 z-50 w-64 overflow-hidden rounded-2xl bg-white/90 shadow-xl shadow-slate-900/10 ring-1 ring-slate-900/5 backdrop-blur-md">
+              <button
+                onClick={() => setLegendOpen(o => !o)}
+                aria-expanded={legendOpen}
+                className="flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-slate-50/80"
+              >
+                <span className="grid h-7 w-7 place-items-center rounded-lg bg-slate-900 text-white"><FiLayers size={14} /></span>
+                <span className="flex-1 text-sm font-semibold text-slate-900">Legend</span>
+                <FiChevronDown size={15} className={`text-slate-400 transition-transform ${legendOpen ? '' : '-rotate-180'}`} />
+              </button>
+              {legendOpen && (
+              <div className="max-h-80 space-y-4 overflow-y-auto border-t border-slate-100 px-4 pb-4 pt-3">
+              {totalNodes === 0 && techMapEntries.size === 0 && links.length === 0 && (
+                <p className="text-xs text-slate-500">Add technologies or links to see them here.</p>
+              )}
               
               {/* Node types — same palette as the map (red subs / green plants / amber transmission) */}
               {totalNodes > 0 && (
-                <div className="mb-4">
-                  <div className="text-xs font-semibold text-gray-700 mb-2">Node types</div>
+                <div>
+                  <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Node types</div>
                   <div className="space-y-1.5 text-xs">
                     {kindCounts.substation > 0 && (
                       <div className="flex items-center gap-2">
-                        <span className="w-3.5 h-3.5 rounded-full border border-gray-300 flex-shrink-0" style={{ backgroundColor: 'rgb(239, 68, 68)' }} />
-                        <span className="text-gray-700">Substations ({kindCounts.substation})</span>
+                        <span className="h-3 w-3 shrink-0 rounded-full ring-2 ring-white shadow-sm" style={{ backgroundColor: 'rgb(239, 68, 68)' }} />
+                        <span className="flex-1 text-slate-700">Substations</span>
+                        <span className="tabular-nums text-slate-400">{kindCounts.substation}</span>
                       </div>
                     )}
                     {kindCounts.plant > 0 && (
                       <div className="flex items-center gap-2">
-                        <span className="w-3.5 h-3.5 rounded-full border border-gray-300 flex-shrink-0" style={{ backgroundColor: 'rgb(34, 197, 94)' }} />
-                        <span className="text-gray-700">Power plants ({kindCounts.plant})</span>
+                        <span className="h-3 w-3 shrink-0 rounded-full ring-2 ring-white shadow-sm" style={{ backgroundColor: 'rgb(34, 197, 94)' }} />
+                        <span className="flex-1 text-slate-700">Power plants</span>
+                        <span className="tabular-nums text-slate-400">{kindCounts.plant}</span>
                       </div>
                     )}
                     {kindCounts.transmission_node > 0 && (
                       <div className="flex items-center gap-2">
-                        <span className="w-3.5 h-3.5 rounded-full border border-gray-300 flex-shrink-0" style={{ backgroundColor: 'rgb(245, 158, 11)' }} />
-                        <span className="text-gray-700">Transmission nodes ({kindCounts.transmission_node})</span>
+                        <span className="h-3 w-3 shrink-0 rounded-full ring-2 ring-white shadow-sm" style={{ backgroundColor: 'rgb(245, 158, 11)' }} />
+                        <span className="flex-1 text-slate-700">Transmission nodes</span>
+                        <span className="tabular-nums text-slate-400">{kindCounts.transmission_node}</span>
                       </div>
                     )}
                   </div>
@@ -1145,15 +1159,15 @@ const MapDeckGL = () => {
               
               {/* Technologies */}
               {techMapEntries.size > 0 && (
-                <div className="mb-4 pt-3 border-t border-gray-200">
-                  <div className="text-xs font-semibold text-gray-700 mb-2">Technologies</div>
+                <div>
+                  <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Technologies</div>
                   <div className="space-y-1.5 text-xs">
                     {Array.from(techMapEntries.entries()).map(([techName, { color, displayName }]) => {
                       const rgbaColor = `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${color[3] / 255})`;
                       return (
                         <div key={techName} className="flex items-center gap-2">
-                          <div className="w-4 h-4 rounded-full border-2 border-gray-800" style={{ backgroundColor: rgbaColor }}></div>
-                          <span className="text-gray-700">{displayName}</span>
+                          <span className="h-3 w-3 shrink-0 rounded-full ring-2 ring-white shadow-sm" style={{ backgroundColor: rgbaColor }} />
+                          <span className="truncate text-slate-700">{displayName}</span>
                         </div>
                       );
                     })}
@@ -1177,7 +1191,8 @@ const MapDeckGL = () => {
                     techName = link.tech;
                   }
                   
-                  if (techName) {
+                  techName = techName || 'unknown';
+                  {
                     if (techName.toLowerCase().includes('power_line')) {
                       powerLines.push(link);
                     } else {
@@ -1199,18 +1214,20 @@ const MapDeckGL = () => {
                 });
                 
                 return (
-                  <div className="pt-3 border-t border-gray-200">
-                    <div className="text-xs font-semibold text-gray-700 mb-2">
-                      Transmission Lines ({links.length} links)
+                  <div>
+                    <div className="mb-2 flex items-center text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                      <span className="flex-1">Transmission</span>
+                      <span className="normal-case tracking-normal">{links.length} link{links.length === 1 ? '' : 's'}</span>
                     </div>
                     
                     {/* Power Lines (Plant to Substation) */}
                     {powerLines.length > 0 && (
                       <div className="mb-2">
-                        <div className="text-xs text-gray-500 mb-1">Power Plant Connections</div>
-                        <div className="flex items-center gap-2 text-xs mb-1">
-                          <div className="w-6 h-0.5" style={{ backgroundColor: 'rgb(28, 3, 255)' }}></div>
-                          <span className="text-gray-700">Power Lines ({powerLines.length})</span>
+                        <div className="mb-1 text-[11px] text-slate-500">Power plant connections</div>
+                        <div className="mb-1 flex items-center gap-2 text-xs">
+                          <span className="h-1 w-5 shrink-0 rounded-full" style={{ backgroundColor: 'rgb(28, 3, 255)' }} />
+                          <span className="flex-1 text-slate-700">Power lines</span>
+                          <span className="tabular-nums text-slate-400">{powerLines.length}</span>
                         </div>
                       </div>
                     )}
@@ -1218,19 +1235,20 @@ const MapDeckGL = () => {
                     {/* Voltage Level Lines */}
                     {sortedVoltages.length > 0 && (
                       <div>
-                        <div className="text-xs text-gray-500 mb-1">By Voltage Level</div>
+                        <div className="mb-1 text-[11px] text-slate-500">By voltage level</div>
                         {sortedVoltages.map(voltage => {
                           const color = getVoltageColor(voltage);
                           const count = voltageGroups[voltage].length;
                           return (
-                            <div key={voltage} className="flex items-center gap-2 text-xs mb-1">
-                              <div 
-                                className="w-6 h-0.5" 
+                            <div key={voltage} className="mb-1 flex items-center gap-2 text-xs">
+                              <span
+                                className="h-1 w-5 shrink-0 rounded-full"
                                 style={{ backgroundColor: `rgb(${color[0]}, ${color[1]}, ${color[2]})` }}
-                              ></div>
-                              <span className="text-gray-700">
-                                {voltage.replace('_', ' ').toUpperCase()} ({count})
+                              />
+                              <span className="flex-1 truncate text-slate-700">
+                                {voltage === 'unknown' ? 'Other links' : voltage.replace(/_/g, ' ').replace(/\b(ac|dc|hv|hvac|hvdc)\b/gi, m => m.toUpperCase()).replace(/\b[a-z]/g, c => c.toUpperCase())}
                               </span>
+                              <span className="tabular-nums text-slate-400">{count}</span>
                             </div>
                           );
                         })}
@@ -1239,6 +1257,8 @@ const MapDeckGL = () => {
                   </div>
                 );
               })()}
+              </div>
+              )}
             </div>
           );
         })()}

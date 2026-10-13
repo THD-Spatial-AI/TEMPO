@@ -5,7 +5,6 @@ import {
 
 const ICONS = { FiTrendingUp, FiCloud, FiZap, FiSliders, FiSun, FiMapPin, FiWind, FiActivity, FiLayers, FiGitMerge };
 
-// Gradient icon tile for a card category (meta from CARD_CATEGORIES).
 export default function CategoryTile({ meta, size = 'md' }) {
   const Icon = ICONS[meta?.icon] || FiSliders;
   const box = size === 'lg' ? 'h-9 w-9 rounded-xl' : size === 'sm' ? 'h-6 w-6 rounded-md' : 'h-8 w-8 rounded-lg';
