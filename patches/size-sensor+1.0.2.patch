@@ -1,0 +1,13 @@
+diff --git a/node_modules/size-sensor/lib/sensors/resizeObserver.js b/node_modules/size-sensor/lib/sensors/resizeObserver.js
+index eee4f70..ee47b20 100644
+--- a/node_modules/size-sensor/lib/sensors/resizeObserver.js
++++ b/node_modules/size-sensor/lib/sensors/resizeObserver.js
+@@ -58,7 +58,7 @@ var createSensor = function createSensor(element, whenDestroy) {
+    * destroy
+    */
+   var destroy = function destroy() {
+-    sensor.disconnect();
++    sensor && sensor.disconnect();
+     listeners = [];
+     sensor = undefined;
+     element.removeAttribute(_constant.SizeSensorId);

@@ -191,7 +191,8 @@ const ResultsMap = ({ locations, capacitiesByLoc, dominantTechByLoc, generationB
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return;
     let destroyed = false;
-    import('maplibre-gl').then(({ default: mgl }) => {
+    import('maplibre-gl').then((ns) => {
+      const mgl = ns.default ?? ns;
       if (destroyed || !mapRef.current) return;
       const locs = locations.filter(l => l.latitude && l.longitude);
       const avgLat = locs.length ? locs.reduce((s, l) => s + l.latitude, 0) / locs.length : 50;
@@ -494,7 +495,8 @@ const TransmissionFlowMap = ({ locations, transmissionFlowData, capacitiesByLoc,
     let destroyed = false;
     let roMap = null;
 
-    import('maplibre-gl').then(({ default: mgl }) => {
+    import('maplibre-gl').then((ns) => {
+      const mgl = ns.default ?? ns;
       if (destroyed || !mapRef.current) return;
       const avgLat = locs.length ? locs.reduce((s, l) => s + l.latitude,  0) / locs.length : 50;
       const avgLon = locs.length ? locs.reduce((s, l) => s + l.longitude, 0) / locs.length : 10;
