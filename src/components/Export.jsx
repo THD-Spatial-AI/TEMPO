@@ -435,7 +435,7 @@ function ResultsExportPanel({ completedJobs }) {
   return (
     <div className="space-y-4">
       {/* Run selector */}
-      <div className="bg-surface-container-lowest rounded-xl p-5 border border-black/15">
+      <div className="bg-white rounded-xl shadow-lg p-5">
         <h2 className="text-base font-semibold text-slate-800 mb-3">Select Run</h2>
         <select
           value={selJobId || ''}
@@ -466,7 +466,7 @@ function ResultsExportPanel({ completedJobs }) {
           <button onClick={() => setChecked(new Set())}
             className="text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition">None</button>
           <button onClick={handleExport} disabled={busy || !result || readyCount === 0}
-            className="px-4 py-2 bg-black text-white rounded-lg font-bold uppercase tracking-wide text-sm hover:bg-black/80 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors">
+            className="px-4 py-2 bg-black text-white rounded-lg font-semibold text-sm hover:bg-black/80 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors">
             <FiDownload size={15} />
             {busy ? 'Building ZIP…' : `Export ${readyCount} as ZIP`}
           </button>
@@ -485,7 +485,7 @@ function ResultsExportPanel({ completedJobs }) {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
 
         {/* LEFT — data / values */}
-        <div className="lg:col-span-4 bg-surface-container-lowest rounded-xl p-4 border border-black/15">
+        <div className="lg:col-span-4 bg-white rounded-xl shadow-lg p-4">
           <div className="flex items-center gap-1.5 mb-2">
             <FiDatabase size={12} className="text-slate-400" />
             <h3 className="text-sm font-semibold text-slate-700">Data &amp; values</h3>
@@ -499,7 +499,7 @@ function ResultsExportPanel({ completedJobs }) {
                   onClick={() => o.available && toggleOutput(o.id)}
                   className={`rounded-xl border transition-all ${!o.available ? 'opacity-40 border-black/15' : on ? 'border-gray-700 ring-1 ring-gray-300 bg-white cursor-pointer' : 'border-black/15 bg-slate-50 opacity-70 hover:opacity-100 cursor-pointer'}`}>
                   <div className="flex items-center gap-2 px-3 py-2 border-b border-black/10">
-                    <span className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 ${on ? 'bg-gray-800 text-white' : 'bg-white border border-slate-300 text-transparent'}`}>
+                    <span className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 ${on ? 'bg-black text-white' : 'bg-white border border-black/15 text-transparent'}`}>
                       <FiCheckCircle size={11} />
                     </span>
                     <span className="text-xs font-medium text-slate-700 flex-1 truncate">{o.label}</span>
@@ -516,7 +516,7 @@ function ResultsExportPanel({ completedJobs }) {
         </div>
 
         {/* RIGHT — graphs (charts + maps) */}
-        <div className="lg:col-span-8 bg-surface-container-lowest rounded-xl p-4 space-y-5 border border-black/15">
+        <div className="lg:col-span-8 bg-white rounded-xl shadow-lg p-4 space-y-5">
 
           {/* Charts */}
           <div>
@@ -535,7 +535,7 @@ function ResultsExportPanel({ completedJobs }) {
                     onClick={() => o.available && toggleOutput(o.id)}
                     className={`rounded-xl border cursor-pointer transition-all ${WIDE_CHART_IDS.has(cid) ? '2xl:col-span-2' : ''} ${on ? 'border-gray-700 ring-1 ring-gray-300 bg-white' : 'border-black/15 bg-slate-50 opacity-60 hover:opacity-90'}`}>
                     <div className="flex items-center gap-2 px-3 py-2 border-b border-black/10">
-                      <span className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 ${on ? 'bg-gray-800 text-white' : 'bg-white border border-slate-300 text-transparent'}`}>
+                      <span className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 ${on ? 'bg-black text-white' : 'bg-white border border-black/15 text-transparent'}`}>
                         <FiCheckCircle size={11} />
                       </span>
                       <span className="text-xs font-medium text-slate-700 flex-1 truncate">{chartOpts[cid]?.label || o.label}</span>
@@ -561,7 +561,7 @@ function ResultsExportPanel({ completedJobs }) {
               <div className="flex gap-1 flex-wrap mb-2">
                 {spatialViews.map(v => (
                   <button key={v.id} onClick={() => setPreviewMapId(v.id)}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase tracking-wide transition-all ${
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${
                       previewMap?.id === v.id ? 'bg-black text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                     }`}>
                     {v.label}
@@ -580,10 +580,10 @@ function ResultsExportPanel({ completedJobs }) {
                     const on = checked.has(v.id);
                     return (
                       <button key={v.id} onClick={() => toggleOutput(v.id)}
-                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wide border transition-all ${
-                          on ? 'bg-black text-white border-black' : 'bg-white text-slate-500 border-black/15 hover:border-slate-300'
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all ${
+                          on ? 'bg-black text-white border-gray-800' : 'bg-white text-slate-500 border-black/15 hover:border-black/15'
                         }`}>
-                        <span className={`w-3.5 h-3.5 rounded flex items-center justify-center ${on ? 'bg-white/20' : 'border border-slate-300'}`}>
+                        <span className={`w-3.5 h-3.5 rounded flex items-center justify-center ${on ? 'bg-white/20' : 'border border-black/15'}`}>
                           {on && <FiCheckCircle size={10} />}
                         </span>
                         {v.label}
@@ -1175,122 +1175,116 @@ calliope run model.yaml --scenario=Main
          style={{ paddingLeft: `${indent * 16}px` }}>
       {indent > 0 && <span className="text-gray-300 select-none flex-shrink-0">{'└─'}</span>}
       <Icon size={11} className={`flex-shrink-0 ${isDir ? 'text-amber-400' : 'text-blue-400'}`} />
-      <span className="font-mono text-xs">{name}</span>
+      <span className="font-mono text-[13px]">{name}</span>
       {note && <span className="font-sans text-[10px] text-gray-400 ml-1">{note}</span>}
     </div>
   );
 
-  return (
-    <div className="flex-1 p-6 overflow-y-auto">
-      <div className="space-y-5">
+  const selectedFmt = EXPORT_FORMATS.find(f => f.id === selectedFormat) || EXPORT_FORMATS[0];
+  const modelVersion = currentModel?.metadata?.modelConfig?.calliopeVersion
+    ? `Calliope ${currentModel.metadata.modelConfig.calliopeVersion}` : 'Calliope 0.6.8';
 
-        {/* Page header + mode toggle */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <FiDownload size={18} className="text-gray-500" />
-          <div className="flex-1">
-            <h1 className="text-xl font-black tracking-tighter text-black">Export</h1>
-            <p className="text-xs text-slate-500">
+  return (
+    <div className="flex-1 overflow-y-auto bg-gray-50">
+      <div className="w-full space-y-6 px-8 py-8">
+
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-black tracking-tighter text-black">Export</h1>
+            <p className="mt-1 text-[15px] text-slate-500">
               {exportMode === 'model' ? 'Export your active model as a framework-ready ZIP archive' : 'Download results data from a completed run'}
             </p>
           </div>
-          <div className="flex gap-1 bg-slate-100 rounded-xl p-1">
+          <div className="inline-flex gap-1 rounded-xl bg-slate-200/80 p-1 ring-1 ring-inset ring-slate-300/50">
             {[{ id: 'model', label: 'Model', icon: FiPackage }, { id: 'results', label: 'Results', icon: FiLayers }].map(({ id, label, icon: Icon }) => (
               <button key={id} onClick={() => setExportMode(id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  exportMode === id ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-all ${
+                  exportMode === id ? 'bg-black text-white ' : 'text-slate-600 hover:bg-white/70 hover:text-slate-900'
                 }`}>
-                <Icon size={12} /> {label}
+                <Icon size={14} /> {label}
               </button>
             ))}
           </div>
         </div>
 
-        {/* Results mode */}
         {exportMode === 'results' && (
           <ResultsExportPanel completedJobs={completedJobs || []} />
         )}
 
-        {/* Model mode */}
         {exportMode === 'model' && !currentModel && (
-          <div className="bg-white rounded-xl border border-black/15 p-10 text-center">
-            <FiPackage size={36} className="mx-auto text-gray-300 mb-3" />
-            <p className="font-semibold text-gray-700 mb-1">No model selected</p>
-            <p className="text-sm text-gray-400">Select a model from the Models section to export it.</p>
+          <div className="flex flex-col items-center rounded-2xl border border-dashed border-black/15 bg-white px-6 py-16 text-center">
+            <div className="mb-3 grid h-12 w-12 place-items-center rounded-full bg-slate-100 text-slate-500"><FiPackage size={20} /></div>
+            <p className="text-sm font-semibold text-slate-800">No model selected</p>
+            <p className="mt-1 text-sm text-slate-500">Select a model from Structure → Models to export it.</p>
           </div>
         )}
 
         {exportMode === 'model' && currentModel && (<>
 
-        {/* Active model card */}
-        <div className="bg-surface-container-lowest rounded-xl p-5 border border-black/15">
-          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Active Model</h2>
-          <div className="px-4 py-3 border border-black/15 rounded-lg bg-gray-50 flex items-center gap-3">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                <span className="font-semibold text-slate-800 text-sm">{currentModel.name}</span>
-                <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-[10px] font-medium">
-                  {currentModel.metadata?.modelConfig?.calliopeVersion
-                    ? `Calliope ${currentModel.metadata.modelConfig.calliopeVersion}`
-                    : 'Calliope 0.6.8'}
-                </span>
-              </div>
-              <p className="text-xs text-slate-500">
-                {locs.length} locations · {lnks.length} links · {techs.length} techs · {modelTs.length} time series · {modelOverrides.length} overrides · {modelScenarios.length} scenarios
-              </p>
+        {/* Active model */}
+        <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-black/15 bg-white px-5 py-4 ">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-black text-white"><FiPackage size={17} /></span>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="truncate text-base font-semibold text-slate-900">{currentModel.name}</span>
+              <span className="rounded-md border border-black/15 px-1.5 py-0.5 text-[11px] font-medium text-slate-500">{modelVersion}</span>
             </div>
+            <p className="text-xs text-slate-500">Active model</p>
+          </div>
+          <div className="ml-auto flex flex-wrap gap-1.5">
+            {[
+              [locs.length, 'locations'], [lnks.length, 'links'], [techs.length, 'techs'],
+              [modelTs.length, 'time series'], [modelOverrides.length, 'overrides'], [modelScenarios.length, 'scenarios'],
+            ].map(([n, label]) => (
+              <span key={label} className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs text-slate-600">
+                <span className="font-semibold tabular-nums text-slate-900">{n}</span> {label}
+              </span>
+            ))}
           </div>
         </div>
 
-        {/* Format selection — lateral grid */}
-        <div className="bg-surface-container-lowest rounded-xl p-5 border border-black/15">
-          <h2 className="text-xl font-semibold text-slate-800 mb-3">Export Format</h2>
-          <div className="grid grid-cols-5 gap-3">
-            {EXPORT_FORMATS.map(fmt => {
-              const Icon = fmt.icon;
-              const isSelected = selectedFormat === fmt.id;
-              return (
-                <button
-                  key={fmt.id}
-                  onClick={() => fmt.supported && setSelectedFormat(fmt.id)}
-                  disabled={!fmt.supported}
-                  className={`relative flex flex-col items-center gap-2 px-3 py-4 rounded-xl border-2 text-center transition-all ${
-                    isSelected
-                      ? 'border-gray-700 bg-gray-50'
-                      : fmt.supported
-                      ? 'border-black/15 hover:border-gray-300 bg-white hover:bg-gray-50'
-                      : 'border-black/10 bg-gray-50 opacity-50 cursor-not-allowed'
-                  }`}
-                >
-                  <Icon size={20} className={isSelected ? 'text-gray-700' : 'text-gray-400'} />
-                  <div>
-                    <p className={`text-xs font-semibold leading-tight ${isSelected ? 'text-gray-800' : 'text-gray-600'}`}>
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+          <div className="space-y-6 xl:col-span-2">
+
+            {/* Format */}
+            <section className="rounded-2xl border border-black/15 bg-white p-6 ">
+              <h2 className="text-base font-semibold text-slate-900">Export format</h2>
+              <p className="mb-4 text-xs text-slate-500">The framework the archive is written for.</p>
+              <div role="radiogroup" aria-label="Export format" className="grid grid-cols-2 gap-1 rounded-xl bg-slate-200/80 p-1 ring-1 ring-inset ring-slate-300/50 sm:grid-cols-3 lg:grid-cols-5">
+                {EXPORT_FORMATS.map(fmt => {
+                  const Icon = fmt.icon;
+                  const sel = selectedFormat === fmt.id;
+                  return (
+                    <button
+                      key={fmt.id}
+                      role="radio"
+                      aria-checked={sel}
+                      onClick={() => fmt.supported && setSelectedFormat(fmt.id)}
+                      disabled={!fmt.supported}
+                      title={fmt.description}
+                      className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all disabled:cursor-not-allowed disabled:opacity-40 ${
+                        sel ? 'bg-black text-white ' : 'text-slate-600 hover:bg-white/70 hover:text-slate-900'
+                      }`}
+                    >
+                      <Icon size={14} />
                       {fmt.name}
-                    </p>
-                    <p className="text-[10px] text-gray-400 mt-0.5 leading-tight line-clamp-2">{fmt.description}</p>
-                  </div>
-                  {!fmt.supported && (
-                    <span className="absolute top-1.5 right-1.5 text-[9px] bg-gray-100 text-gray-400 px-1.5 py-0.5">
-                      Soon
-                    </span>
-                  )}
-                  {isSelected && (
-                    <div className="absolute top-1.5 left-1.5 w-2.5 h-2.5 rounded-full bg-gray-700 flex items-center justify-center">
-                      <div className="w-1 h-1 rounded-full bg-white" />
-                    </div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-2 px-1 text-xs text-slate-500">{selectedFmt.description}</p>
+            </section>
 
-        {/* Structure + Action — side by side */}
-        <div className="grid grid-cols-2 gap-5 items-start">
-
-          {/* Output structure — detailed */}
-          <div className="bg-surface-container-lowest rounded-xl p-5 border border-black/15">
-            <h2 className="text-xl font-semibold text-slate-800 mb-3">Output Structure</h2>
-            <div className="bg-gray-50 border border-black/15 rounded-lg px-3 py-3 leading-5">
+            {/* Output structure */}
+            <section className="rounded-2xl border border-black/15 bg-white p-6 ">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-semibold text-slate-900">Output structure</h2>
+                  <p className="text-xs text-slate-500">What the ZIP archive will contain.</p>
+                </div>
+                <span className="rounded-lg bg-slate-100 px-2.5 py-1 font-mono text-xs text-slate-600">{currentModel.name || 'model'}.zip</span>
+              </div>
+              <div className="rounded-xl border border-black/15 bg-slate-50/70 px-4 py-3 leading-5">
               {selectedFormat === 'osemosys' ? (
                 <>
                   <TreeRow icon={FiFolder} name={`${currentModel.name || 'model'}/`} isDir note="ZIP root" />
@@ -1364,24 +1358,36 @@ calliope run model.yaml --scenario=Main
                   }
                 </>
               )}
-            </div>
+              </div>
+            </section>
           </div>
 
-          {/* Export action */}
-          <div className="bg-surface-container-lowest rounded-xl p-5 border border-black/15">
-            <h2 className="text-xl font-semibold text-slate-800 mb-3">Export</h2>
-            <p className="text-xs text-gray-500 mb-4">
-              The model will be packaged as a ZIP archive ready to use with{' '}
-              <span className="font-medium text-gray-700">
-                {EXPORT_FORMATS.find(f => f.id === selectedFormat)?.name || 'Calliope'}
-              </span>.
+          {/* Export summary */}
+          <div className="xl:sticky xl:top-6 xl:self-start">
+            <div className="rounded-2xl border border-black/15 bg-white p-5 ">
+              <h2 className="text-sm font-semibold text-slate-900">Export summary</h2>
+              <dl className="mt-3 divide-y divide-black/10 text-sm">
+                {[
+                  ['Model', currentModel.name],
+                  ['Format', selectedFmt.name],
+                  ['File', `${currentModel.name || 'model'}.zip`],
+                  ['Contents', `${locs.length} locations · ${lnks.length} links`],
+                ].map(([k, v]) => (
+                  <div key={k} className="flex items-center justify-between gap-3 py-2">
+                    <dt className="text-slate-500">{k}</dt>
+                    <dd className="truncate text-right font-medium text-slate-900">{v}</dd>
+                  </div>
+                ))}
+              </dl>
+              <p className="mt-3 text-xs leading-relaxed text-slate-500">
+                Packaged as a ZIP archive ready to use with <span className="font-medium text-slate-700">{selectedFmt.name}</span>.
               {selectedFormat === 'calliope07' && ' Uses single flat YAML + CSV layout (0.7 convention).'}
               {selectedFormat === 'calliope' && ' Uses nested folder structure compatible with Calliope 0.6.8.'}
               {selectedFormat === 'pypsa' && ' Contains both model.nc (netCDF) and a CSV folder — loadable with pypsa.Network(). Requires the PyPSA engine (Settings).'}
               {selectedFormat === 'adoptnet0' && ' Generates the AdOpT-NET0 case-directory structure (Topology, ConfigModel, node_data). Requires the AdOpT-NET0 engine (Settings).'}
               {selectedFormat === 'osemosys' && ' Self-contained OSeMOSYS dataset (otoole CSVs + model file + datafile) that reproduces the TEMPO result; run with glpsol.'}
-            </p>
-            <button
+              </p>
+              <button
               onClick={() => {
                 setExportReport([]);
                 if (selectedFormat === 'calliope07') { exportToCalliope07(); return; }
@@ -1396,32 +1402,28 @@ calliope run model.yaml --scenario=Main
                 exportToCalliope();
               }}
               disabled={exporting}
-              className="w-full py-2.5 bg-black text-white rounded-lg font-bold uppercase tracking-wide text-sm hover:bg-black/80 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
-            >
-              <FiDownload size={15} />
-              {exporting
-                ? 'Exporting…'
-                : `Export as ${EXPORT_FORMATS.find(f => f.id === selectedFormat)?.name || 'Calliope'} ZIP`}
-            </button>
+                className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-black text-[15px] font-semibold text-white shadow-lg shadow-slate-900/20 transition-all hover:bg-black/80 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+              >
+                <FiDownload size={17} />
+                {exporting ? 'Exporting…' : `Export as ${selectedFmt.name} ZIP`}
+              </button>
 
-            {exportStatus && (
-              <div className={`mt-3 px-4 py-2.5 rounded-lg flex items-center gap-2 text-sm ${
-                exportStatus.type === 'success'
-                  ? 'bg-gray-50 text-gray-700 border border-black/15'
-                  : exportStatus.type === 'error'
-                  ? 'bg-red-50 text-red-700 border border-red-100'
-                  : 'bg-gray-50 text-gray-600 border border-black/15'
-              }`}>
-                {exportStatus.type === 'success'
-                  ? <FiCheckCircle size={14} className="flex-shrink-0" />
-                  : <FiAlertCircle size={14} className="flex-shrink-0" />}
-                <span>{exportStatus.message}</span>
-              </div>
-            )}
+              {exportStatus && (
+                <div className={`mt-3 flex items-start gap-2 rounded-lg border px-3 py-2.5 text-sm ${
+                  exportStatus.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                    : exportStatus.type === 'error' ? 'border-red-200 bg-red-50 text-red-700'
+                    : 'border-black/15 bg-slate-50 text-slate-600'
+                }`}>
+                  {exportStatus.type === 'success'
+                    ? <FiCheckCircle size={14} className="mt-0.5 shrink-0" />
+                    : <FiAlertCircle size={14} className="mt-0.5 shrink-0" />}
+                  <span>{exportStatus.message}</span>
+                </div>
+              )}
 
-            <TranslationReport report={exportReport} />
+              <TranslationReport report={exportReport} />
+            </div>
           </div>
-
         </div>
 
         </>

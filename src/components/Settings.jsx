@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
-import { FiDownload, FiRefreshCw, FiTerminal, FiCheckCircle, FiAlertCircle, FiBox, FiCpu, FiZap, FiSliders, FiShield, FiChevronDown, FiInfo, FiServer, FiMessageSquare } from './ui/icons';
+import { FiDownload, FiRefreshCw, FiTerminal, FiCheckCircle, FiAlertCircle, FiBox, FiCpu, FiZap, FiShield, FiChevronDown, FiServer, FiMessageSquare } from './ui/icons';
+import { LuSlidersHorizontal, LuCpu, LuServer, LuMessageSquare, LuShield, LuInfo, LuTrash2 } from './ui/icons';
+import tempoLogo from '../assets/Logo_TEMPO.PNG';
+import Select from './ui/Select';
 import Calliope07EnginePanel from './Calliope07EnginePanel';
 import EngineInstallPanel from './EngineInstallPanel';
 import { getSettings, setSetting } from '../services/appSettings';
@@ -161,7 +164,7 @@ function PythonEnvironmentPanel({ embedded = false, onInstallSuccess }) {
                 disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               <div className={`mt-0.5 w-5 h-5 flex-shrink-0 rounded border-2 flex items-center justify-center transition-colors
-                ${checked ? 'bg-gray-600 border-gray-600' : 'bg-white border-slate-300'}`}>
+                ${checked ? 'bg-gray-600 border-gray-600' : 'bg-white border-black/15'}`}>
                 {checked && (
                   <svg className="w-3 h-3 text-white" viewBox="0 0 12 12" fill="none">
                     <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -194,7 +197,7 @@ function PythonEnvironmentPanel({ embedded = false, onInstallSuccess }) {
               disabled:opacity-50 disabled:cursor-not-allowed`}
           >
             <div className={`mt-0.5 w-5 h-5 flex-shrink-0 rounded border-2 flex items-center justify-center transition-colors
-              ${downloadCbc ? 'bg-gray-600 border-gray-600' : 'bg-white border-slate-300'}`}>
+              ${downloadCbc ? 'bg-gray-600 border-gray-600' : 'bg-white border-black/15'}`}>
               {downloadCbc && (
                 <svg className="w-3 h-3 text-white" viewBox="0 0 12 12" fill="none">
                   <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -217,7 +220,7 @@ function PythonEnvironmentPanel({ embedded = false, onInstallSuccess }) {
       <button
         onClick={handleInstall}
         disabled={installing || selectedModules.length === 0 || !window.electronAPI}
-        className="flex items-center gap-2 px-5 py-2.5 bg-black text-white rounded-xl font-bold uppercase tracking-wide shadow hover:bg-black/80 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm"
+        className="flex items-center gap-2 px-5 py-2.5 bg-black text-white rounded-xl font-semibold shadow hover:bg-black/80 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm"
       >
         {installing ? (
           <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Installing…</>
@@ -293,23 +296,32 @@ function EngineAccordion({ title, icon: Icon, badge, checkFn, defaultOpen = fals
     : 'Not installed';
 
   return (
-    <div className="border border-black/15 rounded-xl overflow-hidden bg-white">
+    <div className={`overflow-hidden rounded-xl border bg-white transition-shadow ${open ? 'border-black/15 ' : 'border-black/15'}`}>
       <button
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 transition-colors"
+        className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50"
       >
-        {Icon && <Icon className="w-5 h-5 text-slate-400 shrink-0" />}
-        <span className="text-sm font-semibold text-slate-800">{title}</span>
+        {Icon && (
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-600">
+            <Icon className="h-4 w-4" />
+          </span>
+        )}
+        <span className="text-sm font-semibold text-slate-900">{title}</span>
         {badge && (
-          <span className="text-xs px-2 py-0.5 font-medium bg-gray-100 text-gray-600">{badge}</span>
+          <span className="rounded-md border border-black/15 px-1.5 py-0.5 text-[11px] font-medium text-slate-500">{badge}</span>
         )}
         <span className="ml-auto flex items-center gap-3">
           {loading ? (
-            <span className="w-3.5 h-3.5 border-2 border-slate-300 border-t-transparent rounded-full animate-spin" />
+            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-black/15 border-t-transparent" />
           ) : (
-            <span className="flex items-center gap-1.5 text-xs">
-              <span className={`w-2 h-2 rounded-full ${installed ? 'bg-gray-500' : 'bg-slate-300'}`} />
-              <span className={installed ? 'text-slate-600' : 'text-slate-400'}>{statusLabel}</span>
+            <span className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium ${
+              !installed ? 'bg-slate-100 text-slate-500'
+                : status?.serviceRunning ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+            }`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${
+                !installed ? 'bg-slate-400' : status?.serviceRunning ? 'bg-emerald-500' : 'bg-amber-500'
+              }`} />
+              {statusLabel}
             </span>
           )}
           <FiChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
@@ -322,43 +334,59 @@ function EngineAccordion({ title, icon: Icon, badge, checkFn, defaultOpen = fals
   );
 }
 
-// ── General preferences panel ─────────────────────────────────────────────────
+function Toggle({ checked, onChange, label }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={() => onChange(!checked)}
+      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 ${
+        checked ? 'bg-black' : 'bg-slate-200'
+      }`}
+    >
+      <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
+    </button>
+  );
+}
+
+function SettingRow({ title, description, children }) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-x-8 gap-y-3 py-5 first:pt-0 last:pb-0">
+      <div className="min-w-0 max-w-xl">
+        <div className="text-sm font-semibold text-slate-900">{title}</div>
+        <p className="mt-0.5 text-[13px] leading-relaxed text-slate-500">{description}</p>
+      </div>
+      <div className="shrink-0">{children}</div>
+    </div>
+  );
+}
+
 function GeneralPanel() {
   const [settings, setSettings] = useState(() => getSettings());
   const update = (key, value) => setSettings(setSetting(key, value));
 
   return (
-    <div className="space-y-6">
-      <div>
-        <label className="block text-[0.6875rem] font-bold text-black/60 mb-2 uppercase tracking-widest">Default View</label>
-        <select
-          value={settings.defaultView}
-          onChange={(e) => update('defaultView', e.target.value)}
-          className="w-full max-w-md px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500"
-        >
-          <option value="Dashboard">Dashboard</option>
-          <option value="Map View">Map View</option>
-        </select>
-        <p className="text-xs text-slate-400 mt-1.5">The view TEMPO opens to on launch.</p>
-      </div>
-
-      <div className="border-t border-black/15 pt-6">
-        <label className="flex items-start gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={settings.autoSave}
-            onChange={(e) => update('autoSave', e.target.checked)}
-            className="mt-0.5 rounded text-gray-600"
+    <div className="divide-y divide-black/10">
+      <SettingRow title="Default view" description="The page TEMPO opens to on launch.">
+        <div className="w-48">
+          <Select
+            value={settings.defaultView}
+            onChange={(v) => update('defaultView', v)}
+            options={[
+              { value: 'Dashboard', label: 'Dashboard' },
+              { value: 'Map View', label: 'Map View' },
+            ]}
           />
-          <span>
-            <span className="block text-sm font-medium text-slate-700">Auto-save</span>
-            <span className="block text-xs text-slate-400 mt-0.5">
-              Automatically persist model changes 1.5s after you stop editing. When off, save
-              manually with Ctrl+S — TEMPO still prompts before navigating away from unsaved changes.
-            </span>
-          </span>
-        </label>
-      </div>
+        </div>
+      </SettingRow>
+      <SettingRow
+        title="Auto-save"
+        description="Save model changes 1.5 s after you stop editing. When off, save with Ctrl+S — TEMPO still asks before you leave unsaved changes."
+      >
+        <Toggle checked={settings.autoSave} onChange={(v) => update('autoSave', v)} label="Auto-save" />
+      </SettingRow>
     </div>
   );
 }
@@ -412,26 +440,26 @@ function RemoteExecutionPanel() {
       <div className="space-y-5 max-w-md">
         {/* Server URL */}
         <div>
-          <label className="block text-[0.6875rem] font-bold text-black/60 mb-2 uppercase tracking-widest">Server URL</label>
+          <label className="block text-sm font-medium text-slate-700 mb-2">Server URL</label>
           <input
             type="text"
             value={form.url}
             onChange={(e) => update('url', e.target.value)}
             placeholder="http://192.168.1.50:8080"
-            className="w-full px-3 py-2 border border-slate-300 rounded-md font-mono text-sm focus:outline-none focus:ring-2 focus:ring-gray-500"
+            className="w-full h-10 px-3 border border-black/15 bg-white rounded-lg font-mono text-sm focus:outline-none focus:border-black/15 focus:ring-2 focus:ring-slate-200"
           />
         </div>
 
         {/* API key */}
         <div>
-          <label className="block text-[0.6875rem] font-bold text-black/60 mb-2 uppercase tracking-widest">API key</label>
+          <label className="block text-sm font-medium text-slate-700 mb-2">API key</label>
           <div className="flex gap-2">
             <input
               type={showKey ? 'text' : 'password'}
               value={form.apiKey}
               onChange={(e) => update('apiKey', e.target.value)}
               placeholder="Leave blank if the server has no API_KEY set"
-              className="flex-1 px-3 py-2 border border-slate-300 rounded-md font-mono text-sm focus:outline-none focus:ring-2 focus:ring-gray-500"
+              className="flex-1 h-10 px-3 border border-black/15 bg-white rounded-lg font-mono text-sm focus:outline-none focus:border-black/15 focus:ring-2 focus:ring-slate-200"
             />
             <button
               type="button"
@@ -451,7 +479,7 @@ function RemoteExecutionPanel() {
         <div className="flex items-center gap-2">
           <button
             onClick={save}
-            className="px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wide text-white bg-black hover:bg-black/80 transition-colors"
+            className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-black hover:bg-black/80 transition-colors"
           >
             Save
           </button>
@@ -598,26 +626,33 @@ function AIPanel() {
       <div className="space-y-5 max-w-md">
         {/* Provider */}
         <div>
-          <label className="block text-[0.6875rem] font-bold text-black/60 mb-2 uppercase tracking-widest">Provider</label>
-          <select
+          <label className="block text-sm font-medium text-slate-700 mb-2">Provider</label>
+          <Select
             value={cfg.provider}
-            onChange={(e) => changeProvider(e.target.value)}
-            className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-gray-500"
-          >
-            {AI_PROVIDERS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
-          </select>
+            onChange={changeProvider}
+            options={AI_PROVIDERS.map(p => ({
+              value: p.id,
+              label: p.label,
+              description: [
+                p.local ? 'Runs on your own hardware · no key needed'
+                  : p.needsBaseUrl ? 'Your own endpoint URL'
+                  : 'Cloud · API key required',
+                p.defaultModel ? `default ${p.defaultModel}` : null,
+              ].filter(Boolean).join(' · '),
+            }))}
+          />
         </div>
 
         {/* Base URL (compatible + Ollama) */}
         {meta.needsBaseUrl && (
           <div>
-            <label className="block text-[0.6875rem] font-bold text-black/60 mb-2 uppercase tracking-widest">{meta.local ? 'Ollama server URL' : 'Base URL'}</label>
+            <label className="block text-sm font-medium text-slate-700 mb-2">{meta.local ? 'Ollama server URL' : 'Base URL'}</label>
             <input
               type="text"
               value={cfg.baseUrl}
               onChange={(e) => updateCfg({ baseUrl: e.target.value })}
               placeholder={meta.local ? 'http://192.168.1.50:11434' : 'https://openrouter.ai/api/v1'}
-              className="w-full px-3 py-2 border border-slate-300 rounded-md font-mono text-sm focus:outline-none focus:ring-2 focus:ring-gray-500"
+              className="w-full h-10 px-3 border border-black/15 bg-white rounded-lg font-mono text-sm focus:outline-none focus:border-black/15 focus:ring-2 focus:ring-slate-200"
             />
             <p className="text-xs text-slate-400 mt-1.5">
               {meta.local
@@ -629,13 +664,13 @@ function AIPanel() {
 
         {/* Model */}
         <div>
-          <label className="block text-[0.6875rem] font-bold text-black/60 mb-2 uppercase tracking-widest">Model</label>
+          <label className="block text-sm font-medium text-slate-700 mb-2">Model</label>
           <input
             type="text"
             value={cfg.model}
             onChange={(e) => updateCfg({ model: e.target.value })}
             placeholder={meta.defaultModel || 'model id'}
-            className="w-full px-3 py-2 border border-slate-300 rounded-md font-mono text-sm focus:outline-none focus:ring-2 focus:ring-gray-500"
+            className="w-full h-10 px-3 border border-black/15 bg-white rounded-lg font-mono text-sm focus:outline-none focus:border-black/15 focus:ring-2 focus:ring-slate-200"
           />
         </div>
 
@@ -648,7 +683,7 @@ function AIPanel() {
           </div>
         ) : (
           <div>
-            <label className="block text-[0.6875rem] font-bold text-black/60 mb-2 uppercase tracking-widest">
+            <label className="block text-sm font-medium text-slate-700 mb-2">
               API key
               {hasKey && <span className="ml-2 text-xs text-gray-600 font-normal"><FiCheckCircle className="inline w-3.5 h-3.5" /> stored</span>}
             </label>
@@ -658,7 +693,7 @@ function AIPanel() {
                 value={keyInput}
                 onChange={(e) => setKeyInput(e.target.value)}
                 placeholder={hasKey ? '•••••••• (a key is stored)' : 'Paste your API key'}
-                className="flex-1 px-3 py-2 border border-slate-300 rounded-md font-mono text-sm focus:outline-none focus:ring-2 focus:ring-gray-500"
+                className="flex-1 h-10 px-3 border border-black/15 bg-white rounded-lg font-mono text-sm focus:outline-none focus:border-black/15 focus:ring-2 focus:ring-slate-200"
               />
               <button type="button" onClick={() => setShowKey(v => !v)} className="px-3 py-2 text-xs font-medium text-slate-500 border border-black/15 rounded-md hover:bg-slate-50">
                 {showKey ? 'Hide' : 'Show'}
@@ -678,7 +713,7 @@ function AIPanel() {
             <button
               onClick={saveKey}
               disabled={!desktop || !keyInput.trim()}
-              className="px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wide text-white bg-black hover:bg-black/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-black hover:bg-black/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Save key
             </button>
@@ -752,11 +787,16 @@ function AboutPanel() {
 
   return (
     <div>
-      <h3 className="text-lg font-semibold text-slate-800 mb-1">About TEMPO</h3>
-      <p className="text-sm text-slate-500 mb-4">
-        Tool for Energy Model Preparation and Optimization. All model data is stored locally on this device.
-      </p>
-      <dl className="rounded-xl border border-black/15 divide-y divide-black/10">
+      <div className="mb-6 flex items-center gap-4">
+        <div className="grid h-14 w-14 place-items-center rounded-2xl border border-black/15 bg-white ">
+          <img src={tempoLogo} alt="" className="h-9 w-9 object-contain" style={{ mixBlendMode: 'multiply' }} />
+        </div>
+        <div>
+          <div className="text-lg font-semibold text-slate-900">TEMPO</div>
+          <p className="text-sm text-slate-500">Tool for Energy Model Preparation and Optimization. All model data is stored locally on this device.</p>
+        </div>
+      </div>
+      <dl className="divide-y divide-black/10 rounded-xl border border-black/15">
         {rows.map(({ label, value }) => (
           <div key={label} className="flex items-center justify-between gap-4 px-4 py-3">
             <dt className="text-sm text-slate-500">{label}</dt>
@@ -768,14 +808,13 @@ function AboutPanel() {
   );
 }
 
-// ── Settings sub-navigation ───────────────────────────────────────────────────
 const SECTIONS = [
-  { id: 'general', label: 'General',              icon: FiSliders },
-  { id: 'engines', label: 'Optimization Engines', icon: FiCpu },
-  { id: 'remote',  label: 'Remote Execution',     icon: FiServer },
-  { id: 'ai',      label: 'Model Advisor',         icon: FiMessageSquare },
-  { id: 'data',    label: 'Privacy & Data',       icon: FiShield },
-  { id: 'about',   label: 'About',                icon: FiInfo },
+  { id: 'general', label: 'General',              icon: LuSlidersHorizontal, hint: 'Startup and saving' },
+  { id: 'engines', label: 'Optimization Engines', icon: LuCpu,               hint: 'Install and manage solvers' },
+  { id: 'remote',  label: 'Remote Execution',     icon: LuServer,            hint: 'Run on a MEME server' },
+  { id: 'ai',      label: 'Model Advisor',        icon: LuMessageSquare,     hint: 'AI provider and API key' },
+  { id: 'data',    label: 'Privacy & Data',       icon: LuShield,            hint: 'Local data and consent' },
+  { id: 'about',   label: 'About',                icon: LuInfo,              hint: 'Version information' },
 ];
 
 const Settings = () => {
@@ -803,16 +842,14 @@ const Settings = () => {
   };
 
   return (
-    <div className="flex-1 p-8 bg-gray-50">
+    <div className="flex-1 bg-gray-50 px-8 py-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-black tracking-tighter text-black mb-2">Settings</h1>
-        <p className="text-slate-600">Application configuration and preferences</p>
+        <h1 className="text-3xl font-black tracking-tighter text-black">Settings</h1>
+        <p className="mt-1 text-[15px] text-slate-500">Application configuration and preferences</p>
       </div>
 
-      <div className="bg-surface-container-lowest rounded-lg flex overflow-hidden min-h-[600px] border border-black/15">
-
-        {/* Sub-navigation */}
-        <nav className="w-60 shrink-0 border-r border-black/15 bg-surface p-3 space-y-1">
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+        <nav className="shrink-0 space-y-1 lg:sticky lg:top-8 lg:w-64">
           {SECTIONS.map((section) => {
             const active = activeSection === section.id;
             const Icon = section.icon;
@@ -820,21 +857,25 @@ const Settings = () => {
               <button
                 key={section.id}
                 onClick={() => setActiveSection(section.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 border-l-2 text-[0.8125rem] font-semibold uppercase tracking-tight text-left transition-colors
-                  ${active
-                    ? 'border-black bg-surface-container-low text-black'
-                    : 'border-transparent text-black/60 hover:text-black'}`}
+                aria-current={active ? 'page' : undefined}
+                className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-all ${
+                  active ? 'bg-white  ring-1 ring-slate-200' : 'hover:bg-white/70'
+                }`}
               >
-                <Icon className="w-4 h-4 shrink-0" />
-                {section.label}
+                <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${active ? 'bg-black text-white' : 'bg-slate-100 text-slate-500'}`}>
+                  <Icon size={15} />
+                </span>
+                <span className="min-w-0">
+                  <span className={`block text-sm font-medium ${active ? 'text-slate-900' : 'text-slate-700'}`}>{section.label}</span>
+                  <span className="block truncate text-[11px] text-slate-400">{section.hint}</span>
+                </span>
               </button>
             );
           })}
         </nav>
 
-        {/* Panel content — all sections stay mounted so in-progress installs survive tab switches */}
-        <div className="flex-1 p-8 overflow-y-auto">
-
+        {/* All sections stay mounted so in-progress installs survive section switches */}
+        <div className="min-w-0 flex-1 rounded-2xl border border-black/15 bg-white p-8 ">
           {/* General */}
           <div className={activeSection === 'general' ? '' : 'hidden'}>
             <GeneralPanel />
@@ -914,35 +955,40 @@ const Settings = () => {
 
           {/* Privacy & Data */}
           <div className={activeSection === 'data' ? '' : 'hidden'}>
-            <h3 className="text-lg font-semibold text-slate-800 mb-1">Privacy &amp; Data</h3>
-            <p className="text-sm text-slate-500 mb-4">
-              TEMPO stores all model data locally on this device. Use the button below to
-              permanently delete all locally stored data (models, exports, and privacy consent
-              record) — this cannot be undone.
-            </p>
+            <h3 className="mb-1 text-lg font-semibold text-slate-900">Privacy &amp; Data</h3>
+            <p className="mb-6 text-sm text-slate-500">TEMPO stores all model data locally on this device.</p>
 
-            <button
-              onClick={() => setConfirmOpen(true)}
-              disabled={clearing}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wide text-white bg-black hover:bg-black/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {clearing ? (
-                <>
-                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Clearing…
-                </>
-              ) : (
-                'Clear All Data'
-              )}
-            </button>
-
-            {clearResult && (
-              <div className={`mt-3 rounded-lg p-3 text-sm ${clearResult.success ? 'bg-gray-50 text-gray-800' : 'bg-gray-50 text-gray-800'}`}>
-                {clearResult.success
-                  ? `Data cleared successfully. Removed: ${(clearResult.deleted || []).join(', ') || 'nothing to remove'}.`
-                  : `Error: ${clearResult.error || 'Unknown error'}`}
+            <div className="rounded-xl border border-red-200 bg-red-50/40">
+              <div className="flex flex-wrap items-center justify-between gap-4 p-5">
+                <div className="max-w-xl">
+                  <div className="text-sm font-semibold text-red-700">Danger zone · clear all data</div>
+                  <p className="mt-0.5 text-[13px] leading-relaxed text-slate-600">
+                    Permanently delete all locally stored data — models, exports and the privacy consent record. This cannot be undone.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setConfirmOpen(true)}
+                  disabled={clearing}
+                  className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg bg-red-600 px-4 text-sm font-semibold text-white  transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {clearing ? (
+                    <>
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      Clearing…
+                    </>
+                  ) : (
+                    <><LuTrash2 size={15} /> Clear all data</>
+                  )}
+                </button>
               </div>
-            )}
+              {clearResult && (
+                <div className="border-t border-red-200 px-5 py-3 text-sm text-slate-700">
+                  {clearResult.success
+                    ? `Data cleared successfully. Removed: ${(clearResult.deleted || []).join(', ') || 'nothing to remove'}.`
+                    : `Error: ${clearResult.error || 'Unknown error'}`}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* About */}
@@ -957,12 +1003,8 @@ const Settings = () => {
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[10000]">
           <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full mx-4 border border-black/15">
             <div className="flex items-center gap-3 p-6 border-b border-black/10">
-              <span className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-600">
-                  <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-                  <path d="M10 11v6"/><path d="M14 11v6"/>
-                  <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
-                </svg>
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-red-50 text-red-600">
+                <LuTrash2 size={17} />
               </span>
               <div>
                 <h3 className="text-base font-semibold text-slate-900">Clear all data?</h3>
@@ -984,7 +1026,7 @@ const Settings = () => {
               </button>
               <button
                 onClick={handleClearAll}
-                className="px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wide text-white bg-black hover:bg-black/80 shadow-sm transition-colors"
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-red-600 hover:bg-red-700  transition-colors"
               >
                 Yes, delete everything
               </button>

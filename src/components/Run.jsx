@@ -8,17 +8,14 @@ import { checkEngineRunService, runEngineModel } from '../services/engineClient'
 import { runMemeModel, getMemeServerConfig } from '../services/memeClient';
 import { SETTINGS_EVENT } from '../services/appSettings';
 import { resolveScenario } from '../services/scenarioResolver';
-import {
-  FiPlay, FiStopCircle, FiCheckCircle, FiAlertCircle,
-  FiClock, FiCpu, FiZap, FiActivity, FiSettings,
-  FiTerminal, FiTrash2, FiAlertTriangle, FiBox,
-  FiBarChart2, FiDownload, FiEye, FiList,
-  FiCalendar, FiChevronDown, FiChevronRight, FiHelpCircle,
-} from './ui/icons';
+import { FiPlay, FiStopCircle, FiCheckCircle, FiAlertCircle, FiClock, FiCpu, FiZap, FiActivity, FiSettings, FiTerminal, FiTrash2, FiAlertTriangle, FiBox, FiBarChart2, FiDownload, FiEye, FiList, FiCalendar, FiChevronDown, FiChevronRight } from './ui/icons';
 import { MODELING_FRAMEWORKS, SOLVER_OPTIONS } from '../config/modelingFrameworks';
 import CompletedRunsSection from './run/CompletedRunsSection';
 import ActiveJobsPanel from './run/ActiveJobsPanel';
 import SporesConfigPanel from './run/SporesConfigPanel';
+import Select from './ui/Select';
+import DatePicker from './ui/DatePicker';
+import { LuInfo } from './ui/icons';
 
 
 
@@ -621,71 +618,69 @@ const Run = ({ onNavigate }) => {
   // selection transparently falls back to local execution.
   const computeRemote = computeTarget === 'remote' && remoteAvailable && !hasSelections;
 
-  return (
-    <div className="h-full bg-surface overflow-y-auto">
-      <div className="p-6 space-y-6">
+  const durationDays = calculateDuration();
+  const fmtDate = (d) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const modeLabel = { plan: 'Plan', operate: 'Operate', spores: 'SPORES' }[modelConfig.mode] || modelConfig.mode;
+  const runDisabled = !selectedModel || (!computeRemote && !serviceReady) || !isDateRangeValid();
+  const runBlocker = !selectedModel ? 'Select a model to run'
+    : (!computeRemote && !serviceReady) ? `${activeFrameworkLabel} service is offline`
+    : !isDateRangeValid() ? 'Set a valid date range'
+    : null;
 
-        {/* PAGE HEADER */}
-        <div className="flex items-center justify-between flex-wrap gap-3">
+  return (
+    <div className="h-full overflow-y-auto bg-gray-50">
+      <div className="w-full space-y-6 px-8 py-8">
+
+        {/* Header */}
+        <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-black tracking-tighter text-black">
-              Run Model
-            </h1>
-            <p className="text-sm text-slate-500 mt-0.5">
+            <h1 className="text-3xl font-black tracking-tighter text-black">Run Model</h1>
+            <p className="mt-1 text-[15px] text-slate-500">
               {computeRemote
                 ? `Execute your energy model remotely using ${activeFrameworkLabel} on MEME`
                 : `Execute your energy model locally using ${activeFrameworkLabel}`}
             </p>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex flex-wrap items-center gap-2">
             {selectedFramework === 'calliope' && selectedModel && (
-              <div className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border ${
-                isCalliope07Selected
-                  ? 'bg-gray-50 border-black/15 text-gray-700'
-                  : 'bg-gray-50 border-black/15 text-gray-700'
-              }`} title="Engine version from the model's configuration">
-                <FiZap size={12} />
-                {isCalliope07Selected ? 'Engine: Calliope 0.7 (experimental)' : 'Engine: Calliope 0.6.8'}
-              </div>
-            )}
-            <div className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium border ${
-              serviceChecking ? 'bg-slate-100 border-black/15 text-slate-500'
-              : serviceReady  ? 'bg-gray-50 border-black/15 text-gray-700'
-              : 'bg-gray-50 border-black/15 text-gray-700'
-            }`}>
-              <span className="relative flex h-2 w-2 flex-shrink-0">
-                {serviceReady && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-gray-400 opacity-75" />}
-                <span className={`relative inline-flex rounded-full h-2 w-2 ${
-                  serviceChecking ? 'bg-slate-400' : serviceReady ? 'bg-gray-500' : 'bg-gray-500'
-                }`} />
+              <span className="inline-flex items-center gap-1.5 border border-black/15 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 " title="Engine version from the model's configuration">
+                <FiZap size={12} className="text-slate-400" />
+                {isCalliope07Selected ? 'Calliope 0.7 (experimental)' : 'Calliope 0.6.8'}
               </span>
-              <FiBox size={12} />
+            )}
+            <span className={`inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold ${
+              serviceChecking ? 'bg-slate-100 text-slate-500'
+              : serviceReady ? 'bg-emerald-50 text-emerald-700'
+              : 'bg-red-50 text-red-700'
+            }`}>
+              <span className="relative flex h-2 w-2">
+                {serviceReady && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />}
+                <span className={`relative inline-flex h-2 w-2 rounded-full ${serviceChecking ? 'bg-slate-400' : serviceReady ? 'bg-emerald-500' : 'bg-red-500'}`} />
+              </span>
               {serviceChecking ? 'Connecting…' : serviceReady ? `${activeFrameworkLabel} online` : `${activeFrameworkLabel} offline`}
-            </div>
+            </span>
           </div>
         </div>
 
-        {/* OFFLINE BANNER — hidden when running remotely (local engine is irrelevant) */}
+        {/* Offline banner — hidden when running remotely */}
         {!computeRemote && !serviceChecking && !serviceReady && (
-          <div className="bg-gray-50 border border-black/15 rounded-xl px-4 py-3 text-sm text-gray-800 flex items-start justify-between gap-4">
-            <div>
-              <strong>{activeFrameworkLabel} service offline.</strong>{' '}
-              {selectedFramework === 'adoptnet0'
-                ? 'Install the AdOpT-NET0 environment from the Setup screen, or restart the service.'
-                : selectedFramework === 'pypsa'
-                ? 'Install the PyPSA engine from Settings → PyPSA Engine, or restart the service.'
-                : isCalliope07Selected
-                ? 'This model targets the experimental Calliope 0.7 engine. Install it from Settings → Calliope 0.7 Engine.'
-                : <>Start it with:{' '}
-                    <code className="bg-gray-100 px-1.5 py-0.5 rounded font-mono text-xs">
-                      .\scripts\start_calliope_service.ps1
-                    </code>
-                    {' '}or{' '}
-                    <code className="bg-gray-100 px-1.5 py-0.5 rounded font-mono text-xs">
-                      docker compose up calliope-runner
-                    </code>
-                  </>
-              }
+          <div className="flex items-start justify-between gap-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <div className="flex gap-3">
+              <FiAlertTriangle size={16} className="mt-0.5 shrink-0 text-amber-500" />
+              <div>
+                <strong>{activeFrameworkLabel} service offline.</strong>{' '}
+                {selectedFramework === 'adoptnet0'
+                  ? 'Install the AdOpT-NET0 environment from Settings → Optimization Engines, or restart the service.'
+                  : selectedFramework === 'pypsa'
+                  ? 'Install the PyPSA engine from Settings → Optimization Engines, or restart the service.'
+                  : isCalliope07Selected
+                  ? 'This model targets the experimental Calliope 0.7 engine. Install it from Settings → Optimization Engines.'
+                  : <>Start it with{' '}
+                      <code className="rounded bg-amber-100 px-1.5 py-0.5 font-mono text-xs">docker compose up calliope-runner</code>
+                      {' '}or install it from Settings → Optimization Engines.
+                    </>
+                }
+              </div>
             </div>
             <button
               onClick={() => {
@@ -703,7 +698,7 @@ const Run = ({ onNavigate }) => {
                   checkCalliopeService().then(ok => setServiceStatus(ok));
                 }
               }}
-              className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-200 hover:bg-gray-300 text-gray-900 transition-colors"
+              className="shrink-0 rounded-lg border border-amber-200 bg-white px-3 py-1.5 text-xs font-semibold text-amber-900 transition-colors hover:bg-amber-100"
             >
               Retry
             </button>
@@ -712,7 +707,7 @@ const Run = ({ onNavigate }) => {
 
         {/* INLINE PYPSA INSTALL PANEL — shown when PyPSA is selected but not yet installed */}
         {!computeRemote && selectedFramework === 'pypsa' && pypsaStatus === false && (
-          <div className="bg-white rounded-2xl shadow-sm border border-black/15 p-6">
+          <div className="bg-white rounded-2xl  border border-black/15 p-6">
             <EngineInstallPanel
               title="PyPSA Engine"
               icon={FiCpu}
@@ -730,7 +725,7 @@ const Run = ({ onNavigate }) => {
 
         {/* INLINE 0.7 INSTALL PANEL — shown when 0.7 is selected but not yet installed */}
         {!computeRemote && isCalliope07Selected && calliope07Status === false && (
-          <div className="bg-white rounded-2xl shadow-sm border border-black/15 p-6">
+          <div className="bg-white rounded-2xl  border border-black/15 p-6">
             <Calliope07EnginePanel
               onInstallSuccess={() => {
                 setCalliope07Status(null);
@@ -742,7 +737,7 @@ const Run = ({ onNavigate }) => {
 
         {/* INLINE OSEMOSYS INSTALL PANEL — shown when OSeMOSYS is selected but not yet installed */}
         {!computeRemote && selectedFramework === 'osemosys' && osemosysStatus === false && (
-          <div className="bg-white rounded-2xl shadow-sm border border-black/15 p-6">
+          <div className="bg-white rounded-2xl  border border-black/15 p-6">
             <EngineInstallPanel
               title="OSeMOSYS Engine"
               icon={FiZap}
@@ -760,7 +755,7 @@ const Run = ({ onNavigate }) => {
 
         {/* INLINE ADOPTNET0 INSTALL PANEL — shown when AdOpT-NET0 is selected but not yet installed */}
         {!computeRemote && selectedFramework === 'adoptnet0' && adoptnet0Status === false && (
-          <div className="bg-white rounded-2xl shadow-sm border border-black/15 p-6">
+          <div className="bg-white rounded-2xl  border border-black/15 p-6">
             <EngineInstallPanel
               title="AdOpT-NET0 Engine"
               icon={FiBox}
@@ -776,127 +771,100 @@ const Run = ({ onNavigate }) => {
           </div>
         )}
 
-        {/* TOP ROW: config + active jobs */}
-        <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
 
-          {/* LEFT: configuration */}
-          <div className="xl:col-span-3 space-y-4">
+          {/* Setup */}
+          <div className="space-y-4 xl:col-span-2">
 
-            {/* Model + solver */}
-            <div className="bg-white rounded-2xl shadow-sm border border-black/15 p-5">
-              <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-4 flex items-center gap-2">
-                <FiSettings size={13} className="text-electric-500" /> Configuration
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Model</label>
-                  <select
+            <RunSection step={1} title="Model & mode" description="What to run and how.">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <Field label="Model">
+                  <Select
                     value={selectedModel?.id || ''}
-                    onChange={e => {
-                      setSelectedModel(models.find(m => m.id === e.target.value));
+                    onChange={id => {
+                      setSelectedModel(models.find(m => m.id === id));
                       setSelectedScenarios([]);
                       setSelectedOverrides([]);
                     }}
-                    className="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-electric-500 focus:border-transparent bg-white"
-                  >
-                    <option value="">— Select a model —</option>
-                    {models.map(m => (
-                      <option key={m.id} value={m.id}>
-                        {m.name} ({m.locations?.length || 0} loc, {m.links?.length || 0} links)
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  {selectedFramework === 'calliope' ? (
-                    <>
-                      <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Engine</label>
-                      <select
-                        value={calliopeEngine === '0.7' ? '0.7' : '0.6.8'}
-                        onChange={e => setModelConfig(p => ({
-                          ...p,
-                          calliopeVersion: e.target.value === '0.7' ? '0.7.0' : '0.6.8',
-                        }))}
-                        className="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-electric-500 focus:border-transparent bg-white"
-                      >
-                        <option value="0.6.8">0.6.8 (stable)</option>
-                        <option value="0.7">0.7.0.dev7 (experimental)</option>
-                      </select>
-                      <p className="mt-1 text-xs text-slate-400">Solver: HiGHS</p>
-                    </>
-                  ) : (
-                    <>
-                      <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Solver</label>
-                      <div className="w-full px-3 py-2.5 text-sm border border-black/15 rounded-lg bg-slate-50 text-slate-700">
-                        HiGHS
-                      </div>
-                    </>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Mode</label>
-                  <select
+                    placeholder="Select a model"
+                    options={models.map(m => ({
+                      value: m.id,
+                      label: m.name,
+                      description: `${m.locations?.length || 0} locations · ${m.links?.length || 0} links`,
+                    }))}
+                  />
+                </Field>
+                {selectedFramework === 'calliope' ? (
+                  <Field label="Engine" hint={'Solver: HiGHS'}>
+                    <Select
+                      value={calliopeEngine === '0.7' ? '0.7' : '0.6.8'}
+                      onChange={v => setModelConfig(p => ({
+                        ...p,
+                        calliopeVersion: v === '0.7' ? '0.7.0' : '0.6.8',
+                      }))}
+                      options={[
+                        { value: '0.6.8', label: '0.6.8 (stable)', description: 'HiGHS solver · recommended' },
+                        { value: '0.7', label: '0.7.0.dev7 (experimental)', description: 'CBC solver · supports custom math' },
+                      ]}
+                    />
+                  </Field>
+                ) : (
+                  <Field label="Solver">
+                    <div className="flex h-10 items-center rounded-lg border border-black/15 bg-slate-50 px-3 text-sm text-slate-700">HiGHS</div>
+                  </Field>
+                )}
+                <Field
+                  label="Mode"
+                  hint={isCalliope07Selected && !computeRemote && modelConfig.mode === 'spores'
+                    ? 'SPORES is not supported on the experimental Calliope 0.7 engine yet.' : undefined}
+                >
+                  <Select
                     value={modelConfig.mode}
-                    onChange={e => setModelConfig(p => ({ ...p, mode: e.target.value }))}
-                    className="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-electric-500 focus:border-transparent bg-white"
-                  >
-                    <option value="plan">Plan — capacity planning</option>
-                    <option value="operate">Operate — operational</option>
-                    <option value="spores" disabled={isCalliope07Selected && !computeRemote}>
-                      {isCalliope07Selected && !computeRemote
-                        ? 'SPORES — requires the 0.6.8 engine (or a remote run)'
-                        : 'SPORES — near-optimal alternatives'}
-                    </option>
-                  </select>
-                  {isCalliope07Selected && !computeRemote && modelConfig.mode === 'spores' && (
-                    <p className="mt-1 text-xs text-gray-600">
-                      SPORES is not supported on the experimental Calliope 0.7 engine yet.
-                    </p>
-                  )}
-                </div>
+                    onChange={v => setModelConfig(p => ({ ...p, mode: v }))}
+                    options={[
+                      { value: 'plan', label: 'Plan', description: 'Capacity planning — size the system' },
+                      { value: 'operate', label: 'Operate', description: 'Operational dispatch with fixed capacities' },
+                      {
+                        value: 'spores',
+                        label: 'SPORES',
+                        description: isCalliope07Selected && !computeRemote
+                          ? 'Requires the 0.6.8 engine (or a remote run)'
+                          : 'Near-optimal alternative solutions',
+                        disabled: isCalliope07Selected && !computeRemote,
+                      },
+                    ]}
+                  />
+                </Field>
               </div>
 
-              {/* Compute location — shown when a MEME server is saved and the
-                  selected engine is remote-capable (PyPSA / Calliope 0.7 / AdOpT-NET0) */}
               {remoteAvailable && (
-                <div className="mt-4 border-t border-black/10 pt-4">
-                  <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Compute</label>
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <div className="flex rounded-lg border border-black/15 overflow-hidden text-xs font-medium">
+                <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-black/10 pt-4">
+                  <span className="text-xs font-medium text-slate-600">Compute</span>
+                  <div className="inline-flex gap-1 rounded-lg bg-slate-100 p-1 text-xs font-medium">
+                    {[['local', 'Local'], ['remote', 'Remote (MEME)']].map(([id, label]) => (
                       <button
+                        key={id}
                         type="button"
-                        onClick={() => setComputeTarget('local')}
-                        className={computeTarget === 'local'
-                          ? 'px-4 py-2 bg-electric-500 text-white'
-                          : 'px-4 py-2 text-slate-600 hover:bg-slate-50'}
+                        onClick={() => setComputeTarget(id)}
+                        className={`rounded-md px-3 py-1.5 transition-all ${computeTarget === id ? 'bg-white text-slate-900 ' : 'text-slate-500 hover:text-slate-800'}`}
                       >
-                        Local
+                        {label}
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => setComputeTarget('remote')}
-                        className={computeTarget === 'remote'
-                          ? 'px-4 py-2 bg-electric-500 text-white'
-                          : 'px-4 py-2 text-slate-600 hover:bg-slate-50'}
-                      >
-                        Remote (MEME)
-                      </button>
-                    </div>
-                    <span className="text-xs text-slate-400">
-                      {computeRemote
-                        ? <>Runs on <span className="font-mono text-slate-500">{remoteServer.url}</span></>
-                        : 'Runs on this machine'}
-                    </span>
+                    ))}
                   </div>
+                  <span className="text-xs text-slate-400">
+                    {computeRemote
+                      ? <>Runs on <span className="font-mono text-slate-500">{remoteServer.url}</span></>
+                      : 'Runs on this machine'}
+                  </span>
                   {computeTarget === 'remote' && hasSelections && (
-                    <p className="mt-2 text-xs text-gray-600">
+                    <p className="w-full text-xs text-amber-700">
                       Scenarios/overrides run locally — remote execution supports a single baseline run.
                     </p>
                   )}
                 </div>
               )}
 
-              {/* SPORES configuration panel — visible only in spores mode */}
               {modelConfig.mode === 'spores' && (
                 <SporesConfigPanel
                   modelConfig={modelConfig}
@@ -904,15 +872,14 @@ const Run = ({ onNavigate }) => {
                 />
               )}
 
-              {/* Scenarios & Overrides multiselect — full width below grid */}
-              {(availableScenarios.length > 0 || availableOverrides.length > 0) && (
+                            {(availableScenarios.length > 0 || availableOverrides.length > 0) && (
                 <div className="mt-4 border-t border-black/10 pt-4" ref={scenariosDropdownRef}>
-                  <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Scenarios / Overrides</label>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Scenarios / Overrides</label>
                   <div className="relative">
                     <button
                       type="button"
                       onClick={() => setShowScenariosDropdown(v => !v)}
-                      className="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-electric-500 text-left flex items-center justify-between bg-white"
+                      className="h-10 w-full rounded-lg border border-black/15 bg-white px-3 text-sm text-slate-800 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200 flex items-center justify-between text-left"
                     >
                       <span className={hasSelections ? 'text-slate-700' : 'text-slate-400'}>
                         {hasSelections
@@ -946,7 +913,7 @@ const Run = ({ onNavigate }) => {
                                     onChange={() => setSelectedScenarios(prev =>
                                       on ? prev.filter(s => s !== name) : [...prev, name]
                                     )}
-                                    className="w-4 h-4 text-electric-600 border-slate-300 rounded"
+                                    className="w-4 h-4 text-electric-600 border-black/15 rounded"
                                   />
                                   {name}
                                 </label>
@@ -974,7 +941,7 @@ const Run = ({ onNavigate }) => {
                                     onChange={() => setSelectedOverrides(prev =>
                                       on ? prev.filter(o => o !== name) : [...prev, name]
                                     )}
-                                    className="w-4 h-4 text-electric-600 border-slate-300 rounded"
+                                    className="w-4 h-4 text-electric-600 border-black/15 rounded"
                                   />
                                   {name}
                                 </label>
@@ -987,160 +954,118 @@ const Run = ({ onNavigate }) => {
                   </div>
                 </div>
               )}
-            </div>
 
-            {/* Framework */}
-            <div className="bg-white rounded-2xl shadow-sm border border-black/15 p-5">
-              <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-2">
-                <FiCpu size={13} className="text-electric-500" /> Framework
-              </h2>
-              <div className="grid grid-cols-3 gap-3">
+            </RunSection>
+
+            <RunSection step={2} title="Framework" description="The modelling framework the model is translated to.">
+              <div role="radiogroup" aria-label="Framework" className="grid grid-cols-2 gap-1 rounded-xl bg-slate-200/80 p-1 ring-1 ring-inset ring-slate-300/50 sm:grid-cols-4">
                 {MODELING_FRAMEWORKS.map(fw => {
                   const Icon = fw.icon;
                   const sel = selectedFramework === fw.id;
                   return (
                     <button
                       key={fw.id}
+                      role="radio"
+                      aria-checked={sel}
                       onClick={() => setSelectedFramework(fw.id)}
                       disabled={!fw.supported}
-                      className={`relative p-3 rounded-xl border-2 transition-all duration-200 text-left ${
-                        sel
-                          ? `border-transparent bg-black text-white shadow-md`
-                          : fw.supported
-                          ? 'border-black/15 hover:border-slate-300 bg-white'
-                          : 'border-black/15 bg-slate-50 opacity-50 cursor-not-allowed'
+                      title={fw.description}
+                      className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all disabled:cursor-not-allowed disabled:opacity-40 ${
+                        sel ? 'bg-black text-white ' : 'text-slate-600 hover:bg-white/70 hover:text-slate-900'
                       }`}
                     >
-                      <Icon size={18} className={sel ? 'text-white mb-1' : 'text-slate-400 mb-1'} />
-                      <div className={`text-xs font-semibold ${sel ? 'text-white' : 'text-slate-700'}`}>{fw.name}</div>
-                      {fw.id === 'calliope' && (
-                        <div className={`mt-1 flex items-center gap-1 text-[10px] ${sel ? 'text-white/80' : serviceReady ? 'text-gray-600' : 'text-slate-400'}`}>
-                          <span className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                            serviceReady ? (sel ? 'bg-white' : 'bg-gray-500') : 'bg-slate-300'
-                          }`} />
-                          {serviceReady ? 'Docker online' : 'Docker offline'}
-                        </div>
-                      )}
-                      {!fw.supported && (
-                        <span className="absolute top-1.5 right-1.5 text-[9px] bg-slate-200 text-slate-500 px-1 py-0.5 rounded">Soon</span>
-                      )}
+                      <Icon size={14} />
+                      {fw.name}
+                      {!fw.supported && <span className="text-[10px] text-slate-400">soon</span>}
                     </button>
                   );
                 })}
               </div>
-            </div>
+              <p className="mt-2 px-1 text-xs text-slate-500">
+                {MODELING_FRAMEWORKS.find(fw => fw.id === selectedFramework)?.description}
+              </p>
+            </RunSection>
 
-            {/* Time Settings */}
-            <div className="bg-white rounded-2xl shadow-sm border border-black/15 p-5">
-              <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-4 flex items-center gap-2">
-                <FiCalendar size={13} className="text-electric-500" /> Time Settings
-              </h2>
-              {/* Quick presets */}
-              <div className="flex flex-wrap gap-2 mb-4">
-                {[
-                  { label: '1 Day',   days: 0 },
-                  { label: '1 Week',  days: 6 },
-                  { label: '1 Month', months: 1 },
-                  { label: '1 Year',  years: 1 },
-                ].map(preset => (
-                  <button
-                    key={preset.label}
-                    type="button"
-                    onClick={() => {
-                      // Fall back to today if startDate is missing/invalid so the
-                      // preset can't produce an Invalid Date (which throws on toISOString).
-                      let s = new Date(modelConfig.startDate + 'T00:00:00');
-                      const startStr = isNaN(s) ? new Date().toISOString().slice(0, 10) : modelConfig.startDate;
-                      if (isNaN(s)) s = new Date(startStr + 'T00:00:00');
-                      const e = new Date(s);
-                      if (preset.days  != null) e.setDate(e.getDate() + preset.days);
-                      if (preset.months)        e.setMonth(e.getMonth() + preset.months, e.getDate() - 1);
-                      if (preset.years)         e.setFullYear(e.getFullYear() + preset.years, e.getMonth(), e.getDate() - 1);
-                      setModelConfig(p => ({ ...p, startDate: startStr, endDate: e.toISOString().slice(0, 10) }));
-                    }}
-                    className="px-3 py-1 text-xs font-medium rounded-lg border border-black/15 bg-slate-50 hover:bg-electric-50 hover:border-electric-300 hover:text-electric-700 transition-colors"
-                  >
-                    {preset.label}
-                  </button>
-                ))}
+            <RunSection step={3} title="Time horizon" description="The period the model is optimised over.">
+              <div className="mb-4 inline-flex gap-1 rounded-lg bg-slate-200/80 p-1 ring-1 ring-inset ring-slate-300/50">
+                {TIME_PRESETS.map(preset => {
+                  const active = presetEnd(modelConfig.startDate, preset) === modelConfig.endDate;
+                  return (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => {
+                        // Fall back to today if startDate is invalid so the preset can't produce an Invalid Date.
+                        const startStr = isNaN(new Date(modelConfig.startDate + 'T00:00:00'))
+                          ? new Date().toISOString().slice(0, 10) : modelConfig.startDate;
+                        setModelConfig(p => ({ ...p, startDate: startStr, endDate: presetEnd(startStr, preset) }));
+                      }}
+                      className={`rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
+                        active ? 'bg-black text-white ' : 'text-slate-600 hover:bg-white/70 hover:text-slate-900'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  );
+                })}
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Start Date</label>
-                  <div className="relative">
-                    <input
-                      type="date"
-                      value={modelConfig.startDate}
-                      onChange={e => setModelConfig(p => ({ ...p, startDate: e.target.value }))}
-                      className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-electric-500 pr-9"
-                      style={{ colorScheme: 'light' }}
-                    />
-                    <FiCalendar className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">End Date</label>
-                  <div className="relative">
-                    <input
-                      type="date"
-                      value={modelConfig.endDate}
-                      min={modelConfig.startDate}
-                      onChange={e => setModelConfig(p => ({ ...p, endDate: e.target.value }))}
-                      className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-electric-500 pr-9"
-                      style={{ colorScheme: 'light' }}
-                    />
-                    <FiCalendar className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
-                  </div>
-                </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field label="Start date">
+                  <DatePicker
+                    value={modelConfig.startDate}
+                    onChange={v => setModelConfig(p => {
+                      if (!p.endDate || v <= p.endDate) return { ...p, startDate: v };
+                      const span = Math.max(0, Math.round((new Date(p.endDate) - new Date(p.startDate)) / 86400000));
+                      const end = new Date(v + 'T00:00:00');
+                      end.setDate(end.getDate() + span);
+                      const iso = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`;
+                      return { ...p, startDate: v, endDate: iso };
+                    })}
+                    rangeStart={modelConfig.startDate}
+                    rangeEnd={modelConfig.endDate}
+                  />
+                </Field>
+                <Field label="End date">
+                  <DatePicker
+                    value={modelConfig.endDate}
+                    min={modelConfig.startDate}
+                    onChange={v => setModelConfig(p => ({ ...p, endDate: v }))}
+                    rangeStart={modelConfig.startDate}
+                    rangeEnd={modelConfig.endDate}
+                  />
+                </Field>
               </div>
-              <div className="mt-3 px-3 py-2 bg-slate-50 rounded-lg border border-black/15 flex items-center justify-between text-xs text-slate-500">
-                <span><span className="font-semibold text-slate-700">{calculateDuration()} days</span> · ≈ {Math.ceil(calculateDuration() / 7)} weeks · ≈ {Math.ceil(calculateDuration() / 30)} months</span>
-                <span>{new Date(modelConfig.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} → {new Date(modelConfig.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                <span><span className="font-semibold text-slate-800">{durationDays} days</span> · ≈ {Math.ceil(durationDays / 7)} weeks · ≈ {Math.ceil(durationDays / 30)} months</span>
+                <span>{fmtDate(modelConfig.startDate)} → {fmtDate(modelConfig.endDate)}</span>
               </div>
-            </div>
+            </RunSection>
 
-            {/* Solver Options */}
-            <div className="bg-white rounded-2xl shadow-sm border border-black/15 p-5">
-              <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-4 flex items-center gap-2">
-                <FiCpu size={13} className="text-electric-500" /> Solver Options
-              </h2>
-              <div className="space-y-3 mb-4">
-                <div className="flex items-center gap-3 p-3 border border-black/15 rounded-lg">
-                  <input
-                    type="checkbox"
-                    id="ensureFeasibility"
-                    checked={modelConfig.ensureFeasibility}
-                    onChange={e => setModelConfig(p => ({ ...p, ensureFeasibility: e.target.checked }))}
-                    className="w-4 h-4 text-electric-600 border-slate-300 rounded"
-                  />
-                  <label htmlFor="ensureFeasibility" className="text-sm text-slate-700 cursor-pointer">
-                    <span className="font-medium">Ensure Feasibility</span>
-                    <p className="text-xs text-slate-500">Allows unmet demand to ensure model feasibility</p>
-                  </label>
-                </div>
-                <div className="flex items-center gap-3 p-3 border border-black/15 rounded-lg">
-                  <input
-                    type="checkbox"
-                    id="cyclicStorage"
-                    checked={modelConfig.cyclicStorage}
-                    onChange={e => setModelConfig(p => ({ ...p, cyclicStorage: e.target.checked }))}
-                    className="w-4 h-4 text-electric-600 border-slate-300 rounded"
-                  />
-                  <label htmlFor="cyclicStorage" className="text-sm text-slate-700 cursor-pointer">
-                    <span className="font-medium">Cyclic Storage</span>
-                    <p className="text-xs text-slate-500">Storage levels at end equal storage at start</p>
-                  </label>
-                </div>
+            <RunSection step={4} title="Solver options" description="Feasibility, storage and advanced solver parameters.">
+              <div className="divide-y divide-black/10">
+                <ToggleRow
+                  title="Ensure feasibility"
+                  description="Allow unmet demand so the model always solves."
+                  checked={modelConfig.ensureFeasibility}
+                  onChange={v => setModelConfig(p => ({ ...p, ensureFeasibility: v }))}
+                />
+                <ToggleRow
+                  title="Cyclic storage"
+                  description="Storage level at the end equals the level at the start."
+                  checked={modelConfig.cyclicStorage}
+                  onChange={v => setModelConfig(p => ({ ...p, cyclicStorage: v }))}
+                />
               </div>
               <button
                 onClick={() => setShowAdvancedSettings(v => !v)}
-                className="w-full flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors"
+                className="mt-3 flex w-full items-center justify-between rounded-lg border border-black/15 px-3 py-2.5 text-left transition-colors hover:bg-slate-50"
               >
-                <span className="text-xs font-medium text-slate-600">Advanced Solver Parameters</span>
-                {showAdvancedSettings ? <FiChevronDown size={16} className="text-slate-400" /> : <FiChevronRight size={16} className="text-slate-400" />}
+                <span className="text-xs font-semibold text-slate-700">Advanced solver parameters</span>
+                <FiChevronDown size={15} className={`text-slate-400 transition-transform ${showAdvancedSettings ? 'rotate-180' : ''}`} />
               </button>
               {showAdvancedSettings && (
-                <div className="mt-3 border border-black/15 rounded-lg p-4 grid grid-cols-2 gap-x-6 gap-y-4">
+                <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-4 rounded-xl border border-black/15 p-4 md:grid-cols-3">
                   {[
                     { label: 'Threads', key: 'threads', step: 1, tip: 'Number of CPU threads for parallel computation' },
                     { label: 'Time Limit (s)', key: 'timeLimit', step: 1, tip: 'Maximum solve time in seconds' },
@@ -1162,10 +1087,15 @@ const Run = ({ onNavigate }) => {
                     <div key={key}>
                       <div className="flex items-center gap-1 mb-1">
                         <label className="text-xs font-medium text-slate-700">{label}</label>
-                        <div className="group relative">
-                          <FiHelpCircle size={12} className="text-slate-400 cursor-help hover:text-slate-600" />
-                          <div className="hidden group-hover:block absolute left-0 top-5 z-10 w-56 p-2 bg-slate-800 text-white text-xs rounded shadow-lg">{tip}</div>
-                        </div>
+                        <span className="group relative inline-flex">
+                          <button type="button" aria-label={`About ${label}`} className="grid h-4 w-4 cursor-pointer place-items-center rounded-full text-slate-400 transition-colors hover:text-slate-900 focus:text-slate-900 focus:outline-none">
+                            <LuInfo size={13} />
+                          </button>
+                          <span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-56 -translate-x-1/2 rounded-lg bg-black px-2.5 py-2 text-xs leading-snug text-white opacity-0 shadow-lg transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
+                            {tip}
+                            <span className="absolute left-1/2 top-full -mt-1 h-2 w-2 -translate-x-1/2 rotate-45 bg-black" />
+                          </span>
+                        </span>
                       </div>
                       <input
                         type="number"
@@ -1175,58 +1105,77 @@ const Run = ({ onNavigate }) => {
                           ...p,
                           solverOptions: { ...p.solverOptions, [key]: parseFloat(e.target.value) || 0 }
                         }))}
-                        className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-electric-500"
+                        className="h-10 w-full rounded-lg border border-black/15 bg-white px-3 text-sm text-slate-800 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200 font-mono"
                       />
                     </div>
                   ))}
                 </div>
               )}
-            </div>
 
-            {/* Custom Math — Calliope 0.7 only */}
+            </RunSection>
+
             {isCalliope07Selected && (
-              <div className="mb-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Custom Math (0.7)</span>
-                  <span className="text-xs text-slate-400">— optional YAML added to the built-in math</span>
-                </div>
+              <RunSection title="Custom math (0.7)" description="Optional YAML added to the built-in math.">
                 <textarea
                   rows={6}
                   placeholder={'# Example — add a custom constraint:\nvariables:\n  my_var:\n    foreach: [nodes, techs, timesteps]\n    domain: NonNegativeReals\n    bounds:\n      min: 0\n      max: inf'}
                   value={modelConfig.customMath}
                   onChange={e => setModelConfig(p => ({ ...p, customMath: e.target.value }))}
                   spellCheck={false}
-                  className="w-full px-3 py-2 text-xs font-mono border border-black/15 rounded-lg bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-y"
+                  className="w-full resize-y rounded-lg border border-black/15 bg-slate-50 px-3 py-2 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-slate-200"
                 />
-              </div>
+              </RunSection>
             )}
-
-            {/* Run button */}
-            <button
-              onClick={handleRunModel}
-              disabled={!selectedModel || (!computeRemote && !serviceReady) || !isDateRangeValid()}
-              title={!isDateRangeValid() ? 'Set a valid date range (start on or before end) to run.' : undefined}
-              className="w-full py-3.5 bg-black text-white font-bold uppercase tracking-wide hover:opacity-80 disabled:bg-outline-variant disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2"
-            >
-              <FiPlay size={18} />
-              {hasSelections
-                ? `Run Selected (${selectedScenarios.length + selectedOverrides.length})`
-                : runningJobs.length > 0 ? 'Run in Progress…'
-                : computeRemote ? 'Run Model (Remote)' : 'Run Model'}
-            </button>
           </div>
 
-          {/* RIGHT: active jobs */}
-          <ActiveJobsPanel
-            expandedLog={expandedLog}
-            handleStopJob={handleStopJob}
-            logEndRef={logEndRef}
-            runningJobs={runningJobs}
-            setExpandedLog={setExpandedLog}
-          />
+          {/* Summary + run, active runs */}
+          <div className="space-y-4 xl:sticky xl:top-6 xl:self-start">
+            <div className="rounded-2xl border border-black/15 bg-white p-5 ">
+              <h2 className="text-sm font-semibold text-slate-900">Run summary</h2>
+              <dl className="mt-3 divide-y divide-black/10 text-sm">
+                {[
+                  ['Model', selectedModel ? selectedModel.name : '—'],
+                  ['Framework', activeFrameworkLabel],
+                  ['Mode', modeLabel],
+                  ['Period', `${durationDays} days`],
+                  ['Compute', computeRemote ? 'Remote (MEME)' : 'Local'],
+                  ...(hasSelections ? [['Scenarios', `${selectedScenarios.length + selectedOverrides.length} selected`]] : []),
+                ].map(([k, v]) => (
+                  <div key={k} className="flex items-center justify-between gap-3 py-2">
+                    <dt className="text-slate-500">{k}</dt>
+                    <dd className="truncate text-right font-medium text-slate-900">{v}</dd>
+                  </div>
+                ))}
+              </dl>
+              <button
+                onClick={handleRunModel}
+                disabled={runDisabled}
+                title={runBlocker || undefined}
+                className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-black text-[15px] font-semibold text-white shadow-lg shadow-slate-900/20 transition-all hover:bg-black/80 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+              >
+                <FiPlay size={17} />
+                {hasSelections
+                  ? `Run Selected (${selectedScenarios.length + selectedOverrides.length})`
+                  : runningJobs.length > 0 ? 'Run in Progress…'
+                  : computeRemote ? 'Run Model (Remote)' : 'Run Model'}
+              </button>
+              {runBlocker && (
+                <p className="mt-2 flex items-center justify-center gap-1.5 text-xs text-slate-500">
+                  <FiAlertCircle size={12} /> {runBlocker}
+                </p>
+              )}
+            </div>
+
+            <ActiveJobsPanel
+              expandedLog={expandedLog}
+              handleStopJob={handleStopJob}
+              logEndRef={logEndRef}
+              runningJobs={runningJobs}
+              setExpandedLog={setExpandedLog}
+            />
+          </div>
         </div>
 
-        {/* FULL-WIDTH COMPLETED RUNS */}
         <CompletedRunsSection
           onNavigate={onNavigate}
           completedJobs={completedJobs}
@@ -1241,5 +1190,70 @@ const Run = ({ onNavigate }) => {
     </div>
   );
 };
+
+const TIME_PRESETS = [
+  { label: '1 Day',   days: 0 },
+  { label: '1 Week',  days: 6 },
+  { label: '1 Month', months: 1 },
+  { label: '1 Year',  years: 1 },
+];
+
+function presetEnd(startStr, preset) {
+  const s = new Date(startStr + 'T00:00:00');
+  if (isNaN(s)) return null;
+  const e = new Date(s);
+  if (preset.days != null) e.setDate(e.getDate() + preset.days);
+  if (preset.months)       e.setMonth(e.getMonth() + preset.months, e.getDate() - 1);
+  if (preset.years)        e.setFullYear(e.getFullYear() + preset.years, e.getMonth(), e.getDate() - 1);
+  return `${e.getFullYear()}-${String(e.getMonth() + 1).padStart(2, '0')}-${String(e.getDate()).padStart(2, '0')}`;
+}
+
+function RunSection({ step, title, description, children }) {
+  return (
+    <section className="rounded-2xl border border-black/15 bg-white p-6 ">
+      <div className="mb-5 flex items-start gap-3">
+        {step && (
+          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-black text-xs font-semibold text-white">{step}</span>
+        )}
+        <div>
+          <h2 className="text-base font-semibold text-slate-900">{title}</h2>
+          {description && <p className="text-xs text-slate-500">{description}</p>}
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function Field({ label, hint, children }) {
+  return (
+    <div>
+      <label className="mb-1.5 block text-xs font-medium text-slate-600">{label}</label>
+      {children}
+      {hint && <p className="mt-1 text-xs text-slate-400">{hint}</p>}
+    </div>
+  );
+}
+
+function ToggleRow({ title, description, checked, onChange }) {
+  return (
+    <div className="flex items-center justify-between gap-6 py-3 first:pt-0">
+      <div>
+        <div className="text-sm font-medium text-slate-900">{title}</div>
+        <p className="text-xs text-slate-500">{description}</p>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        aria-label={title}
+        onClick={() => onChange(!checked)}
+        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 ${checked ? 'bg-black' : 'bg-slate-200'}`}
+      >
+        <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
+      </button>
+    </div>
+  );
+}
 
 export default Run;

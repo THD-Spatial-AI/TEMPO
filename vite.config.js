@@ -11,6 +11,9 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     assetsInclude: ['**/*.PNG'],
+    optimizeDeps: {
+      exclude: ['maplibre-gl'],
+    },
     base: './',   // relative paths so Electron can load dist/index.html from file://
     server: {
       proxy: {

@@ -65,7 +65,7 @@ function CategoryDropdown({ label, color, options, selected, onToggle, onSetAll 
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg border border-slate-300 bg-white text-xs text-slate-700 hover:bg-slate-50"
+        className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg border border-black/15 bg-white text-xs text-slate-700 hover:bg-slate-50"
       >
         <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
         <span className="flex-1 text-left truncate">{label}</span>
@@ -119,7 +119,7 @@ function TargetSelect({ label, value, onChange, options }) {
       <span className="block text-[11px] font-medium text-slate-600 mb-1">{label}</span>
       <select
         value={value} onChange={e => onChange(e.target.value)}
-        className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-electric-400"
+        className="w-full px-2 py-1.5 text-xs border border-black/15 rounded-lg bg-white focus:ring-2 focus:ring-electric-400"
       >
         {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
       </select>
@@ -145,7 +145,7 @@ function MaxKmField({ value, onChange }) {
       <input
         type="number" min="0" value={value} onChange={e => onChange(e.target.value)}
         placeholder="no limit"
-        className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-electric-400"
+        className="w-full px-2 py-1.5 text-xs border border-black/15 rounded-lg bg-white focus:ring-2 focus:ring-electric-400"
       />
     </label>
   );
@@ -486,25 +486,22 @@ export default function ZonalStudyAreaPanel({
   }
 
   return (
-    <div className="p-4 space-y-4">
-      <div className="flex items-center gap-2">
-        <FiLayers className="text-electric-600" size={16} />
-        <h3 className="text-sm font-semibold text-slate-800">Study Area</h3>
+    <div className="px-3 py-3 space-y-3">
+      <div className="flex items-center gap-1.5 px-1 text-xs font-semibold uppercase tracking-wider text-slate-500">
+        <FiLayers size={13} />
+        Study area
       </div>
-      <p className="text-[11px] text-slate-500 -mt-2">
-        Search a country, region, province or district. The map loads its transmission grid.
-      </p>
 
       {/* Search */}
       <div className="relative">
         {searching
-          ? <FiLoader size={13} className="absolute left-2.5 top-2.5 text-slate-400 animate-spin" />
-          : <FiSearch size={13} className="absolute left-2.5 top-2.5 text-slate-400" />}
+          ? <FiLoader size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 animate-spin" />
+          : <FiSearch size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />}
         <input
           value={query}
           onChange={e => onQueryChange(e.target.value)}
-          placeholder="Search any place…  e.g. Niederbayern"
-          className="w-full pl-8 pr-2 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-electric-400 focus:outline-none"
+          placeholder="Search a country, region or district"
+          className="h-9 w-full rounded-lg border border-black/15 bg-slate-50 pl-9 pr-3 text-[13px] text-slate-800 placeholder:text-slate-400 transition-colors focus:border-black/15 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-200"
         />
         {results.length > 0 && (
           <div className="absolute z-10 mt-1 w-full bg-white border border-black/15 rounded-lg shadow-lg max-h-64 overflow-y-auto">
@@ -525,6 +522,27 @@ export default function ZonalStudyAreaPanel({
         )}
       </div>
       {error && <p className="text-[11px] text-amber-600">{error}</p>}
+
+      {units.length === 0 && !query && (
+        <div className="rounded-xl border border-dashed border-black/15 px-3 py-4 text-center">
+          <div className="mx-auto mb-2 grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-slate-500">
+            <FiMapPin size={15} />
+          </div>
+          <p className="text-xs font-medium text-slate-700">No study area yet</p>
+          <p className="mt-0.5 text-[11px] leading-snug text-slate-500">Search a place and the map loads its transmission grid.</p>
+          <div className="mt-3 flex flex-wrap justify-center gap-1.5">
+            {['Niederbayern', 'Bavaria', 'Austria'].map(example => (
+              <button
+                key={example}
+                onClick={() => onQueryChange(example)}
+                className="rounded-full border border-black/15 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:border-black/15 hover:text-slate-900"
+              >
+                {example}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Chips */}
       {units.length > 0 && (
@@ -566,7 +584,7 @@ export default function ZonalStudyAreaPanel({
               <div className={`flex items-center gap-1.5 text-[11px] ${osmLoading ? 'text-slate-700 font-medium' : 'text-slate-400'}`}>
                 {osmLoading
                   ? <FiLoader size={12} className="animate-spin text-electric-600" />
-                  : <span className="w-3 h-3 rounded-full border border-slate-300 inline-block" />}
+                  : <span className="w-3 h-3 rounded-full border border-black/15 inline-block" />}
                 {osmLoading ? (osmLoadingStage || 'Loading power grid…') : 'Power grid'}
               </div>
             </div>
@@ -695,7 +713,7 @@ export default function ZonalStudyAreaPanel({
                             <span className="block text-[11px] font-medium text-slate-600 mb-1">Per-capita demand (kWh/person·year)</span>
                             <input
                               type="number" min="0" value={perCapitaKWh} onChange={e => setPerCapitaKWh(e.target.value)}
-                              className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-electric-400"
+                              className="w-full px-2 py-1.5 text-xs border border-black/15 rounded-lg bg-white focus:ring-2 focus:ring-electric-400"
                             />
                           </label>
                           {/* demandlib install banner (lazy path) */}
@@ -733,7 +751,7 @@ export default function ZonalStudyAreaPanel({
                                   <input
                                     type="number" min="0" value={mixWeights[s.code] ?? 0}
                                     onChange={e => setMixWeights(w => ({ ...w, [s.code]: e.target.value === '' ? 0 : Number(e.target.value) }))}
-                                    className="flex-1 px-2 py-1 text-xs border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-electric-400"
+                                    className="flex-1 px-2 py-1 text-xs border border-black/15 rounded-lg bg-white focus:ring-2 focus:ring-electric-400"
                                   />
                                   <span className="text-[10px] text-slate-400 w-4 text-right">%</span>
                                 </div>
@@ -743,7 +761,7 @@ export default function ZonalStudyAreaPanel({
                           ) : (
                             <select
                               value={demandProfile} onChange={e => setDemandProfile(e.target.value)}
-                              className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-electric-400"
+                              className="w-full px-2 py-1.5 text-xs border border-black/15 rounded-lg bg-white focus:ring-2 focus:ring-electric-400"
                             >
                               {Object.entries(slpOptions).map(([g, items]) => (
                                 <optgroup key={g} label={g}>
@@ -760,7 +778,7 @@ export default function ZonalStudyAreaPanel({
                               <select
                                 value={demandCountry}
                                 onChange={e => { countryTouchedRef.current = true; setDemandCountry(e.target.value); }}
-                                className="w-full px-2 py-1 text-xs border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-electric-400"
+                                className="w-full px-2 py-1 text-xs border border-black/15 rounded-lg bg-white focus:ring-2 focus:ring-electric-400"
                               >
                                 {countryOptions.map(c => <option key={c} value={c}>{c}</option>)}
                               </select>
@@ -769,7 +787,7 @@ export default function ZonalStudyAreaPanel({
                               <span className="block text-[10px] font-medium text-slate-500 mb-0.5">Resolution</span>
                               <select
                                 value={demandResolution} onChange={e => setDemandResolution(e.target.value)}
-                                className="w-full px-2 py-1 text-xs border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-electric-400"
+                                className="w-full px-2 py-1 text-xs border border-black/15 rounded-lg bg-white focus:ring-2 focus:ring-electric-400"
                               >
                                 {DEMAND_RESOLUTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                               </select>
@@ -791,7 +809,7 @@ export default function ZonalStudyAreaPanel({
                             <span className="block text-[11px] font-medium text-slate-600 mb-1">Split demand across substations</span>
                             <select
                               value={demandWeight} onChange={e => setDemandWeight(e.target.value)}
-                              className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-electric-400"
+                              className="w-full px-2 py-1.5 text-xs border border-black/15 rounded-lg bg-white focus:ring-2 focus:ring-electric-400"
                             >
                               <option value="even">Evenly</option>
                               <option value="voltage">Weighted by voltage (size proxy)</option>

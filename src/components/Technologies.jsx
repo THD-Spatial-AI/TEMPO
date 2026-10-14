@@ -1,12 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import {
-  FiSearch, FiEdit2, FiX, FiSave, FiTrash2, FiChevronDown,
-  FiChevronRight as FiChevronRightIcon, FiArrowRight, FiHelpCircle, FiCopy, FiZap,
-  FiSun, FiDatabase, FiRefreshCw, FiShare2, FiBarChart2, FiStar, FiPlus, FiCheck,
-  FiExternalLink,
-} from './ui/icons';
+import { motion, AnimatePresence } from 'framer-motion';
+import { LuListFilter } from './ui/icons';
+import { FiSearch, FiEdit2, FiX, FiSave, FiTrash2, FiChevronDown, FiChevronRight as FiChevronRightIcon, FiArrowRight, FiHelpCircle, FiCopy, FiZap, FiSun, FiDatabase, FiRefreshCw, FiShare2, FiBarChart2, FiStar, FiPlus, FiCheck, FiExternalLink } from './ui/icons';
 import { useData } from '../context/DataContext';
 import SaveBar from './ui/SaveBar';
+import Select from './ui/Select';
 import { TECH_TEMPLATES, PARENT_TYPES, useLiveTechTemplates } from './TechnologiesData';
 import { fetchTechFramework, oeoDetailToCalliope } from '../services/techDatabaseApi';
 import { CARRIERS, CARRIERS_BY_GROUP, getCarrierColor, getCarrierLabel } from '../config/carriers';
@@ -86,7 +84,7 @@ function MultiCarrierEditor({ values = [], onChange }) {
           <CarrierSelect
             value={picked}
             onChange={e => setPicked(e.target.value)}
-            className="text-xs border border-slate-300 rounded px-1.5 py-0.5 focus:outline-none"
+            className="text-xs border border-black/15 rounded px-1.5 py-0.5 focus:outline-none"
           />
           <button type="button" onClick={add} disabled={!picked}
             className="text-xs text-gray-600 hover:text-gray-800 disabled:opacity-30">✓</button>
@@ -110,6 +108,35 @@ const CATEGORY_META = {
 };
 
 const CATEGORY_ORDER = ['supply_plus', 'supply', 'storage', 'conversion_plus', 'transmission', 'distribution', 'demand'];
+
+// Quick "type" filters, matched against a technology's key and display name.
+const TECH_TYPES = [
+  { id: 'solar',      label: 'Solar',      match: /solar|\bpv\b|photovolt|\bcsp\b/ },
+  { id: 'wind',       label: 'Wind',       match: /wind/ },
+  { id: 'hydro',      label: 'Hydro',      match: /hydro(?!gen)|run.of.river|pumped/ },
+  { id: 'geothermal', label: 'Geothermal', match: /geotherm/ },
+  { id: 'marine',     label: 'Marine',     match: /marine|tidal|\bwave/ },
+  { id: 'gas',        label: 'Gas',        match: /\bgas\b|ccgt|ocgt|methane|natural.gas/ },
+  { id: 'coal',       label: 'Coal',       match: /coal|lignite/ },
+  { id: 'nuclear',    label: 'Nuclear',    match: /nuclear|\bsmr\b|reactor/ },
+  { id: 'biomass',    label: 'Biomass',    match: /bio|waste/ },
+  { id: 'battery',    label: 'Battery',    match: /batter|li.?ion|lithium/ },
+  { id: 'hydrogen',   label: 'Hydrogen',   match: /hydrogen|\bh2\b|electroly|fuel.cell/ },
+  { id: 'heat',       label: 'Heat',       match: /heat|boiler|(?<!geo)thermal/ },
+];
+
+const techText = (techName, tech) =>
+  `${techName} ${tech.name || ''} ${tech.essentials?.name || ''}`.replace(/_/g, ' ').toLowerCase();
+
+const carrierName = (id) => {
+  const label = getCarrierLabel(id);
+  return label === id ? formatName(id) : label;
+};
+
+const techCarriers = (tech) => {
+  const ess = tech.essentials || {};
+  return [ess.carrier_in, ess.carrier_out, ess.carrier].flat().filter(Boolean);
+};
 
 const customScrollbarStyles = `
   .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -159,25 +186,27 @@ function OpenTechBadge({ isApiLoading, isApiLive, techCount }) {
   }
 
   return (
-    <div className="mx-3 mb-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+    <div className="mx-3 mb-3 rounded-xl border border-black/15 px-3 py-2.5">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
-          <span className="text-xs font-semibold text-emerald-800">OpenTech·DB</span>
+          <span className="relative flex h-2 w-2 shrink-0">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-50" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+          </span>
+          <span className="text-xs font-semibold text-slate-800">OpenTech·DB</span>
         </div>
         <a
           href="https://otdb.th-deg.de/docs"
           target="_blank"
           rel="noopener noreferrer"
-          className="text-emerald-600 hover:text-emerald-800"
+          className="text-slate-400 hover:text-slate-900"
           title="Swagger UI"
           onClick={e => e.stopPropagation()}
         >
           <FiExternalLink size={11} />
         </a>
       </div>
-      <p className="text-[11px] font-mono text-emerald-700 mt-1">otdb.th-deg.de</p>
-      <p className="text-[11px] text-emerald-600 mt-0.5">{techCount} technologies loaded</p>
+      <p className="mt-1 text-[11px] text-slate-500"><span className="font-mono">otdb.th-deg.de</span> · {techCount} loaded</p>
     </div>
   );
 }
@@ -260,40 +289,32 @@ const TechCard = ({ techName, tech, isCustom, onDuplicate, onEdit, onDelete, onO
 
   return (
     <div
-      className="rounded-xl ring-1 ring-slate-200 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-150 flex flex-col cursor-pointer group relative overflow-hidden"
-      style={{ backgroundColor: `${meta.color}08` }}
+      className="group relative flex cursor-pointer flex-col rounded-xl border border-black/15 bg-white  transition-all duration-150 hover:-translate-y-0.5 hover:border-black/15 hover:"
       onClick={() => !isCustom && onOpenDetail && onOpenDetail(tech)}
     >
-      {/* Top color bar */}
-      <div className="h-0.5 w-full flex-shrink-0" style={{ backgroundColor: meta.color }} />
-
-      {/* Instance count badge — compact stacked dot indicator */}
-      {instances.length > 1 && (
-        <span
-          className="absolute top-2 right-2 text-[8px] font-bold px-1.5 py-0.5 leading-none tabular-nums"
-          style={{ backgroundColor: `${meta.color}25`, color: meta.color }}
-        >
-          {instances.length}
-        </span>
-      )}
-
-      {/* Body */}
-      <div className="p-3 flex-1 flex flex-col">
-        <h4 className="text-[13px] font-semibold text-slate-800 leading-tight group-hover:text-slate-900 pr-10">
-          {displayName}
-        </h4>
-        {tech.oeo_class && (
-          <p
-            className="text-[9px] font-mono italic mt-0.5 truncate"
-            style={{ color: `${meta.color}bb` }}
+      <div className="flex flex-1 flex-col p-3.5">
+        <div className="flex items-start gap-2.5">
+          <span
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg"
+            style={{ backgroundColor: `${meta.color}18` }}
           >
-            {tech.oeo_class}
-          </p>
-        )}
+            <CategoryIcon iconKey={meta.icon} size={14} color={meta.color} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <h4 className="line-clamp-2 text-[13px] font-semibold leading-snug text-slate-900">{displayName}</h4>
+            {tech.oeo_class && (
+              <p className="mt-0.5 truncate font-mono text-[10px] text-slate-400">{tech.oeo_class}</p>
+            )}
+          </div>
+          {instances.length > 1 && (
+            <span className="shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-slate-600" title={`${instances.length} variants`}>
+              {instances.length}
+            </span>
+          )}
+        </div>
 
-        {/* Carrier pills */}
         {(carrierIn.length > 0 || carrierOut.length > 0 || carrier.length > 0) && (
-          <div className="flex flex-wrap gap-1 mt-2">
+          <div className="mt-2.5 flex flex-wrap gap-1">
             {carrierIn.map(c  => <CarrierPill key={`in-${c}`}  carrierId={c} />)}
             {carrierOut.map(c => <CarrierPill key={`out-${c}`} carrierId={c} />)}
             {carrier.map(c    => <CarrierPill key={`c-${c}`}   carrierId={c} />)}
@@ -302,19 +323,16 @@ const TechCard = ({ techName, tech, isCustom, onDuplicate, onEdit, onDelete, onO
 
         <div className="flex-1" />
 
-        {/* Stat strip */}
         {stats.length > 0 && (
           <div
-            className="mt-3 grid gap-1"
+            className="mt-3 grid divide-x divide-black/15 rounded-lg bg-slate-50 py-1.5"
             style={{ gridTemplateColumns: `repeat(${stats.length}, minmax(0, 1fr))` }}
           >
             {stats.map(({ label, value, unit }) => (
-              <div key={label} className="bg-white/60 rounded-lg p-1.5 text-center min-w-0 overflow-hidden">
-                <p className="font-mono font-bold text-[12px] text-slate-800 tabular-nums leading-none truncate">
-                  {value}
-                </p>
-                <p className="text-[8px] text-slate-400 mt-0.5 leading-none truncate">
-                  {label}{unit ? <span className="opacity-60"> {unit}</span> : null}
+              <div key={label} className="min-w-0 px-1 text-center">
+                <p className="truncate font-mono text-[13px] font-semibold tabular-nums leading-tight text-slate-900">{value}</p>
+                <p className="truncate text-[9px] uppercase tracking-wide text-slate-400">
+                  {label}{unit ? <span className="normal-case"> {unit}</span> : null}
                 </p>
               </div>
             ))}
@@ -322,69 +340,59 @@ const TechCard = ({ techName, tech, isCustom, onDuplicate, onEdit, onDelete, onO
         )}
       </div>
 
-      {/* Footer */}
       <div
-        className="pt-1 px-3 pb-2 flex items-center gap-2"
+        className="flex items-center gap-0.5 border-t border-black/10 px-2 py-1.5"
         onClick={e => e.stopPropagation()}
       >
         {!isCustom ? (
           <>
             <button
               onClick={handleDup}
-              className="flex items-center gap-1 text-[10px] text-slate-400 transition-colors"
-              onMouseEnter={e => e.currentTarget.style.color = meta.color}
-              onMouseLeave={e => e.currentTarget.style.color = ''}
+              className="flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-2 text-[11px] font-medium transition-colors text-slate-500 hover:bg-slate-100 hover:text-slate-900"
               title="Duplicate to My Technologies"
             >
-              <FiCopy size={10} /> Duplicate
+              <FiCopy size={11} /> Duplicate
             </button>
             {currentModelId && tech.uuid && (
               inModel ? (
                 <button
                   onClick={() => removeTechFromModel(techName)}
-                  className="flex items-center gap-1 text-[10px] font-semibold transition-colors"
-                  style={{ color: meta.color }}
+                  className="flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-2 text-[11px] font-medium transition-colors bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
                   title="Remove from active model"
                 >
-                  <FiCheck size={10} /> In model
+                  <FiCheck size={11} /> In model
                 </button>
               ) : (
                 <button
                   onClick={() => addTechToModel(oeoDetailToCalliope(tech))}
-                  className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-700 transition-colors"
+                  className="flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-2 text-[11px] font-medium transition-colors text-slate-500 hover:bg-slate-100 hover:text-slate-900"
                   title="Add to active model"
                 >
-                  <FiPlus size={10} /> Model
+                  <FiPlus size={11} /> Add
                 </button>
               )
             )}
             <button
               onClick={() => onOpenDetail && onOpenDetail(tech)}
-              className="ml-auto flex items-center gap-0.5 text-[10px] transition-colors"
-              style={{ color: instances.length > 1 ? meta.color : '' }}
-              onMouseEnter={e => { e.currentTarget.style.color = meta.color; e.currentTarget.style.opacity = '1'; }}
-              onMouseLeave={e => { e.currentTarget.style.color = instances.length > 1 ? meta.color : ''; e.currentTarget.style.opacity = ''; }}
+              className="ml-auto flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-2 text-[11px] font-medium transition-colors text-slate-500 hover:bg-slate-100 hover:text-slate-900"
             >
-              {instances.length > 1
-                ? <span className="font-semibold">{instances.length} variants</span>
-                : <span className="text-slate-300 group-hover:text-slate-500">View</span>
-              }
-              <FiChevronRightIcon size={10} />
+              {instances.length > 1 ? `${instances.length} variants` : 'View'}
+              <FiChevronRightIcon size={12} />
             </button>
           </>
         ) : (
           <>
             <button
               onClick={() => onEdit(techName, tech)}
-              className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-slate-700 transition-colors"
+              className="flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-2 text-[11px] font-medium transition-colors text-slate-600 hover:bg-slate-100 hover:text-slate-900"
             >
-              <FiEdit2 size={10} /> Edit
+              <FiEdit2 size={11} /> Edit
             </button>
             <button
               onClick={() => onDelete(techName)}
-              className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-600 transition-colors ml-auto"
+              className="ml-auto flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-2 text-[11px] font-medium transition-colors text-slate-500 hover:bg-red-50 hover:text-red-600"
             >
-              <FiTrash2 size={10} /> Delete
+              <FiTrash2 size={11} /> Delete
             </button>
           </>
         )}
@@ -396,32 +404,29 @@ const TechCard = ({ techName, tech, isCustom, onDuplicate, onEdit, onDelete, onO
 // ── Category section ─────────────────────────────────────────────────────────
 const CategorySection = ({ categoryKey, items, isCustomSection = false }) => {
   const meta = CATEGORY_META[categoryKey] || { icon: 'zap', color: '#94a3b8', label: formatName(categoryKey) };
-  const label = isCustomSection ? `${meta.label} — Custom` : meta.label;
+  const label = meta.label;
   if (items.length === 0) return null;
 
   return (
     <div className="mb-7">
-      <div className="flex items-center gap-2 mb-3 pb-2 border-b border-black/10">
+      <div className="mb-3 flex items-center gap-2.5">
         <span
-          className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0"
-          style={{ backgroundColor: `${meta.color}1a` }}
+          className="grid h-7 w-7 shrink-0 place-items-center rounded-lg"
+          style={{ backgroundColor: `${meta.color}18` }}
         >
-          <CategoryIcon iconKey={meta.icon} size={12} color={meta.color} />
+          <CategoryIcon iconKey={meta.icon} size={14} color={meta.color} />
         </span>
-        <h3 className="text-sm font-semibold text-slate-700">{label}</h3>
-        <span
-          className="text-[10px] px-1.5 py-0.5 font-semibold"
-          style={{ backgroundColor: `${meta.color}15`, color: meta.color }}
-        >
+        <h3 className="text-base font-semibold text-slate-900">{label}</h3>
+        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
           {items.length}
         </span>
         {isCustomSection && (
-          <span className="text-[10px] px-2 py-0.5 bg-gray-100 text-gray-500 border border-black/15 ml-1">
+          <span className="rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
             custom
           </span>
         )}
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
         {items.map(({ techName, tech, isCustom, onDuplicate, onEdit, onDelete, onOpenDetail }) => (
           <TechCard
             key={techName}
@@ -482,18 +487,17 @@ function groupBy(obj, defMap) {
 // ── Framework export sub-components ─────────────────────────────────────────
 function FwSectionHeader({ label }) {
   return (
-    <div className="flex items-center gap-2 mb-1">
-      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{label}</span>
-      <div className="flex-1 h-px bg-slate-100" />
+    <div className="border-b border-black/15 bg-slate-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+      {label}
     </div>
   );
 }
 
 function FwParamGroup({ title, children }) {
   return (
-    <div className="mb-2">
-      <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-300 mb-1 px-0.5">{title}</p>
-      <div className="space-y-px">{children}</div>
+    <div className="border-b border-black/10 last:border-0">
+      <p className="px-3 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">{title}</p>
+      <div>{children}</div>
     </div>
   );
 }
@@ -501,13 +505,13 @@ function FwParamGroup({ title, children }) {
 function FwParamRow({ code, value, unit, desc }) {
   return (
     <div
-      className="flex items-center gap-2 px-2 py-1 rounded hover:bg-slate-50 transition-colors"
+      className="flex items-start gap-3 px-3 py-1.5 transition-colors hover:bg-slate-50"
       title={desc || undefined}
     >
-      <code className="text-[11px] font-mono font-semibold text-slate-700 flex-1 min-w-0 truncate">{code}</code>
-      <div className="text-right flex-shrink-0">
-        <span className="text-[12px] font-mono font-bold text-slate-800 tabular-nums">{value}</span>
-        {unit && <span className="text-[9px] text-slate-400 ml-1">{unit}</span>}
+      <code className="w-2/5 shrink-0 truncate pt-px font-mono text-[11px] text-slate-500">{code}</code>
+      <div className="min-w-0 flex-1 text-right [overflow-wrap:anywhere]">
+        <span className="font-mono text-[12px] font-semibold tabular-nums text-slate-900">{value}</span>
+        {unit && <span className="ml-1 text-[10px] text-slate-400">{unit}</span>}
       </div>
     </div>
   );
@@ -520,9 +524,9 @@ function FrameworkDataView({ engine, data }) {
     const hasCosts = Object.keys(monetary).length > 0;
     const hasConstraints = Object.keys(constraints).length > 0;
     return (
-      <div className="p-2 space-y-3">
+      <div className="space-y-3 p-3">
         {Object.keys(essentials).length > 0 && (
-          <section>
+          <section className="overflow-hidden rounded-xl border border-black/15 bg-white">
             <FwSectionHeader label="Essentials" />
             {Object.entries(essentials).map(([k, v]) => (
               <FwParamRow key={k} code={k} value={String(v)} />
@@ -530,7 +534,7 @@ function FrameworkDataView({ engine, data }) {
           </section>
         )}
         {hasCosts && (
-          <section>
+          <section className="overflow-hidden rounded-xl border border-black/15 bg-white">
             <FwSectionHeader label="Costs" />
             {groupBy(monetary, COST_DEFINITIONS).map(([group, items]) => (
               <FwParamGroup key={group} title={group}>
@@ -548,7 +552,7 @@ function FrameworkDataView({ engine, data }) {
           </section>
         )}
         {hasConstraints && (
-          <section>
+          <section className="overflow-hidden rounded-xl border border-black/15 bg-white">
             <FwSectionHeader label="Constraints" />
             {groupBy(constraints, CONSTRAINT_DEFINITIONS).map(([group, items]) => (
               <FwParamGroup key={group} title={group}>
@@ -577,12 +581,12 @@ function FrameworkDataView({ engine, data }) {
   const publicEntries = Object.entries(data).filter(([k]) => !k.startsWith('_') && k !== 'OpenTechDB');
 
   return (
-    <div className="p-2 space-y-3">
+    <div className="space-y-3 p-3">
       {publicEntries.map(([section, val]) => {
         if (val !== null && typeof val === 'object' && !Array.isArray(val)) {
           const sectionUnits = units[section];
           return (
-            <section key={section}>
+            <section key={section} className="overflow-hidden rounded-xl border border-black/15 bg-white">
               <FwSectionHeader label={section} />
               {Object.entries(val).filter(([k]) => !k.startsWith('_')).map(([k, v]) => {
                 const unit = typeof sectionUnits === 'object' && sectionUnits !== null ? sectionUnits[k] : null;
@@ -685,109 +689,111 @@ function DetailPanel({ tech, onClose, onDuplicate }) {
   const rows = paramRows.length > 0 ? paramRows : fallbackRows;
 
   return (
-    <aside className="absolute top-0 right-0 bottom-0 w-96 bg-white border-l border-black/15 flex flex-col overflow-hidden shadow-2xl z-40">
+    <motion.aside
+      initial={{ x: '100%' }}
+      animate={{ x: 0 }}
+      exit={{ x: '100%' }}
+      transition={{ type: 'tween', duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
+      className="absolute top-0 right-0 bottom-0 z-40 flex w-[440px] max-w-full flex-col overflow-hidden border-l border-black/15 bg-white shadow-2xl"
+    >
       {/* Header */}
-      <div
-        className="px-4 py-3 flex items-start justify-between border-b border-black/15"
-        style={{ borderTopWidth: 3, borderTopColor: meta.color }}
-      >
-        <div className="flex-1 min-w-0 pr-2">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="text-sm font-bold text-slate-800 leading-snug">
-              {tech.essentials?.name || formatName(tech.name)}
-            </h3>
+      <div className="flex items-start gap-3 border-b border-black/15 px-5 py-4">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl" style={{ backgroundColor: `${meta.color}18` }}>
+          <CategoryIcon iconKey={meta.icon} size={18} color={meta.color} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-base font-semibold leading-snug text-slate-900">
+            {tech.essentials?.name || formatName(tech.name)}
+          </h3>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
             <span
-              className="text-[10px] px-2 py-0.5 font-semibold flex-shrink-0"
+              className="rounded-md px-1.5 py-0.5 text-[11px] font-medium"
               style={{ backgroundColor: `${meta.color}18`, color: meta.color }}
             >
               {meta.label}
             </span>
-          </div>
-          {tech.oeo_class && (
-            <div className="flex items-center gap-1 mt-1">
-              <span className="text-[10px] font-mono text-slate-400 italic">{tech.oeo_class}</span>
+            {tech.oeo_class && (
               <a
                 href="https://openenergy-platform.org/ontology/oeo/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-slate-400 hover:text-slate-600"
+                className="flex items-center gap-1 font-mono text-[11px] text-slate-400 hover:text-slate-700"
                 title="Open Energy Ontology"
               >
-                <FiExternalLink size={10} />
+                {tech.oeo_class} <FiExternalLink size={10} />
               </a>
-            </div>
-          )}
+            )}
+          </div>
           {tech.description && (
-            <p className="text-[11px] text-slate-500 mt-0.5 leading-snug line-clamp-2" title={tech.description}>{tech.description}</p>
+            <p className="mt-2 line-clamp-3 text-xs leading-relaxed text-slate-500" title={tech.description}>{tech.description}</p>
           )}
         </div>
         <button
           onClick={onClose}
-          className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-700 flex-shrink-0"
+          aria-label="Close"
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700"
         >
-          <FiX size={15} />
+          <FiX size={16} />
         </button>
       </div>
 
-      {/* Instance selector — dropdown */}
       {instances.length > 0 && (
-        <div className="px-3 py-2 border-b border-black/10 flex-shrink-0 flex items-center gap-2">
-          <span className="text-[9px] text-slate-400 flex-shrink-0">
-            {instances.length} variant{instances.length !== 1 ? 's' : ''}
-          </span>
-          <select
+        <div className="shrink-0 border-b border-black/10 px-5 py-3">
+          <label className="mb-1.5 block text-xs font-medium text-slate-600">
+            Variant <span className="font-normal text-slate-400">· {instances.length} available</span>
+          </label>
+          <Select
             value={safeActiveIdx}
-            onChange={e => setActiveIdx(Number(e.target.value))}
-            className="flex-1 text-[11px] font-medium text-slate-700 bg-slate-50 border border-black/15 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-slate-400 cursor-pointer"
-          >
-            {instances.map((i, idx) => (
-              <option key={idx} value={idx}>
-                {i.displayLabel || i.label || `Variant ${idx + 1}`}
-                {i.life_cycle_stage ? ` — ${i.life_cycle_stage}` : ''}
-              </option>
-            ))}
-          </select>
+            onChange={setActiveIdx}
+            options={instances.map((i, idx) => ({
+              value: idx,
+              label: i.displayLabel || i.label || `Variant ${idx + 1}`,
+              description: i.life_cycle_stage || undefined,
+            }))}
+          />
         </div>
       )}
 
-      {/* Tab strip */}
-      <div className="flex border-b border-black/15 bg-white sticky top-0 z-10 flex-shrink-0">
-        {[['framework', 'Framework Export'], ['source', 'Source Data']].map(([id, label]) => (
-          <button
-            key={id}
-            onClick={() => setParamView(id)}
-            className={`flex-1 py-2 text-[11px] font-semibold uppercase tracking-tight transition-colors border-b-2 ${
-              paramView === id
-                ? 'text-black border-black'
-                : 'text-black/60 border-transparent hover:text-black'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
+      <div className="shrink-0 px-5 pt-3">
+        <div className="grid grid-cols-2 gap-1 rounded-xl bg-slate-200/80 p-1 ring-1 ring-inset ring-slate-300/50">
+          {[['framework', 'Framework export'], ['source', 'Source data']].map(([id, label]) => (
+            <button
+              key={id}
+              onClick={() => setParamView(id)}
+              className={`rounded-lg py-1.5 text-xs font-medium transition-all ${
+                paramView === id ? 'bg-black text-white ' : 'text-slate-600 hover:bg-white/70 hover:text-slate-900'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Parameter views */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar">
 
         {/* ── Framework Export tab ────────────────────────────────────── */}
         {paramView === 'framework' && (
           <div className="flex flex-col">
             {/* Engine selector */}
-            <div className="flex items-center gap-1.5 px-3 py-2.5 border-b border-black/10 flex-wrap">
-              {ENGINES.map(eng => (
-                <button
-                  key={eng.id}
-                  onClick={() => setEngine(eng.id)}
-                  className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide transition-colors ${
-                    engine === eng.id
-                      ? 'bg-black text-white'
-                      : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                  }`}
-                >
-                  {eng.label}
-                </button>
-              ))}
+            <div className="px-5 pb-1 pt-3">
+              <p className="mb-1.5 text-xs font-medium text-slate-600">Engine</p>
+              <div role="radiogroup" aria-label="Engine" className="grid grid-cols-4 gap-1 rounded-xl bg-slate-200/80 p-1 ring-1 ring-inset ring-slate-300/50">
+                {ENGINES.map(eng => (
+                  <button
+                    key={eng.id}
+                    role="radio"
+                    aria-checked={engine === eng.id}
+                    onClick={() => setEngine(eng.id)}
+                    className={`truncate rounded-lg px-2 py-1.5 text-xs font-medium transition-all ${
+                      engine === eng.id ? 'bg-black text-white ' : 'text-slate-600 hover:bg-white/70 hover:text-slate-900'
+                    }`}
+                  >
+                    {eng.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Framework data */}
@@ -822,10 +828,10 @@ function DetailPanel({ tech, onClose, onDuplicate }) {
             <table className="w-full text-xs">
               <thead className="sticky top-0 z-10">
                 <tr className="bg-slate-50 border-b border-black/15">
-                  <th className="text-left px-4 py-2 text-[10px] font-bold uppercase text-black/60 w-2/5 tracking-widest">Parameter</th>
-                  <th className="text-right px-2 py-2 text-[10px] font-bold uppercase text-black/60 tracking-widest">Value</th>
-                  <th className="text-left px-2 py-2 text-[10px] font-bold uppercase text-black/60 tracking-widest">Unit</th>
-                  <th className="text-left px-3 py-2 text-[10px] font-bold uppercase text-black/60 tracking-widest">Source</th>
+                  <th className="text-left px-4 py-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500 w-2/5">Parameter</th>
+                  <th className="text-right px-2 py-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Value</th>
+                  <th className="text-left px-2 py-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Unit</th>
+                  <th className="text-left px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Source</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -866,12 +872,12 @@ function DetailPanel({ tech, onClose, onDuplicate }) {
       </div>
 
       {/* Footer */}
-      <div className="px-4 py-3 border-t border-black/15 bg-slate-50">
+      <div className="border-t border-black/15 bg-white px-5 py-3">
         <button
           onClick={() => onDuplicate(tech.name || tech.id, tech)}
-          className="w-full flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wide bg-black text-white rounded-lg hover:bg-black/80 transition-colors"
+          className="flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-black text-sm font-semibold text-white  transition-colors hover:bg-black/80"
         >
-          <FiCopy size={12} /> Duplicate to My Technologies
+          <FiCopy size={14} /> Duplicate to My Technologies
         </button>
         {tech.source_url && (
           <a
@@ -884,7 +890,43 @@ function DetailPanel({ tech, onClose, onDuplicate }) {
           </a>
         )}
       </div>
-    </aside>
+    </motion.aside>
+  );
+}
+
+function FilterRow({ title, children }) {
+  return (
+    <div>
+      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{title}</p>
+      <div className="flex flex-wrap gap-1.5">{children}</div>
+    </div>
+  );
+}
+
+function FilterChip({ label, count, active, color, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={active}
+      className={`flex items-center gap-1.5 border px-3 py-1 text-xs font-medium transition-all ${
+        active ? 'border-slate-900 bg-black text-white ' : 'border-black/15 bg-white text-slate-600 hover:border-black/15 hover:text-slate-900'
+      }`}
+    >
+      {color && <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />}
+      {label}
+      <span className={`tabular-nums ${active ? 'text-white/60' : 'text-slate-400'}`}>{count}</span>
+    </button>
+  );
+}
+
+function FilterTag({ label, onRemove }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-black py-1 pl-2.5 pr-1 text-xs font-medium text-white">
+      {label}
+      <button onClick={onRemove} aria-label={`Remove ${label} filter`} className="grid h-4 w-4 place-items-center rounded-full hover:bg-white/20">
+        <FiX size={11} />
+      </button>
+    </span>
   );
 }
 
@@ -894,6 +936,9 @@ function Technologies() {
   const [searchTerm, setSearchTerm]             = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [showOnlyCustom, setShowOnlyCustom]     = useState(false);
+  const [showFilters, setShowFilters]           = useState(false);
+  const [typeFilters, setTypeFilters]           = useState([]);
+  const [carrierFilters, setCarrierFilters]     = useState([]);
   const [editingTech, setEditingTech]           = useState(null);
   const [editForm, setEditForm]                 = useState(null);
   const [detailTech, setDetailTech]             = useState(null);
@@ -957,7 +1002,22 @@ function Technologies() {
     }
   };
 
-  const matchesTerm = (name) => !searchTerm || name.toLowerCase().includes(searchTerm.toLowerCase());
+  const matchesFilters = (techName, tech) => {
+    if (searchTerm) {
+      const q = searchTerm.toLowerCase();
+      const haystack = `${techText(techName, tech)} ${tech.description || ''} ${tech.oeo_class || ''}`.toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
+    if (typeFilters.length > 0) {
+      const text = techText(techName, tech);
+      if (!TECH_TYPES.some(t => typeFilters.includes(t.id) && t.match.test(text))) return false;
+    }
+    if (carrierFilters.length > 0 && !techCarriers(tech).some(c => carrierFilters.includes(carrierName(c)))) return false;
+    return true;
+  };
+  const toggleIn = (setter) => (id) => setter(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  const activeFilterCount = typeFilters.length + carrierFilters.length;
+  const clearFilters = () => { setTypeFilters([]); setCarrierFilters([]); setSearchTerm(''); };
 
   // Determine transmission display category
   const getDisplayCategory = (tech, techName) => {
@@ -972,7 +1032,7 @@ function Technologies() {
   const groupedTechs = useMemo(() => {
     const grouped = {};
     Object.entries(allTechnologies).forEach(([techName, tech]) => {
-      if (!matchesTerm(techName) || showOnlyCustom) return;
+      if (showOnlyCustom || !matchesFilters(techName, tech)) return;
       const displayCategory = getDisplayCategory(tech, techName);
       if (selectedCategory !== 'all' && displayCategory !== selectedCategory) return;
       if (!grouped[displayCategory]) grouped[displayCategory] = [];
@@ -983,12 +1043,12 @@ function Technologies() {
       });
     });
     return grouped;
-  }, [allTechnologies, searchTerm, selectedCategory, showOnlyCustom]);
+  }, [allTechnologies, searchTerm, selectedCategory, showOnlyCustom, typeFilters, carrierFilters]);
 
   const customTechsByParent = useMemo(() => {
     const grouped = {};
     technologies.forEach(tech => {
-      if (!matchesTerm(tech.name)) return;
+      if (!matchesFilters(tech.name, tech)) return;
       const displayCategory = getDisplayCategory(tech, tech.name);
       if (selectedCategory !== 'all' && displayCategory !== selectedCategory) return;
       if (!grouped[displayCategory]) grouped[displayCategory] = [];
@@ -999,7 +1059,7 @@ function Technologies() {
       });
     });
     return grouped;
-  }, [technologies, searchTerm, selectedCategory]);
+  }, [technologies, searchTerm, selectedCategory, typeFilters, carrierFilters]);
 
   const totalCustom = technologies.length;
 
@@ -1014,6 +1074,21 @@ function Technologies() {
 
   const totalTemplates = Object.keys(allTechnologies).length;
 
+  const typeOptions = useMemo(() => TECH_TYPES.map(t => ({
+    ...t,
+    count: Object.entries(allTechnologies).filter(([n, tech]) => t.match.test(techText(n, tech))).length,
+  })).filter(t => t.count > 0), [allTechnologies]);
+
+  const carrierOptions = useMemo(() => {
+    const counts = {};
+    Object.values(allTechnologies).forEach(tech => {
+      new Set(techCarriers(tech).map(carrierName)).forEach(name => { counts[name] = (counts[name] || 0) + 1; });
+    });
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([name, count]) => ({ name, count }));
+  }, [allTechnologies]);
+
+  const shownCount = Object.values(groupedTechs).reduce((n, items) => n + items.length, 0);
+
   return (
     <div className="flex flex-col h-screen bg-gray-50 overflow-hidden">
       <SaveBar label="Technologies" />
@@ -1024,7 +1099,7 @@ function Technologies() {
         <aside className="w-60 flex-shrink-0 bg-white border-r border-black/15 flex flex-col overflow-hidden">
           <div className="px-4 pt-4 pb-3 border-b border-black/10">
             <div className="flex items-center gap-2">
-              <h2 className="text-sm font-bold text-slate-800">Technology Library</h2>
+              <h2 className="text-sm font-semibold text-slate-900">Technology Library</h2>
               {currentModelId && technologies.filter(t => t.uuid).length > 0 && (
                 <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-indigo-50 text-indigo-600">
                   {technologies.filter(t => t.uuid).length} in model
@@ -1052,7 +1127,7 @@ function Technologies() {
                 placeholder="Search technologies…"
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 text-xs border border-black/15 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-300 bg-slate-50"
+                className="h-9 w-full rounded-lg border border-black/15 bg-slate-50 pl-8 pr-3 text-[13px] text-slate-800 placeholder:text-slate-400 transition-colors focus:border-black/15 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-200"
               />
             </div>
           </div>
@@ -1061,13 +1136,13 @@ function Technologies() {
           <nav className="flex-1 overflow-y-auto p-3 custom-scrollbar space-y-0.5">
             <button
               onClick={() => { setSelectedCategory('all'); setShowOnlyCustom(false); setDetailTech(null); }}
-              className={`uppercase tracking-wide font-bold w-full text-left flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-colors ${
+              className={`w-full text-left flex items-center justify-between px-3 py-2 rounded-lg text-[13px] transition-colors ${
                 selectedCategory === 'all' && !showOnlyCustom
-                  ? 'bg-black text-white'
-                  : 'text-slate-600 hover:bg-slate-100'
+                  ? 'bg-black text-white '
+                  : 'text-slate-700 hover:bg-slate-100'
               }`}
             >
-              <span className="font-medium">All Technologies</span>
+              <span className="font-medium">All technologies</span>
               <span className={`text-[10px] ${selectedCategory === 'all' && !showOnlyCustom ? 'opacity-60' : 'opacity-50'}`}>
                 {totalTemplates}
               </span>
@@ -1087,11 +1162,13 @@ function Technologies() {
                 <button
                   key={key}
                   onClick={() => { setSelectedCategory(key); setShowOnlyCustom(false); setDetailTech(null); }}
-                  className={`uppercase tracking-wide font-bold w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-colors ${
-                    active ? 'bg-black text-white' : 'text-slate-600 hover:bg-slate-100'
+                  className={`w-full text-left flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-[13px] transition-colors ${
+                    active ? 'bg-black text-white ' : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
-                  <CategoryIcon iconKey={meta.icon} size={12} color={active ? 'white' : meta.color} />
+                  <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md" style={{ backgroundColor: active ? 'rgba(255,255,255,0.15)' : `${meta.color}18` }}>
+                    <CategoryIcon iconKey={meta.icon} size={12} color={active ? 'white' : meta.color} />
+                  </span>
                   <span className="flex-1 truncate">{meta.label}</span>
                   <span className={`text-[10px] ${active ? 'opacity-60' : 'opacity-50'}`}>{count}</span>
                 </button>
@@ -1105,7 +1182,7 @@ function Technologies() {
                 </div>
                 <button
                   onClick={() => { setShowOnlyCustom(true); setSelectedCategory('all'); setDetailTech(null); }}
-                  className={`uppercase tracking-wide font-bold w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-colors ${
+                  className={`w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-colors ${
                     showOnlyCustom ? 'bg-black text-white' : 'text-slate-600 hover:bg-slate-100'
                   }`}
                 >
@@ -1119,10 +1196,10 @@ function Technologies() {
         </aside>
 
         {/* ── Main content ─────────────────────────────────────────────────── */}
-        <main className="flex-1 overflow-y-auto p-5 custom-scrollbar min-w-0">
+        <main className="flex-1 overflow-y-auto p-6 custom-scrollbar min-w-0">
           {/* API attribution banner */}
           {isApiLive && !isApiLoading && (
-            <div className="flex items-center gap-2 mb-5 px-3 py-2 bg-white border border-black/15 rounded-lg text-[11px] text-slate-500">
+            <div className="mb-6 flex items-center gap-2 rounded-xl border border-black/15 bg-white px-4 py-2.5 text-xs text-slate-500 ">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
               <span>
                 Data sourced from{' '}
@@ -1148,7 +1225,65 @@ function Technologies() {
             </div>
           )}
 
-          {/* Loading skeleton */}
+          {!isApiLoading && !showOnlyCustom && (
+            <div className="mb-6">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm text-slate-500">
+                  Showing <span className="font-semibold text-slate-900">{shownCount}</span> of {totalTemplates} technologies
+                </p>
+                {typeFilters.map(id => (
+                  <FilterTag key={id} label={TECH_TYPES.find(t => t.id === id)?.label} onRemove={() => toggleIn(setTypeFilters)(id)} />
+                ))}
+                {carrierFilters.map(id => (
+                  <FilterTag key={id} label={id} onRemove={() => toggleIn(setCarrierFilters)(id)} />
+                ))}
+                <div className="ml-auto flex items-center gap-2">
+                  {(activeFilterCount > 0 || searchTerm) && (
+                    <button onClick={clearFilters} className="h-9 rounded-lg px-3 text-[13px] font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900">
+                      Clear filters
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setShowFilters(v => !v)}
+                    aria-expanded={showFilters}
+                    className={`flex h-9 items-center gap-2 rounded-lg border px-3 text-[13px] font-semibold  transition-colors ${
+                      showFilters || activeFilterCount > 0
+                        ? 'border-slate-900 bg-black text-white'
+                        : 'border-black/15 bg-white text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <LuListFilter size={15} />
+                    Filters
+                    {activeFilterCount > 0 && (
+                      <span className="grid h-5 min-w-5 place-items-center rounded-full bg-white px-1 text-[11px] font-bold text-slate-900">{activeFilterCount}</span>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {showFilters && (
+                <div className="mt-3 space-y-4 rounded-2xl border border-black/15 bg-white p-5 ">
+                  <FilterRow title="Type">
+                    {typeOptions.map(t => (
+                      <FilterChip key={t.id} label={t.label} count={t.count} active={typeFilters.includes(t.id)} onClick={() => toggleIn(setTypeFilters)(t.id)} />
+                    ))}
+                  </FilterRow>
+                  <FilterRow title="Carrier">
+                    {carrierOptions.map(c => (
+                      <FilterChip
+                        key={c.name}
+                        label={c.name}
+                        count={c.count}
+                        active={carrierFilters.includes(c.name)}
+                        onClick={() => toggleIn(setCarrierFilters)(c.name)}
+                      />
+                    ))}
+                  </FilterRow>
+                </div>
+              )}
+            </div>
+          )}
+
           {isApiLoading && <SkeletonGrid />}
 
           {/* My Technologies view */}
@@ -1177,9 +1312,10 @@ function Technologies() {
             <div>
               {/* Inline custom techs panel (only in All view) */}
               {totalCustom > 0 && selectedCategory === 'all' && (
-                <div className="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200">
-                  <h2 className="text-xs font-semibold text-amber-800 mb-3 flex items-center gap-2">
-                    <FiStar size={13} className="text-amber-500" /> My Technologies ({totalCustom})
+                <div className="mb-8 rounded-2xl border border-black/15 bg-slate-100/60 p-5">
+                  <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-900">
+                    <FiStar size={14} className="text-amber-500" /> My Technologies
+                    <span className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">{totalCustom}</span>
                   </h2>
                   {CATEGORY_ORDER.map(key => (
                     <CategorySection key={key} categoryKey={key} items={customTechsByParent[key] || []} isCustomSection />
@@ -1194,8 +1330,11 @@ function Technologies() {
                 ))
               ) : (
                 <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-                  <FiSearch size={32} className="mb-3 opacity-30" />
-                  <p className="text-sm">No technologies match your search.</p>
+                  <FiSearch size={28} className="mb-3 opacity-40" />
+                  <p className="text-sm font-medium text-slate-600">No technologies match your search or filters.</p>
+                  <button onClick={clearFilters} className="mt-3 rounded-lg border border-black/15 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                    Clear filters
+                  </button>
                 </div>
               )}
             </div>
@@ -1203,26 +1342,33 @@ function Technologies() {
         </main>
 
         {/* ── Detail panel — floats as overlay so card grid keeps full width ── */}
-        {detailTech && (
-          <>
-            <div
-              className="absolute inset-0 z-30"
-              style={{ background: 'rgba(15,23,42,0.08)' }}
+        <AnimatePresence>
+          {detailTech && (
+            <motion.div
+              key="detail-backdrop"
+              className="absolute inset-0 z-30 bg-slate-900/10"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
               onClick={() => setDetailTech(null)}
             />
+          )}
+          {detailTech && (
             <DetailPanel
+              key={detailTech.uuid || detailTech.name}
               tech={detailTech}
               onClose={() => setDetailTech(null)}
               onDuplicate={handleDuplicate}
             />
-          </>
-        )}
+          )}
+        </AnimatePresence>
 
         {/* ── Edit modal ───────────────────────────────────────────────────── */}
         {editingTech && editForm && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col">
-              <div className="flex items-center justify-between px-6 py-4 bg-slate-800 text-white rounded-t-xl">
+              <div className="flex items-center justify-between px-6 py-4 bg-black text-white rounded-t-xl">
                 <h2 className="text-sm font-bold">Edit: {editingTech}</h2>
                 <button onClick={handleCancelEdit} className="p-1.5 hover:bg-white/20 rounded-full transition-colors">
                   <FiX size={18} />
@@ -1244,7 +1390,7 @@ function Technologies() {
                               <span className="text-xs text-slate-400">(single carrier for storage / transmission)</span>
                             </div>
                             <CarrierSelect value={value} onChange={e => setEss(e.target.value)}
-                              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-gray-400 focus:outline-none" />
+                              className="w-full px-3 py-2 text-sm border border-black/15 rounded-lg focus:ring-2 focus:ring-gray-400 focus:outline-none" />
                           </div>
                         );
                       }
@@ -1274,20 +1420,20 @@ function Technologies() {
                       }
                       return (
                         <div key={key}>
-                          <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">{key}</label>
+                          <label className="block text-xs font-medium text-slate-600 mb-1">{key}</label>
                           {key === 'color' ? (
                             <div className="flex items-center gap-2">
                               <input type="color" value={value} onChange={e => setEss(e.target.value)}
-                                className="w-10 h-9 border border-slate-300 rounded cursor-pointer" />
+                                className="w-10 h-9 border border-black/15 rounded cursor-pointer" />
                               <input type="text" value={value} onChange={e => setEss(e.target.value)}
-                                className="flex-1 px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-gray-400 focus:outline-none" />
+                                className="flex-1 px-3 py-2 text-sm border border-black/15 rounded-lg focus:ring-2 focus:ring-gray-400 focus:outline-none" />
                             </div>
                           ) : key === 'parent' ? (
                             <input type="text" value={value} disabled
                               className="w-full px-3 py-2 text-sm border border-black/15 rounded-lg bg-slate-100 text-slate-500" />
                           ) : (
                             <input type="text" value={value} onChange={e => setEss(e.target.value)}
-                              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-gray-400 focus:outline-none" />
+                              className="w-full px-3 py-2 text-sm border border-black/15 rounded-lg focus:ring-2 focus:ring-gray-400 focus:outline-none" />
                           )}
                         </div>
                       );
@@ -1365,7 +1511,7 @@ function Technologies() {
                         <div className="mt-3 grid grid-cols-3 gap-3">
                           {storageFields.map(({ key, label, placeholder }) => (
                             <div key={key}>
-                              <label className="block text-[0.6875rem] font-bold text-amber-700 mb-1 uppercase tracking-widest">{label}</label>
+                              <label className="block text-xs font-medium text-amber-700 mb-1">{label}</label>
                               <input
                                 type="text"
                                 placeholder={placeholder}
@@ -1411,7 +1557,7 @@ function Technologies() {
               <div className="flex items-center justify-between px-6 py-4 border-t border-black/15 bg-slate-50 rounded-b-xl">
                 <button
                   onClick={handleDeleteTech}
-                  className="flex items-center gap-1.5 px-4 py-2 text-sm bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-700 hover:text-white transition-colors"
+                  className="flex items-center gap-1.5 px-4 py-2 text-sm bg-gray-100 text-gray-600 rounded-lg hover:bg-black/80 hover:text-white transition-colors"
                 >
                   <FiTrash2 size={14} /> Delete
                 </button>
@@ -1419,7 +1565,7 @@ function Technologies() {
                   <button onClick={handleCancelEdit} className="px-4 py-2 text-sm bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition-colors">
                     Cancel
                   </button>
-                  <button onClick={handleSaveEdit} className="uppercase tracking-wide font-bold flex items-center gap-1.5 px-4 py-2 text-sm bg-black text-white rounded-lg hover:bg-black/80 transition-colors">
+                  <button onClick={handleSaveEdit} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-black text-white rounded-lg hover:bg-black/80 transition-colors">
                     <FiSave size={14} /> Save
                   </button>
                 </div>

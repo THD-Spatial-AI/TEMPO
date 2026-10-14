@@ -363,3 +363,9 @@ code, pre {
 .tempo-calc-badge {
   animation: tempo-badge-pulse 1.4s ease-in-out infinite;
 }
+
+/* Side panels: contents fade in while the panel slides open. */
+@keyframes panelContentIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}

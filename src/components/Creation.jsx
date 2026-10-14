@@ -1966,21 +1966,6 @@ const Creation = ({ onNavigate }) => {
 
       {/* Main Map View */}
       <div className="flex-1 relative">
-        {/* Prominent, always-visible Save action (shows once there's something to save) */}
-        {locationManager.tempLocations.length > 0 && (
-          <button
-            onClick={() => setShowSaveDialog(true)}
-            className="absolute top-4 right-4 z-[600] flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold shadow-lg ring-1 ring-emerald-700/40 hover:bg-emerald-700 transition-colors"
-            title="Save this model and open it in the Map View"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-              <polyline points="17 21 17 13 7 13 7 21" />
-              <polyline points="7 3 7 8 15 8" />
-            </svg>
-            Save model ({locationManager.tempLocations.length})
-          </button>
-        )}
         {/* Breathing badge while calculating; the contour glows around the area */}
         {calculating && (
           <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[500] pointer-events-none">
@@ -2535,7 +2520,7 @@ const Creation = ({ onNavigate }) => {
         {/* Tech Library toggle button */}
         <button
           onClick={() => setShowTechLibrary(v => !v)}
-          className={`absolute top-4 left-4 z-30 flex items-center gap-1.5 px-3 py-1.5 rounded-lg shadow-md text-[11px] font-semibold transition-colors border ${
+          className={`absolute top-4 left-4 z-30 flex items-center gap-1.5 px-3 py-1.5 rounded-lg  text-[11px] font-semibold transition-colors border ${
             showTechLibrary
               ? 'bg-indigo-600 text-white border-indigo-700'
               : 'bg-white text-slate-600 border-black/15 hover:bg-slate-50'
@@ -2562,26 +2547,28 @@ const Creation = ({ onNavigate }) => {
         )}
 
         {/* Mode Indicator */}
-        <div className="absolute bottom-4 left-4 bg-white px-4 py-2 rounded-lg shadow-lg">
-          <div className="text-xs text-gray-600 mb-1">Current Mode</div>
-          <div className="font-semibold text-gray-800">
-            {mode === 'add' && 'Add Location'}
-            {mode === 'link' && (locationManager.linkStart ? 'Link: Select End Location' : 'Link: Select Start Location')}
-            {mode === 'polyline' && 'Polyline Mode'}
+        {mode && (
+          <div className="absolute bottom-4 left-4 flex max-w-[calc(100%-12rem)] items-center gap-2.5 rounded-full bg-white/90 py-1.5 pl-3 pr-4 text-xs shadow-lg shadow-slate-900/10 ring-1 ring-slate-900/5 backdrop-blur-md">
+            <span className="relative flex h-2 w-2 shrink-0">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+            </span>
+            <span className="shrink-0 font-semibold text-slate-900">
+              {mode === 'add' && 'Add location'}
+              {mode === 'link' && 'Link'}
+              {mode === 'polyline' && 'Polyline'}
+            </span>
+            <span className="truncate text-slate-500">
+              {mode === 'add' && 'Click the map to place a location'}
+              {mode === 'link' && (locationManager.linkStart
+                ? `From ${locationManager.linkStart.name} · select the end location`
+                : 'Select the start location')}
+              {mode === 'polyline' && (polylineMode.lastCreatedLocation
+                ? `Last: ${polylineMode.lastCreatedLocation.name} · click to add the next point`
+                : 'Click the map to start a chain of connected points')}
+            </span>
           </div>
-          {mode === 'link' && locationManager.linkStart && (
-            <div className="text-xs text-gray-600 mt-1">
-              From: {locationManager.linkStart.name}
-            </div>
-          )}
-          {mode === 'polyline' && (
-            <div className="text-xs text-gray-600 mt-1">
-              {polylineMode.lastCreatedLocation 
-                ? `Last: ${polylineMode.lastCreatedLocation.name} • Click to add next point and auto-link`
-                : 'Click map to start creating connected points'}
-            </div>
-          )}
-        </div>
+        )}
 
         {/* Map Legends */}
         {(osmPowerLines || osmPowerPlants) && (
@@ -2593,13 +2580,28 @@ const Creation = ({ onNavigate }) => {
         )}
 
         {/* Map Controls */}
-        <div className="absolute top-4 right-4 flex flex-col gap-2">
+        <div className="absolute top-4 right-4 z-[600] flex flex-col gap-2">
           <LayerSelector currentLayer={currentStyle} onLayerChange={setCurrentStyle} />
         </div>
+
+        {/* Save action — shows once there's something to save */}
+        {locationManager.tempLocations.length > 0 && (
+          <button
+            onClick={() => setShowSaveDialog(true)}
+            className="absolute bottom-4 right-4 z-[600] flex h-11 items-center gap-2.5 rounded-xl bg-black pl-4 pr-2.5 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 ring-1 ring-slate-900/10 transition-colors hover:bg-black/80"
+            title="Save this model and open it in the Map View"
+          >
+            <FiSave size={17} />
+            Save model
+            <span className="rounded-md bg-white/15 px-2 py-0.5 text-xs font-semibold tabular-nums">
+              {locationManager.tempLocations.length}
+            </span>
+          </button>
+        )}
       </div>
 
       {/* Right Sidebar — OSM Infrastructure Panel (owns its own header + collapse button) */}
-      <div className={`flex-shrink-0 transition-all duration-300 ${rightSidebarCollapsed ? 'w-14' : 'w-96'}`}>
+      <div className={`flex flex-shrink-0 justify-end overflow-hidden border-l border-black/15 bg-white transition-[width] duration-300 ease-out ${rightSidebarCollapsed ? 'w-14' : 'w-72'}`}>
         <OsmInfrastructurePanel
           collapsed={rightSidebarCollapsed}
           onToggleCollapse={() => setRightSidebarCollapsed(c => !c)}

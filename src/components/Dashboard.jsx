@@ -4,10 +4,8 @@ import { useData } from "../context/DataContext";
 import ReactECharts from 'echarts-for-react';
 import Papa from 'papaparse';
 import { fetchTemplate } from '../utils/templateFetch';
-import {
-  FiMapPin, FiLink, FiZap, FiBarChart2, FiPieChart, FiActivity, FiDollarSign,
-  FiChevronDown, FiChevronUp, FiCpu, FiLayers, FiMap, FiClock, FiGrid, FiSun, FiFilter,
-} from './ui/icons';
+import { FiMapPin, FiLink, FiZap, FiBarChart2, FiPieChart, FiActivity, FiDollarSign, FiChevronDown, FiChevronUp, FiCpu, FiLayers, FiMap, FiClock, FiGrid, FiSun, FiFilter } from './ui/icons';
+import { LuLayoutDashboard, LuFactory, LuGauge, LuWaypoints, LuCoins, LuChartLine } from './ui/icons';
 import 'leaflet/dist/leaflet.css';
 import { TsViewControls, Panel, KpiCard, InputMap } from './dashboard/DashboardWidgets';
 
@@ -163,12 +161,12 @@ function buildFilteredChart(ts, opts, lineColor = '#6b7280') {
 
 // ── Tabs definition ───────────────────────────────────────────────────────────
 const TABS = [
-  { id: 'overview',    label: 'Overview',     icon: FiGrid },
-  { id: 'generation',  label: 'Generation',   icon: FiZap },
-  { id: 'demand',      label: 'Demand',       icon: FiActivity },
-  { id: 'network',     label: 'Network',      icon: FiLink },
-  { id: 'cost',        label: 'Cost',         icon: FiDollarSign },
-  { id: 'timeseries',  label: 'Time Series',  icon: FiClock },
+  { id: 'overview',    label: 'Overview',     icon: LuLayoutDashboard },
+  { id: 'generation',  label: 'Generation',   icon: LuFactory },
+  { id: 'demand',      label: 'Demand',       icon: LuGauge },
+  { id: 'network',     label: 'Network',      icon: LuWaypoints },
+  { id: 'cost',        label: 'Cost',         icon: LuCoins },
+  { id: 'timeseries',  label: 'Time Series',  icon: LuChartLine },
 ];
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -391,7 +389,7 @@ const Dashboard = () => {
       grid: { left: 155, right: 70, top: 10, bottom: 10 },
       xAxis: { type: 'value', ...axisNameStyle(unit), axisLabel: { fontSize: 10, color: '#64748b', formatter: v => fmt(v) }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
       yAxis: { type: 'category', data: entries.map(([id]) => getTechName(id)), axisLabel: { fontSize: 10, color: '#475569' }, inverse: true },
-      series: [{ type: 'bar', barMaxWidth: 22, data: entries.map(([id, v]) => ({ value: v, itemStyle: { color: getTechColor(id), borderRadius: 0 } })), label: { show: true, position: 'right', formatter: p => fmt(p.value) + ' ' + unit, fontSize: 9, color: '#64748b' } }],
+      series: [{ type: 'bar', barMaxWidth: 22, data: entries.map(([id, v]) => ({ value: v, itemStyle: { color: getTechColor(id), borderRadius: [0,4,4,0] } })), label: { show: true, position: 'right', formatter: p => fmt(p.value) + ' ' + unit, fontSize: 9, color: '#64748b' } }],
       tooltip: { trigger: 'axis', formatter: p => `${p[0].name}<br/><b>${fmtNum(p[0].value)} MW</b>` },
     };
   }, [d.capByTech, getTechColor, getTechName]);
@@ -425,7 +423,7 @@ const Dashboard = () => {
       grid: { left: 120, right: 36, top: 10, bottom: 10 },
       xAxis: { type: 'value', axisLabel: { fontSize: 10, color: '#64748b' }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
       yAxis: { type: 'category', data: entries.map(([k]) => k), axisLabel: { fontSize: 10, color: '#475569' }, inverse: true },
-      series: [{ type: 'bar', barMaxWidth: 18, data: entries.map(([,v]) => ({ value: v.length, itemStyle: { color: '#6b7280', borderRadius: 0 } })), label: { show: true, position: 'right', fontSize: 9, color: '#64748b' } }],
+      series: [{ type: 'bar', barMaxWidth: 18, data: entries.map(([,v]) => ({ value: v.length, itemStyle: { color: '#6b7280', borderRadius: [0,4,4,0] } })), label: { show: true, position: 'right', fontSize: 9, color: '#64748b' } }],
       tooltip: { trigger: 'axis', formatter: p => `${p[0].name}: <b>${p[0].value} techs</b>` },
     };
   }, [d.techsPerLoc]);
@@ -441,7 +439,7 @@ const Dashboard = () => {
       grid: { left: 155, right: 70, top: 10, bottom: 10 },
       xAxis: { type: 'value', ...axisNameStyle(unit), axisLabel: { fontSize: 10, color: '#64748b', formatter: v => fmt(v) }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
       yAxis: { type: 'category', data: entries.map(([id]) => getTechName(id)), axisLabel: { fontSize: 10, color: '#475569' }, inverse: true },
-      series: [{ type: 'bar', barMaxWidth: 22, data: entries.map(([id, v]) => ({ value: v, itemStyle: { color: getTechColor(id), borderRadius: 0 } })), label: { show: true, position: 'right', formatter: p => fmt(p.value) + ' ' + unit, fontSize: 9, color: '#64748b' } }],
+      series: [{ type: 'bar', barMaxWidth: 22, data: entries.map(([id, v]) => ({ value: v, itemStyle: { color: getTechColor(id), borderRadius: [0,4,4,0] } })), label: { show: true, position: 'right', formatter: p => fmt(p.value) + ' ' + unit, fontSize: 9, color: '#64748b' } }],
       tooltip: { trigger: 'axis', formatter: p => `${p[0].name}<br/><b>${fmt(p[0].value)} ${unit} CAPEX est.</b>` },
     };
   }, [d.costByTech, getTechColor, getTechName]);
@@ -474,7 +472,7 @@ const Dashboard = () => {
       {/* Header */}
       <div className="px-6 pt-5 pb-3 bg-white border-b border-black/15 flex items-center justify-between flex-shrink-0">
         <div>
-          <h1 className="text-xl font-black tracking-tighter text-black">Model Dashboard</h1>
+          <h1 className="text-xl font-bold text-slate-800">Model Dashboard</h1>
           <p className="text-xs text-slate-500 mt-0.5">{currentModel ? currentModel.name : 'No model selected'} — input data</p>
         </div>
         <ModelSelector />
@@ -485,10 +483,10 @@ const Dashboard = () => {
         <div className="px-6 flex gap-0">
           {TABS.map(({ id, label, icon: Icon }) => (
             <button key={id} onClick={() => setActiveTab(id)}
-              className={`flex items-center gap-1.5 px-4 py-3 border-b-2 text-[0.8125rem] font-semibold uppercase tracking-tight transition-colors
-                ${activeTab === id ? 'border-black text-black' : 'border-transparent text-black/60 hover:text-black'}`}>
+              className={`flex items-center gap-1.5 px-4 py-3 border-b-2 text-sm font-medium transition-colors
+                ${activeTab === id ? 'border-gray-900 text-gray-900' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-black/15'}`}>
               <Icon size={14} />{label}
-              {id === 'timeseries' && tsCount > 0 && <span className="ml-1 px-1.5 py-0.5 text-[10px] font-bold bg-black text-white">{tsCount}</span>}
+              {id === 'timeseries' && tsCount > 0 && <span className="ml-1 px-1.5 py-0.5 text-[10px] bg-gray-100 text-gray-700">{tsCount}</span>}
             </button>
           ))}
         </div>
@@ -500,11 +498,11 @@ const Dashboard = () => {
           {/* ── OVERVIEW — full-height, fills screen ──────────────────── */}
           {activeTab === 'overview' && (
             <div className="flex-1 min-h-0 flex flex-col gap-5 p-6 overflow-hidden">
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 flex-shrink-0">
+              <div className="grid grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8 gap-3 flex-shrink-0">
                 <KpiCard icon={FiMapPin}    label="Locations"       value={(locations||[]).length}               sub="nodes" />
                 <KpiCard icon={FiLink}      label="Links"           value={(links||[]).length}                   sub="connections" />
                 <KpiCard icon={FiZap}       label="Gen Technologies" value={genTechCount}                        sub="supply types" />
-                <KpiCard icon={FiActivity}  label="Max Capacity"    value={(d.totalCap/capDiv).toFixed(1)}       sub={`${capUnit} total`} accent="bg-gray-700" />
+                <KpiCard icon={FiActivity}  label="Max Capacity"    value={(d.totalCap/capDiv).toFixed(1)}       sub={`${capUnit} total`} accent="bg-black" />
                 <KpiCard icon={FiDollarSign} label="Est. CAPEX"     value={(d.totalCapex/costDiv).toFixed(1)}    sub={costUnit} />
                 <KpiCard icon={FiDollarSign} label="Est. OPEX/yr"   value={fmtNum(d.totalOpex)}                  sub="€/yr O&M" />
                 <KpiCard icon={FiCpu}       label="Tech Categories" value={Object.keys(d.byParent).length}       sub="parent groups" />
@@ -534,7 +532,7 @@ const Dashboard = () => {
           {/* ── GENERATION ────────────────────────────────────────────── */}
           {activeTab === 'generation' && (<>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <KpiCard icon={FiZap}      label="Supply Techs"    value={d.byParent.supply?.length || 0}       sub="generation types" accent="bg-gray-700" />
+              <KpiCard icon={FiZap}      label="Supply Techs"    value={d.byParent.supply?.length || 0}       sub="generation types" accent="bg-black" />
               <KpiCard icon={FiLayers}   label="Storage Techs"   value={d.byParent.storage?.length || 0}      sub="storage types" accent="bg-gray-500" />
               <KpiCard icon={FiActivity} label="Total Max Cap"   value={(d.totalCap/capDiv).toFixed(1)}       sub={capUnit} />
               <KpiCard icon={FiMapPin}   label="Locations"       value={Object.values(d.capByLoc).filter(v=>v>0).length} sub="with capacity" />
@@ -564,7 +562,7 @@ const Dashboard = () => {
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead><tr className="bg-slate-50 border-b border-black/15">
-                    {['','Name','ID','Type','Max Cap (MW)','CAPEX (€/MW)','Lifetime'].map(h => <th key={h} className="text-left px-3 py-2 text-black/60 font-bold uppercase tracking-widest">{h}</th>)}
+                    {['','Name','ID','Type','Max Cap (MW)','CAPEX (€/MW)','Lifetime'].map(h => <th key={h} className="text-left px-3 py-2 text-slate-500 font-medium">{h}</th>)}
                   </tr></thead>
                   <tbody>
                     {d.allTechIds.filter(id => ['supply','storage','conversion'].includes(getTechParent(id))).map((id, i) => {
@@ -711,7 +709,7 @@ const Dashboard = () => {
 
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <KpiCard icon={FiActivity}  label="Demand Locations"  value={displayCount || '—'}
-                  sub={tsLocSet ? 'from demand file' : 'from locations CSV'} accent="bg-gray-700" />
+                  sub={tsLocSet ? 'from demand file' : 'from locations CSV'} accent="bg-black" />
                 <KpiCard icon={FiClock}     label="Time Steps"
                   value={demandTs ? demandTs.rowCount : (tsLoading ? '…' : 'not loaded')}
                   sub={demandTs?.name || (tsLoading ? 'loading…' : 'open Time Series tab')} />
@@ -771,7 +769,7 @@ const Dashboard = () => {
                     accentColor="#6b7280" />
                 </div>
               ) : !tsLoading && (
-                <div className="bg-white rounded-xl border border-black/15 shadow-sm p-8 text-center text-slate-400">
+                <div className="bg-white rounded-xl border border-black/15  p-8 text-center text-slate-400">
                   <FiClock size={28} className="mx-auto mb-2 opacity-40" />
                   <p className="text-sm">Demand time series not yet loaded.</p>
                   <p className="text-[11px] mt-1">
@@ -789,7 +787,7 @@ const Dashboard = () => {
           {/* ── NETWORK ───────────────────────────────────────────────── */}
           {activeTab === 'network' && (<>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <KpiCard icon={FiLink}     label="Transmission Links" value={(links||[]).length}                  sub="connections" accent="bg-gray-700" />
+              <KpiCard icon={FiLink}     label="Transmission Links" value={(links||[]).length}                  sub="connections" accent="bg-black" />
               <KpiCard icon={FiMapPin}   label="Locations"         value={(locations||[]).length}               sub="nodes" />
               <KpiCard icon={FiZap}      label="Transmission Techs" value={d.byParent.transmission?.length || 0} sub="link technologies" />
               <KpiCard icon={FiActivity} label="Avg Techs / Node"  value={((d.allTechIds.length / Math.max(1,(locations||[]).length))).toFixed(1)} sub="technologies per node" />
@@ -813,7 +811,7 @@ const Dashboard = () => {
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead><tr className="bg-slate-50 border-b border-black/15">
-                      {['From','To','Technology','Distance (km)','Max Cap (MW)'].map(h => <th key={h} className="text-left px-3 py-2 text-black/60 font-bold uppercase tracking-widest">{h}</th>)}
+                      {['From','To','Technology','Distance (km)','Max Cap (MW)'].map(h => <th key={h} className="text-left px-3 py-2 text-slate-500 font-medium">{h}</th>)}
                     </tr></thead>
                     <tbody>
                       {(links||[]).map((link, i) => {
@@ -839,7 +837,7 @@ const Dashboard = () => {
           {/* ── COST ──────────────────────────────────────────────────── */}
           {activeTab === 'cost' && (<>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <KpiCard icon={FiDollarSign} label="Total CAPEX Est." value={(d.totalCapex/costDiv).toFixed(1)} sub={costUnit} accent="bg-gray-700" />
+              <KpiCard icon={FiDollarSign} label="Total CAPEX Est." value={(d.totalCapex/costDiv).toFixed(1)} sub={costUnit} accent="bg-black" />
               <KpiCard icon={FiDollarSign} label="Total OPEX/yr"    value={fmtNum(d.totalOpex)}              sub="€/yr O&M" />
               <KpiCard icon={FiZap}        label="Paid Capacity"    value={(d.totalCap/capDiv).toFixed(1)}    sub={`${capUnit} with cost >0`} />
               <KpiCard icon={FiCpu}        label="Cost Tech Count"  value={Object.keys(d.costByTech).length}  sub="technologies" />
@@ -862,7 +860,7 @@ const Dashboard = () => {
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead><tr className="bg-slate-50 border-b border-black/15">
-                    {['','Name','Type','Max Cap (MW)','CAPEX rate (€/MW)','CAPEX est.','OPEX/yr (€)','Lifetime'].map(h=><th key={h} className="text-left px-3 py-2 text-black/60 font-bold uppercase tracking-widest">{h}</th>)}
+                    {['','Name','Type','Max Cap (MW)','CAPEX rate (€/MW)','CAPEX est.','OPEX/yr (€)','Lifetime'].map(h=><th key={h} className="text-left px-3 py-2 text-slate-500 font-medium">{h}</th>)}
                   </tr></thead>
                   <tbody>
                     {d.allTechIds.map((id, i) => {
@@ -894,13 +892,13 @@ const Dashboard = () => {
           {activeTab === 'timeseries' && (() => {
             return (<>
               {tsLoading && (
-                <div className="bg-white rounded-xl border border-black/15 shadow-sm p-8 text-center">
+                <div className="bg-white rounded-xl border border-black/15  p-8 text-center">
                   <div className="animate-spin w-8 h-8 border-2 border-gray-500 border-t-transparent rounded-full mx-auto mb-3" />
                   <p className="text-sm text-slate-500">Loading time series data…</p>
                 </div>
               )}
               {!tsLoading && modelTimeSeries.length === 0 && (
-                <div className="bg-white rounded-xl border border-black/15 shadow-sm p-10 text-center text-slate-400">
+                <div className="bg-white rounded-xl border border-black/15  p-10 text-center text-slate-400">
                   <FiClock size={32} className="mx-auto mb-3 opacity-40" />
                   <p className="text-sm font-medium">No time series data loaded for this model.</p>
                   <p className="text-[11px] mt-1">Template models load data automatically when you first open this tab.</p>
@@ -919,7 +917,7 @@ const Dashboard = () => {
                 return (<>
                   {/* KPI summary */}
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    <KpiCard icon={FiClock}     label="Files Loaded"   value={modelTimeSeries.length}                                      sub="time series" accent="bg-gray-700" />
+                    <KpiCard icon={FiClock}     label="Files Loaded"   value={modelTimeSeries.length}                                      sub="time series" accent="bg-black" />
                     <KpiCard icon={FiActivity}  label="Demand Files"   value={modelTimeSeries.filter(ts => /demand/i.test(ts.name)).length}  sub="matched by name" />
                     <KpiCard icon={FiSun}       label="Resource Files" value={modelTimeSeries.filter(ts => !/demand/i.test(ts.name)).length} sub="PV / wind" />
                     <KpiCard icon={FiBarChart2} label="Total Rows"     value={fmtNum(modelTimeSeries.reduce((s, ts) => s + (ts.rowCount || 0), 0), 0)} sub="timesteps across files" />

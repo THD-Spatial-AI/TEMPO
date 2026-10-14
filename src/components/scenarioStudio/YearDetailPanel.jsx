@@ -52,25 +52,25 @@ export default function YearDetailPanel({
 
   return (
     <div className="w-[340px] shrink-0 border-l border-black/15 bg-white flex flex-col">
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-black/15 shrink-0">
-        <span className="w-8 h-8 rounded-lg bg-black flex items-center justify-center text-white shadow-sm">
-          <FiCalendar size={15} />
+      <div className="flex shrink-0 items-center gap-3 border-b border-black/15 px-5 py-4">
+        <span className="grid h-9 w-9 place-items-center rounded-xl bg-black text-white ">
+          <FiCalendar size={16} />
         </span>
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold text-slate-800">Year {year}</div>
+          <div className="text-sm font-semibold text-slate-900">Year {year}</div>
           <div className="text-[11px] text-slate-400">
             {prevYear != null ? <>compared with <span className="font-medium text-slate-500">{prevYear}</span></> : 'first year — baseline'}
           </div>
         </div>
-        <button onClick={onDelete} className="p-1 text-slate-300 hover:text-red-500 rounded transition-colors" title="Remove year">
+        <button onClick={onDelete} className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600" title="Remove year">
           <FiTrash2 size={14} />
         </button>
-        <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600 rounded transition-colors">
+        <button onClick={onClose} aria-label="Close" className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700">
           <FiX size={16} />
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 space-y-5 overflow-y-auto p-5">
         {/* Demand */}
         <div>
           <div className="flex items-center justify-between mb-1">
@@ -90,7 +90,7 @@ export default function YearDetailPanel({
                 yAxis: { type: 'value', axisLabel: { fontSize: 9 } },
                 tooltip: { trigger: 'axis' },
                 series: [{ type: 'line', data: preview, smooth: true, symbol: 'none',
-                  lineStyle: { color: '#3b82f6', width: 1.5 }, areaStyle: { color: 'rgba(59,130,246,0.08)' } }],
+                  lineStyle: { color: '#0f172a', width: 1.5 }, areaStyle: { color: 'rgba(15,23,42,0.06)' } }],
               }}
             />
           ) : (

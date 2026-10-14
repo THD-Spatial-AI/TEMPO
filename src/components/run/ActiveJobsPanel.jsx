@@ -93,7 +93,7 @@ function JobCard({ job, expandedLog, setExpandedLog, handleStopJob, logEndRef })
         {expandedLog === job.id ? 'Hide' : 'Show'} logs ({job.logs.length} lines)
       </button>
       {expandedLog === job.id && (
-        <div className="mt-2 bg-slate-900 text-green-400 rounded-lg p-3 text-xs font-mono h-48 overflow-y-auto">
+        <div className="mt-2 bg-black text-green-400 rounded-lg p-3 text-xs font-mono h-48 overflow-y-auto">
           {job.logs.length === 0
             ? <span className="text-slate-500">Waiting for output…</span>
             : job.logs.map((l, i) => (
@@ -117,14 +117,15 @@ export default function ActiveJobsPanel({ expandedLog, handleStopJob, logEndRef,
   const directCount = runningJobs.length - studioCount;
 
   return (
-    <div className="xl:col-span-2">
-      <div className="bg-white rounded-2xl shadow-sm border border-black/15 p-5 h-full">
-        <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1 flex items-center gap-2">
-          <FiActivity size={13} className="text-gray-500" />
+    <div>
+      <div className="bg-white rounded-2xl  border border-black/15 p-5">
+        <h2 className="mb-1 flex items-center gap-2 text-sm font-semibold text-slate-900">
+          <FiActivity size={14} className="text-slate-500" />
           Active runs
           {runningJobs.length > 0 && (
-            <span className="ml-1 px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold animate-pulse">
-              {runningJobs.length} LIVE
+            <span className="ml-auto flex items-center gap-1.5 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
+              {runningJobs.length} live
             </span>
           )}
         </h2>
@@ -139,9 +140,9 @@ export default function ActiveJobsPanel({ expandedLog, handleStopJob, logEndRef,
         )}
 
         {runningJobs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-14 text-slate-300">
-            <FiClock size={36} className="mb-2 opacity-40" />
-            <p className="text-sm">No active runs</p>
+          <div className="mt-3 flex items-center gap-3 rounded-xl border border-dashed border-black/15 px-4 py-4">
+            <FiClock size={18} className="shrink-0 text-slate-300" />
+            <p className="text-xs text-slate-500">No active runs. Runs you start appear here with live logs.</p>
           </div>
         ) : (
           <div className="space-y-4">

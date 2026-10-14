@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { FiMap, FiChevronRight, FiLayers, FiMapPin } from './ui/icons';
+import { FiMap, FiLayers, FiMapPin } from './ui/icons';
+import { LuPanelRightClose, LuPanelRightOpen } from './ui/icons';
 import RegionSelectionStepper from './RegionSelectionStepper';
 import ZonalStudyAreaPanel from './ZonalStudyAreaPanel';
 import { api } from '../services/api';
@@ -329,26 +330,26 @@ const OsmInfrastructurePanel = ({
   };
 
   return (
-    <div className="flex flex-col h-full w-full bg-surface-container-lowest border-l border-black/15">
+    <div className={`flex flex-col h-full shrink-0 bg-white ${collapsed ? 'w-14' : 'w-72'}`}>
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-black/15">
+      <div className={`flex items-center border-b border-black/15 ${collapsed ? 'justify-center py-3' : 'justify-between px-4 py-3'}`}>
         {!collapsed && (
-          <div className="flex items-center gap-2">
-            <FiMap className="text-slate-700" size={20} />
-            <h2 className="text-sm font-semibold text-slate-800">OSM Infrastructure</h2>
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-slate-900">OSM Infrastructure</h2>
+            <p className="text-[11px] text-slate-500">Real grid data for your study area</p>
           </div>
         )}
         <button
           onClick={onToggleCollapse}
-          className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-          title={collapsed ? "Expand" : "Collapse"}
+          className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+          title={collapsed ? 'Expand panel' : 'Collapse panel'}
         >
-          {collapsed ? <FiChevronRight size={18} /> : <FiChevronRight size={18} className="rotate-180" />}
+          {collapsed ? <LuPanelRightOpen size={18} /> : <LuPanelRightClose size={18} />}
         </button>
       </div>
 
       {!collapsed && (
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto" style={{ animation: 'panelContentIn 0.15s ease-out 0.25s both' }}>
           {/* Primary flow: boundary-driven zonal Study Area */}
           <ZonalStudyAreaPanel
             onRegionSelect={onRegionSelect}
@@ -407,14 +408,14 @@ const OsmInfrastructurePanel = ({
                 {/* Commune (if available) - Keep this separate as it's optional */}
                 {selectedSubregion && availableCommunes.length > 0 && (
                   <div>
-                    <label className="block text-[0.6875rem] font-bold text-black/60 mb-1.5 uppercase tracking-widest">
+                    <label className="block text-xs font-medium text-slate-700 mb-1.5">
                       <FiMapPin className="inline mr-1" size={12} />
                       Commune (Optional)
                     </label>
                     <select
                       value={selectedCommune || ''}
                       onChange={(e) => handleCommuneSelect(e.target.value || null)}
-                      className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500 bg-white"
+                      className="w-full px-3 py-2 text-sm border border-black/15 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500 bg-white"
                     >
                       <option value="">Select a commune...</option>
                       {availableCommunes.map(commune => (
@@ -446,20 +447,20 @@ const OsmInfrastructurePanel = ({
       )}
 
       {collapsed && (
-        <div className="flex flex-col items-center py-4 gap-4">
-          <button
-            className="p-2 rounded-lg hover:bg-slate-100"
-            title="OSM Infrastructure"
-          >
-            <FiMap size={20} />
-          </button>
-          <div className="border-t border-black/15 w-8 my-2"></div>
-          <button
-            className="p-2 rounded-lg hover:bg-slate-100"
-            title="Layers"
-          >
-            <FiLayers size={20} />
-          </button>
+        <div className="flex flex-col items-center gap-1 py-3">
+          {[
+            { icon: FiMap, label: 'Study area' },
+            { icon: FiLayers, label: 'Infrastructure layers' },
+          ].map(({ icon: Icon, label }) => (
+            <button
+              key={label}
+              onClick={onToggleCollapse}
+              title={label}
+              className="grid h-9 w-9 place-items-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
+            >
+              <Icon size={16} />
+            </button>
+          ))}
         </div>
       )}
     </div>

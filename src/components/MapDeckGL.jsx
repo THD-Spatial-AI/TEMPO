@@ -4,6 +4,7 @@ import { WebMercatorViewport } from '@deck.gl/core';
 import { ScatterplotLayer, IconLayer, LineLayer } from '@deck.gl/layers';
 import { Map as MapGL } from 'react-map-gl/maplibre';
 import { useData } from '../context/DataContext';
+import { LuPanelLeftClose, LuPanelLeftOpen } from './ui/icons';
 import { FiLayers, FiLink, FiEye, FiEdit2, FiMapPin, FiTrash2, FiCpu, FiChevronDown, FiChevronRight, FiChevronLeft, FiZoomIn, FiZoomOut, FiMaximize2, FiX, FiCheck, FiHelpCircle, FiArrowRight, FiActivity, FiZap, FiCircle, FiNavigation, FiSave, FiFolder } from './ui/icons';
 import { TECH_TEMPLATES, useLiveTechTemplates } from './TechnologiesData';
 import { canCreateWebGLContext, webglUnavailableMessage } from '../utils/webglSupport';
@@ -40,6 +41,7 @@ const MapDeckGL = () => {
   const [mode, setMode] = useState('view');
   const [linkStart, setLinkStart] = useState(null);
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false);
+  const [legendOpen, setLegendOpen] = useState(true);
   const [locationsExpanded, setLocationsExpanded] = useState(true);
   const [linksExpanded, setLinksExpanded] = useState(true);
   const [lastPolylineLocation, setLastPolylineLocation] = useState(null);
@@ -867,62 +869,86 @@ const MapDeckGL = () => {
   return (
     <div className="flex-1 h-screen overflow-hidden flex">
       {/* Left Panel - Sidebar */}
-      <div className={`${leftSidebarCollapsed ? 'w-16' : 'w-80'} bg-white border-r border-black/15 flex flex-col transition-all duration-200 overflow-hidden`}>
+      <div className={`${leftSidebarCollapsed ? 'w-14' : 'w-72'} shrink-0 bg-white border-r border-black/15 transition-[width] duration-300 ease-out overflow-hidden`}>
+      <div className={`flex h-full flex-col ${leftSidebarCollapsed ? 'w-14' : 'w-72'}`}>
         {/* Header */}
-        <div className="p-3 border-b border-black/15 flex items-center gap-1.5 shrink-0">
-          {!leftSidebarCollapsed && (
-            <h2 className="text-base font-bold text-slate-800 truncate flex-1">Map View</h2>
-          )}
+        <div className={`flex items-center border-b border-black/15 shrink-0 ${leftSidebarCollapsed ? 'justify-center py-3' : 'gap-1 px-4 py-3'}`}>
           {!leftSidebarCollapsed && (
             <>
-              {/* Save current model */}
+              <div className="min-w-0 flex-1">
+                <h2 className="text-sm font-semibold text-slate-900">Map View</h2>
+                <p className="truncate text-[11px] text-slate-500">Edit the active model on the map</p>
+              </div>
               <button
                 onClick={() => { updateCurrentModel(); showNotification('Model saved!', 'success'); }}
-                className="p-1.5 rounded hover:bg-gray-100 text-slate-500 hover:text-gray-700 transition-colors"
+                className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors"
                 title="Save current model"
               >
                 <FiSave size={16} />
-              </button>
-              {/* Load model panel toggle */}
-              <button
-                onClick={() => setShowModelPanel(v => !v)}
-                className={`p-1.5 rounded transition-colors ${showModelPanel ? 'bg-gray-100 text-gray-700' : 'hover:bg-gray-100 text-slate-500 hover:text-gray-700'}`}
-                title="Switch / load model"
-              >
-                <FiFolder size={16} />
               </button>
             </>
           )}
           <button
             onClick={() => setLeftSidebarCollapsed(!leftSidebarCollapsed)}
-            className="p-1.5 rounded hover:bg-slate-100 text-slate-600 transition-colors"
-            title={leftSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+            title={leftSidebarCollapsed ? 'Expand panel' : 'Collapse panel'}
           >
-            {leftSidebarCollapsed ? <FiChevronRight size={18} /> : <FiChevronLeft size={18} />}
+            {leftSidebarCollapsed ? <LuPanelLeftOpen size={18} /> : <LuPanelLeftClose size={18} />}
           </button>
         </div>
 
-        {/* Model Panel */}
-        {!leftSidebarCollapsed && showModelPanel && (
-          <div className="border-b border-black/15 bg-slate-50 shrink-0">
-            <div className="px-3 pt-2 pb-1">
-              <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">Saved Models</p>
+        {leftSidebarCollapsed ? (
+          <div className="flex flex-col items-center gap-1 py-3">
+            {[
+              { m: 'add-location', Icon: FiMapPin, title: 'Add location' },
+              { m: 'add-link', Icon: FiLink, title: 'Link' },
+              { m: 'polyline', Icon: FiNavigation, title: 'Polyline' },
+            ].map(({ m, Icon, title }) => (
+              <button
+                key={m}
+                onClick={() => { setMode(mode === m ? 'view' : m); setLinkStart(null); if (m !== 'polyline') setLastPolylineLocation(null); }}
+                title={title}
+                className={`grid h-9 w-9 place-items-center rounded-lg transition-colors ${
+                  mode === m ? 'bg-black text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                <Icon size={16} />
+              </button>
+            ))}
+          </div>
+        ) : (
+        <div className="flex min-h-0 flex-1 flex-col" style={{ animation: 'panelContentIn 0.15s ease-out 0.25s both' }}>
+        <div className="border-b border-black/15 px-4 py-3 shrink-0">
+          <button
+            onClick={() => setShowModelPanel(v => !v)}
+            className={`flex h-9 w-full items-center gap-2 rounded-lg border px-2.5 text-left transition-colors ${
+              showModelPanel ? 'border-black/15 bg-slate-50' : 'border-black/15 hover:border-black/15 hover:bg-slate-50'
+            }`}
+            title="Switch / load model"
+          >
+            <FiFolder size={14} className="shrink-0 text-slate-400" />
+            <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-slate-800">
+              {models.find(m => m.id === currentModelId)?.name || 'No model loaded'}
+            </span>
+            <FiChevronDown size={14} className={`shrink-0 text-slate-400 transition-transform ${showModelPanel ? 'rotate-180' : ''}`} />
+          </button>
+
+          {showModelPanel && (
+            <div className="mt-2 rounded-lg border border-black/15 bg-white p-1 ">
               {models.length === 0 ? (
-                <p className="text-xs text-slate-400 pb-2">No saved models yet</p>
+                <p className="px-2 py-2 text-xs text-slate-400">No saved models yet</p>
               ) : (
-                <div className="space-y-1 max-h-44 overflow-y-auto">
+                <div className="max-h-44 space-y-0.5 overflow-y-auto">
                   {models.map(m => (
                     <button
                       key={m.id}
                       onClick={() => { loadModel(m.id); setShowModelPanel(false); showNotification(`Loaded "${m.name}"`, 'success'); }}
-                      className={`w-full text-left px-2 py-1.5 rounded text-xs transition-colors ${
-                        m.id === currentModelId
-                          ? 'bg-gray-100 text-gray-800 font-semibold'
-                          : 'hover:bg-white text-slate-700'
+                      className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors ${
+                        m.id === currentModelId ? 'bg-slate-100 font-semibold text-slate-900' : 'text-slate-700 hover:bg-slate-50'
                       }`}
                     >
-                      <span className="truncate block">{m.name}</span>
-                      {m.id === currentModelId && <span className="text-gray-500 text-xs">● current</span>}
+                      <span className="min-w-0 flex-1 truncate">{m.name}</span>
+                      {m.id === currentModelId && <FiCheck size={12} className="shrink-0 text-slate-500" />}
                     </button>
                   ))}
                 </div>
@@ -932,68 +958,44 @@ const MapDeckGL = () => {
                   const name = prompt('New model name:');
                   if (name) { createModel(name); setShowModelPanel(false); }
                 }}
-                className="mt-2 mb-1 w-full text-xs text-center py-1.5 rounded border border-dashed border-slate-300 text-slate-500 hover:border-gray-400 hover:text-gray-600 transition-colors"
+                className="mt-1 w-full rounded-md border border-dashed border-black/15 py-1.5 text-xs text-slate-500 transition-colors hover:border-black/15 hover:text-slate-800"
               >
                 + New empty model
               </button>
             </div>
-          </div>
-        )}
-
-        {/* Edit tools — add nodes, links, polylines to the imported model */}
-        <div className={`border-b border-black/15 shrink-0 ${leftSidebarCollapsed ? 'p-2' : 'p-3'}`}>
-          {leftSidebarCollapsed ? (
-            <div className="flex flex-col items-center gap-1.5">
-              {[
-                { m: 'add-location', Icon: FiMapPin, title: 'Add Location' },
-                { m: 'add-link', Icon: FiLink, title: 'Link' },
-                { m: 'polyline', Icon: FiNavigation, title: 'Polyline' },
-              ].map(({ m, Icon, title }) => (
-                <button
-                  key={m}
-                  onClick={() => { setMode(mode === m ? 'view' : m); setLinkStart(null); if (m !== 'polyline') setLastPolylineLocation(null); }}
-                  title={title}
-                  className={`uppercase tracking-wide font-bold p-2 rounded-lg border-2 w-full flex justify-center transition-all ${
-                    mode === m ? 'border-gray-900 bg-black text-white' : 'border-black/15 hover:border-gray-400 text-gray-600'
-                  }`}
-                >
-                  <Icon size={16} />
-                </button>
-              ))}
-            </div>
-          ) : (
-            <>
-              <label className="block text-[0.6875rem] font-bold text-black/60 uppercase mb-2 tracking-widest">Edit tools</label>
-              <div className="grid grid-cols-3 gap-1.5">
-                {[
-                  { m: 'add-location', Icon: FiMapPin, label: 'Add' },
-                  { m: 'add-link', Icon: FiLink, label: 'Link' },
-                  { m: 'polyline', Icon: FiNavigation, label: 'Polyline' },
-                ].map(({ m, Icon, label }) => (
-                  <button
-                    key={m}
-                    onClick={() => { setMode(mode === m ? 'view' : m); setLinkStart(null); if (m !== 'polyline') setLastPolylineLocation(null); }}
-                    className={`uppercase tracking-wide font-bold p-2.5 rounded-lg border-2 transition-all ${
-                      mode === m ? 'border-gray-900 bg-black text-white' : 'border-black/15 hover:border-gray-400 text-gray-700'
-                    }`}
-                  >
-                    <Icon className="mx-auto mb-0.5" size={16} />
-                    <div className="text-[11px] font-medium">{label}</div>
-                  </button>
-                ))}
-              </div>
-              <div className="mt-2 p-2 bg-slate-100 rounded text-xs text-slate-600">
-                {mode === 'view' && 'Click a location to edit it. Pick a tool to add nodes/links.'}
-                {mode === 'add-location' && 'Click the map to add a location and edit it'}
-                {mode === 'add-link' && (linkStart ? `Select destination for link from "${linkStart.name}"` : 'Click a location to start a link')}
-                {mode === 'polyline' && (lastPolylineLocation ? `Continue from "${lastPolylineLocation.name}" — click to extend` : 'Click the map to start a polyline chain')}
-              </div>
-            </>
           )}
         </div>
 
+        {/* Edit tools — add nodes, links, polylines to the imported model */}
+        <div className="border-b border-black/15 px-4 py-3 shrink-0">
+          <div className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1">
+            {[
+              { m: 'add-location', Icon: FiMapPin, label: 'Location' },
+              { m: 'add-link', Icon: FiLink, label: 'Link' },
+              { m: 'polyline', Icon: FiNavigation, label: 'Polyline' },
+            ].map(({ m, Icon, label }) => (
+              <button
+                key={m}
+                onClick={() => { setMode(mode === m ? 'view' : m); setLinkStart(null); if (m !== 'polyline') setLastPolylineLocation(null); }}
+                aria-pressed={mode === m}
+                className={`flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-medium transition-all ${
+                  mode === m ? 'bg-white text-slate-900 ' : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <Icon size={13} />
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 px-0.5 text-[11px] leading-snug text-slate-500">
+            {mode === 'view' && 'Click a location to edit it, or pick a tool to add nodes and links'}
+            {mode === 'add-location' && 'Click the map to add a location and edit it'}
+            {mode === 'add-link' && (linkStart ? `Select the destination for the link from "${linkStart.name}"` : 'Click a location to start a link')}
+            {mode === 'polyline' && (lastPolylineLocation ? `Continue from "${lastPolylineLocation.name}" — click to extend` : 'Click the map to start a polyline chain')}
+          </p>
+        </div>
+
         {/* Locations & Links List */}
-        {!leftSidebarCollapsed && (
           <EntityListsPanel
             locations={locations}
             links={links}
@@ -1019,7 +1021,9 @@ const MapDeckGL = () => {
             linksExpanded={linksExpanded}
             setLinksExpanded={setLinksExpanded}
           />
+        </div>
         )}
+      </div>
       </div>
 
       {/* Right Panel - Map */}
@@ -1106,33 +1110,46 @@ const MapDeckGL = () => {
           const totalNodes = kindCounts.substation + kindCounts.plant + kindCounts.transmission_node;
 
           return (
-            <div className="absolute bottom-4 right-4 bg-white rounded-lg shadow-xl p-4 z-50 max-w-xs max-h-96 overflow-y-auto">
-              <h4 className="font-bold text-sm text-gray-900 mb-3 flex items-center gap-2">
-                <FiLayers size={16} />
-                Map Legend
-              </h4>
+            <div className="absolute bottom-4 right-4 z-50 w-64 overflow-hidden rounded-2xl bg-white/90 shadow-xl shadow-slate-900/10 ring-1 ring-slate-900/5 backdrop-blur-md">
+              <button
+                onClick={() => setLegendOpen(o => !o)}
+                aria-expanded={legendOpen}
+                className="flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-slate-50/80"
+              >
+                <span className="grid h-7 w-7 place-items-center rounded-lg bg-black text-white"><FiLayers size={14} /></span>
+                <span className="flex-1 text-sm font-semibold text-slate-900">Legend</span>
+                <FiChevronDown size={15} className={`text-slate-400 transition-transform ${legendOpen ? '' : '-rotate-180'}`} />
+              </button>
+              {legendOpen && (
+              <div className="max-h-80 space-y-4 overflow-y-auto border-t border-black/10 px-4 pb-4 pt-3">
+              {totalNodes === 0 && techMapEntries.size === 0 && links.length === 0 && (
+                <p className="text-xs text-slate-500">Add technologies or links to see them here.</p>
+              )}
               
               {/* Node types — same palette as the map (red subs / green plants / amber transmission) */}
               {totalNodes > 0 && (
-                <div className="mb-4">
-                  <div className="text-xs font-semibold text-gray-700 mb-2">Node types</div>
+                <div>
+                  <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Node types</div>
                   <div className="space-y-1.5 text-xs">
                     {kindCounts.substation > 0 && (
                       <div className="flex items-center gap-2">
-                        <span className="w-3.5 h-3.5 rounded-full border border-gray-300 flex-shrink-0" style={{ backgroundColor: 'rgb(239, 68, 68)' }} />
-                        <span className="text-gray-700">Substations ({kindCounts.substation})</span>
+                        <span className="h-3 w-3 shrink-0 rounded-full ring-2 ring-white " style={{ backgroundColor: 'rgb(239, 68, 68)' }} />
+                        <span className="flex-1 text-slate-700">Substations</span>
+                        <span className="tabular-nums text-slate-400">{kindCounts.substation}</span>
                       </div>
                     )}
                     {kindCounts.plant > 0 && (
                       <div className="flex items-center gap-2">
-                        <span className="w-3.5 h-3.5 rounded-full border border-gray-300 flex-shrink-0" style={{ backgroundColor: 'rgb(34, 197, 94)' }} />
-                        <span className="text-gray-700">Power plants ({kindCounts.plant})</span>
+                        <span className="h-3 w-3 shrink-0 rounded-full ring-2 ring-white " style={{ backgroundColor: 'rgb(34, 197, 94)' }} />
+                        <span className="flex-1 text-slate-700">Power plants</span>
+                        <span className="tabular-nums text-slate-400">{kindCounts.plant}</span>
                       </div>
                     )}
                     {kindCounts.transmission_node > 0 && (
                       <div className="flex items-center gap-2">
-                        <span className="w-3.5 h-3.5 rounded-full border border-gray-300 flex-shrink-0" style={{ backgroundColor: 'rgb(245, 158, 11)' }} />
-                        <span className="text-gray-700">Transmission nodes ({kindCounts.transmission_node})</span>
+                        <span className="h-3 w-3 shrink-0 rounded-full ring-2 ring-white " style={{ backgroundColor: 'rgb(245, 158, 11)' }} />
+                        <span className="flex-1 text-slate-700">Transmission nodes</span>
+                        <span className="tabular-nums text-slate-400">{kindCounts.transmission_node}</span>
                       </div>
                     )}
                   </div>
@@ -1141,15 +1158,15 @@ const MapDeckGL = () => {
               
               {/* Technologies */}
               {techMapEntries.size > 0 && (
-                <div className="mb-4 pt-3 border-t border-black/15">
-                  <div className="text-xs font-semibold text-gray-700 mb-2">Technologies</div>
+                <div>
+                  <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Technologies</div>
                   <div className="space-y-1.5 text-xs">
                     {Array.from(techMapEntries.entries()).map(([techName, { color, displayName }]) => {
                       const rgbaColor = `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${color[3] / 255})`;
                       return (
                         <div key={techName} className="flex items-center gap-2">
-                          <div className="w-4 h-4 rounded-full border-2 border-gray-800" style={{ backgroundColor: rgbaColor }}></div>
-                          <span className="text-gray-700">{displayName}</span>
+                          <span className="h-3 w-3 shrink-0 rounded-full ring-2 ring-white " style={{ backgroundColor: rgbaColor }} />
+                          <span className="truncate text-slate-700">{displayName}</span>
                         </div>
                       );
                     })}
@@ -1173,7 +1190,8 @@ const MapDeckGL = () => {
                     techName = link.tech;
                   }
                   
-                  if (techName) {
+                  techName = techName || 'unknown';
+                  {
                     if (techName.toLowerCase().includes('power_line')) {
                       powerLines.push(link);
                     } else {
@@ -1195,18 +1213,20 @@ const MapDeckGL = () => {
                 });
                 
                 return (
-                  <div className="pt-3 border-t border-black/15">
-                    <div className="text-xs font-semibold text-gray-700 mb-2">
-                      Transmission Lines ({links.length} links)
+                  <div>
+                    <div className="mb-2 flex items-center text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                      <span className="flex-1">Transmission</span>
+                      <span className="normal-case tracking-normal">{links.length} link{links.length === 1 ? '' : 's'}</span>
                     </div>
                     
                     {/* Power Lines (Plant to Substation) */}
                     {powerLines.length > 0 && (
                       <div className="mb-2">
-                        <div className="text-xs text-gray-500 mb-1">Power Plant Connections</div>
-                        <div className="flex items-center gap-2 text-xs mb-1">
-                          <div className="w-6 h-0.5" style={{ backgroundColor: 'rgb(28, 3, 255)' }}></div>
-                          <span className="text-gray-700">Power Lines ({powerLines.length})</span>
+                        <div className="mb-1 text-[11px] text-slate-500">Power plant connections</div>
+                        <div className="mb-1 flex items-center gap-2 text-xs">
+                          <span className="h-1 w-5 shrink-0 rounded-full" style={{ backgroundColor: 'rgb(28, 3, 255)' }} />
+                          <span className="flex-1 text-slate-700">Power lines</span>
+                          <span className="tabular-nums text-slate-400">{powerLines.length}</span>
                         </div>
                       </div>
                     )}
@@ -1214,19 +1234,20 @@ const MapDeckGL = () => {
                     {/* Voltage Level Lines */}
                     {sortedVoltages.length > 0 && (
                       <div>
-                        <div className="text-xs text-gray-500 mb-1">By Voltage Level</div>
+                        <div className="mb-1 text-[11px] text-slate-500">By voltage level</div>
                         {sortedVoltages.map(voltage => {
                           const color = getVoltageColor(voltage);
                           const count = voltageGroups[voltage].length;
                           return (
-                            <div key={voltage} className="flex items-center gap-2 text-xs mb-1">
-                              <div 
-                                className="w-6 h-0.5" 
+                            <div key={voltage} className="mb-1 flex items-center gap-2 text-xs">
+                              <span
+                                className="h-1 w-5 shrink-0 rounded-full"
                                 style={{ backgroundColor: `rgb(${color[0]}, ${color[1]}, ${color[2]})` }}
-                              ></div>
-                              <span className="text-gray-700">
-                                {voltage.replace('_', ' ').toUpperCase()} ({count})
+                              />
+                              <span className="flex-1 truncate text-slate-700">
+                                {voltage === 'unknown' ? 'Other links' : voltage.replace(/_/g, ' ').replace(/\b(ac|dc|hv|hvac|hvdc)\b/gi, m => m.toUpperCase()).replace(/\b[a-z]/g, c => c.toUpperCase())}
                               </span>
+                              <span className="tabular-nums text-slate-400">{count}</span>
                             </div>
                           );
                         })}
@@ -1235,6 +1256,8 @@ const MapDeckGL = () => {
                   </div>
                 );
               })()}
+              </div>
+              )}
             </div>
           );
         })()}

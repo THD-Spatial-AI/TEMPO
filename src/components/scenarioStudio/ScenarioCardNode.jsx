@@ -7,16 +7,12 @@
  */
 
 import React, { memo, useContext } from 'react';
-import {
-  FiTrendingUp, FiCloud, FiZap, FiSliders, FiSun, FiMapPin, FiWind, FiTrash2, FiCopy, FiAlertTriangle,
-  FiActivity, FiLayers, FiGitMerge,
-} from '../ui/icons';
+import { FiTrash2, FiCopy, FiAlertTriangle } from '../ui/icons';
+import CategoryTile from './categoryIcon.jsx';
 import { CATEGORY_BY_ID } from '../../services/scenarioStudio/scenario.js';
 import { summarizeOps } from '../../services/scenarioStudio/recipeParams.js';
 import { sporesCount } from '../../services/scenarioStudio/presets/lombardi2020Italy.js';
 import { BoardCtx } from './boardContext.js';
-
-const ICONS = { FiTrendingUp, FiCloud, FiZap, FiSliders, FiSun, FiMapPin, FiWind, FiActivity, FiLayers, FiGitMerge };
 
 const GROUP_LABEL = { all: 'all supply', renewable: 'renewables', nonRenewable: 'non-renewables', emitting: 'emitting techs' };
 const groupLabel = (g) => GROUP_LABEL[g] || (typeof g === 'string' && g.startsWith('parent:') ? g.slice(7) : g);
@@ -64,42 +60,41 @@ function faceSummary(category, params = {}) {
 function ScenarioCardNodeImpl({ id, data, selected }) {
   const ctx = useContext(BoardCtx) || {};
   const meta = CATEGORY_BY_ID[data.category];
-  const Icon = ICONS[meta?.icon] || FiSliders;
   const summary = faceSummary(data.category, data.params);
 
   return (
     <div
-      className={`relative bg-white rounded-lg border shadow-sm w-52 transition-colors ${
-        selected ? 'border-electric-500 ring-2 ring-electric-300' : 'border-black/15 hover:border-slate-300 hover:shadow-md'
+      className={`group relative w-52 overflow-hidden rounded-xl border bg-white transition-all ${
+        selected ? 'border-slate-900 shadow-lg ring-2 ring-slate-900/10' : 'border-black/15  hover:border-black/15 hover:'
       }`}
     >
-      <div className="p-2.5 flex items-center gap-2">
-        <span className={`w-7 h-7 shrink-0 rounded-lg bg-gradient-to-br ${meta?.color || 'from-slate-500 to-slate-600'} flex items-center justify-center text-white shadow-sm`}>
-          <Icon size={14} />
-        </span>
+      <div className="flex items-center gap-2.5 px-2.5 py-2.5">
+        <CategoryTile meta={meta} />
         <div className="min-w-0 flex-1">
-          <div className="text-xs font-semibold text-slate-800 leading-tight truncate">{meta?.label || data.category}</div>
-          <div className="text-[10px] text-slate-500 truncate">{summary}</div>
+          <div className="truncate text-[13px] font-semibold leading-tight text-slate-900">{meta?.label || data.category}</div>
+          <div className="truncate text-[11px] text-slate-500">{summary}</div>
         </div>
         {data._noMatch && (
           <span className="nodrag shrink-0 text-amber-500" title="Matches no technologies in this model">
             <FiAlertTriangle size={13} />
           </span>
         )}
-        <button
-          onClick={(e) => { e.stopPropagation(); ctx.onDuplicateNode?.(id); }}
-          className="nodrag p-1 text-slate-300 hover:text-electric-500 rounded transition-colors"
-          title="Duplicate card"
-        >
-          <FiCopy size={12} />
-        </button>
-        <button
-          onClick={(e) => { e.stopPropagation(); ctx.onDeleteNode?.(id); }}
-          className="nodrag p-1 text-slate-300 hover:text-red-500 rounded transition-colors"
-          title="Remove card"
-        >
-          <FiTrash2 size={12} />
-        </button>
+        <div className="flex shrink-0 opacity-0 transition-opacity group-hover:opacity-100">
+          <button
+            onClick={(e) => { e.stopPropagation(); ctx.onDuplicateNode?.(id); }}
+            className="nodrag grid h-6 w-6 place-items-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-900"
+            title="Duplicate card"
+          >
+            <FiCopy size={12} />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); ctx.onDeleteNode?.(id); }}
+            className="nodrag grid h-6 w-6 place-items-center rounded-md text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+            title="Remove card"
+          >
+            <FiTrash2 size={12} />
+          </button>
+        </div>
       </div>
     </div>
   );
