@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+﻿import { Link } from 'react-router-dom'
 import { HeroSection } from '../components/ui/HeroSection'
 import { ImageComparison } from '../components/ui/ImageComparison'
 import { ShadowOverlay } from '../components/ui/ShadowOverlay'
@@ -21,13 +21,13 @@ const DOWNLOADS = [
     label: 'Download for Windows',
     sub: 'v4.0.0 · .exe · 226 MB',
     icon: 'desktop_windows',
-    href: `${RELEASES}/download/v4.0.0/TEMPO.Setup.4.0.0.exe`,
+    href: `${RELEASES}/download/Release_V4.0.0/TEMPO.Setup.4.0.0.exe`,
   },
   {
     label: 'Download for Linux',
-    sub: 'v4.0.0 · .AppImage · 253 MB',
+    sub: 'v4.0.0 · .AppImage · 259 MB',
     icon: 'terminal',
-    href: `${RELEASES}/download/v4.0.0/TEMPO-4.0.0.AppImage`,
+    href: `${RELEASES}/download/Release_V4.0.0/TEMPO-4.0.0.AppImage`,
   },
 ]
 
