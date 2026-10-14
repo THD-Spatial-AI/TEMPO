@@ -5,6 +5,68 @@ All notable changes to TEMPO are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.0] - 2026-10-14
+
+TEMPO 4 is a redesign and a wider reach. The whole app has a new look that matches
+the website, you can build a regional model from nothing but a place name, and all
+five engines now agree on the same models. Scenario Studio moves to a year-by-year
+board, and What's new now shows the release notes right inside the app.
+
+### Added
+
+- **Study area from a place name** — search for a city, province or country and
+  TEMPO finds the boundary, pulls substations and lines from OpenStreetMap and
+  builds a zonal model. A network-builder wizard, voltage filtering and substation
+  classification let you shape the result before it is imported.
+- **Synthetic demand for substations** — regional demand is spread over the
+  substations (evenly or weighted by voltage), and each one gets an hourly load
+  shape. Shapes come from a built-in generator or, optionally, from `demandlib`
+  (BDEW standard load profiles, including the BDEW25 sectors), with a preview
+  before you apply them.
+- **Scenario Studio year board** — scenarios are laid out year by year, with
+  config cards nested inside year cards. Cards cover emissions caps and renewable
+  targets, and boards are saved per model. A sequential-run toggle runs the years
+  one after another. The scenario transformations also gain link-capacity and
+  vintage-residual operations.
+- **SPORES reproduction of Lombardi et al. (2020)** — a paper panel and a
+  comparison script to check TEMPO's SPORES results against the published study.
+  SPORES support is extended to the Calliope 0.7 engine and to MEME.
+- **Calliope YAML import and MEME conversion** — richer import of existing
+  Calliope models, and conversion of a TEMPO model to the MEME format.
+- **What's new in the app** — release notes are read from the GitHub releases of
+  the project, with a version picker for older releases.
+- **Ollama gateway** — an optional service with API-key authentication and rate
+  limiting, for sharing one local model with a team.
+- **Interoperability page** on the website, with a table of what carries over
+  between engines.
+
+### Changed
+
+- **New interface** — the app now follows the website's design (Inter, square
+  corners, black and white, Material Symbols). The dashboard, tutorial, sidebar,
+  map editor, data pages, Run, Export, Settings, Scenario Studio, Tech Library,
+  Models and Results views, and the map legend were all redesigned.
+- **Engines agree on the same model** — PyPSA, OSeMOSYS, AdOpT-NET0 and both
+  Calliope versions now use the same cost, capacity and storage conventions
+  (shared helpers in `engine_common.py`), and `scripts/verify_engines.py` checks
+  them against each other. The OSeMOSYS export is a self-contained parity dataset
+  that imports back without loss. AdOpT-NET0 now runs as a pure LP.
+- **HiGHS** is the solver shown in the Run view.
+- The map basemap was switched to avoid API limits, and `maplibre-gl` is now 6.x.
+- The Go backend's Overpass client caches power-grid queries for 10 minutes.
+- Dependencies were updated, including Go modules, `react-map-gl` and the
+  `shell-quote` override.
+
+### Fixed
+
+- The Model Advisor report and chat are kept when you switch tabs in Results.
+- API keys are trimmed before they are saved, so a pasted trailing space no
+  longer breaks a provider.
+- Duplicate `removeLink` export in the location manager hook.
+- Result maps no longer fail to load with `maplibre-gl` 6, which changed how the
+  module is exported.
+- Stray text in the sidebar, and development setup on Linux.
+
 ## [3.1.0] - 2026-08-27
 
 TEMPO 3.1 introduces **Model Advisor** — an in-app assistant that turns a run's
@@ -159,6 +221,8 @@ Initial public release.
 - Timeseries editor, override/scenario engine, and SPORES mode.
 - H₂ and CCS plant simulation services.
 
+[4.0.0]: https://github.com/THD-Spatial-AI/TEMPO/releases/tag/v4.0.0
+[3.1.0]: https://github.com/THD-Spatial-AI/TEMPO/releases/tag/v3.1.0
 [3.0.0]: https://github.com/THD-Spatial-AI/TEMPO/releases/tag/v3.0.0
 [2.0.0]: https://github.com/THD-Spatial-AI/TEMPO/releases/tag/v2.0.0
 [1.0.0]: https://github.com/THD-Spatial-AI/TEMPO/releases/tag/release

@@ -55,7 +55,7 @@ export default function Features() {
               </p>
               <div className="flex flex-col border-l border-outline-variant/30 pl-8 space-y-2">
                 <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-outline">
-                  v3.0.0 Stable
+                  v4.0.0 Stable
                 </span>
                 <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-outline">
                   Architecture: x64 / ARM64
@@ -68,63 +68,63 @@ export default function Features() {
           </div>
         </section>
 
-        {/* What's New in v3 */}
+        {/* What's New in v4 */}
         <section className="py-32 px-8 bg-black text-white">
           <div className="max-w-7xl mx-auto">
             <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-8">
               <div>
                 <span className="text-[0.6875rem] font-bold uppercase tracking-[0.3em] text-white/40 mb-4 block">
-                  Release 3.0.0
+                  Release 4.0.0
                 </span>
                 <h2 className="text-[2.75rem] md:text-[3.5rem] font-bold tracking-tighter leading-none">
-                  WHAT&rsquo;S NEW IN V3
+                  WHAT&rsquo;S NEW IN V4
                 </h2>
               </div>
               <p className="max-w-md text-white/60 font-medium">
-                Version 3 adds the work that comes after the first model: setting up policy
-                scenarios year by year, comparing many runs, and getting maps, charts and data
-                out for a report.
+                Version 4 redesigns the app to match this site and makes the first model
+                faster to build: start from a place name, give every substation a load shape,
+                and trust that the engines agree with each other.
               </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {[
                 {
-                  icon: 'science',
-                  tag: 'Scenario Design',
-                  title: 'Scenario Studio',
-                  desc: 'Lay out a scenario by year on a board. Cards change demand, add CO₂ caps or renewable targets, switch technologies off, swap weather years, or add sensitivity cases and SPORES. Templates cover demand growth, carbon caps and renewable transitions. Every year runs as one batch, on any engine.',
+                  icon: 'travel_explore',
+                  tag: 'Study Area',
+                  title: 'Start from a place name',
+                  desc: 'Type a city, province or country. TEMPO finds the boundary, pulls substations and lines from OpenStreetMap and builds a zonal model. A short wizard lets you filter by voltage and classify substations before you import.',
                 },
                 {
-                  icon: 'tune',
-                  tag: 'Parameters',
-                  title: 'Engine-neutral technology parameters',
-                  desc: 'Enter capacity, efficiency, lifetime and CAPEX once and TEMPO translates them for each engine. The same parameter list drives the editor and the PyPSA, OSeMOSYS and AdOpT-NET0 translators. Engine-specific fields are there if you want them.',
+                  icon: 'show_chart',
+                  tag: 'Demand',
+                  title: 'Load shapes for every substation',
+                  desc: 'Regional demand is spread over the substations, evenly or by voltage, and each one gets an hourly profile. Use the built-in generator or the BDEW standard load profiles from demandlib, and preview the shape before you apply it.',
+                },
+                {
+                  icon: 'science',
+                  tag: 'Scenario Design',
+                  title: 'Scenario Studio, year by year',
+                  desc: 'Config cards now sit inside year cards on the board. Add emissions caps and renewable targets, switch technologies off, or change link capacity and vintage residuals. Boards are saved per model, and a sequential-run toggle runs the years one after another.',
+                },
+                {
+                  icon: 'sync_alt',
+                  tag: 'Engines',
+                  title: 'Five engines, one answer',
+                  desc: 'Calliope 0.6.8 and 0.7, PyPSA, OSeMOSYS and AdOpT-NET0 now share the same cost, capacity and storage conventions. A verification script runs reference models on each engine and compares the results.',
                   link: { to: '/interoperability', label: 'How the translation works' },
                 },
                 {
-                  icon: 'grid_view',
-                  tag: 'Comparison',
-                  title: 'Comparing many runs',
-                  desc: 'Compare any runs as KPI tables, side-by-side maps, parallel coordinates or a scatter plot. A Scenario Studio batch across several models also gets a model-by-variant matrix, shaded by the KPI you pick.',
+                  icon: 'insights',
+                  tag: 'SPORES',
+                  title: 'SPORES on 0.7 and MEME',
+                  desc: 'SPORES alternatives now run on the Calliope 0.7 engine and on a MEME server. A paper panel reproduces the Lombardi et al. (2020) study so you can check TEMPO against the published numbers.',
                 },
                 {
-                  icon: 'map',
-                  tag: 'Export',
-                  title: 'Publication-ready map & chart export',
-                  desc: 'Preview and export SVG maps of nodes and transmission, capacity, generation and technology mix, and demand choropleths. Charts and the data behind them download as CSV or JSON.',
-                },
-                {
-                  icon: 'travel_explore',
-                  tag: 'Study Area',
-                  title: 'Study area from a place name',
-                  desc: 'Type a city, province or country. TEMPO finds the boundary, pulls substations and lines from OpenStreetMap and builds a zonal model. Regional demand is spread over the substations, each with an hourly load shape.',
-                },
-                {
-                  icon: 'chat',
-                  tag: 'AI',
-                  title: 'Model Advisor',
-                  desc: 'The Model Advisor tab writes a plain-language report on a finished run and answers follow-up questions. Use your own Anthropic, Gemini, OpenAI or Groq key, or a local Ollama model. Nothing is sent until you configure it.',
+                  icon: 'auto_awesome',
+                  tag: 'Interface',
+                  title: 'A new look, and release notes in the app',
+                  desc: 'The dashboard, map editor, data pages, Run, Export, Results and Settings were redesigned to match this site. What’s new inside TEMPO now shows the notes for each release, with a version picker for older ones.',
                 },
               ].map((item) => (
                 <div key={item.title} className="bg-white/5 border border-white/10 p-10 flex flex-col justify-between min-h-[260px]">

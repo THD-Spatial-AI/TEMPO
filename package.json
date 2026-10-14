@@ -1,7 +1,7 @@
 {
   "name": "tempo",
   "private": true,
-  "version": "3.1.0",
+  "version": "4.0.0",
   "description": "Tool for Energy Model Preparation and Optimization",
   "homepage": "https://github.com/TH-Deggendorf/TEMPO",
   "author": {
@@ -152,6 +152,8 @@
     "@deck.gl/react": "^9.2.5",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
+    "@fontsource-variable/inter": "^5.3.0",
+    "@fontsource-variable/jetbrains-mono": "^5.3.0",
     "@mui/icons-material": "^7.3.7",
     "@mui/material": "^7.3.7",
     "@xyflow/react": "^12.10.1",
@@ -169,6 +171,7 @@
     "leaflet": "^1.9.4",
     "lucide-react": "^0.562.0",
     "maplibre-gl": "^6.11.1",
+    "material-symbols": "^0.48.0",
     "papaparse": "^5.5.3",
     "react": "^19.2.0",
     "react-apexcharts": "^1.9.0",
@@ -194,10 +197,10 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
+    "patch-package": "^8.0.1",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.17",
     "vite": "^7.2.4",
-    "patch-package": "^8.0.1",
     "vitest": "^2.1.9",
     "wait-on": "^9.0.4"
   },

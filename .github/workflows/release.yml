@@ -133,13 +133,27 @@ jobs:
           name: TEMPO-Linux
           path: release/
 
+      - name: Checkout (for CHANGELOG)
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: CHANGELOG.md
+
+      - name: Extract release notes from CHANGELOG
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          awk -v v="$VERSION" '
+            /^## \[/ { if (found) exit; if (index($0, "## [" v "]") == 1) { found = 1; next } }
+            found { print }
+          ' CHANGELOG.md > RELEASE_NOTES.md
+          if [ ! -s RELEASE_NOTES.md ]; then echo "No CHANGELOG entry for $VERSION" >&2; exit 1; fi
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           name: TEMPO ${{ github.ref_name }}
           draft: false
           prerelease: ${{ contains(github.ref_name, '-beta') || contains(github.ref_name, '-rc') }}
-          generate_release_notes: true
+          body_path: RELEASE_NOTES.md
           files: |
             release/*.exe
             release/*.AppImage
