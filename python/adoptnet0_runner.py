@@ -345,6 +345,19 @@ def _to_frozen_contract(extracted: dict, timestamps: list, model_data: dict, nam
 # Main entry point
 # ---------------------------------------------------------------------------
 
+def _release_arc_flow_lower_bounds(model) -> None:
+    """AdOpT bounds each arc's flow to [size_min, size_max] × rated capacity. A fixed
+    (existing) line is written with size_min = size_max = its capacity, which would force
+    the flow to equal full capacity in both directions (infeasible with the bidirectional
+    cut). Flows (and losses) must only be bounded by the size, so drop their lower bound to 0."""
+    import pyomo.environ as pyo
+    for v in model.component_data_objects(pyo.Var, descend_into=True):
+        if (v.lb and v.lb > 0
+                and v.parent_component().local_name in ("var_flow", "var_losses")
+                and v.parent_block().parent_component().local_name == "arc_block"):
+            v.setlb(0)
+
+
 def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
     """
     Translate TEMPO model format → AdOpT-NET0 directory structure, run the
@@ -392,6 +405,10 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
     _patch_highs_support(ModelHub)
 
     from adopt_net0.components.technologies import Res as _Res
+    # Importing adopt_net0 sets the *root* logger to DEBUG, which makes Pyomo print every
+    # constructed component (tens of millions of lines on a network model) and slows the run.
+    logging.getLogger().setLevel(logging.WARNING)
+    logging.getLogger("adopt_net0").setLevel(logging.INFO)  # keep AdOpT's own progress lines
     _patch_res_capfactor(_Res)
 
     results_dir = os.path.join(model_dir, "results")
@@ -409,6 +426,8 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
     _tie_storage_power(hub.model[hub.info_solving_algorithms["aggregation_model"]],
                        translate.storage_power_caps(model_data),
                        translate.storage_power_mins(model_data))
+
+    _release_arc_flow_lower_bounds(hub.model[hub.info_solving_algorithms["aggregation_model"]])
 
     log(f"  Solving ({solver})…")
     hub.solve()

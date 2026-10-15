@@ -126,8 +126,10 @@ def _build_demand_data_tables(locations, nodes, techs_07, time_start, time_end,
     import itertools
     import pandas as pd
 
+    # Optional sinks (sink_use_max: export / curtailment / market) stay scalar upper bounds —
+    # turning them into a profile table would force them as demand.
     demand_tids = [tid for tid, tdef in techs_07.items()
-                   if tdef.get('base_tech') == 'demand']
+                   if tdef.get('base_tech') == 'demand' and 'sink_use_max' not in tdef]
     if not demand_tids:
         return {}
 
@@ -287,8 +289,11 @@ def _build_file_ref_data_tables(techs_07, nodes, config_dir, warnings):
     negative; 0.7 expects positive demand)."""
     import pandas as pd
 
-    # Collect refs per (tech, param): node → (fname, col|None)
+    # Collect refs per (tech, param): node → (fname, col|None); extra data-table
+    # dims per (tech, param) for cost refs (costs / carriers)
     grouped = {}
+    extra_dims = {}
+    scales = {}   # (tech, param) → Calliope resource_scale multiplier
 
     def _parse(ref):
         rest = ref[len('file='):]
@@ -297,28 +302,43 @@ def _build_file_ref_data_tables(techs_07, nodes, config_dir, warnings):
             return fname, translate.safe_id(col).lower()
         return rest, None
 
-    for tid, tdef in techs_07.items():
-        marker = tdef.pop('__resource_file__', None)
-        if not marker:
-            continue
+    def _pop_markers(tcfg):
+        """Remove and return every file-reference marker on a tech dict:
+        '__resource_file__' (resource) and '__cost_file__<param>' (time-varying costs)."""
+        keys = [k for k in tcfg if k == '__resource_file__' or k.startswith('__cost_file__')]
+        return [tcfg.pop(k) for k in keys]
+
+    def _register(tid, marker, nid):
         fname, col = _parse(marker['ref'])
+        grouped.setdefault((tid, marker['param']), {})[nid] = (fname, col)
+        scales[(tid, marker['param'])] = marker.get('scale') or 1.0
+        if marker['param'].startswith('cost_'):
+            dims = {'costs': 'monetary'}
+            if marker.get('carrier'):
+                dims['carriers'] = marker['carrier']
+            extra_dims[(tid, marker['param'])] = dims
+
+    for tid, tdef in techs_07.items():
+        markers = _pop_markers(tdef)
+        if not markers:
+            continue
         target_nodes = [nid for nid, ncfg in nodes.items()
                         if tid in (ncfg.get('techs') or {})]
-        for nid in target_nodes:
-            # skip nodes that carry their own per-node override for this tech
-            ncfg_tech = nodes[nid]['techs'].get(tid)
-            if isinstance(ncfg_tech, dict) and '__resource_file__' in ncfg_tech:
-                continue
-            grouped.setdefault((tid, marker['param']), {})[nid] = (fname, col)
+        for marker in markers:
+            for nid in target_nodes:
+                # skip nodes that carry their own per-node override for this tech
+                ncfg_tech = nodes[nid]['techs'].get(tid)
+                if isinstance(ncfg_tech, dict) and any(
+                        k == '__resource_file__' or k.startswith('__cost_file__') for k in ncfg_tech):
+                    continue
+                _register(tid, marker, nid)
 
     for nid, ncfg in nodes.items():
         for tid, tcfg in (ncfg.get('techs') or {}).items():
             if not isinstance(tcfg, dict):
                 continue
-            marker = tcfg.pop('__resource_file__', None)
-            if marker:
-                fname, col = _parse(marker['ref'])
-                grouped.setdefault((tid, marker['param']), {})[nid] = (fname, col)
+            for marker in _pop_markers(tcfg):
+                _register(tid, marker, nid)
             if not tcfg:
                 ncfg['techs'][tid] = None
 
@@ -343,6 +363,7 @@ def _build_file_ref_data_tables(techs_07, nodes, config_dir, warnings):
                     f"{nid}.{tid}: column '{use_col}' not found in {fname} — skipped")
                 continue
             series = pd.to_numeric(df[use_col], errors='coerce').fillna(0.0)
+            series = series * (scales.get((tid, param)) or 1.0)
             cols[nid] = series.abs() if param.startswith('sink') else series
 
         if not cols:
@@ -355,7 +376,7 @@ def _build_file_ref_data_tables(techs_07, nodes, config_dir, warnings):
             'data': f'model_config/{csv_name}',
             'rows': 'timesteps',
             'columns': 'nodes',
-            'add_dims': {'parameters': param, 'techs': tid},
+            'add_dims': {'parameters': param, 'techs': tid, **extra_dims.get((tid, param), {})},
         }
         log(f"  Data table for {tid}.{param}: {len(cols)} node column(s)")
 
@@ -684,8 +705,9 @@ def _extract_results(model, techs_07, technologies, model_name, solver):
 
     transmission_tids = {tid for tid, tdef in techs_07.items()
                          if tdef.get('base_tech') == 'transmission'}
+    # Optional sinks (export / curtailment / market: sink_use_max, not forced) are not demand
     demand_tids = {tid for tid, tdef in techs_07.items()
-                   if tdef.get('base_tech') == 'demand'}
+                   if tdef.get('base_tech') == 'demand' and 'sink_use_max' not in tdef}
 
     def _clean(v):
         v = float(v)

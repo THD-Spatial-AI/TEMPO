@@ -16,10 +16,12 @@ import os
 import re
 from pathlib import Path
 
-from engine_common import annuity, finite, link_distance, merged_link_def, merged_tech_def, resource_to_cf
+from engine_common import annuity, finite, link_distance, merged_link_def, merged_tech_def, qualify_file_ref, resource_scale, resource_to_cf, runconfig_notes
 from engine_overlay import engine_overlay, coerce_overlay
 
 _KW_PER_MW = 1_000.0
+_UNMET_IMPORT_LIMIT_MW = 1_000_000.0   # ensure_feasibility slack: effectively unlimited import ...
+_UNMET_PRICE_EUR_MWH = 100_000.0       # ... at a prohibitive price (100 €/kWh)
 
 # ---------------------------------------------------------------------------
 # Numeric helpers
@@ -213,7 +215,9 @@ def _economics_per_input(costs: dict, constr: dict, capex_scale: float, out_per_
     """AdOpT charges CONV/STOR OPEX_variable on the main *input*; Calliope om_prod is
     per unit of *output*. Rescale by output-per-input so the cost per output matches."""
     econ = _economics(costs, constr, capex_scale)
-    econ["OPEX_variable"] = round(econ["OPEX_variable"] * out_per_in, 6)
+    # om_con (fuel cost) is per unit of input consumed — already the unit AdOpT charges on
+    econ["OPEX_variable"] = round(econ["OPEX_variable"] * out_per_in
+                                  + _to_float(costs.get("om_con"), 0.0) * _KW_PER_MW, 6)
     return econ
 
 
@@ -229,7 +233,10 @@ def _build_res_json(tech: dict, constr: dict, costs: dict, capex_scale: float = 
         "size_max": _size_bounds(constr)[1],
         "size_is_int": 0,
         "decommission": "impossible",
-        "Economics": _economics(costs, constr, capex_scale),
+        # Calliope supply om_con is per unit of resource consumed = output / energy_eff
+        "Economics": {**_economics(costs, constr, capex_scale),
+                      "OPEX_variable": round(_economics(costs, constr, capex_scale)["OPEX_variable"]
+                                             + _to_float(costs.get("om_con"), 0.0) / _eff(constr) * _KW_PER_MW, 6)},
         "Performance": {
             "output_carrier": [carrier],
             "curtailment": 1,
@@ -580,7 +587,9 @@ def _write_networks(period_dir: str, locations: list, links: list, technologies:
         om_annual_capex = 2 * _to_float(costs.get("om_annual"), 0.0) / annuity(rate, life)
 
         _write_json(os.path.join(network_data_dir, f"{net_name}.json"), {
-            "network_type": carrier,
+            # AdOpT only knows 'electricity' | 'fluid' | 'simple' (not carrier names); any
+            # non-electric carrier (heat, gas, ...) is a lossy bidirectional 'simple' network
+            "network_type": "electricity" if carrier == "electricity" else "simple",
             "size_is_int": 0,
             "decommission": "impossible",
             "size_min": _size_bounds(constr)[0],
@@ -723,7 +732,8 @@ def _placed_techs(loc: dict, i: int, technologies: list, location_tech_assignmen
 def _write_node_data(period_dir: str, locations: list, technologies: list,
                      location_tech_assignments: dict, time_series: list,
                      carriers: list, start_date: str, end_date: str,
-                     capex_scale: float = 1.0, report: list | None = None) -> None:
+                     capex_scale: float = 1.0, report: list | None = None,
+                     ensure_feasibility: bool = True) -> None:
     report = report if report is not None else []
     node_data_dir = os.path.join(period_dir, "node_data")
     os.makedirs(node_data_dir, exist_ok=True)
@@ -793,6 +803,7 @@ def _write_node_data(period_dir: str, locations: list, technologies: list,
         # config (merged over the tech-level one); the parent is resolved from the
         # global tech. Series are summed per carrier and written to that carrier only.
         demand_by_carrier: dict = {}
+        sinks_by_carrier: dict = {}   # carrier → [(limit series kW, om_con €/kWh)] for force_resource=false demands
         if demand_vals:
             demand_by_carrier[str(dp.get("carrier") or "electricity").lower()] = demand_vals
         else:
@@ -808,11 +819,19 @@ def _write_node_data(period_dir: str, locations: list, technologies: list,
                 _is_demand = (_global is not None and _get_parent(_global) == "demand") or _get_parent(_loc_tech) == "demand"
                 if not _is_demand:
                     continue
-                _res = merged_tech_def(_global or {}, _loc_tech)[0].get("resource")
-                _series = _resolve_demand_ref(_res, time_series)
+                _cons, _costs = merged_tech_def(_global or {}, _loc_tech)
+                _res = qualify_file_ref(_cons.get("resource"), loc_name, {"timeSeries": time_series})
+                _series = [v * resource_scale(_cons) for v in _resolve_demand_ref(_res, time_series)]
                 if not _series:
-                    _scalar = abs(_to_float(_res, 0.0))
+                    _scalar = abs(_to_float(_res, 0.0)) * resource_scale(_cons)
                     _series = [_scalar] * n_hours if _scalar > 0 else []
+                if _series and _cons.get("force_resource") is False:
+                    # Optional sink (export / curtailment / market): consumes up to its resource
+                    # at a price — AdOpT export limit/price, or free disposal when unpriced.
+                    _car = _get_carrier_in(_global if _global is not None else _loc_tech)
+                    sinks_by_carrier.setdefault(_car, []).append(
+                        ([abs(v) for v in _series], _to_float(_costs.get("om_con"), 0.0)))
+                    continue
                 if _series:
                     _car = _get_carrier_in(_global if _global is not None else _loc_tech)
                     _prev = demand_by_carrier.get(_car)
@@ -833,16 +852,26 @@ def _write_node_data(period_dir: str, locations: list, technologies: list,
             # Demand only on its own carrier (not every carrier at the node)
             demand_vals = _tile(demand_by_carrier.get(carrier) or [], n_hours)
             has_demand = any(v != 0 for v in demand_vals)
+            priced = [(_tile(sv, n_hours), c) for sv, c in sinks_by_carrier.get(carrier, []) if c != 0]
+            slack = ensure_feasibility and has_demand
             lines = [header]
             for j, ts in enumerate(timestamps):
                 ts_str = _fmt_ts(ts)
                 dem = str(round(demand_vals[j] / _KW_PER_MW, 9)) if has_demand else ""
-                lines.append(f"{ts_str};{dem};;;;;;;")
+                lim_kw = sum(sv[j] for sv, _ in priced)
+                exp_lim = str(round(lim_kw / _KW_PER_MW, 9)) if priced else ""
+                # revenue per MWh = -om_con (€/kWh) × 1000; several priced sinks → limit-weighted mean
+                exp_price = (str(round(-sum(sv[j] * c for sv, c in priced) / lim_kw * _KW_PER_MW, 6))
+                             if priced and lim_kw > 0 else "")
+                # ensure_feasibility: demanded carriers can always be imported at a prohibitive price
+                imp_lim, imp_price = (str(_UNMET_IMPORT_LIMIT_MW), str(_UNMET_PRICE_EUR_MWH)) if slack else ("", "")
+                lines.append(f"{ts_str};{dem};{imp_lim};{exp_lim};{imp_price};{exp_price};;;")
             _write_text(os.path.join(carrier_data_dir, f"{carrier}.csv"), "\n".join(lines) + "\n")
 
         _write_json(
             os.path.join(carrier_data_dir, "EnergybalanceOptions.json"),
-            {c: {"curtailment_possible": 0} for c in carriers},
+            {c: {"curtailment_possible": 1 if any(cost == 0 for _, cost in sinks_by_carrier.get(c, [])) else 0}
+             for c in carriers},
         )
 
         climate_lines = [";ghi;dni;dhi;temp_air;rh;ws10"]
@@ -911,8 +940,10 @@ def build_model_dir(model_data: dict, model_dir: str, capex_scale: float = 1.0) 
     _write_period_topology(period_dir, locations, carriers, start_date, end_date)
     _write_networks(period_dir, locations, links, technologies, capex_scale, report)
     _write_node_data(period_dir, locations, technologies, loc_tech_assign,
-                     time_series, carriers, start_date, end_date, capex_scale, report)
+                     time_series, carriers, start_date, end_date, capex_scale, report,
+                     ensure_feasibility=model_config.get("ensureFeasibility", True))
 
+    report += runconfig_notes(model_data)
     return carriers, report
 
 
@@ -936,7 +967,7 @@ def compute_capfactors(model_data: dict, report: list) -> dict:
             if _get_parent(tech) not in ("supply", "supply_plus"):
                 continue
             constr, _ = merged_tech_def(tech, loc_cfg)
-            cf = resource_to_cf(constr, n, report, f"{node}/{ref}", model_data)
+            cf = resource_to_cf(constr, n, report, f"{node}/{ref}", model_data, loc=node)
             if cf is not None:
                 out[(node, _safe_id(tech.get("name") or tech.get("id") or ref))] = cf
     return out

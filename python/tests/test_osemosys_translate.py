@@ -271,12 +271,15 @@ def test_demand_profile_sums_to_one_per_fuel():
     with tempfile.TemporaryDirectory() as tmp:
         tr.translate_model(REFERENCE_MODEL, tmp, SCHEME_4X3)
         rows = _read_csv(tmp, "SpecifiedDemandProfile.csv")
+        # Fuels without demand carry an explicit all-zero profile (GLPK needs a value for every fuel)
+        with_demand = {r["FUEL"] for r in _read_csv(tmp, "SpecifiedAnnualDemand.csv") if float(r["VALUE"]) != 0}
         by_fuel: dict = {}
         for r in rows:
             by_fuel.setdefault(r["FUEL"], 0.0)
             by_fuel[r["FUEL"]] += float(r["VALUE"])
         for fuel, total in by_fuel.items():
-            assert abs(total - 1.0) < 1e-6, f"SpecifiedDemandProfile sum for {fuel} = {total}"
+            expected = 1.0 if fuel in with_demand else 0.0
+            assert abs(total - expected) < 1e-6, f"SpecifiedDemandProfile sum for {fuel} = {total}"
 
 
 def test_demand_profile_has_12_rows_per_fuel():

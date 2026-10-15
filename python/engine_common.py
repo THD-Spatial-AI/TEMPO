@@ -68,6 +68,51 @@ def is_file_ref(val):
     return isinstance(val, str) and val.startswith('file=')
 
 
+def resource_scale(constraints):
+    """Calliope `resource_scale`: multiplier applied to a tech's resource (e.g. 1000 for MW→kW)."""
+    v = finite((constraints or {}).get('resource_scale'))
+    return v if v is not None else 1.0
+
+
+def runconfig_notes(model_data):
+    """Notes for Calliope run-level settings that only the Calliope engines apply
+    (group constraints, reserve margin). Slack placeholders (cost_max/min >= 1e12) are ignored."""
+    rc = ((model_data.get('metadata') or {}).get('runConfig')) or {}
+    notes = []
+    for name, spec in (rc.get('group_constraints') or {}).items():
+        body = {k: v for k, v in (spec or {}).items() if k != 'techs'}
+        slack = body and all(
+            k in ('cost_max', 'cost_min') and all((finite(x) or 0) >= 1e12 for x in (v or {}).values())
+            for k, v in body.items())
+        if not slack:
+            notes.append(f"run.group_constraints.{name} is a Calliope-only constraint — not applied on this engine")
+    if rc.get('reserve_margin'):
+        notes.append("run.reserve_margin is a Calliope-only constraint — not applied on this engine")
+    return notes
+
+
+def qualify_file_ref(ref, loc, model_data):
+    """Calliope convention: 'file=x.csv' with no column means the column named after the
+    location. Returns the ref with ':<column>' appended when the file has a column matching
+    `loc`; otherwise the ref unchanged."""
+    if not is_file_ref(ref) or ':' in ref[len('file='):] or not loc:
+        return ref
+    fname = ref[len('file='):].strip().lower()
+    stem = fname[:-4] if fname.endswith('.csv') else fname
+    for ts in model_data.get('timeSeries') or []:
+        names = {str(ts.get(k) or '').lower() for k in ('fileName', 'file', 'name')}
+        names |= {c[:-4] for c in list(names) if c.endswith('.csv')}
+        if fname not in names and stem not in names:
+            continue
+        columns = ts.get('columns') or []
+        date_col = ts.get('dateColumn') or (columns[0] if columns else None)
+        for c in columns:
+            if c and c != date_col and _col_id(c) == _col_id(loc):
+                return f"{ref}:{c}"
+        break
+    return ref
+
+
 def resolve_file_series(ref, model_data, n, report, ctx):
     """Resolve 'file=name.csv:column' against the payload's inline timeSeries.
     Returns a list of length n (cycled/truncated), or None."""
@@ -122,6 +167,14 @@ def merged_tech_def(tech, loc_cfg):
     if isinstance(loc_cfg, dict):
         constraints.update(loc_cfg.get('constraints') or {})
         costs.update((loc_cfg.get('costs') or {}).get('monetary') or {})
+    # Calliope `energy_cap_scale` multiplies the energy_cap bounds (e.g. 1000 for MW→kW);
+    # applied once here so every engine sees bounds in kW. Infinite bounds are left alone.
+    scale = finite(constraints.pop('energy_cap_scale', None))
+    if scale not in (None, 1.0):
+        for key in ('energy_cap_max', 'energy_cap_min', 'energy_cap_equals'):
+            v = finite(constraints.get(key))
+            if v is not None:
+                constraints[key] = v * scale
     return constraints, costs
 
 
@@ -147,14 +200,14 @@ def merged_link_def(tech, link):
     return merged_tech_def(tech, entry)
 
 
-def resource_to_cf(constraints, n, report, ctx, model_data):
+def resource_to_cf(constraints, n, report, ctx, model_data, loc=None):
     """Supply resource → per-unit availability list of length n, or None (unconstrained).
 
     Calliope 0.6 semantics: resource_unit 'energy_per_cap' → values are capacity
     factors; 'energy' → absolute kW, approximated as resource / energy_cap_max
     (energy_cap_equals takes precedence — exact, as equals fixes capacity);
     unset → values ≤ 1 are treated as capacity factors, larger as absolute."""
-    resource = constraints.get('resource')
+    resource = qualify_file_ref(constraints.get('resource'), loc, model_data)
     unit = str(constraints.get('resource_unit') or '').lower()
     cap_max = finite(constraints.get('energy_cap_equals'))
     if cap_max is None:
@@ -169,6 +222,9 @@ def resource_to_cf(constraints, n, report, ctx, model_data):
             return None
         series = [abs(r)] * n
 
+    scale = resource_scale(constraints)
+    if scale != 1.0:
+        series = [v * scale for v in series]
     peak = max(series) if series else 0.0
     as_cf = unit == 'energy_per_cap' or (unit != 'energy' and peak <= 1.001)
     if as_cf:

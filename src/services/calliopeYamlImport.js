@@ -170,18 +170,23 @@ function resolveFromChain(startParent, techGroups, fields, depth = 0) {
 }
 
 /**
- * Walk the tech_groups chain to find the first non-null value at an arbitrary
- * nested path within a group entry (e.g. ['constraints','lifetime']).
- * Unlike resolveFromChain which searches inside `essentials`, this helper
- * searches anywhere in the group object, following `essentials.parent` to walk up.
+ * Merge a section ('constraints' | 'costs') over the tech_groups chain starting at
+ * `startParent`: ancestors first, so nearer groups override farther ones. Costs are
+ * merged one level deeper (per cost class).
  */
-function resolveNestedFromChain(startParent, techGroups, path, depth = 0) {
-  if (!startParent || depth > 12) return null;
-  const group = techGroups[startParent];
-  if (!group) return null;
-  const val = path.reduce((o, k) => (o != null ? o[k] : undefined), group);
-  if (val != null) return val;
-  return resolveNestedFromChain(group?.essentials?.parent, techGroups, path, depth + 1);
+function groupSection(startParent, techGroups, section) {
+  const chain = [];
+  for (let p = startParent, d = 0; p && techGroups[p] && d < 12; d++) {
+    chain.unshift(techGroups[p]);
+    p = techGroups[p]?.essentials?.parent;
+  }
+  const out = {};
+  for (const g of chain) {
+    for (const [k, v] of Object.entries(g?.[section] || {})) {
+      out[k] = section === 'costs' ? { ...(out[k] || {}), ...(v || {}) } : v;
+    }
+  }
+  return out;
 }
 
 /**
@@ -460,26 +465,18 @@ export function translateCalliopeModel(mergedDoc, filesMap, { extraCsvFiles = []
         ...(ess.stack_weight        != null ? { stack_weight:        ess.stack_weight        } : {}),
         ...(ess.export_carrier      != null ? { export_carrier:      ess.export_carrier      } : {}),
       },
-      constraints: (() => {
-        const base = tech?.constraints || {};
-        // Inherit lifetime from tech_groups chain if not set on this tech
-        if (base.lifetime == null) {
-          const inherited = resolveNestedFromChain(rawParent, techGroupsRaw, ['constraints', 'lifetime']);
-          if (inherited != null) return { ...base, lifetime: inherited };
-        }
-        return base;
-      })(),
+      // Calliope inherits every constraint/cost from the tech_groups chain (nearest wins,
+      // the tech's own values win over all of them) — not just lifetime / interest_rate.
+      constraints: { ...groupSection(rawParent, techGroupsRaw, 'constraints'), ...(tech?.constraints || {}) },
+      // Preserve all cost classes (monetary, co2, nos_score, ...); classes merge per key.
       costs: (() => {
-        const allCosts = tech?.costs || {};
-        const baseMon = allCosts.monetary || {};
-        const inherited = {};
-        // Inherit interest_rate from tech_groups chain if not set on this tech
-        if (baseMon.interest_rate == null) {
-          const ir = resolveNestedFromChain(rawParent, techGroupsRaw, ['costs', 'monetary', 'interest_rate']);
-          if (ir != null) inherited.interest_rate = ir;
+        const own = tech?.costs || {};
+        const inherited = groupSection(rawParent, techGroupsRaw, 'costs');
+        const merged = {};
+        for (const cls of new Set([...Object.keys(inherited), ...Object.keys(own)])) {
+          merged[cls] = { ...(inherited[cls] || {}), ...(own[cls] || {}) };
         }
-        // Preserve all cost classes (nos_score, excl_score, co2, etc.) — not just monetary
-        return { ...allCosts, monetary: { ...inherited, ...baseMon } };
+        return { ...merged, monetary: merged.monetary || {} };
       })(),
     };
   });
@@ -647,12 +644,10 @@ export function translateCalliopeModel(mergedDoc, filesMap, { extraCsvFiles = []
       dataCols.forEach(col => {
         const vals = rowData.map(r => parseFloat(r[col])).filter(v => !isNaN(v));
         if (vals.length > 0) {
-          statistics[col] = {
-            min:  Math.min(...vals),
-            max:  Math.max(...vals),
-            mean: vals.reduce((a, b) => a + b, 0) / vals.length,
-            sum:  vals.reduce((a, b) => a + b, 0),
-          };
+          // Loop, not Math.min(...vals): multi-decade hourly series (UK template) overflow the call stack
+          let min = Infinity, max = -Infinity, sum = 0;
+          for (const v of vals) { if (v < min) min = v; if (v > max) max = v; sum += v; }
+          statistics[col] = { min, max, mean: sum / vals.length, sum };
         }
       });
 

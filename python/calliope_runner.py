@@ -1063,7 +1063,13 @@ def _write_scalar_demand_timeseries(techs, locs_cfg, loc_tech_assign,
 
     # If nothing was generated, create a minimal dummy timeseries so Calliope
     # doesn't complain – attach it to the first demand tech.
-    if not generated:
+    # ...but never when the model already references timeseries files: the dummy is set on the
+    # first demand tech's *global* resource and would overwrite its real `file=` demand.
+    def _has_file_resource(cfg):
+        return isinstance(cfg, dict) and isinstance((cfg.get('constraints') or {}).get('resource'), str)             and cfg['constraints']['resource'].startswith('file=')
+    has_file_refs = any(_has_file_resource(t) for t in techs.values()) or any(
+        _has_file_resource(tc) for lb in locs_cfg.values() for tc in (lb.get('techs') or {}).values())
+    if not generated and not has_file_refs:
         demand_tech = next(
             (tid for tid, tdef in techs.items()
              if (tdef.get('essentials') or {}).get('parent') == 'demand'),

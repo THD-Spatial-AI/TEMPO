@@ -58,6 +58,7 @@ _KWH_TO_PJ = 3.6e-9
 _EUR_KW_TO_M_EUR_GW = 1.0      # 1 EUR/kW = 1 M€/GW (unit coincidence)
 _EUR_KWH_TO_M_EUR_PJ = 277.778
 _LARGE_CAP_GW = 999.0           # stand-in for unconstrained capacity
+_UNMET_COST_EUR_KWH = 1e3       # ensure_feasibility slack price (Calliope bigM analogue, kept GLPK-friendly)
 _PARITY_EPS_VAR_COST = 1e-4     # M€/PJ (≈3.6e-7 €/kWh) — breaks free-curtailment degeneracy
 # TEMPO storage extension: Tempo* level variables hold level × this (parity storage
 # levels are ~1e-6 PJ; O(1) keeps them clear of GLPK's absolute tolerances).
@@ -220,7 +221,7 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
     except Exception:
         n_hours = 8760
 
-    from engine_common import annuity as _crf, merged_tech_def as _merged, resource_to_cf as _res_cf
+    from engine_common import annuity as _crf, merged_tech_def as _merged, resource_to_cf as _res_cf, qualify_file_ref as _qual_ref, resource_scale as _res_scale, runconfig_notes as _rc_notes
     from engine_common import merged_link_def as _merged_link, link_distance as _link_distance
     annualise = 8760.0 / n_hours if parity else 1.0
 
@@ -314,7 +315,37 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
 
             p = _parent(tech)
             if p == "demand":
-                continue  # demand → SpecifiedAnnualDemand, handled below
+                # Forced demand → SpecifiedAnnualDemand, handled below. A demand with
+                # force_resource=false consumes *up to* its resource (export / curtailment /
+                # market sinks): a capacity-limited sink tech priced at om_con (negative = revenue).
+                sink_constr, sink_costs = _merged(tech, loc_techs.get(tech_ref))
+                if sink_constr.get("force_resource") is False:
+                    sink_res = _qual_ref(sink_constr.get("resource"), loc_name, model_data)
+                    sink_series = _resolve_file_ref(sink_res, ts_store)
+                    sink_vals = [abs(v) * _res_scale(sink_constr) for v in sink_series] if sink_series else []
+                    sink_peak = max(sink_vals) if sink_vals else abs(_float(sink_res, 0.0)) * _res_scale(sink_constr)
+                    if sink_peak > 0:
+                        sink_id = f"{loc_s}_{_sid(tech.get('name') or tech.get('id') or 'sink')}"
+                        sink_gw = min(sink_peak / 1e6, _LARGE_CAP_GW)
+                        osem_techs.append(sink_id)
+                        cap_cost.append({"REGION": REGION, "TECHNOLOGY": sink_id, "YEAR": year, "VALUE": 0.0})
+                        fix_cost.append({"REGION": REGION, "TECHNOLOGY": sink_id, "YEAR": year, "VALUE": 0.0})
+                        var_cost.append({"REGION": REGION, "TECHNOLOGY": sink_id, "MODE_OF_OPERATION": 1, "YEAR": year,
+                                         "VALUE": round(_float(sink_costs.get("om_con")) * _EUR_KWH_TO_M_EUR_PJ, 6)})
+                        op_life.append({"REGION": REGION, "TECHNOLOGY": sink_id, "VALUE": 1 if parity else 30})
+                        cap_max.append({"REGION": REGION, "TECHNOLOGY": sink_id, "YEAR": year, "VALUE": round(sink_gw, 9)})
+                        resid_cap.append({"REGION": REGION, "TECHNOLOGY": sink_id, "YEAR": year, "VALUE": round(sink_gw, 9)})
+                        inp_act.append({"REGION": REGION, "TECHNOLOGY": sink_id, "FUEL": f"{loc_s}_{_sid(_carrier_in(tech))}",
+                                        "MODE_OF_OPERATION": 1, "YEAR": year, "VALUE": 1.0})
+                        cap2act.append({"REGION": REGION, "TECHNOLOGY": sink_id, "VALUE": CAPACITY_TO_ACTIVITY})
+                        avail.append({"REGION": REGION, "TECHNOLOGY": sink_id, "YEAR": year, "VALUE": 1.0})
+                        sink_slices = (timeslices.aggregate(list(itertools.islice(itertools.cycle(sink_vals), n_hours)), scheme)[0]
+                                       if sink_series else None)
+                        for lbl in labels:
+                            cap_factor.append({"REGION": REGION, "TECHNOLOGY": sink_id, "TIMESLICE": lbl, "YEAR": year,
+                                               "VALUE": round(sink_slices[lbl] / sink_peak, 9) if sink_slices else 1.0})
+                        report.append(f"{loc_name}/{tech_ref}: demand with force_resource=false modelled as an optional sink (up to {sink_peak:g} kW).")
+                continue
 
             tid = tech.get("name") or tech.get("id") or "tech"
             tid_s = _sid(tid)
@@ -333,6 +364,9 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
             opex_v = _float(costs.get("om_prod")) * _EUR_KWH_TO_M_EUR_PJ
             life = max(1, int(_float(constr.get("lifetime"), 25)))
             eff = min(1.0, max(0.01, _float(constr.get("energy_eff"), 1.0)))
+            if p in ("supply", "supply_plus", "conversion", "conversion_plus"):
+                # Calliope om_con is charged per unit of resource / carrier consumed = output / eff
+                opex_v += _float(costs.get("om_con")) / eff * _EUR_KWH_TO_M_EUR_PJ
             if (parity and constr.get("energy_cap_equals") is not None
                     and p in ("supply", "supply_plus", "conversion", "conversion_plus", "storage")
                     and not _float(costs.get("energy_cap")) and not _float(costs.get("storage_cap"))):
@@ -355,7 +389,7 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
                 cap2act.append({"REGION": REGION, "TECHNOLOGY": tech_id, "VALUE": CAPACITY_TO_ACTIVITY})
                 avail.append({"REGION": REGION, "TECHNOLOGY": tech_id, "YEAR": year, "VALUE": 1.0})
                 resid_cap.append({"REGION": REGION, "TECHNOLOGY": tech_id, "YEAR": year, "VALUE": 0.0})
-                cf_series = _res_cf(constr, n_hours, report, f"{loc_name}/{tid}", model_data)
+                cf_series = _res_cf(constr, n_hours, report, f"{loc_name}/{tid}", model_data, loc=loc_name)
                 cf_slices = timeslices.aggregate(cf_series, scheme)[0] if cf_series else None
                 for lbl in labels:
                     v = cf_slices[lbl] if cf_slices else 1.0
@@ -575,6 +609,7 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
     # ── Demand ────────────────────────────────────────────────────────────────
     demand_annual: list[dict] = []
     demand_profile: list[dict] = []
+    demand_acc: dict = {}
 
     for loc in locations:
         loc_name = loc.get("name") or loc.get("id", "loc")
@@ -594,6 +629,8 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
             # global tech's constraints.
             loc_cfg = loc_tech_refs.get(tech_ref) or {}
             constr = {**(tech.get("constraints") or {}), **(loc_cfg.get("constraints") or {})}
+            if constr.get("force_resource") is False:
+                continue  # optional sink (export / curtailment / market): modelled as a tech above
 
             # Resolve demand values (kW)
             vals_kw: list[float] = []
@@ -605,12 +642,12 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
                 # Demand may be on the tech's resource: a `file=name:col` timeseries
                 # (OSM study-area importer) or a scalar. Series are negative
                 # (withdrawal) → take the magnitude.
-                resource = constr.get("resource")
+                resource = _qual_ref(constr.get("resource"), loc_name, model_data)
                 series = _resolve_file_ref(resource, ts_store)
                 if series:
-                    vals_kw = [abs(v) for v in series]
+                    vals_kw = [abs(v) * _res_scale(constr) for v in series]
                 else:
-                    scalar = abs(_float(resource, 0.0))
+                    scalar = abs(_float(resource, 0.0)) * _res_scale(constr)
                     if scalar > 0:
                         vals_kw = [scalar] * 24
             if not vals_kw:
@@ -625,18 +662,43 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
                 report.append(f"{loc_name}/{tech_ref}: demand is zero — skipped.")
                 continue
 
-            demand_annual.append({"REGION": REGION, "FUEL": fuel, "YEAR": year, "VALUE": round(total_pj, 12)})
-
             # Aggregate to timeslices; each slice fraction = share of annual energy
             slices_mean, _ys = timeslices.aggregate(full_vals, scheme)
             total_energy = sum(slices_mean[lbl] * year_split[lbl] * n_hours for lbl in labels)
+            # Several demand techs can share one location + carrier (one OSeMOSYS fuel):
+            # sum their annual energy and energy-weight their profiles.
+            acc = demand_acc.setdefault(fuel, {"annual": 0.0, "by_slice": {lbl: 0.0 for lbl in labels}})
+            acc["annual"] += total_pj
             for lbl in labels:
                 frac = (slices_mean[lbl] * year_split[lbl] * n_hours / total_energy
                         if total_energy > 0 else 1.0 / len(labels))
-                demand_profile.append({
-                    "REGION": REGION, "FUEL": fuel, "TIMESLICE": lbl,
-                    "YEAR": year, "VALUE": round(frac, 9),
-                })
+                acc["by_slice"][lbl] += total_pj * frac
+
+    for fuel, acc in demand_acc.items():
+        demand_annual.append({"REGION": REGION, "FUEL": fuel, "YEAR": year, "VALUE": round(acc["annual"], 12)})
+        for lbl in labels:
+            demand_profile.append({"REGION": REGION, "FUEL": fuel, "TIMESLICE": lbl, "YEAR": year,
+                                   "VALUE": round(acc["by_slice"][lbl] / acc["annual"], 9)})
+
+    # ── ensure_feasibility slack (mirrors Calliope's unmet-demand bigM) ───────
+    # A costly supply of every demanded fuel; Calliope's default (and the Run page's) is on.
+    if model_config.get("ensureFeasibility", True) and demand_acc:
+        unmet_cost = round(_UNMET_COST_EUR_KWH * _EUR_KWH_TO_M_EUR_PJ, 3)
+        for fuel in sorted(demand_acc):
+            slack_id = f"{fuel}_UNMET"
+            osem_techs.append(slack_id)
+            cap_cost.append({"REGION": REGION, "TECHNOLOGY": slack_id, "YEAR": year, "VALUE": 0.0})
+            fix_cost.append({"REGION": REGION, "TECHNOLOGY": slack_id, "YEAR": year, "VALUE": 0.0})
+            var_cost.append({"REGION": REGION, "TECHNOLOGY": slack_id, "MODE_OF_OPERATION": 1, "YEAR": year, "VALUE": unmet_cost})
+            op_life.append({"REGION": REGION, "TECHNOLOGY": slack_id, "VALUE": 1 if parity else 30})
+            cap_max.append({"REGION": REGION, "TECHNOLOGY": slack_id, "YEAR": year, "VALUE": _LARGE_CAP_GW})
+            resid_cap.append({"REGION": REGION, "TECHNOLOGY": slack_id, "YEAR": year, "VALUE": _LARGE_CAP_GW})
+            out_act.append({"REGION": REGION, "TECHNOLOGY": slack_id, "FUEL": fuel, "MODE_OF_OPERATION": 1, "YEAR": year, "VALUE": 1.0})
+            cap2act.append({"REGION": REGION, "TECHNOLOGY": slack_id, "VALUE": CAPACITY_TO_ACTIVITY})
+            avail.append({"REGION": REGION, "TECHNOLOGY": slack_id, "YEAR": year, "VALUE": 1.0})
+            for lbl in labels:
+                cap_factor.append({"REGION": REGION, "TECHNOLOGY": slack_id, "TIMESLICE": lbl, "YEAR": year, "VALUE": 1.0})
+        report.append(f"ensureFeasibility: unmet-demand slack added for {len(demand_acc)} demand fuel(s)")
 
     # ── Write CSV files ───────────────────────────────────────────────────────
     def _p(name: str) -> str:
@@ -722,6 +784,14 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
     _write_csv(_p("AvailabilityFactor.csv"), ["REGION", "TECHNOLOGY", "YEAR", "VALUE"], avail)
     _write_csv(_p("ResidualCapacity.csv"), ["REGION", "TECHNOLOGY", "YEAR", "VALUE"], resid_cap)
     _write_csv(_p("CapacityFactor.csv"), ["REGION", "TECHNOLOGY", "TIMESLICE", "YEAR", "VALUE"], cap_factor)
+    # SpecifiedAnnualDemand has no default in the MathProg model: fuels without a demand tech
+    # (e.g. a zone's electricity fuel with no demand attached) must carry an explicit 0.
+    have_demand = {(d["FUEL"], d["YEAR"]) for d in demand_annual}
+    no_demand = [f for f in sorted(loc_fuels) if (f, year) not in have_demand]
+    demand_annual += [{"REGION": REGION, "FUEL": f, "YEAR": year, "VALUE": 0} for f in no_demand]
+    # ...and the postsolve step reads the profile for every fuel too
+    demand_profile += [{"REGION": REGION, "FUEL": f, "TIMESLICE": lbl, "YEAR": year, "VALUE": 0}
+                       for f in no_demand for lbl in labels]
     _write_csv(_p("SpecifiedAnnualDemand.csv"), ["REGION", "FUEL", "YEAR", "VALUE"], demand_annual)
     _write_csv(_p("SpecifiedDemandProfile.csv"), ["REGION", "FUEL", "TIMESLICE", "YEAR", "VALUE"], demand_profile)
     _write_csv(_p("YearSplit.csv"), ["TIMESLICE", "YEAR", "VALUE"],
@@ -773,4 +843,5 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
            if parity else
            "Transmission as bidirectional conversion pairs. Storage as CH/DC tech pair + virtual fuel.")
     )
+    report += _rc_notes(model_data)
     return csv_dir, report

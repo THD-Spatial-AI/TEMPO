@@ -50,6 +50,9 @@ from engine_common import (  # noqa: F401  (convert_value re-exported for caller
     merged_tech_def as _merged_tech_def,
     resolve_file_series as _resolve_file_series,
     resource_to_cf,
+    qualify_file_ref,
+    resource_scale,
+    runconfig_notes,
 )
 
 UNMET_DEMAND_COST = 1e6  # mirrors calliope's ensure_feasibility bigM slack
@@ -183,7 +186,7 @@ def translate_model(model_data: dict) -> tuple[dict, list]:
                 bus = ensure_bus(lid, carrier, x, y)
                 capex = _finite(costs.get('energy_cap')) or 0.0
                 om_annual = _finite(costs.get('om_annual')) or 0.0
-                p_max_pu = resource_to_cf(constraints, n, report, ctx, model_data)
+                p_max_pu = resource_to_cf(constraints, n, report, ctx, model_data, loc=lid)
                 gen = {
                     'name': comp_name, 'bus': bus, 'carrier': tid,
                     'p_nom_extendable': True,
@@ -208,20 +211,36 @@ def translate_model(model_data: dict) -> tuple[dict, list]:
                 carrier = ess.get('carrier_in') or ess.get('carrier') or 'electricity'
                 bus = ensure_bus(lid, carrier, x, y)
                 profile = ((loc.get('demandProfile') or {}).get('timeseries')) or []
-                resource = constraints.get('resource')
+                resource = qualify_file_ref(constraints.get('resource'), lid, model_data)
                 if profile:
                     p_set = [abs(_finite(v) or 0.0) for v in islice(cycle(profile), n)]
                 elif _is_file_ref(resource):
                     series = _resolve_file_series(resource, model_data, n, report, ctx)
-                    p_set = [abs(v) for v in series] if series else [100.0] * n
+                    p_set = [abs(v) * resource_scale(constraints) for v in series] if series else [100.0] * n
                 else:
                     r = _finite(resource)
                     if r is not None:
-                        p_set = [abs(r)] * n
+                        p_set = [abs(r) * resource_scale(constraints)] * n
                     else:
                         p_set = [100.0] * n
                         report.append(f"{ctx}: no demand profile or scalar — flat 100 kW placeholder (0.6 runner convention)")
-                spec['loads'].append({'name': comp_name, 'bus': bus, 'p_set': p_set})
+                if constraints.get('force_resource') is False:
+                    # Calliope demand with force_resource=False consumes *up to* its resource
+                    # (export / curtailment / market sinks): a sink priced at om_con per kWh
+                    # (negative = revenue). Generator running at p in [-resource, 0], so
+                    # cost = marginal_cost * p = om_con * consumed  →  marginal_cost = -om_con.
+                    cap = max(p_set) if p_set else 0.0
+                    if cap > 0:
+                        spec['generators'].append({
+                            'name': comp_name, 'bus': bus, 'carrier': tid,
+                            'p_nom_extendable': False, 'p_nom': cap, 'p_nom_max': None,
+                            'efficiency': 1.0, 'capital_cost': 0.0,
+                            'marginal_cost': -om_con,
+                            'p_max_pu': [0.0] * n, 'p_min_pu': [-v / cap for v in p_set],
+                        })
+                        report.append(f"{ctx}: demand with force_resource=false modelled as an optional sink (up to {cap:g} kW)")
+                else:
+                    spec['loads'].append({'name': comp_name, 'bus': bus, 'p_set': p_set})
 
             elif parent == 'storage':
                 carrier = ess.get('carrier') or ess.get('carrier_out') or 'electricity'
@@ -352,6 +371,7 @@ def translate_model(model_data: dict) -> tuple[dict, list]:
         if load_buses:
             report.append(f"ensureFeasibility: unmet-demand slack generator added at {len(load_buses)} demand bus(es)")
 
+    report += runconfig_notes(model_data)
     spec['buses'] = list(buses.values())
     spec['carriers'] = sorted(spec['carriers'])
     return spec, report

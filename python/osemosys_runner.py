@@ -32,6 +32,7 @@ if _this_dir not in sys.path:
     sys.path.insert(0, _this_dir)
 
 import osemosys_translate as translate
+from engine_common import qualify_file_ref, resource_scale
 import osemosys_timeslices as timeslices
 
 _OSEMOSYS_TXT = os.path.join(_this_dir, "osemosys", "osemosys.txt")
@@ -238,6 +239,20 @@ def _write_datafile(csv_dir: str, results_dir: str, discount_rate: float = 0.05)
 
 
 # ─── Run glpsol ──────────────────────────────────────────────────────────────
+
+def _min_capacity_violated(csv_dir: str, results_dir: str, rel_tol: float = 1e-6) -> bool:
+    """True if any TotalAnnualMinCapacity is not met by the solved TotalCapacityAnnual."""
+    total = {}
+    path = os.path.join(results_dir, "TotalCapacityAnnual.csv")
+    if os.path.exists(path):
+        for r in _read_csv(path):
+            total[(r["TECHNOLOGY"], str(r["YEAR"]))] = float(r["VALUE"])
+    for r in _read_csv(os.path.join(csv_dir, "TotalAnnualMinCapacity.csv")):
+        need = float(r["VALUE"])
+        if total.get((r["TECHNOLOGY"], str(r["YEAR"])), 0.0) < need * (1 - rel_tol) - 1e-9:
+            return True
+    return False
+
 
 def _run_glpsol(glpsol: str, osemosys_txt: str, dat_path: str,
                 output_path: str, log_fn, presolve: bool = True) -> None:
@@ -532,8 +547,23 @@ def _build_contract(results_dir: str, model_data: dict, model_name: str,
             if isinstance(dp_ts, list):
                 vals = [float(v) for v in dp_ts]
             else:
-                resource = abs(float((tech.get("constraints") or {}).get("resource") or 0))
-                vals = [resource] * 24 if resource > 0 else []
+                # Same resolution as the translator: per-location constraints over the tech's,
+                # `file=` refs read from the inline series (column = location when unqualified)
+                loc_cfg = loc_tech_refs.get(tech_ref) or {}
+                merged_c = {**(tech.get("constraints") or {}), **(loc_cfg.get("constraints") or {})}
+                if merged_c.get("force_resource") is False:
+                    continue  # optional sink (export / curtailment / market), not demand
+                res = merged_c.get("resource")
+                res = qualify_file_ref(res, loc.get("name") or loc.get("id"), model_data)
+                series = translate._resolve_file_ref(res, model_data.get("timeSeries") or [])
+                if series:
+                    vals = [abs(v) * resource_scale(merged_c) for v in series]
+                else:
+                    try:
+                        resource = abs(float(res or 0)) * resource_scale(merged_c)
+                    except (TypeError, ValueError):
+                        resource = 0.0
+                    vals = [resource] * 24 if resource > 0 else []
             if not vals:
                 continue
             import itertools
@@ -762,10 +792,14 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
     glpsol = _find_glpsol()
     log(f"Solving with glpsol: {glpsol}")
     # GLPK 4.65's LP presolver can return "optimal" solutions that violate
-    # TotalAnnualMinCapacity at these (kW-in-GW) magnitudes — skip it when set.
+    # TotalAnnualMinCapacity at these (kW-in-GW) magnitudes. Without presolve GLPK is far
+    # slower (92 s → 28+ min on the Italian week), so solve with presolve first and fall back
+    # to --nopresol only when a minimum capacity is actually violated.
     has_min_cap = bool(_read_csv(os.path.join(csv_dir, "TotalAnnualMinCapacity.csv")))
-    _run_glpsol(glpsol, _OSEMOSYS_TXT, dat_path, output_path, log_fn or log,
-                presolve=not has_min_cap)
+    _run_glpsol(glpsol, _OSEMOSYS_TXT, dat_path, output_path, log_fn or log, presolve=True)
+    if has_min_cap and _min_capacity_violated(csv_dir, results_dir):
+        log("Presolve solution violates TotalAnnualMinCapacity — re-solving without presolve")
+        _run_glpsol(glpsol, _OSEMOSYS_TXT, dat_path, output_path, log_fn or log, presolve=False)
     termination, objective = _parse_glpsol_output(output_path)
     log(f"glpsol: {termination}" + (f", objective={objective:.6f}" if objective is not None else ""))
     if termination != "optimal":

@@ -141,14 +141,30 @@ def translate_constraints(constraints: dict, parent: str, warnings: list,
     out = {}
     constraints = dict(constraints or {})
 
-    # 'resource' + 'force_resource' are consumed together
-    force = bool(constraints.pop('force_resource', False))
+    # energy_cap_scale multiplies the energy_cap bounds (e.g. 1000 for MW→kW)
+    cap_scale = convert_value(constraints.pop('energy_cap_scale', None))
+    if isinstance(cap_scale, (int, float)) and cap_scale not in (1, 1.0):
+        # kept for build_transmission_techs_07: per-link capacities get the same scaling
+        out['__energy_cap_scale__'] = cap_scale
+        for key in ('energy_cap_max', 'energy_cap_min', 'energy_cap_equals'):
+            v = convert_value(constraints.get(key))
+            if isinstance(v, (int, float)) and v not in (float('inf'), float('-inf')):
+                constraints[key] = v * cap_scale
+    # resource_scale multiplies the resource (scalar or timeseries)
+    res_scale = convert_value(constraints.pop('resource_scale', None))
+    res_scale = res_scale if isinstance(res_scale, (int, float)) else 1.0
+
+    # 'resource' + 'force_resource' are consumed together. A demand is forced unless
+    # force_resource is explicitly false (optional sink: export / curtailment / market).
+    force_raw = constraints.pop('force_resource', None)
+    force = bool(force_raw)
     if 'resource' in constraints:
         resource = convert_value(constraints.pop('resource'))
         role = 'demand' if parent in ('demand', 'unmet_demand') else 'supply'
-        param = RESOURCE_PARAMS[role]['forced' if (force or role == 'demand') else 'max']
+        forced = force or (role == 'demand' and force_raw is not False)
+        param = RESOURCE_PARAMS[role]['forced' if forced else 'max']
         if _is_file_ref(resource):
-            out['__resource_file__'] = {'ref': resource, 'param': param}
+            out['__resource_file__'] = {'ref': resource, 'param': param, 'scale': res_scale}
         elif isinstance(resource, (int, float)):
             if resource in (float('inf'), float('-inf')):
                 # inf resource = unconstrained source; 0.7 default for
@@ -156,7 +172,7 @@ def translate_constraints(constraints: dict, parent: str, warnings: list,
                 pass
             else:
                 # 0.6 demand is negative; 0.7 sink values are positive
-                out[param] = abs(resource) if role == 'demand' else resource
+                out[param] = (abs(resource) if role == 'demand' else resource) * res_scale
         else:
             warnings.append(f"{tech_name}: unsupported resource value {resource!r} dropped")
 
@@ -189,7 +205,7 @@ def translate_constraints(constraints: dict, parent: str, warnings: list,
 
 
 def translate_costs(costs: dict, warnings: list, tech_name: str = '',
-                    parent: str = '', carrier=None) -> dict:
+                    parent: str = '', carrier=None, export_carrier=None) -> dict:
     """0.6 costs.monetary.X → 0.7 cost_X indexed over the costs dimension.
     Non-monetary cost classes (e.g. spores_score, emissions) are not
     translated — SPORES is gated on the 0.7 engine."""
@@ -208,7 +224,16 @@ def translate_costs(costs: dict, warnings: list, tech_name: str = '',
             continue
         for key, raw in cost_vals.items():
             val = convert_value(raw)
-            if key in COST_PARAMS:
+            if key in COST_PARAMS and _is_file_ref(val):
+                # Time-varying cost from a CSV (e.g. export/import prices): passed up under a
+                # '__cost_file__<param>' marker for the runner to turn into a data table.
+                # Export prices are indexed over carriers (the export carrier); others are not.
+                param = COST_PARAMS[key]
+                out['__cost_file__' + param] = {
+                    'ref': val, 'param': param,
+                    'carrier': (export_carrier or carrier) if key == 'export' else None,
+                }
+            elif key in COST_PARAMS:
                 out[COST_PARAMS[key]] = _wrap_cost(val)
             elif key in DROPPED_PARAMS:
                 warnings.append(f"{tech_name}: cost '{key}' has no Calliope 0.7 equivalent — dropped")
@@ -266,7 +291,10 @@ def translate_tech(tech: dict, warnings: list) -> dict | None:
 
     oc = output_carrier(tech)
     out.update(translate_constraints(tech.get('constraints'), parent, warnings, tid, oc))
-    out.update(translate_costs(tech.get('costs'), warnings, tid, parent, oc))
+    out.update(translate_costs(tech.get('costs'), warnings, tid, parent, oc,
+                               export_carrier=(tech.get('constraints') or {}).get('export_carrier')))
+    if out.get('base_tech') != 'transmission':
+        out.pop('__energy_cap_scale__', None)   # only transmission techs hand it on to their links
     return out
 
 
@@ -426,7 +454,7 @@ def build_transmission_techs_07(links: list, techs_07: dict,
             warnings.append(f"link {from_loc}->{to_loc}: auto-defined transmission tech '{tech_key}'")
 
         link_tech_id = f"{tech_key}_{from_loc}_{to_loc}"
-        entry = dict(base_def)
+        entry = {k: v for k, v in base_def.items() if k != '__energy_cap_scale__'}
         entry['link_from'] = from_loc
         entry['link_to'] = to_loc
         distance = link.get('distance')
@@ -435,14 +463,23 @@ def build_transmission_techs_07(links: list, techs_07: dict,
                 entry['distance'] = float(distance)
             except (TypeError, ValueError):
                 pass
-        capacity = link.get('capacity')  # per-link MW → flow_cap_max (0.7 rename of energy_cap_max)
-        if capacity is not None:
-            try:
-                cap = float(capacity)
-                if cap > 0:
-                    entry['flow_cap_max'] = cap
-            except (TypeError, ValueError):
-                pass
+        # Per-link capacity / constraints, as the 0.6 runner applies them: link.capacity sets
+        # constraints[capacityKey || 'energy_cap_max'] over the link's own linkConfig, and the
+        # tech's energy_cap_scale multiplies the cap bounds.
+        link_constraints = dict(((link.get('linkConfig') or {}).get('constraints')) or {})
+        try:
+            cap = float(link.get('capacity')) if link.get('capacity') is not None else 0.0
+        except (TypeError, ValueError):
+            cap = 0.0
+        if cap > 0:
+            link_constraints[link.get('capacityKey') or 'energy_cap_max'] = cap
+        if link_constraints:
+            scale = base_def.get('__energy_cap_scale__')
+            if scale is not None and 'energy_cap_scale' not in link_constraints:
+                link_constraints['energy_cap_scale'] = scale
+            translated = translate_constraints(link_constraints, 'transmission', warnings, link_tech_id)
+            translated.pop('__energy_cap_scale__', None)
+            entry.update(translated)
         out[link_tech_id] = entry
     return out
 
@@ -501,6 +538,7 @@ def translate_override_07(override: dict, parent_by_tid: dict, warnings: list,
         oc = carrier_by_tid.get(tid)
         tgt.update(translate_constraints(tdef.get('constraints'), parent, warnings,
                                          f"{label}:{tid}", oc))
+        tgt.pop('__energy_cap_scale__', None)
         tgt.update(translate_costs(tdef.get('costs'), warnings, f"{label}:{tid}", parent, oc))
         for k in tdef:
             if k not in ('essentials', 'constraints', 'costs'):

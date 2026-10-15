@@ -152,7 +152,24 @@ def test_file_resource_passed_through_for_data_table():
     out = t.translate_constraints(
         {'resource': 'file=demand.csv:region1', 'force_resource': True}, 'demand', [])
     assert out == {'__resource_file__': {'ref': 'file=demand.csv:region1',
-                                         'param': 'sink_use_equals'}}
+                                         'param': 'sink_use_equals', 'scale': 1.0}}
+
+
+def test_resource_scale_multiplies_scalar_and_rides_on_file_marker():
+    assert t.translate_constraints({'resource': -5, 'resource_scale': 1000}, 'demand', [])['sink_use_equals'] == 5000
+    out = t.translate_constraints({'resource': 'file=d.csv', 'resource_scale': 1000}, 'demand', [])
+    assert out['__resource_file__']['scale'] == 1000
+
+
+def test_demand_with_force_resource_false_is_an_optional_sink():
+    out = t.translate_constraints({'resource': -1e8, 'force_resource': False}, 'demand', [])
+    assert 'sink_use_max' in out and 'sink_use_equals' not in out
+
+
+def test_energy_cap_scale_multiplies_cap_bounds_but_not_inf():
+    out = t.translate_constraints({'energy_cap_scale': 1000, 'energy_cap_max': 13, 'energy_cap_min': float('inf')},
+                                  'transmission', [])
+    assert out['flow_cap_max'] == 13000
 
 
 # ---------------------------------------------------------------------------
