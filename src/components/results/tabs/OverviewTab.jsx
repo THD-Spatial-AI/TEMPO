@@ -33,6 +33,8 @@ export default function OverviewTab({
   transmissionLinks,
 }) {
   const [choroSel, setChoroSel] = useState('demand');
+  const capRows = capBarOption?.yAxis?.data?.length || 0;
+  const chartHeight = Math.min(560, Math.max(300, capRows * 24 + 40));
   const hasRegions = choroMetrics && Object.keys(choroMetrics.demand || {}).length > 0;
 
   return (
@@ -131,7 +133,7 @@ export default function OverviewTab({
                     </button>
                     {sectionOpen('cap-by-tech') && <div className="px-5 pb-5">
                       {capBarOption ? (
-                        <ReactECharts option={capBarOption} style={{ height: 280 }} notMerge />
+                        <ReactECharts option={capBarOption} style={{ height: chartHeight }} notMerge />
                       ) : <div className="text-slate-400 text-sm text-center py-16">No capacity data</div>}
                     </div>}
                   </div>
@@ -140,17 +142,17 @@ export default function OverviewTab({
                     <button onClick={() => toggleSection('gen-mix')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
                       <FiPieChart size={14} className="text-gray-500 flex-shrink-0" />
                       <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-black flex-1">Generation Mix</span>
-                      <span className="text-xs text-slate-400 mr-1">· MWh total</span>
+                      <span className="text-xs text-slate-400 mr-1">generation technologies</span>
                       <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('gen-mix') ? '' : '-rotate-90'}`} />
                     </button>
                     {sectionOpen('gen-mix') && <div className="px-5 pb-5">
                       {genDonutOption ? (
-                        <ReactECharts option={genDonutOption} style={{ height: 280 }} notMerge />
+                        <ReactECharts option={genDonutOption} style={{ height: chartHeight }} notMerge />
                       ) : <div className="text-slate-400 text-sm text-center py-16">No generation data</div>}
                     </div>}
                   </div>
                   {/* Capacity by location */}
-                  <div className="bg-white rounded-2xl border border-black/15 shadow-sm overflow-hidden">
+                  <div className="bg-white rounded-2xl border border-black/15 shadow-sm overflow-hidden lg:col-span-2">
                     <button onClick={() => toggleSection('cap-by-loc')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
                       <FiMapPin size={14} className="text-gray-600 flex-shrink-0" />
                       <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-black flex-1">Capacity by Location & Technology</span>
@@ -158,7 +160,7 @@ export default function OverviewTab({
                     </button>
                     {sectionOpen('cap-by-loc') && <div className="px-5 pb-5">
                       {capLocOption ? (
-                        <ReactECharts option={capLocOption} style={{ height: 280 }} notMerge />
+                        <ReactECharts option={capLocOption} style={{ height: 360 }} notMerge />
                       ) : <div className="text-slate-400 text-sm text-center py-16">No location data</div>}
                     </div>}
                   </div>
@@ -327,4 +329,4 @@ export default function OverviewTab({
               </div>
   );
 }
-
+

@@ -34,42 +34,73 @@ export function deriveForCharts(result) {
 // Horizontal bar: capacity by technology
 export function buildCapBarOption(derivedData, { colorFn, isVisible = SHOW_ALL } = {}) {
   if (!derivedData?.capByTech) return null;
-  const sorted = Object.entries(derivedData.capByTech).filter(([t]) => isVisible(t)).sort(([, a], [, b]) => b - a);
+  const sorted = Object.entries(derivedData.capByTech).filter(([t, v]) => v > 0 && isVisible(t)).sort(([, a], [, b]) => b - a);
   if (!sorted.length) return null;
   const { div, unit } = autoScale(sorted[0][1], 'MW');
   const fmt = scaledFmt(div);
+  // Clip a single dominant outlier so the remaining bars stay readable
+  const second = sorted[1]?.[1] || 0;
+  const clipAt = second > 0 && sorted[0][1] > 3 * second ? second * 1.35 : null;
   return {
     backgroundColor: 'transparent',
-    grid: { left: 140, right: 60, top: 16, bottom: 16 },
-    xAxis: { type: 'value', ...axisNameStyle(unit), axisLabel: { fontSize: 9, color: '#64748b', formatter: v => fmt(v) }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
-    yAxis: { type: 'category', data: sorted.map(([t]) => t.replace(/_/g, ' ')), axisLabel: { fontSize: 9, color: '#475569' } },
+    grid: { left: 8, right: 64, top: 8, bottom: 24, containLabel: true },
+    xAxis: { type: 'value', max: clipAt ?? undefined, ...axisNameStyle(unit), axisLabel: { fontSize: 10, color: '#94a3b8', formatter: v => fmt(v) }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
+    yAxis: { type: 'category', inverse: true, data: sorted.map(([t]) => t.replace(/_/g, ' ')), axisLabel: { fontSize: 11, color: '#334155' }, axisTick: { show: false }, axisLine: { lineStyle: { color: '#e2e8f0' } } },
     series: [{
-      type: 'bar', barMaxWidth: 28,
-      data: sorted.map(([tech, v]) => ({ value: v, itemStyle: { color: colorFn(tech), borderRadius: 0 } })),
-      label: { show: true, position: 'right', formatter: p => fmt(p.value), fontSize: 9, color: '#64748b' },
+      type: 'bar', barMaxWidth: 18, barCategoryGap: '30%',
+      data: sorted.map(([tech, v]) => {
+        const clipped = clipAt != null && v > clipAt;
+        return {
+          value: v,
+          itemStyle: { color: colorFn(tech), borderRadius: [0, 4, 4, 0], ...(clipped ? { decal: { symbol: 'rect', dashArrayX: [1, 0], dashArrayY: [3, 3], rotation: -Math.PI / 4, color: 'rgba(255,255,255,0.45)' } } : {}) },
+          label: clipped ? { position: 'insideRight', color: '#0f172a', fontWeight: 700, backgroundColor: 'rgba(255,255,255,0.85)', padding: [2, 5], borderRadius: 3, formatter: p => `${fmt(p.value)} ${unit} ▸` } : undefined,
+        };
+      }),
+      label: { show: true, position: 'right', formatter: p => `${fmt(p.value)} ${unit}`, fontSize: 10, color: '#64748b' },
     }],
-    tooltip: { trigger: 'axis', formatter: p => `${p[0].name}<br/><b>${fmt(p[0].value)} ${unit}</b>` },
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: p => `${p[0].marker}${p[0].name}<br/><b>${fmt(p[0].value)} ${unit}</b>` },
   };
 }
 
-// Donut: generation mix
-export function buildGenDonutOption(derivedData, { colorFn, isVisible = SHOW_ALL } = {}) {
+// Donut: generation mix (generation technologies only, small shares grouped)
+export function buildGenDonutOption(derivedData, { colorFn, isVisible = SHOW_ALL, isGenTech = (t) => !t.includes(':') } = {}) {
   if (!derivedData?.genByTech) return null;
-  const data = Object.entries(derivedData.genByTech)
-    .filter(([t, v]) => v > 0 && isVisible(t))
-    .sort(([, a], [, b]) => b - a)
-    .map(([tech, v]) => ({ name: tech.replace(/_/g, ' '), value: Math.round(v), itemStyle: { color: colorFn(tech) } }));
-  if (!data.length) return null;
+  const entries = Object.entries(derivedData.genByTech)
+    .filter(([t, v]) => v > 0 && isVisible(t) && isGenTech(t))
+    .sort(([, a], [, b]) => b - a);
+  if (!entries.length) return null;
+  const total = entries.reduce((s, [, v]) => s + v, 0);
+  const major = entries.filter(([, v], i) => i < 10 && v / total >= 0.01);
+  const rest = entries.slice(major.length);
+  const data = major.map(([tech, v]) => ({ name: tech.replace(/_/g, ' '), value: Math.round(v), itemStyle: { color: colorFn(tech) } }));
+  if (rest.length) {
+    data.push({ name: `Other (${rest.length})`, value: Math.round(rest.reduce((s, [, v]) => s + v, 0)), itemStyle: { color: '#cbd5e1' } });
+  }
   return {
     backgroundColor: 'transparent',
-    legend: { bottom: 4, type: 'scroll', textStyle: { fontSize: 9, color: '#475569' }, icon: 'roundRect' },
+    legend: {
+      type: 'scroll', orient: 'vertical', left: '58%', top: 'middle', icon: 'circle', itemWidth: 9, itemHeight: 9, itemGap: 9,
+      textStyle: { fontSize: 11, color: '#334155', width: 150, overflow: 'truncate', rich: { pct: { color: '#94a3b8', fontSize: 10, padding: [0, 0, 0, 4] } } },
+      formatter: (name) => {
+        const d = data.find(x => x.name === name);
+        return `${name}{pct|${d ? ((d.value / total) * 100).toFixed(1) : 0}%}`;
+      },
+    },
+    graphic: [{
+      type: 'group', left: '30%', top: 'middle', bounding: 'raw',
+      children: [
+        { type: 'text', style: { text: fmtEnergy(total, 1), x: 0, y: -8, align: 'center', verticalAlign: 'middle', fontSize: 18, fontWeight: 700, fill: '#0f172a' } },
+        { type: 'text', style: { text: 'TOTAL GENERATION', x: 0, y: 14, align: 'center', verticalAlign: 'middle', fontSize: 9, fontWeight: 600, fill: '#94a3b8' } },
+      ],
+    }],
     series: [{
-      type: 'pie', radius: ['44%', '72%'], center: ['50%', '42%'],
+      type: 'pie', radius: ['50%', '72%'], center: ['30%', '50%'], padAngle: 1.5,
+      itemStyle: { borderRadius: 4 },
       label: { show: false },
-      emphasis: { label: { show: true, fontSize: 13, fontWeight: 'bold', formatter: p => p.name + '\n' + fmtEnergy(p.value, 0) } },
+      emphasis: { scale: true, scaleSize: 5 },
       data,
     }],
-    tooltip: { trigger: 'item', formatter: p => `${p.name}<br/><b>${fmtEnergy(p.value, 2)}</b> (${p.percent}%)` },
+    tooltip: { trigger: 'item', formatter: p => `${p.marker}${p.name}<br/><b>${fmtEnergy(p.value, 2)}</b> (${p.percent}%)` },
   };
 }
 
@@ -157,7 +188,7 @@ export function buildCapLocOption(result, derivedData, { colorFn, isVisible = SH
   const { div, unit } = autoScale(maxCap, 'MW');
   const fmt = scaledFmt(div);
   const series = techs.map(tech => ({
-    name: tech.replace(/_/g, ' '), type: 'bar', barMaxWidth: 22,
+    name: tech.replace(/_/g, ' '), type: 'bar', stack: 'cap', barMaxWidth: 34,
     data: locs.map(l => byLocTech[`${l}::${tech}`] || 0), itemStyle: { color: colorFn(tech) },
   }));
   return {
@@ -167,7 +198,15 @@ export function buildCapLocOption(result, derivedData, { colorFn, isVisible = SH
     grid: { left: 60, right: 20, top: truncated ? 34 : 16, bottom: 56 },
     xAxis: { type: 'category', data: locs, axisLabel: { fontSize: 9, color: '#475569', rotate: locs.length > 4 ? 30 : 0 }, axisTick: { show: false } },
     yAxis: { type: 'value', ...axisNameStyle(unit), axisLabel: { fontSize: 9, color: '#64748b', formatter: v => fmt(v) }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
-    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } }, series,
+    tooltip: {
+      trigger: 'axis', axisPointer: { type: 'shadow' },
+      formatter: (ps) => {
+        const rows = ps.filter(p => p.value > 0).sort((a, b) => b.value - a.value);
+        const total = rows.reduce((s, p) => s + p.value, 0);
+        return `<b>${ps[0]?.axisValue}</b> · ${fmt(total)} ${unit}<br/>` + rows.map(p => `${p.marker}${p.seriesName}: <b>${fmt(p.value)} ${unit}</b>`).join('<br/>');
+      },
+    },
+    series,
   };
 }
 

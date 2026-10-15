@@ -1,7 +1,7 @@
 // Presentational widgets for the Dashboard view: the time-series filter
 // sidebar, collapsible panel, KPI card, and the Leaflet input-network mini-map.
 // Extracted from Dashboard.jsx — each is prop-driven and holds no dashboard state.
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { FiChevronDown, FiChevronUp, FiFilter, FiMapPin } from '../ui/icons';
 import 'leaflet/dist/leaflet.css';
 
@@ -162,14 +162,33 @@ export const KpiCard = ({ icon: Ic, label, value, sub, accent }) => (
 );
 
 // ── Map component ─────────────────────────────────────────────────────────────
-export const InputMap = ({ locations, links, getTechColor }) => {
+export const InputMap = ({ locations, links, getTechColor, getTechName = (t) => t.replace(/_/g, ' '), capByLoc = {}, capByLocTech = {} }) => {
   const mapRef = useRef(null);
   const leafletMapRef = useRef(null);
   const markersRef = useRef([]);
+  const [legendOpen, setLegendOpen] = useState(true);
+
+  const located = useMemo(() => locations.filter(l => l.latitude && l.longitude), [locations]);
+  const dominantTech = useCallback((loc) => {
+    const ranked = Object.entries(capByLocTech[loc.name] || {}).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+    if (ranked.length) return ranked[0][0];
+    const names = Object.keys(loc.techs || {});
+    return names.find(t => !/demand/i.test(t)) || names[0] || '';
+  }, [capByLocTech]);
+  const linkCount = useMemo(() => (links || []).filter(link =>
+    located.some(l => l.id === link.from || l.name === link.from) && located.some(l => l.id === link.to || l.name === link.to)
+  ).length, [links, located]);
+  const legend = useMemo(() => {
+    const counts = new Map();
+    located.forEach(loc => { const t = dominantTech(loc); counts.set(t, (counts.get(t) || 0) + 1); });
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  }, [located, dominantTech]);
+  const maxCap = useMemo(() => Math.max(0, ...located.map(l => capByLoc[l.name] || 0)), [located, capByLoc]);
 
   useEffect(() => {
     if (!mapRef.current || leafletMapRef.current) return;
     let destroyed = false;
+    let resizeObserver = null;
 
     const clearMapAndMarkers = () => {
       markersRef.current.forEach(m => m.remove());
@@ -184,76 +203,113 @@ export const InputMap = ({ locations, links, getTechColor }) => {
       .then(({ default: leaflet }) => {
         if (destroyed || !mapRef.current) return;
         const L = leaflet;
-        const locs = locations.filter(l => l.latitude && l.longitude);
+        const locs = located;
         if (!locs.length) return;
 
         clearMapAndMarkers();
 
-        const map = L.map(mapRef.current, {
-          zoomControl: true,
-          preferCanvas: true,
-        });
+        const map = L.map(mapRef.current, { zoomControl: true, preferCanvas: true, zoomSnap: 0.25 });
         leafletMapRef.current = map;
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           maxZoom: 19,
           attribution: '© OpenStreetMap contributors',
         }).addTo(map);
+        map.getPane('tilePane').style.filter = 'grayscale(0.9) brightness(1.05) contrast(0.85)';
 
-        if (locs.length === 1) {
-          map.setView([locs[0].latitude, locs[0].longitude], 12);
-        } else {
-          const bounds = L.latLngBounds(locs.map(l => [l.latitude, l.longitude]));
-          map.fitBounds(bounds, { padding: [60, 60], maxZoom: 16 });
-        }
+        const fit = () => {
+          if (locs.length === 1) map.setView([locs[0].latitude, locs[0].longitude], 12);
+          else map.fitBounds(L.latLngBounds(locs.map(l => [l.latitude, l.longitude])), { padding: [30, 30], maxZoom: 16 });
+        };
+        fit();
+        let userMoved = false;
+        map.getContainer().addEventListener('pointerdown', () => { userMoved = true; }, { once: true });
+        map.getContainer().addEventListener('wheel', () => { userMoved = true; }, { once: true });
+        resizeObserver = new ResizeObserver(() => {
+          map.invalidateSize();
+          if (!userMoved) fit();
+        });
+        resizeObserver.observe(mapRef.current);
 
         (links || []).forEach(link => {
           const src = locs.find(l => l.id === link.from || l.name === link.from);
           const dst = locs.find(l => l.id === link.to || l.name === link.to);
           if (!src || !dst) return;
-          L.polyline(
-            [
-              [src.latitude, src.longitude],
-              [dst.latitude, dst.longitude],
-            ],
-            { color: '#94a3b8', weight: 2, opacity: 0.7 }
-          ).addTo(map);
-        });
-
-        locs.forEach(loc => {
-          const techNames = Object.keys(loc.techs || {});
-          const dominant = techNames.find(t => !/demand/i.test(t)) || techNames[0] || '';
-          const color = getTechColor(dominant) || '#64748b';
-          const popupItems = techNames
-            .slice(0, 6)
-            .map(t => `<li>${t.replace(/_/g, ' ')}</li>`)
-            .join('');
-          const popupHtml = `<div style="font-family:system-ui;padding:2px"><b style="font-size:12px">${loc.name}</b><ul style="margin:4px 0 0 12px;font-size:10px;color:#333;padding:0">${popupItems}${techNames.length > 6 ? `<li style="color:#aaa">+${techNames.length - 6} more</li>` : ''}</ul></div>`;
-
-          L.circleMarker([loc.latitude, loc.longitude], {
-            radius: 8,
-            color,
-            fillColor: color,
-            fillOpacity: 0.85,
-            weight: 2,
-          })
+          L.polyline([[src.latitude, src.longitude], [dst.latitude, dst.longitude]], { color: '#64748b', weight: 1.5, opacity: 0.55 })
             .addTo(map)
-            .bindPopup(popupHtml);
+            .bindTooltip(`${src.name} ↔ ${dst.name}`, { sticky: true });
         });
+
+        [...locs]
+          .sort((a, b) => (capByLoc[b.name] || 0) - (capByLoc[a.name] || 0))
+          .forEach(loc => {
+            const techNames = Object.keys(loc.techs || {});
+            const dominant = dominantTech(loc);
+            const color = getTechColor(dominant) || '#64748b';
+            const cap = capByLoc[loc.name] || 0;
+            const radius = maxCap > 0 ? 5 + 11 * Math.sqrt(cap / maxCap) : 7;
+            const items = techNames.slice(0, 8).map(t =>
+              `<li style="display:flex;align-items:center;gap:6px;margin:2px 0"><span style="width:8px;height:8px;border-radius:50%;background:${getTechColor(t)}"></span>${getTechName(t)}</li>`).join('');
+            const popupHtml = `<div style="font-family:inherit;min-width:160px"><div style="font-weight:600;font-size:13px;color:#0f172a">${loc.name}</div>`
+              + `<div style="font-size:11px;color:#64748b;margin-top:2px">${techNames.length} technologies${cap ? ` · ${cap >= 1000 ? (cap / 1000).toFixed(1) + ' GW' : cap.toFixed(0) + ' MW'}` : ''}</div>`
+              + `<ul style="list-style:none;margin:6px 0 0;padding:0;font-size:11px;color:#334155">${items}${techNames.length > 8 ? `<li style="color:#94a3b8">+${techNames.length - 8} more</li>` : ''}</ul></div>`;
+
+            L.circleMarker([loc.latitude, loc.longitude], { radius, color: '#fff', weight: 1.5, fillColor: color, fillOpacity: 0.9 })
+              .addTo(map)
+              .bindTooltip(loc.name, { direction: 'top', offset: [0, -radius] })
+              .bindPopup(popupHtml);
+          });
       })
       .catch((err) => {
         console.error('Dashboard Leaflet map failed to initialize:', err);
       });
     return () => {
       destroyed = true;
+      resizeObserver?.disconnect();
       clearMapAndMarkers();
     };
-  }, [locations, links, getTechColor]);
+  }, [located, links, getTechColor, getTechName, capByLoc, maxCap, dominantTech]);
 
-  if (!locations.some(l => l.latitude && l.longitude)) return (
+  if (!located.length) return (
     <div className="h-full flex items-center justify-center text-slate-400 text-sm">
       <div className="text-center"><FiMapPin size={26} className="mx-auto mb-2 opacity-40" /><p>No coordinates available</p></div>
     </div>
   );
-  return <div ref={mapRef} className="w-full h-full" />;
+  return (
+    <div className="relative h-full w-full">
+      <div ref={mapRef} className="h-full w-full" />
+      <div className="pointer-events-none absolute left-14 top-3 z-[1000] flex gap-1.5">
+        <span className="rounded-md bg-white/95 px-2 py-1 text-[11px] font-medium text-slate-700 shadow-sm ring-1 ring-slate-900/10">{located.length} locations</span>
+        <span className="rounded-md bg-white/95 px-2 py-1 text-[11px] font-medium text-slate-700 shadow-sm ring-1 ring-slate-900/10">{linkCount} links</span>
+      </div>
+      {legend.length > 0 && (
+        <div className="absolute bottom-6 left-3 z-[1000] w-52 rounded-lg bg-white/95 text-[11px] shadow-md ring-1 ring-slate-900/10 backdrop-blur">
+          <button onClick={() => setLegendOpen(o => !o)} className="flex w-full items-center justify-between px-3 py-2 font-semibold uppercase tracking-wider text-[10px] text-slate-500">
+            Main technology
+            {legendOpen ? <FiChevronDown size={12} /> : <FiChevronUp size={12} />}
+          </button>
+          {legendOpen && (
+            <div className="space-y-2 px-3 pb-2.5">
+              <ul className="max-h-40 space-y-1 overflow-y-auto">
+                {legend.map(([tech, n]) => (
+                  <li key={tech || 'none'} className="flex items-center gap-2 text-slate-700">
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: getTechColor(tech) || '#64748b' }} />
+                    <span className="flex-1 truncate">{tech ? getTechName(tech) : 'No technology'}</span>
+                    <span className="tabular-nums text-slate-400">{n}</span>
+                  </li>
+                ))}
+              </ul>
+              {maxCap > 0 && (
+                <div className="flex items-center gap-2 border-t border-slate-100 pt-2 text-slate-400">
+                  <span className="h-2.5 w-2.5 rounded-full border border-slate-400" />
+                  <span className="h-4 w-4 rounded-full border border-slate-400" />
+                  <span>size = max capacity</span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 };

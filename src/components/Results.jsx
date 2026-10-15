@@ -7,6 +7,7 @@ import { saveAs } from 'file-saver';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import ScenarioComparison from './ScenarioComparison';
 import Select from './ui/Select';
+import { LuLayoutDashboard, LuConversionPath, LuAreaChart, LuEuro, LuPriceChange, LuQueryStats, LuAltRoute, LuSparkles, LuTerminal, LuSlidersHorizontal } from './ui/icons';
 
 const RUN_ENGINE_LABELS = {
   calliope:   'Calliope 0.6',
@@ -537,15 +538,15 @@ const Results = ({ onNavigate }) => {
   const hasCosts    = Object.keys(result?.costs_by_tech || {}).length > 0;
 
   const TABS = [
-    { id: 'overview',  label: 'Overview',    icon: FiLayers },
-    ...(hasFlow     ? [{ id: 'flow',     label: 'Energy Flow',   icon: FiShare2    }] : []),
-    ...(hasDispatch ? [{ id: 'dispatch', label: 'Dispatch',      icon: FiActivity  }] : []),
-    ...(hasCosts    ? [{ id: 'costs',    label: 'Costs',         icon: FiDollarSign }] : []),
-    ...(hasShadowPrices ? [{ id: 'shadow', label: 'Shadow Prices', icon: FiTrendingUp }] : []),
-    ...(hasFlow     ? [{ id: 'analysis', label: 'Analysis',      icon: FiGrid      }] : []),
-    ...((isSporesRun || hasSpores) ? [{ id: 'spores', label: 'SPORES', icon: FiGitMerge }] : []),
-    { id: 'ai',        label: 'Model Advisor', icon: FiCpu },
-    { id: 'logs',      label: 'Logs',        icon: FiTerminal },
+    { id: 'overview',  label: 'Overview',    icon: LuLayoutDashboard },
+    ...(hasFlow     ? [{ id: 'flow',     label: 'Energy Flow',   icon: LuConversionPath }] : []),
+    ...(hasDispatch ? [{ id: 'dispatch', label: 'Dispatch',      icon: LuAreaChart }] : []),
+    ...(hasCosts    ? [{ id: 'costs',    label: 'Costs',         icon: LuEuro }] : []),
+    ...(hasShadowPrices ? [{ id: 'shadow', label: 'Shadow Prices', icon: LuPriceChange }] : []),
+    ...(hasFlow     ? [{ id: 'analysis', label: 'Analysis',      icon: LuQueryStats }] : []),
+    ...((isSporesRun || hasSpores) ? [{ id: 'spores', label: 'SPORES', icon: LuAltRoute }] : []),
+    { id: 'ai',        label: 'Model Advisor', icon: LuSparkles },
+    { id: 'logs',      label: 'Logs',        icon: LuTerminal },
   ];
 
   // Fall back to overview if the active tab was hidden by auto-hide logic
@@ -666,15 +667,17 @@ const Results = ({ onNavigate }) => {
                 const fw = result?.framework || selectedJob?.framework;
                 const label = RUN_ENGINE_LABELS[fw];
                 return label ? (
-                  <span className="whitespace-nowrap rounded-md border border-black/15 bg-white px-2 py-1 text-xs font-medium text-slate-600">
-                    {label}
+                  <span className="flex h-10 items-center gap-2 whitespace-nowrap rounded-lg border border-black/15 bg-white px-3 text-sm text-slate-800">
+                    <FiCpu size={17} className="text-slate-400" />
+                    <span className="text-slate-400">Engine</span>
+                    <span className="font-medium">{label}</span>
                   </span>
                 ) : null;
               })()}
               {selectedJobId && (
                 <button onClick={() => { removeCompletedJob(selectedJobId); setSelectedJobId(null); }}
-                  className="ml-auto flex h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-medium text-slate-500 transition-colors hover:bg-red-50 hover:text-red-600">
-                  <FiTrash2 size={11} /> Remove
+                  className="ml-auto flex h-10 items-center gap-1.5 rounded-lg px-3 text-sm font-medium text-slate-500 transition-colors hover:bg-red-50 hover:text-red-600">
+                  <FiTrash2 size={14} /> Remove
                 </button>
               )}
             </div>
@@ -725,19 +728,19 @@ const Results = ({ onNavigate }) => {
                     className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
                       activeTab === id ? 'bg-white text-slate-800 ' : 'text-slate-500 hover:text-slate-700'
                     }`}>
-                    <Icon size={13} /> {label}
+                    <Icon size={17} /> {label}
                     {id === 'dispatch' && !hasDispatch && <span className="text-xs text-slate-300 ml-0.5">(—)</span>}
                   </button>
                 ))}
               </div>
               {allTechs.length > 0 && (
                 <button onClick={() => setFilterExpanded(v => !v)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap border ${
+                  className={`flex h-10 items-center gap-1.5 px-3 rounded-lg text-sm font-medium transition-all whitespace-nowrap border ${
                     filterExpanded
                       ? 'bg-black text-white border-gray-900'
                       : 'bg-white text-slate-600 border-black/15 hover:bg-slate-100'
                   }`}>
-                  <FiFilter size={11} /> Filters
+                  <LuSlidersHorizontal size={17} /> Filters
                   {techFilter.size > 0 && <span className="ml-0.5 text-[10px] font-bold">({allTechs.length - techFilter.size})</span>}
                 </button>
               )}
