@@ -51,17 +51,6 @@
     },
     "extraResources": [
       {
-        "from": "public/templates",
-        "to": "templates",
-        "filter": [
-          "**/*",
-          "!**/DMUU/scenarios/**",
-          "!**/demand_2014.csv",
-          "!**/__pycache__/**",
-          "!**/*.pyc"
-        ]
-      },
-      {
         "from": "python",
         "to": "app.asar.unpacked/python",
         "filter": [

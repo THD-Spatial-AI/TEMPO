@@ -9,6 +9,12 @@
  * Returns a Response-compatible object so existing call-sites can stay
  * unchanged:  `const text = await (await fetchTemplate('foo.csv')).text()`
  */
+/** Whether a template file exists (or can be downloaded) without triggering a download. */
+export async function templateAvailable(filename) {
+  if (window.electronAPI?.templateAvailable) return window.electronAPI.templateAvailable(filename);
+  return (await fetchTemplate(filename)).ok;
+}
+
 export async function fetchTemplate(filename) {
   if (window.electronAPI?.readTemplateFile) {
     const text = await window.electronAPI.readTemplateFile(filename);

@@ -14,6 +14,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Read a file from the templates directory (works in packaged builds where
   // fetch('/templates/...') would resolve against the FS root)
   readTemplateFile: (filename) => ipcRenderer.invoke('read-template-file', filename),
+  // True if the template file is bundled or downloadable (never downloads)
+  templateAvailable: (filename) => ipcRenderer.invoke('template-available', filename),
+  // Download progress ({ prefix, done, total } in bytes); returns an unsubscribe function
+  onTemplateProgress: (cb) => {
+    const handler = (_e, p) => cb(p);
+    ipcRenderer.on('template-progress', handler);
+    return () => ipcRenderer.removeListener('template-progress', handler);
+  },
 
   // ── Docker service management ─────────────────────────────────────────────
 

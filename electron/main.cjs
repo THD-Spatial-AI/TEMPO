@@ -3,7 +3,8 @@ const path = require('path');
 const { spawn, execFile, execFileSync } = require('child_process');
 const fs = require('fs');
 const net = require('net');
-const { createEngineService, findSystemPython310Plus, findSystemPython312Plus } = require('./engineService.cjs');
+const { createTemplateStore } = require('./templateStore.cjs');
+const { createEngineService,findSystemPython310Plus, findSystemPython312Plus } = require('./engineService.cjs');
 
 // ─── Top-level process handles ───────────────────────────────────────────────
 // The optional engine services (Calliope 0.7, AdOpT-NET0, PyPSA, OSeMOSYS)
@@ -317,18 +318,24 @@ ipcMain.handle('get-backend-url',    () => `http://localhost:${BACKEND_PORT}`);
 ipcMain.handle('get-user-data-path', () => app.getPath('userData'));
 
 // ─── Template file reader ────────────────────────────────────────────────────
-ipcMain.handle('read-template-file', async (_event, filename) => {
-  const templateDir = app.isPackaged
+// Bundled templates first; large third-party ones are downloaded on first use
+// and cached in userData/templates (see templateStore.cjs).
+let templateStore;
+const getTemplateStore = () => templateStore || (templateStore = createTemplateStore({
+  bundledDir: app.isPackaged
     ? path.join(process.resourcesPath, 'templates')
-    : path.join(__dirname, '..', 'public', 'templates');
+    : path.join(__dirname, '..', 'public', 'templates'),
+  cacheDir: path.join(app.getPath('userData'), 'templates'),
+  onProgress: (p) => BrowserWindow.getAllWindows().forEach((w) => w.webContents.send('template-progress', p)),
+}));
 
-  const resolved = path.resolve(templateDir, filename);
-  if (!resolved.startsWith(path.resolve(templateDir) + path.sep) && resolved !== path.resolve(templateDir)) {
-    return null;
-  }
-  if (!fs.existsSync(resolved)) return null;
-  return fs.readFileSync(resolved, 'utf-8');
+ipcMain.handle('read-template-file', async (_event, filename) => {
+  const resolved = await getTemplateStore().resolve(filename);
+  return resolved ? fs.readFileSync(resolved, 'utf-8') : null;
 });
+
+// Availability check that never triggers a download.
+ipcMain.handle('template-available', (_event, filename) => getTemplateStore().available(filename));
 
 ipcMain.handle('save-file', async (_event, { filename, content }) => {
   const safeName = path.basename(filename);
@@ -1053,7 +1060,7 @@ async function startCalliopeService() {
   // copy missing CSV files from the bundled templates rather than generating
   // placeholder data with wrong signs (demand CSVs need negative values).
   childEnv.TEMPO_TEMPLATES_PATH = app.isPackaged
-    ? path.join(process.resourcesPath, 'templates')
+    ? path.join(app.getPath('userData'), 'templates')
     : path.join(__dirname, '..', 'public', 'templates');
 
   console.log(`[calliope-svc] Starting uvicorn with: ${python}`);
@@ -1493,7 +1500,7 @@ function buildCalliope07Env() {
     childEnv.CALLIOPE_SOLVER_DIR = solverDirs[0];
   }
   childEnv.TEMPO_TEMPLATES_PATH = app.isPackaged
-    ? path.join(process.resourcesPath, 'templates')
+    ? path.join(app.getPath('userData'), 'templates')
     : path.join(__dirname, '..', 'public', 'templates');
   return childEnv;
 }

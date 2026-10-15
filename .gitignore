@@ -94,6 +94,7 @@ CLAUDE.md
 TEMPO-Obsidian-Vault
 TEMPO-Obsidian-Vault/TASKS.md
 
+# Templates are never committed; large ones are downloaded at runtime (electron/templateStore.cjs)
 public/templates
 
 .github/ISSUE_TEMPLATE/*

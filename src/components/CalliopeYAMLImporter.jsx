@@ -24,7 +24,7 @@ import {
 import JSZip from 'jszip';
 import jsyaml from 'js-yaml';
 import Papa from 'papaparse';
-import { fetchTemplate } from '../utils/templateFetch';
+import { fetchTemplate, templateAvailable } from '../utils/templateFetch';
 import { detectCalliopeFormat, from07ToInternal } from '../services/calliope07Format';
 import { translateCalliopeModel, readText, parseFilesMap, getFilesFromDataTransfer, findModelRoots } from '../services/calliopeYamlImport';
 
@@ -109,6 +109,10 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
   const [modelName,  setModelName]  = useState('');
   const [loadingTpl, setLoadingTpl] = useState(null);
   const [tplAvailable, setTplAvailable] = useState({});
+  const [tplProgress, setTplProgress] = useState(null);
+
+  // Download progress for templates fetched from GitHub on first use (Electron only)
+  useEffect(() => window.electronAPI?.onTemplateProgress?.(setTplProgress), []);
   const [rootCandidates, setRootCandidates] = useState([]);
   const [pendingFilesMap, setPendingFilesMap] = useState(null);
 
@@ -119,8 +123,7 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
       const avail = {};
       await Promise.all(SERVER_TEMPLATES.map(async tpl => {
         try {
-          const resp = await fetchTemplate(tpl.rootYaml);
-          avail[tpl.id] = resp.ok;
+          avail[tpl.id] = await templateAvailable(tpl.rootYaml);
         } catch { avail[tpl.id] = false; }
       }));
       setTplAvailable(avail);
@@ -238,6 +241,7 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
   // ── server template mode ──────────────────────────────────────────────────
   const loadServerTemplate = useCallback(async (tpl) => {
     setLoadingTpl(tpl.id);
+    setTplProgress(null);
     setStatus('parsing');
     setParseLog([]);
     try {
@@ -493,7 +497,17 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
                       <p className={`text-sm font-semibold leading-tight ${available ? 'text-gray-800' : 'text-gray-500'}`}>{tpl.name}</p>
                       <p className={`text-xs truncate mt-0.5 ${available ? 'text-gray-500' : 'text-gray-400'}`}>{tpl.description}</p>
                       {!available && !checking && (
-                        <p className="text-xs text-gray-500 mt-0.5">Not available in public/templates/</p>
+                        <p className="text-xs text-gray-500 mt-0.5">Not included in this build</p>
+                      )}
+                      {loadingTpl === tpl.id && tplProgress && tplProgress.done < tplProgress.total && (
+                        <div className="mt-1.5">
+                          <div className="h-1.5 bg-black/10 rounded-full overflow-hidden">
+                            <div className="h-full bg-black transition-all" style={{ width: `${Math.min(100, (tplProgress.done / tplProgress.total) * 100)}%` }} />
+                          </div>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            Downloading from GitHub (first use only) — {(tplProgress.done / 1048576).toFixed(0)} / {(tplProgress.total / 1048576).toFixed(0)} MB
+                          </p>
+                        </div>
                       )}
                     </div>
                     <button
