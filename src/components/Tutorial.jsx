@@ -411,7 +411,7 @@ const Tutorial = () => {
                 <div>
                   <Step n={1} title="Open Creation Mode & Pick a Region">
                     <p className="text-slate-600 text-sm">Click <strong>Creation</strong> in the left sidebar. The map appears with an empty canvas.</p>
-                    <Screenshot src="./img/Model.png" alt="Creation mode with region selector" caption="Creation Mode — left panel shows mode selector; right sidebar shows the Region Selection stepper (Continent → Country → Region → Subregion) and Infrastructure Layers toggles." />
+                    <Screenshot src="./img/Model.png" alt="Creation mode with study-area search" caption="Creation Mode — the left panel holds the Location / Link / Polyline modes and the locations and links lists; the right OSM Infrastructure panel searches a country, region or district and loads its real power grid." />
                   </Step>
 
                   <Step n={2} title="Add Locations — 4 Nodes">
@@ -457,7 +457,7 @@ const Tutorial = () => {
                     <p className="text-slate-600 text-sm mb-2">
                       Click a location marker to open <strong>Configure Location</strong>. The dialog shows category-grouped technology templates. Example for <code className="bg-slate-100 px-1 rounded">Solar_Augsburg</code>:
                     </p>
-                    <Screenshot src="./img/New.png" alt="Configure Multiple Location dialog" caption="Configure Location dialog — technology browser shows 'VARIABLE RENEWABLES (11)' grouped with 20 Solar PV variants, each showing efficiency (η), lifetime, and CAPEX." />
+                    <Screenshot src="./img/New.png" alt="Configure Location dialog" caption="Configure Location dialog — name and coordinates, the technologies already at the location (here electricity export and import) and the Technology Library grouped into renewables, dispatchable generation, demand, storage, sector coupling and conversion." />
                     <p className="text-slate-600 text-sm mt-3 mb-2">Select <strong>Solar PV Utility — 100 MW Single-Axis Tracking (Current, 2024)</strong> and click <strong>+ Add</strong>. Key specs shown inline:</p>
                     <div className="grid grid-cols-3 gap-2 text-xs">
                       {[['η 22%', 'Panel efficiency'], ['30 yr', 'Economic lifetime'], ['CAPEX 1050', '€/kW installed']].map(([v, l]) => (
@@ -639,7 +639,7 @@ Node_North,Node_South,450,4000,380,hvdc_transmission`}</CodeBlock>
 
                   <Step n={4} title="Review & Refine on the Map">
                     <p className="text-slate-600 text-sm">After import, open <strong>Map View</strong> to see all nodes placed on the map with connecting lines. Click any node to add technologies or adjust parameters.</p>
-                    <Screenshot src="./img/Map_view.png" alt="Imported model on dark map" caption="An imported multi-node German model — Hamburg, Hannover, Berlin, Leipzig, Frankfurt, Stuttgart, Nuremberg, Munich — with transmission links drawn automatically from the CSV." />
+                    <Screenshot src="./img/Map_view.png" alt="Imported model in Map View" caption="Map View with an imported 29-node model of Italy and its neighbours: each location lists its technologies on the left, transmission links are drawn on the map and the legend shows the technology colours." />
                   </Step>
                 </div>
 
@@ -672,7 +672,7 @@ Node_North,Node_South,450,4000,380,hvdc_transmission`}</CodeBlock>
             <div>
               <h3 className="text-lg font-semibold tracking-tight text-slate-900 mb-4">The OSM Infrastructure Panel (Right Sidebar)</h3>
               <div className="flex gap-6 items-start">
-                <img className="h-[700px] w-auto flex-shrink-0 rounded-xl border border-black/15  object-contain" src="./img/OSMsidebar.png" alt="Creation mode right sidebar" />
+                <img className="h-[700px] w-auto flex-shrink-0 rounded-xl border border-black/15  object-contain" src="./img/OSMsidebar.png" alt="OSM Infrastructure panel with a study area selected" />
                 <img className="h-[350px] w-auto flex-shrink-0 rounded-xl border border-black/15  object-contain" src="./img/Meshgenerator.png" alt="Creation mode right sidebar" />
                 <div className="space-y-4 flex-1">
                   {[
