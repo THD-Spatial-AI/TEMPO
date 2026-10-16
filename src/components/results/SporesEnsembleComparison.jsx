@@ -8,6 +8,7 @@ import { FiDownload, FiGitMerge } from '../ui/icons';
 import {
   resolveMetrics, groupUtilisation, aggregateUtilisation, classifyTechs, parseRunLabel, toCsv,
 } from '../../services/sporesAnalysis';
+import SelectField from '../ui/SelectField';
 
 const RENEWABLES = ['Onshore wind', 'Offshore wind', 'PV'];
 const TRANSMISSION = ['International transmission', 'Inter-zone transmission'];
@@ -96,9 +97,9 @@ export default function SporesEnsembleComparison({ completedJobs }) {
         <h3 className="text-sm font-semibold text-slate-700">SPORES ensembles</h3>
         <span className="text-xs text-slate-400">{inBatch.length} ensemble{inBatch.length === 1 ? '' : 's'} · {cases.length} case{cases.length === 1 ? '' : 's'} · relaxations {slacks.map(s => `${s}%`).join('/')}</span>
         {batches.length > 1 && (
-          <select value={activeBatch} onChange={e => setBatchId(e.target.value)} className="ml-auto text-xs border border-black/15 rounded px-2 py-1">
+          <SelectField value={activeBatch} onChange={e => setBatchId(e.target.value)} className="ml-auto text-xs border border-black/15 rounded px-2 py-1">
             {batches.map((b, i) => <option key={b} value={b}>Batch {i + 1}</option>)}
-          </select>
+          </SelectField>
         )}
       </div>
 
@@ -106,9 +107,9 @@ export default function SporesEnsembleComparison({ completedJobs }) {
         <div className="flex items-center gap-2 mb-1">
           <p className="text-xs font-semibold text-slate-600">Must-haves and real choices across relaxations (Fig 2)</p>
           {cases.length > 1 && (
-            <select value={activeCase} onChange={e => setCaseSel(e.target.value)} className="text-xs border border-black/15 rounded px-2 py-0.5">
+            <SelectField value={activeCase} onChange={e => setCaseSel(e.target.value)} className="text-xs border border-black/15 rounded px-2 py-0.5">
               {cases.map(c => <option key={c}>{c}</option>)}
-            </select>
+            </SelectField>
           )}
           <button onClick={classCsv} className="ml-auto flex items-center gap-1 text-xs text-electric-600 hover:underline"><FiDownload size={12} /> CSV</button>
         </div>
@@ -142,9 +143,9 @@ export default function SporesEnsembleComparison({ completedJobs }) {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <p className="text-xs font-semibold text-slate-600">Sensitivity clusters (Fig 6)</p>
-            <select value={activeSlack} onChange={e => setSlackSel(Number(e.target.value))} className="text-xs border border-black/15 rounded px-2 py-0.5">
+            <SelectField value={activeSlack} onChange={e => setSlackSel(Number(e.target.value))} className="text-xs border border-black/15 rounded px-2 py-0.5">
               {slacks.map(s => <option key={s} value={s}>{s}% relaxation</option>)}
-            </select>
+            </SelectField>
           </div>
           <ReactECharts option={scatter} style={{ height: 360 }} />
         </div>

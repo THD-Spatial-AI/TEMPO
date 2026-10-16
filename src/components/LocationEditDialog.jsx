@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { FiX, FiTrash2, FiCheck, FiChevronDown, FiChevronRight, FiHelpCircle, FiArrowRight, FiPlus } from './ui/icons';
 import { CARRIERS_BY_GROUP } from '../config/carriers';
 import TechParameterEditor from './creation/TechParameterEditor';
+import SelectField from './ui/SelectField';
 
 // Format technology name: capitalize first letter only and replace underscores and hyphens
 const formatTechName = (techName) => {
@@ -507,7 +508,7 @@ const LocationEditDialog = ({
                                     <div key={key} className="flex items-center gap-1">
                                       <span className="text-[11px] text-slate-500 w-24 flex-shrink-0 font-mono">{key}</span>
                                       {['carrier','carrier_in','carrier_out'].includes(key) ? (
-                                        <select
+                                        <SelectField
                                           value={Array.isArray(val) ? val[0] : (val || '')}
                                           onChange={e => updateDialogEssential(techName, key, e.target.value)}
                                           className="flex-1 text-xs border border-black/15 rounded px-2 py-0.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-1 focus:ring-gray-400"
@@ -520,7 +521,7 @@ const LocationEditDialog = ({
                                               ))}
                                             </optgroup>
                                           ))}
-                                        </select>
+                                        </SelectField>
                                       ) : (
                                         <input
                                           type="text"

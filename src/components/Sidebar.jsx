@@ -6,6 +6,7 @@ import GuidedTour from './tour/GuidedTour';
 import UpdateNotifier from './UpdateNotifier';
 import { startTour, tourForView } from './tour/tour';
 import WhatsNewDialog from "./WhatsNewDialog";
+import { useData } from "../context/DataContext";
 import { useReleases } from "../services/releases";
 import { motion, AnimatePresence } from "framer-motion";
 import tempoLogo from '../assets/Logo_TEMPO.PNG';
@@ -26,7 +27,7 @@ const Sidebar = ({ selected, setSelected }) => {
       transition={{ duration: 0.3, ease: EASE }}
       className="sticky top-0 h-screen shrink-0 overflow-hidden border-r border-black/15 bg-white/80 backdrop-blur-xl p-3  flex flex-col"
     >
-      <TitleSection open={open} />
+      <TitleSection open={open} setSelected={setSelected} />
 
       <div className="space-y-1 flex-1 overflow-y-auto overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <Option
@@ -313,7 +314,42 @@ const DropdownSection = ({ Icon, title, open, setOpen, isExpanded, setIsExpanded
   );
 };
 
-const TitleSection = ({ open }) => {
+// With the desktop title bar showing the branding, the header becomes an active-model card.
+const hasTitleBar = () => typeof window.electronAPI?.window?.state === 'function';
+
+const ActiveModelCard = ({ open, setSelected }) => {
+  const { models, currentModelId } = useData();
+  const model = models.find((m) => m.id === currentModelId);
+  const { tooltip, handlers } = useCollapsedTooltip(model ? `Active model: ${model.name}` : 'No model loaded', !open);
+  return (
+    <div className="mb-3 border-b border-black/15 pb-3">
+      <button
+        onClick={() => setSelected('Models')}
+        {...handlers}
+        className="flex w-full items-center gap-2.5 border border-black/10 bg-slate-50/80 py-2 pl-2 pr-2.5 text-left transition-colors hover:border-black/20 hover:bg-white"
+      >
+        <span className={`grid h-8 w-8 shrink-0 place-items-center ${model ? 'bg-black text-white' : 'bg-slate-200 text-slate-500'}`}>
+          <LuBoxes size={16} />
+        </span>
+        {open && (
+          <span className="min-w-0 flex-1">
+            <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Active model</span>
+            <span className="block truncate text-[13px] font-semibold text-slate-900">{model ? model.name : 'No model loaded'}</span>
+            {model && (
+              <span className="block text-[11px] text-slate-500">
+                {(model.locations || []).length} locations · {(model.links || []).length} links
+              </span>
+            )}
+          </span>
+        )}
+      </button>
+      {tooltip}
+    </div>
+  );
+};
+
+const TitleSection = ({ open, setSelected }) => {
+  if (hasTitleBar()) return <ActiveModelCard open={open} setSelected={setSelected} />;
   return (
     <div className="mb-4 border-b border-black/15 pb-4">
       <div className="flex cursor-pointer items-center justify-between rounded-xl transition-colors duration-200 hover:bg-slate-50 py-2 pl-1 pr-2">

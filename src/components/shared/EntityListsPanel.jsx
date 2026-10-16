@@ -7,6 +7,7 @@ import { FiArrowRight, FiChevronDown, FiEdit2, FiLink, FiMapPin, FiSave, FiTrash
 import { LINK_TYPES, LINK_TYPES_BY_GROUP, getLinkTypeColor } from '../../config/linkTypes';
 import { getCarrierColor } from '../../config/carriers';
 import { formatTechName } from '../../utils/nameUtils';
+import SelectField from '../ui/SelectField';
 
 export default function EntityListsPanel({
   locations = [],
@@ -39,12 +40,12 @@ export default function EntityListsPanel({
         >
           {onSave && (
             <IconButton onClick={onSave} title="Save model" disabled={locations.length === 0}>
-              <FiSave size={13} />
+              <FiSave size={16} />
             </IconButton>
           )}
           {onClearLocations && (
             <IconButton onClick={onClearLocations} title="Clear all" danger disabled={locations.length === 0}>
-              <FiTrash2 size={13} />
+              <FiTrash2 size={16} />
             </IconButton>
           )}
         </SectionHeader>
@@ -78,15 +79,15 @@ export default function EntityListsPanel({
                           {Number(loc.latitude).toFixed(4)}, {Number(loc.longitude).toFixed(4)}
                         </div>
                       </div>
-                      <div className="flex shrink-0 gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+                      <div className="flex shrink-0 gap-0.5">
                         {onEditLocation && (
                           <IconButton onClick={(e) => { e.stopPropagation(); onEditLocation(loc, index); }} title="Edit location">
-                            <FiEdit2 size={12} />
+                            <FiEdit2 size={16} />
                           </IconButton>
                         )}
                         {onDeleteLocation && (
                           <IconButton onClick={(e) => { e.stopPropagation(); onDeleteLocation(loc, index); }} title="Delete location" danger>
-                            <FiTrash2 size={12} />
+                            <FiTrash2 size={16} />
                           </IconButton>
                         )}
                       </div>
@@ -118,7 +119,7 @@ export default function EntityListsPanel({
         >
           {onClearLinks && (
             <IconButton onClick={onClearLinks} title="Clear all links" danger disabled={links.length === 0}>
-              <FiTrash2 size={13} />
+              <FiTrash2 size={16} />
             </IconButton>
           )}
         </SectionHeader>
@@ -128,7 +129,7 @@ export default function EntityListsPanel({
           <div className="mb-2 flex items-center gap-2 rounded-lg border border-black/15 bg-slate-50 px-2 py-1.5" data-tour="link-type">
             <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-slate-400">New</span>
             <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: getLinkTypeColor(currentLinkType) }} />
-            <select
+            <SelectField
               value={currentLinkType}
               onChange={e => setCurrentLinkType(e.target.value)}
               className="min-w-0 flex-1 bg-transparent text-xs font-medium text-slate-700 focus:outline-none"
@@ -138,7 +139,7 @@ export default function EntityListsPanel({
                   {types.map(t => (<option key={t.id} value={t.id}>{t.label}</option>))}
                 </optgroup>
               ))}
-            </select>
+            </SelectField>
           </div>
         )}
 
@@ -159,17 +160,17 @@ export default function EntityListsPanel({
                         <FiArrowRight size={11} className="shrink-0 text-slate-400" />
                         <span className="truncate">{link.toName || link.to}</span>
                       </div>
-                      {distance && <span className="shrink-0 font-mono text-[10px] text-slate-400 group-hover:hidden">{distance}</span>}
+                      {distance && <span className="shrink-0 font-mono text-[10px] text-slate-400">{distance}</span>}
                       {onDeleteLink && (
-                        <span className="hidden shrink-0 group-hover:block">
+                        <span className="shrink-0">
                           <IconButton onClick={(e) => { e.stopPropagation(); onDeleteLink(link, linkIndex); }} title="Delete link" danger>
-                            <FiTrash2 size={12} />
+                            <FiTrash2 size={16} />
                           </IconButton>
                         </span>
                       )}
                     </div>
                     {onUpdateLink ? (
-                      <select
+                      <SelectField
                         value={link.linkType || ''}
                         onChange={e => {
                           const lt = e.target.value;
@@ -186,7 +187,7 @@ export default function EntityListsPanel({
                             {types.map(t => (<option key={t.id} value={t.id}>{t.label}</option>))}
                           </optgroup>
                         ))}
-                      </select>
+                      </SelectField>
                     ) : link.linkType && (
                       <div className="ml-4 text-[11px] text-slate-500">{LINK_TYPES[link.linkType]?.label || link.linkType}</div>
                     )}
@@ -224,7 +225,7 @@ function IconButton({ onClick, title, danger = false, disabled = false, children
       title={title}
       aria-label={title}
       disabled={disabled}
-      className={`grid h-6 w-6 place-items-center rounded-md text-slate-400 transition-colors disabled:pointer-events-none disabled:opacity-40 ${
+      className={`grid h-[30px] w-[30px] place-items-center rounded-md text-slate-500 transition-colors disabled:pointer-events-none disabled:opacity-40 ${
         danger ? 'hover:bg-red-50 hover:text-red-600' : 'hover:bg-slate-200/70 hover:text-slate-900'
       }`}
     >

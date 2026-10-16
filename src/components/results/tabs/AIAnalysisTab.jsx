@@ -236,7 +236,7 @@ export default function AIAnalysisTab({ result, selectedJob, model, onOpenSettin
       <div className="bg-white rounded-2xl border border-black/15 shadow-sm overflow-hidden">
         <div className="flex items-center gap-2 px-5 py-3 border-b border-black/10">
           <FiCpu size={14} className="text-gray-600" />
-          <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-black flex-1">Model Advisor</span>
+          <span className="text-sm font-semibold text-slate-800 flex-1">Model Advisor</span>
           {reportBusy ? (
             <button onClick={() => reportHandle.current?.cancel()} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 border border-black/15 hover:bg-slate-50">
               <FiStopCircle size={12} /> Stop

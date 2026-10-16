@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { FiActivity, FiAlertTriangle, FiBarChart2, FiCheckCircle, FiClock, FiCpu, FiDownload, FiList, FiSearch, FiTerminal, FiTrash2, FiX, FiZap } from '../ui/icons';
 import { confirmAction } from '../ui/confirm';
+import SelectField from '../ui/SelectField';
 
 export default function CompletedRunsSection({
   onNavigate,
@@ -81,7 +82,7 @@ export default function CompletedRunsSection({
                   className="w-full pl-8 pr-3 py-1.5 border border-black/15 rounded-lg text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300"
                 />
               </div>
-              <select
+              <SelectField
                 value={filterStatus}
                 onChange={e => setFilterStatus(e.target.value)}
                 className="px-3 py-1.5 border border-black/15 rounded-lg text-sm text-gray-600 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300"
@@ -89,7 +90,7 @@ export default function CompletedRunsSection({
                 <option value="all">All statuses</option>
                 <option value="done">Done</option>
                 <option value="failed">Failed</option>
-              </select>
+              </SelectField>
             </div>
           )}
 

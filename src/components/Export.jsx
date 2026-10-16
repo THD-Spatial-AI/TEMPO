@@ -18,6 +18,7 @@ import { exportModelArchive, checkEngineRunService } from '../services/engineCli
 import { resolveScenario } from '../services/scenarioResolver';
 import TranslationReport from './TranslationReport';
 import { FiCheck } from './ui/icons';
+import SelectField from './ui/SelectField';
 
 
 const EXPORT_FORMATS = [
@@ -437,7 +438,7 @@ function ResultsExportPanel({ completedJobs }) {
       {/* Run selector */}
       <div className="bg-white rounded-xl shadow-lg p-5">
         <h2 className="text-base font-semibold text-slate-800 mb-3">Select Run</h2>
-        <select
+        <SelectField
           value={selJobId || ''}
           onChange={e => { setSelJobId(e.target.value); setStatus(null); }}
           className="w-full border border-black/15 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-gray-400"
@@ -447,7 +448,7 @@ function ResultsExportPanel({ completedJobs }) {
               {j.modelName} — {new Date(j.completedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
             </option>
           ))}
-        </select>
+        </SelectField>
         {result && (
           <p className="text-xs text-slate-400 mt-2">
             Objective: <span className="text-slate-600 font-medium">{result.objective != null ? Number(result.objective).toLocaleString(undefined, { maximumFractionDigits: 0 }) : '—'}</span>

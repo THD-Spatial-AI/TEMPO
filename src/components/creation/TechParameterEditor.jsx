@@ -21,6 +21,7 @@ import {
 } from '../../services/parameterOntology';
 import { PARENT_CONSTRAINTS, CONSTRAINT_DEFINITIONS, COST_DEFINITIONS } from '../../utils/constraintDefinitions';
 import { fetchTechFramework, frameworkParamNames } from '../../services/techDatabaseApi';
+import SelectField from '../ui/SelectField';
 
 // Raw Calliope cost keys offered in the Calliope power-user panel.
 const RAW_COST_KEYS = ['energy_cap', 'storage_cap', 'resource_cap', 'purchase', 'om_annual', 'om_prod', 'om_con'];
@@ -72,7 +73,7 @@ function AddFromList({ label, options, onAdd }) {
   if (!options.length) return null;
   return (
     <div className="flex gap-1 mt-1.5">
-      <select
+      <SelectField
         value={sel}
         onChange={(e) => setSel(e.target.value)}
         className="flex-1 text-xs border border-black/15 rounded px-2 py-0.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-1 focus:ring-gray-400"
@@ -81,7 +82,7 @@ function AddFromList({ label, options, onAdd }) {
         {options.map((o) => (
           <option key={o.key} value={o.key} title={o.desc || ''}>{o.key}</option>
         ))}
-      </select>
+      </SelectField>
       <button
         onClick={() => { if (sel) { onAdd(sel); setSel(''); } }}
         disabled={!sel}

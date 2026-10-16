@@ -1,5 +1,6 @@
 import React from 'react';
 import { FiGlobe, FiMapPin, FiMap, FiLayers } from './ui/icons';
+import SelectField from './ui/SelectField';
 
 const RegionSelectionStepper = ({ 
   currentStep, 
@@ -120,7 +121,7 @@ const RegionSelectionStepper = ({
               
               {/* Dropdown - Always visible for active or completed steps */}
               {(step.status === 'active' || step.status === 'completed') && (
-                <select
+                <SelectField
                   value={step.value || ''}
                   onChange={(e) => step.onSelect(e.target.value || null)}
                   disabled={step.disabled}
@@ -137,7 +138,7 @@ const RegionSelectionStepper = ({
                       {option.replace(/_/g, ' ')}
                     </option>
                   ))}
-                </select>
+                </SelectField>
               )}
               
               {/* Pending state message */}

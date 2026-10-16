@@ -4,6 +4,7 @@
 import { FiActivity, FiArrowRight, FiChevronDown, FiChevronRight, FiEdit2, FiLink, FiMapPin, FiTrash2 } from '../ui/icons';
 import { formatTechName } from '../../utils/mapVisuals';
 import { confirmAction } from '../ui/confirm';
+import SelectField from '../ui/SelectField';
 
 export default function MapSidebarLists({
   handleDeleteLocation,
@@ -254,7 +255,7 @@ export default function MapSidebarLists({
                             onChange={(e) => setTimeseriesFilter(e.target.value)}
                             className="w-full px-3 py-2 text-xs border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-gray-500"
                           />
-                          <select
+                          <SelectField
                             value={timeseriesSortBy}
                             onChange={(e) => setTimeseriesSortBy(e.target.value)}
                             className="w-full px-3 py-2 text-xs border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-gray-500"
@@ -264,7 +265,7 @@ export default function MapSidebarLists({
                             <option value="total-asc">Sort by Total (Low to High)</option>
                             <option value="avg">Sort by Average (High to Low)</option>
                             <option value="max">Sort by Peak Demand</option>
-                          </select>
+                          </SelectField>
                         </div>
                       )}
                       

@@ -1,6 +1,7 @@
 // ShadowTab — extracted from Results.jsx (was an inline IIFE tab).
 // Owns its result-derived computation and renders the tab.
 import ReactECharts from 'echarts-for-react';
+import SelectField from '../../ui/SelectField';
 
 export default function ShadowTab({
   result,
@@ -43,10 +44,10 @@ export default function ShadowTab({
                   <div className="bg-white rounded-2xl border border-black/15 shadow-sm p-5">
                     <div className="flex items-center gap-3 mb-4 flex-wrap">
                       <span className="text-sm font-semibold text-slate-700">Carrier : Node</span>
-                      <select value={spKey} onChange={e => setShadowPriceKey(e.target.value)}
+                      <SelectField value={spKey} onChange={e => setShadowPriceKey(e.target.value)}
                         className="text-sm border border-black/15 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300">
                         {keys.map(k => <option key={k} value={k}>{k}</option>)}
-                      </select>
+                      </SelectField>
                       {avg != null && (
                         <div className="ml-auto flex gap-4 text-xs text-slate-500">
                           <span>Avg: <strong className="text-slate-800">{avg.toFixed(4)}</strong></span>

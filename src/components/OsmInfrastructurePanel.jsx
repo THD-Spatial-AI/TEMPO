@@ -5,6 +5,7 @@ import RegionSelectionStepper from './RegionSelectionStepper';
 import ZonalStudyAreaPanel from './ZonalStudyAreaPanel';
 import { api } from '../services/api';
 import { useData } from '../context/DataContext';
+import SelectField from './ui/SelectField';
 
 // The legacy Geofabrik cascade selector is disabled — the live Study Area
 // search replaced it. Kept behind this flag for now; safe to delete the block.
@@ -412,7 +413,7 @@ const OsmInfrastructurePanel = ({
                       <FiMapPin className="inline mr-1" size={12} />
                       Commune (Optional)
                     </label>
-                    <select
+                    <SelectField
                       value={selectedCommune || ''}
                       onChange={(e) => handleCommuneSelect(e.target.value || null)}
                       className="w-full px-3 py-2 text-sm border border-black/15 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500 bg-white"
@@ -421,7 +422,7 @@ const OsmInfrastructurePanel = ({
                       {availableCommunes.map(commune => (
                         <option key={commune} value={commune}>{commune}</option>
                       ))}
-                    </select>
+                    </SelectField>
                   </div>
                 )}
               </div>

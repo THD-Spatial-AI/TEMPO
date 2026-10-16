@@ -12,6 +12,7 @@ import {
   FiX,
 } from './ui/icons';
 import { api } from '../services/api';
+import SelectField from './ui/SelectField';
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 
@@ -314,7 +315,7 @@ const OSMDownloader = () => {
                   <label className="block text-[0.6875rem] font-bold text-black/60 uppercase mb-2 tracking-widest">
                     Sub-region (optional)
                   </label>
-                  <select
+                  <SelectField
                     className="w-full border border-black/15 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-electric-500"
                     value={selectedRegion}
                     onChange={e => setSelectedRegion(e.target.value)}
@@ -326,7 +327,7 @@ const OSMDownloader = () => {
                         {isLoaded(selectedContinent, selectedCountry, r.name) ? ' ✓' : ''}
                       </option>
                     ))}
-                  </select>
+                  </SelectField>
                   {countryData.note && (
                     <p className="text-xs text-slate-400 mt-1">{countryData.note}</p>
                   )}

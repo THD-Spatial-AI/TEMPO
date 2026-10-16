@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import ReactECharts from 'echarts-for-react';
 import { FiDownload, FiLayers, FiTrendingUp, FiGrid, FiChevronDown, FiChevronUp } from '../ui/icons';
+import SelectField from '../ui/SelectField';
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
 const PALETTE = [
@@ -362,12 +363,12 @@ export default function BatchComparison({ completedJobs }) {
               <span className="text-xs text-slate-400">{modelLabels.length} models · {variantLabels.length} variants</span>
               <div className="ml-auto flex items-center gap-1.5">
                 <span className="text-[10px] text-slate-400">KPI:</span>
-                <select
+                <SelectField
                   value={matrixKpi} onChange={e => setMatrixKpi(e.target.value)}
                   className="text-[11px] border border-black/15 rounded-md px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-electric-400"
                 >
                   {MATRIX_KPIS.map(k => <option key={k.id} value={k.id}>{k.label}</option>)}
-                </select>
+                </SelectField>
               </div>
             </div>
             <div className="overflow-x-auto">
@@ -430,13 +431,13 @@ export default function BatchComparison({ completedJobs }) {
             <span className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
               <FiTrendingUp size={13} /> Trajectory
             </span>
-            <select
+            <SelectField
               value={trajectoryKpi}
               onChange={e => setTrajectoryKpi(e.target.value)}
               className="text-xs border border-black/15 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-electric-400"
             >
               {TRAJECTORY_KPIS.map(k => <option key={k.id} value={k.id}>{k.label}</option>)}
-            </select>
+            </SelectField>
           </div>
           <ReactECharts option={trajectoryOption} style={{ height: 180 }} notMerge />
         </div>

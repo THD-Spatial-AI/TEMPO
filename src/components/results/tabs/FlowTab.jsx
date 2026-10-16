@@ -17,7 +17,7 @@ export default function FlowTab({
                 <div className="bg-white rounded-2xl border border-black/15 shadow-sm overflow-hidden">
                   <button onClick={() => toggleSection('sankey')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
                     <FiShare2 size={14} className="text-gray-600 flex-shrink-0" />
-                    <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-black flex-1">Energy Flow — Sankey Diagram</span>
+                    <span className="text-sm font-semibold text-slate-800 flex-1">Energy Flow — Sankey Diagram</span>
                     <span className="text-xs text-slate-400 mr-1">· tech → carrier → demand</span>
                     <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('sankey') ? '' : '-rotate-90'}`} />
                   </button>

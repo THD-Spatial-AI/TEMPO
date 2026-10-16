@@ -57,9 +57,12 @@ const Notification = ({ text, id, removeNotif, type = "info" }) => {
         stiffness: 400,
         damping: 30
       }}
-      className={`p-4 w-80 flex items-start gap-2 text-sm font-medium shadow-lg text-white ${style.bg} fixed z-[9999] top-4 right-4`}
+      className={`p-4 w-80 flex items-start gap-2 text-sm font-medium shadow-lg text-white ${style.bg} fixed z-[9999] right-4`}
+      style={{ top: 'calc(var(--titlebar-h, 0px) + 24px)' }}
     >
-      <IconComponent className={`text-3xl absolute -top-4 -left-4 p-2 ${style.iconBg}`} />
+      <span className={`absolute -top-3 -left-3 grid h-7 w-7 place-items-center ${style.iconBg}`}>
+        <IconComponent size={16} />
+      </span>
       <span className="flex-1">{text}</span>
       <button onClick={() => removeNotif(id)} className="ml-auto mt-0.5 hover:opacity-70 transition-opacity">
         <FiX />

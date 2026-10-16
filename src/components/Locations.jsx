@@ -8,6 +8,7 @@ import { nextSort, compareValues } from '../utils/sorting';
 import { TECH_TEMPLATES, useLiveTechTemplates } from "./TechnologiesData";
 import { CONSTRAINT_DEFINITIONS, COST_DEFINITIONS, PARENT_CONSTRAINTS } from '../utils/constraintDefinitions';
 import { confirmAction } from './ui/confirm';
+import SelectField from './ui/SelectField';
 
 
 
@@ -563,7 +564,7 @@ const Locations = () => {
                   </div>
 
                   {isEditing ? (
-                    <select
+                    <SelectField
                       value={editData.type}
                       onChange={(e) => setEditData({ ...editData, type: e.target.value })}
                       className="h-8 w-full rounded-lg border border-black/15 bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 text-xs"
@@ -575,7 +576,7 @@ const Locations = () => {
                       <option value="conversion">conversion</option>
                       <option value="conversion_plus">conversion_plus</option>
                       <option value="transmission">transmission</option>
-                    </select>
+                    </SelectField>
                   ) : (
                     <span className="w-fit rounded-md border border-black/15 bg-white px-1.5 py-0.5 font-mono text-[11px] text-slate-600">
                       {location.type || '—'}
@@ -1308,7 +1309,7 @@ const Locations = () => {
               </div>
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-slate-700">Type</label>
-                <select
+                <SelectField
                   value={newLocation.type}
                   onChange={(e) => setNewLocation({ ...newLocation, type: e.target.value })}
                   className="h-9 w-full rounded-lg border border-black/15 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200"
@@ -1320,7 +1321,7 @@ const Locations = () => {
                   <option value="conversion">Conversion</option>
                   <option value="conversion_plus">Conversion Plus</option>
                   <option value="transmission">Transmission</option>
-                </select>
+                </SelectField>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>

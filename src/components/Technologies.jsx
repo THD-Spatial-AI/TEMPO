@@ -14,6 +14,7 @@ import {
 } from '../utils/constraintDefinitions';
 import TechParameterEditor from './creation/TechParameterEditor';
 import { confirmAction } from './ui/confirm';
+import SelectField from './ui/SelectField';
 
 // ── Carrier helpers ──────────────────────────────────────────────────────────
 function CarrierPill({ carrierId }) {
@@ -32,7 +33,7 @@ function CarrierPill({ carrierId }) {
 
 function CarrierSelect({ value, onChange, className = '' }) {
   return (
-    <select value={value ?? ''} onChange={onChange} className={className}>
+    <SelectField value={value ?? ''} onChange={onChange} className={className}>
       <option value="">— select —</option>
       {Object.entries(CARRIERS_BY_GROUP).map(([group, carriers]) => (
         <optgroup key={group} label={group}>
@@ -41,7 +42,7 @@ function CarrierSelect({ value, onChange, className = '' }) {
           ))}
         </optgroup>
       ))}
-    </select>
+    </SelectField>
   );
 }
 

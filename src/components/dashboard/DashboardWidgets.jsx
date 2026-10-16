@@ -4,6 +4,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { FiChevronDown, FiChevronUp, FiFilter, FiMapPin } from '../ui/icons';
 import 'leaflet/dist/leaflet.css';
+import { popupCard } from '../../utils/mapPopup';
 
 
 // ── Time-range + location filter controls (vertical right-sidebar) ───────────
@@ -248,16 +249,17 @@ export const InputMap = ({ locations, links, getTechColor, getTechName = (t) => 
             const color = getTechColor(dominant) || '#64748b';
             const cap = capByLoc[loc.name] || 0;
             const radius = maxCap > 0 ? 5 + 11 * Math.sqrt(cap / maxCap) : 7;
-            const items = techNames.slice(0, 8).map(t =>
-              `<li style="display:flex;align-items:center;gap:6px;margin:2px 0"><span style="width:8px;height:8px;border-radius:50%;background:${getTechColor(t)}"></span>${getTechName(t)}</li>`).join('');
-            const popupHtml = `<div style="font-family:inherit;min-width:160px"><div style="font-weight:600;font-size:13px;color:#0f172a">${loc.name}</div>`
-              + `<div style="font-size:11px;color:#64748b;margin-top:2px">${techNames.length} technologies${cap ? ` · ${cap >= 1000 ? (cap / 1000).toFixed(1) + ' GW' : cap.toFixed(0) + ' MW'}` : ''}</div>`
-              + `<ul style="list-style:none;margin:6px 0 0;padding:0;font-size:11px;color:#334155">${items}${techNames.length > 8 ? `<li style="color:#94a3b8">+${techNames.length - 8} more</li>` : ''}</ul></div>`;
+            const popupHtml = popupCard({
+              title: loc.name,
+              stats: [['Technologies', techNames.length], ...(cap ? [['Capacity', cap >= 1000 ? (cap / 1000).toFixed(1) + ' GW' : cap.toFixed(0) + ' MW']] : [])],
+              rows: techNames.slice(0, 8).map(t => ({ color: getTechColor(t), name: getTechName(t) })),
+              note: techNames.length > 8 ? `+${techNames.length - 8} more` : '',
+            });
 
             L.circleMarker([loc.latitude, loc.longitude], { radius, color: '#fff', weight: 1.5, fillColor: color, fillOpacity: 0.9 })
               .addTo(map)
               .bindTooltip(loc.name, { direction: 'top', offset: [0, -radius] })
-              .bindPopup(popupHtml);
+              .bindPopup(popupHtml, { className: 'tempo-leaflet-popup', maxWidth: 280 });
           });
       })
       .catch((err) => {
