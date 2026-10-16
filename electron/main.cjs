@@ -433,6 +433,8 @@ ipcMain.handle('setup:mark-complete', () => {
 // back over the 'ai:stream' channel keyed by reqId.
 const { registerUpdater } = require('./updater.cjs');
 registerUpdater();
+const { registerWindowControls, attachWindowEvents } = require('./windowControls.cjs');
+registerWindowControls();
 
 const aiKeystore = require('./ai/keystore.cjs');
 const { streamChat: aiStreamChat } = require('./ai/providers.cjs');
@@ -1679,6 +1681,8 @@ async function createWindow() {
     height: 1000,
     minWidth: 900,
     minHeight: 600,
+    frame: false,
+    backgroundColor: '#ffffff',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -1689,6 +1693,7 @@ async function createWindow() {
   });
 
   mainWindow.once('ready-to-show', () => mainWindow.show());
+  attachWindowEvents(mainWindow);
 
   if (app.isPackaged) {
     mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));

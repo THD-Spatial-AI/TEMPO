@@ -412,3 +412,6 @@ code, pre {
 /* Mode showcase autoplay bar */
 @keyframes tempo-showcase-progress { from { width: 0; } to { width: 100%; } }
 .tempo-showcase-progress { animation-name: tempo-showcase-progress; animation-timing-function: linear; animation-fill-mode: forwards; }
+
+/* Custom title bar (frameless Electron window) */
+body { padding-top: var(--titlebar-h, 0px); }

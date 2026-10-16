@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { FiChevronDown, FiChevronRight } from './ui/icons';
 import { LuLayoutDashboard, LuGraduationCap, LuPencilRuler, LuFolderTree, LuBoxes, LuMap, LuMapPin, LuWaypoints, LuChartLine, LuLayers, LuDatabase, LuFileDown, LuCirclePlay, LuChartPie, LuSettings, LuPanelLeftClose, LuPanelLeftOpen, LuSparkles, LuTour } from './ui/icons';
@@ -354,6 +354,11 @@ const Logo = () => {
 
 const RestartTourButton = ({ open, selected }) => {
   const tourId = tourForView(selected);
+  useEffect(() => {
+    const onTour = () => startTour(tourId);
+    window.addEventListener('tempo:restart-tour', onTour);
+    return () => window.removeEventListener('tempo:restart-tour', onTour);
+  }, [tourId]);
   const scope = tourId === 'app' ? null : tourId;
   const { tooltip, handlers } = useCollapsedTooltip(scope ? `Restart ${scope} tour` : 'Restart tour', !open);
   return (
@@ -380,6 +385,11 @@ const RestartTourButton = ({ open, selected }) => {
 
 const VersionButton = ({ open }) => {
   const [showNotes, setShowNotes] = useState(false);
+  useEffect(() => {
+    const onOpen = () => setShowNotes(true);
+    window.addEventListener('tempo:whats-new', onOpen);
+    return () => window.removeEventListener('tempo:whats-new', onOpen);
+  }, []);
   const releaseInfo = useReleases();
   const versionLabel = releaseInfo.latest ? `v${releaseInfo.latest.version}` : 'Release notes';
   const { tooltip, handlers } = useCollapsedTooltip(`${versionLabel} · What's new`, !open);

@@ -6,6 +6,9 @@ export default {
   ],
   theme: {
     extend: {
+      // Full-height layouts sit below the custom title bar (0px in the browser)
+      height: { screen: 'calc(100vh - var(--titlebar-h, 0px))' },
+      minHeight: { screen: 'calc(100vh - var(--titlebar-h, 0px))' },
       fontFamily: {
         sans: ['Inter Variable', 'Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif'],
         mono: ['JetBrains Mono Variable', 'JetBrains Mono', 'ui-monospace', 'monospace'],

@@ -44,11 +44,12 @@ export default function UpdateNotifier() {
     const timer = setInterval(auto, CHECK_EVERY);
     const onManual = () => check(true);
     window.addEventListener('tempo:check-updates', onManual);
+    const offMenu = updates()?.onCheckRequest?.(onManual);
     const off = updates()?.onProgress((p) => {
       setProgress(p);
       if (p.verifying) setState('verifying');
     });
-    return () => { clearTimeout(first); clearInterval(timer); window.removeEventListener('tempo:check-updates', onManual); off?.(); };
+    return () => { clearTimeout(first); clearInterval(timer); window.removeEventListener('tempo:check-updates', onManual); off?.(); offMenu?.(); };
   }, [check]);
 
   useEffect(() => {
