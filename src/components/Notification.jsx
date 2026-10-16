@@ -13,60 +13,45 @@ const Notification = ({ text, id, removeNotif, type = "info" }) => {
     return () => clearTimeout(timeoutRef);
   }, [removeNotif]);
 
-  const getNotificationStyle = () => {
-    switch (type) {
-      case "success":
-        return {
-          bg: "bg-primary",
-          icon: FiCheckCircle,
-          iconBg: "bg-white text-black border border-black"
-        };
-      case "error":
-        return {
-          bg: "bg-primary",
-          icon: FiAlertCircle,
-          iconBg: "bg-white text-black border border-black"
-        };
-      case "warning":
-        return {
-          bg: "bg-primary",
-          icon: FiAlertTriangle,
-          iconBg: "bg-white text-black border border-black"
-        };
-      case "info":
-      default:
-        return {
-          bg: "bg-primary",
-          icon: FiInfo,
-          iconBg: "bg-white text-black border border-black"
-        };
-    }
+  const TYPES = {
+    success: { icon: FiCheckCircle, label: 'Success', tint: 'bg-emerald-400/15 text-emerald-300', bar: 'bg-emerald-400' },
+    error: { icon: FiAlertCircle, label: 'Error', tint: 'bg-red-400/15 text-red-300', bar: 'bg-red-400' },
+    warning: { icon: FiAlertTriangle, label: 'Warning', tint: 'bg-amber-400/15 text-amber-300', bar: 'bg-amber-400' },
+    info: { icon: FiInfo, label: 'Info', tint: 'bg-sky-400/15 text-sky-300', bar: 'bg-sky-400' },
   };
-
-  const style = getNotificationStyle();
+  const style = TYPES[type] || TYPES.info;
   const IconComponent = style.icon;
 
   return (
     <motion.div
       layout
+      role="status"
       initial={{ y: -15, scale: 0.95, opacity: 0 }}
       animate={{ y: 0, scale: 1, opacity: 1 }}
       exit={{ x: 400, opacity: 0 }}
-      transition={{ 
-        type: "spring",
-        stiffness: 400,
-        damping: 30
-      }}
-      className={`p-4 w-80 flex items-start gap-2 text-sm font-medium shadow-lg text-white ${style.bg} fixed z-[9999] right-4`}
-      style={{ top: 'calc(var(--titlebar-h, 0px) + 24px)' }}
+      transition={{ type: "spring", stiffness: 400, damping: 30 }}
+      className="fixed right-4 z-[9999] w-[340px] overflow-hidden bg-slate-950 text-white shadow-2xl shadow-slate-950/30 ring-1 ring-white/10"
+      style={{ top: 'calc(var(--titlebar-h, 0px) + 16px)' }}
     >
-      <span className={`absolute -top-3 -left-3 grid h-7 w-7 place-items-center ${style.iconBg}`}>
-        <IconComponent size={16} />
-      </span>
-      <span className="flex-1">{text}</span>
-      <button onClick={() => removeNotif(id)} className="ml-auto mt-0.5 hover:opacity-70 transition-opacity">
-        <FiX />
-      </button>
+      <div className="flex items-start gap-3 p-3.5 pr-2.5">
+        <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${style.tint}`}>
+          <IconComponent size={18} />
+        </span>
+        <div className="min-w-0 flex-1 pt-0.5">
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-white/50">{style.label}</div>
+          <div className="mt-0.5 text-sm font-medium leading-snug text-white">{text}</div>
+        </div>
+        <button onClick={() => removeNotif(id)} aria-label="Dismiss notification"
+          className="grid h-7 w-7 shrink-0 place-items-center text-white/50 transition-colors hover:bg-white/10 hover:text-white">
+          <FiX size={15} />
+        </button>
+      </div>
+      <motion.div
+        className={`h-0.5 origin-left ${style.bar}`}
+        initial={{ scaleX: 1 }}
+        animate={{ scaleX: 0 }}
+        transition={{ duration: NOTIFICATION_TTL / 1000, ease: 'linear' }}
+      />
     </motion.div>
   );
 };
