@@ -1,6 +1,54 @@
 // Filter / resolution / columns / stats sidebar for the TimeSeries chart view.
-// Extracted verbatim from TimeSeries.jsx; all view state passed as props.
-import { FiChevronDown, FiChevronUp } from '../ui/icons';
+// All view state is passed as props.
+import { FiChevronDown, FiChevronUp, FiCalendar, FiList, FiSearch, FiCheck, FiClock } from '../ui/icons';
+
+// ECharts 6 default palette, in series order, so swatches match the chart lines.
+const ECHARTS_COLORS = ['#5070dd', '#b6d634', '#505372', '#ff994d', '#0ca8df', '#ffd10a', '#fb628b', '#785db0', '#3fbe95'];
+const fmtFull = (v) => (Number.isFinite(v) ? v.toLocaleString(undefined, { maximumFractionDigits: 1 }) : '—');
+
+const RANGES = [['weeks2', 'First 2 weeks'], ['month', 'Month'], ['seasonal', 'Season'], ['custom', 'Custom']];
+const RESOLUTIONS = [['hourly', 'Hourly'], ['daily', 'Daily'], ['weekly', 'Weekly']];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const SEASONS = [['DJF', 'Winter'], ['MAM', 'Spring'], ['JJA', 'Summer'], ['SON', 'Autumn']];
+
+function SectionTitle({ icon: Icon, children, extra }) {
+  return (
+    <div className="mb-2 flex items-center justify-between">
+      <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+        {Icon && <Icon size={13} className="text-slate-400" />}
+        {children}
+      </span>
+      {extra}
+    </div>
+  );
+}
+
+function Segmented({ items, value, onChange, cols = 2 }) {
+  return (
+    <div className="grid gap-1 bg-slate-100 p-1" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+      {items.map(([id, label, hint]) => (
+        <button key={id} onClick={() => onChange(id)}
+          className={`truncate px-2 py-1.5 text-[12px] font-medium transition-colors ${value === id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}>
+          {label}{hint && <span className="ml-1 text-[10px] text-slate-400">{hint}</span>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// Average into ~120 buckets so a full year reads as a shape, not a solid block.
+function sparkPath(values, buckets = 120) {
+  const step = Math.max(1, Math.floor(values.length / buckets));
+  const pts = [];
+  for (let i = 0; i < values.length; i += step) {
+    const slice = values.slice(i, i + step);
+    pts.push(slice.reduce((a, b) => a + b, 0) / slice.length);
+  }
+  const min = Math.min(...pts), max = Math.max(...pts), range = max - min || 1;
+  const xy = pts.map((v, i) => [(i / Math.max(pts.length - 1, 1)) * 100, 92 - ((v - min) / range) * 80]);
+  const line = xy.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+  return { line, area: `${line} L100,100 L0,100 Z` };
+}
 
 export default function TimeSeriesFilterSidebar({
   colSearch,
@@ -25,140 +73,144 @@ export default function TimeSeriesFilterSidebar({
   viewResolution,
   viewSeason,
 }) {
+  const allCols = getDataColumns(selectedTimeSeries);
+  const colorOf = (col) => {
+    const i = selectedColumns.indexOf(col);
+    return i < 0 ? '#cbd5e1' : ECHARTS_COLORS[i % ECHARTS_COLORS.length];
+  };
+  const visibleCols = allCols.filter((c) => !colSearch || c.toLowerCase().includes(colSearch.toLowerCase()));
+  const inputCls = 'h-8 w-full border border-black/15 bg-white px-2 text-[12px] text-slate-700 focus:border-slate-400 focus:outline-none';
+
   return (
-                <div className="w-56 shrink-0 border-l border-black/15 overflow-y-auto bg-white flex flex-col">
-                  <div className="p-3 space-y-4">
+    <div className="flex w-64 shrink-0 flex-col overflow-y-auto border-l border-black/15 bg-white">
+      <div className="space-y-5 p-4">
 
-                    {/* Range */}
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Range</p>
-                      <div className="flex flex-col gap-1">
-                        {[['weeks2','First 2 wks'],['month','Month'],['seasonal','Season'],['custom','Custom']].map(([id, lbl]) => (
-                          <button key={id} onClick={() => setViewMode(id)}
-                            className="px-2 py-1 rounded text-[11px] font-medium border transition-all text-left w-full"
-                            style={viewMode === id ? { background: '#000000', color: 'white', borderColor: '#000000' } : { background: 'white', color: '#475569', borderColor: '#e2e8f0' }}>
-                            {lbl}
-                          </button>
+        {/* Range */}
+        <section>
+          <SectionTitle icon={FiCalendar}>Range</SectionTitle>
+          <Segmented items={RANGES} value={viewMode} onChange={setViewMode} />
+          {viewMode === 'month' && (
+            <div className="mt-2 grid grid-cols-4 gap-1">
+              {MONTHS.map((m, i) => (
+                <button key={m} onClick={() => setViewMonth(i)}
+                  className={`py-1 text-[11px] font-medium transition-colors ${viewMonth === i ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}>
+                  {m}
+                </button>
+              ))}
+            </div>
+          )}
+          {viewMode === 'seasonal' && (
+            <div className="mt-2">
+              <Segmented items={SEASONS.map(([id, l]) => [id, l])} value={viewSeason} onChange={setViewSeason} />
+            </div>
+          )}
+          {viewMode === 'custom' && (
+            <div className="mt-2 space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <label className="block">
+                  <span className="mb-0.5 block text-[10px] text-slate-400">From</span>
+                  <input type="date" value={viewCustomStart} onChange={(e) => setViewCustomStart(e.target.value)} className={inputCls} />
+                </label>
+                <label className="block">
+                  <span className="mb-0.5 block text-[10px] text-slate-400">To</span>
+                  <input type="date" value={viewCustomEnd} onChange={(e) => setViewCustomEnd(e.target.value)} className={inputCls} />
+                </label>
+              </div>
+              {viewCustomStart && viewCustomEnd && (
+                <p className="text-center text-[11px] text-slate-500">
+                  {Math.max(0, Math.round((new Date(viewCustomEnd) - new Date(viewCustomStart)) / 86400000))} days selected
+                </p>
+              )}
+            </div>
+          )}
+        </section>
+
+        {/* Resolution */}
+        <section>
+          <SectionTitle icon={FiClock}>Resolution</SectionTitle>
+          <Segmented items={RESOLUTIONS} value={viewResolution} onChange={setViewResolution} cols={3} />
+        </section>
+
+        {/* Columns */}
+        <section>
+          <SectionTitle
+            icon={FiList}
+            extra={
+              <span className="flex items-center gap-2 text-[11px]">
+                <span className="tabular-nums text-slate-400">{selectedColumns.length}/{allCols.length}</span>
+                <button onClick={() => setSelectedColumns(allCols)} className="font-medium text-slate-600 hover:text-slate-900">All</button>
+                <button onClick={() => setSelectedColumns([])} className="font-medium text-slate-400 hover:text-slate-900">None</button>
+              </span>
+            }
+          >
+            Columns
+          </SectionTitle>
+          <div className="relative mb-2">
+            <FiSearch size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input type="text" placeholder="Search columns…" value={colSearch} onChange={(e) => setColSearch(e.target.value)} className={`${inputCls} pl-8`} />
+          </div>
+          <div className="max-h-64 space-y-0.5 overflow-y-auto">
+            {visibleCols.map((col) => {
+              const on = selectedColumns.includes(col);
+              const color = colorOf(col);
+              return (
+                <button key={col} title={col} onClick={() => toggleColumn(col)}
+                  className={`flex w-full items-center gap-2.5 px-2 py-1.5 text-left text-[12px] transition-colors ${on ? 'bg-slate-50 text-slate-900' : 'text-slate-500 hover:bg-slate-50'}`}>
+                  <span className="grid h-4 w-4 shrink-0 place-items-center border" style={on ? { background: color, borderColor: color } : { borderColor: '#cbd5e1' }}>
+                    {on && <FiCheck size={11} className="text-white" />}
+                  </span>
+                  <span className={`min-w-0 flex-1 truncate ${on ? 'font-medium' : ''}`}>{col}</span>
+                  {on && <span className="h-0.5 w-4 shrink-0" style={{ background: color }} />}
+                </button>
+              );
+            })}
+            {visibleCols.length === 0 && <p className="px-2 py-3 text-center text-[11px] text-slate-400">No columns match</p>}
+          </div>
+        </section>
+
+        {/* Statistics */}
+        <section>
+          <button className="w-full" onClick={() => setShowStats(!showStats)}>
+            <SectionTitle extra={showStats ? <FiChevronUp size={13} className="text-slate-400" /> : <FiChevronDown size={13} className="text-slate-400" />}>
+              Statistics
+            </SectionTitle>
+          </button>
+          {showStats && selectedTimeSeries.statistics && (
+            <div className="space-y-2">
+              {Object.entries(selectedTimeSeries.statistics)
+                .filter(([col]) => selectedColumns.includes(col))
+                .map(([col, stats]) => {
+                  const colData = selectedTimeSeries.data.map((row) => parseFloat(row[col])).filter((v) => !isNaN(v));
+                  if (!colData.length) return null;
+                  const color = colorOf(col);
+                  const { line, area } = sparkPath(colData);
+                  return (
+                    <div key={col} className="border border-black/10 bg-white p-2.5">
+                      <div className="mb-1.5 flex items-center gap-1.5">
+                        <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: color }} />
+                        <span className="truncate text-[12px] font-semibold text-slate-800" title={col}>{col}</span>
+                        <span className="ml-auto text-[10px] tabular-nums text-slate-400">{colData.length} pts</span>
+                      </div>
+                      <svg className="mb-2 h-9 w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+                        <path d={area} fill={color} opacity="0.12" />
+                        <path d={line} fill="none" stroke={color} strokeWidth="1.6" vectorEffect="non-scaling-stroke" />
+                      </svg>
+                      <div className="grid grid-cols-3 gap-1 text-center">
+                        {[['Min', stats.min], ['Max', stats.max], ['Avg', stats.mean]].map(([k, v]) => (
+                          <div key={k} className="bg-slate-50 px-1 py-1">
+                            <div className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">{k}</div>
+                            <div className="truncate text-[11px] font-semibold tabular-nums text-slate-800" title={String(v)}>{fmtFull(v)}</div>
+                          </div>
                         ))}
                       </div>
-                      {viewMode === 'month' && (
-                        <div className="mt-2 grid grid-cols-3 gap-1">
-                          {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
-                            <button key={i} onClick={() => setViewMonth(i)}
-                              className="px-1 py-0.5 rounded text-[10px] font-medium border transition-all text-center"
-                              style={viewMonth === i ? { background: '#000000', color: 'white', borderColor: '#000000' } : { background: 'white', color: '#475569', borderColor: '#e2e8f0' }}>
-                              {m}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                      {viewMode === 'seasonal' && (
-                        <div className="mt-2 flex flex-col gap-1">
-                          {[['DJF','Winter'],['MAM','Spring'],['JJA','Summer'],['SON','Autumn']].map(([id, lbl]) => (
-                            <button key={id} onClick={() => setViewSeason(id)}
-                              className="px-2 py-1 rounded text-[11px] font-medium border transition-all"
-                              style={viewSeason === id ? { background: '#000000', color: 'white', borderColor: '#000000' } : { background: 'white', color: '#475569', borderColor: '#e2e8f0' }}>
-                              {lbl} <span className="opacity-60 text-[9px]">({id})</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                      {viewMode === 'custom' && (
-                        <div className="mt-2 flex flex-col gap-1.5">
-                          <div>
-                            <label className="text-[10px] text-slate-400 block mb-0.5">From</label>
-                            <input type="date" value={viewCustomStart} onChange={e => setViewCustomStart(e.target.value)}
-                              className="w-full px-2 py-1 border border-black/15 rounded text-[11px] bg-white" />
-                          </div>
-                          <div>
-                            <label className="text-[10px] text-slate-400 block mb-0.5">To</label>
-                            <input type="date" value={viewCustomEnd} onChange={e => setViewCustomEnd(e.target.value)}
-                              className="w-full px-2 py-1 border border-black/15 rounded text-[11px] bg-white" />
-                          </div>
-                          {viewCustomStart && viewCustomEnd && (
-                            <span className="text-[10px] text-slate-400 text-center">
-                              {Math.max(0, Math.round((new Date(viewCustomEnd) - new Date(viewCustomStart)) / 86400000))} days
-                            </span>
-                          )}
-                        </div>
-                      )}
                     </div>
+                  );
+                })}
+            </div>
+          )}
+        </section>
 
-                    {/* Resolution */}
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">Resolution</p>
-                      <div className="flex flex-col gap-1">
-                        {[['hourly','Hourly'],['daily','Daily avg'],['weekly','Weekly avg']].map(([id, lbl]) => (
-                          <button key={id} onClick={() => setViewResolution(id)}
-                            className="px-2 py-1 rounded text-[11px] font-medium border transition-all text-left w-full"
-                            style={viewResolution === id ? { background: '#000000', color: 'white', borderColor: '#000000' } : { background: 'white', color: '#475569', borderColor: '#e2e8f0' }}>
-                            {lbl}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Columns */}
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">
-                        Columns <span className="font-normal text-slate-300">({selectedColumns.length}/{getDataColumns(selectedTimeSeries).length})</span>
-                      </p>
-                      <div className="flex gap-2 mb-1.5">
-                        <button onClick={() => setSelectedColumns(getDataColumns(selectedTimeSeries))} className="text-[10px] text-gray-500 hover:underline">All</button>
-                        <button onClick={() => setSelectedColumns([])} className="text-[10px] text-slate-400 hover:underline">None</button>
-                      </div>
-                      <input type="text" placeholder="Search columns…" value={colSearch} onChange={e => setColSearch(e.target.value)}
-                        className="w-full px-2 py-1 border border-black/15 rounded text-[11px] bg-white mb-1" />
-                      <div className="flex flex-col gap-1 max-h-60 overflow-y-auto pr-0.5">
-                        {getDataColumns(selectedTimeSeries)
-                          .filter(c => !colSearch || c.toLowerCase().includes(colSearch.toLowerCase()))
-                          .map(col => (
-                            <button key={col} title={col} onClick={() => toggleColumn(col)}
-                              className="px-2 py-1.5 rounded text-[11px] border transition-all text-left leading-snug whitespace-normal break-all"
-                              style={selectedColumns.includes(col)
-                                ? { background: '#ede9fe', borderColor: '#8b5cf6', color: '#5b21b6' }
-                                : { background: '#f8fafc', borderColor: '#e2e8f0', color: '#475569' }}>
-                              {col}
-                            </button>
-                          ))}
-                      </div>
-                    </div>
-
-                    {/* Stats (collapsible) */}
-                    <div>
-                      <button className="flex items-center justify-between w-full mb-1" onClick={() => setShowStats(!showStats)}>
-                        <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Statistics</p>
-                        {showStats ? <FiChevronUp size={10} className="text-slate-400" /> : <FiChevronDown size={10} className="text-slate-400" />}
-                      </button>
-                      {showStats && selectedTimeSeries.statistics && (
-                        <div className="space-y-2">
-                          {Object.entries(selectedTimeSeries.statistics)
-                            .filter(([col]) => selectedColumns.includes(col))
-                            .map(([col, stats]) => {
-                              const colData = selectedTimeSeries.data.map(row => parseFloat(row[col])).filter(v => !isNaN(v));
-                              if (!colData.length) return null;
-                              const max = Math.max(...colData), min = Math.min(...colData), range = max - min || 1;
-                              const pts = colData.map((v, i) => `${((i / Math.max(colData.length - 1, 1)) * 100).toFixed(1)},${(100 - ((v - min) / range) * 80).toFixed(1)}`).join(' ');
-                              return (
-                                <div key={col} className="bg-slate-50 rounded-lg p-2 border border-black/15">
-                                  <div className="text-[10px] font-semibold text-slate-700 mb-1 truncate" title={col}>{col}</div>
-                                  <svg className="w-full h-6 mb-1" viewBox="0 0 100 100" preserveAspectRatio="none">
-                                    <polyline points={pts} fill="none" stroke="#000000" strokeWidth="2" vectorEffect="non-scaling-stroke" />
-                                  </svg>
-                                  <div className="grid grid-cols-2 gap-x-1 text-[10px]">
-                                    <span className="text-slate-400">Min</span><span className="font-semibold text-slate-700 text-right">{stats.min.toFixed(1)}</span>
-                                    <span className="text-slate-400">Max</span><span className="font-semibold text-slate-700 text-right">{stats.max.toFixed(1)}</span>
-                                    <span className="text-slate-400">Avg</span><span className="font-semibold text-slate-700 text-right">{stats.mean.toFixed(1)}</span>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                        </div>
-                      )}
-                    </div>
-
-                  </div>
-                </div>
+      </div>
+    </div>
   );
 }
-
