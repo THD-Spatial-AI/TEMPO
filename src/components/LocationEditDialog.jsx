@@ -3,6 +3,7 @@ import { FiX, FiTrash2, FiCheck, FiChevronDown, FiChevronRight, FiHelpCircle, Fi
 import { CARRIERS_BY_GROUP } from '../config/carriers';
 import TechParameterEditor from './creation/TechParameterEditor';
 import SelectField from './ui/SelectField';
+import { iconBtn, ICON_PX } from './ui/iconButton';
 
 // Format technology name: capitalize first letter only and replace underscores and hyphens
 const formatTechName = (techName) => {
@@ -437,9 +438,9 @@ const LocationEditDialog = ({
                               </button>
                               <button
                                 onClick={() => removeTechFromDialog(techName)}
-                                className="text-gray-500 hover:text-gray-700"
+                                className={`${iconBtn('delete', 'md')}`}
                               >
-                                <FiTrash2 size={16} />
+                                <FiTrash2 size={ICON_PX.md} />
                               </button>
                             </div>
                           </div>

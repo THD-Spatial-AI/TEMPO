@@ -10,6 +10,7 @@ import {
 } from '../data/overrideTemplates';
 import { getModelFramework, FRAMEWORKS, FrameworkBadge } from '../utils/modelFramework.jsx';
 import SelectField from './ui/SelectField';
+import { iconBtn, ICON_PX } from './ui/iconButton';
 
 // ─── Config flattener + viewer ────────────────────────────────────────────────
 function flattenConfig(obj, prefix = '') {
@@ -773,10 +774,10 @@ const Overrides = () => {
                         <div className="flex items-center gap-1 shrink-0">
                           <button
                             onClick={() => { setRenamingId(name); setRenameValue(name); }}
-                            className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg"
+                            className={`${iconBtn('edit', 'md')}`}
                             title="Rename"
                           >
-                            <FiEdit2 size={14} />
+                            <FiEdit2 size={ICON_PX.md} />
                           </button>
                           <button
                             onClick={() => handleDuplicate(name)}
@@ -787,10 +788,10 @@ const Overrides = () => {
                           </button>
                           <button
                             onClick={() => handleDeleteOverride(name)}
-                            className="p-1.5 text-slate-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
+                            className={`${iconBtn('delete', 'md')}`}
                             title="Delete"
                           >
-                            <FiTrash2 size={14} />
+                            <FiTrash2 size={ICON_PX.md} />
                           </button>
                         </div>
                       </div>

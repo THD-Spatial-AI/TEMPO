@@ -13,6 +13,7 @@ import { Handle, Position } from '@xyflow/react';
 import { FiTrash2, FiClock } from '../ui/icons';
 import { RECIPE_BY_ID, summarizeOps } from './recipeMeta.js';
 import { BoardCtx } from './boardContext.js';
+import { iconBtn, ICON_PX } from '../ui/iconButton';
 
 // One-line summary of a card's configuration for the node face.
 function faceSummary(recipeId, params = {}) {
@@ -80,10 +81,10 @@ function RecipeCardNodeImpl({ id, data, selected }) {
           </div>
           <button
             onClick={(e) => { e.stopPropagation(); onDeleteNode?.(id); }}
-            className="nodrag p-1 text-slate-300 hover:text-red-500 rounded transition-colors"
+            className={`${iconBtn('delete', 'sm')} nodrag`}
             title="Remove card"
           >
-            <FiTrash2 size={13} />
+            <FiTrash2 size={ICON_PX.sm} />
           </button>
         </div>
 

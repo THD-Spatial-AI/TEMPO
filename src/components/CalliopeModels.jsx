@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { FiFolder, FiFile, FiDownload, FiTrash2, FiEdit2, FiX, FiSave, FiChevronDown, FiChevronRight } from "./ui/icons";
 import { useData } from "../context/DataContext";
 import { confirmAction } from './ui/confirm';
+import { iconBtn, ICON_PX } from './ui/iconButton';
 
 const CalliopeModels = () => {
   const [exportedModels, setExportedModels] = useState([]);
@@ -211,9 +212,9 @@ const CalliopeModels = () => {
                         e.stopPropagation();
                         handleDeleteModel(model.id);
                       }}
-                      className="text-gray-700 hover:text-gray-900 p-1"
+                      className={`${iconBtn('delete', 'md')}`}
                     >
-                      <FiTrash2 size={16} />
+                      <FiTrash2 size={ICON_PX.md} />
                     </button>
                   </div>
                 </div>

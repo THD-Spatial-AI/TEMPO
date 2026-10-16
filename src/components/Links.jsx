@@ -9,6 +9,7 @@ import { LINK_TYPES, LINK_TYPES_BY_GROUP, getLinkTypeColor } from "../config/lin
 import { CARRIERS, getCarrierColor, getCarrierLabel } from "../config/carriers";
 import { confirmAction } from './ui/confirm';
 import SelectField from './ui/SelectField';
+import { iconBtn, ICON_PX } from './ui/iconButton';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -332,11 +333,11 @@ const Links = () => {
                           <td className="px-5 py-3 text-right font-mono text-xs text-slate-600">{link.capacity ?? '—'}</td>
                           <td className="px-5 py-3 text-right font-mono text-xs text-slate-600">{link.distance != null ? `${link.distance} km` : '—'}</td>
                           <td className="px-5 py-3">
-                            <div className="flex justify-end gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+                            <div className="flex justify-end gap-0.5">
                               <button onClick={() => startEdit(index)} title="Edit link"
-                                className="grid h-7 w-7 place-items-center rounded-md text-slate-400 transition-colors hover:bg-slate-200/70 hover:text-slate-900"><LuPencil size={14}/></button>
+                                className={`${iconBtn('edit', 'md')}`}><LuPencil size={ICON_PX.md}/></button>
                               <button onClick={() => deleteLink(index)} title="Delete link"
-                                className="grid h-7 w-7 place-items-center rounded-md text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"><LuTrash2 size={14}/></button>
+                                className={`${iconBtn('delete', 'md')}`}><LuTrash2 size={ICON_PX.md}/></button>
                             </div>
                           </td>
                         </>

@@ -13,6 +13,7 @@ import { importModelArchive } from '../services/engineClient';
 import { useCsvImportWizard } from '../hooks/useCsvImportWizard';
 import Select from './ui/Select';
 import { confirmAction } from './ui/confirm';
+import { iconBtn, ICON_PX } from './ui/iconButton';
 
 const Models = () => {
   const { models, setModels, currentModelId, loadModel, deleteModel, renameModel, createModel, setTimeSeries, setOverrides, setScenarios, showNotification } = useData();
@@ -1095,17 +1096,17 @@ const Models = () => {
                     onClick={() => openEditModal(model)}
                     aria-label="Edit model"
                     title="Edit model"
-                    className="grid h-9 w-9 place-items-center rounded-lg border border-black/15 bg-white text-slate-600 transition-colors hover:border-slate-400 hover:bg-slate-50 hover:text-slate-900"
+                    className={`${iconBtn('edit', 'md')}`}
                   >
-                    <FiEdit2 size={18} />
+                    <FiEdit2 size={ICON_PX.md} />
                   </button>
                   <button
                     onClick={() => handleDelete(model.id)}
                     aria-label="Delete model"
                     title="Delete model"
-                    className="grid h-9 w-9 place-items-center rounded-lg border border-black/15 bg-white text-slate-600 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                    className={`${iconBtn('delete', 'md')}`}
                   >
-                    <FiTrash2 size={18} />
+                    <FiTrash2 size={ICON_PX.md} />
                   </button>
                 </div>
               </div>
@@ -1214,17 +1215,17 @@ const Models = () => {
                               }`}>{ts.type || 'other'}</span>
                               <button
                                 onClick={() => { setRenamingTsId(ts.id); setRenamingTsName(ts.name || ts.fileName || ''); }}
-                                className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded"
+                                className={`${iconBtn('edit', 'md')}`}
                                 title="Rename"
                               >
-                                <FiEdit2 size={13} />
+                                <FiEdit2 size={ICON_PX.md} />
                               </button>
                               <button
                                 onClick={() => deleteTs(editingModelId, ts.id)}
-                                className="p-1 text-slate-400 hover:text-gray-600 hover:bg-gray-100 rounded"
+                                className={`${iconBtn('delete', 'md')}`}
                                 title="Delete"
                               >
-                                <FiTrash2 size={13} />
+                                <FiTrash2 size={ICON_PX.md} />
                               </button>
                             </>
                           )}

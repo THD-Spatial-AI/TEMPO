@@ -5,6 +5,7 @@ import { FiActivity, FiArrowRight, FiChevronDown, FiChevronRight, FiEdit2, FiLin
 import { formatTechName } from '../../utils/mapVisuals';
 import { confirmAction } from '../ui/confirm';
 import SelectField from '../ui/SelectField';
+import { iconBtn, ICON_PX } from '../ui/iconButton';
 
 export default function MapSidebarLists({
   handleDeleteLocation,
@@ -55,10 +56,10 @@ export default function MapSidebarLists({
                         showNotification('All locations and links deleted', 'success');
                       }
                     }}
-                    className="p-2 mr-2 rounded hover:bg-gray-100 text-slate-400 hover:text-gray-600 transition-colors"
+                    className={`${iconBtn('delete')} mr-2`}
                     title="Delete all locations"
                   >
-                    <FiTrash2 size={13} />
+                    <FiTrash2 size={ICON_PX.md} />
                   </button>
                 )}
               </div>
@@ -105,17 +106,17 @@ export default function MapSidebarLists({
                             <div className="flex items-center gap-0.5 shrink-0">
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleEditLocation(loc, idx); }}
-                                className="p-1 rounded hover:bg-gray-100 text-slate-400 hover:text-gray-600 transition-colors"
+                                className={`${iconBtn('edit', 'md')}`}
                                 title="Edit location"
                               >
-                                <FiEdit2 size={12} />
+                                <FiEdit2 size={ICON_PX.md} />
                               </button>
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleDeleteLocation(idx); }}
-                                className="p-1 rounded hover:bg-gray-100 text-slate-400 hover:text-gray-600 transition-colors"
+                                className={`${iconBtn('delete', 'md')}`}
                                 title="Delete location"
                               >
-                                <FiTrash2 size={12} />
+                                <FiTrash2 size={ICON_PX.md} />
                               </button>
                             </div>
                           </div>
@@ -147,10 +148,10 @@ export default function MapSidebarLists({
                         showNotification('All links deleted', 'success');
                       }
                     }}
-                    className="p-2 mr-2 rounded hover:bg-gray-100 text-slate-400 hover:text-gray-600 transition-colors"
+                    className={`${iconBtn('delete')} mr-2`}
                     title="Delete all links"
                   >
-                    <FiTrash2 size={13} />
+                    <FiTrash2 size={ICON_PX.md} />
                   </button>
                 )}
               </div>
@@ -184,10 +185,10 @@ export default function MapSidebarLists({
                                 setLinks(links.filter((_, i) => i !== idx));
                               }
                             }}
-                            className="p-1 rounded hover:bg-gray-100 text-slate-400 hover:text-gray-600 transition-colors shrink-0"
+                            className={iconBtn('delete')}
                             title="Delete link"
                           >
-                            <FiTrash2 size={12} />
+                            <FiTrash2 size={ICON_PX.md} />
                           </button>
                         </div>
                       </div>

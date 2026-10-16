@@ -18,6 +18,7 @@ import {
   SPORES_PLAN as ITALY_SPORES_PLAN, sporesCount,
 } from '../../services/scenarioStudio/presets/lombardi2020Italy.js';
 import SelectField from '../ui/SelectField';
+import { iconBtn, ICON_PX } from '../ui/iconButton';
 
 const COST_PARAM_OPTIONS = [
   { value: 'costs.monetary.energy_cap',  label: 'CAPEX (€/kW)' },
@@ -349,8 +350,8 @@ function OpRow({ op, index, onChange, onDelete }) {
           className="flex-1 h-8 rounded-lg border border-black/15 bg-white px-2 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200">
           {OP_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
         </SelectField>
-        <button onClick={() => onDelete(index)} className="p-1 text-red-400 hover:text-red-600 rounded transition-colors">
-          <FiTrash2 size={12} />
+        <button onClick={() => onDelete(index)} className={`${iconBtn('delete', 'sm')}`}>
+          <FiTrash2 size={ICON_PX.sm} />
         </button>
       </div>
 
@@ -874,8 +875,8 @@ function SensitivityCardConfig({ params, setParam }) {
               <button onClick={() => (editing === i ? setEditing(null) : startEdit(i))} className="text-[11px] text-electric-600 hover:underline">
                 {editing === i ? 'close' : 'ops'}
               </button>
-              <button onClick={() => update(cases.filter((_, j) => j !== i))} className="p-1 text-slate-300 hover:text-red-500">
-                <FiTrash2 size={12} />
+              <button onClick={() => update(cases.filter((_, j) => j !== i))} className={`${iconBtn('delete', 'sm')}`}>
+                <FiTrash2 size={ICON_PX.sm} />
               </button>
             </div>
             <p className="text-[10px] text-slate-500 mt-1 truncate">{summarizeOps(c.ops) || 'no changes (baseline)'}</p>

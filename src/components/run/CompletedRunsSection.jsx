@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { FiActivity, FiAlertTriangle, FiBarChart2, FiCheckCircle, FiClock, FiCpu, FiDownload, FiList, FiSearch, FiTerminal, FiTrash2, FiX, FiZap } from '../ui/icons';
 import { confirmAction } from '../ui/confirm';
 import SelectField from '../ui/SelectField';
+import { iconBtn, ICON_PX } from '../ui/iconButton';
 
 export default function CompletedRunsSection({
   onNavigate,
@@ -247,9 +248,9 @@ export default function CompletedRunsSection({
                         <button
                           onClick={() => removeCompletedJob(job.id)}
                           title="Delete run"
-                          className="p-1.5 text-slate-300 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                          className={`${iconBtn('delete', 'md')}`}
                         >
-                          <FiTrash2 size={14} />
+                          <FiTrash2 size={ICON_PX.md} />
                         </button>
                       </div>
                     </div>

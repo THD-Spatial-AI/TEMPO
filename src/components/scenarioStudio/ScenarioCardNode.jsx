@@ -13,6 +13,7 @@ import { CATEGORY_BY_ID } from '../../services/scenarioStudio/scenario.js';
 import { summarizeOps } from '../../services/scenarioStudio/recipeParams.js';
 import { sporesCount } from '../../services/scenarioStudio/presets/lombardi2020Italy.js';
 import { BoardCtx } from './boardContext.js';
+import { iconBtn, ICON_PX } from '../ui/iconButton';
 
 const GROUP_LABEL = { all: 'all supply', renewable: 'renewables', nonRenewable: 'non-renewables', emitting: 'emitting techs' };
 const groupLabel = (g) => GROUP_LABEL[g] || (typeof g === 'string' && g.startsWith('parent:') ? g.slice(7) : g);
@@ -89,10 +90,10 @@ function ScenarioCardNodeImpl({ id, data, selected }) {
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); ctx.onDeleteNode?.(id); }}
-            className="nodrag grid h-6 w-6 place-items-center rounded-md text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+            className={`${iconBtn('delete', 'sm')} nodrag`}
             title="Remove card"
           >
-            <FiTrash2 size={12} />
+            <FiTrash2 size={ICON_PX.sm} />
           </button>
         </div>
       </div>

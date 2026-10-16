@@ -15,6 +15,7 @@ import { FiCalendar, FiTrash2, FiCopy, FiPlus } from '../ui/icons';
 import { BoardCtx } from './boardContext.js';
 import CategoryTile from './categoryIcon.jsx';
 import { CARD_CATEGORIES } from '../../services/scenarioStudio/scenario.js';
+import { iconBtn, ICON_PX } from '../ui/iconButton';
 
 // Categories that make sense nested in a year (recipe trajectories are global-only).
 const YEAR_CATEGORIES = CARD_CATEGORIES.filter(c => c.lanes.includes('year'));
@@ -74,10 +75,10 @@ function YearNodeImpl({ id, data, selected }) {
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); ctx.onDeleteNode?.(id); }}
-            className="nodrag grid h-6 w-6 place-items-center rounded-md text-slate-400 opacity-0 transition-all hover:bg-red-50 hover:text-red-600 group-hover:opacity-100"
+            className={`${iconBtn('delete', 'sm')} nodrag opacity-0 group-hover:opacity-100`}
             title="Remove year"
           >
-            <FiTrash2 size={11} />
+            <FiTrash2 size={ICON_PX.sm} />
           </button>
         </div>
       </div>

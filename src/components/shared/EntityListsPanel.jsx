@@ -3,6 +3,7 @@
 // only — all data and handlers are passed as props. The optional `onSave` and
 // `setCurrentLinkType` props enable the Creation-only extras (Save button, new-
 // link-type picker); when omitted, the panel renders the same lists without them.
+import { iconBtn, ICON_PX } from '../ui/iconButton';
 import { FiArrowRight, FiChevronDown, FiEdit2, FiLink, FiMapPin, FiSave, FiTrash2 } from '../ui/icons';
 import { LINK_TYPES, LINK_TYPES_BY_GROUP, getLinkTypeColor } from '../../config/linkTypes';
 import { getCarrierColor } from '../../config/carriers';
@@ -40,12 +41,12 @@ export default function EntityListsPanel({
         >
           {onSave && (
             <IconButton onClick={onSave} title="Save model" disabled={locations.length === 0}>
-              <FiSave size={16} />
+              <FiSave size={ICON_PX.md} />
             </IconButton>
           )}
           {onClearLocations && (
             <IconButton onClick={onClearLocations} title="Clear all" danger disabled={locations.length === 0}>
-              <FiTrash2 size={16} />
+              <FiTrash2 size={ICON_PX.md} />
             </IconButton>
           )}
         </SectionHeader>
@@ -82,12 +83,12 @@ export default function EntityListsPanel({
                       <div className="flex shrink-0 gap-0.5">
                         {onEditLocation && (
                           <IconButton onClick={(e) => { e.stopPropagation(); onEditLocation(loc, index); }} title="Edit location">
-                            <FiEdit2 size={16} />
+                            <FiEdit2 size={ICON_PX.md} />
                           </IconButton>
                         )}
                         {onDeleteLocation && (
                           <IconButton onClick={(e) => { e.stopPropagation(); onDeleteLocation(loc, index); }} title="Delete location" danger>
-                            <FiTrash2 size={16} />
+                            <FiTrash2 size={ICON_PX.md} />
                           </IconButton>
                         )}
                       </div>
@@ -119,7 +120,7 @@ export default function EntityListsPanel({
         >
           {onClearLinks && (
             <IconButton onClick={onClearLinks} title="Clear all links" danger disabled={links.length === 0}>
-              <FiTrash2 size={16} />
+              <FiTrash2 size={ICON_PX.md} />
             </IconButton>
           )}
         </SectionHeader>
@@ -164,7 +165,7 @@ export default function EntityListsPanel({
                       {onDeleteLink && (
                         <span className="shrink-0">
                           <IconButton onClick={(e) => { e.stopPropagation(); onDeleteLink(link, linkIndex); }} title="Delete link" danger>
-                            <FiTrash2 size={16} />
+                            <FiTrash2 size={ICON_PX.md} />
                           </IconButton>
                         </span>
                       )}
@@ -225,9 +226,7 @@ function IconButton({ onClick, title, danger = false, disabled = false, children
       title={title}
       aria-label={title}
       disabled={disabled}
-      className={`grid h-[30px] w-[30px] place-items-center rounded-md text-slate-500 transition-colors disabled:pointer-events-none disabled:opacity-40 ${
-        danger ? 'hover:bg-red-50 hover:text-red-600' : 'hover:bg-slate-200/70 hover:text-slate-900'
-      }`}
+      className={iconBtn(danger ? 'delete' : 'edit')}
     >
       {children}
     </button>

@@ -5,6 +5,7 @@
 import { CONSTRAINT_DEFINITIONS, COST_DEFINITIONS, PARENT_CONSTRAINTS } from '../../utils/constraintDefinitions';
 import { FiArrowRight, FiCheck, FiChevronDown, FiChevronRight, FiHelpCircle, FiTrash2, FiX } from '../ui/icons';
 import { formatTechName } from '../../utils/mapVisuals';
+import { iconBtn, ICON_PX } from '../ui/iconButton';
 
 export default function MapLocationEditDialog({
   addTechToDialog,
@@ -116,10 +117,10 @@ export default function MapLocationEditDialog({
                             </button>
                             <button
                               onClick={() => removeTechFromDialog(techName)}
-                              className="text-gray-500 hover:text-gray-700 p-2 bg-white rounded-md hover:bg-gray-50"
+                              className={`${iconBtn('delete', 'md')}`}
                               title="Remove technology"
                             >
-                              <FiTrash2 size={16} />
+                              <FiTrash2 size={ICON_PX.md} />
                             </button>
                           </div>
                         </div>

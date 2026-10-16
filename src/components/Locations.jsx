@@ -9,6 +9,7 @@ import { TECH_TEMPLATES, useLiveTechTemplates } from "./TechnologiesData";
 import { CONSTRAINT_DEFINITIONS, COST_DEFINITIONS, PARENT_CONSTRAINTS } from '../utils/constraintDefinitions';
 import { confirmAction } from './ui/confirm';
 import SelectField from './ui/SelectField';
+import { iconBtn, ICON_PX } from './ui/iconButton';
 
 
 
@@ -637,20 +638,20 @@ const Locations = () => {
                         </button>
                       </>
                     ) : (
-                      <span className="flex gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+                      <span className="flex gap-0.5">
                         <button
                           onClick={() => startEdit(originalIndex)}
-                          className="grid h-7 w-7 place-items-center rounded-md text-slate-400 transition-colors hover:bg-slate-200/70 hover:text-slate-900"
+                          className={`${iconBtn('edit', 'md')}`}
                           title="Edit location"
                         >
-                          <LuPencil size={14} />
+                          <LuPencil size={ICON_PX.md} />
                         </button>
                         <button
                           onClick={() => deleteLocation(originalIndex)}
-                          className="grid h-7 w-7 place-items-center rounded-md text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                          className={`${iconBtn('delete', 'md')}`}
                           title="Delete location"
                         >
-                          <LuTrash2 size={14} />
+                          <LuTrash2 size={ICON_PX.md} />
                         </button>
                       </span>
                     )}
@@ -697,16 +698,16 @@ const Locations = () => {
                                   {!isEditing && (
                                     <button
                                       onClick={() => startEditTech(originalIndex, techName)}
-                                      className="p-1 text-gray-600 hover:bg-gray-100 rounded"
+                                      className={`${iconBtn('edit', 'md')}`}
                                     >
-                                      <LuPencil size={14} />
+                                      <LuPencil size={ICON_PX.md} />
                                     </button>
                                   )}
                                   <button
                                     onClick={() => removeTechnology(originalIndex, techName)}
-                                    className="p-1 text-gray-600 hover:bg-gray-100 rounded"
+                                    className={`${iconBtn('delete', 'md')}`}
                                   >
-                                    <LuTrash2 size={14} />
+                                    <LuTrash2 size={ICON_PX.md} />
                                   </button>
                                 </div>
                               </div>
