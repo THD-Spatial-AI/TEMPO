@@ -7,6 +7,7 @@ import UpdateNotifier from './UpdateNotifier';
 import { startTour, tourForView } from './tour/tour';
 import WhatsNewDialog from "./WhatsNewDialog";
 import { useData } from "../context/DataContext";
+import { usePinnedModels, sortPinnedFirst } from "../services/pinnedModels";
 import { useReleases } from "../services/releases";
 import { motion, AnimatePresence } from "framer-motion";
 import tempoLogo from '../assets/Logo_TEMPO.PNG';
@@ -319,6 +320,7 @@ const hasTitleBar = () => typeof window.electronAPI?.window?.state === 'function
 
 const ActiveModelCard = ({ open, setSelected }) => {
   const { models, currentModelId, loadModel } = useData();
+  const pins = usePinnedModels();
   const model = models.find((m) => m.id === currentModelId);
   const [menu, setMenu] = useState(null);
   const btnRef = React.useRef(null);
@@ -377,7 +379,7 @@ const ActiveModelCard = ({ open, setSelected }) => {
           <div className="px-3 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Switch model</div>
           <div className="max-h-72 overflow-y-auto">
             {models.length === 0 && <div className="px-3 py-2 text-[12px] text-slate-400">No models yet</div>}
-            {models.map((m) => {
+            {sortPinnedFirst(models, pins).map((m) => {
               const active = m.id === currentModelId;
               return (
                 <button key={m.id} role="option" aria-selected={active} onClick={() => pick(m.id)}
@@ -386,7 +388,10 @@ const ActiveModelCard = ({ open, setSelected }) => {
                     <LuBoxes size={14} />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className={`block truncate text-[13px] ${active ? 'font-semibold text-slate-900' : 'text-slate-700'}`} title={m.name}>{m.name}</span>
+                    <span className={`flex items-center gap-1 truncate text-[13px] ${active ? 'font-semibold text-slate-900' : 'text-slate-700'}`} title={m.name}>
+                      {pins.has(m.id) && <span className="material-symbols-outlined shrink-0 text-[13px] text-slate-500" style={{ fontVariationSettings: "'FILL' 1" }} aria-label="Pinned">keep</span>}
+                      <span className="truncate">{m.name}</span>
+                    </span>
                     <span className="block text-[11px] text-slate-400">{(m.locations || []).length} locations · {(m.links || []).length} links</span>
                   </span>
                   {active && <span className="material-symbols-outlined shrink-0 text-[16px] text-slate-900">check</span>}

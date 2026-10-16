@@ -13,6 +13,8 @@ import { importModelArchive } from '../services/engineClient';
 import { useCsvImportWizard } from '../hooks/useCsvImportWizard';
 import Select from './ui/Select';
 import { confirmAction } from './ui/confirm';
+import { usePinnedModels, togglePinnedModel, sortPinnedFirst } from '../services/pinnedModels';
+import { LuPin } from './ui/icons';
 import { iconBtn, ICON_PX } from './ui/iconButton';
 
 const Models = () => {
@@ -747,11 +749,12 @@ const Models = () => {
     }
   };
 
-  const filteredModels = models.filter(m => {
+  const pinnedIds = usePinnedModels();
+  const filteredModels = sortPinnedFirst(models.filter(m => {
     const matchesSearch = !searchQuery || m.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesType = filterType === 'all' || (m.modelType || m.metadata?.modelType || 'calliope') === filterType;
     return matchesSearch && matchesType;
-  });
+  }), pinnedIds);
   const allSelected = filteredModels.length > 0 && filteredModels.every(m => selectedIds.has(m.id));
   const someSelected = selectedIds.size > 0;
 
@@ -971,33 +974,28 @@ const Models = () => {
                 ]}
               />
             </div>
-          </div>
-        )}
-
-        {someSelected && (
-          <div className="mb-4 flex items-center gap-2 rounded-xl bg-black px-4 py-2.5 text-sm text-white shadow-lg shadow-slate-900/20">
-            <span className="flex-1 font-medium">{selectedIds.size} selected</span>
-            <button
-              onClick={handleBulkExport}
-              className="px-3 py-1 bg-white/10 hover:bg-white/20 rounded text-xs font-medium flex items-center gap-1.5 transition-colors"
-            >
-              <FiDownload size={13} />
-              Export
-            </button>
-            <button
-              onClick={handleBulkDelete}
-              className="px-3 py-1 bg-red-500/70 hover:bg-red-500 rounded text-xs font-medium flex items-center gap-1.5 transition-colors"
-            >
-              <FiTrash2 size={13} />
-              Delete
-            </button>
-            <button
-              onClick={() => setSelectedIds(new Set())}
-              className="p-1 hover:bg-white/10 rounded transition-colors"
-              title="Clear selection"
-            >
-              <FiX size={15} />
-            </button>
+            {someSelected && (
+              <div className="tempo-tour-card flex h-10 items-center gap-1.5 rounded-full border border-black/15 bg-white pl-1.5 pr-1.5 shadow-sm" role="toolbar" aria-label="Selected models">
+                <span className="flex h-7 min-w-7 items-center justify-center rounded-full bg-slate-900 px-2 text-xs font-semibold tabular-nums text-white">
+                  {selectedIds.size}
+                </span>
+                <span className="pr-1 text-xs font-medium text-slate-500">selected</span>
+                <span className="h-5 w-px bg-black/10" aria-hidden="true" />
+                <button onClick={handleBulkExport} title={`Export ${selectedIds.size} selected`} aria-label="Export selected"
+                  className="grid h-8 w-8 place-items-center rounded-full text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900">
+                  <FiDownload size={17} />
+                </button>
+                <button onClick={handleBulkDelete} title={`Delete ${selectedIds.size} selected`} aria-label="Delete selected"
+                  className="grid h-8 w-8 place-items-center rounded-full text-red-600 transition-colors hover:bg-red-50">
+                  <FiTrash2 size={17} />
+                </button>
+                <span className="h-5 w-px bg-black/10" aria-hidden="true" />
+                <button onClick={() => setSelectedIds(new Set())} title="Clear selection" aria-label="Clear selection"
+                  className="grid h-8 w-8 place-items-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700">
+                  <FiX size={16} />
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -1034,6 +1032,7 @@ const Models = () => {
             <div className="divide-y divide-black/10">
             {filteredModels.map((model) => {
               const active = currentModelId === model.id;
+              const pinned = pinnedIds.has(model.id);
               const selected = selectedIds.has(model.id);
               const stats = [
                 [model.locations?.length || 0, 'locations'],
@@ -1062,6 +1061,11 @@ const Models = () => {
                 <div className="min-w-0 flex-1">
                   <div className="mb-1 flex flex-wrap items-center gap-2">
                     <span className="truncate text-sm font-semibold text-slate-900">{model.name}</span>
+                    {pinned && (
+                      <span className="inline-flex items-center gap-1 bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-700">
+                        <LuPin size={12} style={{ fontVariationSettings: "'FILL' 1" }} /> Pinned
+                      </span>
+                    )}
                     {active && (
                       <span className="inline-flex items-center gap-1 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
                         <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Active
@@ -1084,14 +1088,26 @@ const Models = () => {
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  {!active && (
+                  {active ? (
+                    <span className="h-8 w-[60px]" aria-hidden="true" />
+                  ) : (
                     <button
                       onClick={() => loadModel(model.id)}
-                      className="h-9 rounded-lg bg-black px-4 text-sm font-semibold text-white transition-colors hover:bg-black/80"
+                      title="Make this the active model"
+                      className="h-8 w-[60px] border border-black/15 bg-white text-[13px] font-semibold text-slate-800 transition-colors hover:border-slate-900 hover:bg-slate-900 hover:text-white"
                     >
                       Load
                     </button>
                   )}
+                  <button
+                    onClick={() => togglePinnedModel(model.id)}
+                    aria-label={pinned ? 'Unpin model' : 'Pin model to top'}
+                    title={pinned ? 'Unpin model' : 'Pin to top'}
+                    aria-pressed={pinned}
+                    className={`${iconBtn('edit')} ${pinned ? 'text-slate-900' : ''}`}
+                  >
+                    {pinned ? <LuPin size={ICON_PX.md} style={{ fontVariationSettings: "'FILL' 1" }} /> : <LuPin size={ICON_PX.md} />}
+                  </button>
                   <button
                     onClick={() => openEditModal(model)}
                     aria-label="Edit model"
