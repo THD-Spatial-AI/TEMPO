@@ -439,20 +439,14 @@ const Locations = () => {
 
   return (
     <div className="flex-1 flex flex-col bg-gray-50 min-h-0">
-      <SaveBar label="Locations" />
       <div className="flex-1 overflow-y-auto">
       <div className="w-full px-8 py-8">
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black tracking-tighter text-black">Locations</h1>
-          <p className="mt-1 text-[15px] text-slate-500">Manage energy system nodes and locations</p>
+          <h1 className="text-2xl font-bold text-slate-900">Locations</h1>
+          <p className="mt-1 text-sm text-slate-500">Nodes of the energy system and the technologies at each one.</p>
         </div>
-        {currentModel && (
-          <span className="inline-flex items-center gap-2 border border-black/15 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 ">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-            {currentModel.name}
-          </span>
-        )}
+        <SaveBar label="Locations" inline />
       </div>
 
       {locations.length > 0 && (

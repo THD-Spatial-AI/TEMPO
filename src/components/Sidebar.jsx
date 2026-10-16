@@ -318,32 +318,92 @@ const DropdownSection = ({ Icon, title, open, setOpen, isExpanded, setIsExpanded
 const hasTitleBar = () => typeof window.electronAPI?.window?.state === 'function';
 
 const ActiveModelCard = ({ open, setSelected }) => {
-  const { models, currentModelId } = useData();
+  const { models, currentModelId, loadModel } = useData();
   const model = models.find((m) => m.id === currentModelId);
-  const { tooltip, handlers } = useCollapsedTooltip(model ? `Active model: ${model.name}` : 'No model loaded', !open);
+  const [menu, setMenu] = useState(null);
+  const btnRef = React.useRef(null);
+  const menuRef = React.useRef(null);
+  const { tooltip, handlers } = useCollapsedTooltip(model ? `Active model: ${model.name}` : 'No model loaded', !open && !menu);
+
+  useEffect(() => {
+    if (!menu) return undefined;
+    const onDown = (e) => { if (!btnRef.current?.contains(e.target) && !menuRef.current?.contains(e.target)) setMenu(null); };
+    const onKey = (e) => { if (e.key === 'Escape') setMenu(null); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
+  }, [menu]);
+
+  const toggle = () => {
+    if (menu) { setMenu(null); return; }
+    const r = btnRef.current.getBoundingClientRect();
+    setMenu(open ? { left: r.left, top: r.bottom + 6, width: r.width } : { left: r.right + 10, top: r.top, width: 260 });
+  };
+  const pick = (id) => { setMenu(null); if (id !== currentModelId) loadModel(id); };
+
   return (
     <div className="mb-3 border-b border-black/15 pb-3">
       <button
-        onClick={() => setSelected('Models')}
+        ref={btnRef}
+        onClick={toggle}
         {...handlers}
-        className="flex w-full items-center gap-2.5 border border-black/10 bg-slate-50/80 py-2 pl-2 pr-2.5 text-left transition-colors hover:border-black/20 hover:bg-white"
+        aria-haspopup="listbox"
+        aria-expanded={!!menu}
+        className={`flex w-full items-center gap-2.5 border py-2 pl-2 pr-2 text-left transition-colors ${menu ? 'border-black/25 bg-white' : 'border-black/10 bg-slate-50/80 hover:border-black/20 hover:bg-white'}`}
       >
         <span className={`grid h-8 w-8 shrink-0 place-items-center ${model ? 'bg-black text-white' : 'bg-slate-200 text-slate-500'}`}>
           <LuBoxes size={16} />
         </span>
         {open && (
-          <span className="min-w-0 flex-1">
-            <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Active model</span>
-            <span className="block truncate text-[13px] font-semibold text-slate-900">{model ? model.name : 'No model loaded'}</span>
-            {model && (
-              <span className="block text-[11px] text-slate-500">
-                {(model.locations || []).length} locations · {(model.links || []).length} links
-              </span>
-            )}
-          </span>
+          <>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Active model</span>
+              <span className="block truncate text-[13px] font-semibold text-slate-900">{model ? model.name : 'Select a model'}</span>
+              {model && (
+                <span className="block text-[11px] text-slate-500">
+                  {(model.locations || []).length} locations · {(model.links || []).length} links
+                </span>
+              )}
+            </span>
+            <FiChevronDown size={15} className={`shrink-0 text-slate-400 transition-transform ${menu ? 'rotate-180' : ''}`} />
+          </>
         )}
       </button>
       {tooltip}
+      {menu && createPortal(
+        <div ref={menuRef} role="listbox" aria-label="Switch model"
+          className="tempo-tour-card fixed z-[10150] border border-black/15 bg-white py-1.5 shadow-xl shadow-slate-900/10"
+          style={{ left: menu.left, top: menu.top, width: Math.max(menu.width, 240) }}>
+          <div className="px-3 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Switch model</div>
+          <div className="max-h-72 overflow-y-auto">
+            {models.length === 0 && <div className="px-3 py-2 text-[12px] text-slate-400">No models yet</div>}
+            {models.map((m) => {
+              const active = m.id === currentModelId;
+              return (
+                <button key={m.id} role="option" aria-selected={active} onClick={() => pick(m.id)}
+                  className={`flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors ${active ? 'bg-slate-50' : 'hover:bg-slate-50'}`}>
+                  <span className={`grid h-7 w-7 shrink-0 place-items-center ${active ? 'bg-black text-white' : 'bg-slate-100 text-slate-500'}`}>
+                    <LuBoxes size={14} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className={`block truncate text-[13px] ${active ? 'font-semibold text-slate-900' : 'text-slate-700'}`} title={m.name}>{m.name}</span>
+                    <span className="block text-[11px] text-slate-400">{(m.locations || []).length} locations · {(m.links || []).length} links</span>
+                  </span>
+                  {active && <span className="material-symbols-outlined shrink-0 text-[16px] text-slate-900">check</span>}
+                </button>
+              );
+            })}
+          </div>
+          <div className="mt-1 border-t border-black/10 pt-1">
+            <button onClick={() => { setMenu(null); setSelected('Models'); }}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900">
+              <span className="material-symbols-outlined text-[16px]">settings</span>
+              Manage models…
+            </button>
+          </div>
+        </div>,
+        document.body,
+      )}
     </div>
   );
 };

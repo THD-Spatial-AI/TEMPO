@@ -74,7 +74,7 @@ const VIEW_TOURS = {
   ],
   Models: [
     { title: 'Your models', text: 'Create, import, load and manage energy system models.' },
-    { target: section(/^Create New Model$/), title: 'Create or import', text: 'Start from scratch on the map, or import an existing model (Calliope YAML today, more formats soon).' },
+    { target: section(/^Import a model$/), title: 'Import a model', text: 'Import existing model files: Calliope today, more formats soon. To build a new model from scratch, use Creation.' },
     { target: section(/^Your Models/), title: 'Saved models', text: 'Models stored on this device. Load one to make it active, edit its details, or delete it. Tick several for bulk actions.' },
     { target: section(/^Template Models/), title: 'Templates', text: 'Ready-made example systems (Germany, Europe, Chile) to explore or use as a starting point.' },
   ],

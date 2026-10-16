@@ -798,9 +798,9 @@ const Models = () => {
   return (
     <div className="flex-1 p-8 bg-gray-50 overflow-y-auto">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-slate-800 mb-2">Energy System Models</h1>
-        <p className="text-slate-600">TEMPO translates between model formats — import, manage and run your energy system models.</p>
+      <div className="mb-5">
+        <h1 className="text-2xl font-bold text-slate-900">Models</h1>
+        <p className="mt-1 text-sm text-slate-500">Import, manage and switch between your energy system models.</p>
       </div>
 
       {/* Calliope YAML Importer panel */}
@@ -820,8 +820,8 @@ const Models = () => {
       {/* Create New Model — model type cards */}
       <div className="mb-8">
         <div className="mb-4">
-          <h2 className="text-2xl font-semibold text-slate-800">Create New Model</h2>
-          <p className="text-sm text-slate-500 mt-1">Select a model format to import. TEMPO can translate between formats.</p>
+          <h2 className="text-lg font-semibold text-slate-900">Import a model</h2>
+          <p className="mt-0.5 text-sm text-slate-500">Choose the format of your model files.</p>
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {MODEL_TYPES.map((mt) => (

@@ -13,7 +13,7 @@ import { FiCheck, FiAlertCircle } from './icons';
 import { LuSave, LuRefreshCw } from './icons';
 import { useData } from '../../context/DataContext';
 
-const SaveBar = ({ label = 'Model' }) => {
+const SaveBar = ({ label = 'Model', inline = false }) => {
   const { isDirty, saveNow, getCurrentModel, showNotification } = useData();
   const [saving, setSaving]     = useState(false);
   const [justSaved, setJustSaved] = useState(false);
@@ -39,6 +39,39 @@ const SaveBar = ({ label = 'Model' }) => {
 
   /* ── colour theme ── */
   const dirty = isDirty && !saving;
+  const savedAt = currentModel?.updatedAt ? new Date(currentModel.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null;
+
+  // Compact variant for page headers: status + Save button, no full-width strip.
+  if (inline) {
+    return (
+      <div className="flex items-center gap-3">
+        <span className="flex items-center gap-2 text-xs text-slate-500">
+          {dirty ? (
+            <span className="relative flex h-2 w-2 shrink-0">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500" />
+            </span>
+          ) : (
+            <FiCheck size={13} className={justSaved ? 'text-emerald-600' : 'text-slate-400'} />
+          )}
+          <span className={dirty ? 'font-medium text-slate-800' : ''}>
+            {dirty ? 'Unsaved changes' : justSaved ? 'Saved' : savedAt ? `Saved ${savedAt}` : 'All changes saved'}
+          </span>
+        </span>
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          title="Save model now (Ctrl+S)"
+          className={`inline-flex h-9 shrink-0 items-center gap-2 px-4 text-[13px] font-semibold transition-colors disabled:opacity-60 ${
+            dirty ? 'bg-black text-white hover:bg-black/80' : 'border border-black/15 bg-white text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          {saving ? <LuRefreshCw size={15} className="animate-spin" /> : <LuSave size={15} />}
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+      </div>
+    );
+  }
   const bg    = dirty ? 'bg-gray-50 border-black/15' : 'bg-slate-50 border-black/15';
   const text  = dirty ? 'text-gray-800' : 'text-slate-500';
 

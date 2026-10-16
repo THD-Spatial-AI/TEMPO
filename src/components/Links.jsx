@@ -54,8 +54,7 @@ function LinkTypeSelect({ value, onChange, className = '' }) {
 }
 
 const Links = () => {
-  const { links, setLinks, locations, getCurrentModel } = useData();
-  const currentModel = getCurrentModel();
+  const { links, setLinks, locations } = useData();
 
   const [editingIndex, setEditingIndex] = useState(null);
   const [editData, setEditData]         = useState({});
@@ -167,24 +166,15 @@ const Links = () => {
 
   return (
     <div className="flex-1 flex flex-col bg-gray-50 min-h-0">
-      <SaveBar label="Links" />
       <div className="flex-1 overflow-y-auto">
       <div className="w-full px-8 py-8">
       {/* Header */}
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black tracking-tighter text-black">Links</h1>
-          <p className="mt-1 max-w-2xl text-[15px] text-slate-500">
-            Manage connections between locations. Each link carries an energy carrier
-            (electricity, heat, hydrogen, gas, CO₂ …).
-          </p>
+          <h1 className="text-2xl font-bold text-slate-900">Links</h1>
+          <p className="mt-1 text-sm text-slate-500">Connections between locations, each carrying an energy carrier such as electricity, heat, hydrogen or gas.</p>
         </div>
-        {currentModel && (
-          <span className="inline-flex items-center gap-2 border border-black/15 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 ">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-            {currentModel.name}
-          </span>
-        )}
+        <SaveBar label="Links" inline />
       </div>
 
       {links.length > 0 && (
