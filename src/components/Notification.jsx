@@ -4,14 +4,15 @@ import { useEffect } from "react";
 
 const NOTIFICATION_TTL = 5000;
 
-const Notification = ({ text, id, removeNotif, type = "info" }) => {
+const Notification = ({ text, id, removeNotif, type = "info", action = null }) => {
+  const ttl = action ? NOTIFICATION_TTL * 2 : NOTIFICATION_TTL;
   useEffect(() => {
     const timeoutRef = setTimeout(() => {
       removeNotif();
-    }, NOTIFICATION_TTL);
+    }, ttl);
 
     return () => clearTimeout(timeoutRef);
-  }, [removeNotif]);
+  }, [removeNotif, ttl]);
 
   const TYPES = {
     success: { icon: FiCheckCircle, label: 'Success', tint: 'bg-emerald-400/15 text-emerald-300', bar: 'bg-emerald-400' },
@@ -40,6 +41,14 @@ const Notification = ({ text, id, removeNotif, type = "info" }) => {
         <div className="min-w-0 flex-1 pt-0.5">
           <div className="text-[11px] font-semibold uppercase tracking-wider text-white/50">{style.label}</div>
           <div className="mt-0.5 text-sm font-medium leading-snug text-white">{text}</div>
+          {action && (
+            <button
+              onClick={() => { removeNotif(id); action.onClick(); }}
+              className="mt-2.5 h-8 bg-white px-3 text-[13px] font-semibold text-slate-900 transition-colors hover:bg-slate-200"
+            >
+              {action.label}
+            </button>
+          )}
         </div>
         <button onClick={() => removeNotif(id)} aria-label="Dismiss notification"
           className="grid h-7 w-7 shrink-0 place-items-center text-white/50 transition-colors hover:bg-white/10 hover:text-white">
@@ -50,7 +59,7 @@ const Notification = ({ text, id, removeNotif, type = "info" }) => {
         className={`h-0.5 origin-left ${style.bar}`}
         initial={{ scaleX: 1 }}
         animate={{ scaleX: 0 }}
-        transition={{ duration: NOTIFICATION_TTL / 1000, ease: 'linear' }}
+        transition={{ duration: ttl / 1000, ease: 'linear' }}
       />
     </motion.div>
   );

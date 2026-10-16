@@ -228,8 +228,9 @@ export const DataProvider = ({ children }) => {
     studyArea, backendAvailable,
   };
 
-  const showNotification = (text, type = 'info') => {
-    setNotification({ id: Date.now(), text, type });
+  // optional toast button
+  const showNotification = (text, type = 'info', action = null) => {
+    setNotification({ id: Date.now(), text, type, action });
   };
   const removeNotif = () => setNotification(null);
 
@@ -774,6 +775,7 @@ export const DataProvider = ({ children }) => {
             id={notification.id}
             text={notification.text}
             type={notification.type}
+            action={notification.action}
             removeNotif={removeNotif}
           />
         )}
