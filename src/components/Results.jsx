@@ -704,7 +704,7 @@ const Results = ({ onNavigate }) => {
               <FiAlertTriangle className="text-gray-500 flex-shrink-0" size={24} />
               <div>
                 <h2 className="text-xl font-bold text-slate-800 mb-1">{selectedJob.modelName} — Failed</h2>
-                <p className="text-sm text-gray-700">{result?.error || 'Unknown error'}</p>
+                <p className="text-sm text-gray-700 whitespace-pre-line">{result?.error || 'Unknown error'}</p>
               </div>
             </div>
             {selectedJob.logs?.length > 0 && (
@@ -716,6 +716,20 @@ const Results = ({ onNavigate }) => {
         )}
         {!compareMode && selectedJob && selectedJob.status !== 'failed' && (
           <div className="space-y-4">
+
+            {/* ── Translation limitations: features this engine could not carry over ── */}
+            {result?.limitations?.length > 0 && (
+              <details className="bg-white rounded-2xl border border-black/15 px-4 py-3 text-sm text-gray-700">
+                <summary className="cursor-pointer flex items-center gap-2 font-medium text-slate-800">
+                  <FiAlertTriangle size={14} className="text-gray-500" />
+                  {result.limitations.length} translation limitation{result.limitations.length > 1 ? 's' : ''} —
+                  results may differ from the original Calliope model
+                </summary>
+                <ul className="mt-2 space-y-1 list-disc pl-6">
+                  {result.limitations.map((w, i) => <li key={i}>{w.message}</li>)}
+                </ul>
+              </details>
+            )}
 
             {/* ── Tabs + filter button ── */}
             <div className="flex items-center gap-2 flex-wrap">

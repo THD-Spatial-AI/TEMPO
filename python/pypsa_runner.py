@@ -21,6 +21,7 @@ from __future__ import annotations
 import logging
 import threading
 
+import engine_diagnostics as diag
 import pypsa_translate as translate
 
 _thread_local = threading.local()
@@ -285,17 +286,11 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
     model_name = model_data.get('name', 'Model')
     model_config = model_data.get('modelConfig') or {}
 
-    mode = model_config.get('mode') or 'plan'
-    if mode != 'plan':
-        raise RuntimeError(
-            f"Mode '{mode}' is not supported on the PyPSA engine — only 'plan' "
-            "(capacity expansion). Run this model on the Calliope 0.6.8 engine."
-        )
-    if model_data.get('scenario') or model_data.get('override'):
-        raise RuntimeError(
-            "Scenario/override runs are not applied on the PyPSA engine yet. "
-            "Run the base model, or use the Calliope engine for scenario runs."
-        )
+    # Pre-run assessment: blocking problems raise a readable ModelValidationError; what this
+    # translation cannot carry over is logged and returned with the results.
+    assessment = diag.raise_if_blocked(model_data, 'pypsa')
+    for line in diag.assessment_lines(assessment):
+        log(f"  {line}")
 
     requested_solver = model_data.get('solver') or 'highs'
     if requested_solver != 'highs':
@@ -322,6 +317,12 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
         res = n.optimize(solver_name=solver, extra_functionality=_tie_links(spec))
         if isinstance(res, tuple) and len(res) == 2:
             status, condition = str(res[0]), str(res[1])
+    except Exception as exc:
+        info = diag.explain_exception('pypsa', exc, model_data)
+        if info is None:
+            raise
+        return diag.failure_result('pypsa', model_name, solver, info['termination'], model_data,
+                                   report + diag.assessment_lines(assessment), info['detail'], info['kind'])
     finally:
         for lg in loggers:
             lg.removeHandler(handler)
@@ -331,15 +332,13 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
     log(f"Solver finished: status={status}, condition={condition}")
 
     if termination != 'optimal':
-        return {
-            'model_name': model_name,
-            'solver': solver,
-            'success': False,
-            'termination_condition': termination,
-        }
+        return diag.failure_result('pypsa', model_name, solver, termination, model_data,
+                                   report + diag.assessment_lines(assessment))
 
     results = _extract_results(
         n, spec, model_data.get('technologies') or [],
         model_name, solver, termination)
-    results['translation_report'] = report
+    results['translation_report'] = report + diag.assessment_lines(assessment)
+    results['limitations'] = assessment['warnings']
+    results['fidelity'] = assessment['fidelity']
     return results

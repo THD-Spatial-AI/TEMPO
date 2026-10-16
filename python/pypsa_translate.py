@@ -52,7 +52,6 @@ from engine_common import (  # noqa: F401  (convert_value re-exported for caller
     resource_to_cf,
     qualify_file_ref,
     resource_scale,
-    runconfig_notes,
 )
 
 UNMET_DEMAND_COST = 1e6  # mirrors calliope's ensure_feasibility bigM slack
@@ -201,6 +200,14 @@ def translate_model(model_data: dict) -> tuple[dict, list]:
                 if constraints.get('force_resource') and p_max_pu is not None:
                     gen['p_min_pu'] = list(p_max_pu)
                     report.append(f"{ctx}: force_resource mapped to p_min_pu = p_max_pu")
+                min_use = _finite(constraints.get('energy_cap_min_use'))
+                if min_use and min_use > 0:
+                    # Calliope energy_cap_min_use: output >= min_use x capacity at every step (must-run).
+                    # Never above what the resource allows (p_max_pu), so a low-CF resource stays feasible.
+                    floor = gen['p_min_pu'] or [0.0] * n
+                    ceil = p_max_pu or [1.0] * n
+                    gen['p_min_pu'] = [min(max(lo, min_use), hi) for lo, hi in zip(floor, ceil)]
+                    report.append(f"{ctx}: energy_cap_min_use={min_use:g} mapped to p_min_pu (must-run)")
                 if parent == 'supply_plus':
                     report.append(f"{ctx}: supply_plus treated as supply (resource storage/area not mapped)")
                 if ep_pypsa:
@@ -371,7 +378,6 @@ def translate_model(model_data: dict) -> tuple[dict, list]:
         if load_buses:
             report.append(f"ensureFeasibility: unmet-demand slack generator added at {len(load_buses)} demand bus(es)")
 
-    report += runconfig_notes(model_data)
     spec['buses'] = list(buses.values())
     spec['carriers'] = sorted(spec['carriers'])
     return spec, report

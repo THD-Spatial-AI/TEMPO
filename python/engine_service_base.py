@@ -196,6 +196,12 @@ def create_engine_app(
             payload.update(health_extra())
         return payload
 
+    @app.post("/assess")
+    def assess_model(model_data: dict) -> dict:
+        """Pre-run check: blocking errors + what this engine's translation cannot carry over."""
+        import engine_diagnostics
+        return engine_diagnostics.assess(model_data, engine)
+
     @app.post("/run")
     async def start_run(model_data: dict) -> dict:
         if not model_data:

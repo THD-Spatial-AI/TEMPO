@@ -37,6 +37,7 @@ _this_dir = os.path.dirname(os.path.abspath(__file__))
 if _this_dir not in sys.path:
     sys.path.insert(0, _this_dir)
 
+import engine_diagnostics  # noqa: E402
 import engine_service_base as base  # noqa: E402
 import pypsa_runner  # noqa: E402
 
@@ -84,6 +85,7 @@ def _export_datasets_to_zip(datasets: list) -> tuple[bytes, list]:
                 continue
 
             spec, report = translate.translate_model(model)
+            report = report + engine_diagnostics.assessment_lines(engine_diagnostics.assess(model, "pypsa"))
             prefix = f"{name}: " if len(datasets) > 1 else ""
             report_all.extend(prefix + r for r in report)
             network = translate.build_network(spec)

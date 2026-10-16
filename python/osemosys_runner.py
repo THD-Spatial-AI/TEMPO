@@ -33,6 +33,7 @@ if _this_dir not in sys.path:
 
 import osemosys_translate as translate
 from engine_common import qualify_file_ref, resource_scale
+import engine_diagnostics as diag
 import osemosys_timeslices as timeslices
 
 _OSEMOSYS_TXT = os.path.join(_this_dir, "osemosys", "osemosys.txt")
@@ -254,9 +255,22 @@ def _min_capacity_violated(csv_dir: str, results_dir: str, rel_tol: float = 1e-6
     return False
 
 
+_GLPK_ERROR_RE = re.compile(
+    r"(no value for|already defined|unable to open|processing error|postsolving error|"
+    r"syntax error|not defined|out of range|violates)", re.I)
+
+
+_GLPK_VERDICTS = (
+    (re.compile(r"HAS NO PRIMAL FEASIBLE SOLUTION", re.I), "infeasible"),
+    (re.compile(r"HAS NO DUAL FEASIBLE SOLUTION", re.I), "unbounded"),
+)
+
+
 def _run_glpsol(glpsol: str, osemosys_txt: str, dat_path: str,
-                output_path: str, log_fn, presolve: bool = True) -> None:
-    """Run glpsol; stream stdout/stderr to log_fn line by line."""
+                output_path: str, log_fn, presolve: bool = True) -> str | None:
+    """Run glpsol; stream stdout/stderr to log_fn line by line. Returns the verdict GLPK printed
+    when it found no solution ('infeasible' / 'unbounded'), else None — in that case it writes
+    no result file, so the verdict only exists on stdout."""
     cmd = [glpsol, "--math", osemosys_txt, "--data", dat_path, "-o", output_path]
     if not presolve:
         cmd.append("--nopresol")
@@ -273,13 +287,24 @@ def _run_glpsol(glpsol: str, osemosys_txt: str, dat_path: str,
         text=True, encoding="utf-8", errors="replace", env=env,
         cwd=os.path.dirname(os.path.abspath(dat_path)),  # ResultsPath is relative to it
     )
+    error_lines: list[str] = []
+    verdict = None
     for line in proc.stdout:
         line = line.rstrip()
         if line:
             log_fn(f"[glpsol] {line}")
+            if _GLPK_ERROR_RE.search(line):
+                error_lines.append(line)
+            for rx, kind in _GLPK_VERDICTS:
+                if rx.search(line):
+                    verdict = kind
     proc.wait()
     if proc.returncode not in (0, 5):  # 5 = GLPK "problem has no primal solution"
-        raise RuntimeError(f"glpsol exited with code {proc.returncode}")
+        # Name the real cause (e.g. "no value for SpecifiedAnnualDemand[...]") instead of a bare exit code
+        cause = "; ".join(l.split("osemosys.txt:")[-1].strip() for l in error_lines[-3:])
+        kind = ("OSeMOSYS model/data error" if error_lines else "glpsol failed")
+        raise RuntimeError(f"{kind}: {cause or 'no details'} (glpsol exit code {proc.returncode})")
+    return verdict
 
 
 def _parse_glpsol_output(output_path: str) -> tuple[str, float | None]:
@@ -746,6 +771,7 @@ def export_datasets_to_zip(datasets: list, scheme: dict | None = None, legacy: b
                 except Exception as exc:
                     report_all.append(f"[{ds_name}] translate failed: {exc}")
                     continue
+                rpt = rpt + diag.assessment_lines(diag.assess(model, "osemosys"))
                 report_all.extend(f"[{ds_name}] {r}" for r in rpt)
                 for fpath in sorted(Path(csv_dir).rglob("*")):
                     if fpath.is_file():
@@ -764,12 +790,11 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
     model_name = model_data.get("name", "Model")
     model_config = model_data.get("modelConfig") or {}
 
-    mode = model_config.get("mode") or "plan"
-    if mode != "plan":
-        raise RuntimeError(
-            f"Mode '{mode}' is not supported on the OSeMOSYS engine — only 'plan' "
-            "(capacity expansion)."
-        )
+    # Pre-run assessment: blocking problems raise a readable error; limitations are logged
+    # and returned with the results.
+    assessment = diag.raise_if_blocked(model_data, "osemosys")
+    for line in diag.assessment_lines(assessment):
+        log(line)
 
     # ── Determine time horizon ────────────────────────────────────────────────
     year = int((model_config.get("startDate") or "2024-01-01")[:4])
@@ -796,27 +821,26 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
     # slower (92 s → 28+ min on the Italian week), so solve with presolve first and fall back
     # to --nopresol only when a minimum capacity is actually violated.
     has_min_cap = bool(_read_csv(os.path.join(csv_dir, "TotalAnnualMinCapacity.csv")))
-    _run_glpsol(glpsol, _OSEMOSYS_TXT, dat_path, output_path, log_fn or log, presolve=True)
+    verdict = _run_glpsol(glpsol, _OSEMOSYS_TXT, dat_path, output_path, log_fn or log, presolve=True)
     if has_min_cap and _min_capacity_violated(csv_dir, results_dir):
         log("Presolve solution violates TotalAnnualMinCapacity — re-solving without presolve")
-        _run_glpsol(glpsol, _OSEMOSYS_TXT, dat_path, output_path, log_fn or log, presolve=False)
+        verdict = _run_glpsol(glpsol, _OSEMOSYS_TXT, dat_path, output_path, log_fn or log, presolve=False)
     termination, objective = _parse_glpsol_output(output_path)
+    if termination == "unknown" and verdict:
+        termination = verdict
     log(f"glpsol: {termination}" + (f", objective={objective:.6f}" if objective is not None else ""))
     if termination != "optimal":
-        return {
-            "model_name": model_name,
-            "solver": "glpk",
-            "success": False,
-            "termination_condition": termination,
-            "translation_report": report,
-        }
+        return diag.failure_result("osemosys", model_name, "glpk", termination, model_data,
+                                   report + diag.assessment_lines(assessment))
 
     # ── Step 5: Extract results ───────────────────────────────────────────────
     log("Extracting results…")
     result = _build_contract(
         results_dir, model_data, model_name, year, scheme, n_hours,
         termination, objective, parity=True, csv_dir=csv_dir)
-    result["translation_report"] = report
+    result["translation_report"] = report + diag.assessment_lines(assessment)
+    result["limitations"] = assessment["warnings"]
+    result["fidelity"] = assessment["fidelity"]
     log(f"Done. Capacities: {len(result.get('capacities', {}))}, "
         f"dispatch techs: {len(result.get('dispatch', {}))}")
     return result

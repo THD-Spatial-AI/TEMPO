@@ -74,23 +74,6 @@ def resource_scale(constraints):
     return v if v is not None else 1.0
 
 
-def runconfig_notes(model_data):
-    """Notes for Calliope run-level settings that only the Calliope engines apply
-    (group constraints, reserve margin). Slack placeholders (cost_max/min >= 1e12) are ignored."""
-    rc = ((model_data.get('metadata') or {}).get('runConfig')) or {}
-    notes = []
-    for name, spec in (rc.get('group_constraints') or {}).items():
-        body = {k: v for k, v in (spec or {}).items() if k != 'techs'}
-        slack = body and all(
-            k in ('cost_max', 'cost_min') and all((finite(x) or 0) >= 1e12 for x in (v or {}).values())
-            for k, v in body.items())
-        if not slack:
-            notes.append(f"run.group_constraints.{name} is a Calliope-only constraint — not applied on this engine")
-    if rc.get('reserve_margin'):
-        notes.append("run.reserve_margin is a Calliope-only constraint — not applied on this engine")
-    return notes
-
-
 def qualify_file_ref(ref, loc, model_data):
     """Calliope convention: 'file=x.csv' with no column means the column named after the
     location. Returns the ref with ':<column>' appended when the file has a column matching

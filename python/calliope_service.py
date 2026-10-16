@@ -240,6 +240,13 @@ def health() -> dict:
     return {"status": "ok", "service": "calliope-web-service", "engine": _ENGINE}
 
 
+@app.post("/assess")
+def assess_model(model_data: dict) -> dict:
+    """Pre-run check: blocking errors + what this engine's translation cannot carry over."""
+    import engine_diagnostics
+    return engine_diagnostics.assess(model_data, _ENGINE)
+
+
 @app.post("/run")
 async def start_run(model_data: dict) -> dict:
     """

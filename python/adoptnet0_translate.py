@@ -16,12 +16,11 @@ import os
 import re
 from pathlib import Path
 
-from engine_common import annuity, finite, link_distance, merged_link_def, merged_tech_def, qualify_file_ref, resource_scale, resource_to_cf, runconfig_notes
+from engine_common import annuity, finite, link_distance, merged_link_def, merged_tech_def, qualify_file_ref, resource_scale, resource_to_cf
 from engine_overlay import engine_overlay, coerce_overlay
 
 _KW_PER_MW = 1_000.0
-_UNMET_IMPORT_LIMIT_MW = 1_000_000.0   # ensure_feasibility slack: effectively unlimited import ...
-_UNMET_PRICE_EUR_MWH = 100_000.0       # ... at a prohibitive price (100 €/kWh)
+_UNMET_PRICE_EUR_MWH = 1_000_000.0   # ensure_feasibility: energy-balance violation priced at 1000 €/kWh
 
 # ---------------------------------------------------------------------------
 # Numeric helpers
@@ -478,7 +477,10 @@ def _write_config(model_dir: str, solver: str, model_config: dict) -> None:
             "write_solution_diagnostics": {"value": 0},
         },
         "energybalance": {
-            "violation": {"value": 1000},
+            # AdOpT's own unmet-demand slack ("violation", €/MWh), priced prohibitively. It cannot be
+            # switched off (the library then fails), so with Ensure feasibility OFF the runner reports
+            # any violation as an infeasible model instead.
+            "violation": {"value": _UNMET_PRICE_EUR_MWH},
             "copperplate": {"value": 0},
         },
         "economic": {
@@ -732,8 +734,7 @@ def _placed_techs(loc: dict, i: int, technologies: list, location_tech_assignmen
 def _write_node_data(period_dir: str, locations: list, technologies: list,
                      location_tech_assignments: dict, time_series: list,
                      carriers: list, start_date: str, end_date: str,
-                     capex_scale: float = 1.0, report: list | None = None,
-                     ensure_feasibility: bool = True) -> None:
+                     capex_scale: float = 1.0, report: list | None = None) -> None:
     report = report if report is not None else []
     node_data_dir = os.path.join(period_dir, "node_data")
     os.makedirs(node_data_dir, exist_ok=True)
@@ -853,7 +854,6 @@ def _write_node_data(period_dir: str, locations: list, technologies: list,
             demand_vals = _tile(demand_by_carrier.get(carrier) or [], n_hours)
             has_demand = any(v != 0 for v in demand_vals)
             priced = [(_tile(sv, n_hours), c) for sv, c in sinks_by_carrier.get(carrier, []) if c != 0]
-            slack = ensure_feasibility and has_demand
             lines = [header]
             for j, ts in enumerate(timestamps):
                 ts_str = _fmt_ts(ts)
@@ -863,9 +863,7 @@ def _write_node_data(period_dir: str, locations: list, technologies: list,
                 # revenue per MWh = -om_con (€/kWh) × 1000; several priced sinks → limit-weighted mean
                 exp_price = (str(round(-sum(sv[j] * c for sv, c in priced) / lim_kw * _KW_PER_MW, 6))
                              if priced and lim_kw > 0 else "")
-                # ensure_feasibility: demanded carriers can always be imported at a prohibitive price
-                imp_lim, imp_price = (str(_UNMET_IMPORT_LIMIT_MW), str(_UNMET_PRICE_EUR_MWH)) if slack else ("", "")
-                lines.append(f"{ts_str};{dem};{imp_lim};{exp_lim};{imp_price};{exp_price};;;")
+                lines.append(f"{ts_str};{dem};;{exp_lim};;{exp_price};;;")
             _write_text(os.path.join(carrier_data_dir, f"{carrier}.csv"), "\n".join(lines) + "\n")
 
         _write_json(
@@ -940,10 +938,8 @@ def build_model_dir(model_data: dict, model_dir: str, capex_scale: float = 1.0) 
     _write_period_topology(period_dir, locations, carriers, start_date, end_date)
     _write_networks(period_dir, locations, links, technologies, capex_scale, report)
     _write_node_data(period_dir, locations, technologies, loc_tech_assign,
-                     time_series, carriers, start_date, end_date, capex_scale, report,
-                     ensure_feasibility=model_config.get("ensureFeasibility", True))
+                     time_series, carriers, start_date, end_date, capex_scale, report)
 
-    report += runconfig_notes(model_data)
     return carriers, report
 
 

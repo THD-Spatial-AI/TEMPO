@@ -27,6 +27,7 @@ import traceback
 from pathlib import Path
 
 import calliope07_translate as translate
+import engine_diagnostics as diag
 
 ENGINE_NAME = "calliope-0.7"
 
@@ -550,6 +551,7 @@ def _install_highs_lp_patch():
             soln.status = (SolutionStatus.optimal if is_ok
                            else SolutionStatus.infeasible)
             log(f"[HiGHS] termination_condition={tc}")
+            _thread_local.last_termination = str(tc)
 
             # Mirror calliope's _solve return contract: xr.Dataset, not SolverResults.
             # load_solution sets variable values on the kernel model; load_results
@@ -558,7 +560,10 @@ def _install_highs_lp_patch():
                 instance.load_solution(pyomo_results.solution[0])
                 xr_results = self.load_results()
             else:
-                from calliope.backend.backend_model import BackendWarning
+                try:
+                    from calliope.exceptions import BackendWarning
+                except ImportError:   # not exported by every 0.7 dev build
+                    BackendWarning = UserWarning
                 from calliope.exceptions import warn as model_warn
                 model_warn("Model solution was non-optimal.", _class=BackendWarning)
                 xr_results = xr.Dataset()
@@ -895,11 +900,11 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
     meta_run = meta.get('runConfig') or {}
 
     mode = model_config_payload.get('mode') or meta_run.get('mode') or 'plan'
-    if mode == 'spores':
-        raise RuntimeError(
-            "SPORES is not supported on the Calliope 0.7 (experimental) engine yet. "
-            "Run this model on the Calliope 0.6.8 engine."
-        )
+    # Pre-run assessment: SPORES etc. raise a readable error; what the 0.7 translation cannot
+    # carry over (conversion_plus, group constraints, reserve margin…) is logged and returned.
+    assessment = diag.raise_if_blocked(model_data, 'calliope07')
+    for _line in diag.assessment_lines(assessment):
+        log(f"  {_line}")
 
     requested_solver = model_data.get('solver') or 'highs'
     solver_dir = os.environ.get('CALLIOPE_SOLVER_DIR')
@@ -1147,13 +1152,27 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
         log("Building optimisation problem …")
         model.build()
         log(f"Solving with {solver} …")
+        _thread_local.last_termination = None
         model.solve()
-    except Exception:
+        _tc = getattr(_thread_local, 'last_termination', None) or 'optimal'
+        if 'optimal' not in _tc.lower():
+            log(f"Solver finished with termination condition: {_tc}")
+            return diag.failure_result('calliope07', model_name, solver, _tc, model_data,
+                                       diag.assessment_lines(assessment))
+    except Exception as exc:
         log(f"[TRACEBACK]\n{traceback.format_exc()}")
-        raise
+        info = diag.explain_exception('calliope07', exc, model_data)
+        if info is None:
+            raise
+        return diag.failure_result('calliope07', model_name, solver, info['termination'], model_data,
+                                   diag.assessment_lines(assessment), info['detail'], info['kind'])
     finally:
         calliope_logger.removeHandler(handler)
         calliope_logger.setLevel(prev_level)
 
     log("Optimisation finished. Extracting results …")
-    return _extract_results(model, techs_07, technologies, model_name, solver)
+    results = _extract_results(model, techs_07, technologies, model_name, solver)
+    results['limitations'] = assessment['warnings']
+    results['fidelity'] = assessment['fidelity']
+    results['translation_report'] = (results.get('translation_report') or []) + diag.assessment_lines(assessment)
+    return results

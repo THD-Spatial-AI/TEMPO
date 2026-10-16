@@ -16,6 +16,7 @@ import os
 import threading
 
 import adoptnet0_translate as translate
+import engine_diagnostics as diag
 
 
 def _patch_res_capfactor(Res):
@@ -375,8 +376,9 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
     technologies = model_data.get("technologies") or []
     links = model_data.get("links") or []
 
-    if not locations:
-        raise ValueError("Model has no locations — add at least one location before running.")
+    assessment = diag.raise_if_blocked(model_data, "adoptnet0")
+    for line in diag.assessment_lines(assessment):
+        log(f"  {line}")
 
     log(f'Starting AdOpT-NET0 run: "{name}"')
     log(f"  {len(locations)} location(s), {len(technologies)} tech(s), {len(links)} link(s)")
@@ -430,7 +432,14 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
     _release_arc_flow_lower_bounds(hub.model[hub.info_solving_algorithms["aggregation_model"]])
 
     log(f"  Solving ({solver})…")
-    hub.solve()
+    try:
+        hub.solve()
+    except Exception as exc:
+        info = diag.explain_exception("adoptnet0", exc, model_data)
+        if info is None:
+            raise
+        return diag.failure_result("adoptnet0", name, solver, info["termination"], model_data,
+                                   tr_report + diag.assessment_lines(assessment), info["detail"], info["kind"])
 
     log("  Writing HDF5 results…")
     try:
@@ -449,6 +458,19 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
         pass
 
     frozen = _to_frozen_contract(extracted, timestamps, model_data, name, solver)
-    frozen["translation_report"] = tr_report + (extracted.get("notes") or [])
+    frozen["translation_report"] = tr_report + (extracted.get("notes") or []) + diag.assessment_lines(assessment)
+    frozen["limitations"] = list(assessment["warnings"])
+    unmet = extracted.get("violation_cost")
+    if unmet and unmet > 1e-6 and model_config.get("ensureFeasibility") is False:
+        return diag.failure_result(
+            "adoptnet0", name, solver, "infeasible", model_data, frozen["translation_report"],
+            "Demand cannot be met with the available supply, storage and transmission "
+            f"(unmet-demand penalty {unmet:,.0f}).")
+    if unmet and unmet > 1e-6:
+        frozen["limitations"].append({
+            "code": "unmet_demand", "severity": "warning",
+            "message": f"Demand could not be fully met: {unmet:,.0f} of unmet-demand penalty is in the objective. "
+                       "Check supply capacity, resource availability and transmission limits."})
+    frozen["fidelity"] = assessment["fidelity"]
     log(f"  Done. Objective = {frozen['objective']}")
     return frozen

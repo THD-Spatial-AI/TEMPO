@@ -221,7 +221,7 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
     except Exception:
         n_hours = 8760
 
-    from engine_common import annuity as _crf, merged_tech_def as _merged, resource_to_cf as _res_cf, qualify_file_ref as _qual_ref, resource_scale as _res_scale, runconfig_notes as _rc_notes
+    from engine_common import annuity as _crf, merged_tech_def as _merged, resource_to_cf as _res_cf, qualify_file_ref as _qual_ref, resource_scale as _res_scale
     from engine_common import merged_link_def as _merged_link, link_distance as _link_distance
     annualise = 8760.0 / n_hours if parity else 1.0
 
@@ -843,5 +843,4 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
            if parity else
            "Transmission as bidirectional conversion pairs. Storage as CH/DC tech pair + virtual fuel.")
     )
-    report += _rc_notes(model_data)
     return csv_dir, report

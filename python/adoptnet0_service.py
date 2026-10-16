@@ -38,6 +38,7 @@ _this_dir = os.path.dirname(os.path.abspath(__file__))
 if _this_dir not in sys.path:
     sys.path.insert(0, _this_dir)
 
+import engine_diagnostics  # noqa: E402
 import engine_service_base as base  # noqa: E402
 import adoptnet0_runner  # noqa: E402
 import adoptnet0_translate as translate  # noqa: E402
@@ -67,6 +68,7 @@ def _export_datasets_to_zip(datasets: list) -> dict:
                 except Exception as exc:
                     report_all.append(f"[{ds_name}] build_model_dir failed: {exc}")
                     continue
+                rpt = rpt + engine_diagnostics.assessment_lines(engine_diagnostics.assess(model, "adoptnet0"))
                 report_all.extend(f"[{ds_name}] {r}" for r in rpt)
                 for fpath in Path(tmp).rglob("*"):
                     if fpath.is_file():
