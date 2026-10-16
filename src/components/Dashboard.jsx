@@ -515,7 +515,7 @@ const Dashboard = () => {
                   <InputMap key={currentModel?.id} locations={locations||[]} links={links||[]} getTechColor={getTechColor} getTechName={getTechName} capByLoc={d.capByLoc} capByLocTech={d.locByTech} />
                 </Panel>
                 <Panel title="Technology Categories" icon={FiPieChart} fill className="min-h-[420px] min-w-0">
-                  <TechCategoryBreakdown byParent={d.byParent} capByTech={d.capByTech} getTechName={getTechName} getTechColor={getTechColor} />
+                  <TechCategoryBreakdown byParent={d.byParent} capByTech={d.capByTech} techsPerLoc={d.techsPerLoc} getTechName={getTechName} getTechColor={getTechColor} />
                 </Panel>
               </div>
             </div>
