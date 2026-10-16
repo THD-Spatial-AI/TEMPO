@@ -1093,7 +1093,6 @@ function Technologies() {
 
   return (
     <div className="flex flex-col h-screen bg-gray-50 overflow-hidden">
-      <SaveBar label="Technologies" />
       <div className="flex flex-1 overflow-hidden relative">
         <style>{customScrollbarStyles}</style>
 
@@ -1199,33 +1198,22 @@ function Technologies() {
 
         {/* ── Main content ─────────────────────────────────────────────────── */}
         <main className="flex-1 overflow-y-auto p-6 custom-scrollbar min-w-0">
-          {/* API attribution banner */}
-          {isApiLive && !isApiLoading && (
-            <div className="mb-6 flex items-center gap-2 rounded-xl border border-black/15 bg-white px-4 py-2.5 text-xs text-slate-500 ">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
-              <span>
-                Data sourced from{' '}
-                <a
-                  href="https://otdb.th-deg.de"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-semibold text-emerald-700 hover:underline"
-                >
-                  OpenTech·DB
+          {/* Attribution + save status */}
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+            {isApiLive && !isApiLoading ? (
+              <p className="flex items-center gap-2 text-xs text-slate-500">
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+                Data from{' '}
+                <a href="https://otdb.th-deg.de" target="_blank" rel="noopener noreferrer" className="font-semibold text-emerald-700 hover:underline">OpenTech·DB</a>
+                <span className="text-slate-300">·</span> Deggendorf Institute of Technology
+                <span className="text-slate-300">·</span>
+                <a href="https://otdb.th-deg.de/docs" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-900">
+                  API docs <FiExternalLink size={11} />
                 </a>
-                {' '}· Deggendorf Institute of Technology
-                {' '}— {totalTemplates} technologies loaded
-              </span>
-              <a
-                href="https://otdb.th-deg.de/docs"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="ml-auto text-slate-400 hover:text-slate-600 flex items-center gap-1 flex-shrink-0"
-              >
-                <FiExternalLink size={11} /> API Docs
-              </a>
-            </div>
-          )}
+              </p>
+            ) : <span />}
+            <SaveBar label="Technologies" inline />
+          </div>
 
           {!isApiLoading && !showOnlyCustom && (
             <div className="mb-6">

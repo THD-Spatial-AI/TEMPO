@@ -60,7 +60,7 @@ const APP_STEPS = [
 const VIEW_TOURS = {
   Dashboard: [
     { title: 'Model dashboard', text: 'A summary of the input data of the active model, before you run it.' },
-    { target: '[data-tour="model-selector"]', title: 'Active model', text: 'Switch, rename or delete models here. Every page works on the model selected here.' },
+    { target: () => document.querySelector('nav button[aria-haspopup="listbox"]') || document.querySelector('[data-tour="model-selector"]'), title: 'Active model', text: 'Switch between your models here. Every page works on the active model; manage models from the Models page.' },
     { target: group(/^Overview$/), title: 'Dashboard tabs', text: 'Generation, demand, network, cost and time series views of the same model.' },
     { target: () => find(`${MAIN} p`, /^Locations$/)?.closest('.grid'), title: 'Key figures', text: 'Counts of locations, links and technologies, plus capacity and cost estimates.' },
     { target: section(/^Location Map$/), title: 'Location map', text: 'Every location coloured by its main technology and sized by capacity. Click a marker for details.' },

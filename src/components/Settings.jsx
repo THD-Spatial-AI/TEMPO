@@ -859,8 +859,8 @@ const Settings = () => {
   return (
     <div className="flex-1 bg-gray-50 px-8 py-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-black tracking-tighter text-black">Settings</h1>
-        <p className="mt-1 text-[15px] text-slate-500">Application configuration and preferences</p>
+        <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
+        <p className="mt-1 text-sm text-slate-500">Application configuration and preferences</p>
       </div>
 
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start">

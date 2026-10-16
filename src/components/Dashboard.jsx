@@ -467,16 +467,20 @@ const Dashboard = () => {
   const genTechCount = d.byParent.supply?.length || 0;
   const tsCount = modelTimeSeries.length;
 
+  const sidebarSwitcher = typeof window.electronAPI?.window?.state === 'function';
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="flex-1 overflow-hidden flex flex-col bg-slate-50">
-      {/* Header */}
-      <div className="px-6 pt-5 pb-3 bg-white border-b border-black/15 flex items-center justify-between flex-shrink-0">
+      {/* Header + tabs (the sidebar card switches models in the desktop app) */}
+      <div className="flex flex-shrink-0 items-center justify-between bg-white px-6 pt-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-800">Model Dashboard</h1>
-          <p className="text-xs text-slate-500 mt-0.5">{currentModel ? currentModel.name : 'No model selected'} — input data</p>
+          <h1 className="text-xl font-bold text-slate-900">Model Dashboard</h1>
+          <p className="mt-0.5 text-xs text-slate-500">
+            {sidebarSwitcher ? 'Input data of the active model' : `${currentModel ? currentModel.name : 'No model selected'} — input data`}
+          </p>
         </div>
-        <ModelSelector />
+        {!sidebarSwitcher && <ModelSelector />}
       </div>
 
       {/* Tab bar */}

@@ -159,7 +159,7 @@ const CalliopeModels = () => {
       <div className="mb-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-black tracking-tighter text-black mb-2">
+            <h1 className="text-2xl font-bold text-slate-900 mb-2">
               Calliope Models
             </h1>
             <p className="text-slate-600">

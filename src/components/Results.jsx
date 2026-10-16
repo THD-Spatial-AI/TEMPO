@@ -564,8 +564,8 @@ const Results = ({ onNavigate }) => {
           <div className="flex-shrink-0 px-6 pt-5 pb-0">
             <div className="flex items-end justify-between gap-4 flex-wrap">
               <div>
-                <h1 className="text-3xl font-black tracking-tighter text-black">Results Dashboard</h1>
-                <p className="mt-1 text-[15px] text-slate-500">Optimisation results · interactive analysis</p>
+                <h1 className="text-2xl font-bold text-slate-900">Results Dashboard</h1>
+                <p className="mt-1 text-sm text-slate-500">Optimisation results · interactive analysis</p>
               </div>
               <div className="flex items-center gap-2">
                 <div className="inline-flex gap-1 rounded-xl bg-slate-200/80 p-1 ring-1 ring-inset ring-slate-300/50">
@@ -591,13 +591,13 @@ const Results = ({ onNavigate }) => {
         </>
       ) : (
         /* ══ Single-run view (padded, scrollable) ═══════════════════════ */
-        <div className="p-6 space-y-5 overflow-y-auto flex-1 min-h-0">
+        <div className="px-8 py-8 space-y-5 overflow-y-auto flex-1 min-h-0">
 
           {/* ── Header ── */}
-          <div className="flex items-end justify-between gap-4 flex-wrap">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
             <div>
-              <h1 className="text-3xl font-black tracking-tighter text-black">Results Dashboard</h1>
-              <p className="mt-1 text-[15px] text-slate-500">Optimisation results · interactive analysis</p>
+              <h1 className="text-2xl font-bold text-slate-900">Results Dashboard</h1>
+              <p className="mt-1 text-sm text-slate-500">Optimisation results · interactive analysis</p>
             </div>
             <div className="flex items-center gap-2">
               {/* View toggle */}

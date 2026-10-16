@@ -1191,8 +1191,8 @@ calliope run model.yaml --scenario=Main
 
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-black tracking-tighter text-black">Export</h1>
-            <p className="mt-1 text-[15px] text-slate-500">
+            <h1 className="text-2xl font-bold text-slate-900">Export</h1>
+            <p className="mt-1 text-sm text-slate-500">
               {exportMode === 'model' ? 'Export your active model as a framework-ready ZIP archive' : 'Download results data from a completed run'}
             </p>
           </div>
