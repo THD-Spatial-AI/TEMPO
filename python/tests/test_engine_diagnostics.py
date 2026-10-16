@@ -181,3 +181,42 @@ def test_pypsa_must_run_never_exceeds_the_resource_limit():
     spec, _ = pt.translate_model(m)
     gen = next(g for g in spec['generators'] if g['name'].endswith('gen'))
     assert max(gen['p_min_pu']) <= 0.2 + 1e-9
+
+
+READINESS_CASES = Path(__file__).parent.parent.parent / 'scripts' / 'readiness_cases.json'
+
+
+@pytest.mark.parametrize('case', json.loads(READINESS_CASES.read_text(encoding='utf-8'))['cases'],
+                         ids=lambda c: c['name'])
+def test_shared_readiness_cases(case):
+    shared = set(json.loads(READINESS_CASES.read_text(encoding='utf-8'))['shared_codes'])
+    got = {i['code'] for i in D.assess(case['model'], 'pypsa')['errors']} & shared
+    assert got == set(case['expect'])
+
+
+def test_demand_without_profile_blocks():
+    m = _model()
+    m['technologies'][1]['constraints'] = {}
+    a = D.assess(m, 'pypsa')
+    assert [i['code'] for i in a['errors']] == ['demand_no_profile']
+    assert a['errors'][0]['items'] == ['a::dem']
+
+
+def test_link_to_unknown_location_blocks():
+    m = _model()
+    m['links'] = [{'from': 'a', 'to': 'ghost', 'tech': 'gen'}]
+    assert 'link_unknown_location' in {i['code'] for i in D.assess(m, 'calliope')['errors']}
+
+
+def test_demand_no_profile_skipped_with_scenario():
+    m = _model()
+    m['technologies'][1]['constraints'] = {}
+    m['scenario'] = 'high'
+    assert 'demand_no_profile' not in {i['code'] for i in D.assess(m, 'calliope')['errors']}
+
+
+def test_link_by_location_id_not_flagged():
+    m = _model()
+    m['locations'][0]['id'] = 'loc-1'
+    m['links'] = [{'from': 'loc-1', 'to': 'a', 'tech': 'gen'}]
+    assert 'link_unknown_location' not in {i['code'] for i in D.assess(m, 'calliope')['errors']}

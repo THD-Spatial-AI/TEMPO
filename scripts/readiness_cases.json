@@ -1,0 +1,77 @@
+{
+  "_comment": "Shared by src/services/__tests__/modelReadiness.test.js and python/tests/test_engine_diagnostics.py. Each case lists the blocking codes from the shared set both checkers must report.",
+  "shared_codes": ["no_locations", "no_technologies", "missing_timeseries", "demand_no_profile", "link_unknown_location"],
+  "cases": [
+    {
+      "name": "valid",
+      "expect": [],
+      "model": {
+        "locations": [{ "name": "a", "latitude": 52, "longitude": 10, "techs": { "gen": null, "dem": null }, "demandProfile": { "timeseries": [10, 12] } }],
+        "links": [],
+        "technologies": [
+          { "name": "gen", "essentials": { "parent": "supply", "carrier_out": "electricity" }, "constraints": { "energy_cap_max": 1000 }, "costs": { "monetary": { "energy_cap": 900 } } },
+          { "name": "dem", "essentials": { "parent": "demand", "carrier_in": "electricity" }, "constraints": {}, "costs": { "monetary": {} } }
+        ],
+        "timeSeries": []
+      }
+    },
+    {
+      "name": "empty",
+      "expect": ["no_locations", "no_technologies"],
+      "model": { "locations": [], "links": [], "technologies": [], "timeSeries": [] }
+    },
+    {
+      "name": "demand without profile",
+      "expect": ["demand_no_profile"],
+      "model": {
+        "locations": [{ "name": "a", "latitude": 52, "longitude": 10, "techs": { "gen": null, "dem": null } }],
+        "links": [],
+        "technologies": [
+          { "name": "gen", "essentials": { "parent": "supply", "carrier_out": "electricity" }, "constraints": { "energy_cap_max": 1000 }, "costs": { "monetary": { "energy_cap": 900 } } },
+          { "name": "dem", "essentials": { "parent": "demand", "carrier_in": "electricity" }, "constraints": {}, "costs": { "monetary": {} } }
+        ],
+        "timeSeries": []
+      }
+    },
+    {
+      "name": "demand file missing",
+      "expect": ["missing_timeseries"],
+      "model": {
+        "locations": [{ "name": "a", "latitude": 52, "longitude": 10, "techs": { "gen": null, "dem": { "constraints": { "resource": "file=demand.csv:a" } } } }],
+        "links": [],
+        "technologies": [
+          { "name": "gen", "essentials": { "parent": "supply", "carrier_out": "electricity" }, "constraints": { "energy_cap_max": 1000 }, "costs": { "monetary": { "energy_cap": 900 } } },
+          { "name": "dem", "essentials": { "parent": "demand", "carrier_in": "electricity" }, "constraints": {}, "costs": { "monetary": {} } }
+        ],
+        "timeSeries": []
+      }
+    },
+    {
+      "name": "link to unknown location",
+      "expect": ["link_unknown_location"],
+      "model": {
+        "locations": [{ "name": "a", "latitude": 52, "longitude": 10, "techs": { "gen": null, "dem": null }, "demandProfile": { "timeseries": [10] } }],
+        "links": [{ "from": "a", "to": "ghost", "tech": "gen" }],
+        "technologies": [
+          { "name": "gen", "essentials": { "parent": "supply", "carrier_out": "electricity" }, "constraints": { "energy_cap_max": 1000 }, "costs": { "monetary": { "energy_cap": 900 } } },
+          { "name": "dem", "essentials": { "parent": "demand", "carrier_in": "electricity" }, "constraints": {}, "costs": { "monetary": {} } }
+        ],
+        "timeSeries": []
+      }
+    },
+    {
+      "name": "unassigned demand tech with missing file",
+      "expect": ["missing_timeseries"],
+      "model": {
+        "locations": [{ "name": "a", "latitude": 52, "longitude": 10, "techs": { "gen": null, "dem": null }, "demandProfile": { "timeseries": [10, 12] } }],
+        "links": [],
+        "technologies": [
+          { "name": "gen", "essentials": { "parent": "supply", "carrier_out": "electricity" }, "constraints": { "energy_cap_max": 1000 }, "costs": { "monetary": { "energy_cap": 900 } } },
+          { "name": "dem", "essentials": { "parent": "demand", "carrier_in": "electricity" }, "constraints": {}, "costs": { "monetary": {} } },
+          { "name": "idle_dem", "essentials": { "parent": "demand", "carrier_in": "electricity" }, "constraints": { "resource": "file=gone.csv:a" }, "costs": { "monetary": {} } }
+        ],
+        "timeSeries": []
+      }
+    }
+  ]
+}

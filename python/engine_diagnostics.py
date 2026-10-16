@@ -271,6 +271,32 @@ def _missing_timeseries(model_data: dict):
     return missing
 
 
+def _demand_without_profile(model_data: dict) -> List[str]:
+    """loc::tech for demand techs with no demandProfile, no file= resource and no finite scalar.
+    Translators would substitute a placeholder or drop the demand for these."""
+    techs = _tech_index(model_data)
+    out = []
+    for loc in model_data.get("locations") or []:
+        if (loc.get("demandProfile") or {}).get("timeseries"):
+            continue
+        lname = str(loc.get("name") or loc.get("id") or "?")
+        for ref, cfg in (loc.get("techs") or {}).items():
+            base = techs.get(str(ref))
+            if base is None or _parent(base) != "demand":
+                continue
+            res = {**(base.get("constraints") or {}), **((cfg or {}).get("constraints") or {})}.get("resource")
+            if _is_file_ref(res) or _num(res) is not None:
+                continue
+            out.append(f"{lname}::{ref}")
+    return out
+
+
+def _links_to_unknown_locations(model_data: dict) -> List[str]:
+    names = {str(v) for l in model_data.get("locations") or [] for v in (l.get("name"), l.get("id")) if v}
+    return [f"{l.get('from')} -> {l.get('to')}" for l in model_data.get("links") or []
+            if str(l.get("from")) not in names or str(l.get("to")) not in names]
+
+
 # ─── issues ─────────────────────────────────────────────────────────────────────
 
 def _issue(code: str, message: str, items: Optional[List[str]] = None, severity: str = "warning") -> dict:
@@ -325,6 +351,17 @@ def assess(model_data: dict, engine: str) -> dict:
                + "Re-import the model with its CSV files.")
         (errors if is_demand else warnings).append(
             _issue("missing_timeseries", msg, severity="error" if is_demand else "warning"))
+
+    no_profile = [] if (model_data.get("scenario") or model_data.get("override")) else _demand_without_profile(model_data)
+    if no_profile:
+        errors.append(_issue(
+            "demand_no_profile",
+            "These demand technologies have no demand profile or resource value; engines would "
+            "substitute a placeholder or drop the demand, so results would not reflect the system.", no_profile, severity="error"))
+    bad_links = _links_to_unknown_locations(model_data)
+    if bad_links:
+        errors.append(_issue("link_unknown_location", "These links connect to a location that does not exist.",
+                             bad_links, severity="error"))
 
     features = scan_features(model_data)
     summary: Dict[str, dict] = {}

@@ -1,13 +1,15 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useData } from '../context/DataContext';
-import { checkCalliopeService, runCalliopeModel, engineForVersion } from '../services/calliopeClient';
+import { checkCalliopeService, runCalliopeModel, engineForVersion, assessCalliopeModel } from '../services/calliopeClient';
 import Calliope07EnginePanel from './Calliope07EnginePanel';
 import EngineInstallPanel from './EngineInstallPanel';
 import { checkAdoptnet0Service, runAdoptnet0Model } from '../services/adoptnet0Client';
-import { checkEngineRunService, runEngineModel } from '../services/engineClient';
+import { checkEngineRunService, runEngineModel, assessEngineModel } from '../services/engineClient';
 import { runMemeModel, getMemeServerConfig } from '../services/memeClient';
 import { SETTINGS_EVENT } from '../services/appSettings';
 import { resolveScenario } from '../services/scenarioResolver';
+import { checkModel } from '../services/modelReadiness';
+import ReadinessPanel from './shared/ReadinessPanel';
 import { FiPlay, FiStopCircle, FiCheckCircle, FiAlertCircle, FiClock, FiCpu, FiZap, FiActivity, FiSettings, FiTerminal, FiTrash2, FiAlertTriangle, FiBox, FiBarChart2, FiDownload, FiEye, FiList, FiCalendar, FiChevronDown, FiChevronRight } from './ui/icons';
 import { MODELING_FRAMEWORKS, SOLVER_OPTIONS } from '../config/modelingFrameworks';
 import CompletedRunsSection from './run/CompletedRunsSection';
@@ -468,22 +470,6 @@ const Run = ({ onNavigate }) => {
           ? '[TEMPO] Running LOCALLY — remote supports a single baseline run only; a scenario/override is selected'
           : '[TEMPO] Running LOCALLY on this machine');
 
-    // Techs to send with the run: live (possibly unsaved) techs only for the
-    // currently-loaded model; for any other selected model use its own saved
-    // techs. Never fall through to the global default catalog, which would
-    // clobber the selected model's technologies (nodes reference techs that
-    // then don't exist → empty nodes on export).
-    const isCurrentModel = selectedModel.id === getCurrentModel()?.id;
-    const techsForRun = (isCurrentModel && technologies?.length)
-      ? technologies
-      : (selectedModel.technologies?.length ? selectedModel.technologies : (technologies || []));
-
-    // Same story for timeSeries: the global list has parsed `data` only for the
-    // currently-loaded model. For any other selected model, use its own saved
-    // entries (which carry raw csvContent) so file= refs still resolve.
-    const tsFiltered = timeSeries.filter(ts => ts.modelId === selectedModel.id);
-    const timeSeriesForRun = tsFiltered.length ? tsFiltered : (selectedModel.timeSeries || []);
-
     const started = [];
     const failed = [];
 
@@ -621,10 +607,52 @@ const Run = ({ onNavigate }) => {
   const durationDays = calculateDuration();
   const fmtDate = (d) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   const modeLabel = { plan: 'Plan', operate: 'Operate', spores: 'SPORES' }[modelConfig.mode] || modelConfig.mode;
-  const runDisabled = !selectedModel || (!computeRemote && !serviceReady) || !isDateRangeValid();
+  // Techs to send with the run: live (possibly unsaved) techs only for the
+  // currently-loaded model; for any other selected model use its own saved
+  // techs. Never fall through to the global default catalog, which would
+  // clobber the selected model's technologies (nodes reference techs that
+  // then don't exist → empty nodes on export).
+  const isCurrentModel = selectedModel?.id === getCurrentModel()?.id;
+  const techsForRun = useMemo(() => (isCurrentModel && technologies?.length)
+    ? technologies
+    : (selectedModel?.technologies?.length ? selectedModel.technologies : (technologies || [])),
+  [isCurrentModel, technologies, selectedModel]);
+
+  // Same story for timeSeries: the global list has parsed `data` only for the
+  // currently-loaded model. For any other selected model, use its own saved
+  // entries (which carry raw csvContent) so file= refs still resolve.
+  const timeSeriesForRun = useMemo(() => {
+    const filtered = timeSeries.filter(ts => ts.modelId === selectedModel?.id);
+    return filtered.length ? filtered : (selectedModel?.timeSeries || []);
+  }, [timeSeries, selectedModel]);
+
+  const readiness = useMemo(() => (selectedModel
+    ? checkModel({ ...selectedModel, technologies: techsForRun, timeSeries: timeSeriesForRun, modelConfig }, { scenarioSelected: hasSelections })
+    : null), [selectedModel, techsForRun, timeSeriesForRun, modelConfig, hasSelections]);
+  const blockingCount = readiness?.errors.length || 0;
+
+  const [engineCheck, setEngineCheck] = useState(null); // { loading } | { result } | { unreachable }
+  const checkSeq = useRef(0);
+  useEffect(() => {
+    checkSeq.current += 1;
+    setEngineCheck(null);
+  }, [selectedModel?.id, selectedFramework, calliopeEngine, modelConfig.mode, techsForRun, timeSeriesForRun]);
+
+  const runEngineCheck = async () => {
+    const seq = ++checkSeq.current;
+    setEngineCheck({ loading: true });
+    const modelData = { ...selectedModel, solver: selectedSolver, modelConfig, technologies: techsForRun, timeSeries: timeSeriesForRun };
+    const result = selectedFramework === 'calliope'
+      ? await assessCalliopeModel(calliopeEngine === '0.7' ? '0.7' : '0.6', modelData)
+      : await assessEngineModel(selectedFramework, modelData);
+    if (seq === checkSeq.current) setEngineCheck(result ? { result } : { unreachable: true });
+  };
+
+  const runDisabled = !selectedModel || (!computeRemote && !serviceReady) || !isDateRangeValid() || blockingCount > 0;
   const runBlocker = !selectedModel ? 'Select a model to run'
     : (!computeRemote && !serviceReady) ? `${activeFrameworkLabel} service is offline`
     : !isDateRangeValid() ? 'Set a valid date range'
+    : blockingCount ? `Fix ${blockingCount} problem${blockingCount === 1 ? '' : 's'} in the model first`
     : null;
 
   return (
@@ -1165,6 +1193,41 @@ const Run = ({ onNavigate }) => {
                 </p>
               )}
             </div>
+
+            {readiness && (
+              <div className="rounded-2xl border border-black/15 bg-white p-5">
+                <h2 className="text-sm font-semibold text-slate-900">Model check</h2>
+                <div className="mt-2 max-h-80 overflow-y-auto">
+                  <ReadinessPanel readiness={readiness} onNavigate={isCurrentModel ? onNavigate : undefined} emptyText="No problems in the model." />
+                </div>
+                {!computeRemote && (
+                  <div className="mt-4 border-t border-black/10 pt-3">
+                    <button
+                      onClick={runEngineCheck}
+                      disabled={!serviceReady || engineCheck?.loading}
+                      className="text-xs font-semibold text-black hover:underline disabled:cursor-not-allowed disabled:text-slate-400"
+                    >
+                      {engineCheck?.loading ? 'Checking…' : `Check what ${activeFrameworkLabel} supports`}
+                    </button>
+                    {engineCheck?.unreachable && <p className="mt-2 text-xs text-slate-500">The engine did not answer or returned an error. Is the service running?</p>}
+                    {engineCheck?.result && (
+                      <div className="mt-2">
+                        <p className="text-xs text-slate-500">
+                          {!engineCheck.result.ok
+                            ? `${activeFrameworkLabel} cannot run this model as it stands:`
+                            : engineCheck.result.fidelity === 'full'
+                              ? `${activeFrameworkLabel} translates every feature this model uses.`
+                              : `${activeFrameworkLabel} approximates or drops some features. Read results with these in mind:`}
+                        </p>
+                        <div className="max-h-80 overflow-y-auto">
+                          <ReadinessPanel readiness={engineCheck.result} emptyText="Nothing to report." />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             <ActiveJobsPanel
               expandedLog={expandedLog}

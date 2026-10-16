@@ -4,10 +4,12 @@ import { useData } from "../context/DataContext";
 import ReactECharts from 'echarts-for-react';
 import Papa from 'papaparse';
 import { fetchTemplate } from '../utils/templateFetch';
-import { FiMapPin, FiLink, FiZap, FiBarChart2, FiPieChart, FiActivity, FiDollarSign, FiChevronDown, FiChevronUp, FiCpu, FiLayers, FiMap, FiClock, FiGrid, FiSun, FiFilter } from './ui/icons';
-import { LuLayoutDashboard, LuFactory, LuGauge, LuWaypoints, LuCoins, LuChartLine } from './ui/icons';
+import { FiMapPin, FiLink, FiZap, FiBarChart2, FiPieChart, FiActivity, FiDollarSign, FiChevronDown, FiChevronUp, FiCpu, FiLayers, FiMap, FiClock, FiGrid, FiSun, FiFilter, FiAlertTriangle } from './ui/icons';
+import { LuLayoutDashboard, LuFactory, LuGauge, LuWaypoints, LuCoins, LuChartLine, LuShieldCheck } from './ui/icons';
 import 'leaflet/dist/leaflet.css';
 import { TsViewControls, Panel, KpiCard, InputMap } from './dashboard/DashboardWidgets';
+import useModelReadiness from '../hooks/useModelReadiness';
+import ReadinessPanel from './shared/ReadinessPanel';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const fmtNum = (v, dec = 1) => {
@@ -167,11 +169,14 @@ const TABS = [
   { id: 'network',     label: 'Network',      icon: LuWaypoints },
   { id: 'cost',        label: 'Cost',         icon: LuCoins },
   { id: 'timeseries',  label: 'Time Series',  icon: LuChartLine },
+  { id: 'readiness',   label: 'Readiness',    icon: LuShieldCheck },
 ];
 
 // ══════════════════════════════════════════════════════════════════════════════
-const Dashboard = () => {
+const Dashboard = ({ onNavigate }) => {
   const { locations, links, getCurrentModel, technologies, timeSeries, setTimeSeries } = useData();
+  const readiness = useModelReadiness();
+  const issueCount = readiness ? readiness.errors.length + readiness.warnings.length : 0;
   const currentModel = getCurrentModel();
   const [activeTab, setActiveTab] = useState('overview');
   const [tsLoading, setTsLoading] = useState(false);
@@ -487,6 +492,9 @@ const Dashboard = () => {
                 ${activeTab === id ? 'border-gray-900 text-gray-900' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-black/15'}`}>
               <Icon size={14} />{label}
               {id === 'timeseries' && tsCount > 0 && <span className="ml-1 px-1.5 py-0.5 text-[10px] bg-gray-100 text-gray-700">{tsCount}</span>}
+              {id === 'readiness' && issueCount > 0 && (
+                <span className="ml-1 px-1.5 py-0.5 text-[10px] bg-black text-white">{issueCount}</span>
+              )}
             </button>
           ))}
         </div>
@@ -528,6 +536,17 @@ const Dashboard = () => {
         {activeTab !== 'overview' && (
         <div className="flex-1 overflow-auto">
         <div className="p-6 space-y-5">
+
+          {activeTab === 'readiness' && readiness && (
+            <Panel title={`Issues (${readiness.errors.length} blocking, ${readiness.warnings.length} ${readiness.warnings.length === 1 ? 'warning' : 'warnings'})`} icon={FiAlertTriangle}>
+              <div className="px-5 py-2">
+                <ReadinessPanel readiness={readiness} onNavigate={onNavigate} emptyText="The model is ready to run." />
+              </div>
+            </Panel>
+          )}
+          {activeTab === 'readiness' && !readiness && (
+            <p className="text-sm text-slate-500">Load a model to check whether it is ready to run.</p>
+          )}
 
           {/* ── GENERATION ────────────────────────────────────────────── */}
           {activeTab === 'generation' && (<>

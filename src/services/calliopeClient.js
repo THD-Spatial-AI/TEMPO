@@ -120,6 +120,26 @@ export async function checkCalliopeService(engine = '0.6') {
   }
 }
 
+/**
+ * Pre-run check on a Calliope service: blocking errors plus what this engine's
+ * translation drops. Resolves to null when the service is unreachable.
+ * @param {'0.6'|'0.7'} engine
+ */
+export async function assessCalliopeModel(engine, modelData) {
+  try {
+    const url = await getServiceURL(engine);
+    const res = await fetch(`${url}/assess`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(modelData),
+      signal: AbortSignal.timeout(30000),
+    });
+    return res.ok ? await res.json() : null;
+  } catch {
+    return null;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Run a model
 // ---------------------------------------------------------------------------

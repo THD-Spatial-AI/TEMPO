@@ -15,6 +15,8 @@ import SaveModelDialog from './creation/SaveModelDialog';
 import CreationSidebar from './creation/CreationSidebar';
 import MapLegends from './creation/MapLegends';
 import HoverTooltip from './creation/HoverTooltip';
+import { buildDraftModel } from './creation/draftModel';
+import { checkModel } from '../services/modelReadiness';
 import MapToolbar from './MapToolbar';
 import LocationEditDialog from './LocationEditDialog';
 import { useGeoServerData } from '../hooks/useGeoServerData';
@@ -429,6 +431,14 @@ const Creation = ({ onNavigate }) => {
       ipm_optimality_tolerance: 1e-6,
     }
   });
+
+  const draftReadiness = useMemo(() => (showSaveDialog ? checkModel({
+    ...buildDraftModel(
+      { tempLocations: locationManager.tempLocations, tempLinks: locationManager.tempLinks },
+      techMap, { timeSeries, currentModelId },
+    ),
+    modelConfig,
+  }) : null), [showSaveDialog, locationManager.tempLocations, locationManager.tempLinks, techMap, timeSeries, currentModelId, modelConfig]);
 
   // Helper function to check if a point is inside a polygon using ray casting algorithm
   const isPointInPolygon = (point, polygon) => {
@@ -1106,109 +1116,16 @@ const Creation = ({ onNavigate }) => {
       return;
     }
 
-    // Convert temp locations to final format using locationManager data
-    const finalLocations = locationManager.tempLocations.map(loc => ({
-      name: loc.name,
-      latitude: loc.latitude,
-      longitude: loc.longitude,
-      type: loc.isNode ? 'node' : 'site',
-      isNode: loc.isNode,
-      // Keep metadata (kind: substation/plant/transmission_node) so the Map View
-      // renders these with the same palette/shape as the Creation OSM overlay.
-      metadata: loc.metadata || {},
-      coordinates: {
-        lat: loc.latitude,
-        lon: loc.longitude
-      },
-      techs: loc.techs || {},
-      available_techs: Object.keys(loc.techs || {}).join(',')
-    }));
-
-    // Convert temp links to final format using locationManager data
-    const finalLinks = locationManager.tempLinks.map(link => {
-      const fromLoc = locationManager.tempLocations.find(l => l.id === link.from);
-      const toLoc = locationManager.tempLocations.find(l => l.id === link.to);
-      const lt = link.linkType ? LINK_TYPES[link.linkType] : null;
-      return {
-        from: fromLoc.name,
-        to: toLoc.name,
-        distance: link.distance,
-        // Per-link transmission capacity (MW) → energy_cap_max on Calliope export.
-        capacity: link.capacity ?? null,
-        linkType: link.linkType || null,
-        carrier: link.carrier || lt?.carrier || 'electricity',
-        // Calliope tech key used in techs.yaml and links section
-        tech: lt?.calliopeTech || link.tech || link.linkType || 'ac_transmission',
-      };
-    });
-
-    // Collect all unique technologies from locations
-    const techsToAdd = [];
-    locationManager.tempLocations.forEach(loc => {
-      if (loc.techs) {
-        Object.entries(loc.techs).forEach(([techName, techData]) => {
-          if (!techsToAdd.find(t => t.name === techName)) {
-            const template = techMap[techName];
-            if (template) {
-              techsToAdd.push({
-                ...template,
-                name: techName,
-                constraints: { ...template.constraints, ...techData.constraints },
-                costs: { ...template.costs, ...techData.costs },
-                essentials: { ...template.essentials, ...techData.essentials }
-              });
-            }
-          }
-        });
-      }
-    });
-
-    // Auto-add transmission tech definitions for each unique link type used
-    const seenTechs = new Set(techsToAdd.map(t => t.name));
-    locationManager.tempLinks.forEach(link => {
-      if (!link.linkType) return;
-      const lt = LINK_TYPES[link.linkType];
-      if (!lt) return;
-      const techId = lt.calliopeTech;
-      if (seenTechs.has(techId)) return;
-      seenTechs.add(techId);
-      techsToAdd.push({
-        name: techId,
-        parent: 'transmission',
-        essentials: { name: lt.label, parent: 'transmission', carrier: lt.carrier, color: '#94A3B8' },
-        constraints: {
-          energy_cap_max: 'inf',
-          energy_eff: lt.defaults.energy_eff ?? 0.98,
-          lifetime: lt.defaults.lifetime ?? 40,
-        },
-        costs: {
-          monetary: {
-            interest_rate: 0.05,
-            ...(lt.defaults.energy_cap_per_distance != null
-              ? { energy_cap_per_distance: lt.defaults.energy_cap_per_distance }
-              : {}),
-          },
-        },
-      });
-    });
-
-    // Carry forward any generated/session timeSeries (e.g. the OSM substation
-    // demand CSV). createModel does setTimeSeries(newModel.timeSeries), so if we
-    // pass [] here the demand entry is WIPED from context on save. Strip modelId
-    // so createModel assigns the new model's id.
-    const modelTimeSeries = (timeSeries || [])
-      .filter(ts => ts && ts.columns && ts.data && (ts.source === 'osm-demand' || !ts.modelId || ts.modelId === currentModelId))
-      // eslint-disable-next-line no-unused-vars
-      .map(({ modelId, ...rest }) => rest);
+    const draft = buildDraftModel(locationManager, techMap, { timeSeries, currentModelId });
 
     // Create new model
     createModel(
       modelConfig.name || modelName.trim(),
-      finalLocations,
-      finalLinks,
+      draft.locations,
+      draft.links,
       [],
-      techsToAdd,
-      modelTimeSeries,
+      draft.technologies,
+      draft.timeSeries,
       {
         description: `Model created in Creation mode with ${locationManager.tempLocations.length} locations and ${locationManager.tempLinks.length} links`,
         createdInCreationMode: true,
@@ -2625,6 +2542,7 @@ const Creation = ({ onNavigate }) => {
           locationManager={locationManager}
           modelConfig={modelConfig}
           modelName={modelName}
+          readiness={draftReadiness}
           saveToMainData={saveToMainData}
           setModelConfig={setModelConfig}
           setModelName={setModelName}

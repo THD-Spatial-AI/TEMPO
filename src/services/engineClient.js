@@ -70,6 +70,26 @@ export async function checkEngineService(engine) {
 }
 
 /**
+ * Pre-run check on the engine service: blocking errors plus what this engine's
+ * translation drops. Resolves to null when the service is unreachable.
+ * @param {'pypsa'|'osemosys'|'adoptnet0'} engine
+ */
+export async function assessEngineModel(engine, modelData) {
+  try {
+    const url = await getEngineServiceURL(engine);
+    const res = await fetch(`${url}/assess`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(modelData),
+      signal: AbortSignal.timeout(30000),
+    });
+    return res.ok ? await res.json() : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Export a model (or list of scenario-resolved models) as a framework archive.
  * @param {'pypsa'|'osemosys'|'adoptnet0'} engine
  * @param {object} payload  { datasets: [{name, model}], options: {...} }

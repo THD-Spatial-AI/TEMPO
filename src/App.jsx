@@ -87,7 +87,7 @@ function AppContent() {
   const renderContent = () => {
     // Switch pattern avoids creating React elements for inactive views (INP fix)
     switch (selected) {
-      case "Dashboard":      return <Dashboard />;
+      case "Dashboard":      return <Dashboard onNavigate={handleNavigation} />;
       case "Tutorial":       return <Tutorial />;
       case "Models":         return <Models />;
       case "Map View":       return <MapView />;
@@ -106,7 +106,7 @@ function AppContent() {
       case "Run":            return <Run onNavigate={handleNavigation} />;
       case "Results":        return <Results onNavigate={handleNavigation} />;
       case "Export":         return <Export />;
-      default:               return <Dashboard />;
+      default:               return <Dashboard onNavigate={handleNavigation} />;
     }
   };
 

@@ -2,11 +2,13 @@
 // options, threads) for the Creation view. Extracted verbatim from
 // Creation.jsx; the parent still gates rendering on `showSaveDialog`.
 import { FiX } from '../ui/icons';
+import ReadinessPanel from '../shared/ReadinessPanel';
 
 export default function SaveModelDialog({
   locationManager,
   modelConfig,
   modelName,
+  readiness,
   saveToMainData,
   setModelConfig,
   setModelName,
@@ -51,6 +53,18 @@ export default function SaveModelDialog({
                   />
                 </div>
               </div>
+
+              {readiness && readiness.errors.length + readiness.warnings.length > 0 && (
+                <div className="rounded-lg border border-black/15 p-4">
+                  <p className="text-sm font-semibold text-slate-900">
+                    {readiness.errors.length} problem{readiness.errors.length === 1 ? '' : 's'} and {readiness.warnings.length} warning{readiness.warnings.length === 1 ? '' : 's'}
+                  </p>
+                  <p className="mt-0.5 text-xs text-slate-500">You can save now and finish the model later. Runs stay disabled until the problems are fixed.</p>
+                  <div className="mt-2 max-h-48 overflow-y-auto">
+                    <ReadinessPanel readiness={readiness} />
+                  </div>
+                </div>
+              )}
 
               <hr className="border-black/15" />
 
