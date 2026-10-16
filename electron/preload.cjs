@@ -248,6 +248,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
   },
 
+  // ── App updates (GitHub Releases) ─────────────────────────────────────────
+  updates: {
+    check: () => ipcRenderer.invoke('update:check'),
+    download: () => ipcRenderer.invoke('update:download'),
+    cancel: () => ipcRenderer.invoke('update:cancel'),
+    install: () => ipcRenderer.invoke('update:install'),
+    openPage: () => ipcRenderer.invoke('update:open-page'),
+    onProgress: (callback) => {
+      const handler = (_event, data) => callback(data);
+      ipcRenderer.on('update:progress', handler);
+      return () => ipcRenderer.removeListener('update:progress', handler);
+    },
+  },
+
   // ── MEME remote server ────────────────────────────────────────────────────
 
   /**

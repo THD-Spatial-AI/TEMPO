@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { FiChevronDown, FiChevronRight } from './ui/icons';
 import { LuLayoutDashboard, LuGraduationCap, LuPencilRuler, LuFolderTree, LuBoxes, LuMap, LuMapPin, LuWaypoints, LuChartLine, LuLayers, LuDatabase, LuFileDown, LuCirclePlay, LuChartPie, LuSettings, LuPanelLeftClose, LuPanelLeftOpen, LuSparkles, LuTour } from './ui/icons';
 import GuidedTour from './tour/GuidedTour';
+import UpdateNotifier from './UpdateNotifier';
 import { startTour, tourForView } from './tour/tour';
 import WhatsNewDialog from "./WhatsNewDialog";
 import { useReleases } from "../services/releases";
@@ -151,6 +152,7 @@ const Sidebar = ({ selected, setSelected }) => {
       <VersionButton open={open} />
       <ToggleClose open={open} setOpen={setOpen} />
       <GuidedTour view={selected} />
+      <UpdateNotifier />
     </motion.nav>
   );
 };

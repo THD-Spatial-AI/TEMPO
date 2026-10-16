@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { requestUpdateCheck } from '../services/updates';
 import { FiDownload, FiRefreshCw, FiTerminal, FiCheckCircle, FiAlertCircle, FiBox, FiCpu, FiZap, FiShield, FiChevronDown, FiServer, FiMessageSquare } from './ui/icons';
 import { LuSlidersHorizontal, LuCpu, LuServer, LuMessageSquare, LuShield, LuInfo, LuTrash2 } from './ui/icons';
 import tempoLogo from '../assets/Logo_TEMPO.PNG';
@@ -387,6 +388,14 @@ function GeneralPanel() {
       >
         <Toggle checked={settings.autoSave} onChange={(v) => update('autoSave', v)} label="Auto-save" />
       </SettingRow>
+      {window.electronAPI?.updates && (
+        <SettingRow
+          title="Check for updates automatically"
+          description="Ask GitHub for a newer TEMPO release at startup and every 6 hours. You can always check manually in About."
+        >
+          <Toggle checked={settings.autoUpdateCheck} onChange={(v) => update('autoUpdateCheck', v)} label="Check for updates automatically" />
+        </SettingRow>
+      )}
     </div>
   );
 }
@@ -795,6 +804,12 @@ function AboutPanel() {
           <div className="text-lg font-semibold text-slate-900">TEMPO</div>
           <p className="text-sm text-slate-500">Tool for Energy Model Preparation and Optimization. All model data is stored locally on this device.</p>
         </div>
+        {window.electronAPI?.updates && (
+          <button onClick={requestUpdateCheck}
+            className="ml-auto flex h-10 shrink-0 items-center gap-2 border border-black/15 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50">
+            <FiRefreshCw size={15} /> Check for updates
+          </button>
+        )}
       </div>
       <dl className="divide-y divide-black/10 rounded-xl border border-black/15">
         {rows.map(({ label, value }) => (
@@ -956,7 +971,7 @@ const Settings = () => {
           {/* Privacy & Data */}
           <div className={activeSection === 'data' ? '' : 'hidden'}>
             <h3 className="mb-1 text-lg font-semibold text-slate-900">Privacy &amp; Data</h3>
-            <p className="mb-6 text-sm text-slate-500">TEMPO stores all model data locally on this device.</p>
+            <p className="mb-6 text-sm text-slate-500">TEMPO stores all model data locally on this device. To look for updates it contacts GitHub (api.github.com) and sends no model data; turn this off under General.</p>
 
             <div className="rounded-xl border border-red-200 bg-red-50/40">
               <div className="flex flex-wrap items-center justify-between gap-4 p-5">

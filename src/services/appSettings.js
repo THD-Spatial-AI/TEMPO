@@ -11,6 +11,7 @@ export const SETTINGS_EVENT = 'tempo-settings-change';
 const DEFAULTS = {
   defaultView: 'Dashboard', // matches the view keys in App.jsx's switch
   autoSave: true,           // 1.5s debounced auto-save in DataContext
+  autoUpdateCheck: true,    // UpdateNotifier checks GitHub on start and every 6 h
 };
 
 export function getSettings() {

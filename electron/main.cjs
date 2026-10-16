@@ -431,6 +431,9 @@ ipcMain.handle('setup:mark-complete', () => {
 // User-supplied API keys drive an LLM over the frozen result contract. The call
 // happens here in main (no CORS, keys never enter the renderer). Deltas stream
 // back over the 'ai:stream' channel keyed by reqId.
+const { registerUpdater } = require('./updater.cjs');
+registerUpdater();
+
 const aiKeystore = require('./ai/keystore.cjs');
 const { streamChat: aiStreamChat } = require('./ai/providers.cjs');
 const aiAbortControllers = new Map();
