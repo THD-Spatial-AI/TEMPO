@@ -11,6 +11,7 @@ import { regenerateDemandSeries } from '../services/demandlibClient';
 import { expectedTimestepCount } from '../services/demandProfiles';
 import SaveBar from './ui/SaveBar';
 import TimeSeriesGuide from './timeseries/TimeSeriesGuide';
+import { confirmAction } from './ui/confirm';
 
 const TimeSeries = () => {
   const { timeSeries, setTimeSeries, getCurrentModel } = useData();
@@ -398,8 +399,8 @@ const TimeSeries = () => {
   };
 
   // Delete timeseries
-  const handleDelete = (id) => {
-    if (window.confirm('Are you sure you want to delete this time series?')) {
+  const handleDelete = async (id) => {
+    if (await confirmAction({ title: 'Delete this time series?', message: 'Technologies that reference its columns will need a new source.', details: timeSeries.find(ts => ts.id === id)?.name })) {
       setTimeSeries(timeSeries.filter(ts => ts.id !== id));
       if (selectedTimeSeries?.id === id) {
         setSelectedTimeSeries(null);

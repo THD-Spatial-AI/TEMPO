@@ -5,7 +5,7 @@ import ReactECharts from 'echarts-for-react';
 import Papa from 'papaparse';
 import { fetchTemplate } from '../utils/templateFetch';
 import { FiMapPin, FiLink, FiZap, FiBarChart2, FiPieChart, FiActivity, FiDollarSign, FiChevronDown, FiChevronUp, FiCpu, FiLayers, FiMap, FiClock, FiGrid, FiSun, FiFilter } from './ui/icons';
-import { LuLayoutDashboard, LuFactory, LuGauge, LuWaypoints, LuCoins, LuChartLine } from './ui/icons';
+import { LuSummary, LuFactory, LuGauge, LuWaypoints, LuCoins, LuChartLine } from './ui/icons';
 import 'leaflet/dist/leaflet.css';
 import { TsViewControls, Panel, KpiCard, InputMap } from './dashboard/DashboardWidgets';
 import TechCategoryBreakdown from './dashboard/TechCategoryBreakdown';
@@ -162,7 +162,7 @@ function buildFilteredChart(ts, opts, lineColor = '#6b7280') {
 
 // ── Tabs definition ───────────────────────────────────────────────────────────
 const TABS = [
-  { id: 'overview',    label: 'Overview',     icon: LuLayoutDashboard },
+  { id: 'overview',    label: 'Overview',     icon: LuSummary },
   { id: 'generation',  label: 'Generation',   icon: LuFactory },
   { id: 'demand',      label: 'Demand',       icon: LuGauge },
   { id: 'network',     label: 'Network',      icon: LuWaypoints },

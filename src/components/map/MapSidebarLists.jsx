@@ -3,6 +3,7 @@
 // the state and passes it as props, and still gates on !leftSidebarCollapsed.
 import { FiActivity, FiArrowRight, FiChevronDown, FiChevronRight, FiEdit2, FiLink, FiMapPin, FiTrash2 } from '../ui/icons';
 import { formatTechName } from '../../utils/mapVisuals';
+import { confirmAction } from '../ui/confirm';
 
 export default function MapSidebarLists({
   handleDeleteLocation,
@@ -46,8 +47,8 @@ export default function MapSidebarLists({
                 </button>
                 {locations.length > 0 && (
                   <button
-                    onClick={() => {
-                      if (window.confirm(`Delete all ${locations.length} locations? This will also remove all links.`)) {
+                    onClick={async () => {
+                      if (await confirmAction({ title: 'Delete all locations?', message: `All ${locations.length} locations and every link between them will be removed.`, confirmLabel: 'Delete all' })) {
                         setLocations([]);
                         setLinks([]);
                         showNotification('All locations and links deleted', 'success');
@@ -139,8 +140,8 @@ export default function MapSidebarLists({
                 </button>
                 {links.length > 0 && (
                   <button
-                    onClick={() => {
-                      if (window.confirm(`Delete all ${links.length} links?`)) {
+                    onClick={async () => {
+                      if (await confirmAction({ title: 'Delete all links?', message: `All ${links.length} links will be removed. Locations are kept.`, confirmLabel: 'Delete all' })) {
                         setLinks([]);
                         showNotification('All links deleted', 'success');
                       }
@@ -177,8 +178,8 @@ export default function MapSidebarLists({
                             )}
                           </div>
                           <button
-                            onClick={() => {
-                              if (window.confirm(`Delete link ${link.from} → ${link.to}?`)) {
+                            onClick={async () => {
+                              if (await confirmAction({ title: 'Delete this link?', message: 'The connection and its transmission settings will be removed.', details: `${link.from} → ${link.to}` })) {
                                 setLinks(links.filter((_, i) => i !== idx));
                               }
                             }}

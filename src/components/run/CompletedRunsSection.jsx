@@ -1,6 +1,7 @@
 // CompletedRunsSection — extracted verbatim from Run.jsx.
 import { useState } from 'react';
 import { FiActivity, FiAlertTriangle, FiBarChart2, FiCheckCircle, FiClock, FiCpu, FiDownload, FiList, FiSearch, FiTerminal, FiTrash2, FiX, FiZap } from '../ui/icons';
+import { confirmAction } from '../ui/confirm';
 
 export default function CompletedRunsSection({
   onNavigate,
@@ -39,9 +40,9 @@ export default function CompletedRunsSection({
     }
   };
 
-  const handleBulkDelete = () => {
+  const handleBulkDelete = async () => {
     const count = selectedIds.size;
-    if (!window.confirm(`Delete ${count} run${count > 1 ? 's' : ''}?`)) return;
+    if (!(await confirmAction({ title: `Delete ${count} run${count > 1 ? 's' : ''}?`, message: 'The selected runs and their results will be permanently removed.' }))) return;
     selectedIds.forEach(id => removeCompletedJob(id));
     setSelectedIds(new Set());
   };

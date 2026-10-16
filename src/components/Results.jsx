@@ -7,7 +7,8 @@ import { saveAs } from 'file-saver';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import ScenarioComparison from './ScenarioComparison';
 import Select from './ui/Select';
-import { LuLayoutDashboard, LuConversionPath, LuAreaChart, LuEuro, LuPriceChange, LuQueryStats, LuAltRoute, LuSparkles, LuTerminal, LuSlidersHorizontal } from './ui/icons';
+import DeleteButton from './ui/DeleteButton';
+import { LuSummary, LuConversionPath, LuAreaChart, LuEuro, LuPriceChange, LuQueryStats, LuAltRoute, LuSparkles, LuTerminal, LuSlidersHorizontal } from './ui/icons';
 
 const RUN_ENGINE_LABELS = {
   calliope:   'Calliope 0.6',
@@ -277,7 +278,7 @@ const Results = ({ onNavigate }) => {
     Object.entries(result.generation || {}).forEach(([k, v]) => {
       const { loc, tech } = parseLTC(k);
       const val = Number(v) || 0;
-      if (val > 0 && loc && tech) {
+      if (val > 0 && loc && tech && !tech.includes(':')) {
         if (!techMixByLoc[loc]) techMixByLoc[loc] = {};
         techMixByLoc[loc][tech] = (techMixByLoc[loc][tech] || 0) + val;
       }
@@ -538,7 +539,7 @@ const Results = ({ onNavigate }) => {
   const hasCosts    = Object.keys(result?.costs_by_tech || {}).length > 0;
 
   const TABS = [
-    { id: 'overview',  label: 'Overview',    icon: LuLayoutDashboard },
+    { id: 'overview',  label: 'Overview',    icon: LuSummary },
     ...(hasFlow     ? [{ id: 'flow',     label: 'Energy Flow',   icon: LuConversionPath }] : []),
     ...(hasDispatch ? [{ id: 'dispatch', label: 'Dispatch',      icon: LuAreaChart }] : []),
     ...(hasCosts    ? [{ id: 'costs',    label: 'Costs',         icon: LuEuro }] : []),
@@ -675,10 +676,15 @@ const Results = ({ onNavigate }) => {
                 ) : null;
               })()}
               {selectedJobId && (
-                <button onClick={() => { removeCompletedJob(selectedJobId); setSelectedJobId(null); }}
-                  className="ml-auto flex h-10 items-center gap-1.5 rounded-lg px-3 text-sm font-medium text-slate-500 transition-colors hover:bg-red-50 hover:text-red-600">
-                  <FiTrash2 size={14} /> Remove
-                </button>
+                <DeleteButton
+                  className="border border-black/15 bg-white"
+                  label="Delete run"
+                  title="Delete this run?"
+                  message="The run and its results will be removed from TEMPO. The model itself is not affected."
+                  details={selectedJob?.modelName}
+                  confirmLabel="Delete run"
+                  onConfirm={() => { removeCompletedJob(selectedJobId); setSelectedJobId(null); }}
+                />
               )}
             </div>
           </div>

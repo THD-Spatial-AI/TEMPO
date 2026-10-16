@@ -30,7 +30,7 @@ export default function EntityListsPanel({
   return (
     <div className="flex-1 overflow-y-auto px-3 py-3">
       {/* Locations Section */}
-      <section className="mb-3">
+      <section className="mb-3" data-tour="entity-locations">
         <SectionHeader
           title="Locations"
           count={locations.length}
@@ -109,7 +109,7 @@ export default function EntityListsPanel({
       </section>
 
       {/* Links Section */}
-      <section className="border-t border-black/10 pt-3">
+      <section className="border-t border-black/10 pt-3" data-tour="entity-links">
         <SectionHeader
           title="Links"
           count={links.length}
@@ -125,7 +125,7 @@ export default function EntityListsPanel({
 
         {/* Link type selector — Creation-only (applies to new links drawn on the map) */}
         {setCurrentLinkType && (
-          <div className="mb-2 flex items-center gap-2 rounded-lg border border-black/15 bg-slate-50 px-2 py-1.5">
+          <div className="mb-2 flex items-center gap-2 rounded-lg border border-black/15 bg-slate-50 px-2 py-1.5" data-tour="link-type">
             <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-slate-400">New</span>
             <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: getLinkTypeColor(currentLinkType) }} />
             <select

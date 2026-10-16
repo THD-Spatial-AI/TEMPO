@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { FiFolder, FiFile, FiDownload, FiTrash2, FiEdit2, FiX, FiSave, FiChevronDown, FiChevronRight } from "./ui/icons";
 import { useData } from "../context/DataContext";
+import { confirmAction } from './ui/confirm';
 
 const CalliopeModels = () => {
   const [exportedModels, setExportedModels] = useState([]);
@@ -36,8 +37,8 @@ const CalliopeModels = () => {
     saveModels(updated);
   };
 
-  const handleDeleteModel = (modelId) => {
-    if (confirm("Are you sure you want to delete this exported model?")) {
+  const handleDeleteModel = async (modelId) => {
+    if (await confirmAction({ title: 'Delete this exported model?', message: 'The exported files will be permanently removed.', details: exportedModels.find(m => m.id === modelId)?.name })) {
       const updated = exportedModels.filter(m => m.id !== modelId);
       saveModels(updated);
       if (selectedModel?.id === modelId) {

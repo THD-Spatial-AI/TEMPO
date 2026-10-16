@@ -7,6 +7,7 @@ import SortHeader from './ui/SortHeader';
 import { nextSort, compareValues } from '../utils/sorting';
 import { LINK_TYPES, LINK_TYPES_BY_GROUP, getLinkTypeColor } from "../config/linkTypes";
 import { CARRIERS, getCarrierColor, getCarrierLabel } from "../config/carriers";
+import { confirmAction } from './ui/confirm';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -137,8 +138,8 @@ const Links = () => {
     setEditData({});
   };
 
-  const deleteLink = (index) => {
-    if (window.confirm('Are you sure you want to delete this link?')) {
+  const deleteLink = async (index) => {
+    if (await confirmAction({ title: 'Delete this link?', message: 'The connection and its transmission settings will be removed.', details: `${links[index]?.from} → ${links[index]?.to}` })) {
       setLinks(links.filter((_, i) => i !== index));
     }
   };

@@ -207,18 +207,18 @@ const Tutorial = () => {
 
             {/* Interface tour */}
             <section>
-              <SectionTitle title="The interface at a glance">A real 12-node model of Germany, as it appears on the Dashboard.</SectionTitle>
+              <SectionTitle title="The interface at a glance">A real 29-node model of Italy, as it appears on the Dashboard.</SectionTitle>
               <Screenshot
                 src="./img/Dashboard.png"
                 alt="TEMPO Model Dashboard"
-                caption="Model Dashboard — a real model for Germany with 12 locations, 12 links, 6 generation technologies, 36.5 GW capacity, 20.9 M€ CAPEX."
+                caption="Model Dashboard — a real model of Italy with 29 locations, 64 links, 21 generation technologies in 4 categories and 8 time series."
               />
               <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
                 {[
-                  { icon: FiMapPin, label: 'Locations', desc: '12 nodes — cities, substations, plants' },
-                  { icon: FiLink, label: 'Links', desc: '12 transmission lines between nodes' },
-                  { icon: FiZap, label: 'Gen Technologies', desc: '6 supply types (solar, wind, gas…)' },
-                  { icon: FiActivity, label: 'Max Capacity', desc: '36.5 GW total across all locations' },
+                  { icon: FiMapPin, label: 'Locations', desc: '29 nodes — regions, neighbours and hubs' },
+                  { icon: FiLink, label: 'Links', desc: '64 transmission lines between nodes' },
+                  { icon: FiZap, label: 'Gen Technologies', desc: '21 supply types (solar, wind, hydro, gas…)' },
+                  { icon: FiActivity, label: 'Technology mix', desc: 'Supply, storage, conversion and demand' },
                 ].map(({ icon: Icon, label, desc }) => (
                   <div key={label} className="flex gap-3 rounded-xl border border-black/15 bg-white p-3.5 ">
                     <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-600"><Icon size={15} /></div>

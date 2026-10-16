@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { FiFolder, FiTrash2, FiEdit2, FiCheck, FiX, FiPlus } from './ui/icons';
 import { useData } from '../context/DataContext';
+import { confirmAction } from './ui/confirm';
 
 const ModelSelector = () => {
   const { models, currentModelId, loadModel, deleteModel, renameModel } = useData();
@@ -18,9 +19,9 @@ const ModelSelector = () => {
     }
   };
 
-  const handleDelete = (modelId, e) => {
+  const handleDelete = async (modelId, e) => {
     e.stopPropagation();
-    if (window.confirm('Are you sure you want to delete this model?')) {
+    if (await confirmAction({ title: 'Delete this model?', message: 'Its locations, links, technologies and time series will be permanently removed.', details: models.find(m => m.id === modelId)?.name })) {
       deleteModel(modelId);
     }
   };
@@ -35,6 +36,7 @@ const ModelSelector = () => {
     <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
+        data-tour="model-selector"
         className="flex items-center gap-2 px-4 py-2 bg-white border border-black/15 rounded-md hover:bg-slate-50 transition-colors text-sm"
       >
         <FiFolder />

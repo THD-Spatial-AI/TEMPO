@@ -6,6 +6,7 @@ import '@fontsource-variable/jetbrains-mono'
 import 'material-symbols/outlined.css'
 import './index.css'
 import App from './App.jsx'
+import { ConfirmHost } from './components/ui/ConfirmDialog'
 
 // Suppress WebGL context initialization errors
 const originalError = console.error;
@@ -32,5 +33,6 @@ window.addEventListener('error', (event) => {
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <App />
+    <ConfirmHost />
   </StrictMode>,
 )

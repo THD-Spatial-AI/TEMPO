@@ -7,6 +7,7 @@ import SortHeader from './ui/SortHeader';
 import { nextSort, compareValues } from '../utils/sorting';
 import { TECH_TEMPLATES, useLiveTechTemplates } from "./TechnologiesData";
 import { CONSTRAINT_DEFINITIONS, COST_DEFINITIONS, PARENT_CONSTRAINTS } from '../utils/constraintDefinitions';
+import { confirmAction } from './ui/confirm';
 
 
 
@@ -321,8 +322,8 @@ const Locations = () => {
     }
   };
 
-  const removeTechnology = (locationIndex, techName) => {
-    if (window.confirm(`Remove ${techName} from this location?`)) {
+  const removeTechnology = async (locationIndex, techName) => {
+    if (await confirmAction({ title: 'Remove technology?', message: `It will be removed from ${locations[locationIndex]?.name || 'this location'}.`, details: techName, confirmLabel: 'Remove' })) {
       const updatedLocations = [...locations];
       delete updatedLocations[locationIndex].techs[techName];
       setLocations(updatedLocations);

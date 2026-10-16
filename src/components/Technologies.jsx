@@ -13,6 +13,7 @@ import {
   COST_DEFINITIONS,
 } from '../utils/constraintDefinitions';
 import TechParameterEditor from './creation/TechParameterEditor';
+import { confirmAction } from './ui/confirm';
 
 // ── Carrier helpers ──────────────────────────────────────────────────────────
 function CarrierPill({ carrierId }) {
@@ -987,17 +988,17 @@ function Technologies() {
 
   const handleCancelEdit = () => { setEditingTech(null); setEditForm(null); };
 
-  const handleDeleteTech = () => {
+  const handleDeleteTech = async () => {
     if (!editingTech) return;
-    if (window.confirm(`Are you sure you want to delete "${editingTech}"?`)) {
+    if (await confirmAction({ title: 'Delete this technology?', message: 'It will be removed from the model and every location that uses it.', details: editingTech })) {
       setTechnologies(technologies.filter(t => t.name !== editingTech));
       setEditingTech(null);
       setEditForm(null);
     }
   };
 
-  const handleDeleteFromCard = (techName) => {
-    if (window.confirm(`Are you sure you want to delete "${techName}"?`)) {
+  const handleDeleteFromCard = async (techName) => {
+    if (await confirmAction({ title: 'Delete this technology?', message: 'It will be removed from the model and every location that uses it.', details: techName })) {
       setTechnologies(technologies.filter(t => t.name !== techName));
     }
   };

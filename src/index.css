@@ -369,3 +369,46 @@ code, pre {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
+
+/* Result map popups */
+.tempo-popup .maplibregl-popup-content {
+  padding: 0;
+  border-radius: 12px;
+  box-shadow: 0 12px 32px -8px rgb(15 23 42 / 0.25), 0 0 0 1px rgb(15 23 42 / 0.08);
+  font-family: inherit;
+  overflow: hidden;
+  width: 260px;
+}
+.tempo-popup .maplibregl-popup-close-button { top: 6px; right: 6px; width: 22px; height: 22px; border-radius: 6px; color: #94a3b8; font-size: 16px; }
+.tempo-popup .maplibregl-popup-close-button:hover { background: #f1f5f9; color: #0f172a; }
+.tempo-popup .tp-head { padding: 12px 14px 10px; border-bottom: 1px solid #f1f5f9; }
+.tempo-popup .tp-title { font-size: 14px; font-weight: 700; color: #0f172a; padding-right: 20px; }
+.tempo-popup .tp-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 8px; }
+.tempo-popup .tp-stats span { background: #f8fafc; border-radius: 8px; padding: 5px 7px; display: flex; flex-direction: column; }
+.tempo-popup .tp-stats small { font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em; color: #94a3b8; font-weight: 600; }
+.tempo-popup .tp-stats b { font-size: 11.5px; color: #0f172a; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tempo-popup .tp-body { padding: 8px 14px 12px; max-height: 190px; overflow-y: auto; }
+.tempo-popup .tp-row { display: grid; grid-template-columns: 10px 1fr auto 32px; align-items: center; column-gap: 7px; row-gap: 3px; padding: 4px 0; font-size: 11.5px; }
+.tempo-popup .tp-dot { width: 9px; height: 9px; border-radius: 50%; }
+.tempo-popup .tp-name { color: #334155; text-transform: capitalize; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tempo-popup .tp-val { color: #0f172a; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tempo-popup .tp-pct { color: #94a3b8; text-align: right; font-variant-numeric: tabular-nums; }
+.tempo-popup .tp-bar { grid-column: 2 / -1; height: 3px; background: #f1f5f9; border-radius: 2px; overflow: hidden; }
+.tempo-popup .tp-bar span { display: block; height: 100%; border-radius: 2px; }
+.tempo-popup .tp-empty { color: #94a3b8; font-size: 11.5px; padding: 6px 0; }
+.tempo-popup .maplibregl-popup-close-button:focus:not(:focus-visible) { outline: none; box-shadow: none; }
+
+/* Confirm dialog */
+@keyframes tempo-confirm-fade { from { opacity: 0; } }
+@keyframes tempo-confirm-pop { from { opacity: 0; transform: translateY(8px) scale(0.97); } }
+.tempo-confirm-backdrop { animation: tempo-confirm-fade 150ms ease-out; }
+.tempo-confirm-panel { animation: tempo-confirm-pop 180ms cubic-bezier(0.2, 0.9, 0.3, 1.2); }
+
+/* Guided tour */
+@keyframes tempo-tour-in { from { opacity: 0; transform: translateY(6px); } }
+.tempo-tour-card { animation: tempo-tour-in 180ms ease-out; }
+.tempo-tour-spot { transition: top 250ms ease, left 250ms ease, width 250ms ease, height 250ms ease; }
+
+/* Mode showcase autoplay bar */
+@keyframes tempo-showcase-progress { from { width: 0; } to { width: 100%; } }
+.tempo-showcase-progress { animation-name: tempo-showcase-progress; animation-timing-function: linear; animation-fill-mode: forwards; }

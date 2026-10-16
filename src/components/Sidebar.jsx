@@ -1,7 +1,9 @@
 import React, { useState } from "react";
 import { createPortal } from "react-dom";
 import { FiChevronDown, FiChevronRight } from './ui/icons';
-import { LuLayoutDashboard, LuGraduationCap, LuPencilRuler, LuFolderTree, LuBoxes, LuMap, LuMapPin, LuWaypoints, LuChartLine, LuLayers, LuDatabase, LuFileDown, LuCirclePlay, LuChartPie, LuSettings, LuPanelLeftClose, LuPanelLeftOpen, LuSparkles } from './ui/icons';
+import { LuLayoutDashboard, LuGraduationCap, LuPencilRuler, LuFolderTree, LuBoxes, LuMap, LuMapPin, LuWaypoints, LuChartLine, LuLayers, LuDatabase, LuFileDown, LuCirclePlay, LuChartPie, LuSettings, LuPanelLeftClose, LuPanelLeftOpen, LuSparkles, LuTour } from './ui/icons';
+import GuidedTour from './tour/GuidedTour';
+import { startTour, tourForView } from './tour/tour';
 import WhatsNewDialog from "./WhatsNewDialog";
 import { useReleases } from "../services/releases";
 import { motion, AnimatePresence } from "framer-motion";
@@ -145,8 +147,10 @@ const Sidebar = ({ selected, setSelected }) => {
 
       </div>
 
+      <RestartTourButton open={open} selected={selected} />
       <VersionButton open={open} />
       <ToggleClose open={open} setOpen={setOpen} />
+      <GuidedTour view={selected} />
     </motion.nav>
   );
 };
@@ -346,6 +350,32 @@ const Logo = () => {
   );
 };
 
+const RestartTourButton = ({ open, selected }) => {
+  const tourId = tourForView(selected);
+  const scope = tourId === 'app' ? null : tourId;
+  const { tooltip, handlers } = useCollapsedTooltip(scope ? `Restart ${scope} tour` : 'Restart tour', !open);
+  return (
+    <>
+      <button
+        onClick={() => startTour(tourId)}
+        aria-label={scope ? `Restart ${scope} tour` : 'Restart tour'}
+        data-tour="restart-tour"
+        {...handlers}
+        className="mt-3 flex h-10 items-center rounded-xl pl-0.5 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900"
+      >
+        <div className="grid h-full w-11 shrink-0 place-items-center">
+          <LuTour size={18} />
+        </div>
+        <Label open={open} className="flex flex-1 items-center gap-2 pr-2 text-sm font-medium">
+          Restart tour
+          {scope && <span className="ml-auto border border-black/15 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">{scope}</span>}
+        </Label>
+      </button>
+      {tooltip}
+    </>
+  );
+};
+
 const VersionButton = ({ open }) => {
   const [showNotes, setShowNotes] = useState(false);
   const releaseInfo = useReleases();
@@ -357,8 +387,9 @@ const VersionButton = ({ open }) => {
       <button
         onClick={() => setShowNotes(true)}
         aria-label={`${versionLabel} — what's new`}
+        data-tour="version"
         {...handlers}
-        className="mt-3 flex h-10 items-center rounded-xl pl-0.5 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900"
+        className="flex h-10 items-center rounded-xl pl-0.5 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900"
       >
         <div className="grid h-full w-11 shrink-0 place-items-center">
           <LuSparkles size={17} strokeWidth={1.75} />

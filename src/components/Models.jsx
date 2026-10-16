@@ -12,6 +12,7 @@ import { detectArchiveFormat } from '../services/archiveFormat';
 import { importModelArchive } from '../services/engineClient';
 import { useCsvImportWizard } from '../hooks/useCsvImportWizard';
 import Select from './ui/Select';
+import { confirmAction } from './ui/confirm';
 
 const Models = () => {
   const { models, setModels, currentModelId, loadModel, deleteModel, renameModel, createModel, setTimeSeries, setOverrides, setScenarios, showNotification } = useData();
@@ -220,8 +221,8 @@ const Models = () => {
     }
   ];
 
-  const handleDelete = (modelId) => {
-    if (window.confirm('Are you sure you want to delete this model?')) {
+  const handleDelete = async (modelId) => {
+    if (await confirmAction({ title: 'Delete this model?', message: 'Its locations, links, technologies and time series will be permanently removed.', details: models.find(m => m.id === modelId)?.name })) {
       deleteModel(modelId);
     }
   };
@@ -769,9 +770,9 @@ const Models = () => {
     }
   };
 
-  const handleBulkDelete = () => {
+  const handleBulkDelete = async () => {
     const count = selectedIds.size;
-    if (!window.confirm(`Delete ${count} model${count > 1 ? 's' : ''}?`)) return;
+    if (!(await confirmAction({ title: `Delete ${count} model${count > 1 ? 's' : ''}?`, message: 'The selected models and all their data will be permanently removed.' }))) return;
     selectedIds.forEach(id => deleteModel(id));
     setSelectedIds(new Set());
     showNotification(`Deleted ${count} model${count > 1 ? 's' : ''}`, 'success');
@@ -1081,28 +1082,30 @@ const Models = () => {
                     <span className="ml-1 text-[11px] text-slate-400">Updated {new Date(model.updatedAt).toLocaleDateString()}</span>
                   </div>
                 </div>
-                <div className="flex shrink-0 items-center gap-1">
+                <div className="flex shrink-0 items-center gap-2">
                   {!active && (
                     <button
                       onClick={() => loadModel(model.id)}
-                      className="h-8 rounded-lg bg-black px-3 text-xs font-semibold text-white transition-colors hover:bg-black/80"
+                      className="h-9 rounded-lg bg-black px-4 text-sm font-semibold text-white transition-colors hover:bg-black/80"
                     >
                       Load
                     </button>
                   )}
                   <button
                     onClick={() => openEditModal(model)}
-                    className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 opacity-0 transition-all hover:bg-slate-200/70 hover:text-slate-900 focus:opacity-100 group-hover:opacity-100"
+                    aria-label="Edit model"
                     title="Edit model"
+                    className="grid h-9 w-9 place-items-center rounded-lg border border-black/15 bg-white text-slate-600 transition-colors hover:border-slate-400 hover:bg-slate-50 hover:text-slate-900"
                   >
-                    <FiEdit2 size={15} />
+                    <FiEdit2 size={18} />
                   </button>
                   <button
                     onClick={() => handleDelete(model.id)}
-                    className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 opacity-0 transition-all hover:bg-red-50 hover:text-red-600 focus:opacity-100 group-hover:opacity-100"
-                    title="Delete"
+                    aria-label="Delete model"
+                    title="Delete model"
+                    className="grid h-9 w-9 place-items-center rounded-lg border border-black/15 bg-white text-slate-600 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
                   >
-                    <FiTrash2 size={15} />
+                    <FiTrash2 size={18} />
                   </button>
                 </div>
               </div>
