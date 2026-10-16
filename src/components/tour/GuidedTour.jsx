@@ -12,15 +12,23 @@ export default function GuidedTour({ view }) {
   const [tourId, setTourId] = useState('app');
   const [step, setStep] = useState(-1);
   const [rect, setRect] = useState(null);
+  const [runId, setRunId] = useState(0);
   const steps = TOURS[tourId] || TOURS.app;
   const active = step >= 0;
   const current = steps[step];
 
-  useEffect(() => {
-    const off = onTourStart((id) => { setTourId(TOURS[id] ? id : 'app'); setStep(0); });
-    const timer = hasSeenTour('app') ? null : setTimeout(() => setStep(0), 900);
-    return () => { off(); if (timer) clearTimeout(timer); };
+  const beginTour = useCallback((id = 'app') => {
+    setTourId(TOURS[id] ? id : 'app');
+    setRect(null);
+    setRunId((run) => run + 1);
+    setStep(0);
   }, []);
+
+  useEffect(() => {
+    const off = onTourStart(beginTour);
+    const timer = hasSeenTour('app') ? null : setTimeout(() => beginTour('app'), 900);
+    return () => { off(); if (timer) clearTimeout(timer); };
+  }, [beginTour]);
 
   const measure = useCallback(() => {
     const t = current?.target;
@@ -37,17 +45,17 @@ export default function GuidedTour({ view }) {
     const t = setTimeout(measure, 320);
     window.addEventListener('resize', measure);
     return () => { cancelAnimationFrame(raf); clearTimeout(t); window.removeEventListener('resize', measure); };
-  }, [active, measure]);
+  }, [active, measure, runId]);
 
   // First visit to a view: run its tour (after the app tour has been seen)
   useEffect(() => {
     const id = tourForView(view);
     if (active || id === 'app' || !hasSeenTour('app') || hasSeenTour(id)) return undefined;
-    const t = setTimeout(() => { setTourId(id); setStep(0); }, 1200);
+    const t = setTimeout(() => beginTour(id), 1200);
     return () => clearTimeout(t);
-  }, [view, active]);
+  }, [view, active, beginTour]);
 
-  const finish = useCallback(() => { markTourSeen(tourId); setStep(-1); }, [tourId]);
+  const finish = useCallback(() => { markTourSeen(tourId); setRect(null); setStep(-1); }, [tourId]);
   const next = useCallback(() => (step >= steps.length - 1 ? finish() : setStep(step + 1)), [step, steps.length, finish]);
   const back = () => setStep((s) => Math.max(0, s - 1));
 
@@ -98,7 +106,7 @@ export default function GuidedTour({ view }) {
       <div className="fixed inset-0" onMouseDown={(e) => e.preventDefault()} />
 
       <div
-        key={`${tourId}-${step}`}
+        key={`${tourId}-${runId}-${step}`}
         role="dialog"
         aria-label={current.title}
         className="tempo-tour-card fixed border border-black/15 bg-white shadow-2xl"

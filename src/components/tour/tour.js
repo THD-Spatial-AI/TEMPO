@@ -2,6 +2,7 @@
 // "seen" flag, and a tiny event bus to (re)start a tour.
 const doneKey = (id) => (id === 'app' ? 'tempo:tourCompleted' : `tempo:tourCompleted:${id.toLowerCase().replace(/\s+/g, '-')}`);
 let listener = null;
+let pendingTour = null;
 
 export function hasSeenTour(id = 'app') {
   try { return localStorage.getItem(doneKey(id)) === '1'; } catch { return true; }
@@ -12,11 +13,17 @@ export function markTourSeen(id = 'app') {
 }
 
 export function startTour(id = 'app') {
-  listener?.(id);
+  if (listener) listener(id);
+  else pendingTour = id;
 }
 
 export function onTourStart(fn) {
   listener = fn;
+  if (pendingTour !== null) {
+    const id = pendingTour;
+    pendingTour = null;
+    fn(id);
+  }
   return () => { if (listener === fn) listener = null; };
 }
 
