@@ -204,6 +204,9 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
         scheme = timeslices.default_scheme()
 
     report: list[str] = []
+    from engine_common import lp_normalised as _lp_norm
+    model_data = _lp_norm(model_data)
+    report += model_data.get("_lp_notes", [])
     os.makedirs(csv_dir, exist_ok=True)
 
     # ── Model metadata ────────────────────────────────────────────────────────
@@ -251,6 +254,9 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
         elif p in ("conversion", "conversion_plus"):
             all_carriers.add(_carrier_in(tech))
             all_carriers.add(_carrier_out(tech))
+            for tier in ("carrier_in_2", "carrier_in_3", "carrier_out_2", "carrier_out_3"):
+                if (tech.get("essentials") or {}).get(tier):
+                    all_carriers.add(str(tech["essentials"][tier]).lower())
         elif p == "storage":
             ess = tech.get("essentials") or {}
             all_carriers.add((ess.get("carrier") or "electricity").lower())
@@ -282,6 +288,9 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
     resid_cap: list[dict] = []
     cap_factor: list[dict] = []
     storages: list[str] = []
+    storage_cap_max: list[dict] = []     # TEMPO extension: Calliope storage_cap_max (PJ)
+    power_per_storage: list[dict] = []   # TEMPO extension: Calliope charge_rate (1/h)
+    strict_fuels: set = set()   # by-products of multi-output techs: must balance exactly (no free dumping)
     tech_to_storage: list[dict] = []
     tech_from_storage: list[dict] = []
     storage_params: dict = {k: [] for k in (
@@ -364,8 +373,8 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
             opex_v = _float(costs.get("om_prod")) * _EUR_KWH_TO_M_EUR_PJ
             life = max(1, int(_float(constr.get("lifetime"), 25)))
             eff = min(1.0, max(0.01, _float(constr.get("energy_eff"), 1.0)))
-            if p in ("supply", "supply_plus", "conversion", "conversion_plus"):
-                # Calliope om_con is charged per unit of resource / carrier consumed = output / eff
+            if p in ("supply", "supply_plus"):
+                # Calliope om_con is charged per unit of resource consumed = output / eff
                 opex_v += _float(costs.get("om_con")) / eff * _EUR_KWH_TO_M_EUR_PJ
             if (parity and constr.get("energy_cap_equals") is not None
                     and p in ("supply", "supply_plus", "conversion", "conversion_plus", "storage")
@@ -389,7 +398,7 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
                 cap2act.append({"REGION": REGION, "TECHNOLOGY": tech_id, "VALUE": CAPACITY_TO_ACTIVITY})
                 avail.append({"REGION": REGION, "TECHNOLOGY": tech_id, "YEAR": year, "VALUE": 1.0})
                 resid_cap.append({"REGION": REGION, "TECHNOLOGY": tech_id, "YEAR": year, "VALUE": 0.0})
-                cf_series = _res_cf(constr, n_hours, report, f"{loc_name}/{tid}", model_data, loc=loc_name)
+                cf_series = _res_cf(constr, n_hours, report, f"{loc_name}/{tid}", model_data, loc=loc_name, parent=p)
                 cf_slices = timeslices.aggregate(cf_series, scheme)[0] if cf_series else None
                 for lbl in labels:
                     v = cf_slices[lbl] if cf_slices else 1.0
@@ -400,6 +409,25 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
                 tech_id = f"{loc_s}_{tid_s}"
                 cin = f"{loc_s}_{_sid(_carrier_in(tech))}"
                 cout = f"{loc_s}_{_sid(_carrier_out(tech))}"
+                # Calliope conversion_plus (ratios default to 1). With A = primary output activity:
+                #   con_in = A / (eff r_in r_out)      out_k = A r_out_k / r_out
+                #   con_in_k = A r_in_k / (eff r_in^2 r_out)
+                # A heat pump's COP is > 1, so the efficiency is NOT clamped to 1 here.
+                eff_c = max(0.01, _float(constr.get("energy_eff"), 1.0))
+                ratios = constr.get("carrier_ratios") or {}
+
+                def _ratio(tier, carrier_name):
+                    tier_ratios = ratios.get(tier)
+                    v = tier_ratios.get(carrier_name) if isinstance(tier_ratios, dict) else None
+                    try:
+                        return float(v)
+                    except (TypeError, ValueError):
+                        return 1.0
+
+                ess_c = tech.get("essentials") or {}
+                r_in, r_out = _ratio("carrier_in", _carrier_in(tech)), _ratio("carrier_out", _carrier_out(tech))
+                in_per_out = 1.0 / (eff_c * r_in * r_out)
+                opex_v += _float(costs.get("om_con")) * in_per_out * _EUR_KWH_TO_M_EUR_PJ
                 osem_techs.append(tech_id)
                 cap_cost.append({"REGION": REGION, "TECHNOLOGY": tech_id, "YEAR": year, "VALUE": round(capex, 6)})
                 fix_cost.append({"REGION": REGION, "TECHNOLOGY": tech_id, "YEAR": year, "VALUE": round(opex_f, 6)})
@@ -407,8 +435,24 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
                 op_life.append({"REGION": REGION, "TECHNOLOGY": tech_id, "VALUE": life})
                 cap_max.append({"REGION": REGION, "TECHNOLOGY": tech_id, "YEAR": year, "VALUE": round(cap_max_gw, 9)})
                 _add_cap_min(tech_id, cap_min_kw)
-                inp_act.append({"REGION": REGION, "TECHNOLOGY": tech_id, "FUEL": cin, "MODE_OF_OPERATION": 1, "YEAR": year, "VALUE": round(1.0 / eff, 6)})
+                inp_act.append({"REGION": REGION, "TECHNOLOGY": tech_id, "FUEL": cin, "MODE_OF_OPERATION": 1, "YEAR": year, "VALUE": round(in_per_out, 6)})
                 out_act.append({"REGION": REGION, "TECHNOLOGY": tech_id, "FUEL": cout, "MODE_OF_OPERATION": 1, "YEAR": year, "VALUE": 1.0})
+                secondary = 0
+                for tier in ("carrier_out_2", "carrier_out_3"):
+                    if ess_c.get(tier):
+                        fuel2 = f"{loc_s}_{_sid(str(ess_c[tier]))}"
+                        strict_fuels.add(fuel2)
+                        out_act.append({"REGION": REGION, "TECHNOLOGY": tech_id, "FUEL": fuel2, "MODE_OF_OPERATION": 1,
+                                        "YEAR": year, "VALUE": round(_ratio(tier, str(ess_c[tier])) / r_out, 6)})
+                        secondary += 1
+                for tier in ("carrier_in_2", "carrier_in_3"):
+                    if ess_c.get(tier):
+                        fuel2 = f"{loc_s}_{_sid(str(ess_c[tier]))}"
+                        inp_act.append({"REGION": REGION, "TECHNOLOGY": tech_id, "FUEL": fuel2, "MODE_OF_OPERATION": 1,
+                                        "YEAR": year, "VALUE": round(_ratio(tier, str(ess_c[tier])) * in_per_out / r_in, 6)})
+                        secondary += 1
+                if secondary:
+                    report.append(f"{loc_name}/{tid}: conversion_plus with {secondary} secondary carrier(s) mapped to extra activity ratios")
                 cap2act.append({"REGION": REGION, "TECHNOLOGY": tech_id, "VALUE": CAPACITY_TO_ACTIVITY})
                 avail.append({"REGION": REGION, "TECHNOLOGY": tech_id, "YEAR": year, "VALUE": 1.0})
                 resid_cap.append({"REGION": REGION, "TECHNOLOGY": tech_id, "YEAR": year, "VALUE": 0.0})
@@ -467,9 +511,21 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
                                       "not mapped — non-cyclic storage starts empty.")
                     storage_params["StorageLossRate"].append(
                         {"REGION": REGION, "STORAGE": stor_id, "VALUE": round(_float(constr.get("storage_loss")), 9)})
-                    for k in ("storage_cap_max", "storage_cap_min", "storage_cap_equals"):
-                        if constr.get(k) is not None:
-                            report.append(f"{loc_name}/{tid}: {k} not enforced (OSeMOSYS 2017 has no storage capacity limit).")
+                    # Calliope's storage energy limit and power/energy ratio, via the TEMPO extension
+                    s_hi = _float(constr.get("storage_cap_equals"), None)
+                    s_hi = _float(constr.get("storage_cap_max"), None) if s_hi is None else s_hi
+                    if s_hi is not None and s_hi < 1e12:
+                        storage_cap_max.append({"REGION": REGION, "STORAGE": stor_id, "YEAR": year,
+                                                "VALUE": round(s_hi * _KWH_TO_PJ, 12)})
+                    rate = _float(constr.get("charge_rate"), None)
+                    rate = _float(constr.get("energy_cap_per_storage_cap_max"), None) if rate is None else rate
+                    if rate:
+                        power_per_storage.append({"REGION": REGION, "TECHNOLOGY": tech_id, "STORAGE": stor_id,
+                                                  "VALUE": rate})
+                    if constr.get("storage_cap_min") is not None:
+                        report.append(f"{loc_name}/{tid}: storage_cap_min not enforced (OSeMOSYS has no storage minimum).")
+                    if constr.get("storage_cap_equals") is not None:
+                        report.append(f"{loc_name}/{tid}: storage_cap_equals applied as an upper bound only (the minimum is not enforced).")
                     continue
                 ess = tech.get("essentials") or {}
                 carrier = (ess.get("carrier") or "electricity").lower()
@@ -682,7 +738,7 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
 
     # ── ensure_feasibility slack (mirrors Calliope's unmet-demand bigM) ───────
     # A costly supply of every demanded fuel; Calliope's default (and the Run page's) is on.
-    if model_config.get("ensureFeasibility", True) and demand_acc:
+    if model_config.get("ensureFeasibility", True) and (demand_acc or strict_fuels):
         unmet_cost = round(_UNMET_COST_EUR_KWH * _EUR_KWH_TO_M_EUR_PJ, 3)
         for fuel in sorted(demand_acc):
             slack_id = f"{fuel}_UNMET"
@@ -699,6 +755,22 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
             for lbl in labels:
                 cap_factor.append({"REGION": REGION, "TECHNOLOGY": slack_id, "TIMESLICE": lbl, "YEAR": year, "VALUE": 1.0})
         report.append(f"ensureFeasibility: unmet-demand slack added for {len(demand_acc)} demand fuel(s)")
+        # Calliope's ensure_feasibility also lets surplus be discarded, at the same bigM price
+        # (unused_supply). Strictly balanced fuels get that penalised dump instead of a free one.
+        for fuel in sorted(strict_fuels):
+            dump_id = f"{fuel}_DUMP"
+            osem_techs.append(dump_id)
+            cap_cost.append({"REGION": REGION, "TECHNOLOGY": dump_id, "YEAR": year, "VALUE": 0.0})
+            fix_cost.append({"REGION": REGION, "TECHNOLOGY": dump_id, "YEAR": year, "VALUE": 0.0})
+            var_cost.append({"REGION": REGION, "TECHNOLOGY": dump_id, "MODE_OF_OPERATION": 1, "YEAR": year, "VALUE": unmet_cost})
+            op_life.append({"REGION": REGION, "TECHNOLOGY": dump_id, "VALUE": 1 if parity else 30})
+            cap_max.append({"REGION": REGION, "TECHNOLOGY": dump_id, "YEAR": year, "VALUE": _LARGE_CAP_GW})
+            resid_cap.append({"REGION": REGION, "TECHNOLOGY": dump_id, "YEAR": year, "VALUE": _LARGE_CAP_GW})
+            inp_act.append({"REGION": REGION, "TECHNOLOGY": dump_id, "FUEL": fuel, "MODE_OF_OPERATION": 1, "YEAR": year, "VALUE": 1.0})
+            cap2act.append({"REGION": REGION, "TECHNOLOGY": dump_id, "VALUE": CAPACITY_TO_ACTIVITY})
+            avail.append({"REGION": REGION, "TECHNOLOGY": dump_id, "YEAR": year, "VALUE": 1.0})
+            for lbl in labels:
+                cap_factor.append({"REGION": REGION, "TECHNOLOGY": dump_id, "TIMESLICE": lbl, "YEAR": year, "VALUE": 1.0})
 
     # ── Write CSV files ───────────────────────────────────────────────────────
     def _p(name: str) -> str:
@@ -792,6 +864,14 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
     # ...and the postsolve step reads the profile for every fuel too
     demand_profile += [{"REGION": REGION, "FUEL": f, "TIMESLICE": lbl, "YEAR": year, "VALUE": 0}
                        for f in no_demand for lbl in labels]
+    if storage_cap_max:
+        _write_csv(_p("TempoStorageCapMax.csv"), ["REGION", "STORAGE", "YEAR", "VALUE"], storage_cap_max)
+    if power_per_storage:
+        _write_csv(_p("TempoPowerPerStorage.csv"), ["REGION", "TECHNOLOGY", "STORAGE", "VALUE"], power_per_storage)
+    if strict_fuels:
+        _write_csv(_p("TempoStrictBalance.csv"), ["REGION", "FUEL", "YEAR", "VALUE"],
+                   [{"REGION": REGION, "FUEL": f, "YEAR": year, "VALUE": 1} for f in sorted(strict_fuels)])
+        report.append(f"{len(strict_fuels)} by-product fuel(s) balanced exactly (surplus cannot be dumped), as in Calliope")
     _write_csv(_p("SpecifiedAnnualDemand.csv"), ["REGION", "FUEL", "YEAR", "VALUE"], demand_annual)
     _write_csv(_p("SpecifiedDemandProfile.csv"), ["REGION", "FUEL", "TIMESLICE", "YEAR", "VALUE"], demand_profile)
     _write_csv(_p("YearSplit.csv"), ["TIMESLICE", "YEAR", "VALUE"],

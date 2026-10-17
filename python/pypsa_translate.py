@@ -50,6 +50,7 @@ from engine_common import (  # noqa: F401  (convert_value re-exported for caller
     merged_tech_def as _merged_tech_def,
     resolve_file_series as _resolve_file_series,
     resource_to_cf,
+    lp_normalised,
     qualify_file_ref,
     resource_scale,
 )
@@ -108,6 +109,8 @@ def translate_model(model_data: dict) -> tuple[dict, list]:
     loads, stores, links, meta. All component records are plain dicts.
     """
     report: list[str] = []
+    model_data = lp_normalised(model_data)
+    report += model_data.get('_lp_notes', [])
     model_config = model_data.get('modelConfig') or {}
     snapshots = _snapshots(model_config)
     n = len(snapshots)
@@ -134,8 +137,8 @@ def translate_model(model_data: dict) -> tuple[dict, list]:
 
     buses = {}  # name -> record
 
-    def ensure_bus(loc_id, carrier, x=None, y=None):
-        name = f"{loc_id}::{carrier}"
+    def ensure_bus(loc_id, carrier, x=None, y=None, suffix=''):
+        name = f"{loc_id}::{carrier}{suffix}"
         if name not in buses:
             buses[name] = {'name': name, 'carrier': carrier, 'x': x, 'y': y}
             spec['carriers'].add(carrier)
@@ -143,6 +146,34 @@ def translate_model(model_data: dict) -> tuple[dict, list]:
             buses[name]['x'] = x
             buses[name]['y'] = y
         return name
+
+    def export_hub(lid, tid, comp_name, carrier, constraints, costs, x, y, cap_hint):
+        """Calliope export: a tech's own output of `export_carrier` can leave the system at a
+        (possibly time-varying) price. The producer feeds a hub bus; from there the carrier
+        either flows on to the normal bus or is sold through a sink, so only this tech's output
+        can be exported. Returns the bus the producer must output to, or None when the tech
+        has no export."""
+        if str(constraints.get('export_carrier') or '') != carrier:
+            return None
+        raw = costs.get('export')
+        if _is_file_ref(raw):
+            price = _resolve_file_series(qualify_file_ref(raw, lid, model_data), model_data, n, report, comp_name)
+        else:
+            price = _finite(raw)
+        if price is None:
+            return None
+        hub = ensure_bus(lid, carrier, x, y, suffix=f"@{tid}")
+        main = ensure_bus(lid, carrier, x, y)
+        cost = [-v for v in price] if isinstance(price, list) else -price   # export cost -> marginal cost of selling
+        sink_cap = _finite(constraints.get('export_cap')) or cap_hint or 1e9
+        spec['links'].append({'name': f"{lid}::{tid}@hub", 'bus0': hub, 'bus1': main, 'efficiency': 1.0,
+                              'p_nom_min': None, 'p_nom_max': None, 'capital_cost': 0.0, 'marginal_cost': 0.0})
+        spec['generators'].append({
+            'name': f"{lid}::{tid}@export", 'bus': hub, 'carrier': tid, 'p_nom_extendable': False,
+            'p_nom': sink_cap, 'p_nom_max': None, 'efficiency': 1.0, 'capital_cost': 0.0,
+            'marginal_cost': cost, 'p_max_pu': [0.0] * n, 'p_min_pu': [-1.0] * n})
+        report.append(f"{comp_name}: export of {carrier} modelled through a sale sink (own output only)")
+        return hub
 
     loc_coords = {}
     loc_ids = {}
@@ -182,10 +213,12 @@ def translate_model(model_data: dict) -> tuple[dict, list]:
 
             if parent in ('supply', 'supply_plus'):
                 carrier = ess.get('carrier_out') or ess.get('carrier') or 'electricity'
-                bus = ensure_bus(lid, carrier, x, y)
+                bus = export_hub(lid, tid, comp_name, carrier, constraints, costs, x, y,
+                                 cap_max if cap_max not in (None, float('inf')) else None) \
+                    or ensure_bus(lid, carrier, x, y)
                 capex = _finite(costs.get('energy_cap')) or 0.0
                 om_annual = _finite(costs.get('om_annual')) or 0.0
-                p_max_pu = resource_to_cf(constraints, n, report, ctx, model_data, loc=lid)
+                p_max_pu = resource_to_cf(constraints, n, report, ctx, model_data, loc=lid, parent=parent)
                 gen = {
                     'name': comp_name, 'bus': bus, 'carrier': tid,
                     'p_nom_extendable': True,
@@ -292,27 +325,57 @@ def translate_model(model_data: dict) -> tuple[dict, list]:
             elif parent in ('conversion', 'conversion_plus'):
                 cin = ess.get('carrier_in') or 'electricity'
                 cout = ess.get('carrier_out') or 'electricity'
-                if isinstance(cout, dict) or isinstance(cin, dict):
-                    report.append(f"{ctx}: multi-carrier conversion_plus not supported — skipped")
+                if isinstance(cout, (dict, list)) or isinstance(cin, (dict, list)):
+                    report.append(f"{ctx}: several primary carriers in one conversion_plus tier not supported - skipped")
                     continue
+                # Calliope conversion_plus (backend conversion_plus.py); ratios default to 1:
+                #   primary:  prod_out / r_out = con_in * r_in * eff
+                #   out_k:    prod_out_k = prod_out * r_out_k / r_out      (secondary outputs)
+                #   in_k:     con_in_k   = con_in * r_in_k / r_in          (secondary inputs)
+                # Per unit of primary input (the Link's p0): bus1 receives eff*r_in*r_out, a
+                # secondary output eff*r_in*r_out_k, a secondary input draws r_in_k / r_in.
+                ratios = constraints.get('carrier_ratios') or {}
+
+                def _ratio(tier, carrier_name):
+                    tier_ratios = ratios.get(tier)
+                    v = tier_ratios.get(carrier_name) if isinstance(tier_ratios, dict) else None
+                    if _is_file_ref(v):
+                        report.append(f"{ctx}: time-varying carrier ratio {v} not supported - 1 used")
+                        return 1.0
+                    f = _finite(v)
+                    return 1.0 if f is None else f
+
+                r_in, r_out = _ratio('carrier_in', cin), _ratio('carrier_out', cout)
+                eff_out = eff * r_in * r_out
+                extra = []
+                for tier in ('carrier_out_2', 'carrier_out_3'):
+                    c2 = ess.get(tier)
+                    if c2:
+                        extra.append({'bus': ensure_bus(lid, c2, x, y), 'efficiency': eff * r_in * _ratio(tier, c2)})
+                for tier in ('carrier_in_2', 'carrier_in_3'):
+                    c2 = ess.get(tier)
+                    if c2:
+                        extra.append({'bus': ensure_bus(lid, c2, x, y), 'efficiency': -_ratio(tier, c2) / r_in})
                 bus0 = ensure_bus(lid, cin, x, y)
-                bus1 = ensure_bus(lid, cout, x, y)
+                bus1 = export_hub(lid, tid, comp_name, cout, constraints, costs, x, y, None) \
+                    or ensure_bus(lid, cout, x, y)
                 capex = _finite(costs.get('energy_cap')) or 0.0
                 om_annual = _finite(costs.get('om_annual')) or 0.0
-                # calliope energy_cap is per unit OUTPUT; pypsa Link p_nom is
-                # per unit input (p0) — rescale caps and costs by efficiency
+                # calliope energy_cap is per unit of PRIMARY OUTPUT; pypsa Link p_nom is per unit
+                # input (p0): rescale caps and costs by the primary output efficiency
                 spec['links'].append({
                     'name': comp_name, 'bus0': bus0, 'bus1': bus1,
-                    'efficiency': eff,
-                    'p_nom_min': _per_input(cap_min, eff),
-                    'p_nom_max': _per_input(cap_max, eff),
-                    'capital_cost': (capex * annuity + om_annual) * year_frac * eff,
-                    'marginal_cost': (om_var * eff) + om_con,
+                    'efficiency': eff_out,
+                    'p_nom_min': _per_input(cap_min, eff_out),
+                    'p_nom_max': _per_input(cap_max, eff_out),
+                    'capital_cost': (capex * annuity + om_annual) * year_frac * eff_out,
+                    'marginal_cost': (om_var * eff_out) + om_con,
+                    **({'extra': extra} if extra else {}),
                 })
                 if ep_pypsa:
                     spec['links'][-1]['_engine_params'] = ep_pypsa
-                if parent == 'conversion_plus':
-                    report.append(f"{ctx}: conversion_plus treated as single-carrier conversion")
+                if extra:
+                    report.append(f"{ctx}: conversion_plus with {len(extra)} secondary carrier(s) mapped to a multi-bus Link")
 
             elif parent == 'transmission':
                 continue  # instantiated from links[] below
@@ -375,8 +438,21 @@ def translate_model(model_data: dict) -> tuple[dict, list]:
                 'p_max_pu': None, 'p_min_pu': None,
             })
         spec['carriers'].add('unmet_demand')
+        spec['carriers'].add('unused_supply')
         if load_buses:
             report.append(f"ensureFeasibility: unmet-demand slack generator added at {len(load_buses)} demand bus(es)")
+        # Calliope's ensure_feasibility also lets surplus of any carrier be discarded at the same
+        # bigM price (unused_supply) — without it, coupled by-products (a CHP's heat) are infeasible
+        # rather than merely expensive.
+        for bus in sorted(b for b in buses if '@' not in b):
+            spec['generators'].append({
+                'name': f"{bus}::unused_supply", 'bus': bus, 'carrier': 'unused_supply',
+                'p_nom_extendable': False,
+                'p_nom': 1e7, 'p_nom_max': None,
+                'efficiency': 1.0, 'capital_cost': 0.0,
+                'marginal_cost': -UNMET_DEMAND_COST,
+                'p_max_pu': [0.0] * n, 'p_min_pu': [-1.0] * n,
+            })
 
     spec['buses'] = list(buses.values())
     spec['carriers'] = sorted(spec['carriers'])
@@ -412,7 +488,8 @@ def build_network(spec: dict):
             'carrier': gen['carrier'],
             'efficiency': gen['efficiency'],
             'capital_cost': gen['capital_cost'],
-            'marginal_cost': gen['marginal_cost'],
+            'marginal_cost': (pd.Series(gen['marginal_cost'], index=n.snapshots)
+                              if isinstance(gen['marginal_cost'], list) else gen['marginal_cost']),
         }
         if gen.get('p_nom_extendable', True):
             kwargs['p_nom_extendable'] = True
@@ -463,6 +540,9 @@ def build_network(spec: dict):
             kwargs['p_nom_max'] = link['p_nom_max']
         if link.get('p_nom_min') is not None:
             kwargs['p_nom_min'] = link['p_nom_min']
+        for k, ex in enumerate(link.get('extra') or [], start=2):   # secondary outputs / inputs
+            kwargs[f'bus{k}'] = ex['bus']
+            kwargs[f'efficiency{k}'] = ex['efficiency']
         kwargs.update(link.get('_engine_params') or {})  # engine-specific overrides
         n.add('Link', link['name'], **kwargs)
 

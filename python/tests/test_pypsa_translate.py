@@ -107,8 +107,11 @@ def test_supply_absolute_resource_scaled_by_cap():
     }
     spec, report = t.translate_model(model)
     gen = spec['generators'][0]
-    assert gen['p_max_pu'] == [0.5] * 24
-    assert any('approximated' in r for r in report)
+    # absolute 100 kW resource: capacity above its peak could never produce more, so it is
+    # bounded there and availability is 100 / 100
+    assert gen['p_nom_max'] == 100
+    assert gen['p_max_pu'] == [1.0] * 24
+    assert any('absolute resource' in r for r in report)
 
 
 def test_supply_capacity_factor_resource_passthrough():
@@ -117,7 +120,8 @@ def test_supply_capacity_factor_resource_passthrough():
         'technologies': [{
             'name': 'pv',
             'essentials': {'parent': 'supply', 'carrier_out': 'electricity'},
-            'constraints': {'energy_cap_max': 200, 'resource': 0.4, 'force_resource': True},
+            'constraints': {'energy_cap_max': 200, 'resource': 0.4, 'force_resource': True,
+                            'resource_unit': 'energy_per_cap'},
         }],
         'locations': [{'name': 'a', 'techs': {'pv': None}}],
     }
@@ -138,7 +142,7 @@ def test_supply_file_resource_resolved_from_inline_timeseries():
         'technologies': [{
             'name': 'pv',
             'essentials': {'parent': 'supply', 'carrier_out': 'electricity'},
-            'constraints': {'resource': 'file=solar.csv:cf'},
+            'constraints': {'resource': 'file=solar.csv:cf', 'resource_unit': 'energy_per_cap'},
         }],
         'locations': [{'name': 'a', 'techs': {'pv': None}}],
     }

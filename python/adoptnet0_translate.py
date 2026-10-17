@@ -16,7 +16,8 @@ import os
 import re
 from pathlib import Path
 
-from engine_common import annuity, finite, link_distance, merged_link_def, merged_tech_def, qualify_file_ref, resource_scale, resource_to_cf
+from engine_common import (annuity, finite, link_distance, lp_normalised, merged_link_def, merged_tech_def,
+                           qualify_file_ref, resource_scale, resource_to_cf)
 from engine_overlay import engine_overlay, coerce_overlay
 
 _KW_PER_MW = 1_000.0
@@ -312,6 +313,88 @@ def _build_conv2_json(tech: dict, constr: dict, costs: dict, capex_scale: float 
     }
 
 
+def _plus_ratios(tech: dict, constr: dict) -> dict:
+    """Calliope conversion_plus equations (ratios default to 1) as per-unit-of-main-input
+    coefficients: primary output eff*r_in*r_out, secondary output eff*r_in*r_out_k and
+    secondary input r_in_k/r_in. The efficiency is NOT clamped: a heat pump's COP is > 1."""
+    ess = tech.get("essentials") or {}
+    ratios = constr.get("carrier_ratios") or {}
+
+    def ratio(tier, carrier):
+        tier_ratios = ratios.get(tier)
+        v = tier_ratios.get(carrier) if isinstance(tier_ratios, dict) else None
+        v = _to_float(v, 1.0) if v is not None and not str(v).startswith("file=") else 1.0
+        return v or 1.0
+
+    cin, cout = _get_carrier_in(tech), _get_carrier_out(tech)
+    eff = max(0.01, _to_float(constr.get("energy_eff"), 1.0))
+    r_in, r_out = ratio("carrier_in", cin), ratio("carrier_out", cout)
+    out = {cout: eff * r_in * r_out}
+    inputs = {cin: 1.0}
+    for tier in ("carrier_out_2", "carrier_out_3"):
+        if ess.get(tier):
+            c = str(ess[tier]).lower()
+            out[c] = eff * r_in * ratio(tier, c)
+    for tier in ("carrier_in_2", "carrier_in_3"):
+        if ess.get(tier):
+            c = str(ess[tier]).lower()
+            inputs[c] = ratio(tier, c) / r_in
+    return {"cin": cin, "cout": cout, "eff_out": out[cout], "out": out, "inputs": inputs}
+
+
+def _build_conv3_json(tech: dict, constr: dict, costs: dict, capex_scale: float = 1.0) -> dict:
+    """conversion_plus -> AdOpT CONV3 (fixed input ratios, outputs linear in the main input).
+    CONV3 is sized on its main INPUT, Calliope's energy_cap is on the primary OUTPUT, so size
+    bounds divide and per-capacity costs multiply by the primary output efficiency."""
+    pr = _plus_ratios(tech, constr)
+    eff1 = pr["eff_out"]
+    lo, hi = _size_bounds(constr)
+    econ = _economics_per_input(costs, constr, capex_scale, eff1)
+    econ["unit_CAPEX"] = round(econ["unit_CAPEX"] * eff1, 6)
+    return {
+        "tec_type": "CONV3",
+        "size_min": lo / eff1 if lo else lo,
+        "size_max": hi / eff1 if hi else hi,
+        "size_is_int": 0,
+        "decommission": "impossible",
+        "Economics": econ,
+        "Performance": {
+            "performance_function_type": 1,
+            "input_carrier": list(pr["inputs"]),
+            "main_input_carrier": pr["cin"],
+            "output_carrier": list(pr["out"]),
+            "emission_factor": 0,
+            "min_part_load": 0,
+            "ramping_rate": -1,
+            "ramping_time": -1,
+            "min_uptime": -1,
+            "min_downtime": -1,
+            "performance": {"in": [0, 1], "out": {c: [0, e] for c, e in pr["out"].items()}},
+            "input_ratios": pr["inputs"],
+        },
+        "Units": {
+            "size": "MW",
+            "input_carrier": {c: "MW" for c in pr["inputs"]},
+            "output_carrier": {c: "MW" for c in pr["out"]},
+        },
+    }
+
+
+def conv3_output_per_input(model_data: dict) -> dict:
+    """{(node, tech): primary output / main input} for placed conversion_plus techs: AdOpT
+    reports CONV3 size on the input, TEMPO's capacity is on the primary output."""
+    out = {}
+    techs = {t.get("name"): t for t in model_data.get("technologies") or []}
+    for i, loc in enumerate(model_data.get("locations") or []):
+        node = _safe_id(loc.get("name") or loc.get("id", f"node_{i}"))
+        for ref, cfg in (loc.get("techs") or {}).items():
+            tech = techs.get(ref)
+            if tech is not None and _get_parent(tech) == "conversion_plus":
+                constr, _ = merged_tech_def(tech, cfg)
+                out[(node, _safe_id(tech.get("name") or tech.get("id") or ref))] = _plus_ratios(tech, constr)["eff_out"]
+    return out
+
+
 _STOR_RATE = 1e4  # MW per MWh (0.36 s duration) — never binds
 
 
@@ -372,7 +455,7 @@ _PARENT_BUILDER = {
     "supply": _build_res_json,
     "supply_plus": _build_res_json,
     "conversion": _build_conv1_json,
-    "conversion_plus": _build_conv2_json,
+    "conversion_plus": _build_conv3_json,
     "storage": _build_stor_json,
 }
 
@@ -900,6 +983,8 @@ def build_model_dir(model_data: dict, model_dir: str, capex_scale: float = 1.0) 
       report   — list of strings describing approximations/dropped items
     """
     report: list = []
+    model_data = lp_normalised(model_data)
+    report += model_data.get("_lp_notes", [])
 
     model_config = model_data.get("modelConfig") or {}
     start_date = (model_config.get("startDate") or "2024-01-01")[:10]
@@ -951,6 +1036,7 @@ def generate_timestamps(start_date: str, end_date: str):
 def compute_capfactors(model_data: dict, report: list) -> dict:
     """{(node, tech): hourly CF list} for supply techs with a resource.
     Supply techs without one are unconstrained (CF 1.0, Calliope semantics)."""
+    model_data = lp_normalised(model_data)
     cfg = model_data.get("modelConfig") or {}
     n = len(_generate_timestamps((cfg.get("startDate") or "2024-01-01")[:10],
                                  (cfg.get("endDate") or "2024-12-31")[:10]))
@@ -963,7 +1049,7 @@ def compute_capfactors(model_data: dict, report: list) -> dict:
             if _get_parent(tech) not in ("supply", "supply_plus"):
                 continue
             constr, _ = merged_tech_def(tech, loc_cfg)
-            cf = resource_to_cf(constr, n, report, f"{node}/{ref}", model_data, loc=node)
+            cf = resource_to_cf(constr, n, report, f"{node}/{ref}", model_data, loc=node, parent=_get_parent(tech))
             if cf is not None:
                 out[(node, _safe_id(tech.get("name") or tech.get("id") or ref))] = cf
     return out
@@ -1069,6 +1155,28 @@ def _parse_tech_json(tid: str, tdata: dict, report: list) -> dict:
             "constraints": {"energy_cap_max": size_max, "energy_eff": eff, "lifetime": lifetime},
             "costs": costs,
         }
+
+    if tec_type == "CONV3":
+        main = perf.get("main_input_carrier") or (perf.get("input_carrier") or ["electricity"])[0]
+        outs = (perf.get("performance") or {}).get("out") or {}
+        couts = list(outs) or (perf.get("output_carrier") or ["electricity"])
+        eff = _to_float((outs.get(couts[0]) or [0, 1])[-1], 1.0) if outs else 1.0
+        ess = {"parent": "conversion_plus", "carrier_out": couts[0], "carrier_in": main, "name": tid}
+        ratios = {}
+        for tier, c in zip(("carrier_out_2", "carrier_out_3"), couts[1:]):
+            ess[tier] = c
+            ratios[tier] = {c: round(_to_float((outs.get(c) or [0, 0])[-1], 0.0) / eff, 6) if eff else 1.0}
+        in_ratios = perf.get("input_ratios") or {}
+        for tier, c in zip(("carrier_in_2", "carrier_in_3"), [c for c in in_ratios if c != main]):
+            ess[tier] = c
+            ratios[tier] = {c: in_ratios[c]}
+        if eff > 0:  # export charges om_prod per input (x primary-output efficiency) — back to per output
+            costs["monetary"]["om_prod"] = round(om_prod / eff, 6)
+            costs["monetary"]["energy_cap"] = round(energy_cap / eff, 4)
+        constraints = {"energy_cap_max": size_max * eff, "energy_eff": eff, "lifetime": lifetime}
+        if ratios:
+            constraints["carrier_ratios"] = ratios
+        return {"name": tid, "essentials": ess, "constraints": constraints, "costs": costs}
 
     if tec_type == "CONV2":
         couts = perf.get("output_carrier") or ["electricity"]

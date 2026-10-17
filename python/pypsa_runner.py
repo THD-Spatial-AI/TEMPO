@@ -145,7 +145,14 @@ def _extract_results(n, spec, technologies, model_name, solver, termination):
         loc, tid = split
         row = n.generators.loc[name]
         p = n.generators_t.p[name] if name in n.generators_t.p.columns else None
-        if tid == 'unmet_demand':
+        if tid.endswith('@export'):
+            # export sale sink: its (negative) cost is the exporting tech's revenue
+            if p is not None:
+                mc = (n.generators_t.marginal_cost[name] if name in n.generators_t.marginal_cost.columns
+                      else float(row.get('marginal_cost', 0.0)))
+                _add_cost(loc, tid[:-len('@export')], float((p.fillna(0.0) * mc).sum()))
+            continue
+        if tid in ('unmet_demand', 'unused_supply'):
             if p is not None and float(p.abs().max()) > 1e-6:
                 log(f"  WARNING: unmet demand at {loc}: peak {float(p.max()):.1f} kW")
             continue
@@ -196,6 +203,8 @@ def _extract_results(n, spec, technologies, model_name, solver, termination):
         if split is None:
             continue
         loc, tid_full = split
+        if tid_full.endswith('@hub'):
+            continue   # zero-cost link from an export hub back to the main bus
         row = n.links.loc[name]
         p_nom = float(row.get('p_nom_opt', row.get('p_nom', 0.0)))
         cost = float(row.get('capital_cost', 0.0)) * p_nom
@@ -222,6 +231,17 @@ def _extract_results(n, spec, technologies, model_name, solver, termination):
                 generation[f"{loc}::{tid}::{_bus_carrier(row['bus1'])}"] = \
                     round(float(out.sum()), 3)
                 _add_dispatch(tid, out)
+            # secondary outputs of a multi-carrier (conversion_plus) link
+            for k in range(2, 10):
+                bus_k = row.get(f'bus{k}') if f'bus{k}' in n.links.columns else None
+                if not bus_k:
+                    break
+                try:
+                    out_k = (-n.links_t[f'p{k}'][name]).fillna(0.0)
+                except KeyError:
+                    continue
+                if float(row.get(f'efficiency{k}', 0.0)) > 0:
+                    generation[f"{loc}::{tid}::{_bus_carrier(bus_k)}"] = round(float(out_k.sum()), 3)
 
     # ── Transmission flow: net per sorted node pair ──────────────────────────
     tx_flow = {}

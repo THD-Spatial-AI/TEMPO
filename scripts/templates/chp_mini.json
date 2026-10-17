@@ -1,0 +1,201 @@
+{
+ "name": "CHP mini",
+ "locations": [
+  {
+   "name": "a",
+   "latitude": 52.0,
+   "longitude": 0.1,
+   "techs": {
+    "supply_gas": null,
+    "supply_grid": null,
+    "chp": null,
+    "boiler": null,
+    "gshp": null,
+    "ground_heat": null,
+    "demand_elec": null,
+    "demand_heat": null
+   }
+  }
+ ],
+ "links": [],
+ "parameters": [],
+ "timeSeries": [],
+ "overrides": {},
+ "scenarios": {},
+ "metadata": {
+  "source": "calliope_yaml",
+  "modelType": "calliope"
+ },
+ "locationTechAssignments": {},
+ "solver": "highs",
+ "modelConfig": {
+  "mode": "plan",
+  "startDate": "2015-01-01",
+  "endDate": "2015-01-02",
+  "ensureFeasibility": true,
+  "cyclicStorage": false
+ },
+ "technologies": [
+  {
+   "name": "supply_gas",
+   "essentials": {
+    "name": "supply_gas",
+    "parent": "supply",
+    "carrier_out": "gas"
+   },
+   "constraints": {
+    "resource": "inf",
+    "energy_cap_max": 10000,
+    "lifetime": 15
+   },
+   "costs": {
+    "monetary": {
+     "interest_rate": 0.1,
+     "om_con": 0.03
+    }
+   }
+  },
+  {
+   "name": "supply_grid",
+   "essentials": {
+    "name": "supply_grid",
+    "parent": "supply",
+    "carrier_out": "electricity"
+   },
+   "constraints": {
+    "resource": "inf",
+    "energy_cap_max": 1000,
+    "lifetime": 15
+   },
+   "costs": {
+    "monetary": {
+     "interest_rate": 0.1,
+     "om_con": 0.3
+    }
+   }
+  },
+  {
+   "name": "chp",
+   "essentials": {
+    "name": "chp",
+    "parent": "conversion_plus",
+    "carrier_in": "gas",
+    "carrier_out": "electricity",
+    "primary_carrier_out": "electricity",
+    "carrier_out_2": "heat"
+   },
+   "constraints": {
+    "energy_cap_max": 500,
+    "energy_eff": 0.4,
+    "lifetime": 15,
+    "export_carrier": "electricity",
+    "carrier_ratios": {
+     "carrier_out_2": {
+      "heat": 0.8
+     }
+    }
+   },
+   "costs": {
+    "monetary": {
+     "interest_rate": 0.1,
+     "energy_cap": 300,
+     "om_prod": 0.004,
+     "export": -0.1
+    }
+   }
+  },
+  {
+   "name": "boiler",
+   "essentials": {
+    "name": "boiler",
+    "parent": "conversion",
+    "carrier_in": "gas",
+    "carrier_out": "heat"
+   },
+   "constraints": {
+    "energy_cap_max": 500,
+    "energy_eff": 0.8,
+    "lifetime": 15
+   },
+   "costs": {
+    "monetary": {
+     "interest_rate": 0.1,
+     "energy_cap": 40
+    }
+   }
+  },
+  {
+   "name": "gshp",
+   "essentials": {
+    "name": "gshp",
+    "parent": "conversion_plus",
+    "carrier_in": "electricity",
+    "carrier_out": "heat",
+    "primary_carrier_in": "electricity",
+    "primary_carrier_out": "heat",
+    "carrier_in_2": "low_t_heat"
+   },
+   "constraints": {
+    "energy_cap_max": 500,
+    "energy_eff": 4.0,
+    "lifetime": 15
+   },
+   "costs": {
+    "monetary": {
+     "interest_rate": 0.1,
+     "energy_cap": 200
+    }
+   }
+  },
+  {
+   "name": "ground_heat",
+   "essentials": {
+    "name": "ground_heat",
+    "parent": "supply",
+    "carrier_out": "low_t_heat"
+   },
+   "constraints": {
+    "resource": "inf",
+    "energy_cap_max": 10000,
+    "lifetime": 15
+   },
+   "costs": {
+    "monetary": {
+     "interest_rate": 0.1
+    }
+   }
+  },
+  {
+   "name": "demand_elec",
+   "essentials": {
+    "name": "demand_elec",
+    "parent": "demand",
+    "carrier_in": "electricity"
+   },
+   "constraints": {
+    "resource": -150
+   },
+   "costs": {
+    "monetary": {
+     "interest_rate": 0.1
+    }
+   }
+  },
+  {
+   "name": "demand_heat",
+   "essentials": {
+    "name": "demand_heat",
+    "parent": "demand",
+    "carrier_in": "heat"
+   },
+   "constraints": {
+    "resource": -120
+   },
+   "costs": {
+    "monetary": {
+     "interest_rate": 0.1
+    }
+   }
+  }
+ ]
+}

@@ -220,3 +220,18 @@ def test_link_by_location_id_not_flagged():
     m['locations'][0]['id'] = 'loc-1'
     m['links'] = [{'from': 'loc-1', 'to': 'a', 'tech': 'gen'}]
     assert 'link_unknown_location' not in {i['code'] for i in D.assess(m, 'calliope')['errors']}
+
+
+def test_osemosys_warns_that_a_multi_day_window_is_folded_into_a_typical_day():
+    m = _model()
+    m['modelConfig'].update(startDate='2015-01-05', endDate='2015-01-11')
+    a = D.assess(m, 'osemosys')
+    w = [x for x in a['warnings'] if x['code'] == 'time_aggregation']
+    assert w and '7-day' in w[0]['message'] and 'seasons: 7' in w[0]['message']
+    assert a['fidelity'] == 'reduced'
+    # the other engines keep full hourly resolution; a chosen scheme or a single day needs no warning
+    assert not any(x['code'] == 'time_aggregation' for x in D.assess(m, 'pypsa')['warnings'])
+    m['modelConfig']['osemosysScheme'] = {'seasons': 7, 'dayBlocks': 24}
+    assert not any(x['code'] == 'time_aggregation' for x in D.assess(m, 'osemosys')['warnings'])
+    m['modelConfig'].pop('osemosysScheme'); m['modelConfig']['endDate'] = '2015-01-05'
+    assert not any(x['code'] == 'time_aggregation' for x in D.assess(m, 'osemosys')['warnings'])

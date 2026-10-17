@@ -41,7 +41,8 @@ _SOLVERS_DIR = os.path.join(os.path.dirname(_this_dir), "solvers")
 
 _thread_local = threading.local()
 # TEMPO storage extension params: declared with "default 0" in osemosys.txt.
-_MODEL_DEFAULT_PARAMS = {"StorageCyclicYear", "StorageLossRate"}
+_MODEL_DEFAULT_PARAMS = {"StorageCyclicYear", "StorageLossRate", "TempoStrictBalance",
+                         "TempoStorageCapMax", "TempoPowerPerStorage"}
 
 
 def log(msg: str) -> None:
@@ -182,6 +183,9 @@ def _write_datafile(csv_dir: str, results_dir: str, discount_rate: float = 0.05)
         ("ResidualStorageCapacity.csv",   "ResidualStorageCapacity",   ["REGION", "STORAGE", "YEAR"]),
         ("StorageCyclicYear.csv",         "StorageCyclicYear",         ["REGION", "STORAGE"]),
         ("StorageLossRate.csv",           "StorageLossRate",           ["REGION", "STORAGE"]),
+        ("TempoStrictBalance.csv",        "TempoStrictBalance",        ["REGION", "FUEL", "YEAR"]),
+        ("TempoStorageCapMax.csv",        "TempoStorageCapMax",        ["REGION", "STORAGE", "YEAR"]),
+        ("TempoPowerPerStorage.csv",      "TempoPowerPerStorage",      ["REGION", "TECHNOLOGY", "STORAGE"]),
     ]
 
     written: set[str] = set()
@@ -241,6 +245,56 @@ def _write_datafile(csv_dir: str, results_dir: str, discount_rate: float = 0.05)
 
 # ─── Run glpsol ──────────────────────────────────────────────────────────────
 
+def _solve_with_highs(glpsol: str, osemosys_txt: str, dat_path: str, output_path: str, log_fn) -> str | None:
+    """Solve the OSeMOSYS LP with HiGHS instead of GLPK's simplex (seconds vs. hours on large,
+    degenerate models), keeping GLPK for what only it can do — building the MathProg model and
+    post-processing a solution into the result CSVs:
+        glpsol --check --wfreemps  →  HiGHS  →  GLPK-format solution file  →  glpsol -r (post-solve).
+    Returns the verdict ('infeasible' / 'unbounded') when HiGHS finds no solution, "solved" when
+    glpsol has post-processed a HiGHS solution, and None when HiGHS is unavailable or failed
+    (the caller then solves with GLPK)."""
+    try:
+        import highspy
+    except ImportError:
+        log("highspy not installed — solving with GLPK (slow on large models; reinstall the OSeMOSYS "
+            "engine from Settings to add HiGHS)")
+        return None
+    work = os.path.dirname(os.path.abspath(dat_path))
+    mps, sol = os.path.join(work, "model.mps"), os.path.join(work, "highs.sol")
+    try:
+        _run_glpsol(glpsol, osemosys_txt, dat_path, output_path, log_fn, extra=("--check", "--wfreemps", mps))
+        h = highspy.Highs()
+        h.setOptionValue("output_flag", False)
+        h.readModel(mps)
+        lp = h.getLp()
+        log(f"HiGHS: solving {lp.num_row_:,} rows x {lp.num_col_:,} columns…")
+        h.run()
+        status = h.getModelStatus()
+        name = h.modelStatusToString(status)
+        log(f"HiGHS status: {name}")
+        if status == highspy.HighsModelStatus.kInfeasible:
+            return "infeasible"
+        if status in (highspy.HighsModelStatus.kUnbounded, highspy.HighsModelStatus.kUnboundedOrInfeasible):
+            return "unbounded" if status == highspy.HighsModelStatus.kUnbounded else "infeasible"
+        if status != highspy.HighsModelStatus.kOptimal:
+            return None
+        s, obj = h.getSolution(), h.getInfo().objective_function_value
+        # GLPK solution text: row 1 is the objective, then the constraints; columns in MPS order
+        with open(sol, "w", encoding="ascii") as f:
+            f.write(f"s bas {lp.num_row_ + 1} {lp.num_col_} f f {obj!r}\n")
+            f.write(f"i 1 b {obj!r} 0\n")
+            for i, (v, d) in enumerate(zip(s.row_value, s.row_dual), start=2):
+                f.write(f"i {i} b {v!r} {d!r}\n")
+            for j, (v, d) in enumerate(zip(s.col_value, s.col_dual), start=1):
+                f.write(f"j {j} b {v!r} {d!r}\n")
+            f.write("e o f\n")
+        _run_glpsol(glpsol, osemosys_txt, dat_path, output_path, log_fn, extra=("-r", sol))
+        return "solved"
+    except Exception as exc:  # any trouble: fall back to GLPK rather than fail the run
+        log(f"HiGHS route failed ({exc}) — solving with GLPK")
+        return None
+
+
 def _min_capacity_violated(csv_dir: str, results_dir: str, rel_tol: float = 1e-6) -> bool:
     """True if any TotalAnnualMinCapacity is not met by the solved TotalCapacityAnnual."""
     total = {}
@@ -267,11 +321,11 @@ _GLPK_VERDICTS = (
 
 
 def _run_glpsol(glpsol: str, osemosys_txt: str, dat_path: str,
-                output_path: str, log_fn, presolve: bool = True) -> str | None:
+                output_path: str, log_fn, presolve: bool = True, extra: tuple = ()) -> str | None:
     """Run glpsol; stream stdout/stderr to log_fn line by line. Returns the verdict GLPK printed
     when it found no solution ('infeasible' / 'unbounded'), else None — in that case it writes
     no result file, so the verdict only exists on stdout."""
-    cmd = [glpsol, "--math", osemosys_txt, "--data", dat_path, "-o", output_path]
+    cmd = [glpsol, "--math", osemosys_txt, "--data", dat_path, "-o", output_path, *extra]
     if not presolve:
         cmd.append("--nopresol")
     # Ensure glpsol DLL (Windows) is found beside the binary
@@ -462,6 +516,9 @@ def _build_contract(results_dir: str, model_data: dict, model_name: str,
 
     # ── Generation totals ─────────────────────────────────────────────────────
     generation: dict = {}
+    out_ratios: dict = {}
+    for orow in _read_csv(os.path.join(csv_dir or "", "OutputActivityRatio.csv")) if csv_dir else []:
+        out_ratios.setdefault(orow["TECHNOLOGY"], []).append(orow)
     for row in _r("TotalTechnologyAnnualActivity.csv"):
         tech = row.get("TECHNOLOGY", "")
         val_pj = float(row.get("VALUE", 0))
@@ -475,6 +532,14 @@ def _build_contract(results_dir: str, model_data: dict, model_name: str,
             carrier = translate._carrier_out(eff_tech)
             key = f"{loc_name}::{tid}::{carrier}"
             generation[key] = generation.get(key, 0.0) + val_pj / _KWH_TO_PJ * wf  # PJ → kWh
+            # secondary outputs of a multi-carrier (conversion_plus) technology: activity x output ratio
+            prefix = translate._sid(loc_name) + "_"
+            for orow in out_ratios.get(tech, ()):
+                fuel = orow["FUEL"]
+                sec = (fuel[len(prefix):] if fuel.startswith(prefix) else fuel).lower()
+                if sec != str(carrier).lower():
+                    skey = f"{loc_name}::{tid}::{sec}"
+                    generation[skey] = generation.get(skey, 0.0) + val_pj * float(orow["VALUE"]) / _KWH_TO_PJ * wf
 
     if parity:
         # Storage discharge / delivered transmission flow = production by fuel
@@ -821,10 +886,14 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
     # slower (92 s → 28+ min on the Italian week), so solve with presolve first and fall back
     # to --nopresol only when a minimum capacity is actually violated.
     has_min_cap = bool(_read_csv(os.path.join(csv_dir, "TotalAnnualMinCapacity.csv")))
-    verdict = _run_glpsol(glpsol, _OSEMOSYS_TXT, dat_path, output_path, log_fn or log, presolve=True)
-    if has_min_cap and _min_capacity_violated(csv_dir, results_dir):
-        log("Presolve solution violates TotalAnnualMinCapacity — re-solving without presolve")
-        verdict = _run_glpsol(glpsol, _OSEMOSYS_TXT, dat_path, output_path, log_fn or log, presolve=False)
+    verdict = _solve_with_highs(glpsol, _OSEMOSYS_TXT, dat_path, output_path, log_fn or log)
+    if verdict == "solved":
+        verdict = None
+    elif verdict is None:
+        verdict = _run_glpsol(glpsol, _OSEMOSYS_TXT, dat_path, output_path, log_fn or log, presolve=True)
+        if has_min_cap and _min_capacity_violated(csv_dir, results_dir):
+            log("Presolve solution violates TotalAnnualMinCapacity — re-solving without presolve")
+            verdict = _run_glpsol(glpsol, _OSEMOSYS_TXT, dat_path, output_path, log_fn or log, presolve=False)
     termination, objective = _parse_glpsol_output(output_path)
     if termination == "unknown" and verdict:
         termination = verdict

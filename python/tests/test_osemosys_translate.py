@@ -675,6 +675,7 @@ def _mock_runner(monkeypatch, parses):
     monkeypatch.setattr(R.translate, "translate_model", spy_tr)
     monkeypatch.setattr(R, "_find_glpsol", lambda: "glpsol")
     monkeypatch.setattr(R, "_run_glpsol", lambda *a, **k: None)
+    monkeypatch.setattr(R, "_solve_with_highs", lambda *a, **k: None)   # these tests exercise the GLPK path
     monkeypatch.setattr(R, "_parse_glpsol_output", lambda path: next(seq))
 
     def fake_contract(results_dir, *a, **kw):
@@ -831,7 +832,7 @@ def test_parity_storage_cap_min_equals_reported():
     import osemosys_timeslices as tsl
     _, report = tr.translate_model(md, tempfile.mkdtemp(), tsl.parity_scheme(168), parity=True)
     assert any("storage_cap_min" in r and "not enforced" in r for r in report)
-    assert any("storage_cap_equals" in r and "not enforced" in r for r in report)
+    assert any("storage_cap_equals" in r and "upper bound only" in r for r in report)
 
 
 def test_parity_linkconfig_distance():

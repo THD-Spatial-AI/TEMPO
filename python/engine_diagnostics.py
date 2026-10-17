@@ -55,13 +55,7 @@ _SUPPORT: Dict[str, Dict[str, tuple]] = {
         "osemosys": (_N, "no per-timeslice minimum activity in this translation — the plant may be dispatched at zero"),
         "adoptnet0": (_N, "pure-LP translation has no minimum part-load"),
     },
-    "conversion_plus": {
-        "calliope-0.6.8": (FULL, ""),
-        "calliope-0.7": (_N, "mapped to a single-output conversion: secondary carriers and carrier_ratios are dropped"),
-        "pypsa": (_N, "mapped to a single-output conversion: secondary carriers and carrier_ratios are dropped"),
-        "osemosys": (_N, "mapped to a single-output conversion: secondary carriers and carrier_ratios are dropped"),
-        "adoptnet0": (_N, "mapped to a single-output conversion: secondary carriers and carrier_ratios are dropped"),
-    },
+    "conversion_plus": {e: (FULL, "") for e in ENGINES},
     "integer_units": {
         "calliope-0.6.8": (FULL, ""), "calliope-0.7": (FULL, ""),
         "pypsa": (_N, "LP only — unit counts and purchase costs are relaxed/ignored"),
@@ -320,6 +314,17 @@ class ModelValidationError(Exception):
         super().__init__("\n".join(lines))
 
 
+def _window_days(model_data: dict) -> int:
+    """Length of the modelled window in days (1 when the dates are missing)."""
+    from datetime import date
+    cfg = model_data.get("modelConfig") or {}
+    try:
+        d0, d1 = date.fromisoformat(str(cfg["startDate"])[:10]), date.fromisoformat(str(cfg["endDate"])[:10])
+        return max(1, (d1 - d0).days + 1)
+    except (KeyError, TypeError, ValueError):
+        return 1
+
+
 def assess(model_data: dict, engine: str) -> dict:
     """Pre-run assessment of `model_data` for `engine`.
 
@@ -382,6 +387,15 @@ def assess(model_data: dict, engine: str) -> dict:
                 f"{' (changes the optimum)' if FEATURES[feat][1] == 'high' else ''}.",
                 where))
 
+    days = _window_days(model_data)
+    if eng == "osemosys" and days > 1 and not (model_data.get("modelConfig") or {}).get("osemosysScheme"):
+        lost = True
+        warnings.append(_issue(
+            "time_aggregation",
+            f"Time resolution: OSeMOSYS folds the {days}-day window into one typical 24-hour day (hour-of-day "
+            "averages), so day-to-day peaks are averaged out and capacities can be under-sized. For an exact "
+            f"chronology on small models set modelConfig.osemosysScheme = {{seasons: {days}, dayBlocks: 24}} "
+            f"(the model grows {days}x)."))
     return {"engine": eng, "ok": not errors, "errors": errors, "warnings": warnings,
             "features": summary, "fidelity": "reduced" if lost else "full"}
 

@@ -119,6 +119,12 @@ def _patch_highs_support(ModelHub):
         name = (cfg.get("solveroptions") or {}).get("solver", {}).get("value", "")
         if name in _highs_names:
             self.solver = pyo.SolverFactory("highs")
+            # Interior point + crossover: far faster than HiGHS's default simplex on these large
+            # network LPs (hours -> minutes), and crossover still returns a vertex solution.
+            try:
+                self.solver.config.solver_options.update({"solver": "ipm", "run_crossover": "on"})
+            except Exception as exc:  # option plumbing differs between pyomo versions
+                log(f"  Could not select HiGHS interior point ({exc}) — using its default")
         else:
             _orig_settings(self)
 
@@ -273,9 +279,10 @@ def _to_frozen_contract(extracted: dict, timestamps: list, model_data: dict, nam
 
     capacities, storage_capacities, generation, dispatch = {}, {}, {}, {}
     costs_by_tech, costs_by_location = {}, {}
+    out_per_in = translate.conv3_output_per_input(model_data)
     for node, tmap in (extracted.get("capacity") or {}).items():
         for tech, mw in tmap.items():
-            capacities[f"{node}::{tech}"] = mw * _KW_PER_MW
+            capacities[f"{node}::{tech}"] = mw * _KW_PER_MW * out_per_in.get((node, tech), 1.0)
     for node, tmap in (extracted.get("storage_capacity") or {}).items():
         for tech, mwh in tmap.items():
             storage_capacities[f"{node}::{tech}"] = mwh * _KW_PER_MW

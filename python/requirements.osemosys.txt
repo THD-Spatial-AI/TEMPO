@@ -9,3 +9,7 @@
 otoole==1.1.3
 
 pandas>=2.0,<2.3
+
+# HiGHS solves the generated LP (seconds where GLPK's simplex can take hours on large models);
+# glpsol still builds the model and post-processes the solution. Optional: without it the runner solves with GLPK.
+highspy>=1.7

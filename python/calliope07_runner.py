@@ -1026,7 +1026,12 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
     if data_tables:
         model_doc['data_tables'] = data_tables
     if model_config_payload.get('cyclicStorage') is not None:
-        log("[translate] model.cyclicStorage dropped — not supported in Calliope 0.7 (ignored)")
+        # 0.6's run.cyclic_storage is a per-technology `cyclic_storage` parameter in 0.7
+        # (default True); without this, storage ends where it started even when the run says off
+        cyclic = bool(model_config_payload['cyclicStorage'])
+        for d in techs_07.values():
+            if d.get('base_tech') == 'storage':
+                d['cyclic_storage'] = cyclic
 
     # Top-level parameter definitions (0.7 `parameters` / imported
     # `data_definitions`, e.g. cost_interest_rate, objective_cost_weights).
@@ -1099,6 +1104,14 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
                 f"({'applied to all techs' if mod.get('unconditional') else 'conditional'})")
         if not extra_math:
             init_cfg.pop('extra_math')   # keep the doc clean when all are conditional
+
+    if any('cp_out_share' in d or 'cp_in_share' in d for d in techs_07.values()):
+        (config_dir / 'conversion_plus_math.yaml').write_text(translate.CONVERSION_PLUS_MATH, encoding='utf-8')
+        _init = model_doc['config']['init']
+        _init.setdefault('math_paths', {})['tempo_conversion_plus'] = 'model_config/conversion_plus_math.yaml'
+        if 'tempo_conversion_plus' not in _init.setdefault('extra_math', []):
+            _init['extra_math'].append('tempo_conversion_plus')
+        log("  Multi-carrier conversion math injected (model_config/conversion_plus_math.yaml)")
 
     custom_math_yaml = model_data.get('customMath') or ''
     if custom_math_yaml.strip():

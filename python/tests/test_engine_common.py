@@ -55,8 +55,18 @@ def test_resource_to_cf_absolute_energy_divides_by_cap_max():
     assert any("absolute resource" in r for r in report)
 
 
-def test_resource_to_cf_unitless_small_values_are_cf():
-    assert ec.resource_to_cf({"resource": 0.3}, 2, [], "ctx", MD) == [0.3, 0.3]
+def test_resource_to_cf_unitless_resource_is_absolute_like_calliope():
+    # Calliope 0.6.8's default resource_unit is 'energy' (absolute kW), even for small values
+    assert ec.resource_to_cf({"resource": 0.3, "energy_cap_max": 1}, 2, [], "ctx", MD) == [0.3, 0.3]
+    assert ec.resource_to_cf({"resource": 0.3, "energy_cap_max": 3}, 2, [], "ctx", MD) == pytest.approx([0.1, 0.1])
+
+
+def test_resource_to_cf_applies_resource_scale_and_efficiencies():
+    c = {"resource": 10, "energy_cap_max": 100, "resource_scale": 2, "energy_eff": 0.5}
+    assert ec.resource_to_cf(c, 1, [], "ctx", MD) == pytest.approx([0.1])           # 10 x 2 x 0.5 / 100
+    c = {"resource": 10, "energy_cap_max": 100, "resource_eff": 0.5, "parasitic_eff": 0.5}
+    assert ec.resource_to_cf(c, 1, [], "ctx", MD, parent="supply_plus") == pytest.approx([0.025])
+    assert ec.resource_to_cf(c, 1, [], "ctx", MD, parent="supply") == pytest.approx([0.1])   # supply ignores them
 
 
 def test_resource_to_cf_energy_per_cap_above_one_clamps():
@@ -69,10 +79,10 @@ def test_resource_to_cf_energy_unit_small_value_takes_absolute_path():
                              2, [], "ctx", MD) == [0.05, 0.05]
 
 
-def test_resource_to_cf_absolute_without_cap_max_is_dropped():
+def test_resource_to_cf_absolute_without_cap_max_uses_the_resource_peak():
     report = []
-    assert ec.resource_to_cf({"resource": 50}, 2, report, "ctx", MD) is None
-    assert any("dropped" in r for r in report)
+    assert ec.resource_to_cf({"resource": 50}, 2, report, "ctx", MD) == [1.0, 1.0]
+    assert any("absolute resource" in r for r in report)
 
 
 def test_resource_to_cf_absolute_uses_cap_equals_without_cap_max():
@@ -111,3 +121,60 @@ def test_link_distance_linkconfig_overrides_link():
     assert ec.link_distance({'distance': 400, 'linkConfig': {'distance': 250}}) == 250.0
     assert ec.link_distance({'distance': '400'}) == 400.0
     assert ec.link_distance({}) is None
+
+
+# ─── lp_normalised: Calliope supply semantics as plain bounds / costs ─────────
+
+def _supply_model(**constraints_costs):
+    c = constraints_costs.pop("constraints", {})
+    k = constraints_costs.pop("costs", {})
+    return {
+        "modelConfig": {"startDate": "2015-01-01", "endDate": "2015-01-01"},
+        "technologies": [{"name": "pv", "essentials": {"parent": "supply_plus", "carrier_out": "electricity"},
+                          "constraints": c, "costs": {"monetary": k}}],
+        "locations": [{"name": "a", "techs": {"pv": None}}],
+        "timeSeries": [{"fileName": "sun.csv", "columns": ["t", "a"], "dateColumn": "t",
+                        "data": [{"t": i, "a": 2.0 if i == 5 else 1.0} for i in range(24)]}],
+    }
+
+
+def _merged(model):
+    return ec.merged_tech_def(model["technologies"][0], model["locations"][0]["techs"]["pv"])
+
+
+def test_lp_normalised_bounds_absolute_resource_by_its_peak():
+    m = ec.lp_normalised(_supply_model(constraints={"resource": "file=sun.csv:a", "energy_cap_max": float("inf"),
+                                                    "parasitic_eff": 0.5}))
+    constr, _ = _merged(m)
+    assert constr["energy_cap_max"] == pytest.approx(1.0)          # peak 2.0 x parasitic_eff 0.5
+    assert ec.lp_normalised(m) is m                                  # idempotent
+
+
+def test_lp_normalised_pins_forced_absolute_resource_to_its_peak():
+    m = ec.lp_normalised(_supply_model(constraints={"resource": "file=sun.csv:a", "force_resource": True}))
+    constr, _ = _merged(m)
+    assert constr["energy_cap_min"] == constr["energy_cap_max"] == pytest.approx(2.0)
+
+
+def test_lp_normalised_leaves_per_cap_resources_and_finite_caps_alone():
+    m = _supply_model(constraints={"resource": 0.5, "resource_unit": "energy_per_cap"})
+    assert ec.lp_normalised(m)["locations"] == m["locations"]
+    m = ec.lp_normalised(_supply_model(constraints={"resource": 50, "energy_cap_max": 10}))
+    assert _merged(m)[0]["energy_cap_max"] == 10                       # already tighter than the peak
+
+
+def test_lp_normalised_folds_area_into_cost_and_bound():
+    m = ec.lp_normalised(_supply_model(
+        constraints={"resource_area_per_energy_cap": 2, "resource_area_max": 100},
+        costs={"energy_cap": 10, "resource_area": 5}))
+    constr, costs = _merged(m)
+    assert costs["energy_cap"] == pytest.approx(20)                    # 10 + 2 m2/kW x 5
+    assert constr["energy_cap_max"] == pytest.approx(50)               # 100 m2 / 2 m2/kW
+    assert m["_lp_notes"]
+
+
+def test_lp_normalised_does_not_mutate_its_input():
+    m = _supply_model(constraints={"resource": "file=sun.csv:a", "force_resource": True})
+    before = repr(m)
+    ec.lp_normalised(m)
+    assert repr(m) == before

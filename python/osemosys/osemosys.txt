@@ -518,6 +518,33 @@ s.t. EBa11_EnergyBalanceEachTS5{r in REGION, l in TIMESLICE, f in FUEL, y in YEA
 	>=
 	Demand[r,l,f,y] + Use[r,l,f,y] + sum{rr in REGION} Trade[r,rr,l,f,y] * TradeRoute[r,rr,f,y];
 
+# TEMPO extension (opt-in, default -1 = unlimited = upstream behaviour): Calliope's storage_cap_max
+# (energy capacity, PJ) and charge_rate / energy_cap_per_storage_cap_max (power per energy, 1/h),
+# which OSeMOSYS 2017 cannot express. 1 PJ = 277.7778 GWh.
+param TempoStorageCapMax{r in REGION, s in STORAGE, y in YEAR}, default -1;
+param TempoPowerPerStorage{r in REGION, t in TECHNOLOGY, s in STORAGE}, default -1;
+s.t. TEMPO_StorageCapMax{r in REGION, s in STORAGE, y in YEAR: TempoStorageCapMax[r,s,y] >= 0}:
+	AccumulatedNewStorageCapacity[r,s,y] + ResidualStorageCapacity[r,s,y] <= TempoStorageCapMax[r,s,y];
+s.t. TEMPO_StoragePower{r in REGION, t in TECHNOLOGY, s in STORAGE, y in YEAR: TempoPowerPerStorage[r,t,s] >= 0}:
+	TotalCapacityAnnual[r,t,y]
+	<=
+	TempoPowerPerStorage[r,t,s] * 277.7778 * (AccumulatedNewStorageCapacity[r,s,y] + ResidualStorageCapacity[r,s,y]);
+
+# TEMPO extension (opt-in, default 0 = upstream behaviour): fuels flagged here balance EXACTLY, i.e.
+# surplus production cannot be discarded for free. Calliope balances every carrier exactly, so a
+# by-product of a multi-output technology (a CHP's heat) must be used or stored, not dumped.
+param TempoStrictBalance{r in REGION, f in FUEL, y in YEAR}, binary, default 0;
+# Written in terms of the data and activities themselves: upstream's Demand[] and Use[] variables
+# are only defined where a demand / consumer exists, so for a fuel nobody consumes they are free
+# variables and would make the bound vacuous.
+s.t. TEMPO_StrictBalance{r in REGION, l in TIMESLICE, f in FUEL, y in YEAR: TempoStrictBalance[r,f,y] = 1}:
+	Production[r,l,f,y]
+	<=
+	SpecifiedAnnualDemand[r,f,y] * SpecifiedDemandProfile[r,f,l,y]
+	+ sum{t in TECHNOLOGY, m in MODE_OF_OPERATION: InputActivityRatio[r,t,f,m,y] <> 0}
+		RateOfActivity[r,l,t,m,y] * InputActivityRatio[r,t,f,m,y] * YearSplit[l,y]
+	+ sum{rr in REGION} Trade[r,rr,l,f,y] * TradeRoute[r,rr,f,y];
+
 #
 #########        	Energy Balance B		 	#############
 #

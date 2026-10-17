@@ -75,7 +75,7 @@ def test_exported_dataset_solves_standalone_to_runner_objective():
                        cwd=ds, env=env, capture_output=True, check=True)
         term, raw = R._parse_glpsol_output(os.path.join(ds, "out.txt"))
         assert term == "optimal"
-        assert raw == pytest.approx(raw_runner, rel=1e-9)
+        assert raw == pytest.approx(raw_runner, rel=1e-6)   # GLPK standalone vs the runner (HiGHS when installed)
         assert os.path.exists(os.path.join(ds, "results", "TotalCapacityAnnual.csv"))
 
 
