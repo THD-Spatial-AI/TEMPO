@@ -38,7 +38,7 @@ const MapDeckGL = () => {
   
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [hoveredInfo, setHoveredInfo] = useState(null);
-  const [currentStyle, setCurrentStyle] = useState('streets');
+  const [currentStyle, setCurrentStyle] = useState('grey');
   const [mode, setMode] = useState('view');
   const [linkStart, setLinkStart] = useState(null);
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false);

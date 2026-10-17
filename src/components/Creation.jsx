@@ -375,7 +375,7 @@ const Creation = ({ onNavigate }) => {
     pitch: 0,
     bearing: 0
   });
-  const [currentStyle, setCurrentStyle] = useState('streets');
+  const [currentStyle, setCurrentStyle] = useState('grey');
   const [showLayerSelector, setShowLayerSelector] = useState(false);
   const [hoveredInfo, setHoveredInfo] = useState(null);
   const [mapReady, setMapReady] = useState(false);

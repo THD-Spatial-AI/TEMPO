@@ -4,6 +4,10 @@ import { MAP_STYLE_NAMES } from "../../config/mapStyles";
 
 // Small CSS-only previews so each style is recognisable at a glance.
 const STYLE_PREVIEWS = {
+  grey:
+    "linear-gradient(135deg, transparent 46%, #f8fafc 46%, #f8fafc 54%, transparent 54%), " +
+    "linear-gradient(45deg, transparent 62%, #d4d4d4 62%, #d4d4d4 68%, transparent 68%), " +
+    "radial-gradient(circle at 25% 30%, #cbd5e1 0 22%, transparent 23%), #e5e5e5",
   streets:
     "linear-gradient(135deg, transparent 46%, #f8fafc 46%, #f8fafc 54%, transparent 54%), " +
     "linear-gradient(45deg, transparent 62%, #fde68a 62%, #fde68a 68%, transparent 68%), " +
