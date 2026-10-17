@@ -16,6 +16,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readTemplateFile: (filename) => ipcRenderer.invoke('read-template-file', filename),
   // True if the template file is bundled or downloadable (never downloads)
   templateAvailable: (filename) => ipcRenderer.invoke('template-available', filename),
+  // Human-readable download phases ({ prefix, phase, message }); returns an unsubscribe function
+  onTemplateStatus: (cb) => {
+    const handler = (_e, ev) => cb(ev);
+    ipcRenderer.on('template-status', handler);
+    return () => ipcRenderer.removeListener('template-status', handler);
+  },
   // Download progress ({ prefix, done, total } in bytes); returns an unsubscribe function
   onTemplateProgress: (cb) => {
     const handler = (_e, p) => cb(p);

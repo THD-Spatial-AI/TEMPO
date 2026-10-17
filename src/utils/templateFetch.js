@@ -17,7 +17,13 @@ export async function templateAvailable(filename) {
 
 export async function fetchTemplate(filename) {
   if (window.electronAPI?.readTemplateFile) {
-    const text = await window.electronAPI.readTemplateFile(filename);
+    let text;
+    try {
+      text = await window.electronAPI.readTemplateFile(filename);
+    } catch (err) {
+      // Electron wraps main-process errors as "Error invoking remote method '…': Error: <message>"
+      throw new Error(String(err?.message || err).replace(/^Error invoking remote method '[^']*':\s*(Error:\s*)?/, ''));
+    }
     if (text === null || text === undefined) {
       return {
         ok: false,

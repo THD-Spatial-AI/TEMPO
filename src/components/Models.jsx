@@ -1,11 +1,11 @@
-﻿import React, { useState, useRef } from 'react';
+﻿import React, { useState, useRef, useEffect } from 'react';
 import { FiFolder, FiTrash2, FiEdit2, FiCheck, FiX, FiPlus, FiDownload, FiUpload, FiMap, FiZap, FiInfo, FiEye, FiChevronDown, FiChevronRight, FiCpu, FiDatabase, FiActivity, FiLayers, FiUploadCloud, FiPackage, FiSearch } from './ui/icons';
 import Papa from 'papaparse';
 import JSZip from 'jszip';
 import { useData } from '../context/DataContext';
 import CSVUploader from './CSVUploader';
-import { fetchTemplate } from '../utils/templateFetch';
 import CalliopeYAMLImporter from './CalliopeYAMLImporter';
+import { SERVER_TEMPLATES } from '../services/serverTemplates';
 import CSVImportWizard from './CSVImportWizard';
 import TranslationReport from './TranslationReport';
 import { detectArchiveFormat } from '../services/archiveFormat';
@@ -19,8 +19,14 @@ import { iconBtn, ICON_PX } from './ui/iconButton';
 
 const Models = () => {
   const { models, setModels, currentModelId, loadModel, deleteModel, renameModel, createModel, setTimeSeries, setOverrides, setScenarios, showNotification } = useData();
-  const [viewingTemplate, setViewingTemplate] = useState(null);
+  const [importerTemplate, setImporterTemplate] = useState(null);
+  const importerRef = useRef(null);
   const [showYAMLImporter, setShowYAMLImporter] = useState(false);
+
+  // The page scrolls inside <main>, not the window: bring the importer panel into view when it opens
+  useEffect(() => {
+    if (showYAMLImporter) importerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [showYAMLImporter, importerTemplate]);
   const [showCreatePanel, setShowCreatePanel] = useState(false);
   const [editingModelId, setEditingModelId] = useState(null);
   const [editModalName, setEditModalName] = useState('');
@@ -158,72 +164,6 @@ const Models = () => {
     return found ? found.name : type;
   };
 
-  // Template definitions with detailed metadata
-  const TEMPLATE_MODELS = [
-    {
-      id: 'german',
-      name: 'German Energy System',
-      country: '🇩🇪 Germany',
-      description: 'Comprehensive model of German energy infrastructure with 10 major cities and 2 transmission nodes. Features Energiewende transition with high renewable penetration.',
-      locations: 12,
-      sites: 10,
-      nodes: 2,
-      links: 12,
-      technologies: ['Solar PV', 'Wind Onshore', 'Wind Offshore', 'Gas CCGT', 'Coal', 'Biomass', 'Battery Storage', 'AC Transmission', 'HVDC Transmission'],
-      locationsFile: 'german_energy_system/locations.csv',
-      linksFile: 'german_energy_system/links.csv',
-      demandFile: 'german_energy_system/timeseries_data/german_demand_2024.csv',
-      technologiesFile: 'german_energy_system/technologies.json',
-      scenariosFile: 'german_energy_system/scenarios.json',
-      statisticsFile: 'german_energy_system/statistics.json',
-      color: 'blue',
-      features: ['Energiewende Modeling', 'High Renewable Mix', 'Coal Phase-out', 'Demand Profiles', 'Storage Integration', 'Grid Expansion Planning']
-    },
-    {
-      id: 'european',
-      name: 'European Network',
-      country: '🇪🇺 Europe',
-      description: 'Pan-European energy network with 12 major cities and 3 transmission hubs. Includes complete technology mix, demand data, and cross-border transmission infrastructure.',
-      locations: 15,
-      sites: 12,
-      nodes: 3,
-      links: 18,
-      technologies: ['Solar PV', 'Wind Onshore', 'Wind Offshore', 'Nuclear', 'Hydro', 'Gas CCGT', 'Coal', 'Biomass', 'Battery Storage', 'AC Transmission', 'HVDC Transmission'],
-      locationsFile: 'european_network/locations.csv',
-      linksFile: 'european_network/links.csv',
-      demandFile: 'european_network/timeseries_data/european_demand_2024.csv',
-      technologiesFile: 'european_network/technologies.json',
-      scenariosFile: 'european_network/scenarios.json',
-      statisticsFile: 'european_network/statistics.json',
-      color: 'green',
-      features: ['Multi-Country System', 'Complete Technology Mix', 'Cross-Border Transmission', 'Demand Profiles', 'Pre-configured Scenarios', 'Multiple Voltage Levels']
-    },
-    {
-      id: 'chile',
-      name: 'Chilean Energy Grid',
-      country: '🇨🇱 Chile',
-      description: 'Complete Chilean energy system with 2,241 locations (substations and power plants) and 2,319 transmission links. Includes demand data, solar PV and wind resource timeseries for 2024. Multi-voltage transmission network (11-500kV) with technologies, scenarios, and statistics.',
-      locations: 2241,
-      sites: 1081,
-      substations: 1048,
-      nodes: 112,
-      links: 2319,
-      technologies: ['Solar PV', 'Wind', 'Hydro (Reservoir & Run-of-River)', 'Geothermal', 'CSP', 'Biogas', 'Biomass', 'Coal', 'Gas', 'Oil', 'Diesel', 'Battery Storage', 'H2 Storage', 'Electrolyzer', 'Fuel Cell', 'Transmission (11-500kV)'],
-      locationsFile: 'chilean_energy_grid/locations.csv',
-      linksFile: 'chilean_energy_grid/links.csv',
-      demandFile: 'chilean_energy_grid/timeseries_data/total_demand_2024.csv',
-      resourceFiles: [
-        { name: 'Solar PV 2024', file: 'chilean_energy_grid/timeseries_data/resource_pv_2024.csv', type: 'pv' },
-        { name: 'Wind 2024', file: 'chilean_energy_grid/timeseries_data/resource_wind_2024.csv', type: 'wind' }
-      ],
-      technologiesFile: 'chilean_energy_grid/technologies.json',
-      scenariosFile: 'chilean_energy_grid/scenarios.json',
-      statisticsFile: 'chilean_energy_grid/statistics.json',
-      color: 'purple',
-      features: ['Complete Technology Suite', 'Real Demand & Resource Data 2024', 'Multi-Voltage Transmission', 'Pre-configured Scenarios', 'Detailed Statistics', 'Real Grid Topology']
-    }
-  ];
-
   const handleDelete = async (modelId) => {
     if (await confirmAction({ title: 'Delete this model?', message: 'Its locations, links, technologies and time series will be permanently removed.', details: models.find(m => m.id === modelId)?.name })) {
       deleteModel(modelId);
@@ -314,441 +254,6 @@ const Models = () => {
     e.target.value = '';
   };
 
-  const downloadTemplateFile = async (filename, displayName) => {
-    try {
-      const response = await fetchTemplate(filename);
-      if (!response.ok) {
-        showNotification(`File ${filename} not found in templates folder`, 'error');
-        return;
-      }
-      
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
-      link.click();
-      URL.revokeObjectURL(url);
-      showNotification(`Downloaded ${displayName}`, 'success');
-    } catch (error) {
-      showNotification(`Error downloading ${displayName}: ${error.message}`, 'error');
-    }
-  };
-
-  const downloadAllTemplateFiles = async (template) => {
-    const files = [
-      { file: template.locationsFile, name: 'Locations File' },
-      { file: template.linksFile, name: 'Links File' }
-    ];
-    
-    if (template.demandFile) {
-      files.push({ file: template.demandFile, name: 'Demand Timeseries' });
-    }
-
-    if (template.resourceFiles) {
-      template.resourceFiles.forEach(rf => {
-        files.push({ file: rf.file, name: rf.name });
-      });
-    }
-
-    if (template.technologiesFile) {
-      files.push({ file: template.technologiesFile, name: 'Technologies' });
-    }
-
-    if (template.scenariosFile) {
-      files.push({ file: template.scenariosFile, name: 'Scenarios' });
-    }
-
-    if (template.statisticsFile) {
-      files.push({ file: template.statisticsFile, name: 'Statistics' });
-    }
-    
-    if (template.modelDataFile) {
-      files.push({ file: template.modelDataFile, name: 'Model Configuration' });
-    }
-
-    let successCount = 0;
-    for (const { file, name } of files) {
-      try {
-        await downloadTemplateFile(file, name);
-        successCount++;
-        // Small delay between downloads
-        await new Promise(resolve => setTimeout(resolve, 300));
-      } catch (error) {
-        console.warn(`Failed to download ${name}:`, error);
-      }
-    }
-
-    showNotification(`Downloaded ${successCount} of ${files.length} template files`, 'success');
-  };
-
-
-  const loadTemplateModel = async (template) => {
-    try {
-      const locationsResponse = await fetchTemplate(template.locationsFile);
-      const linksResponse = await fetchTemplate(template.linksFile);
-
-      if (!locationsResponse.ok || !linksResponse.ok) {
-        throw new Error('Template files not found');
-      }
-
-      const locationsText = await locationsResponse.text();
-      const linksText = await linksResponse.text();
-
-      const locationsData = Papa.parse(locationsText, { header: true, skipEmptyLines: true, dynamicTyping: true }).data;
-      const linksData = Papa.parse(linksText, { header: true, skipEmptyLines: true, dynamicTyping: true }).data;
-
-      // Load demand timeseries data if available
-      let demandData = {};
-      let demandTotals = {};
-      if (template.demandFile) {
-        try {
-          const demandResponse = await fetchTemplate(template.demandFile);
-          if (demandResponse.ok) {
-            const demandText = await demandResponse.text();
-            const parsedDemand = Papa.parse(demandText, { header: true, skipEmptyLines: true, dynamicTyping: true });
-            
-            // Calculate total consumption (sum of all hourly values) for each substation
-            // Values are in kW, sum of hourly kW values = kWh (energy over time)
-            const headers = parsedDemand.meta.fields.filter(f => f !== 'date');
-            headers.forEach(substationName => {
-              const timeseriesValues = [];
-              const totalKWh = parsedDemand.data.reduce((sum, row) => {
-                const value = Math.abs(row[substationName] || 0); // Use absolute value in kW (demand is negative in files)
-                timeseriesValues.push(value);
-                return sum + value; // Sum of hourly kW = total kWh
-              }, 0);
-              
-              const totalMWh = totalKWh / 1000; // Convert kWh to MWh
-              const totalGWh = totalKWh / 1000000; // Convert kWh to GWh
-              const avgKW = totalKWh / parsedDemand.data.length; // Average power in kW
-              const maxKW = Math.max(...timeseriesValues);
-              const minKW = Math.min(...timeseriesValues);
-              
-              demandTotals[substationName] = totalMWh.toFixed(2);
-              demandData[substationName] = {
-                file: template.demandFile,
-                column: substationName,
-                totalMWh: totalMWh.toFixed(2),
-                totalGWh: totalGWh.toFixed(2),
-                avgMW: (avgKW / 1000).toFixed(2),
-                maxMW: (maxKW / 1000).toFixed(2),
-                minMW: (minKW / 1000).toFixed(2),
-                hours: parsedDemand.data.length,
-                timeseries: timeseriesValues,
-                dates: parsedDemand.data.map(row => row.date)
-              };
-            });
-          }
-        } catch (error) {
-          console.warn('Could not load demand timeseries:', error);
-        }
-      }
-
-      // Load resource timeseries files (PV, Wind) if available
-      let resourceData = {};
-      if (template.resourceFiles && template.resourceFiles.length > 0) {
-        for (const resourceFile of template.resourceFiles) {
-          try {
-            const resourceResponse = await fetchTemplate(resourceFile.file);
-            if (resourceResponse.ok) {
-              const resourceText = await resourceResponse.text();
-              const parsedResource = Papa.parse(resourceText, { header: true, skipEmptyLines: true, dynamicTyping: true });
-              
-              const headers = parsedResource.meta.fields.filter(f => f !== 'date' && f !== 'Date');
-              headers.forEach(locationName => {
-                const timeseriesValues = [];
-                const totalCapacityFactor = parsedResource.data.reduce((sum, row) => {
-                  const value = parseFloat(row[locationName]) || 0;
-                  timeseriesValues.push(value);
-                  return sum + value;
-                }, 0);
-                
-                const avgCapacityFactor = totalCapacityFactor / parsedResource.data.length;
-                const maxCF = Math.max(...timeseriesValues);
-                const minCF = Math.min(...timeseriesValues);
-                
-                const key = `${locationName}_${resourceFile.type}`;
-                resourceData[key] = {
-                  file: resourceFile.file,
-                  column: locationName,
-                  resourceType: resourceFile.type,
-                  resourceName: resourceFile.name,
-                  avgCapacityFactor: avgCapacityFactor.toFixed(4),
-                  maxCF: maxCF.toFixed(4),
-                  minCF: minCF.toFixed(4),
-                  hours: parsedResource.data.length,
-                  timeseries: timeseriesValues,
-                  dates: parsedResource.data.map(row => row.date || row.Date)
-                };
-              });
-            }
-          } catch (error) {
-            console.warn(`Could not load resource file ${resourceFile.name}:`, error);
-          }
-        }
-      }
-
-      // Load complete model data if available (for Chile model)
-      let technologies = [];
-      let modelOverrides = {};
-      let modelScenarios = {};
-      
-      // Try loading technologies from separate file first
-      if (template.technologiesFile) {
-        try {
-          const techResponse = await fetchTemplate(template.technologiesFile);
-          if (techResponse.ok) {
-            const techData = await techResponse.json();
-            
-            // Transform technologies to match Technologies component format
-            if (techData && typeof techData === 'object') {
-              technologies = Object.entries(techData).map(([id, tech]) => ({
-                name: id,
-                parent: tech.essentials?.parent || 'supply',
-                description: tech.essentials?.name || id,
-                essentials: {
-                  name: tech.essentials?.name || id,
-                  color: tech.essentials?.color || '#5A5A5A',
-                  parent: tech.essentials?.parent || 'supply',
-                  carrier_out: tech.essentials?.carrier_out || tech.essentials?.carrier || 'electricity',
-                  carrier_in: tech.essentials?.carrier_in,
-                  carrier: tech.essentials?.carrier
-                },
-                constraints: tech.constraints || {},
-                costs: tech.costs || { monetary: {} }
-              }));
-              console.log(`Loaded ${technologies.length} technologies from ${template.technologiesFile}`);
-            }
-          }
-        } catch (error) {
-          console.warn('Could not load technologies file:', error);
-        }
-      }
-
-      // Try loading scenarios from separate file
-      if (template.scenariosFile) {
-        try {
-          const scenariosResponse = await fetchTemplate(template.scenariosFile);
-          if (scenariosResponse.ok) {
-            const scenariosData = await scenariosResponse.json();
-            // Handle both {scenarios: {...}} and direct {...} format
-            if (scenariosData.scenarios) {
-              modelScenarios = scenariosData.scenarios;
-              modelOverrides = scenariosData.overrides || {};
-            } else {
-              modelScenarios = scenariosData;
-            }
-            console.log(`Loaded scenarios from ${template.scenariosFile}:`, Object.keys(modelScenarios));
-          }
-        } catch (error) {
-          console.warn('Could not load scenarios file:', error);
-        }
-      }
-
-      // Fall back to modelDataFile if technologies/scenarios weren't loaded separately
-      if (template.modelDataFile && technologies.length === 0) {
-        try {
-          const modelDataResponse = await fetchTemplate(template.modelDataFile);
-          if (modelDataResponse.ok) {
-            const modelData = await modelDataResponse.json();
-            
-            // Transform technologies to match Technologies component format
-            if (modelData.technologies && Array.isArray(modelData.technologies)) {
-              technologies = modelData.technologies.map(tech => ({
-                name: tech.id || tech.name,
-                parent: tech.parent || 'supply',
-                description: tech.name || tech.description || '',
-                essentials: {
-                  name: tech.name || tech.id,
-                  color: tech.color || '#5A5A5A',
-                  parent: tech.parent || 'supply',
-                  carrier_out: tech.carrier_out || tech.carrier || 'electricity',
-                  carrier_in: tech.carrier_in,
-                  carrier: tech.carrier
-                },
-                constraints: tech.constraints || {},
-                costs: tech.costs || { monetary: {} }
-              }));
-              console.log(`Transformed ${technologies.length} technologies from template`);
-            }
-            
-            if (!modelScenarios || Object.keys(modelScenarios).length === 0) {
-              modelOverrides = modelData.overrides || {};
-              modelScenarios = modelData.scenarios || {};
-            }
-          }
-        } catch (error) {
-          console.warn('Could not load complete model data, using basic template');
-        }
-      }
-
-      // Transform locations to include techs object from available_techs
-      const transformedLocations = locationsData.map(loc => {
-        // Support both 'lat'/'lon' and 'latitude'/'longitude' column names
-        const lat = loc.lat || loc.latitude;
-        const lon = loc.lon || loc.longitude;
-        
-        const location = {
-          name: loc.name,
-          latitude: lat,
-          longitude: lon,
-          type: loc.type,
-          coordinates: {
-            lat: lat,
-            lon: lon
-          },
-          // Preserve CSV metadata columns (small strings, survive persistence)
-          demand_types: (loc.demand_types || loc.demand_type || '').toString().trim(),
-          resource_files: (loc.resource_files || loc.resource_file || '').toString().trim(),
-        };
-
-        // Add demand timeseries data if this location has demand profile
-        if (demandData[loc.name]) {
-          location.demandProfile = demandData[loc.name];
-          location.totalDemandMWh = parseFloat(demandTotals[loc.name]);
-          location.hasDemand = true; // Explicit flag for map coloring
-        }
-
-        // Add resource data if this location has resource profiles
-        if (resourceData[`${loc.name}_pv`]) {
-          location.resourcePV = resourceData[`${loc.name}_pv`];
-        }
-        if (resourceData[`${loc.name}_wind`]) {
-          location.resourceWind = resourceData[`${loc.name}_wind`];
-        }
-
-        // Parse techs from CSV into techs object structure
-        if (loc.techs && loc.techs.trim()) {
-          location.techs = {};
-          const techList = loc.techs.split(',').map(t => t.trim());
-          techList.forEach(techName => {
-            location.techs[techName] = {
-              constraints: {}
-            };
-
-            // Use energy_cap_max from CSV if available
-            if (loc.energy_cap_max && loc.energy_cap_max > 0) {
-              location.techs[techName].constraints.energy_cap_max = loc.energy_cap_max;
-            }
-
-            // Add default constraints based on tech type
-            if (techName.includes('solar')) {
-              location.techs[techName].constraints.energy_cap_max = 1000;
-              location.techs[techName].constraints.resource = 'file=solar_' + loc.name.toLowerCase() + '.csv';
-            } else if (techName.includes('wind')) {
-              location.techs[techName].constraints.energy_cap_max = 500;
-              location.techs[techName].constraints.resource = 'file=wind_' + loc.name.toLowerCase() + '.csv';
-            } else if (techName.includes('battery') || techName.includes('storage')) {
-              location.techs[techName].constraints.energy_cap_max = 200;
-              location.techs[techName].constraints.storage_cap_max = 400;
-            } else if (techName.includes('gas') || techName.includes('ccgt')) {
-              location.techs[techName].constraints.energy_cap_max = 800;
-              location.techs[techName].constraints.energy_eff = 0.55;
-            } else if (techName.includes('coal')) {
-              location.techs[techName].constraints.energy_cap_max = 600;
-              location.techs[techName].constraints.energy_eff = 0.40;
-            } else if (techName.includes('biomass')) {
-              location.techs[techName].constraints.energy_cap_max = 300;
-              location.techs[techName].constraints.energy_eff = 0.35;
-            }
-          });
-        } else {
-          location.techs = {};
-        }
-
-        return location;
-      });
-
-      // Convert demand data to timeseries format for the model
-      const timeseriesData = [];
-      Object.entries(demandData).forEach(([locationName, data]) => {
-        timeseriesData.push({
-          id: `demand_${locationName}_${Date.now()}`,
-          name: `Demand - ${locationName}`,
-          type: 'demand',
-          location: locationName,
-          technology: 'demand_power',
-          parameter: 'resource',
-          file: data.file,
-          column: data.column,
-          data: data.timeseries,
-          dates: data.dates,
-          columns: ['date', data.column],
-          rowCount: data.timeseries.length,
-          statistics: {
-            [data.column]: {
-              min: parseFloat(data.minMW),
-              max: parseFloat(data.maxMW),
-              mean: parseFloat(data.avgMW),
-              sum: parseFloat(data.totalMWh)
-            }
-          },
-          createdAt: new Date().toISOString()
-        });
-      });
-
-      // Add resource timeseries
-      Object.entries(resourceData).forEach(([key, data]) => {
-        timeseriesData.push({
-          id: `resource_${data.resourceType}_${data.column}_${Date.now()}`,
-          name: `${data.resourceName} - ${data.column}`,
-          type: `resource_${data.resourceType}`,
-          location: data.column,
-          technology: data.resourceType,
-          parameter: 'resource',
-          file: data.file,
-          column: data.column,
-          data: data.timeseries,
-          dates: data.dates,
-          columns: ['date', data.column],
-          rowCount: data.timeseries.length,
-          statistics: {
-            [data.column]: {
-              min: parseFloat(data.minCF),
-              max: parseFloat(data.maxCF),
-              mean: parseFloat(data.avgCapacityFactor),
-              sum: (parseFloat(data.avgCapacityFactor) * data.hours).toFixed(2)
-            }
-          },
-          createdAt: new Date().toISOString()
-        });
-      });
-
-      const modelId = createModel(
-        template.name,
-        transformedLocations,
-        linksData,
-        [],
-        technologies,
-        timeseriesData,
-        {
-          description: template.description,
-          country: template.country,
-          template: true,
-          templateId: template.id
-        },
-        modelOverrides,
-        modelScenarios
-      );
-
-      // Set overrides and scenarios to current state
-      if (Object.keys(modelOverrides).length > 0 || Object.keys(modelScenarios).length > 0) {
-        setOverrides(modelOverrides);
-        setScenarios(modelScenarios);
-        console.log('Loaded overrides and scenarios:', {
-          overrides: Object.keys(modelOverrides),
-          scenarios: Object.keys(modelScenarios)
-        });
-      }
-
-      showNotification(`Template "${template.name}" loaded successfully!`, 'success');
-    } catch (error) {
-      console.error('Error loading template:', error);
-      showNotification('Error loading template model. Make sure template files exist in /public/templates/', 'error');
-    }
-  };
-
   const pinnedIds = usePinnedModels();
   const filteredModels = sortPinnedFirst(models.filter(m => {
     const matchesSearch = !searchQuery || m.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -809,13 +314,15 @@ const Models = () => {
 
       {/* Calliope YAML Importer panel */}
       {showYAMLImporter && (
-        <div className="mb-6">
+        <div className="mb-6" ref={importerRef}>
           <CalliopeYAMLImporter
-            onClose={() => setShowYAMLImporter(false)}
+            initialTemplate={importerTemplate}
+            onClose={() => { setShowYAMLImporter(false); setImporterTemplate(null); }}
             onImport={(name, locations, links, parameters, technologies, timeSeries, metadata, overrides, scenarios) => {
               createModel(name, locations, links, parameters, technologies, timeSeries, { ...metadata, modelType: 'calliope' }, overrides, scenarios);
               showNotification(`Calliope model "${name}" imported successfully!`, 'success');
               setShowYAMLImporter(false);
+              setImporterTemplate(null);
             }}
           />
         </div>
@@ -1265,114 +772,41 @@ const Models = () => {
         );
       })()}
 
-      {/* Template Models Section */}
+      {/* Template Models Section: published models, downloaded from GitHub on first use */}
       <div className="mb-8 rounded-2xl border border-black/15 bg-white p-6 ">
         <div className="mb-4">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
             Template Models
-            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">{TEMPLATE_MODELS.length}</span>
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">{SERVER_TEMPLATES.length}</span>
           </h2>
-          <p className="text-xs text-slate-500">Ready-made example systems to explore or start from.</p>
+          <p className="text-xs text-slate-500">Published Calliope models. They are downloaded from GitHub the first time you load one and kept on this computer.</p>
         </div>
 
         <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {TEMPLATE_MODELS.map((template) => (
-            <div key={template.id} className="flex flex-col overflow-hidden rounded-xl border border-black/15 bg-white  transition-all hover:border-black/15 hover:">
-
+          {SERVER_TEMPLATES.map((template) => (
+            <div key={template.id} className="flex flex-col overflow-hidden rounded-xl border border-black/15 bg-white transition-all hover:border-black/15">
               <div className="flex flex-1 flex-col p-4">
                 <div className="flex items-start gap-3">
-                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-slate-50 text-2xl ring-1 ring-slate-200">{template.country.split(' ')[0]}</span>
+                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-slate-50 text-2xl ring-1 ring-slate-200">{template.flag}</span>
                   <div className="min-w-0">
                     <div className="truncate text-sm font-semibold text-slate-900">{template.name}</div>
-                    <div className="text-xs text-slate-500">{template.country.split(' ').slice(1).join(' ')}</div>
+                    <div className="text-xs text-slate-500">Calliope 0.6 YAML model</div>
                   </div>
                 </div>
-                <p className="mt-3 line-clamp-2 text-xs leading-relaxed text-slate-500" title={template.description}>{template.description}</p>
-                <div className="mt-3 flex flex-wrap gap-1.5 text-xs text-slate-500">
-                  <span className="rounded-md bg-slate-100 px-1.5 py-0.5"><span className="font-semibold tabular-nums text-slate-800">{template.locations.toLocaleString()}</span> locations</span>
-                  <span className="rounded-md bg-slate-100 px-1.5 py-0.5"><span className="font-semibold tabular-nums text-slate-800">{template.links.toLocaleString()}</span> links</span>
-                  <span className="rounded-md bg-slate-100 px-1.5 py-0.5"><span className="font-semibold tabular-nums text-slate-800">{template.technologies.length}</span> techs</span>
-                </div>
-                <div className="mt-2.5 flex flex-wrap gap-1">
-                  {template.technologies.slice(0, 4).map((tech, i) => (
-                    <span key={i} className="rounded-full border border-black/15 px-2 py-0.5 text-[10px] text-slate-600">{tech}</span>
-                  ))}
-                  {template.technologies.length > 4 && (
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500">+{template.technologies.length - 4}</span>
-                  )}
-                </div>
+                <p className="mt-3 line-clamp-3 text-xs leading-relaxed text-slate-500" title={template.description}>{template.description}</p>
               </div>
               <div className="flex items-center gap-2 border-t border-black/10 px-4 py-2.5">
                 <button
-                  onClick={() => setViewingTemplate(viewingTemplate === template.id ? null : template.id)}
-                  aria-expanded={viewingTemplate === template.id}
-                  className="flex h-8 items-center gap-1 rounded-lg px-2 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+                  onClick={() => {
+                    setImporterTemplate(template.id);
+                    setShowYAMLImporter(true);
+                  }}
+                  disabled={showYAMLImporter && importerTemplate === template.id}
+                  className="ml-auto h-8 rounded-lg bg-black px-4 text-xs font-semibold text-white  transition-colors hover:bg-black/80 disabled:cursor-wait disabled:opacity-60"
                 >
-                  {viewingTemplate === template.id ? <FiChevronDown size={14} /> : <FiChevronRight size={14} />}
-                  Files
-                </button>
-                <button
-                  onClick={() => loadTemplateModel(template)}
-                  className="ml-auto h-8 rounded-lg bg-black px-4 text-xs font-semibold text-white  transition-colors hover:bg-black/80"
-                >
-                  Load template
+                  {showYAMLImporter && importerTemplate === template.id ? 'Loading… see panel above' : 'Load template'}
                 </button>
               </div>
-
-              {/* Expanded: files + tech tags */}
-              {viewingTemplate === template.id && (
-                <div className="space-y-3 border-t border-black/10 bg-slate-50/60 px-4 py-3">
-
-                  {/* File list */}
-                  <div className="space-y-1.5">
-                    {[
-                      { icon: FiMap,         label: 'Locations',         file: template.locationsFile,   required: true  },
-                      { icon: FiZap,         label: 'Links',             file: template.linksFile,        required: true  },
-                      { icon: FiActivity,    label: 'Demand timeseries', file: template.demandFile,       required: false },
-                      ...(template.resourceFiles || []).map(rf => ({
-                        icon: FiUploadCloud, label: rf.name,             file: rf.file,                   required: false,
-                      })),
-                      { icon: FiCpu,         label: 'Technologies',      file: template.technologiesFile, required: false },
-                      { icon: FiLayers,      label: 'Scenarios',         file: template.scenariosFile,    required: false },
-                      { icon: FiDatabase,    label: 'Statistics',        file: template.statisticsFile,   required: false },
-                      ...(template.modelDataFile ? [{ icon: FiDatabase,  label: 'Model Config',          file: template.modelDataFile, required: false }] : []),
-                    ].filter(f => f.file).map(({ icon: Icon, label, file, required }, i) => (
-                      <div key={i} className="flex items-center gap-2 text-xs">
-                        <Icon size={12} className="text-gray-400 flex-shrink-0" />
-                        <span className={`flex-1 truncate ${required ? 'text-gray-700 font-medium' : 'text-gray-500'}`}>
-                          {label}
-                        </span>
-                        {required && (
-                          <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded flex-shrink-0">required</span>
-                        )}
-                        <button
-                          onClick={() => downloadTemplateFile(file, label)}
-                          className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors flex-shrink-0"
-                          title={`Download ${label}`}
-                        >
-                          <FiDownload size={12} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Download all */}
-                  <button
-                    onClick={() => downloadAllTemplateFiles(template)}
-                    className="flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-black/15 bg-white text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50"
-                  >
-                    <FiDownload size={11} />
-                    Download all (
-                    {[template.locationsFile, template.linksFile, template.demandFile,
-                      ...(template.resourceFiles || []).map(r => r.file),
-                      template.technologiesFile, template.scenariosFile,
-                      template.statisticsFile, template.modelDataFile,
-                    ].filter(Boolean).length} files)
-                  </button>
-
-                </div>
-              )}
-
             </div>
           ))}
         </div>

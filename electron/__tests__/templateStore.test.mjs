@@ -93,3 +93,47 @@ describe('templateStore path mapping', () => {
     expect(got.sort()).toEqual(['It/.tempo-complete', 'It/model.yaml', 'It/timeseries_data/w_1989.csv']);
   });
 });
+
+describe('UI templates are all downloadable', () => {
+  it('every template offered in the app resolves to a GitHub source when nothing is bundled', async () => {
+    const { SERVER_TEMPLATES } = await import('../../src/services/serverTemplates.js');
+    const real = createTemplateStore({ bundledDir: fs.mkdtempSync(path.join(os.tmpdir(), 'tb-')), cacheDir: fs.mkdtempSync(path.join(os.tmpdir(), 'tc-')) });
+    expect(SERVER_TEMPLATES.length).toBeGreaterThan(0);
+    for (const t of SERVER_TEMPLATES) {
+      expect(real.available(t.rootYaml), `${t.name} (${t.rootYaml}) has no download source`).toBe(true);
+    }
+  });
+});
+
+describe('status messages the UI shows while a template loads', () => {
+  const run = async (fetchImpl) => {
+    const events = []; const d = dirs();
+    const s = createTemplateStore({ ...d, remotes, fetchImpl, onStatus: (e) => events.push(e) });
+    return { s, events };
+  };
+
+  it('reports connecting -> downloading -> done, then "cached" once on later use', async () => {
+    const { s, events } = await run(mkFetch([]));
+    await s.resolve('remote/model/model.yaml');
+    expect(events.map((e) => e.phase)).toEqual(['connecting', 'downloading', 'done']);
+    expect(events[1].message).toMatch(/Downloading 2 files .*o\/r/);
+    expect(events[2].message).toMatch(/cached them for next time/);
+    await s.resolve('remote/model/data/a.csv');
+    await s.resolve('remote/model/model.yaml');
+    expect(events.filter((e) => e.phase === 'cached')).toHaveLength(1);
+    expect(events.at(-1).message).toMatch(/already downloaded/);
+  });
+
+  it('turns failures into a plain sentence and an error event', async () => {
+    const { s, events } = await run(mkFetch([], true));
+    await expect(s.resolve('remote/model/model.yaml')).rejects.toThrow(/^Could not download the o\/r template/);
+    expect(events.at(-1).phase).toBe('error');
+  });
+
+  it('explains a rate limit and a lost connection', async () => {
+    let r = await run(async () => ({ ok: false, status: 403 }));
+    await expect(r.s.resolve('remote/model/model.yaml')).rejects.toThrow(/rate limit/);
+    r = await run(async () => { throw new TypeError('fetch failed'); });
+    await expect(r.s.resolve('remote/model/model.yaml')).rejects.toThrow(/check your internet connection/);
+  });
+});

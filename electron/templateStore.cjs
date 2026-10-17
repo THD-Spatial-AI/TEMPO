@@ -70,7 +70,23 @@ async function fetchOk(fetchImpl, url) {
   throw lastErr;
 }
 
-async function download(entry, destDir, fetchImpl, onProgress) {
+/** One-sentence, plain-language reason a download failed. */
+function explain(entry, err) {
+  const msg = String((err && err.message) || err);
+  let why = msg;
+  if (/HTTP 403|rate limit/i.test(msg)) why = 'GitHub rate limit reached, try again in a few minutes';
+  else if (/HTTP 404/.test(msg)) why = 'a file was not found on GitHub (the template may have moved)';
+  else if (/fetch failed|ENOTFOUND|ECONN|ETIMEDOUT|EAI_AGAIN|network|terminated/i.test(msg)) {
+    why = 'no connection to GitHub, check your internet connection';
+  }
+  return new Error(`Could not download the ${entry.repo} template: ${why}.`);
+}
+
+const mb = (bytes) => `${Math.round(bytes / 1048576)} MB`;
+
+async function download(entry, destDir, fetchImpl, onProgress, onStatus) {
+  const started = Date.now();
+  onStatus({ prefix: entry.prefix, phase: 'connecting', message: `Connecting to GitHub to download ${entry.repo}…` });
   const tree = await (await fetchOk(
     fetchImpl, `https://api.github.com/repos/${entry.repo}/git/trees/${entry.ref}?recursive=1`,
   )).json();
@@ -81,6 +97,8 @@ async function download(entry, destDir, fetchImpl, onProgress) {
     .filter((n) => n.local);
 
   const total = files.reduce((sum, n) => sum + (n.size || 0), 0);
+  onStatus({ prefix: entry.prefix, phase: 'downloading',
+             message: `Downloading ${files.length} files (${mb(total)}) from github.com/${entry.repo}. This only happens the first time; it is cached afterwards.` });
   let done = 0;
   let lastEmit = 0;
   const emit = (force) => {
@@ -113,14 +131,18 @@ async function download(entry, destDir, fetchImpl, onProgress) {
     fs.writeFileSync(path.join(staging, MARKER), entry.ref);
     fs.rmSync(destDir, { recursive: true, force: true });
     fs.renameSync(staging, destDir);
+    onStatus({ prefix: entry.prefix, phase: 'done',
+               message: `Downloaded ${files.length} files (${mb(total)}) in ${((Date.now() - started) / 1000).toFixed(0)} s and cached them for next time.` });
   } catch (e) {
     fs.rmSync(staging, { recursive: true, force: true });
     throw e;
   }
 }
 
-function createTemplateStore({ bundledDir, cacheDir, fetchImpl = globalThis.fetch, remotes = REMOTE_TEMPLATES, onProgress = () => {} }) {
+function createTemplateStore({ bundledDir, cacheDir, fetchImpl = globalThis.fetch, remotes = REMOTE_TEMPLATES,
+                               onProgress = () => {}, onStatus = () => {} }) {
   const inflight = new Map();
+  const announcedCached = new Set();
 
   const isCached = (entry) => {
     try {
@@ -130,7 +152,12 @@ function createTemplateStore({ bundledDir, cacheDir, fetchImpl = globalThis.fetc
 
   const ensure = (entry) => {
     if (!inflight.has(entry.prefix)) {
-      const p = download(entry, path.join(cacheDir, entry.prefix), fetchImpl, onProgress)
+      const p = download(entry, path.join(cacheDir, entry.prefix), fetchImpl, onProgress, onStatus)
+        .catch((err) => {
+          const friendly = explain(entry, err);
+          onStatus({ prefix: entry.prefix, phase: 'error', message: friendly.message });
+          throw friendly;
+        })
         .finally(() => inflight.delete(entry.prefix));
       inflight.set(entry.prefix, p);
     }
@@ -155,7 +182,12 @@ function createTemplateStore({ bundledDir, cacheDir, fetchImpl = globalThis.fetc
       if (local) return local;
       const entry = findRemote(rel, remotes);
       if (!entry) return null;
-      if (!isCached(entry)) await ensure(entry);
+      if (!isCached(entry)) {
+        await ensure(entry);
+      } else if (!announcedCached.has(entry.prefix)) {
+        announcedCached.add(entry.prefix);
+        onStatus({ prefix: entry.prefix, phase: 'cached', message: `Using the copy of ${entry.repo} already downloaded to this computer.` });
+      }
       const full = safeJoin(cacheDir, rel);
       return full && fs.existsSync(full) ? full : null;
     },

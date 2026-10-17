@@ -25,80 +25,13 @@ import JSZip from 'jszip';
 import jsyaml from 'js-yaml';
 import Papa from 'papaparse';
 import { fetchTemplate, templateAvailable } from '../utils/templateFetch';
+import { SERVER_TEMPLATES } from '../services/serverTemplates';
 import { detectCalliopeFormat, from07ToInternal } from '../services/calliope07Format';
 import { translateCalliopeModel, readText, parseFilesMap, getFilesFromDataTransfer, findModelRoots } from '../services/calliopeYamlImport';
 
-// ─── known server-side YAML templates ────────────────────────────────────────
-// Add entries here as more YAML models are placed in public/templates/
-const SERVER_TEMPLATES = [
-  {
-    id:          'italian_model',
-    name:        'Italian Energy System',
-    description: 'Multi-region Italian power system (6–20 nodes) with VRE, thermal, hydro, storage and import/export technologies. Includes 2015 timeseries data.',
-    flag:        '🇮🇹',
-    rootYaml:    'Italian_model/model.yaml',
-    basePath:    'Italian_model',
-    // All YAML imports relative to basePath (resolved automatically but listed for transparency)
-    imports:     [
-      'model_config/techs.yaml',
-      'model_config/locations.yaml',
-      'overrides.yaml',
-      'model_config/new_techs.yaml',
-      'model_config/new_locations.yaml',
-    ],
-    // Timeseries CSVs in timeseries_data/ (optional, loaded if present)
-    csvFiles:    [
-      'timeseries_data/regional_demand.csv',
-      'timeseries_data/pv_series.csv',
-      'timeseries_data/wind_series.csv',
-      'timeseries_data/wind_offshore_series.csv',
-      'timeseries_data/hydro_reservoirs.csv',
-    ],
-    // Not referenced by the YAML, but swapped in by the Lombardi et al. (2020)
-    // sensitivity cases (worst / best weather year) — carried in the model so
-    // remote (MEME) runs have them too.
-    extraCsvFiles: [
-      'timeseries_data/pv_1989.csv', 'timeseries_data/wind_1989.csv', 'timeseries_data/windoff_1989.csv',
-      'timeseries_data/pv_2010.csv', 'timeseries_data/wind_2010.csv', 'timeseries_data/windoff_2010.csv',
-    ],
-    color: 'green',
-  },
-  {
-    id:          'uk_model',
-    name:        'UK Energy System',
-    description: 'Multi-zone UK power system (17 zones) with wind, solar, hydro, fossil, nuclear, storage and HVAC/HVDC transmission. Based on UK-Calliope 0.6.3.',
-    flag:        '🇬🇧',
-    rootYaml:    'uk-calliope-master/uk-calliope-master/model.yaml',
-    basePath:    'uk-calliope-master/uk-calliope-master',
-    // YAML imports are auto-discovered recursively — no need to list them explicitly
-    imports:     [],
-    csvFiles:    [
-      'data/demand.csv',
-      'data/pv.csv',
-      'data/wind_onshore.csv',
-      'data/wind_offshore.csv',
-    ],
-    color: 'blue',
-  },
-  {
-    id:          'cambridge_model',
-    name:        'Cambridge District Energy',
-    description: 'West Cambridge district-scale multi-carrier model (~50 building nodes) with CHP, GSHP, PV, solar thermal, storage and district heat/gas/electricity networks.',
-    flag:        '🎓',
-    rootYaml:    'cambridge-calliope-master/model/model.yaml',
-    basePath:    'cambridge-calliope-master/model',
-    // YAML imports + CSVs are auto-discovered via fetchYamlRecursive
-    imports:     [],
-    csvFiles:    [],
-    auto:        true,
-    color: 'purple',
-  },
-];
-
-
 // ─── component ────────────────────────────────────────────────────────────────
 
-export default function CalliopeYAMLImporter({ onImport, onClose }) {
+export default function CalliopeYAMLImporter({ onImport, onClose, initialTemplate = null }) {
   const [uploadMode, setUploadMode] = useState('server');
   const [dragOver,   setDragOver]   = useState(false);
   const [status,     setStatus]     = useState('idle');
@@ -110,6 +43,7 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
   const [loadingTpl, setLoadingTpl] = useState(null);
   const [tplAvailable, setTplAvailable] = useState({});
   const [tplProgress, setTplProgress] = useState(null);
+  const [tplStatus, setTplStatus] = useState('');
 
   // Download progress for templates fetched from GitHub on first use (Electron only)
   useEffect(() => window.electronAPI?.onTemplateProgress?.(setTplProgress), []);
@@ -135,6 +69,13 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
   const folderRef = useRef(null);
 
   const addLog = useCallback(msg => setParseLog(p => [...p, msg]), []);
+
+  // Download phases from the main process ("Connecting…", "Downloading 41 files (220 MB)…", "Using the cached copy…")
+  useEffect(() => window.electronAPI?.onTemplateStatus?.((ev) => {
+    console.info('[templates]', ev.phase, ev.message);
+    setTplStatus(ev.message);
+    addLog(ev.message);
+  }), [addLog]);
   // Unreferenced CSVs a server template asks to carry (see SERVER_TEMPLATES.extraCsvFiles).
   const extraCsvRef = useRef([]);
 
@@ -242,6 +183,7 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
   const loadServerTemplate = useCallback(async (tpl) => {
     setLoadingTpl(tpl.id);
     setTplProgress(null);
+    setTplStatus(`Loading ${tpl.name}…`);
     setStatus('parsing');
     setParseLog([]);
     try {
@@ -278,6 +220,7 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
         } catch (_) { /* ignore parse errors during pre-fetch */ }
       };
 
+      addLog(`Loading ${tpl.name}…`);
       addLog('Fetching ' + tpl.rootYaml);
       // Determine the root yaml path relative to basePath
       const rootRelPath = tpl.rootYaml.replace(tpl.basePath + '/', '');
@@ -334,14 +277,28 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
         if (!fetched) addLog('⚠ CSV not on server: ' + ref + ' (safety net will handle it)');
       }
 
+      setTplStatus('Reading the model files and translating them to TEMPO…');
+      addLog('Reading the model files and translating them to TEMPO…');
       await runParse(filesMap);
     } catch (err) {
+      console.error('[templates] load failed:', err);
       setErrorMsg(err.message || String(err));
       setStatus('error');
     } finally {
       setLoadingTpl(null);
     }
   }, [addLog, runParse]);
+
+  // Opened from a template card elsewhere (Models page): download and load that template right away.
+  const autoLoadedRef = useRef(null);
+  useEffect(() => {
+    if (!initialTemplate || autoLoadedRef.current === initialTemplate) return;
+    const tpl = SERVER_TEMPLATES.find(t => t.id === initialTemplate);
+    if (tpl) {
+      autoLoadedRef.current = initialTemplate;
+      loadServerTemplate(tpl);
+    }
+  }, [initialTemplate, loadServerTemplate]);
 
   // ── drag/drop ─────────────────────────────────────────────────────────────
   const onDrop = useCallback(async (e) => {
@@ -579,9 +536,27 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
 
         {/* Parsing spinner */}
         {status === 'parsing' && (
-          <div className="flex flex-col items-center gap-3 py-6">
-            <FiRefreshCw size={22} className="text-gray-500 animate-spin" />
-            <p className="text-slate-600 text-sm font-medium">Parsing model…</p>
+          <div className="flex flex-col gap-3 py-6" role="status" aria-live="polite">
+            <div className="flex items-center gap-3">
+              <FiRefreshCw size={22} className="text-gray-500 animate-spin flex-shrink-0" />
+              <div className="min-w-0">
+                <p className="text-slate-800 text-sm font-semibold">
+                  {loadingTpl ? `Loading ${SERVER_TEMPLATES.find(t => t.id === loadingTpl)?.name || 'template'}` : 'Parsing model…'}
+                </p>
+                <p className="text-slate-500 text-xs">{tplStatus || 'Working…'}</p>
+              </div>
+            </div>
+            {tplProgress && tplProgress.total > 0 && tplProgress.done < tplProgress.total && (
+              <div>
+                <div className="h-2 bg-black/10 rounded-full overflow-hidden">
+                  <div className="h-full bg-black transition-all" style={{ width: `${Math.min(100, (tplProgress.done / tplProgress.total) * 100)}%` }} />
+                </div>
+                <p className="text-xs text-slate-500 mt-1">
+                  {(tplProgress.done / 1048576).toFixed(0)} / {(tplProgress.total / 1048576).toFixed(0)} MB
+                  ({Math.round((tplProgress.done / tplProgress.total) * 100)}%)
+                </p>
+              </div>
+            )}
             <div className="w-full max-h-40 overflow-y-auto bg-gray-900 rounded-lg p-3 font-mono text-xs text-green-400 space-y-0.5">
               {parseLog.map((l, i) => <div key={i}>{l}</div>)}
             </div>
@@ -594,7 +569,7 @@ export default function CalliopeYAMLImporter({ onImport, onClose }) {
             <div className="bg-gray-50 border border-black/15 rounded-lg p-4 flex gap-3">
               <FiAlertTriangle size={20} className="text-gray-500 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="font-semibold text-gray-700 mb-1">Import failed</p>
+                <p className="font-semibold text-gray-700 mb-1">{loadingTpl === null && /download|GitHub/i.test(errorMsg) ? 'Could not load the template' : 'Import failed'}</p>
                 <pre className="text-gray-600 text-sm whitespace-pre-wrap">{errorMsg}</pre>
               </div>
             </div>

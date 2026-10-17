@@ -321,12 +321,24 @@ ipcMain.handle('get-user-data-path', () => app.getPath('userData'));
 // Bundled templates first; large third-party ones are downloaded on first use
 // and cached in userData/templates (see templateStore.cjs).
 let templateStore;
+const templateLoggedMb = {};
 const getTemplateStore = () => templateStore || (templateStore = createTemplateStore({
   bundledDir: app.isPackaged
     ? path.join(process.resourcesPath, 'templates')
     : path.join(__dirname, '..', 'public', 'templates'),
   cacheDir: path.join(app.getPath('userData'), 'templates'),
-  onProgress: (p) => BrowserWindow.getAllWindows().forEach((w) => w.webContents.send('template-progress', p)),
+  onProgress: (p) => {
+    BrowserWindow.getAllWindows().forEach((w) => w.webContents.send('template-progress', p));
+    // one console line per ~25 MB so the log shows a download is moving without flooding it
+    if (Math.floor(p.done / 26214400) > (templateLoggedMb[p.prefix] || 0)) {
+      templateLoggedMb[p.prefix] = Math.floor(p.done / 26214400);
+      console.log(`[templates] ${p.prefix}: ${Math.round(p.done / 1048576)} / ${Math.round(p.total / 1048576)} MB`);
+    }
+  },
+  onStatus: (ev) => {
+    console.log(`[templates] ${ev.phase}: ${ev.message}`);
+    BrowserWindow.getAllWindows().forEach((w) => w.webContents.send('template-status', ev));
+  },
 }));
 
 ipcMain.handle('read-template-file', async (_event, filename) => {
