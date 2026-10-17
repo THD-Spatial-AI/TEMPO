@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useState, useEffect } from "react";
+import React, { Suspense, lazy, useState, useEffect, useRef } from "react";
 import { DataProvider, useData } from "./context/DataContext";
 import { getSetting } from "./services/appSettings";
 import Sidebar from "./components/Sidebar";
@@ -63,6 +63,15 @@ function AppContent() {
       setSelected(newView);
     }
   };
+
+  // Title-bar menu commands (File → New model, Help → Tutorial, …)
+  const navRef = useRef(handleNavigation);
+  navRef.current = handleNavigation;
+  useEffect(() => {
+    const onNav = (e) => navRef.current(e.detail);
+    window.addEventListener('tempo:navigate', onNav);
+    return () => window.removeEventListener('tempo:navigate', onNav);
+  }, []);
 
   const confirmNavigation = () => {
     if (pendingNavigation) {

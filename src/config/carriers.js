@@ -16,8 +16,8 @@ export const CARRIERS = {
   electricity: {
     id: 'electricity',
     label: 'Electricity',
-    color: '#FBBF24',      // amber
-    colorRgb: [251, 191, 36],
+    color: '#4338CA',      // indigo-700
+    colorRgb: [67, 56, 202],
     unit: 'kWh',
     icon: '⚡',
     description: 'Electric power transmitted via power grids.',

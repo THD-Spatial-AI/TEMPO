@@ -9,6 +9,7 @@ import {
   SCENARIO_TEMPLATES, SWEEP_PRESETS, ALL_OVERRIDE_TEMPLATES, setNestedValue,
 } from '../data/overrideTemplates';
 import { getModelFramework, FRAMEWORKS, FrameworkBadge } from '../utils/modelFramework.jsx';
+import { iconBtn, ICON_PX } from './ui/iconButton';
 
 // ─── Scenario Template Cards ───────────────────────────────────────────────────
 const ScenarioTemplateCard = ({ template, overrides, onImport }) => {
@@ -655,20 +656,20 @@ const Scenarios = () => {
 
                         <div className="flex items-center gap-1 shrink-0">
                           <button onClick={() => setScenarioModal({ existing: true, name, overrideList })}
-                            className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg" title="Edit overrides">
-                            <FiEdit2 size={14} />
+                            className={`${iconBtn('edit', 'md')}`} title="Edit overrides">
+                            <FiEdit2 size={ICON_PX.md} />
                           </button>
                           <button onClick={() => { setRenamingId(name); setRenameValue(name); }}
-                            className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg" title="Rename">
-                            <FiEdit3 size={14} />
+                            className={`${iconBtn('edit', 'md')}`} title="Rename">
+                            <FiEdit2 size={ICON_PX.md} />
                           </button>
                           <button onClick={() => handleDuplicate(name)}
                             className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg" title="Duplicate">
                             <FiCopy size={14} />
                           </button>
                           <button onClick={() => handleDeleteScenario(name)}
-                            className="p-1.5 text-slate-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg" title="Delete">
-                            <FiTrash2 size={14} />
+                            className={`${iconBtn('delete', 'md')}`} title="Delete">
+                            <FiTrash2 size={ICON_PX.md} />
                           </button>
                         </div>
                       </div>

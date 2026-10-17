@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { FiFolder, FiFile, FiDownload, FiTrash2, FiEdit2, FiX, FiSave, FiChevronDown, FiChevronRight } from "./ui/icons";
 import { useData } from "../context/DataContext";
+import { confirmAction } from './ui/confirm';
+import { iconBtn, ICON_PX } from './ui/iconButton';
 
 const CalliopeModels = () => {
   const [exportedModels, setExportedModels] = useState([]);
@@ -36,8 +38,8 @@ const CalliopeModels = () => {
     saveModels(updated);
   };
 
-  const handleDeleteModel = (modelId) => {
-    if (confirm("Are you sure you want to delete this exported model?")) {
+  const handleDeleteModel = async (modelId) => {
+    if (await confirmAction({ title: 'Delete this exported model?', message: 'The exported files will be permanently removed.', details: exportedModels.find(m => m.id === modelId)?.name })) {
       const updated = exportedModels.filter(m => m.id !== modelId);
       saveModels(updated);
       if (selectedModel?.id === modelId) {
@@ -158,7 +160,7 @@ const CalliopeModels = () => {
       <div className="mb-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-black tracking-tighter text-black mb-2">
+            <h1 className="text-2xl font-bold text-slate-900 mb-2">
               Calliope Models
             </h1>
             <p className="text-slate-600">
@@ -210,9 +212,9 @@ const CalliopeModels = () => {
                         e.stopPropagation();
                         handleDeleteModel(model.id);
                       }}
-                      className="text-gray-700 hover:text-gray-900 p-1"
+                      className={`${iconBtn('delete', 'md')}`}
                     >
-                      <FiTrash2 size={16} />
+                      <FiTrash2 size={ICON_PX.md} />
                     </button>
                   </div>
                 </div>

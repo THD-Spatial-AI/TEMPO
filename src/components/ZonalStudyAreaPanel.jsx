@@ -9,6 +9,7 @@ import {
   checkDemandlib, listSlpProfiles, installDemandlib, onDemandInstallProgress,
   fetchDemandlibShape, syntheticShape,
 } from '../services/demandlibClient';
+import SelectField from './ui/SelectField';
 
 // Tiny dependency-free SVG sparkline for the demand-shape preview.
 function Sparkline({ values, color = '#0369a1', height = 40 }) {
@@ -117,12 +118,12 @@ function TargetSelect({ label, value, onChange, options }) {
   return (
     <label className="block">
       <span className="block text-[11px] font-medium text-slate-600 mb-1">{label}</span>
-      <select
+      <SelectField
         value={value} onChange={e => onChange(e.target.value)}
         className="w-full px-2 py-1.5 text-xs border border-black/15 rounded-lg bg-white focus:ring-2 focus:ring-electric-400"
       >
         {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-      </select>
+      </SelectField>
     </label>
   );
 }
@@ -759,7 +760,7 @@ export default function ZonalStudyAreaPanel({
                               <p className="text-[9px] text-slate-400">Weights are normalised; a 0 drops the sector.</p>
                             </div>
                           ) : (
-                            <select
+                            <SelectField
                               value={demandProfile} onChange={e => setDemandProfile(e.target.value)}
                               className="w-full px-2 py-1.5 text-xs border border-black/15 rounded-lg bg-white focus:ring-2 focus:ring-electric-400"
                             >
@@ -768,29 +769,29 @@ export default function ZonalStudyAreaPanel({
                                   {items.map(o => <option key={o.code} value={o.code}>{o.label}</option>)}
                                 </optgroup>
                               ))}
-                            </select>
+                            </SelectField>
                           )}
 
                           {/* Holiday calendar + timeseries resolution */}
                           <div className="grid grid-cols-2 gap-1.5">
                             <label className="block">
                               <span className="block text-[10px] font-medium text-slate-500 mb-0.5">Calendar</span>
-                              <select
+                              <SelectField
                                 value={demandCountry}
                                 onChange={e => { countryTouchedRef.current = true; setDemandCountry(e.target.value); }}
                                 className="w-full px-2 py-1 text-xs border border-black/15 rounded-lg bg-white focus:ring-2 focus:ring-electric-400"
                               >
                                 {countryOptions.map(c => <option key={c} value={c}>{c}</option>)}
-                              </select>
+                              </SelectField>
                             </label>
                             <label className="block">
                               <span className="block text-[10px] font-medium text-slate-500 mb-0.5">Resolution</span>
-                              <select
+                              <SelectField
                                 value={demandResolution} onChange={e => setDemandResolution(e.target.value)}
                                 className="w-full px-2 py-1 text-xs border border-black/15 rounded-lg bg-white focus:ring-2 focus:ring-electric-400"
                               >
                                 {DEMAND_RESOLUTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                              </select>
+                              </SelectField>
                             </label>
                           </div>
 
@@ -807,13 +808,13 @@ export default function ZonalStudyAreaPanel({
                           )}
                           <label className="block">
                             <span className="block text-[11px] font-medium text-slate-600 mb-1">Split demand across substations</span>
-                            <select
+                            <SelectField
                               value={demandWeight} onChange={e => setDemandWeight(e.target.value)}
                               className="w-full px-2 py-1.5 text-xs border border-black/15 rounded-lg bg-white focus:ring-2 focus:ring-electric-400"
                             >
                               <option value="even">Evenly</option>
                               <option value="voltage">Weighted by voltage (size proxy)</option>
-                            </select>
+                            </SelectField>
                           </label>
                           {areaPopulation > 0 ? (
                             <p className="text-[10px] text-slate-400">

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { requestUpdateCheck } from '../services/updates';
 import { FiDownload, FiRefreshCw, FiTerminal, FiCheckCircle, FiAlertCircle, FiBox, FiCpu, FiZap, FiShield, FiChevronDown, FiServer, FiMessageSquare } from './ui/icons';
 import { LuSlidersHorizontal, LuCpu, LuServer, LuMessageSquare, LuShield, LuInfo, LuTrash2 } from './ui/icons';
 import tempoLogo from '../assets/Logo_TEMPO.PNG';
@@ -6,6 +7,7 @@ import Select from './ui/Select';
 import Calliope07EnginePanel from './Calliope07EnginePanel';
 import EngineInstallPanel from './EngineInstallPanel';
 import { getSettings, setSetting } from '../services/appSettings';
+import { useData } from '../context/DataContext';
 import { checkMemeService } from '../services/memeClient';
 import { AI_PROVIDERS, getAIConfig, setAIConfig, providerMeta } from '../services/aiSettings';
 
@@ -365,20 +367,39 @@ function SettingRow({ title, description, children }) {
 
 function GeneralPanel() {
   const [settings, setSettings] = useState(() => getSettings());
+  const [viewChanged, setViewChanged] = useState(false);
+  const { showNotification, saveNow } = useData();
   const update = (key, value) => setSettings(setSetting(key, value));
+  const chooseDefaultView = (v) => {
+    update('defaultView', v);
+    setViewChanged(true);
+    showNotification(`TEMPO will open on ${v} next time. Restart now to apply.`, 'info', {
+      label: 'Restart now',
+      onClick: () => { saveNow?.(); setTimeout(() => window.location.reload(), 300); },
+    });
+  };
 
   return (
     <div className="divide-y divide-black/10">
-      <SettingRow title="Default view" description="The page TEMPO opens to on launch.">
+      <SettingRow title="Default view" description="The page TEMPO opens on. Takes effect the next time TEMPO starts.">
         <div className="w-48">
           <Select
             value={settings.defaultView}
-            onChange={(v) => update('defaultView', v)}
+            onChange={chooseDefaultView}
             options={[
               { value: 'Dashboard', label: 'Dashboard' },
+              { value: 'Models', label: 'Models' },
+              { value: 'Creation', label: 'Creation' },
               { value: 'Map View', label: 'Map View' },
+              { value: 'Run', label: 'Run' },
+              { value: 'Results', label: 'Results' },
             ]}
           />
+          {viewChanged && (
+            <p className="mt-1.5 flex items-center gap-1 text-[11px] text-emerald-700">
+              <FiCheckCircle size={12} /> Opens on {settings.defaultView} next time
+            </p>
+          )}
         </div>
       </SettingRow>
       <SettingRow
@@ -387,6 +408,14 @@ function GeneralPanel() {
       >
         <Toggle checked={settings.autoSave} onChange={(v) => update('autoSave', v)} label="Auto-save" />
       </SettingRow>
+      {window.electronAPI?.updates && (
+        <SettingRow
+          title="Check for updates automatically"
+          description="Ask GitHub for a newer TEMPO release at startup and every 6 hours. You can always check manually in About."
+        >
+          <Toggle checked={settings.autoUpdateCheck} onChange={(v) => update('autoUpdateCheck', v)} label="Check for updates automatically" />
+        </SettingRow>
+      )}
     </div>
   );
 }
@@ -795,6 +824,12 @@ function AboutPanel() {
           <div className="text-lg font-semibold text-slate-900">TEMPO</div>
           <p className="text-sm text-slate-500">Tool for Energy Model Preparation and Optimization. All model data is stored locally on this device.</p>
         </div>
+        {window.electronAPI?.updates && (
+          <button onClick={requestUpdateCheck}
+            className="ml-auto flex h-10 shrink-0 items-center gap-2 border border-black/15 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50">
+            <FiRefreshCw size={15} /> Check for updates
+          </button>
+        )}
       </div>
       <dl className="divide-y divide-black/10 rounded-xl border border-black/15">
         {rows.map(({ label, value }) => (
@@ -844,8 +879,8 @@ const Settings = () => {
   return (
     <div className="flex-1 bg-gray-50 px-8 py-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-black tracking-tighter text-black">Settings</h1>
-        <p className="mt-1 text-[15px] text-slate-500">Application configuration and preferences</p>
+        <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
+        <p className="mt-1 text-sm text-slate-500">Application configuration and preferences</p>
       </div>
 
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
@@ -956,7 +991,7 @@ const Settings = () => {
           {/* Privacy & Data */}
           <div className={activeSection === 'data' ? '' : 'hidden'}>
             <h3 className="mb-1 text-lg font-semibold text-slate-900">Privacy &amp; Data</h3>
-            <p className="mb-6 text-sm text-slate-500">TEMPO stores all model data locally on this device.</p>
+            <p className="mb-6 text-sm text-slate-500">TEMPO stores all model data locally on this device. To look for updates it contacts GitHub (api.github.com) and sends no model data; turn this off under General.</p>
 
             <div className="rounded-xl border border-red-200 bg-red-50/40">
               <div className="flex flex-wrap items-center justify-between gap-4 p-5">

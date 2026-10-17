@@ -7,6 +7,8 @@ import { saveAs } from 'file-saver';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import ScenarioComparison from './ScenarioComparison';
 import Select from './ui/Select';
+import DeleteButton from './ui/DeleteButton';
+import { LuSummary, LuConversionPath, LuAreaChart, LuEuro, LuPriceChange, LuQueryStats, LuAltRoute, LuSparkles, LuTerminal, LuSlidersHorizontal } from './ui/icons';
 
 const RUN_ENGINE_LABELS = {
   calliope:   'Calliope 0.6',
@@ -276,7 +278,7 @@ const Results = ({ onNavigate }) => {
     Object.entries(result.generation || {}).forEach(([k, v]) => {
       const { loc, tech } = parseLTC(k);
       const val = Number(v) || 0;
-      if (val > 0 && loc && tech) {
+      if (val > 0 && loc && tech && !tech.includes(':')) {
         if (!techMixByLoc[loc]) techMixByLoc[loc] = {};
         techMixByLoc[loc][tech] = (techMixByLoc[loc][tech] || 0) + val;
       }
@@ -537,15 +539,15 @@ const Results = ({ onNavigate }) => {
   const hasCosts    = Object.keys(result?.costs_by_tech || {}).length > 0;
 
   const TABS = [
-    { id: 'overview',  label: 'Overview',    icon: FiLayers },
-    ...(hasFlow     ? [{ id: 'flow',     label: 'Energy Flow',   icon: FiShare2    }] : []),
-    ...(hasDispatch ? [{ id: 'dispatch', label: 'Dispatch',      icon: FiActivity  }] : []),
-    ...(hasCosts    ? [{ id: 'costs',    label: 'Costs',         icon: FiDollarSign }] : []),
-    ...(hasShadowPrices ? [{ id: 'shadow', label: 'Shadow Prices', icon: FiTrendingUp }] : []),
-    ...(hasFlow     ? [{ id: 'analysis', label: 'Analysis',      icon: FiGrid      }] : []),
-    ...((isSporesRun || hasSpores) ? [{ id: 'spores', label: 'SPORES', icon: FiGitMerge }] : []),
-    { id: 'ai',        label: 'Model Advisor', icon: FiCpu },
-    { id: 'logs',      label: 'Logs',        icon: FiTerminal },
+    { id: 'overview',  label: 'Overview',    icon: LuSummary },
+    ...(hasFlow     ? [{ id: 'flow',     label: 'Energy Flow',   icon: LuConversionPath }] : []),
+    ...(hasDispatch ? [{ id: 'dispatch', label: 'Dispatch',      icon: LuAreaChart }] : []),
+    ...(hasCosts    ? [{ id: 'costs',    label: 'Costs',         icon: LuEuro }] : []),
+    ...(hasShadowPrices ? [{ id: 'shadow', label: 'Shadow Prices', icon: LuPriceChange }] : []),
+    ...(hasFlow     ? [{ id: 'analysis', label: 'Analysis',      icon: LuQueryStats }] : []),
+    ...((isSporesRun || hasSpores) ? [{ id: 'spores', label: 'SPORES', icon: LuAltRoute }] : []),
+    { id: 'ai',        label: 'Model Advisor', icon: LuSparkles },
+    { id: 'logs',      label: 'Logs',        icon: LuTerminal },
   ];
 
   // Fall back to overview if the active tab was hidden by auto-hide logic
@@ -562,8 +564,8 @@ const Results = ({ onNavigate }) => {
           <div className="flex-shrink-0 px-6 pt-5 pb-0">
             <div className="flex items-end justify-between gap-4 flex-wrap">
               <div>
-                <h1 className="text-3xl font-black tracking-tighter text-black">Results Dashboard</h1>
-                <p className="mt-1 text-[15px] text-slate-500">Optimisation results · interactive analysis</p>
+                <h1 className="text-2xl font-bold text-slate-900">Results Dashboard</h1>
+                <p className="mt-1 text-sm text-slate-500">Optimisation results · interactive analysis</p>
               </div>
               <div className="flex items-center gap-2">
                 <div className="inline-flex gap-1 rounded-xl bg-slate-200/80 p-1 ring-1 ring-inset ring-slate-300/50">
@@ -589,13 +591,13 @@ const Results = ({ onNavigate }) => {
         </>
       ) : (
         /* ══ Single-run view (padded, scrollable) ═══════════════════════ */
-        <div className="p-6 space-y-5 overflow-y-auto flex-1 min-h-0">
+        <div className="px-8 py-8 space-y-5 overflow-y-auto flex-1 min-h-0">
 
           {/* ── Header ── */}
-          <div className="flex items-end justify-between gap-4 flex-wrap">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
             <div>
-              <h1 className="text-3xl font-black tracking-tighter text-black">Results Dashboard</h1>
-              <p className="mt-1 text-[15px] text-slate-500">Optimisation results · interactive analysis</p>
+              <h1 className="text-2xl font-bold text-slate-900">Results Dashboard</h1>
+              <p className="mt-1 text-sm text-slate-500">Optimisation results · interactive analysis</p>
             </div>
             <div className="flex items-center gap-2">
               {/* View toggle */}
@@ -666,16 +668,23 @@ const Results = ({ onNavigate }) => {
                 const fw = result?.framework || selectedJob?.framework;
                 const label = RUN_ENGINE_LABELS[fw];
                 return label ? (
-                  <span className="whitespace-nowrap rounded-md border border-black/15 bg-white px-2 py-1 text-xs font-medium text-slate-600">
-                    {label}
+                  <span className="flex h-10 items-center gap-2 whitespace-nowrap rounded-lg border border-black/15 bg-white px-3 text-sm text-slate-800">
+                    <FiCpu size={17} className="text-slate-400" />
+                    <span className="text-slate-400">Engine</span>
+                    <span className="font-medium">{label}</span>
                   </span>
                 ) : null;
               })()}
               {selectedJobId && (
-                <button onClick={() => { removeCompletedJob(selectedJobId); setSelectedJobId(null); }}
-                  className="ml-auto flex h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-medium text-slate-500 transition-colors hover:bg-red-50 hover:text-red-600">
-                  <FiTrash2 size={11} /> Remove
-                </button>
+                <DeleteButton
+                  className="border border-black/15 bg-white"
+                  label="Delete run"
+                  title="Delete this run?"
+                  message="The run and its results will be removed from TEMPO. The model itself is not affected."
+                  details={selectedJob?.modelName}
+                  confirmLabel="Delete run"
+                  onConfirm={() => { removeCompletedJob(selectedJobId); setSelectedJobId(null); }}
+                />
               )}
             </div>
           </div>
@@ -739,19 +748,19 @@ const Results = ({ onNavigate }) => {
                     className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
                       activeTab === id ? 'bg-white text-slate-800 ' : 'text-slate-500 hover:text-slate-700'
                     }`}>
-                    <Icon size={13} /> {label}
+                    <Icon size={17} /> {label}
                     {id === 'dispatch' && !hasDispatch && <span className="text-xs text-slate-300 ml-0.5">(—)</span>}
                   </button>
                 ))}
               </div>
               {allTechs.length > 0 && (
                 <button onClick={() => setFilterExpanded(v => !v)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap border ${
+                  className={`flex h-10 items-center gap-1.5 px-3 rounded-lg text-sm font-medium transition-all whitespace-nowrap border ${
                     filterExpanded
                       ? 'bg-black text-white border-gray-900'
                       : 'bg-white text-slate-600 border-black/15 hover:bg-slate-100'
                   }`}>
-                  <FiFilter size={11} /> Filters
+                  <LuSlidersHorizontal size={17} /> Filters
                   {techFilter.size > 0 && <span className="ml-0.5 text-[10px] font-bold">({allTechs.length - techFilter.size})</span>}
                 </button>
               )}

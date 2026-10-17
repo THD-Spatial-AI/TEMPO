@@ -1,6 +1,9 @@
 // CompletedRunsSection — extracted verbatim from Run.jsx.
 import { useState } from 'react';
 import { FiActivity, FiAlertTriangle, FiBarChart2, FiCheckCircle, FiClock, FiCpu, FiDownload, FiList, FiSearch, FiTerminal, FiTrash2, FiX, FiZap } from '../ui/icons';
+import { confirmAction } from '../ui/confirm';
+import SelectField from '../ui/SelectField';
+import { iconBtn, ICON_PX } from '../ui/iconButton';
 
 export default function CompletedRunsSection({
   onNavigate,
@@ -39,9 +42,9 @@ export default function CompletedRunsSection({
     }
   };
 
-  const handleBulkDelete = () => {
+  const handleBulkDelete = async () => {
     const count = selectedIds.size;
-    if (!window.confirm(`Delete ${count} run${count > 1 ? 's' : ''}?`)) return;
+    if (!(await confirmAction({ title: `Delete ${count} run${count > 1 ? 's' : ''}?`, message: 'The selected runs and their results will be permanently removed.' }))) return;
     selectedIds.forEach(id => removeCompletedJob(id));
     setSelectedIds(new Set());
   };
@@ -80,7 +83,7 @@ export default function CompletedRunsSection({
                   className="w-full pl-8 pr-3 py-1.5 border border-black/15 rounded-lg text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300"
                 />
               </div>
-              <select
+              <SelectField
                 value={filterStatus}
                 onChange={e => setFilterStatus(e.target.value)}
                 className="px-3 py-1.5 border border-black/15 rounded-lg text-sm text-gray-600 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300"
@@ -88,7 +91,7 @@ export default function CompletedRunsSection({
                 <option value="all">All statuses</option>
                 <option value="done">Done</option>
                 <option value="failed">Failed</option>
-              </select>
+              </SelectField>
             </div>
           )}
 
@@ -245,9 +248,9 @@ export default function CompletedRunsSection({
                         <button
                           onClick={() => removeCompletedJob(job.id)}
                           title="Delete run"
-                          className="p-1.5 text-slate-300 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                          className={`${iconBtn('delete', 'md')}`}
                         >
-                          <FiTrash2 size={14} />
+                          <FiTrash2 size={ICON_PX.md} />
                         </button>
                       </div>
                     </div>

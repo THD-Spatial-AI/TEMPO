@@ -8,7 +8,7 @@ const Parameters = () => {
   return (
     <div className="flex-1 p-8 bg-gray-50">
       <div className="mb-8">
-        <h1 className="text-3xl font-black tracking-tighter text-black mb-2">Parameters</h1>
+        <h1 className="text-2xl font-bold text-slate-900 mb-2">Parameters</h1>
         <p className="text-slate-600">Configure model parameters and settings</p>
         {currentModel && (
           <p className="text-sm text-gray-600 mt-1">Model: {currentModel.name}</p>

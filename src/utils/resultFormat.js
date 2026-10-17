@@ -213,7 +213,8 @@ export const OSM_STYLE = {
       attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>',
     },
   },
-  layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
+  // Muted basemap, matching the Dashboard map, so result markers stand out
+  layers: [{ id: 'osm', type: 'raster', source: 'osm', paint: { 'raster-saturation': -0.9, 'raster-contrast': -0.15, 'raster-brightness-min': 0.05 } }],
 };
 
 // Inject Referer + User-Agent on OSM tile/geocode requests when running

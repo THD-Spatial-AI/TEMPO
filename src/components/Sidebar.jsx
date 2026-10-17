@@ -1,8 +1,13 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { FiChevronDown, FiChevronRight } from './ui/icons';
-import { LuLayoutDashboard, LuGraduationCap, LuPencilRuler, LuFolderTree, LuBoxes, LuMap, LuMapPin, LuWaypoints, LuChartLine, LuLayers, LuDatabase, LuFileDown, LuCirclePlay, LuChartPie, LuSettings, LuPanelLeftClose, LuPanelLeftOpen, LuSparkles } from './ui/icons';
+import { LuLayoutDashboard, LuGraduationCap, LuPencilRuler, LuFolderTree, LuBoxes, LuMap, LuMapPin, LuWaypoints, LuChartLine, LuLayers, LuDatabase, LuFileDown, LuCirclePlay, LuChartPie, LuSettings, LuPanelLeftClose, LuPanelLeftOpen, LuSparkles, LuTour } from './ui/icons';
+import GuidedTour from './tour/GuidedTour';
+import UpdateNotifier from './UpdateNotifier';
+import { startTour, tourForView } from './tour/tour';
 import WhatsNewDialog from "./WhatsNewDialog";
+import { useData } from "../context/DataContext";
+import { usePinnedModels, sortPinnedFirst } from "../services/pinnedModels";
 import { useReleases } from "../services/releases";
 import { motion, AnimatePresence } from "framer-motion";
 import tempoLogo from '../assets/Logo_TEMPO.PNG';
@@ -23,7 +28,7 @@ const Sidebar = ({ selected, setSelected }) => {
       transition={{ duration: 0.3, ease: EASE }}
       className="sticky top-0 h-screen shrink-0 overflow-hidden border-r border-black/15 bg-white/80 backdrop-blur-xl p-3  flex flex-col"
     >
-      <TitleSection open={open} />
+      <TitleSection open={open} setSelected={setSelected} />
 
       <div className="space-y-1 flex-1 overflow-y-auto overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <Option
@@ -145,8 +150,11 @@ const Sidebar = ({ selected, setSelected }) => {
 
       </div>
 
+      <RestartTourButton open={open} selected={selected} />
       <VersionButton open={open} />
       <ToggleClose open={open} setOpen={setOpen} />
+      <GuidedTour view={selected} />
+      <UpdateNotifier />
     </motion.nav>
   );
 };
@@ -307,7 +315,106 @@ const DropdownSection = ({ Icon, title, open, setOpen, isExpanded, setIsExpanded
   );
 };
 
-const TitleSection = ({ open }) => {
+// With the desktop title bar showing the branding, the header becomes an active-model card.
+const hasTitleBar = () => typeof window.electronAPI?.window?.state === 'function';
+
+const ActiveModelCard = ({ open, setSelected }) => {
+  const { models, currentModelId, loadModel } = useData();
+  const pins = usePinnedModels();
+  const model = models.find((m) => m.id === currentModelId);
+  const [menu, setMenu] = useState(null);
+  const btnRef = React.useRef(null);
+  const menuRef = React.useRef(null);
+  const { tooltip, handlers } = useCollapsedTooltip(model ? `Active model: ${model.name}` : 'No model loaded', !open && !menu);
+
+  useEffect(() => {
+    if (!menu) return undefined;
+    const onDown = (e) => { if (!btnRef.current?.contains(e.target) && !menuRef.current?.contains(e.target)) setMenu(null); };
+    const onKey = (e) => { if (e.key === 'Escape') setMenu(null); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
+  }, [menu]);
+
+  const toggle = () => {
+    if (menu) { setMenu(null); return; }
+    const r = btnRef.current.getBoundingClientRect();
+    setMenu(open ? { left: r.left, top: r.bottom + 6, width: r.width } : { left: r.right + 10, top: r.top, width: 260 });
+  };
+  const pick = (id) => { setMenu(null); if (id !== currentModelId) loadModel(id); };
+
+  return (
+    <div className="mb-3 border-b border-black/15 pb-3">
+      <button
+        ref={btnRef}
+        onClick={toggle}
+        {...handlers}
+        aria-haspopup="listbox"
+        aria-expanded={!!menu}
+        className={`flex w-full items-center gap-2.5 border py-2 pl-2 pr-2 text-left transition-colors ${menu ? 'border-black/25 bg-white' : 'border-black/10 bg-slate-50/80 hover:border-black/20 hover:bg-white'}`}
+      >
+        <span className={`grid h-8 w-8 shrink-0 place-items-center ${model ? 'bg-black text-white' : 'bg-slate-200 text-slate-500'}`}>
+          <LuBoxes size={16} />
+        </span>
+        {open && (
+          <>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Active model</span>
+              <span className="block truncate text-[13px] font-semibold text-slate-900">{model ? model.name : 'Select a model'}</span>
+              {model && (
+                <span className="block text-[11px] text-slate-500">
+                  {(model.locations || []).length} locations · {(model.links || []).length} links
+                </span>
+              )}
+            </span>
+            <FiChevronDown size={15} className={`shrink-0 text-slate-400 transition-transform ${menu ? 'rotate-180' : ''}`} />
+          </>
+        )}
+      </button>
+      {tooltip}
+      {menu && createPortal(
+        <div ref={menuRef} role="listbox" aria-label="Switch model"
+          className="tempo-tour-card fixed z-[10150] border border-black/15 bg-white py-1.5 shadow-xl shadow-slate-900/10"
+          style={{ left: menu.left, top: menu.top, width: Math.max(menu.width, 240) }}>
+          <div className="px-3 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Switch model</div>
+          <div className="max-h-72 overflow-y-auto">
+            {models.length === 0 && <div className="px-3 py-2 text-[12px] text-slate-400">No models yet</div>}
+            {sortPinnedFirst(models, pins).map((m) => {
+              const active = m.id === currentModelId;
+              return (
+                <button key={m.id} role="option" aria-selected={active} onClick={() => pick(m.id)}
+                  className={`flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors ${active ? 'bg-slate-50' : 'hover:bg-slate-50'}`}>
+                  <span className={`grid h-7 w-7 shrink-0 place-items-center ${active ? 'bg-black text-white' : 'bg-slate-100 text-slate-500'}`}>
+                    <LuBoxes size={14} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className={`flex items-center gap-1 truncate text-[13px] ${active ? 'font-semibold text-slate-900' : 'text-slate-700'}`} title={m.name}>
+                      {pins.has(m.id) && <span className="material-symbols-outlined shrink-0 text-[13px] text-slate-500" style={{ fontVariationSettings: "'FILL' 1" }} aria-label="Pinned">keep</span>}
+                      <span className="truncate">{m.name}</span>
+                    </span>
+                    <span className="block text-[11px] text-slate-400">{(m.locations || []).length} locations · {(m.links || []).length} links</span>
+                  </span>
+                  {active && <span className="material-symbols-outlined shrink-0 text-[16px] text-slate-900">check</span>}
+                </button>
+              );
+            })}
+          </div>
+          <div className="mt-1 border-t border-black/10 pt-1">
+            <button onClick={() => { setMenu(null); setSelected('Models'); }}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900">
+              <span className="material-symbols-outlined text-[16px]">settings</span>
+              Manage models…
+            </button>
+          </div>
+        </div>,
+        document.body,
+      )}
+    </div>
+  );
+};
+
+const TitleSection = ({ open, setSelected }) => {
+  if (hasTitleBar()) return <ActiveModelCard open={open} setSelected={setSelected} />;
   return (
     <div className="mb-4 border-b border-black/15 pb-4">
       <div className="flex cursor-pointer items-center justify-between rounded-xl transition-colors duration-200 hover:bg-slate-50 py-2 pl-1 pr-2">
@@ -346,8 +453,44 @@ const Logo = () => {
   );
 };
 
+const RestartTourButton = ({ open, selected }) => {
+  const tourId = tourForView(selected);
+  useEffect(() => {
+    const onTour = () => startTour(tourId);
+    window.addEventListener('tempo:restart-tour', onTour);
+    return () => window.removeEventListener('tempo:restart-tour', onTour);
+  }, [tourId]);
+  const scope = tourId === 'app' ? null : tourId;
+  const { tooltip, handlers } = useCollapsedTooltip(scope ? `Restart ${scope} tour` : 'Restart tour', !open);
+  return (
+    <>
+      <button
+        onClick={() => startTour(tourId)}
+        aria-label={scope ? `Restart ${scope} tour` : 'Restart tour'}
+        data-tour="restart-tour"
+        {...handlers}
+        className="mt-3 flex h-10 items-center rounded-xl pl-0.5 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900"
+      >
+        <div className="grid h-full w-11 shrink-0 place-items-center">
+          <LuTour size={18} />
+        </div>
+        <Label open={open} className="flex flex-1 items-center gap-2 pr-2 text-sm font-medium">
+          Restart tour
+          {scope && <span className="ml-auto border border-black/15 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">{scope}</span>}
+        </Label>
+      </button>
+      {tooltip}
+    </>
+  );
+};
+
 const VersionButton = ({ open }) => {
   const [showNotes, setShowNotes] = useState(false);
+  useEffect(() => {
+    const onOpen = () => setShowNotes(true);
+    window.addEventListener('tempo:whats-new', onOpen);
+    return () => window.removeEventListener('tempo:whats-new', onOpen);
+  }, []);
   const releaseInfo = useReleases();
   const versionLabel = releaseInfo.latest ? `v${releaseInfo.latest.version}` : 'Release notes';
   const { tooltip, handlers } = useCollapsedTooltip(`${versionLabel} · What's new`, !open);
@@ -357,8 +500,9 @@ const VersionButton = ({ open }) => {
       <button
         onClick={() => setShowNotes(true)}
         aria-label={`${versionLabel} — what's new`}
+        data-tour="version"
         {...handlers}
-        className="mt-3 flex h-10 items-center rounded-xl pl-0.5 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900"
+        className="flex h-10 items-center rounded-xl pl-0.5 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900"
       >
         <div className="grid h-full w-11 shrink-0 place-items-center">
           <LuSparkles size={17} strokeWidth={1.75} />

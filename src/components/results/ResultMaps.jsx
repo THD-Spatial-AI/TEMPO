@@ -2,6 +2,41 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { techColor, fmtPower, fmtEnergy, OSM_STYLE, osmTransformRequest } from '../../utils/resultFormat';
 import { loadCommunesGeo } from '../../utils/loadCommunesGeo';
+import { popupCard } from '../../utils/mapPopup';
+import SelectField from '../ui/SelectField';
+
+// Pan the map so an opened popup is fully visible inside the map frame
+function keepPopupInView(map, popup, pad = 12) {
+  popup.on('open', () => requestAnimationFrame(() => {
+    const el = popup.getElement();
+    if (!el) return;
+    const c = map.getContainer().getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    let dx = 0, dy = 0;
+    if (r.bottom > c.bottom - pad) dy = r.bottom - c.bottom + pad;
+    if (r.top + dy < c.top + pad) dy = r.top - c.top - pad;
+    if (r.right > c.right - pad) dx = r.right - c.right + pad;
+    if (r.left + dx < c.left + pad) dx = r.left - c.left - pad;
+    if (dx || dy) map.panBy([dx, dy], { duration: 300 });
+  }));
+  return popup;
+}
+
+// Hide in-circle labels that do not fit or would collide; larger nodes win.
+function declutterLabels(map, items, minRadius = 13) {
+  const run = () => {
+    const shown = [];
+    [...items].sort((a, b) => b.r - a.r).forEach((it) => {
+      const p = map.project(it.lngLat);
+      const clash = shown.some((o) => Math.hypot(o.p.x - p.x, o.p.y - p.y) < (o.r + it.r) * 0.95);
+      const visible = it.r >= minRadius && !clash;
+      it.label.style.visibility = visible ? 'visible' : 'hidden';
+      if (visible) shown.push({ p, r: it.r });
+    });
+  };
+  run();
+  map.on('moveend', run);
+}
 
 // ── Capacity / Generation map ───────────────────────────────────────────────
 // ─── Pie SVG builder (for tech-mix markers) ──────────────────────────────────
@@ -85,6 +120,7 @@ const ResultsMap = ({ locations, capacitiesByLoc, dominantTechByLoc, generationB
     // Node markers — white circles, colored border by dominant tech, labeled
     const lk = (loc) => loc.calliopeName || loc.name;
     const maxCap = Math.max(1, ...locs.map(l => capacitiesByLoc[lk(l)] || 0));
+    const labelItems = [];
     locs.forEach(loc => {
       const key = lk(loc);
       const cap = capacitiesByLoc[key] || 0;
@@ -94,12 +130,17 @@ const ResultsMap = ({ locations, capacitiesByLoc, dominantTechByLoc, generationB
       const subSize = Math.max(7, Math.min(10, r * 0.44));
       const el = document.createElement('div');
       el.style.cssText = `width:${r*2}px;height:${r*2}px;border-radius:50%;background:rgba(255,255,255,0.97);border:2.5px solid ${color};box-shadow:0 1px 6px rgba(0,0,0,0.15);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;`;
+      el.title = `${loc.name} · ${fmtPower(cap, 0)}`;
       el.innerHTML = `<span style="color:#1e293b;font-size:${fontSize}px;font-weight:700;font-family:'DM Sans',system-ui;line-height:1.15;text-align:center;pointer-events:none;padding:2px;text-shadow:0 1px 2px rgba(255,255,255,0.9)">${loc.name}<br/><span style="color:${color};font-size:${subSize}px;font-weight:700;text-shadow:-0.5px -0.5px 0 rgba(0,0,0,0.4),0.5px -0.5px 0 rgba(0,0,0,0.4),-0.5px 0.5px 0 rgba(0,0,0,0.4),0.5px 0.5px 0 rgba(0,0,0,0.4)">${fmtPower(cap, 0)}</span></span>`;
-      const popup = new mgl.Popup({ offset: r + 4, closeButton: false, maxWidth: '220px' })
-        .setHTML(`<div style="font-family:'DM Sans',system-ui;padding:4px"><b style="font-size:13px;color:#1e293b">${loc.name}</b><br/><small style="color:#64748b">Capacity: <b>${fmtPower(cap, 2)}</b><br/>Dominant: ${(dominantTechByLoc[key]||'—').replace(/_/g,' ')}</small></div>`);
+      const dom = dominantTechByLoc[key];
+      const popup = new mgl.Popup({ offset: r + 6, closeButton: true, maxWidth: '280px', className: 'tempo-popup' })
+        .setHTML(popupCard({ title: loc.name, stats: [['Capacity', fmtPower(cap, 2)]], rows: dom ? [{ color, name: `Dominant: ${dom.replace(/_/g, ' ')}` }] : [] }));
+      keepPopupInView(map, popup);
       const m = new mgl.Marker({ element: el }).setLngLat([loc.longitude, loc.latitude]).setPopup(popup).addTo(map);
       markersRef.current.push(m);
+      labelItems.push({ label: el.firstElementChild, r, lngLat: [loc.longitude, loc.latitude] });
     });
+    declutterLabels(map, labelItems);
   };
 
   // ── Generation heatmap view ──
@@ -137,6 +178,7 @@ const ResultsMap = ({ locations, capacitiesByLoc, dominantTechByLoc, generationB
       if (pct > 0.25) return '#f59e0b';
       return '#fbbf24';
     };
+    const labelItems = [];
     locs.forEach(loc => {
       const gen = genMap[lk(loc)] || 0;
       const pct = gen / maxGen;
@@ -146,12 +188,16 @@ const ResultsMap = ({ locations, capacitiesByLoc, dominantTechByLoc, generationB
       const subSize  = Math.max(6.5, Math.min(10,  r * 0.44));
       const el = document.createElement('div');
       el.style.cssText = `width:${r*2}px;height:${r*2}px;border-radius:50%;background:${fill};border:2px solid rgba(255,255,255,0.55);box-shadow:0 2px 8px rgba(0,0,0,0.22);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;`;
+      el.title = `${loc.name} · ${fmtEnergy(gen, 0)}`;
       el.innerHTML = `<span style="color:#fff;font-size:${fontSize}px;font-weight:700;font-family:'DM Sans',system-ui;line-height:1.15;text-align:center;pointer-events:none;padding:2px;text-shadow:0 1px 3px rgba(0,0,0,0.45)">${loc.name}<br/><span style="font-size:${subSize}px;font-weight:600;opacity:0.92">${fmtEnergy(gen, 0)}</span></span>`;
-      const popup = new mgl.Popup({ offset: r + 4, closeButton: false, maxWidth: '220px' })
-        .setHTML(`<div style="font-family:'DM Sans',system-ui;padding:4px"><b style="color:#1e293b">${loc.name}</b><br/><small style="color:#64748b">Generation: <b>${fmtEnergy(gen, 2)}</b><br/>${(pct * 100).toFixed(1)}% of max</small></div>`);
+      const popup = new mgl.Popup({ offset: r + 6, closeButton: true, maxWidth: '280px', className: 'tempo-popup' })
+        .setHTML(popupCard({ title: loc.name, stats: [['Generation', fmtEnergy(gen, 2)], ['Of max', `${(pct * 100).toFixed(1)}%`]] }));
+      keepPopupInView(map, popup);
       const m = new mgl.Marker({ element: el }).setLngLat([loc.longitude, loc.latitude]).setPopup(popup).addTo(map);
       markersRef.current.push(m);
+      labelItems.push({ label: el.firstElementChild, r, lngLat: [loc.longitude, loc.latitude] });
     });
+    declutterLabels(map, labelItems);
   };
 
   const drawTechMixView = (map, mgl, locs) => {
@@ -177,12 +223,21 @@ const ResultsMap = ({ locations, capacitiesByLoc, dominantTechByLoc, generationB
       el.style.cssText = `width:${size}px;height:${size}px;cursor:pointer;`;
       el.appendChild(svgEl);
 
-      const topTechs = Object.entries(mix).sort(([, a], [, b]) => b - a).slice(0, 4);
-      const popupRows = topTechs.map(([t, v]) =>
-        `<div style="display:flex;align-items:center;gap:6px"><span style="width:10px;height:10px;border-radius:50%;background:${colorFn(t)};flex-shrink:0"></span><span style="color:#475569">${t.replace(/_/g, ' ')}: <b>${fmtEnergy(v, 1)}</b></span></div>`
-      ).join('');
-      const popup = new mgl.Popup({ offset: r + 4, closeButton: false, maxWidth: '240px' })
-        .setHTML(`<div style="font-family:'DM Sans',system-ui;padding:4px"><b style="color:#1e293b">${loc.name}</b><br/><small style="color:#64748b">Cap: ${fmtPower(cap)} · Gen: ${fmtEnergy(totalMWh, 1)}</small><div style="margin-top:4px">${popupRows}</div></div>`);
+      const ranked = Object.entries(mix).sort(([, a], [, b]) => b - a);
+      const shown = ranked.slice(0, 6);
+      const restMWh = ranked.slice(6).reduce((s, [, v]) => s + v, 0);
+      const row = (color, name, v) => {
+        const pct = totalMWh > 0 ? (v / totalMWh) * 100 : 0;
+        return `<div class="tp-row"><span class="tp-dot" style="background:${color}"></span><span class="tp-name">${name}</span><span class="tp-val">${fmtEnergy(v, 1)}</span><span class="tp-pct">${pct.toFixed(0)}%</span>`
+          + `<span class="tp-bar"><span style="width:${pct.toFixed(1)}%;background:${color}"></span></span></div>`;
+      };
+      const rowsHtml = shown.map(([t, v]) => row(colorFn(t), t.replace(/_/g, ' '), v)).join('')
+        + (restMWh > 0 ? row('#cbd5e1', `${ranked.length - 6} more`, restMWh) : '');
+      const popup = new mgl.Popup({ offset: r + 6, closeButton: true, maxWidth: '280px', className: 'tempo-popup' })
+        .setHTML(`<div class="tp-head"><div class="tp-title">${loc.name}</div>`
+          + `<div class="tp-stats"><span><small>Capacity</small><b>${fmtPower(cap)}</b></span><span><small>Generation</small><b>${fmtEnergy(totalMWh, 1)}</b></span><span><small>Techs</small><b>${ranked.length}</b></span></div></div>`
+          + `<div class="tp-body">${rowsHtml || '<div class="tp-empty">No generation at this location</div>'}</div>`);
+      keepPopupInView(map, popup);
       const m = new mgl.Marker({ element: el }).setLngLat([loc.longitude, loc.latitude]).setPopup(popup).addTo(map);
       markersRef.current.push(m);
     });
@@ -557,8 +612,9 @@ const TransmissionFlowMap = ({ locations, transmissionFlowData, capacitiesByLoc,
           const el    = document.createElement('div');
           el.style.cssText = `width:${r*2}px;height:${r*2}px;border-radius:50%;background:rgba(255,255,255,0.97);border:2.5px solid #06b6d4;box-shadow:0 1px 6px rgba(0,0,0,0.15),0 0 14px rgba(6,182,212,0.18);display:flex;align-items:center;justify-content:center;cursor:default;`;
           el.innerHTML = `<span style="color:#1e293b;font-size:${Math.max(7, r*0.62)}px;font-weight:700;font-family:'DM Sans',system-ui;pointer-events:none;overflow:hidden;white-space:nowrap;max-width:${r*1.8}px;text-overflow:ellipsis">${label}</span>`;
-          const nodePopup = new mgl.Popup({ offset: r + 4, closeButton: false, maxWidth: '200px' })
-            .setHTML(`<div style="font-family:system-ui;padding:4px 2px"><b>${loc.name}</b><br/><small style="color:#666">Installed capacity: ${fmtPower(cap)}</small></div>`);
+          const nodePopup = new mgl.Popup({ offset: r + 6, closeButton: true, maxWidth: '280px', className: 'tempo-popup' })
+            .setHTML(popupCard({ title: loc.name, stats: [['Installed capacity', fmtPower(cap)]] }));
+          keepPopupInView(map, nodePopup);
           new mgl.Marker({ element: el }).setLngLat([loc.longitude, loc.latitude]).setPopup(nodePopup).addTo(map);
         });
 
@@ -770,14 +826,14 @@ const TransmissionFlowMap = ({ locations, transmissionFlowData, capacitiesByLoc,
                        cursor: 'pointer', fontFamily: "'DM Sans', system-ui" }}>↩ Reset</button>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               <span style={{ color: '#94a3b8', fontSize: 10 }}>Speed:</span>
-              <select value={speed} onChange={e => setSpeed(+e.target.value)}
+              <SelectField value={speed} onChange={e => setSpeed(+e.target.value)}
                 style={{ background: '#fff', color: '#374151', border: '1px solid #e2e8f0',
                          borderRadius: 0, fontSize: 10, padding: '2px 4px', cursor: 'pointer', fontFamily: "'DM Sans', system-ui" }}>
                 <option value={500}>0.5×</option>
                 <option value={200}>1×</option>
                 <option value={80}>2.5×</option>
                 <option value={30}>6×</option>
-              </select>
+              </SelectField>
             </div>
             <span style={{ color: '#64748b', fontSize: 10, fontFamily: "'JetBrains Mono', monospace", marginLeft: 'auto',
                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>

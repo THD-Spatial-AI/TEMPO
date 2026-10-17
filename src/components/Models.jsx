@@ -12,6 +12,10 @@ import { detectArchiveFormat } from '../services/archiveFormat';
 import { importModelArchive } from '../services/engineClient';
 import { useCsvImportWizard } from '../hooks/useCsvImportWizard';
 import Select from './ui/Select';
+import { confirmAction } from './ui/confirm';
+import { usePinnedModels, togglePinnedModel, sortPinnedFirst } from '../services/pinnedModels';
+import { LuPin } from './ui/icons';
+import { iconBtn, ICON_PX } from './ui/iconButton';
 
 const Models = () => {
   const { models, setModels, currentModelId, loadModel, deleteModel, renameModel, createModel, setTimeSeries, setOverrides, setScenarios, showNotification } = useData();
@@ -220,8 +224,8 @@ const Models = () => {
     }
   ];
 
-  const handleDelete = (modelId) => {
-    if (window.confirm('Are you sure you want to delete this model?')) {
+  const handleDelete = async (modelId) => {
+    if (await confirmAction({ title: 'Delete this model?', message: 'Its locations, links, technologies and time series will be permanently removed.', details: models.find(m => m.id === modelId)?.name })) {
       deleteModel(modelId);
     }
   };
@@ -745,11 +749,12 @@ const Models = () => {
     }
   };
 
-  const filteredModels = models.filter(m => {
+  const pinnedIds = usePinnedModels();
+  const filteredModels = sortPinnedFirst(models.filter(m => {
     const matchesSearch = !searchQuery || m.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesType = filterType === 'all' || (m.modelType || m.metadata?.modelType || 'calliope') === filterType;
     return matchesSearch && matchesType;
-  });
+  }), pinnedIds);
   const allSelected = filteredModels.length > 0 && filteredModels.every(m => selectedIds.has(m.id));
   const someSelected = selectedIds.size > 0;
 
@@ -769,9 +774,9 @@ const Models = () => {
     }
   };
 
-  const handleBulkDelete = () => {
+  const handleBulkDelete = async () => {
     const count = selectedIds.size;
-    if (!window.confirm(`Delete ${count} model${count > 1 ? 's' : ''}?`)) return;
+    if (!(await confirmAction({ title: `Delete ${count} model${count > 1 ? 's' : ''}?`, message: 'The selected models and all their data will be permanently removed.' }))) return;
     selectedIds.forEach(id => deleteModel(id));
     setSelectedIds(new Set());
     showNotification(`Deleted ${count} model${count > 1 ? 's' : ''}`, 'success');
@@ -797,9 +802,9 @@ const Models = () => {
   return (
     <div className="flex-1 p-8 bg-gray-50 overflow-y-auto">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-slate-800 mb-2">Energy System Models</h1>
-        <p className="text-slate-600">TEMPO translates between model formats — import, manage and run your energy system models.</p>
+      <div className="mb-5">
+        <h1 className="text-2xl font-bold text-slate-900">Models</h1>
+        <p className="mt-1 text-sm text-slate-500">Import, manage and switch between your energy system models.</p>
       </div>
 
       {/* Calliope YAML Importer panel */}
@@ -819,8 +824,8 @@ const Models = () => {
       {/* Create New Model — model type cards */}
       <div className="mb-8">
         <div className="mb-4">
-          <h2 className="text-2xl font-semibold text-slate-800">Create New Model</h2>
-          <p className="text-sm text-slate-500 mt-1">Select a model format to import. TEMPO can translate between formats.</p>
+          <h2 className="text-lg font-semibold text-slate-900">Import a model</h2>
+          <p className="mt-0.5 text-sm text-slate-500">Choose the format of your model files.</p>
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {MODEL_TYPES.map((mt) => (
@@ -969,33 +974,28 @@ const Models = () => {
                 ]}
               />
             </div>
-          </div>
-        )}
-
-        {someSelected && (
-          <div className="mb-4 flex items-center gap-2 rounded-xl bg-black px-4 py-2.5 text-sm text-white shadow-lg shadow-slate-900/20">
-            <span className="flex-1 font-medium">{selectedIds.size} selected</span>
-            <button
-              onClick={handleBulkExport}
-              className="px-3 py-1 bg-white/10 hover:bg-white/20 rounded text-xs font-medium flex items-center gap-1.5 transition-colors"
-            >
-              <FiDownload size={13} />
-              Export
-            </button>
-            <button
-              onClick={handleBulkDelete}
-              className="px-3 py-1 bg-red-500/70 hover:bg-red-500 rounded text-xs font-medium flex items-center gap-1.5 transition-colors"
-            >
-              <FiTrash2 size={13} />
-              Delete
-            </button>
-            <button
-              onClick={() => setSelectedIds(new Set())}
-              className="p-1 hover:bg-white/10 rounded transition-colors"
-              title="Clear selection"
-            >
-              <FiX size={15} />
-            </button>
+            {someSelected && (
+              <div className="tempo-tour-card flex h-10 items-center gap-1.5 rounded-full border border-black/15 bg-white pl-1.5 pr-1.5 shadow-sm" role="toolbar" aria-label="Selected models">
+                <span className="flex h-7 min-w-7 items-center justify-center rounded-full bg-slate-900 px-2 text-xs font-semibold tabular-nums text-white">
+                  {selectedIds.size}
+                </span>
+                <span className="pr-1 text-xs font-medium text-slate-500">selected</span>
+                <span className="h-5 w-px bg-black/10" aria-hidden="true" />
+                <button onClick={handleBulkExport} title={`Export ${selectedIds.size} selected`} aria-label="Export selected"
+                  className="grid h-8 w-8 place-items-center rounded-full text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900">
+                  <FiDownload size={17} />
+                </button>
+                <button onClick={handleBulkDelete} title={`Delete ${selectedIds.size} selected`} aria-label="Delete selected"
+                  className="grid h-8 w-8 place-items-center rounded-full text-red-600 transition-colors hover:bg-red-50">
+                  <FiTrash2 size={17} />
+                </button>
+                <span className="h-5 w-px bg-black/10" aria-hidden="true" />
+                <button onClick={() => setSelectedIds(new Set())} title="Clear selection" aria-label="Clear selection"
+                  className="grid h-8 w-8 place-items-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700">
+                  <FiX size={16} />
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -1032,6 +1032,7 @@ const Models = () => {
             <div className="divide-y divide-black/10">
             {filteredModels.map((model) => {
               const active = currentModelId === model.id;
+              const pinned = pinnedIds.has(model.id);
               const selected = selectedIds.has(model.id);
               const stats = [
                 [model.locations?.length || 0, 'locations'],
@@ -1060,6 +1061,11 @@ const Models = () => {
                 <div className="min-w-0 flex-1">
                   <div className="mb-1 flex flex-wrap items-center gap-2">
                     <span className="truncate text-sm font-semibold text-slate-900">{model.name}</span>
+                    {pinned && (
+                      <span className="inline-flex items-center gap-1 bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-700">
+                        <LuPin size={12} style={{ fontVariationSettings: "'FILL' 1" }} /> Pinned
+                      </span>
+                    )}
                     {active && (
                       <span className="inline-flex items-center gap-1 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
                         <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Active
@@ -1081,28 +1087,42 @@ const Models = () => {
                     <span className="ml-1 text-[11px] text-slate-400">Updated {new Date(model.updatedAt).toLocaleDateString()}</span>
                   </div>
                 </div>
-                <div className="flex shrink-0 items-center gap-1">
-                  {!active && (
+                <div className="flex shrink-0 items-center gap-2">
+                  {active ? (
+                    <span className="h-8 w-[60px]" aria-hidden="true" />
+                  ) : (
                     <button
                       onClick={() => loadModel(model.id)}
-                      className="h-8 rounded-lg bg-black px-3 text-xs font-semibold text-white transition-colors hover:bg-black/80"
+                      title="Make this the active model"
+                      className="h-8 w-[60px] border border-black/15 bg-white text-[13px] font-semibold text-slate-800 transition-colors hover:border-slate-900 hover:bg-slate-900 hover:text-white"
                     >
                       Load
                     </button>
                   )}
                   <button
-                    onClick={() => openEditModal(model)}
-                    className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 opacity-0 transition-all hover:bg-slate-200/70 hover:text-slate-900 focus:opacity-100 group-hover:opacity-100"
-                    title="Edit model"
+                    onClick={() => togglePinnedModel(model.id)}
+                    aria-label={pinned ? 'Unpin model' : 'Pin model to top'}
+                    title={pinned ? 'Unpin model' : 'Pin to top'}
+                    aria-pressed={pinned}
+                    className={`${iconBtn('edit')} ${pinned ? 'text-slate-900' : ''}`}
                   >
-                    <FiEdit2 size={15} />
+                    {pinned ? <LuPin size={ICON_PX.md} style={{ fontVariationSettings: "'FILL' 1" }} /> : <LuPin size={ICON_PX.md} />}
+                  </button>
+                  <button
+                    onClick={() => openEditModal(model)}
+                    aria-label="Edit model"
+                    title="Edit model"
+                    className={`${iconBtn('edit', 'md')}`}
+                  >
+                    <FiEdit2 size={ICON_PX.md} />
                   </button>
                   <button
                     onClick={() => handleDelete(model.id)}
-                    className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 opacity-0 transition-all hover:bg-red-50 hover:text-red-600 focus:opacity-100 group-hover:opacity-100"
-                    title="Delete"
+                    aria-label="Delete model"
+                    title="Delete model"
+                    className={`${iconBtn('delete', 'md')}`}
                   >
-                    <FiTrash2 size={15} />
+                    <FiTrash2 size={ICON_PX.md} />
                   </button>
                 </div>
               </div>
@@ -1211,17 +1231,17 @@ const Models = () => {
                               }`}>{ts.type || 'other'}</span>
                               <button
                                 onClick={() => { setRenamingTsId(ts.id); setRenamingTsName(ts.name || ts.fileName || ''); }}
-                                className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded"
+                                className={`${iconBtn('edit', 'md')}`}
                                 title="Rename"
                               >
-                                <FiEdit2 size={13} />
+                                <FiEdit2 size={ICON_PX.md} />
                               </button>
                               <button
                                 onClick={() => deleteTs(editingModelId, ts.id)}
-                                className="p-1 text-slate-400 hover:text-gray-600 hover:bg-gray-100 rounded"
+                                className={`${iconBtn('delete', 'md')}`}
                                 title="Delete"
                               >
-                                <FiTrash2 size={13} />
+                                <FiTrash2 size={ICON_PX.md} />
                               </button>
                             </>
                           )}

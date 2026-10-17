@@ -18,6 +18,7 @@ import { exportModelArchive, checkEngineRunService } from '../services/engineCli
 import { resolveScenario } from '../services/scenarioResolver';
 import TranslationReport from './TranslationReport';
 import { FiCheck } from './ui/icons';
+import SelectField from './ui/SelectField';
 
 
 const EXPORT_FORMATS = [
@@ -437,7 +438,7 @@ function ResultsExportPanel({ completedJobs }) {
       {/* Run selector */}
       <div className="bg-white rounded-xl shadow-lg p-5">
         <h2 className="text-base font-semibold text-slate-800 mb-3">Select Run</h2>
-        <select
+        <SelectField
           value={selJobId || ''}
           onChange={e => { setSelJobId(e.target.value); setStatus(null); }}
           className="w-full border border-black/15 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-gray-400"
@@ -447,7 +448,7 @@ function ResultsExportPanel({ completedJobs }) {
               {j.modelName} — {new Date(j.completedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
             </option>
           ))}
-        </select>
+        </SelectField>
         {result && (
           <p className="text-xs text-slate-400 mt-2">
             Objective: <span className="text-slate-600 font-medium">{result.objective != null ? Number(result.objective).toLocaleString(undefined, { maximumFractionDigits: 0 }) : '—'}</span>
@@ -1190,8 +1191,8 @@ calliope run model.yaml --scenario=Main
 
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-black tracking-tighter text-black">Export</h1>
-            <p className="mt-1 text-[15px] text-slate-500">
+            <h1 className="text-2xl font-bold text-slate-900">Export</h1>
+            <p className="mt-1 text-sm text-slate-500">
               {exportMode === 'model' ? 'Export your active model as a framework-ready ZIP archive' : 'Download results data from a completed run'}
             </p>
           </div>

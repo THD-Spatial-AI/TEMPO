@@ -7,6 +7,7 @@ import {
   FiSquare, FiDownload, FiFilter, FiChevronDown, FiMap,
 } from './ui/icons';
 import { RegionChoropleth } from './results/ResultMaps';
+import SelectField from './ui/SelectField';
 
 // ─── Qualitative colour palette (20 perceptually-distinct colours) ────────────
 const PALETTE = [
@@ -867,17 +868,17 @@ export default function ScenarioComparison() {
                     <div className="ml-auto flex items-center gap-3 flex-wrap">
                       <label className="flex items-center gap-1.5 text-xs text-slate-500">
                         X:
-                        <select value={scatterX} onChange={e => setScatterX(e.target.value)}
+                        <SelectField value={scatterX} onChange={e => setScatterX(e.target.value)}
                           className="border border-black/15 rounded-lg px-2 py-1 text-xs text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-gray-400">
                           {SCATTER_METRICS.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
-                        </select>
+                        </SelectField>
                       </label>
                       <label className="flex items-center gap-1.5 text-xs text-slate-500">
                         Y:
-                        <select value={scatterY} onChange={e => setScatterY(e.target.value)}
+                        <SelectField value={scatterY} onChange={e => setScatterY(e.target.value)}
                           className="border border-black/15 rounded-lg px-2 py-1 text-xs text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-gray-400">
                           {SCATTER_METRICS.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
-                        </select>
+                        </SelectField>
                       </label>
                     </div>
                   </div>

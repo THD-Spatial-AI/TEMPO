@@ -9,6 +9,8 @@ import {
   CATEGORY_META, CATEGORY_TEMPLATES, ALL_OVERRIDE_TEMPLATES,
 } from '../data/overrideTemplates';
 import { getModelFramework, FRAMEWORKS, FrameworkBadge } from '../utils/modelFramework.jsx';
+import SelectField from './ui/SelectField';
+import { iconBtn, ICON_PX } from './ui/iconButton';
 
 // ─── Config flattener + viewer ────────────────────────────────────────────────
 function flattenConfig(obj, prefix = '') {
@@ -168,7 +170,7 @@ const ImportModal = ({ template, onConfirm, onClose }) => {
                       {param.label}
                     </label>
                     {param.type === 'select' ? (
-                      <select
+                      <SelectField
                         value={values[param.key]}
                         onChange={(e) => setValues({ ...values, [param.key]: e.target.value })}
                         className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-500"
@@ -176,7 +178,7 @@ const ImportModal = ({ template, onConfirm, onClose }) => {
                         {param.options.map((o) => (
                           <option key={o} value={o}>{o}</option>
                         ))}
-                      </select>
+                      </SelectField>
                     ) : (
                       <input
                         type={param.type === 'number' ? 'number' : param.type === 'date' ? 'date' : 'text'}
@@ -306,7 +308,7 @@ const CustomOverrideModal = ({ initial, onConfirm, onClose }) => {
 
           <div>
             <label className="block text-[0.6875rem] font-bold text-black/60 mb-1.5 uppercase tracking-widest">Type</label>
-            <select
+            <SelectField
               value={type}
               onChange={(e) => setType(e.target.value)}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-500"
@@ -314,7 +316,7 @@ const CustomOverrideModal = ({ initial, onConfirm, onClose }) => {
               {OVERRIDE_TYPES.map((t) => (
                 <option key={t.value} value={t.value}>{t.label}</option>
               ))}
-            </select>
+            </SelectField>
           </div>
 
           {type === 'subset_time' && (
@@ -334,12 +336,12 @@ const CustomOverrideModal = ({ initial, onConfirm, onClose }) => {
           {type === 'time_resolution' && (
             <div>
               <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Resolution</label>
-              <select value={data.resolution} onChange={(e) => set('resolution', e.target.value)}
+              <SelectField value={data.resolution} onChange={(e) => set('resolution', e.target.value)}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-500">
                 {['1H','2H','3H','4H','6H','12H','24H'].map((r) => (
                   <option key={r} value={r}>{r}</option>
                 ))}
-              </select>
+              </SelectField>
             </div>
           )}
 
@@ -347,12 +349,12 @@ const CustomOverrideModal = ({ initial, onConfirm, onClose }) => {
             <div className="space-y-3">
               <div>
                 <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Solver</label>
-                <select value={data.solver} onChange={(e) => set('solver', e.target.value)}
+                <SelectField value={data.solver} onChange={(e) => set('solver', e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-500">
                   {['highs','gurobi','cbc','glpk','cplex'].map((s) => (
                     <option key={s} value={s}>{s}</option>
                   ))}
-                </select>
+                </SelectField>
               </div>
               <div className="flex gap-4">
                 {[
@@ -772,10 +774,10 @@ const Overrides = () => {
                         <div className="flex items-center gap-1 shrink-0">
                           <button
                             onClick={() => { setRenamingId(name); setRenameValue(name); }}
-                            className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg"
+                            className={`${iconBtn('edit', 'md')}`}
                             title="Rename"
                           >
-                            <FiEdit2 size={14} />
+                            <FiEdit2 size={ICON_PX.md} />
                           </button>
                           <button
                             onClick={() => handleDuplicate(name)}
@@ -786,10 +788,10 @@ const Overrides = () => {
                           </button>
                           <button
                             onClick={() => handleDeleteOverride(name)}
-                            className="p-1.5 text-slate-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
+                            className={`${iconBtn('delete', 'md')}`}
                             title="Delete"
                           >
-                            <FiTrash2 size={14} />
+                            <FiTrash2 size={ICON_PX.md} />
                           </button>
                         </div>
                       </div>

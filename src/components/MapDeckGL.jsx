@@ -23,6 +23,7 @@ import EntityListsPanel from './shared/EntityListsPanel';
 import HoverTooltip from './creation/HoverTooltip';
 import LayerSelector from './creation/LayerSelector';
 import MapZoomControls from './creation/MapZoomControls';
+import { confirmAction } from './ui/confirm';
 
 const MapDeckGL = () => {
   const { locations, setLocations, links, setLinks, showNotification, technologies, models, currentModelId, loadModel, updateCurrentModel, createModel } = useData();
@@ -782,8 +783,8 @@ const MapDeckGL = () => {
   };
   
   // Handle delete location
-  const handleDeleteLocation = (index) => {
-    if (window.confirm('Delete this location?')) {
+  const handleDeleteLocation = async (index) => {
+    if (await confirmAction({ title: 'Delete this location?', message: 'Links connected to it will be removed as well.', details: locations[index]?.name })) {
       const locationName = locations[index].name;
       const newLocations = locations.filter((_, i) => i !== index);
       const newLinks = links.filter(link => link.from !== locationName && link.to !== locationName);
@@ -1003,14 +1004,14 @@ const MapDeckGL = () => {
             onSelectLocation={(loc) => handleLocationSelect(loc)}
             onEditLocation={(loc, index) => handleEditLocation(loc, index)}
             onDeleteLocation={(loc, index) => handleDeleteLocation(index)}
-            onClearLocations={() => {
-              if (window.confirm(`Delete all ${locations.length} locations? This will also remove all links.`)) {
+            onClearLocations={async () => {
+              if (await confirmAction({ title: 'Delete all locations?', message: `All ${locations.length} locations and every link between them will be removed.`, confirmLabel: 'Delete all' })) {
                 setLocations([]); setLinks([]); showNotification('All locations and links deleted', 'success');
               }
             }}
-            onClearLinks={() => {
+            onClearLinks={async () => {
               if (!links.length) return;
-              if (window.confirm(`Delete all ${links.length} links?`)) {
+              if (await confirmAction({ title: 'Delete all links?', message: `All ${links.length} links will be removed. Locations are kept.`, confirmLabel: 'Delete all' })) {
                 setLinks([]); showNotification('All links deleted', 'success');
               }
             }}

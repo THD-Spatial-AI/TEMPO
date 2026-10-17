@@ -17,6 +17,8 @@ import {
   SENSITIVITY_VARIANTS as ITALY_VARIANTS, SLACKS as ITALY_SLACKS, MODEL_CONFIG as ITALY_MODEL_CONFIG,
   SPORES_PLAN as ITALY_SPORES_PLAN, sporesCount,
 } from '../../services/scenarioStudio/presets/lombardi2020Italy.js';
+import SelectField from '../ui/SelectField';
+import { iconBtn, ICON_PX } from '../ui/iconButton';
 
 const COST_PARAM_OPTIONS = [
   { value: 'costs.monetary.energy_cap',  label: 'CAPEX (€/kW)' },
@@ -275,20 +277,20 @@ function CostSensitivityConfig({ params, setParam, model }) {
     <div className="space-y-5">
       <div>
         <Label>Technology</Label>
-        <select value={params.techName}
+        <SelectField value={params.techName}
           onChange={e => setParam('techName', e.target.value)}
           className="h-9 w-full rounded-lg border border-black/15 bg-white px-3 text-sm text-slate-800 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200">
           <option value="">— select a technology —</option>
           {allTechs.map(n => <option key={n} value={n}>{n}</option>)}
-        </select>
+        </SelectField>
       </div>
       <div>
         <Label>Parameter to sweep</Label>
-        <select value={params.paramPath}
+        <SelectField value={params.paramPath}
           onChange={e => setParam('paramPath', e.target.value)}
           className="h-9 w-full rounded-lg border border-black/15 bg-white px-3 text-sm text-slate-800 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200">
           {COST_PARAM_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label} ({o.value})</option>)}
-        </select>
+        </SelectField>
       </div>
       <div className="flex gap-4 flex-wrap">
         <div>
@@ -344,12 +346,12 @@ function OpRow({ op, index, onChange, onDelete }) {
   return (
     <div className="flex flex-col gap-1.5 p-2.5 bg-slate-50 border border-black/15 rounded-lg text-xs">
       <div className="flex items-center gap-2">
-        <select value={op.op} onChange={e => onChange(index, defaultOp(e.target.value))}
+        <SelectField value={op.op} onChange={e => onChange(index, defaultOp(e.target.value))}
           className="flex-1 h-8 rounded-lg border border-black/15 bg-white px-2 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200">
           {OP_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-        </select>
-        <button onClick={() => onDelete(index)} className="p-1 text-red-400 hover:text-red-600 rounded transition-colors">
-          <FiTrash2 size={12} />
+        </SelectField>
+        <button onClick={() => onDelete(index)} className={`${iconBtn('delete', 'sm')}`}>
+          <FiTrash2 size={ICON_PX.sm} />
         </button>
       </div>
 
@@ -379,12 +381,12 @@ function OpRow({ op, index, onChange, onDelete }) {
           </div>
           <div>
             <span className="mb-1 block text-xs font-medium text-slate-600">Apply to</span>
-            <select value={op.level || 'global'} onChange={e => set('level', e.target.value)}
+            <SelectField value={op.level || 'global'} onChange={e => set('level', e.target.value)}
               className="h-8 rounded-lg border border-black/15 bg-white px-2 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200">
               <option value="global">Global tech</option>
               <option value="location">Location overrides</option>
               <option value="both">Both</option>
-            </select>
+            </SelectField>
           </div>
         </div>
       )}
@@ -398,12 +400,12 @@ function OpRow({ op, index, onChange, onDelete }) {
           </div>
           <div>
             <span className="mb-1 block text-xs font-medium text-slate-600">Apply to</span>
-            <select value={op.level || 'global'} onChange={e => set('level', e.target.value)}
+            <SelectField value={op.level || 'global'} onChange={e => set('level', e.target.value)}
               className="h-8 rounded-lg border border-black/15 bg-white px-2 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200">
               <option value="global">Global tech</option>
               <option value="location">Location overrides</option>
               <option value="both">Both</option>
-            </select>
+            </SelectField>
           </div>
         </div>
       )}
@@ -412,10 +414,10 @@ function OpRow({ op, index, onChange, onDelete }) {
         <div className="flex gap-2">
           <div>
             <span className="mb-1 block text-xs font-medium text-slate-600">Kind</span>
-            <select value={op.kind} onChange={e => set('kind', e.target.value)}
+            <SelectField value={op.kind} onChange={e => set('kind', e.target.value)}
               className="h-8 rounded-lg border border-black/15 bg-white px-2 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200">
               {SYS_KINDS.map(k => <option key={k} value={k}>{k}</option>)}
-            </select>
+            </SelectField>
           </div>
           <div className="flex-1">
             <span className="mb-1 block text-xs font-medium text-slate-600">Value</span>
@@ -457,12 +459,12 @@ function CustomConfigPanel({ params, setParam, model }) {
         <div>
           <Label>Import from saved scenario</Label>
           <div className="flex gap-2 items-center">
-            <select value={params.selectedScenario || ''}
+            <SelectField value={params.selectedScenario || ''}
               onChange={e => setParam('selectedScenario', e.target.value)}
               className="flex-1 px-3 py-1.5 text-sm border border-black/15 rounded-lg focus:outline-none focus:ring-2 focus:ring-electric-400 bg-white">
               <option value="">— choose scenario —</option>
               {scenarioNames.map(n => <option key={n} value={n}>{n}</option>)}
-            </select>
+            </SelectField>
             <button onClick={handleImport} disabled={!params.selectedScenario}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-black/15 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
               <FiDownload size={12} /> Import ops
@@ -552,10 +554,10 @@ function ConstraintCardConfig({ params, setParam }) {
     <div className="space-y-4">
       <div>
         <Label>Constraint</Label>
-        <select value={params.kind} onChange={e => setParam('kind', e.target.value)}
+        <SelectField value={params.kind} onChange={e => setParam('kind', e.target.value)}
           className="h-9 w-full rounded-lg border border-black/15 bg-white px-3 text-sm text-slate-800 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200">
           {SYS_KINDS.map(k => <option key={k} value={k}>{k}</option>)}
-        </select>
+        </SelectField>
       </div>
       <div>
         <Label>Value</Label>
@@ -591,13 +593,13 @@ function MatchedTechs({ names }) {
 // Group dropdown labelled with live counts from the model.
 function GroupSelect({ value, model, onChange }) {
   return (
-    <select value={value} onChange={e => onChange(e.target.value)}
+    <SelectField value={value} onChange={e => onChange(e.target.value)}
       className="h-9 w-full rounded-lg border border-black/15 bg-white px-3 text-sm text-slate-800 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200">
       {techGroupsForModel(model).map(g => {
         const n = resolveTechGroup(model, g.id).length;
         return <option key={g.id} value={g.id}>{g.label} ({n})</option>;
       })}
-    </select>
+    </SelectField>
   );
 }
 
@@ -625,11 +627,11 @@ function TechCardConfig({ params, setParam, model }) {
         <div>
           <Label>Technology</Label>
           {multi && <MatchedTechs names={params.techMatch} />}
-          <select value={multi ? '' : params.techMatch} onChange={e => setParam('techMatch', e.target.value)}
+          <SelectField value={multi ? '' : params.techMatch} onChange={e => setParam('techMatch', e.target.value)}
             className="h-9 w-full rounded-lg border border-black/15 bg-white px-3 text-sm text-slate-800 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200">
             <option value="">— select a technology —</option>
             {allTechs.map(n => <option key={n} value={n}>{n}</option>)}
-          </select>
+          </SelectField>
         </div>
       )}
       <div>
@@ -710,11 +712,11 @@ function LocationCardConfig({ params, setParam, model }) {
     <div className="space-y-4">
       <div>
         <Label>Location (from model)</Label>
-        <select value={params.location} onChange={e => setParam('location', e.target.value)}
+        <SelectField value={params.location} onChange={e => setParam('location', e.target.value)}
           className="h-9 w-full rounded-lg border border-black/15 bg-white px-3 text-sm text-slate-800 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200">
           <option value="">— select a location —</option>
           {locations.map(n => <option key={n} value={n}>{n}</option>)}
-        </select>
+        </SelectField>
         {locations.length === 0 && <Hint>This model has no locations defined.</Hint>}
       </div>
       <div>
@@ -735,11 +737,11 @@ function LocationCardConfig({ params, setParam, model }) {
               <MatchedTechs names={resolveTechGroup(model, params.group || 'nonRenewable')} />
             </>
           ) : (
-            <select value={params.techMatch} onChange={e => setParam('techMatch', e.target.value)}
+            <SelectField value={params.techMatch} onChange={e => setParam('techMatch', e.target.value)}
               className="h-9 w-full rounded-lg border border-black/15 bg-white px-3 text-sm text-slate-800 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200">
               <option value="">— select a technology —</option>
               {allTechs.map(n => <option key={n} value={n}>{n}</option>)}
-            </select>
+            </SelectField>
           )}
         </div>
       </div>
@@ -814,11 +816,11 @@ function TimeseriesCardConfig({ params, setParam, model, timeSeries }) {
     <div className="space-y-4">
       <div>
         <Label>Replace profile</Label>
-        <select value={params.fromFile} onChange={e => setParam('fromFile', e.target.value)}
+        <SelectField value={params.fromFile} onChange={e => setParam('fromFile', e.target.value)}
           className="w-full px-3 py-1.5 text-sm border border-black/15 rounded-lg bg-white font-mono focus:outline-none focus:ring-2 focus:ring-electric-400">
           <option value="">— a CSV the model uses —</option>
           {refs.map(f => <option key={f} value={f}>{f}</option>)}
-        </select>
+        </SelectField>
       </div>
       <div>
         <Label>With</Label>
@@ -830,11 +832,11 @@ function TimeseriesCardConfig({ params, setParam, model, timeSeries }) {
       </div>
       <div>
         <Label>Only for technology (optional)</Label>
-        <select value={techValue} onChange={e => setParam('techMatch', e.target.value ? [e.target.value] : '')}
+        <SelectField value={techValue} onChange={e => setParam('techMatch', e.target.value ? [e.target.value] : '')}
           className="w-full px-3 py-1.5 text-sm border border-black/15 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-electric-400">
           <option value="">All technologies using it</option>
           {techs.map(n => <option key={n} value={n}>{n}</option>)}
-        </select>
+        </SelectField>
       </div>
     </div>
   );
@@ -873,8 +875,8 @@ function SensitivityCardConfig({ params, setParam }) {
               <button onClick={() => (editing === i ? setEditing(null) : startEdit(i))} className="text-[11px] text-electric-600 hover:underline">
                 {editing === i ? 'close' : 'ops'}
               </button>
-              <button onClick={() => update(cases.filter((_, j) => j !== i))} className="p-1 text-slate-300 hover:text-red-500">
-                <FiTrash2 size={12} />
+              <button onClick={() => update(cases.filter((_, j) => j !== i))} className={`${iconBtn('delete', 'sm')}`}>
+                <FiTrash2 size={ICON_PX.sm} />
               </button>
             </div>
             <p className="text-[10px] text-slate-500 mt-1 truncate">{summarizeOps(c.ops) || 'no changes (baseline)'}</p>

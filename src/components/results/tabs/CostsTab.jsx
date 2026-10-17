@@ -20,7 +20,7 @@ export default function CostsTab({
                   <div className="bg-white rounded-2xl border border-black/15 shadow-sm overflow-hidden">
                     <button onClick={() => toggleSection('cost-by-tech')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
                       <FiDollarSign size={14} className="text-gray-500 flex-shrink-0" />
-                      <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-black flex-1">Total Cost by Technology</span>
+                      <span className="text-sm font-semibold text-slate-800 flex-1">Total Cost by Technology</span>
                       <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('cost-by-tech') ? '' : '-rotate-90'}`} />
                     </button>
                     {sectionOpen('cost-by-tech') && <div className="px-5 pb-5">
@@ -33,7 +33,7 @@ export default function CostsTab({
                   <div className="bg-white rounded-2xl border border-black/15 shadow-sm overflow-hidden">
                     <button onClick={() => toggleSection('cost-per-mwh')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
                       <FiTrendingUp size={14} className="text-gray-600 flex-shrink-0" />
-                      <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-black flex-1">Cost per MWh by Technology</span>
+                      <span className="text-sm font-semibold text-slate-800 flex-1">Cost per MWh by Technology</span>
                       <span className="text-xs text-slate-400 mr-1">· LCOE proxy</span>
                       <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('cost-per-mwh') ? '' : '-rotate-90'}`} />
                     </button>
@@ -49,7 +49,7 @@ export default function CostsTab({
                   <div className="bg-white rounded-2xl border border-black/15 shadow-sm overflow-hidden">
                     <button onClick={() => toggleSection('cost-by-loc')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
                       <FiMapPin size={14} className="text-gray-600 flex-shrink-0" />
-                      <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-black flex-1">Cost Breakdown by Location &amp; Technology</span>
+                      <span className="text-sm font-semibold text-slate-800 flex-1">Cost Breakdown by Location &amp; Technology</span>
                       <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('cost-by-loc') ? '' : '-rotate-90'}`} />
                     </button>
                     {sectionOpen('cost-by-loc') && <div className="px-5 pb-5">

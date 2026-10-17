@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { FiGlobe, FiMapPin, FiZap, FiLayers, FiSearch, FiFilter, FiDownload, FiX, FiChevronLeft, FiChevronRight } from './ui/icons';
 import Papa from 'papaparse';
+import SelectField from './ui/SelectField';
 
 const GlobalDataPanel = ({ 
   onDataLoaded, 
@@ -191,7 +192,7 @@ const GlobalDataPanel = ({
           <FiMapPin className="inline mr-1" />
           Select Country
         </label>
-        <select
+        <SelectField
           value={selectedCountry}
           onChange={(e) => handleCountryChange(e.target.value)}
           className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400"
@@ -201,7 +202,7 @@ const GlobalDataPanel = ({
           {countries.map(country => (
             <option key={country} value={country}>{country}</option>
           ))}
-        </select>
+        </SelectField>
       </div>
 
       {selectedCountry && (
@@ -282,7 +283,7 @@ const GlobalDataPanel = ({
             {/* Fuel Type */}
             <div className="mb-3">
               <label className="block text-[0.6875rem] text-black/60 mb-1 font-bold uppercase tracking-widest">Fuel Type</label>
-              <select
+              <SelectField
                 value={fuelTypeFilter}
                 onChange={(e) => setFuelTypeFilter(e.target.value)}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm"
@@ -290,7 +291,7 @@ const GlobalDataPanel = ({
                 {fuelTypes.map(fuel => (
                   <option key={fuel} value={fuel}>{fuel === 'all' ? 'All Types' : fuel}</option>
                 ))}
-              </select>
+              </SelectField>
             </div>
 
             {/* Minimum Capacity */}

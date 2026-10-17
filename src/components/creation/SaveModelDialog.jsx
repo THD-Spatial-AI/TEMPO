@@ -3,6 +3,7 @@
 // Creation.jsx; the parent still gates rendering on `showSaveDialog`.
 import { FiX } from '../ui/icons';
 import ReadinessPanel from '../shared/ReadinessPanel';
+import SelectField from '../ui/SelectField';
 
 export default function SaveModelDialog({
   locationManager,
@@ -107,36 +108,36 @@ export default function SaveModelDialog({
                   </div>
                   <div>
                     <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Mode</label>
-                    <select
+                    <SelectField
                       value={modelConfig.mode}
                       onChange={(e) => setModelConfig(c => ({ ...c, mode: e.target.value }))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm bg-white"
                     >
                       <option value="plan">Planning (optimise capacity)</option>
                       <option value="operate">Operate (fixed capacity)</option>
-                    </select>
+                    </SelectField>
                   </div>
                   <div>
                     <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Calliope Version</label>
-                    <select
+                    <SelectField
                       value={modelConfig.calliopeVersion}
                       onChange={(e) => setModelConfig(c => ({ ...c, calliopeVersion: e.target.value }))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm bg-white"
                     >
                       <option value="0.6.8">0.6.8 (stable, default)</option>
                       <option value="0.7.0">0.7.0.dev7 (experimental)</option>
-                    </select>
+                    </SelectField>
                   </div>
                   <div>
                     <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Objective Cost Class</label>
-                    <select
+                    <SelectField
                       value={modelConfig.objectiveCostClass}
                       onChange={(e) => setModelConfig(c => ({ ...c, objectiveCostClass: e.target.value }))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm bg-white"
                     >
                       <option value="monetary">Monetary</option>
                       <option value="co2">CO₂</option>
-                    </select>
+                    </SelectField>
                   </div>
                 </div>
               </div>
@@ -215,4 +216,4 @@ export default function SaveModelDialog({
         </div>
   );
 }
-
+

@@ -11,6 +11,7 @@ import { regenerateDemandSeries } from '../services/demandlibClient';
 import { expectedTimestepCount } from '../services/demandProfiles';
 import SaveBar from './ui/SaveBar';
 import TimeSeriesGuide from './timeseries/TimeSeriesGuide';
+import { confirmAction } from './ui/confirm';
 
 const TimeSeries = () => {
   const { timeSeries, setTimeSeries, getCurrentModel } = useData();
@@ -398,8 +399,8 @@ const TimeSeries = () => {
   };
 
   // Delete timeseries
-  const handleDelete = (id) => {
-    if (window.confirm('Are you sure you want to delete this time series?')) {
+  const handleDelete = async (id) => {
+    if (await confirmAction({ title: 'Delete this time series?', message: 'Technologies that reference its columns will need a new source.', details: timeSeries.find(ts => ts.id === id)?.name })) {
       setTimeSeries(timeSeries.filter(ts => ts.id !== id));
       if (selectedTimeSeries?.id === id) {
         setSelectedTimeSeries(null);
@@ -663,19 +664,19 @@ const TimeSeries = () => {
 
   return (
     <div className="flex-1 flex flex-col h-screen bg-gray-50">
-      <SaveBar label="Time Series" />
       <div className="flex flex-wrap items-center gap-3 border-b border-black/15 bg-white px-6 py-4">
         <div className="min-w-0">
-          <h1 className="text-xl font-bold tracking-tight text-slate-900">Time Series</h1>
+          <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight text-slate-900">
+            Time Series
+            {modelTimeSeries.length > 0 && (
+              <span className="bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600" title={`${modelTimeSeries.length} file${modelTimeSeries.length === 1 ? '' : 's'}`}>{modelTimeSeries.length}</span>
+            )}
+          </h1>
           <p className="text-xs text-slate-500">Demand profiles and resource availability used by your model</p>
         </div>
-        {currentModel && (
-          <span className="inline-flex items-center gap-2 border border-black/15 bg-white px-3 py-1 text-xs font-medium text-slate-700 ">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-            {currentModel.name} · {modelTimeSeries.length} file{modelTimeSeries.length === 1 ? '' : 's'}
-          </span>
-        )}
         <div className="ml-auto flex items-center gap-2">
+          <SaveBar label="Time Series" inline />
+          <span className="mx-1 h-6 w-px bg-black/10" />
           <button
             onClick={() => setShowGuide(v => !v)}
             className={`flex h-9 items-center gap-1.5 rounded-lg border px-3 text-[13px] font-medium  transition-colors ${

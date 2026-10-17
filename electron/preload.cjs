@@ -256,6 +256,41 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
   },
 
+  // ── Custom title bar (frameless window) ───────────────────────────────────
+  window: {
+    action: (name) => ipcRenderer.send('window:action', name),
+    state: () => ipcRenderer.invoke('window:state'),
+    onStateChange: (callback) => {
+      const handler = (_event, data) => callback(data);
+      ipcRenderer.on('window:state-changed', handler);
+      return () => ipcRenderer.removeListener('window:state-changed', handler);
+    },
+    onCommand: (callback) => {
+      const handler = (_event, cmd) => callback(cmd);
+      ipcRenderer.on('menu:command', handler);
+      return () => ipcRenderer.removeListener('menu:command', handler);
+    },
+  },
+
+  // ── App updates (GitHub Releases) ─────────────────────────────────────────
+  updates: {
+    check: () => ipcRenderer.invoke('update:check'),
+    download: () => ipcRenderer.invoke('update:download'),
+    cancel: () => ipcRenderer.invoke('update:cancel'),
+    install: () => ipcRenderer.invoke('update:install'),
+    openPage: () => ipcRenderer.invoke('update:open-page'),
+    onProgress: (callback) => {
+      const handler = (_event, data) => callback(data);
+      ipcRenderer.on('update:progress', handler);
+      return () => ipcRenderer.removeListener('update:progress', handler);
+    },
+    onCheckRequest: (callback) => {
+      const handler = () => callback();
+      ipcRenderer.on('update:check-request', handler);
+      return () => ipcRenderer.removeListener('update:check-request', handler);
+    },
+  },
+
   // ── MEME remote server ────────────────────────────────────────────────────
 
   /**

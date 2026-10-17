@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { FiSearch, FiX, FiPlus, FiCheck, FiTrash2 } from '../ui/icons';
 import { useData } from '../../context/DataContext';
 import { oeoDetailToCalliope } from '../../services/techDatabaseApi';
+import { iconBtn, ICON_PX } from '../ui/iconButton';
 
 const PARENT_META = {
   supply_plus:     { color: '#f59e0b', label: 'Variable Renewables'     },
@@ -230,10 +231,10 @@ export default function TechLibraryPanel({ onClose, liveTechTemplates, isApiLive
                             </span>
                             <button
                               onClick={() => removeTechFromModel(techName)}
-                              className="opacity-0 group-hover:opacity-100 flex-shrink-0 text-slate-300 hover:text-red-500 transition-all"
+                              className={`${iconBtn('delete', 'sm')} opacity-0 group-hover:opacity-100`}
                               title="Remove from model"
                             >
-                              <FiTrash2 size={11} />
+                              <FiTrash2 size={ICON_PX.sm} />
                             </button>
                           </div>
                         );

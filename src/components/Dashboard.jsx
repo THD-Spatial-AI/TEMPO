@@ -5,9 +5,10 @@ import ReactECharts from 'echarts-for-react';
 import Papa from 'papaparse';
 import { fetchTemplate } from '../utils/templateFetch';
 import { FiMapPin, FiLink, FiZap, FiBarChart2, FiPieChart, FiActivity, FiDollarSign, FiChevronDown, FiChevronUp, FiCpu, FiLayers, FiMap, FiClock, FiGrid, FiSun, FiFilter, FiAlertTriangle } from './ui/icons';
-import { LuLayoutDashboard, LuFactory, LuGauge, LuWaypoints, LuCoins, LuChartLine, LuShieldCheck } from './ui/icons';
+import { LuSummary, LuFactory, LuGauge, LuWaypoints, LuCoins, LuChartLine, LuShieldCheck } from './ui/icons';
 import 'leaflet/dist/leaflet.css';
 import { TsViewControls, Panel, KpiCard, InputMap } from './dashboard/DashboardWidgets';
+import TechCategoryBreakdown from './dashboard/TechCategoryBreakdown';
 import useModelReadiness from '../hooks/useModelReadiness';
 import ReadinessPanel from './shared/ReadinessPanel';
 
@@ -42,8 +43,8 @@ const axisNameStyle = (unit) => ({
 });
 
 const PARENT_COLORS = {
-  supply: '#374151', storage: '#6b7280', conversion: '#9ca3af',
-  demand: '#1f2937', transmission: '#d1d5db', other: '#e5e7eb',
+  supply: '#f59e0b', storage: '#0ea5e9', conversion: '#8b5cf6',
+  demand: '#334155', transmission: '#14b8a6', other: '#94a3b8',
 };
 
 // Template folder mapping (same as TimeSeries.jsx)
@@ -163,7 +164,7 @@ function buildFilteredChart(ts, opts, lineColor = '#6b7280') {
 
 // ── Tabs definition ───────────────────────────────────────────────────────────
 const TABS = [
-  { id: 'overview',    label: 'Overview',     icon: LuLayoutDashboard },
+  { id: 'overview',    label: 'Overview',     icon: LuSummary },
   { id: 'generation',  label: 'Generation',   icon: LuFactory },
   { id: 'demand',      label: 'Demand',       icon: LuGauge },
   { id: 'network',     label: 'Network',      icon: LuWaypoints },
@@ -471,16 +472,20 @@ const Dashboard = ({ onNavigate }) => {
   const genTechCount = d.byParent.supply?.length || 0;
   const tsCount = modelTimeSeries.length;
 
+  const sidebarSwitcher = typeof window.electronAPI?.window?.state === 'function';
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="flex-1 overflow-hidden flex flex-col bg-slate-50">
-      {/* Header */}
-      <div className="px-6 pt-5 pb-3 bg-white border-b border-black/15 flex items-center justify-between flex-shrink-0">
+      {/* Header + tabs (the sidebar card switches models in the desktop app) */}
+      <div className="flex flex-shrink-0 items-center justify-between bg-white px-6 pt-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-800">Model Dashboard</h1>
-          <p className="text-xs text-slate-500 mt-0.5">{currentModel ? currentModel.name : 'No model selected'} — input data</p>
+          <h1 className="text-xl font-bold text-slate-900">Model Dashboard</h1>
+          <p className="mt-0.5 text-xs text-slate-500">
+            {sidebarSwitcher ? 'Input data of the active model' : `${currentModel ? currentModel.name : 'No model selected'} — input data`}
+          </p>
         </div>
-        <ModelSelector />
+        {!sidebarSwitcher && <ModelSelector />}
       </div>
 
       {/* Tab bar */}
@@ -505,7 +510,7 @@ const Dashboard = ({ onNavigate }) => {
 
           {/* ── OVERVIEW — full-height, fills screen ──────────────────── */}
           {activeTab === 'overview' && (
-            <div className="flex-1 min-h-0 flex flex-col gap-5 p-6 overflow-hidden">
+            <div className="flex-1 min-h-0 flex flex-col gap-5 p-6 overflow-y-auto">
               <div className="grid grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8 gap-3 flex-shrink-0">
                 <KpiCard icon={FiMapPin}    label="Locations"       value={(locations||[]).length}               sub="nodes" />
                 <KpiCard icon={FiLink}      label="Links"           value={(links||[]).length}                   sub="connections" />
@@ -517,16 +522,12 @@ const Dashboard = ({ onNavigate }) => {
                 <KpiCard icon={FiClock}     label="Time Series"     value={tsCount || (timeSeries||[]).length}   sub="files" />
               </div>
 
-              <div className="flex gap-5 flex-1 min-h-0">
-                <Panel title="Location Map" icon={FiMap} fill className="flex-[2] min-w-0">
-                  <div className="h-full">
-                    <InputMap key={currentModel?.id} locations={locations||[]} links={links||[]} getTechColor={getTechColor} />
-                  </div>
+              <div className="grid flex-1 min-h-0 grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+                <Panel title="Location Map" icon={FiMap} fill className="min-h-[420px] min-w-0">
+                  <InputMap key={currentModel?.id} locations={locations||[]} links={links||[]} getTechColor={getTechColor} getTechName={getTechName} capByLoc={d.capByLoc} capByLocTech={d.locByTech} />
                 </Panel>
-                <Panel title="Technology Categories" icon={FiPieChart} fill className="flex-1 min-w-0">
-                  {techGroupDonut
-                    ? <ReactECharts option={techGroupDonut} style={{ height: '100%' }} notMerge lazyUpdate />
-                    : <div className="h-40 flex items-center justify-center text-slate-400 text-sm">No technologies loaded</div>}
+                <Panel title="Technology Categories" icon={FiPieChart} fill className="min-h-[420px] min-w-0">
+                  <TechCategoryBreakdown byParent={d.byParent} capByTech={d.capByTech} techsPerLoc={d.techsPerLoc} getTechName={getTechName} getTechColor={getTechColor} />
                 </Panel>
               </div>
             </div>
@@ -815,7 +816,7 @@ const Dashboard = ({ onNavigate }) => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
               <Panel title="Location Map" icon={FiMap} className="lg:col-span-2">
                 <div style={{ height: 380 }}>
-                  <InputMap key={currentModel?.id} locations={locations||[]} links={links||[]} getTechColor={getTechColor} />
+                  <InputMap key={currentModel?.id} locations={locations||[]} links={links||[]} getTechColor={getTechColor} getTechName={getTechName} capByLoc={d.capByLoc} capByLocTech={d.locByTech} />
                 </div>
               </Panel>
               <Panel title="Technologies per Location" icon={FiBarChart2}>

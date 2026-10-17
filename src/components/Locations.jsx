@@ -7,6 +7,9 @@ import SortHeader from './ui/SortHeader';
 import { nextSort, compareValues } from '../utils/sorting';
 import { TECH_TEMPLATES, useLiveTechTemplates } from "./TechnologiesData";
 import { CONSTRAINT_DEFINITIONS, COST_DEFINITIONS, PARENT_CONSTRAINTS } from '../utils/constraintDefinitions';
+import { confirmAction } from './ui/confirm';
+import SelectField from './ui/SelectField';
+import { iconBtn, ICON_PX } from './ui/iconButton';
 
 
 
@@ -321,8 +324,8 @@ const Locations = () => {
     }
   };
 
-  const removeTechnology = (locationIndex, techName) => {
-    if (window.confirm(`Remove ${techName} from this location?`)) {
+  const removeTechnology = async (locationIndex, techName) => {
+    if (await confirmAction({ title: 'Remove technology?', message: `It will be removed from ${locations[locationIndex]?.name || 'this location'}.`, details: techName, confirmLabel: 'Remove' })) {
       const updatedLocations = [...locations];
       delete updatedLocations[locationIndex].techs[techName];
       setLocations(updatedLocations);
@@ -437,20 +440,14 @@ const Locations = () => {
 
   return (
     <div className="flex-1 flex flex-col bg-gray-50 min-h-0">
-      <SaveBar label="Locations" />
       <div className="flex-1 overflow-y-auto">
       <div className="w-full px-8 py-8">
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black tracking-tighter text-black">Locations</h1>
-          <p className="mt-1 text-[15px] text-slate-500">Manage energy system nodes and locations</p>
+          <h1 className="text-2xl font-bold text-slate-900">Locations</h1>
+          <p className="mt-1 text-sm text-slate-500">Nodes of the energy system and the technologies at each one.</p>
         </div>
-        {currentModel && (
-          <span className="inline-flex items-center gap-2 border border-black/15 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 ">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-            {currentModel.name}
-          </span>
-        )}
+        <SaveBar label="Locations" inline />
       </div>
 
       {locations.length > 0 && (
@@ -562,7 +559,7 @@ const Locations = () => {
                   </div>
 
                   {isEditing ? (
-                    <select
+                    <SelectField
                       value={editData.type}
                       onChange={(e) => setEditData({ ...editData, type: e.target.value })}
                       className="h-8 w-full rounded-lg border border-black/15 bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 text-xs"
@@ -574,7 +571,7 @@ const Locations = () => {
                       <option value="conversion">conversion</option>
                       <option value="conversion_plus">conversion_plus</option>
                       <option value="transmission">transmission</option>
-                    </select>
+                    </SelectField>
                   ) : (
                     <span className="w-fit rounded-md border border-black/15 bg-white px-1.5 py-0.5 font-mono text-[11px] text-slate-600">
                       {location.type || '—'}
@@ -641,20 +638,20 @@ const Locations = () => {
                         </button>
                       </>
                     ) : (
-                      <span className="flex gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+                      <span className="flex gap-0.5">
                         <button
                           onClick={() => startEdit(originalIndex)}
-                          className="grid h-7 w-7 place-items-center rounded-md text-slate-400 transition-colors hover:bg-slate-200/70 hover:text-slate-900"
+                          className={`${iconBtn('edit', 'md')}`}
                           title="Edit location"
                         >
-                          <LuPencil size={14} />
+                          <LuPencil size={ICON_PX.md} />
                         </button>
                         <button
                           onClick={() => deleteLocation(originalIndex)}
-                          className="grid h-7 w-7 place-items-center rounded-md text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                          className={`${iconBtn('delete', 'md')}`}
                           title="Delete location"
                         >
-                          <LuTrash2 size={14} />
+                          <LuTrash2 size={ICON_PX.md} />
                         </button>
                       </span>
                     )}
@@ -701,16 +698,16 @@ const Locations = () => {
                                   {!isEditing && (
                                     <button
                                       onClick={() => startEditTech(originalIndex, techName)}
-                                      className="p-1 text-gray-600 hover:bg-gray-100 rounded"
+                                      className={`${iconBtn('edit', 'md')}`}
                                     >
-                                      <LuPencil size={14} />
+                                      <LuPencil size={ICON_PX.md} />
                                     </button>
                                   )}
                                   <button
                                     onClick={() => removeTechnology(originalIndex, techName)}
-                                    className="p-1 text-gray-600 hover:bg-gray-100 rounded"
+                                    className={`${iconBtn('delete', 'md')}`}
                                   >
-                                    <LuTrash2 size={14} />
+                                    <LuTrash2 size={ICON_PX.md} />
                                   </button>
                                 </div>
                               </div>
@@ -1307,7 +1304,7 @@ const Locations = () => {
               </div>
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-slate-700">Type</label>
-                <select
+                <SelectField
                   value={newLocation.type}
                   onChange={(e) => setNewLocation({ ...newLocation, type: e.target.value })}
                   className="h-9 w-full rounded-lg border border-black/15 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200"
@@ -1319,7 +1316,7 @@ const Locations = () => {
                   <option value="conversion">Conversion</option>
                   <option value="conversion_plus">Conversion Plus</option>
                   <option value="transmission">Transmission</option>
-                </select>
+                </SelectField>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>

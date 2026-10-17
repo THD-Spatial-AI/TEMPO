@@ -3,6 +3,9 @@
 // the state and passes it as props, and still gates on !leftSidebarCollapsed.
 import { FiActivity, FiArrowRight, FiChevronDown, FiChevronRight, FiEdit2, FiLink, FiMapPin, FiTrash2 } from '../ui/icons';
 import { formatTechName } from '../../utils/mapVisuals';
+import { confirmAction } from '../ui/confirm';
+import SelectField from '../ui/SelectField';
+import { iconBtn, ICON_PX } from '../ui/iconButton';
 
 export default function MapSidebarLists({
   handleDeleteLocation,
@@ -46,17 +49,17 @@ export default function MapSidebarLists({
                 </button>
                 {locations.length > 0 && (
                   <button
-                    onClick={() => {
-                      if (window.confirm(`Delete all ${locations.length} locations? This will also remove all links.`)) {
+                    onClick={async () => {
+                      if (await confirmAction({ title: 'Delete all locations?', message: `All ${locations.length} locations and every link between them will be removed.`, confirmLabel: 'Delete all' })) {
                         setLocations([]);
                         setLinks([]);
                         showNotification('All locations and links deleted', 'success');
                       }
                     }}
-                    className="p-2 mr-2 rounded hover:bg-gray-100 text-slate-400 hover:text-gray-600 transition-colors"
+                    className={`${iconBtn('delete')} mr-2`}
                     title="Delete all locations"
                   >
-                    <FiTrash2 size={13} />
+                    <FiTrash2 size={ICON_PX.md} />
                   </button>
                 )}
               </div>
@@ -103,17 +106,17 @@ export default function MapSidebarLists({
                             <div className="flex items-center gap-0.5 shrink-0">
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleEditLocation(loc, idx); }}
-                                className="p-1 rounded hover:bg-gray-100 text-slate-400 hover:text-gray-600 transition-colors"
+                                className={`${iconBtn('edit', 'md')}`}
                                 title="Edit location"
                               >
-                                <FiEdit2 size={12} />
+                                <FiEdit2 size={ICON_PX.md} />
                               </button>
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleDeleteLocation(idx); }}
-                                className="p-1 rounded hover:bg-gray-100 text-slate-400 hover:text-gray-600 transition-colors"
+                                className={`${iconBtn('delete', 'md')}`}
                                 title="Delete location"
                               >
-                                <FiTrash2 size={12} />
+                                <FiTrash2 size={ICON_PX.md} />
                               </button>
                             </div>
                           </div>
@@ -139,16 +142,16 @@ export default function MapSidebarLists({
                 </button>
                 {links.length > 0 && (
                   <button
-                    onClick={() => {
-                      if (window.confirm(`Delete all ${links.length} links?`)) {
+                    onClick={async () => {
+                      if (await confirmAction({ title: 'Delete all links?', message: `All ${links.length} links will be removed. Locations are kept.`, confirmLabel: 'Delete all' })) {
                         setLinks([]);
                         showNotification('All links deleted', 'success');
                       }
                     }}
-                    className="p-2 mr-2 rounded hover:bg-gray-100 text-slate-400 hover:text-gray-600 transition-colors"
+                    className={`${iconBtn('delete')} mr-2`}
                     title="Delete all links"
                   >
-                    <FiTrash2 size={13} />
+                    <FiTrash2 size={ICON_PX.md} />
                   </button>
                 )}
               </div>
@@ -177,15 +180,15 @@ export default function MapSidebarLists({
                             )}
                           </div>
                           <button
-                            onClick={() => {
-                              if (window.confirm(`Delete link ${link.from} → ${link.to}?`)) {
+                            onClick={async () => {
+                              if (await confirmAction({ title: 'Delete this link?', message: 'The connection and its transmission settings will be removed.', details: `${link.from} → ${link.to}` })) {
                                 setLinks(links.filter((_, i) => i !== idx));
                               }
                             }}
-                            className="p-1 rounded hover:bg-gray-100 text-slate-400 hover:text-gray-600 transition-colors shrink-0"
+                            className={iconBtn('delete')}
                             title="Delete link"
                           >
-                            <FiTrash2 size={12} />
+                            <FiTrash2 size={ICON_PX.md} />
                           </button>
                         </div>
                       </div>
@@ -253,7 +256,7 @@ export default function MapSidebarLists({
                             onChange={(e) => setTimeseriesFilter(e.target.value)}
                             className="w-full px-3 py-2 text-xs border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-gray-500"
                           />
-                          <select
+                          <SelectField
                             value={timeseriesSortBy}
                             onChange={(e) => setTimeseriesSortBy(e.target.value)}
                             className="w-full px-3 py-2 text-xs border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-gray-500"
@@ -263,7 +266,7 @@ export default function MapSidebarLists({
                             <option value="total-asc">Sort by Total (Low to High)</option>
                             <option value="avg">Sort by Average (High to Low)</option>
                             <option value="max">Sort by Peak Demand</option>
-                          </select>
+                          </SelectField>
                         </div>
                       )}
                       

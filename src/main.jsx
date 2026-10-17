@@ -6,6 +6,8 @@ import '@fontsource-variable/jetbrains-mono'
 import 'material-symbols/outlined.css'
 import './index.css'
 import App from './App.jsx'
+import { ConfirmHost } from './components/ui/ConfirmDialog'
+import TitleBar from './components/TitleBar'
 
 // Suppress WebGL context initialization errors
 const originalError = console.error;
@@ -31,6 +33,8 @@ window.addEventListener('error', (event) => {
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
+    <TitleBar />
     <App />
+    <ConfirmHost />
   </StrictMode>,
 )

@@ -33,6 +33,8 @@ export default function OverviewTab({
   transmissionLinks,
 }) {
   const [choroSel, setChoroSel] = useState('demand');
+  const capRows = capBarOption?.yAxis?.data?.length || 0;
+  const chartHeight = Math.min(560, Math.max(300, capRows * 24 + 40));
   const hasRegions = choroMetrics && Object.keys(choroMetrics.demand || {}).length > 0;
 
   return (
@@ -41,7 +43,7 @@ export default function OverviewTab({
                 <div className="bg-white rounded-2xl border border-black/15 shadow-sm overflow-hidden">
                     <div className="px-4 pt-3 pb-2 flex items-center gap-2 flex-wrap">
                       <FiMap size={14} className="text-gray-600 flex-shrink-0" />
-                      <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-black">Location Map</span>
+                      <span className="text-sm font-semibold text-slate-800">Location Map</span>
                       <div className="ml-auto flex gap-1 flex-wrap">
                         {[
                           { id: 'capacity',     label: 'Capacity',     icon: FiBarChart2 },
@@ -51,7 +53,7 @@ export default function OverviewTab({
                           { id: 'transmission', label: 'Transmission', icon: FiShare2 },
                         ].map(({ id, label, icon: Icon }) => (
                           <button key={id} onClick={() => setMapView(id)}
-                            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold uppercase tracking-wide transition-all ${
+                            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-all ${
                               mapView === id ? 'bg-black text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                             }`}>
                             <Icon size={10} /> {label}
@@ -65,7 +67,7 @@ export default function OverviewTab({
                         <span className="text-xs text-slate-500">Show:</span>
                         {CHORO_OPTIONS.map(opt => (
                           <button key={opt.id} onClick={() => setChoroSel(opt.id)}
-                            className={`px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide transition-all ${
+                            className={`px-2 py-0.5 rounded text-xs font-medium transition-all ${
                               choroSel === opt.id ? 'bg-black text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                             }`}>
                             {opt.label}
@@ -126,12 +128,12 @@ export default function OverviewTab({
                   <div className="bg-white rounded-2xl border border-black/15 shadow-sm overflow-hidden">
                     <button onClick={() => toggleSection('cap-by-tech')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
                       <FiBarChart2 size={14} className="text-gray-600 flex-shrink-0" />
-                      <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-black flex-1">Installed Capacity by Technology</span>
+                      <span className="text-sm font-semibold text-slate-800 flex-1">Installed Capacity by Technology</span>
                       <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('cap-by-tech') ? '' : '-rotate-90'}`} />
                     </button>
                     {sectionOpen('cap-by-tech') && <div className="px-5 pb-5">
                       {capBarOption ? (
-                        <ReactECharts option={capBarOption} style={{ height: 280 }} notMerge />
+                        <ReactECharts option={capBarOption} style={{ height: chartHeight }} notMerge />
                       ) : <div className="text-slate-400 text-sm text-center py-16">No capacity data</div>}
                     </div>}
                   </div>
@@ -139,26 +141,26 @@ export default function OverviewTab({
                   <div className="bg-white rounded-2xl border border-black/15 shadow-sm overflow-hidden">
                     <button onClick={() => toggleSection('gen-mix')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
                       <FiPieChart size={14} className="text-gray-500 flex-shrink-0" />
-                      <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-black flex-1">Generation Mix</span>
-                      <span className="text-xs text-slate-400 mr-1">· MWh total</span>
+                      <span className="text-sm font-semibold text-slate-800 flex-1">Generation Mix</span>
+                      <span className="text-xs text-slate-400 mr-1">generation technologies</span>
                       <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('gen-mix') ? '' : '-rotate-90'}`} />
                     </button>
                     {sectionOpen('gen-mix') && <div className="px-5 pb-5">
                       {genDonutOption ? (
-                        <ReactECharts option={genDonutOption} style={{ height: 280 }} notMerge />
+                        <ReactECharts option={genDonutOption} style={{ height: chartHeight }} notMerge />
                       ) : <div className="text-slate-400 text-sm text-center py-16">No generation data</div>}
                     </div>}
                   </div>
                   {/* Capacity by location */}
-                  <div className="bg-white rounded-2xl border border-black/15 shadow-sm overflow-hidden">
+                  <div className="bg-white rounded-2xl border border-black/15 shadow-sm overflow-hidden lg:col-span-2">
                     <button onClick={() => toggleSection('cap-by-loc')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
                       <FiMapPin size={14} className="text-gray-600 flex-shrink-0" />
-                      <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-black flex-1">Capacity by Location & Technology</span>
+                      <span className="text-sm font-semibold text-slate-800 flex-1">Capacity by Location & Technology</span>
                       <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('cap-by-loc') ? '' : '-rotate-90'}`} />
                     </button>
                     {sectionOpen('cap-by-loc') && <div className="px-5 pb-5">
                       {capLocOption ? (
-                        <ReactECharts option={capLocOption} style={{ height: 280 }} notMerge />
+                        <ReactECharts option={capLocOption} style={{ height: 360 }} notMerge />
                       ) : <div className="text-slate-400 text-sm text-center py-16">No location data</div>}
                     </div>}
                   </div>
@@ -213,7 +215,7 @@ export default function OverviewTab({
                   <div className="bg-white rounded-2xl border border-black/15 shadow-sm overflow-hidden">
                     <button onClick={() => toggleSection('tech-summary')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
                       <FiTrendingUp size={14} className="text-slate-500 flex-shrink-0" />
-                      <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-black flex-1">Technology Summary</span>
+                      <span className="text-sm font-semibold text-slate-800 flex-1">Technology Summary</span>
                       <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('tech-summary') ? '' : '-rotate-90'}`} />
                     </button>
                     {sectionOpen('tech-summary') && <div className="px-5 pb-5 overflow-x-auto">
@@ -294,7 +296,7 @@ export default function OverviewTab({
                     <div className="bg-white rounded-2xl border border-black/15 shadow-sm overflow-hidden">
                       <button onClick={() => toggleSection('tx-capacity')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
                         <FiShare2 size={14} className="text-slate-500 flex-shrink-0" />
-                        <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-black flex-1">Transmission Capacity</span>
+                        <span className="text-sm font-semibold text-slate-800 flex-1">Transmission Capacity</span>
                         <span className="text-xs text-slate-400 mr-1">· {constrained.length} link{constrained.length !== 1 ? 's' : ''}</span>
                         <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('tx-capacity') ? '' : '-rotate-90'}`} />
                       </button>
@@ -327,4 +329,4 @@ export default function OverviewTab({
               </div>
   );
 }
-
+

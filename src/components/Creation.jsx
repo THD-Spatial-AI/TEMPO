@@ -49,6 +49,7 @@ import LayerSelector from './creation/LayerSelector';
 import SearchBar from './creation/SearchBar';
 import MapZoomControls from './creation/MapZoomControls';
 import TechLibraryPanel from './creation/TechLibraryPanel';
+import { confirmAction } from './ui/confirm';
 
 // Colour of each Study Area wizard preview element, keyed by metadata.kind.
 // The transmission mesh is amber (matches the OSM lines); each wiring type gets a
@@ -226,7 +227,7 @@ const Creation = ({ onNavigate }) => {
   
   // Sidebar collapse states
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false);
-  const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState(false);
+  const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState(true);
   
   // Collapsible section states
   const [locationsExpanded, setLocationsExpanded] = useState(true);
@@ -1103,8 +1104,8 @@ const Creation = ({ onNavigate }) => {
   }, [handleBboxChange]);
   
   // Clear all locations and links
-  const clearAll = useCallback(() => {
-    if (window.confirm('Clear all unsaved locations and links?')) {
+  const clearAll = useCallback(async () => {
+    if (await confirmAction({ title: 'Clear the map?', message: 'All unsaved locations and links on the map will be removed.', confirmLabel: 'Clear all' })) {
       locationManager.clearAll();
     }
   }, [locationManager]);
@@ -1882,7 +1883,7 @@ const Creation = ({ onNavigate }) => {
       />
 
       {/* Main Map View */}
-      <div className="flex-1 relative">
+      <div className="flex-1 relative" data-tour="creation-map">
         {/* Breathing badge while calculating; the contour glows around the area */}
         {calculating && (
           <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[500] pointer-events-none">
@@ -2437,6 +2438,7 @@ const Creation = ({ onNavigate }) => {
         {/* Tech Library toggle button */}
         <button
           onClick={() => setShowTechLibrary(v => !v)}
+          data-tour="tech-library"
           className={`absolute top-4 left-4 z-30 flex items-center gap-1.5 px-3 py-1.5 rounded-lg  text-[11px] font-semibold transition-colors border ${
             showTechLibrary
               ? 'bg-indigo-600 text-white border-indigo-700'
@@ -2497,7 +2499,7 @@ const Creation = ({ onNavigate }) => {
         )}
 
         {/* Map Controls */}
-        <div className="absolute top-4 right-4 z-[600] flex flex-col gap-2">
+        <div className="absolute top-4 right-4 z-[600] flex flex-col gap-2" data-tour="map-layers">
           <LayerSelector currentLayer={currentStyle} onLayerChange={setCurrentStyle} />
         </div>
 
@@ -2505,6 +2507,7 @@ const Creation = ({ onNavigate }) => {
         {locationManager.tempLocations.length > 0 && (
           <button
             onClick={() => setShowSaveDialog(true)}
+            data-tour="save-model"
             className="absolute bottom-4 right-4 z-[600] flex h-11 items-center gap-2.5 rounded-xl bg-black pl-4 pr-2.5 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 ring-1 ring-slate-900/10 transition-colors hover:bg-black/80"
             title="Save this model and open it in the Map View"
           >
@@ -2518,7 +2521,7 @@ const Creation = ({ onNavigate }) => {
       </div>
 
       {/* Right Sidebar — OSM Infrastructure Panel (owns its own header + collapse button) */}
-      <div className={`flex flex-shrink-0 justify-end overflow-hidden border-l border-black/15 bg-white transition-[width] duration-300 ease-out ${rightSidebarCollapsed ? 'w-14' : 'w-72'}`}>
+      <div data-tour="osm-panel" className={`flex flex-shrink-0 justify-end overflow-hidden border-l border-black/15 bg-white transition-[width] duration-300 ease-out ${rightSidebarCollapsed ? 'w-14' : 'w-72'}`}>
         <OsmInfrastructurePanel
           collapsed={rightSidebarCollapsed}
           onToggleCollapse={() => setRightSidebarCollapsed(c => !c)}

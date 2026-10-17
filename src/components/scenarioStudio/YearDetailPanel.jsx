@@ -11,6 +11,7 @@ import { FiX, FiCalendar, FiTrash2, FiArrowRight } from '../ui/icons';
 import ReactECharts from 'echarts-for-react';
 import { summarizeYearOps } from '../../services/scenarioStudio/scenario.js';
 import { extractDemandSeries } from '../../services/scenarioStudio/recipeParams.js';
+import { iconBtn, ICON_PX } from '../ui/iconButton';
 
 // renewable_min carries an object { share, techs }; everything else is a scalar.
 function fmtConstraint(kind, v) {
@@ -62,8 +63,8 @@ export default function YearDetailPanel({
             {prevYear != null ? <>compared with <span className="font-medium text-slate-500">{prevYear}</span></> : 'first year — baseline'}
           </div>
         </div>
-        <button onClick={onDelete} className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600" title="Remove year">
-          <FiTrash2 size={14} />
+        <button onClick={onDelete} className={`${iconBtn('delete', 'md')}`} title="Remove year">
+          <FiTrash2 size={ICON_PX.md} />
         </button>
         <button onClick={onClose} aria-label="Close" className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700">
           <FiX size={16} />

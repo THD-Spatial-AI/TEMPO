@@ -4,6 +4,7 @@
 import { FiActivity, FiLink, FiMapPin } from '../ui/icons';
 import { LuPanelLeftClose, LuPanelLeftOpen } from '../ui/icons';
 import EntityListsPanel from '../shared/EntityListsPanel';
+import ModeGuide from './ModeGuide';
 
 const MODES = [
   { id: 'add', label: 'Location', icon: FiMapPin, hint: 'Click the map to drop a location' },
@@ -81,7 +82,7 @@ export default function CreationSidebar({
           <div className="flex min-h-0 flex-1 flex-col" style={{ animation: 'panelContentIn 0.15s ease-out 0.25s both' }}>
             {/* Mode Selection */}
             <div className="px-4 py-3 border-b border-black/15">
-              <div className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1">
+              <div className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1" data-tour="creation-modes">
                 {MODES.map(({ id, label, icon: Icon }) => (
                   <button
                     key={id}
@@ -96,9 +97,12 @@ export default function CreationSidebar({
                   </button>
                 ))}
               </div>
-              <p className="mt-2 px-0.5 text-[11px] leading-snug text-slate-500">
-                {activeMode ? activeMode.hint : 'Pick a mode to start editing the map'}
-              </p>
+              <div className="mt-2 flex items-start justify-between gap-2 px-0.5">
+                <p className="pt-1 text-[11px] leading-snug text-slate-500">
+                  {activeMode ? activeMode.hint : 'Pick a mode to start editing the map'}
+                </p>
+                <ModeGuide />
+              </div>
             </div>
 
             {/* Shared Locations + Links lists */}

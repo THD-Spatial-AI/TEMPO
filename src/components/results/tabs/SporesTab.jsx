@@ -8,6 +8,7 @@ import ReactECharts from 'echarts-for-react';
 import { GroupedCorrMatrixSVG, ResultsMap } from '../ResultMaps';
 import { autoScale, axisNameStyle, fmtCost, fmtPower, makeIsGenTech, techColor } from '../../../utils/resultFormat';
 import SporesPaperPanel from '../SporesPaperPanel';
+import SelectField from '../../ui/SelectField';
 
 export default function SporesTab({
   result,
@@ -402,23 +403,23 @@ export default function SporesTab({
                     <div className="flex gap-3 mb-3">
                       <div className="flex-1">
                         <label className="block text-[0.6875rem] text-black/60 mb-1 font-bold uppercase tracking-widest">X-axis technology</label>
-                        <select
+                        <SelectField
                           value={scatterTechA}
                           onChange={e => setSporeScatterA(e.target.value)}
                           className="w-full text-xs border border-black/15 rounded-lg px-2 py-1.5 bg-white text-slate-700"
                         >
                           {activeTechs.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
-                        </select>
+                        </SelectField>
                       </div>
                       <div className="flex-1">
                         <label className="block text-[0.6875rem] text-black/60 mb-1 font-bold uppercase tracking-widest">Y-axis technology</label>
-                        <select
+                        <SelectField
                           value={scatterTechB}
                           onChange={e => setSporeScatterB(e.target.value)}
                           className="w-full text-xs border border-black/15 rounded-lg px-2 py-1.5 bg-white text-slate-700"
                         >
                           {activeTechs.filter(t => t !== scatterTechA).map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
-                        </select>
+                        </SelectField>
                       </div>
                     </div>
                     <ReactECharts option={pairScatterOption} style={{ height: 320 }} />
@@ -446,7 +447,7 @@ export default function SporesTab({
                       </h3>
                       <div className="flex items-center gap-3 mb-3">
                         <label className="text-xs text-slate-500 shrink-0">Solution:</label>
-                        <select
+                        <SelectField
                           value={safeSpore}
                           onChange={e => setSelectedSpore(+e.target.value)}
                           className="text-xs border border-black/15 rounded-lg px-2 py-1.5 bg-white text-slate-700"
@@ -457,7 +458,7 @@ export default function SporesTab({
                               {s.cost != null ? ` · ${fmtCost(s.cost)}` : ''}
                             </option>
                           ))}
-                        </select>
+                        </SelectField>
                       </div>
                       <ResultsMap
                         key={safeSpore}

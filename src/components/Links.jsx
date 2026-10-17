@@ -7,6 +7,9 @@ import SortHeader from './ui/SortHeader';
 import { nextSort, compareValues } from '../utils/sorting';
 import { LINK_TYPES, LINK_TYPES_BY_GROUP, getLinkTypeColor } from "../config/linkTypes";
 import { CARRIERS, getCarrierColor, getCarrierLabel } from "../config/carriers";
+import { confirmAction } from './ui/confirm';
+import SelectField from './ui/SelectField';
+import { iconBtn, ICON_PX } from './ui/iconButton';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -33,10 +36,10 @@ function CarrierBadge({ carrierId }) {
   );
 }
 
-/** Grouped link-type <select> */
+/** Grouped link-type <SelectField> */
 function LinkTypeSelect({ value, onChange, className = '' }) {
   return (
-    <select value={value} onChange={onChange} className={className}>
+    <SelectField value={value} onChange={onChange} className={className}>
       <option value="">— Select link type —</option>
       {Object.entries(LINK_TYPES_BY_GROUP).map(([group, types]) => (
         <optgroup key={group} label={group}>
@@ -47,13 +50,12 @@ function LinkTypeSelect({ value, onChange, className = '' }) {
           ))}
         </optgroup>
       ))}
-    </select>
+    </SelectField>
   );
 }
 
 const Links = () => {
-  const { links, setLinks, locations, getCurrentModel } = useData();
-  const currentModel = getCurrentModel();
+  const { links, setLinks, locations } = useData();
 
   const [editingIndex, setEditingIndex] = useState(null);
   const [editData, setEditData]         = useState({});
@@ -137,8 +139,8 @@ const Links = () => {
     setEditData({});
   };
 
-  const deleteLink = (index) => {
-    if (window.confirm('Are you sure you want to delete this link?')) {
+  const deleteLink = async (index) => {
+    if (await confirmAction({ title: 'Delete this link?', message: 'The connection and its transmission settings will be removed.', details: `${links[index]?.from} → ${links[index]?.to}` })) {
       setLinks(links.filter((_, i) => i !== index));
     }
   };
@@ -165,24 +167,15 @@ const Links = () => {
 
   return (
     <div className="flex-1 flex flex-col bg-gray-50 min-h-0">
-      <SaveBar label="Links" />
       <div className="flex-1 overflow-y-auto">
       <div className="w-full px-8 py-8">
       {/* Header */}
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black tracking-tighter text-black">Links</h1>
-          <p className="mt-1 max-w-2xl text-[15px] text-slate-500">
-            Manage connections between locations. Each link carries an energy carrier
-            (electricity, heat, hydrogen, gas, CO₂ …).
-          </p>
+          <h1 className="text-2xl font-bold text-slate-900">Links</h1>
+          <p className="mt-1 text-sm text-slate-500">Connections between locations, each carrying an energy carrier such as electricity, heat, hydrogen or gas.</p>
         </div>
-        {currentModel && (
-          <span className="inline-flex items-center gap-2 border border-black/15 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 ">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-            {currentModel.name}
-          </span>
-        )}
+        <SaveBar label="Links" inline />
       </div>
 
       {links.length > 0 && (
@@ -279,29 +272,29 @@ const Links = () => {
                         <>
                           <td className="px-5 py-3">
                             <div className="flex items-center gap-2">
-                              <select value={editData.from} onChange={e => setEditData({ ...editData, from: e.target.value })}
+                              <SelectField value={editData.from} onChange={e => setEditData({ ...editData, from: e.target.value })}
                                 className="h-8 w-full rounded-lg border border-black/15 bg-white px-2 text-xs focus:outline-none focus:ring-2 focus:ring-slate-200">
                                 <option value="">From…</option>
                                 {locations.map((loc, i) => <option key={i} value={loc.name}>{loc.name}</option>)}
-                              </select>
+                              </SelectField>
                               <LuArrowRight size={14} className="shrink-0 text-slate-400" />
-                              <select value={editData.to} onChange={e => setEditData({ ...editData, to: e.target.value })}
+                              <SelectField value={editData.to} onChange={e => setEditData({ ...editData, to: e.target.value })}
                                 className="h-8 w-full rounded-lg border border-black/15 bg-white px-2 text-xs focus:outline-none focus:ring-2 focus:ring-slate-200">
                                 <option value="">To…</option>
                                 {locations.map((loc, i) => <option key={i} value={loc.name}>{loc.name}</option>)}
-                              </select>
+                              </SelectField>
                             </div>
                           </td>
                           <td className="px-5 py-3" style={{ minWidth: 220 }}>
                             <div className="space-y-1.5">
                               <LinkTypeSelect value={editData.linkType ?? ''} onChange={handleEditLinkTypeChange}
                                 className="h-8 w-full rounded-lg border border-black/15 bg-white px-2 text-xs focus:outline-none focus:ring-2 focus:ring-slate-200" />
-                              <select value={editData.carrier ?? carrier} onChange={e => setEditData({ ...editData, carrier: e.target.value })}
+                              <SelectField value={editData.carrier ?? carrier} onChange={e => setEditData({ ...editData, carrier: e.target.value })}
                                 className="h-8 w-full rounded-lg border border-black/15 bg-white px-2 text-xs focus:outline-none focus:ring-2 focus:ring-slate-200">
                                 {Object.values(CARRIERS).map(c => (
                                   <option key={c.id} value={c.id}>{c.icon} {c.label}</option>
                                 ))}
-                              </select>
+                              </SelectField>
                             </div>
                           </td>
                           <td className="px-5 py-3 text-right">
@@ -340,11 +333,11 @@ const Links = () => {
                           <td className="px-5 py-3 text-right font-mono text-xs text-slate-600">{link.capacity ?? '—'}</td>
                           <td className="px-5 py-3 text-right font-mono text-xs text-slate-600">{link.distance != null ? `${link.distance} km` : '—'}</td>
                           <td className="px-5 py-3">
-                            <div className="flex justify-end gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+                            <div className="flex justify-end gap-0.5">
                               <button onClick={() => startEdit(index)} title="Edit link"
-                                className="grid h-7 w-7 place-items-center rounded-md text-slate-400 transition-colors hover:bg-slate-200/70 hover:text-slate-900"><LuPencil size={14}/></button>
+                                className={`${iconBtn('edit', 'md')}`}><LuPencil size={ICON_PX.md}/></button>
                               <button onClick={() => deleteLink(index)} title="Delete link"
-                                className="grid h-7 w-7 place-items-center rounded-md text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"><LuTrash2 size={14}/></button>
+                                className={`${iconBtn('delete', 'md')}`}><LuTrash2 size={ICON_PX.md}/></button>
                             </div>
                           </td>
                         </>
@@ -380,18 +373,18 @@ const Links = () => {
               <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2">
                 <div>
                   <label className="mb-1.5 block text-xs font-medium text-slate-700">From</label>
-                  <select value={newLink.from} onChange={e => setNewLink({ ...newLink, from: e.target.value })} className="h-10 w-full rounded-lg border border-black/15 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200">
+                  <SelectField value={newLink.from} onChange={e => setNewLink({ ...newLink, from: e.target.value })} className="h-10 w-full rounded-lg border border-black/15 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200">
                     <option value="">Select…</option>
                     {locations.map((loc, i) => <option key={i} value={loc.name}>{loc.name}</option>)}
-                  </select>
+                  </SelectField>
                 </div>
                 <LuArrowRight size={16} className="mb-3 text-slate-400" />
                 <div>
                   <label className="mb-1.5 block text-xs font-medium text-slate-700">To</label>
-                  <select value={newLink.to} onChange={e => setNewLink({ ...newLink, to: e.target.value })} className="h-10 w-full rounded-lg border border-black/15 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200">
+                  <SelectField value={newLink.to} onChange={e => setNewLink({ ...newLink, to: e.target.value })} className="h-10 w-full rounded-lg border border-black/15 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200">
                     <option value="">Select…</option>
                     {locations.map((loc, i) => <option key={i} value={loc.name}>{loc.name}</option>)}
-                  </select>
+                  </SelectField>
                 </div>
               </div>
 
@@ -412,11 +405,11 @@ const Links = () => {
                   Carrier <span className="font-normal text-slate-400">· auto-set from type, override if needed</span>
                 </label>
                 <div className="flex items-center gap-2">
-                  <select value={newLink.carrier} onChange={e => setNewLink({ ...newLink, carrier: e.target.value })} className="h-10 w-full rounded-lg border border-black/15 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200">
+                  <SelectField value={newLink.carrier} onChange={e => setNewLink({ ...newLink, carrier: e.target.value })} className="h-10 w-full rounded-lg border border-black/15 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200">
                     {Object.values(CARRIERS).map(c => (
                       <option key={c.id} value={c.id}>{c.icon}  {c.label}</option>
                     ))}
-                  </select>
+                  </SelectField>
                   {newLink.carrier && (
                     <span className="h-5 w-5 shrink-0 rounded-full ring-2 ring-white shadow"
                       style={{ backgroundColor: getCarrierColor(newLink.carrier) }} />
