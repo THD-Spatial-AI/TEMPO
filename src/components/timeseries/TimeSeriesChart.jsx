@@ -1,7 +1,8 @@
 // TimeSeriesChart — interactive ECharts chart + drag-to-edit popup.
 // Extracted verbatim from TimeSeries.jsx; chart state/refs/handlers passed as props.
 import { FiActivity, FiBarChart2 } from '../ui/icons';
-import ReactECharts from 'echarts-for-react';
+import ReactECharts from '../ui/Chart';
+import { tr } from '../../i18n';
 
 export default function TimeSeriesChart({
   filteredData,
@@ -25,7 +26,7 @@ export default function TimeSeriesChart({
                     <div className="flex items-center justify-between mb-2">
                       <h3 className="text-xs font-bold text-slate-800 flex items-center gap-1">
                         <FiBarChart2 size={12} />
-                        Chart
+                        {tr("Chart")}
                       </h3>
                       
                       <div className="flex gap-1">
@@ -37,7 +38,7 @@ export default function TimeSeriesChart({
                               : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                           }`}
                         >
-                          Line
+                          {tr("Line")}
                         </button>
                         <button
                           onClick={() => setChartType('bar')}
@@ -47,7 +48,7 @@ export default function TimeSeriesChart({
                               : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                           }`}
                         >
-                          Bar
+                          {tr("Bar")}
                         </button>
                         <button
                           onClick={() => setChartType('scatter')}
@@ -57,7 +58,7 @@ export default function TimeSeriesChart({
                               : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                           }`}
                         >
-                          Scatter
+                          {tr("Scatter")}
                         </button>
                       </div>
                     </div>
@@ -65,7 +66,7 @@ export default function TimeSeriesChart({
                     {selectedColumns.length === 0 ? (
                       <div className="text-center py-8 text-slate-400">
                         <FiActivity className="mx-auto mb-2 text-3xl" />
-                        <p className="text-xs">Select at least one column to display</p>
+                        <p className="text-xs">{tr("Select at least one column to display")}</p>
                       </div>
                     ) : (
                       <div className="flex-1 min-h-0 relative">
@@ -236,13 +237,13 @@ export default function TimeSeriesChart({
                                 }}
                                 className="flex-1 px-2 py-1 text-[10px] bg-black text-white rounded hover:bg-black/80 transition-colors font-bold uppercase tracking-wide"
                               >
-                                Apply
+                                {tr("Apply")}
                               </button>
                               <button
                                 onClick={() => setEditPopup(null)}
                                 className="flex-1 px-2 py-1 text-[10px] bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors font-medium"
                               >
-                                Cancel
+                                {tr("Cancel")}
                               </button>
                             </div>
                           </div>

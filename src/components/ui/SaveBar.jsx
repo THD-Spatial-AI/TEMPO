@@ -12,8 +12,11 @@ import React, { useState, useEffect } from 'react';
 import { FiCheck, FiAlertCircle } from './icons';
 import { LuSave, LuRefreshCw } from './icons';
 import { useData } from '../../context/DataContext';
+import { useT, locale } from '../../i18n';
+import { tr } from '../../i18n';
 
-const SaveBar = ({ label = 'Model', inline = false }) => {
+const SaveBar = ({ label = tr("Model"), inline = false }) => {
+  const t = useT();
   const { isDirty, saveNow, getCurrentModel, showNotification } = useData();
   const [saving, setSaving]     = useState(false);
   const [justSaved, setJustSaved] = useState(false);
@@ -30,7 +33,7 @@ const SaveBar = ({ label = 'Model', inline = false }) => {
   const handleSave = () => {
     setSaving(true);
     saveNow();
-    showNotification(`${label} saved successfully.`, 'success');
+    showNotification(t('save.savedNotice', { label }), 'success');
     setTimeout(() => {
       setSaving(false);
       setJustSaved(true);
@@ -39,7 +42,7 @@ const SaveBar = ({ label = 'Model', inline = false }) => {
 
   /* ── colour theme ── */
   const dirty = isDirty && !saving;
-  const savedAt = currentModel?.updatedAt ? new Date(currentModel.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null;
+  const savedAt = currentModel?.updatedAt ? new Date(currentModel.updatedAt).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' }) : null;
 
   // Compact variant for page headers: status + Save button, no full-width strip.
   if (inline) {
@@ -55,19 +58,19 @@ const SaveBar = ({ label = 'Model', inline = false }) => {
             <FiCheck size={13} className={justSaved ? 'text-emerald-600' : 'text-slate-400'} />
           )}
           <span className={dirty ? 'font-medium text-slate-800' : ''}>
-            {dirty ? 'Unsaved changes' : justSaved ? 'Saved' : savedAt ? `Saved ${savedAt}` : 'All changes saved'}
+            {dirty ? t('save.unsaved') : justSaved ? t('save.saved') : savedAt ? t('save.savedAt', { time: savedAt }) : t('save.allSaved')}
           </span>
         </span>
         <button
           onClick={handleSave}
           disabled={saving}
-          title="Save model now (Ctrl+S)"
+          title={t('save.tooltip')}
           className={`inline-flex h-9 shrink-0 items-center gap-2 px-4 text-[13px] font-semibold transition-colors disabled:opacity-60 ${
             dirty ? 'bg-black text-white hover:bg-black/80' : 'border border-black/15 bg-white text-slate-600 hover:bg-slate-100'
           }`}
         >
           {saving ? <LuRefreshCw size={15} className="animate-spin" /> : <LuSave size={15} />}
-          {saving ? 'Saving…' : 'Save'}
+          {saving ? t('save.saving') : t('save.save')}
         </button>
       </div>
     );
@@ -91,9 +94,9 @@ const SaveBar = ({ label = 'Model', inline = false }) => {
       {/* ── Label ── */}
       <span className={`text-xs font-medium flex-1 ${text}`}>
         {dirty
-          ? `${label} — unsaved changes`
+          ? tr("{0} — unsaved changes", { 0: label })
           : justSaved
-            ? `${label} — saved`
+            ? tr("{0} — saved", { 0: label })
             : currentModel
               ? `${label} — ${currentModel.name}`
               : label}
@@ -102,7 +105,7 @@ const SaveBar = ({ label = 'Model', inline = false }) => {
       {/* ── Date hint ── */}
       {currentModel?.updatedAt && !dirty && (
         <span className="text-xs text-slate-400 hidden sm:block">
-          Last saved {new Date(currentModel.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          {tr("Last saved")} {new Date(currentModel.updatedAt).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' })}
         </span>
       )}
 
@@ -110,7 +113,7 @@ const SaveBar = ({ label = 'Model', inline = false }) => {
       <button
         onClick={handleSave}
         disabled={saving}
-        title="Save model now (Ctrl+S)"
+        title={tr("Save model now (Ctrl+S)")}
         className={`inline-flex h-9 items-center gap-2 px-4 rounded-lg text-[13px] font-semibold
                    transition-all disabled:opacity-60 shrink-0
                    ${dirty
@@ -121,7 +124,7 @@ const SaveBar = ({ label = 'Model', inline = false }) => {
         {saving
           ? <LuRefreshCw size={15} className="animate-spin" />
           : <LuSave size={15} />}
-        {saving ? 'Saving…' : 'Save'}
+        {saving ? tr("Saving…") : tr("Save")}
       </button>
     </div>
   );

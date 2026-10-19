@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useData } from '../context/DataContext';
-import ReactECharts from 'echarts-for-react';
+import ReactECharts from './ui/Chart';
 import {
   FiSearch, FiBarChart2, FiGrid, FiTrendingUp, FiZap,
   FiDollarSign, FiSliders, FiLayers, FiInfo, FiCheckSquare,
@@ -8,6 +8,7 @@ import {
 } from './ui/icons';
 import { RegionChoropleth } from './results/ResultMaps';
 import SelectField from './ui/SelectField';
+import { tr, locale } from '../i18n';
 
 // ─── Qualitative colour palette (20 perceptually-distinct colours) ────────────
 const PALETTE = [
@@ -39,13 +40,13 @@ function isRenewable(techName, techMeta) {
 
 // ─── Tech classification groups (for filter bar) ──────────────────────────
 const COMPARE_TECH_GROUPS = [
-  { id: 'gen',     label: 'Generation',    color: '#f59e0b',  match: (b) => /solar|\bpv\b|wind|hydro|biomass|coal|gas|nuclear|geotherm|csp|ccgt|ocgt|diesel|oil/i.test(b) },
-  { id: 'stor',    label: 'Storage',       color: '#8b5cf6',  match: (b) => /bat(ter)?|storage|pumped|embalse/i.test(b) },
-  { id: 'demand',  label: 'Demand',        color: '#ef4444',  match: (b) => /\bdemand\b|\bload\b/i.test(b) },
-  { id: 'tx',      label: 'Links',         color: '#0ea5e9',  match: (b) => b.includes(':') },
-  { id: 'conv',    label: 'Conversion',    color: '#10b981',  match: (b) => /heat.?pump|boiler|chp|methan|convert/i.test(b) },
-  { id: 'h2',      label: 'Hydrogen',      color: '#7c3aed',  match: (b) => /\bh2\b|hydrogen|electrolys|fuel.?cell/i.test(b) },
-  { id: 'other',   label: 'Other',         color: '#64748b',  match: () => true },
+  { id: 'gen',     label: tr("Generation"),    color: '#f59e0b',  match: (b) => /solar|\bpv\b|wind|hydro|biomass|coal|gas|nuclear|geotherm|csp|ccgt|ocgt|diesel|oil/i.test(b) },
+  { id: 'stor',    label: tr("Storage"),       color: '#8b5cf6',  match: (b) => /bat(ter)?|storage|pumped|embalse/i.test(b) },
+  { id: 'demand',  label: tr("Demand"),        color: '#ef4444',  match: (b) => /\bdemand\b|\bload\b/i.test(b) },
+  { id: 'tx',      label: tr("Links"),         color: '#0ea5e9',  match: (b) => b.includes(':') },
+  { id: 'conv',    label: tr("Conversion"),    color: '#10b981',  match: (b) => /heat.?pump|boiler|chp|methan|convert/i.test(b) },
+  { id: 'h2',      label: tr("Hydrogen"),      color: '#7c3aed',  match: (b) => /\bh2\b|hydrogen|electrolys|fuel.?cell/i.test(b) },
+  { id: 'other',   label: tr("Other"),         color: '#64748b',  match: () => true },
 ];
 function classifyCompareTech(t) {
   if (t.includes(':')) return 'tx';
@@ -279,19 +280,19 @@ function buildParallelOption(kpisPerJob, colorMap) {
 
 // ─── Build scatter-plot ECharts option ────────────────────────────────────
 const SCATTER_METRICS = [
-  { key: 'renewableShare',   label: 'Renewable Gen. Share (%)', scale: 100 },
-  { key: 'renewableCapShare', label: 'Renewable Cap. Share (%)', scale: 100 },
-  { key: 'totalCost',        label: 'System Cost (€)',          scale: 1 },
-  { key: 'totalCap',         label: 'Total Capacity (MW)',      scale: 1 },
-  { key: 'totalGen',         label: 'Total Generation (MWh)',   scale: 1 },
-  { key: 'lcoe',             label: 'LCOE (€/MWh)',             scale: 1 },
-  { key: 'avgCF',            label: 'Avg Cap. Factor (%)',      scale: 100 },
-  { key: 'costPerMW',        label: 'Cost per MW (€/MW)',       scale: 1 },
-  { key: 'totalUnmetMWh',   label: 'Unmet Demand (MWh)',       scale: 1 },
-  { key: 'totalImportsMWh', label: 'Net Imports (MWh)',        scale: 1 },
-  { key: 'locationCount',    label: 'Locations',                scale: 1 },
-  { key: 'techCount',        label: 'Technologies',             scale: 1 },
-  { key: 'timestepCount',    label: 'Timesteps',                scale: 1 },
+  { key: 'renewableShare',   label: tr("Renewable Gen. Share (%)"), scale: 100 },
+  { key: 'renewableCapShare', label: tr("Renewable Cap. Share (%)"), scale: 100 },
+  { key: 'totalCost',        label: tr("System Cost (€)"),          scale: 1 },
+  { key: 'totalCap',         label: tr("Total Capacity (MW)"),      scale: 1 },
+  { key: 'totalGen',         label: tr("Total Generation (MWh)"),   scale: 1 },
+  { key: 'lcoe',             label: tr("LCOE (€/MWh)"),             scale: 1 },
+  { key: 'avgCF',            label: tr("Avg Cap. Factor (%)"),      scale: 100 },
+  { key: 'costPerMW',        label: tr("Cost per MW (€/MW)"),       scale: 1 },
+  { key: 'totalUnmetMWh',   label: tr("Unmet Demand (MWh)"),       scale: 1 },
+  { key: 'totalImportsMWh', label: tr("Net Imports (MWh)"),        scale: 1 },
+  { key: 'locationCount',    label: tr("Locations"),                scale: 1 },
+  { key: 'techCount',        label: tr("Technologies"),             scale: 1 },
+  { key: 'timestepCount',    label: tr("Timesteps"),                scale: 1 },
 ];
 
 function buildScatterOption(kpisPerJob, colorMap, xKey, yKey) {
@@ -365,55 +366,55 @@ function buildScatterOption(kpisPerJob, colorMap, xKey, yKey) {
 
 // ─── KPI table row definitions ─────────────────────────────────────────────
 const KPI_ROWS = [
-  { key: 'totalCap',        label: 'Total Capacity',          fmt: v => fmtNum(v) + ' MW',  best: 'none' },
-  { key: 'totalGen',        label: 'Total Generation',        fmt: v => fmtNum(v) + ' MWh', best: 'none' },
-  { key: 'totalCost',       label: 'System Cost',             fmt: v => '€\u202f' + fmtNum(v), best: 'min' },
-  { key: 'renewableShare',  label: 'Renewable Gen. Share',    fmt: v => (v * 100).toFixed(1) + '%', best: 'max' },
-  { key: 'renewableCapShare', label: 'Renewable Cap. Share',  fmt: v => (v * 100).toFixed(1) + '%', best: 'max' },
-  { key: 'lcoe',            label: 'LCOE',                    fmt: v => '€\u202f' + fmtNum(v) + '/MWh', best: 'min' },
-  { key: 'avgCF',           label: 'Avg Cap. Factor',         fmt: v => (v * 100).toFixed(1) + '%', best: 'max' },
-  { key: 'costPerMW',       label: 'Cost per MW',             fmt: v => '€\u202f' + fmtNum(v) + '/MW', best: 'min' },
-  { key: 'totalUnmetMWh',  label: 'Unmet Demand',            fmt: v => v > 0 ? fmtNum(v) + ' MWh' : '—', best: 'min' },
-  { key: 'totalImportsMWh',label: 'Net Imports',             fmt: v => v > 0 ? fmtNum(v) + ' MWh' : '—', best: 'none' },
-  { key: 'locationCount',   label: 'Locations',               fmt: v => v.toLocaleString(), best: 'none' },
-  { key: 'techCount',       label: 'Technologies',            fmt: v => String(v), best: 'none' },
-  { key: 'timestepCount',   label: 'Timesteps',               fmt: v => v.toLocaleString(), best: 'none' },
+  { key: 'totalCap',        label: tr("Total Capacity"),          fmt: v => fmtNum(v) + ' MW',  best: 'none' },
+  { key: 'totalGen',        label: tr("Total Generation"),        fmt: v => fmtNum(v) + ' MWh', best: 'none' },
+  { key: 'totalCost',       label: tr("System Cost"),             fmt: v => '€\u202f' + fmtNum(v), best: 'min' },
+  { key: 'renewableShare',  label: tr("Renewable Gen. Share"),    fmt: v => (v * 100).toFixed(1) + '%', best: 'max' },
+  { key: 'renewableCapShare', label: tr("Renewable Cap. Share"),  fmt: v => (v * 100).toFixed(1) + '%', best: 'max' },
+  { key: 'lcoe',            label: tr("LCOE"),                    fmt: v => '€\u202f' + fmtNum(v) + '/MWh', best: 'min' },
+  { key: 'avgCF',           label: tr("Avg Cap. Factor"),         fmt: v => (v * 100).toFixed(1) + '%', best: 'max' },
+  { key: 'costPerMW',       label: tr("Cost per MW"),             fmt: v => '€\u202f' + fmtNum(v) + '/MW', best: 'min' },
+  { key: 'totalUnmetMWh',  label: tr("Unmet Demand"),            fmt: v => v > 0 ? fmtNum(v) + ' MWh' : '—', best: 'min' },
+  { key: 'totalImportsMWh',label: tr("Net Imports"),             fmt: v => v > 0 ? fmtNum(v) + ' MWh' : '—', best: 'none' },
+  { key: 'locationCount',   label: tr("Locations"),               fmt: v => v.toLocaleString(), best: 'none' },
+  { key: 'techCount',       label: tr("Technologies"),            fmt: v => String(v), best: 'none' },
+  { key: 'timestepCount',   label: tr("Timesteps"),               fmt: v => v.toLocaleString(), best: 'none' },
 ];
 
 // ─── Chart-view tabs ───────────────────────────────────────────────────────
 const CHART_VIEWS = [
-  { id: 'table',    label: 'Summary',    icon: FiGrid },
-  { id: 'maps',     label: 'Maps',       icon: FiMap },
-  { id: 'capacity', label: 'Capacity',   icon: FiBarChart2 },
-  { id: 'gen',      label: 'Generation', icon: FiZap },
-  { id: 'costs',    label: 'Costs',      icon: FiDollarSign },
-  { id: 'parallel', label: 'Parallel',   icon: FiTrendingUp },
-  { id: 'scatter',  label: 'Scatter',    icon: FiSliders },
-  { id: 'maps',     label: 'Maps',       icon: FiMap },
+  { id: 'table',    label: tr("Summary"),    icon: FiGrid },
+  { id: 'maps',     label: tr("Maps"),       icon: FiMap },
+  { id: 'capacity', label: tr("Capacity"),   icon: FiBarChart2 },
+  { id: 'gen',      label: tr("Generation"), icon: FiZap },
+  { id: 'costs',    label: tr("Costs"),      icon: FiDollarSign },
+  { id: 'parallel', label: tr("Parallel"),   icon: FiTrendingUp },
+  { id: 'scatter',  label: tr("Scatter"),    icon: FiSliders },
+  { id: 'maps',     label: tr("Maps"),       icon: FiMap },
 ];
 
 // ─── Choropleth metric options ─────────────────────────────────────────────
 const CHORO_MAP_OPTIONS = [
-  { id: 'demand',    label: 'Demand (MWh)',      ramp: 'blue',  fmt: v => { const n = Math.abs(Number(v)); if (n >= 1e6) return (n/1e6).toFixed(1)+'G'; if (n >= 1e3) return (n/1e3).toFixed(1)+'k'; return n.toFixed(0); } },
-  { id: 'unmet',     label: 'Unmet Demand (MWh)',ramp: 'amber', fmt: v => { const n = Math.abs(Number(v)); if (n >= 1e6) return (n/1e6).toFixed(1)+'G'; if (n >= 1e3) return (n/1e3).toFixed(1)+'k'; return n.toFixed(0); } },
-  { id: 'demandMet', label: 'Demand Met (%)',    ramp: 'green', fmt: v => Number(v).toFixed(1) + '%' },
+  { id: 'demand',    label: tr("Demand (MWh)"),      ramp: 'blue',  fmt: v => { const n = Math.abs(Number(v)); if (n >= 1e6) return (n/1e6).toFixed(1)+'G'; if (n >= 1e3) return (n/1e3).toFixed(1)+'k'; return n.toFixed(0); } },
+  { id: 'unmet',     label: tr("Unmet Demand (MWh)"),ramp: 'amber', fmt: v => { const n = Math.abs(Number(v)); if (n >= 1e6) return (n/1e6).toFixed(1)+'G'; if (n >= 1e3) return (n/1e3).toFixed(1)+'k'; return n.toFixed(0); } },
+  { id: 'demandMet', label: tr("Demand Met (%)"),    ramp: 'green', fmt: v => Number(v).toFixed(1) + '%' },
 ];
 
 // Shared metric options for the side-by-side region maps
 const MAP_METRICS = [
-  { key: 'demand',    label: 'Demand' },
-  { key: 'unmet',     label: 'Unmet demand' },
-  { key: 'demandMet', label: 'Demand met' },
+  { key: 'demand',    label: tr("Demand") },
+  { key: 'unmet',     label: tr("Unmet demand") },
+  { key: 'demandMet', label: tr("Demand met") },
 ];
 const MAX_MAPS = 6; // WebGL contexts are costly — cap the small-multiples grid
 
 // Aggregate KPIs for the combined cross-region map (one value shades a whole region)
 const REGION_KPIS = [
-  { key: 'renewableShare', label: 'Renewable share', kind: 'pct', ramp: ['#d73027', '#fee08b', '#1a9850'] },
-  { key: 'renewableCapShare', label: 'Renewable cap.', kind: 'pct', ramp: ['#d73027', '#fee08b', '#1a9850'] },
-  { key: 'totalCost',      label: 'System cost',     kind: 'seq', ramp: ['#fff7ec', '#fdbb84', '#d7301f'], unit: '€' },
-  { key: 'lcoe',           label: 'LCOE',            kind: 'seq', ramp: ['#fff7ec', '#fdbb84', '#d7301f'], unit: '€/MWh' },
-  { key: 'unmetTotal',     label: 'Unmet demand',    kind: 'seq', ramp: ['#fff5f0', '#fb6a4a', '#a50f15'], unit: 'MWh' },
+  { key: 'renewableShare', label: tr("Renewable share"), kind: 'pct', ramp: ['#d73027', '#fee08b', '#1a9850'] },
+  { key: 'renewableCapShare', label: tr("Renewable cap."), kind: 'pct', ramp: ['#d73027', '#fee08b', '#1a9850'] },
+  { key: 'totalCost',      label: tr("System cost"),     kind: 'seq', ramp: ['#fff7ec', '#fdbb84', '#d7301f'], unit: '€' },
+  { key: 'lcoe',           label: tr("LCOE"),            kind: 'seq', ramp: ['#fff7ec', '#fdbb84', '#d7301f'], unit: '€/MWh' },
+  { key: 'unmetTotal',     label: tr("Unmet demand"),    kind: 'seq', ramp: ['#fff5f0', '#fb6a4a', '#a50f15'], unit: 'MWh' },
 ];
 
 // ─── CSV export ────────────────────────────────────────────────────────────
@@ -604,7 +605,7 @@ export default function ScenarioComparison() {
 
         <div className="px-3 pt-3 pb-2 border-b border-black/10 flex-shrink-0 space-y-2">
           <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-            Completed Runs
+            {tr("Completed Runs")}
           </p>
 
           {/* Search */}
@@ -614,7 +615,7 @@ export default function ScenarioComparison() {
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Filter…"
+              placeholder={tr("Filter…")}
               className="w-full pl-7 pr-2.5 py-1.5 text-xs rounded-lg bg-slate-50 border border-black/15 focus:outline-none focus:ring-1 focus:ring-gray-400"
             />
           </div>
@@ -623,17 +624,17 @@ export default function ScenarioComparison() {
           <div className="flex gap-1.5">
             <button onClick={selectAll}
               className="flex-1 text-[11px] py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 font-medium transition">
-              All
+              {tr("All")}
             </button>
             <button onClick={clearAll}
               className="flex-1 text-[11px] py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 font-medium transition">
-              None
+              {tr("None")}
             </button>
           </div>
 
           {selectedIds.size > 0 && (
             <p className="text-[11px] text-gray-700 font-semibold">
-              {selectedIds.size} run{selectedIds.size !== 1 ? 's' : ''} selected
+              {selectedIds.size} {tr("run")}{selectedIds.size !== 1 ? 's' : ''} {tr("selected")}
             </p>
           )}
         </div>
@@ -643,8 +644,8 @@ export default function ScenarioComparison() {
           {filteredJobs.length === 0 && (
             <p className="text-xs text-slate-400 text-center mt-8 px-3">
               {validJobs.length === 0
-                ? 'No completed runs. Run a model first.'
-                : 'No runs match the filter.'}
+                ? tr("No completed runs. Run a model first.")
+                : tr("No runs match the filter.")}
             </p>
           )}
           {filteredJobs.map((job) => {
@@ -667,7 +668,7 @@ export default function ScenarioComparison() {
                 <span className="flex-1 min-w-0">
                   <span className="block font-medium text-slate-700 truncate">{job.modelName}</span>
                   <span className="block text-slate-400 text-[10px]">
-                    {new Date(job.completedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' })}
+                    {new Date(job.completedAt).toLocaleDateString(locale(), { month: 'short', day: 'numeric', year: '2-digit' })}
                   </span>
                 </span>
                 {checked && color && (
@@ -685,9 +686,9 @@ export default function ScenarioComparison() {
         {selectedJobs.length === 0 ? (
           <div className="flex-1 bg-white rounded-2xl border border-black/15 shadow-sm flex flex-col items-center justify-center text-center p-12">
             <FiLayers size={44} className="text-slate-200 mb-4" />
-            <p className="text-slate-600 font-semibold text-lg mb-2">Select runs to compare</p>
+            <p className="text-slate-600 font-semibold text-lg mb-2">{tr("Select runs to compare")}</p>
             <p className="text-slate-400 text-sm max-w-xs leading-relaxed">
-              Pick two or more completed runs from the left panel.
+              {tr("Pick two or more completed runs from the left panel.")}
             </p>
           </div>
         ) : (
@@ -711,12 +712,12 @@ export default function ScenarioComparison() {
               {manySelected && chartView !== 'parallel' && chartView !== 'scatter' && chartView !== 'table' && (
                 <span className="flex items-center gap-1.5 text-gray-600 text-xs bg-gray-50 border border-black/15 px-2.5 py-1.5 rounded-lg">
                   <FiInfo size={12} />
-                  {selectedJobs.length} runs — <b>Parallel</b> or <b>Scatter</b> views scale better
+                  {selectedJobs.length} {tr("runs —")} <b>{tr("Parallel")}</b> {tr("or")} <b>{tr("Scatter")}</b> {tr("views scale better")}
                 </span>
               )}
               <button onClick={() => exportCSV(kpisPerJob)}
                 className="ml-auto flex items-center gap-1.5 px-3 py-1.5 border border-black/15 bg-white text-slate-600 rounded-xl hover:bg-slate-50 text-xs font-medium transition shadow-sm">
-                <FiDownload size={12} /> Export CSV
+                <FiDownload size={12} /> {tr("Export CSV")}
               </button>
             </div>
 
@@ -728,7 +729,7 @@ export default function ScenarioComparison() {
                     techFilter.size === 0
                       ? 'bg-black text-white'
                       : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                  }`}>All</button>
+                  }`}>{tr("All")}</button>
                 {activeGroups.map(grp => {
                   const gTechs = techsByGroup[grp.id] || [];
                   const allInGroup = techFilter.size === 0 || gTechs.every(t => techFilter.has(t));
@@ -762,15 +763,15 @@ export default function ScenarioComparison() {
                 <div className="h-full bg-white rounded-2xl border border-black/15 shadow-sm flex flex-col">
                   <div className="flex-shrink-0 px-4 py-3 border-b border-black/10 flex items-center gap-3">
                     <span className="font-semibold text-slate-800 text-sm">
-                      KPI Summary — {kpisPerJob.length} run{kpisPerJob.length !== 1 ? 's' : ''}
+                      {tr("KPI Summary —")} {kpisPerJob.length} {tr("run")}{kpisPerJob.length !== 1 ? 's' : ''}
                     </span>
-                    <span className="text-slate-400 text-xs">★ marks the best value per metric</span>
+                    <span className="text-slate-400 text-xs">{tr("★ marks the best value per metric")}</span>
                   </div>
                   <div className="flex-1 overflow-auto">
                     <table className="w-full text-xs">
                       <thead>
                         <tr className="bg-slate-50 border-b border-black/10 sticky top-0 z-10">
-                          <th className="text-left px-4 py-2.5 text-black/60 font-bold min-w-[160px] bg-slate-50 uppercase tracking-widest">Metric</th>
+                          <th className="text-left px-4 py-2.5 text-black/60 font-bold min-w-[160px] bg-slate-50 uppercase tracking-widest">{tr("Metric")}</th>
                           {kpisPerJob.map(({ job }, i) => (
                             <th key={job.id} className="px-3 py-2.5 text-left min-w-[130px] bg-slate-50 font-bold uppercase tracking-widest">
                               <span className="flex items-center gap-1.5">
@@ -781,7 +782,7 @@ export default function ScenarioComparison() {
                                 </span>
                               </span>
                               <span className="block text-[10px] text-slate-400 font-normal mt-0.5">
-                                {new Date(job.completedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                {new Date(job.completedAt).toLocaleDateString(locale(), { month: 'short', day: 'numeric' })}
                               </span>
                             </th>
                           ))}
@@ -822,14 +823,14 @@ export default function ScenarioComparison() {
                 <div className="h-full bg-white rounded-2xl border border-black/15 shadow-sm p-4 flex flex-col">
                   <div className="flex-shrink-0 mb-1">
                     <p className="font-semibold text-slate-800 text-sm">
-                      {chartView === 'capacity' && 'Installed Capacity by Technology'}
-                      {chartView === 'gen' && 'Generation Mix by Technology'}
-                      {chartView === 'costs' && 'System Cost by Technology'}
+                      {chartView === 'capacity' && tr("Installed Capacity by Technology")}
+                      {chartView === 'gen' && tr("Generation Mix by Technology")}
+                      {chartView === 'costs' && tr("System Cost by Technology")}
                     </p>
                     <p className="text-xs text-slate-400">
-                      {chartView === 'capacity' && 'Stacked bars · each segment = one technology · MW'}
-                      {chartView === 'gen' && 'Stacked bars · each segment = one technology · MWh/year'}
-                      {chartView === 'costs' && 'Stacked bars · annualised cost breakdown · €'}
+                      {chartView === 'capacity' && tr("Stacked bars · each segment = one technology · MW")}
+                      {chartView === 'gen' && tr("Stacked bars · each segment = one technology · MWh/year")}
+                      {chartView === 'costs' && tr("Stacked bars · annualised cost breakdown · €")}
                     </p>
                   </div>
                   <div className="flex-1 min-h-0">
@@ -845,12 +846,12 @@ export default function ScenarioComparison() {
               {chartView === 'parallel' && (
                 <div className="h-full bg-white rounded-2xl border border-black/15 shadow-sm p-4 flex flex-col">
                   <div className="flex-shrink-0 mb-1">
-                    <p className="font-semibold text-slate-800 text-sm">Parallel Coordinates</p>
-                    <p className="text-xs text-slate-400">One line per run · drag an axis band to filter</p>
+                    <p className="font-semibold text-slate-800 text-sm">{tr("Parallel Coordinates")}</p>
+                    <p className="text-xs text-slate-400">{tr("One line per run · drag an axis band to filter")}</p>
                   </div>
                   <div className="flex-1 min-h-0">
                     {kpisPerJob.length < 2 ? (
-                      <p className="text-slate-400 text-sm text-center py-14">Select at least 2 runs.</p>
+                      <p className="text-slate-400 text-sm text-center py-14">{tr("Select at least 2 runs.")}</p>
                     ) : (
                       <ReactECharts option={parallelOption} style={{ height: '100%' }} notMerge />
                     )}
@@ -862,8 +863,8 @@ export default function ScenarioComparison() {
                 <div className="h-full bg-white rounded-2xl border border-black/15 shadow-sm p-4 flex flex-col">
                   <div className="flex-shrink-0 flex items-center gap-4 mb-1 flex-wrap">
                     <div>
-                      <p className="font-semibold text-slate-800 text-sm">Scatter Plot</p>
-                      <p className="text-xs text-slate-400">Explore relationships between any two metrics</p>
+                      <p className="font-semibold text-slate-800 text-sm">{tr("Scatter Plot")}</p>
+                      <p className="text-xs text-slate-400">{tr("Explore relationships between any two metrics")}</p>
                     </div>
                     <div className="ml-auto flex items-center gap-3 flex-wrap">
                       <label className="flex items-center gap-1.5 text-xs text-slate-500">
@@ -884,7 +885,7 @@ export default function ScenarioComparison() {
                   </div>
                   <div className="flex-1 min-h-0">
                     {kpisPerJob.length < 2 ? (
-                      <p className="text-slate-400 text-sm text-center py-14">Select at least 2 runs.</p>
+                      <p className="text-slate-400 text-sm text-center py-14">{tr("Select at least 2 runs.")}</p>
                     ) : (
                       <ReactECharts option={scatterOption} style={{ height: '100%' }} notMerge />
                     )}
@@ -897,12 +898,12 @@ export default function ScenarioComparison() {
                   {/* Header + metric selector */}
                   <div className="flex-shrink-0 px-4 pt-3 pb-2 border-b border-black/10 flex items-center gap-3 flex-wrap">
                     <div>
-                      <p className="font-semibold text-slate-800 text-sm">Region Maps</p>
-                      <p className="text-xs text-slate-400">Side-by-side choropleth by commune</p>
+                      <p className="font-semibold text-slate-800 text-sm">{tr("Region Maps")}</p>
+                      <p className="text-xs text-slate-400">{tr("Side-by-side choropleth by commune")}</p>
                     </div>
                     {hasAnyChoro && (
                       <div className="ml-auto flex items-center gap-1.5">
-                        <span className="text-xs text-slate-500">Show:</span>
+                        <span className="text-xs text-slate-500">{tr("Show:")}</span>
                         {CHORO_MAP_OPTIONS.map(opt => (
                           <button key={opt.id} onClick={() => setMapMetric(opt.id)}
                             className={`px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide transition-all ${
@@ -920,8 +921,8 @@ export default function ScenarioComparison() {
                       <div className="h-full flex items-center justify-center text-slate-400 text-sm text-center px-8">
                         <div>
                           <FiMap size={32} className="mx-auto mb-3 opacity-30" />
-                          <p>No demand data available.</p>
-                          <p className="text-xs mt-1">Run models with the updated Calliope runner to see region maps.</p>
+                          <p>{tr("No demand data available.")}</p>
+                          <p className="text-xs mt-1">{tr("Run models with the updated Calliope runner to see region maps.")}</p>
                         </div>
                       </div>
                     ) : (

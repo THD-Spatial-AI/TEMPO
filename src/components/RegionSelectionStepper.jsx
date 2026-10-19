@@ -1,6 +1,7 @@
 import React from 'react';
 import { FiGlobe, FiMapPin, FiMap, FiLayers } from './ui/icons';
 import SelectField from './ui/SelectField';
+import { tr } from '../i18n';
 
 const RegionSelectionStepper = ({ 
   currentStep, 
@@ -21,44 +22,44 @@ const RegionSelectionStepper = ({
   const steps = [
     { 
       id: 1, 
-      title: 'Continent', 
+      title: tr("Continent"), 
       icon: FiGlobe,
       value: selectedContinent,
       options: availableContinents,
       onSelect: onContinentSelect,
-      placeholder: 'Choose a continent...',
+      placeholder: tr("Choose a continent..."),
       status: selectedContinent ? 'completed' : currentStep === 1 ? 'active' : 'pending'
     },
     { 
       id: 2, 
-      title: 'Country', 
+      title: tr("Country"), 
       icon: FiMapPin,
       value: selectedCountry,
       options: availableCountries,
       onSelect: onCountrySelect,
-      placeholder: 'Choose a country...',
+      placeholder: tr("Choose a country..."),
       status: selectedCountry ? 'completed' : currentStep === 2 ? 'active' : 'pending',
       disabled: !selectedContinent
     },
     { 
       id: 3, 
-      title: 'Region', 
+      title: tr("Region"), 
       icon: FiMap,
       value: selectedRegion,
       options: availableRegions,
       onSelect: onRegionSelect,
-      placeholder: 'Choose a region...',
+      placeholder: tr("Choose a region..."),
       status: selectedRegion ? 'completed' : currentStep === 3 ? 'active' : 'pending',
       disabled: !selectedCountry || availableRegions.length === 0
     },
     { 
       id: 4, 
-      title: 'Subregion', 
+      title: tr("Subregion"), 
       icon: FiLayers,
       value: selectedSubregion,
       options: availableSubregions,
       onSelect: onSubregionSelect,
-      placeholder: 'Choose a subregion...',
+      placeholder: tr("Choose a subregion..."),
       status: selectedSubregion ? 'completed' : currentStep === 4 ? 'active' : 'pending',
       disabled: !selectedRegion || availableSubregions.length === 0
     }
@@ -75,7 +76,7 @@ const RegionSelectionStepper = ({
   return (
     <div className="bg-white rounded-lg p-4 border border-black/15">
       <div className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-4">
-        Region Selection
+        {tr("Region Selection")}
       </div>
       
       {steps.map((step, index) => (
@@ -85,7 +86,7 @@ const RegionSelectionStepper = ({
             <button
               type="button"
               onClick={() => canGoBack(step.id) && onGoBackToStep && onGoBackToStep(step.id)}
-              title={canGoBack(step.id) ? `Go back to ${step.title}` : undefined}
+              title={canGoBack(step.id) ? tr("Go back to {0}", { 0: step.title }) : undefined}
               className={`uppercase tracking-wide font-bold 
                 w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 z-10
                 ${step.status === 'completed' ? 'bg-black text-white' : ''}
@@ -115,7 +116,7 @@ const RegionSelectionStepper = ({
               >
                 {step.title}
                 {canGoBack(step.id) && (
-                  <span className="text-xs text-slate-400 font-normal ml-1">(click to go back)</span>
+                  <span className="text-xs text-slate-400 font-normal ml-1">{tr("(click to go back)")}</span>
                 )}
               </div>
               
@@ -144,7 +145,7 @@ const RegionSelectionStepper = ({
               {/* Pending state message */}
               {step.status === 'pending' && (
                 <div className="text-xs text-slate-400 italic">
-                  Complete previous steps first
+                  {tr("Complete previous steps first")}
                 </div>
               )}
             </div>

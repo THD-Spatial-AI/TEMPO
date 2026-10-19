@@ -1,4 +1,5 @@
 import React from "react";
+import { tr } from '../i18n';
 
 /**
  * First-launch GDPR privacy notice modal.
@@ -38,47 +39,40 @@ const PrivacyDialog = ({ onAccept }) => {
             </svg>
           </span>
           <div>
-            <h2 className="text-xl font-black tracking-tighter text-black">Privacy Notice</h2>
-            <p className="text-[0.6875rem] font-bold uppercase tracking-widest text-black/60 mt-0.5">Please read before using TEMPO</p>
+            <h2 className="text-xl font-black tracking-tighter text-black">{tr("Privacy Notice")}</h2>
+            <p className="text-[0.6875rem] font-bold uppercase tracking-widest text-black/60 mt-0.5">{tr("Please read before using TEMPO")}</p>
           </div>
         </div>
 
         {/* Body */}
         <div className="px-6 py-5 space-y-4 text-sm text-slate-700">
           <p>
-            TEMPO (Tool for Energy Model Planning and Optimisation) stores your energy
-            system models <strong>locally on this device</strong> and does not transmit
-            personal data to any TEMPO servers.
+            {tr("TEMPO (Tool for Energy Model Planning and Optimisation) stores your energy system models")} <strong>{tr("locally on this device")}</strong> {tr("and does not transmit personal data to any TEMPO servers.")}
           </p>
 
           <div className="bg-surface-container-low border border-black/10 p-4 space-y-2 text-xs">
-            <p className="font-bold uppercase tracking-widest text-[10px] text-black">What data is processed:</p>
+            <p className="font-bold uppercase tracking-widest text-[10px] text-black">{tr("What data is processed:")}</p>
             <ul className="list-disc list-inside space-y-1 text-slate-600">
               <li>
-                <strong>Model files</strong> — stored locally in a SQLite database
-                ({"{userData}/calliope.db"}).
+                <strong>{tr("Model files")}</strong> {tr("— stored locally in a SQLite database (")}{tr("{userData}/calliope.db")}).
               </li>
               <li>
-                <strong>Exports</strong> — YAML/CSV files saved locally to
-                {"{userData}/exports/"}.
+                <strong>{tr("Exports")}</strong> {tr("— YAML/CSV files saved locally to")}
+                {tr("{userData}/exports/")}.
               </li>
               <li>
-                <strong>OSM map queries</strong> — when you use the map or download
-                OpenStreetMap data, geographic bounding-box coordinates are sent to
-                external OpenStreetMap Foundation servers
-                (<em>overpass-api.de</em>, <em>nominatim.openstreetmap.org</em>).
-                No account credentials or personal identifiers are transmitted.
+                <strong>{tr("OSM map queries")}</strong> {tr("— when you use the map or download OpenStreetMap data, geographic bounding-box coordinates are sent to external OpenStreetMap Foundation servers (")}<em>{tr("overpass-api.de")}</em>, <em>{tr("nominatim.openstreetmap.org")}</em>{tr("). No account credentials or personal identifiers are transmitted.")}
               </li>
             </ul>
           </div>
 
           <p>
-            You can delete all locally stored data at any time via{" "}
-            <strong>Settings → Clear All Data</strong>.
+            {tr("You can delete all locally stored data at any time via")}{" "}
+            <strong>{tr("Settings → Clear All Data")}</strong>.
           </p>
 
           <p className="text-xs text-slate-500">
-            By continuing you acknowledge this notice in accordance with GDPR Art. 13.
+            {tr("By continuing you acknowledge this notice in accordance with GDPR Art. 13.")}
           </p>
         </div>
 
@@ -88,7 +82,7 @@ const PrivacyDialog = ({ onAccept }) => {
             onClick={handleAccept}
             className="px-6 py-2.5 text-sm font-bold uppercase tracking-wide text-white bg-primary hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2"
           >
-            Accept &amp; continue
+            {tr("Accept & continue")}
           </button>
         </div>
       </div>

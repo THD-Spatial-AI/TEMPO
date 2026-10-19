@@ -14,6 +14,7 @@ import { summarizeOps } from '../../services/scenarioStudio/recipeParams.js';
 import { sporesCount } from '../../services/scenarioStudio/presets/lombardi2020Italy.js';
 import { BoardCtx } from './boardContext.js';
 import { iconBtn, ICON_PX } from '../ui/iconButton';
+import { tr } from '../../i18n';
 
 const GROUP_LABEL = { all: 'all supply', renewable: 'renewables', nonRenewable: 'non-renewables', emitting: 'emitting techs' };
 const groupLabel = (g) => GROUP_LABEL[g] || (typeof g === 'string' && g.startsWith('parent:') ? g.slice(7) : g);
@@ -76,7 +77,7 @@ function ScenarioCardNodeImpl({ id, data, selected }) {
           <div className="truncate text-[11px] text-slate-500">{summary}</div>
         </div>
         {data._noMatch && (
-          <span className="nodrag shrink-0 text-amber-500" title="Matches no technologies in this model">
+          <span className="nodrag shrink-0 text-amber-500" title={tr("Matches no technologies in this model")}>
             <FiAlertTriangle size={13} />
           </span>
         )}
@@ -84,14 +85,14 @@ function ScenarioCardNodeImpl({ id, data, selected }) {
           <button
             onClick={(e) => { e.stopPropagation(); ctx.onDuplicateNode?.(id); }}
             className="nodrag grid h-6 w-6 place-items-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-900"
-            title="Duplicate card"
+            title={tr("Duplicate card")}
           >
             <FiCopy size={12} />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); ctx.onDeleteNode?.(id); }}
             className={`${iconBtn('delete', 'sm')} nodrag`}
-            title="Remove card"
+            title={tr("Remove card")}
           >
             <FiTrash2 size={ICON_PX.sm} />
           </button>

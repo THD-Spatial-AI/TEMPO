@@ -10,6 +10,8 @@ import { CONSTRAINT_DEFINITIONS, COST_DEFINITIONS, PARENT_CONSTRAINTS } from '..
 import { confirmAction } from './ui/confirm';
 import SelectField from './ui/SelectField';
 import { iconBtn, ICON_PX } from './ui/iconButton';
+import { useT } from '../i18n';
+import { tr } from '../i18n';
 
 
 
@@ -17,7 +19,9 @@ import { iconBtn, ICON_PX } from './ui/iconButton';
 
 
 
+import { trLoose } from '../i18n';
 const Locations = () => {
+  const t = useT();
   const { locations, setLocations, getCurrentModel, technologies, links, showNotification, models, setModels, setNavigationWarning, timeSeries, setTimeSeries } = useData();
   const currentModel = getCurrentModel();
   // Live tech templates from OEO API (falls back to static TECH_TEMPLATES)
@@ -164,7 +168,7 @@ const Locations = () => {
 
   // Format technology name
   const formatTechName = (techName) => {
-    return techName.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+    return trLoose(techName.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '));
   };
 
   // Get unique tech types for location icons
@@ -216,7 +220,7 @@ const Locations = () => {
     setDeleteConfirmDialog({
       type: 'location',
       index: index,
-      message: 'Are you sure you want to delete this location?'
+      message: tr("Are you sure you want to delete this location?")
     });
   };
 
@@ -325,7 +329,7 @@ const Locations = () => {
   };
 
   const removeTechnology = async (locationIndex, techName) => {
-    if (await confirmAction({ title: 'Remove technology?', message: `It will be removed from ${locations[locationIndex]?.name || 'this location'}.`, details: techName, confirmLabel: 'Remove' })) {
+    if (await confirmAction({ title: tr("Remove technology?"), message: tr("It will be removed from {0}.", { 0: locations[locationIndex]?.name || 'this location' }), details: techName, confirmLabel: tr("Remove") })) {
       const updatedLocations = [...locations];
       delete updatedLocations[locationIndex].techs[techName];
       setLocations(updatedLocations);
@@ -369,7 +373,7 @@ const Locations = () => {
   // Save changes to the model
   const saveChanges = async () => {
     if (!currentModel) {
-      showNotification('No model selected', 'error');
+      showNotification(tr("No model selected"), 'error');
       return;
     }
 
@@ -435,7 +439,7 @@ const Locations = () => {
     setModels(updatedModels);
     setOriginalLocations(JSON.stringify(locations));
     setOriginalLinks(JSON.stringify(links));
-    showNotification('Changes saved successfully', 'success');
+    showNotification(tr("Changes saved successfully"), 'success');
   };
 
   return (
@@ -444,24 +448,24 @@ const Locations = () => {
       <div className="w-full px-8 py-8">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Locations</h1>
-          <p className="mt-1 text-sm text-slate-500">Nodes of the energy system and the technologies at each one.</p>
+          <h1 className="text-2xl font-bold text-slate-900">{t('page.locations.title')}</h1>
+          <p className="mt-1 text-sm text-slate-500">{t('page.locations.subtitle')}</p>
         </div>
-        <SaveBar label="Locations" inline />
+        <SaveBar label={tr("Locations")} inline />
       </div>
 
       {locations.length > 0 && (
         <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4 2xl:grid-cols-6">
-          <KpiCard icon={LuMapPin} label="Locations" value={locations.length} sub="nodes" />
-          <KpiCard icon={LuCpu} label="With technologies" value={locations.filter(l => l.techs && Object.keys(l.techs).length > 0).length} sub="locations" />
-          <KpiCard icon={LuLayers} label="Location types" value={new Set(locations.map(l => l.type).filter(Boolean)).size} sub="types" />
+          <KpiCard icon={LuMapPin} label={tr("Locations")} value={locations.length} sub={tr("nodes")} />
+          <KpiCard icon={LuCpu} label={tr("With technologies")} value={locations.filter(l => l.techs && Object.keys(l.techs).length > 0).length} sub={tr("locations")} />
+          <KpiCard icon={LuLayers} label={tr("Location types")} value={new Set(locations.map(l => l.type).filter(Boolean)).size} sub={tr("types")} />
         </div>
       )}
 
       <div className="rounded-2xl border border-black/15 bg-white ">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-black/10 px-5 py-4">
           <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
-            All locations
+            {tr("All locations")}
             <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">{locations.length}</span>
           </h2>
           <div className="flex items-center gap-2">
@@ -469,7 +473,7 @@ const Locations = () => {
               <LuSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
               <input
                 type="text"
-                placeholder="Search locations"
+                placeholder={tr("Search locations")}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="h-10 w-64 rounded-lg border border-black/15 bg-slate-50 pl-9 pr-3 text-[13px] text-slate-800 placeholder:text-slate-400 transition-colors focus:border-black/15 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-200"
@@ -481,14 +485,14 @@ const Locations = () => {
                 className="flex h-10 items-center gap-2 rounded-lg border border-black/15 bg-white px-4 text-sm font-semibold text-slate-800  transition-colors hover:bg-slate-50"
               >
                 <span className="h-2 w-2 rounded-full bg-amber-500" />
-                <LuSave size={16} /> Save changes
+                <LuSave size={16} /> {tr("Save changes")}
               </button>
             )}
             <button
               onClick={() => setIsAdding(true)}
               className="flex h-10 items-center gap-1.5 rounded-lg bg-black px-4 text-sm font-semibold text-white  transition-colors hover:bg-black/80"
             >
-              <LuPlus size={16} /> Add location
+              <LuPlus size={16} /> {tr("Add location")}
             </button>
           </div>
         </div>
@@ -499,30 +503,30 @@ const Locations = () => {
             <div className="mb-3 grid h-12 w-12 place-items-center rounded-full bg-slate-100 text-slate-500">
               <LuMapPin size={20} />
             </div>
-            <p className="text-sm font-semibold text-slate-800">No locations yet</p>
-            <p className="mt-1 max-w-sm text-sm text-slate-500">Load a model from Structure → Models, or add your first location here.</p>
+            <p className="text-sm font-semibold text-slate-800">{tr("No locations yet")}</p>
+            <p className="mt-1 max-w-sm text-sm text-slate-500">{tr("Load a model from Structure → Models, or add your first location here.")}</p>
             <button
               onClick={() => setIsAdding(true)}
               className="mt-5 flex h-9 items-center gap-1.5 rounded-lg bg-black px-3 text-[13px] font-semibold text-white  transition-colors hover:bg-black/80"
             >
-              <LuPlus size={14} /> Add location
+              <LuPlus size={14} /> {tr("Add location")}
             </button>
           </div>
         ) : filteredLocations.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-black/15 px-6 py-16 text-center">
             <LuSearch size={20} className="mb-2 text-slate-400" />
-            <p className="text-sm font-semibold text-slate-800">No matches</p>
-            <p className="mt-1 text-sm text-slate-500">No locations match “{searchQuery}”.</p>
+            <p className="text-sm font-semibold text-slate-800">{tr("No matches")}</p>
+            <p className="mt-1 text-sm text-slate-500">{tr("No locations match “")}{searchQuery}”.</p>
           </div>
         ) : (
           <div className="overflow-hidden rounded-xl border border-black/15">
             <div className="grid grid-cols-[28px_minmax(0,2fr)_130px_minmax(0,1.6fr)_104px_104px_68px] items-center gap-3 sticky top-0 z-10 border-b border-black/15 bg-slate-50/95 px-3 py-2.5 backdrop-blur">
               <span />
-              <SortHeader label="Name" sortKey="name" sort={sort} onSort={onSort} />
-              <SortHeader label="Type" sortKey="type" sort={sort} onSort={onSort} />
-              <SortHeader label="Technologies" sortKey="techs" sort={sort} onSort={onSort} />
-              <SortHeader label="Latitude" sortKey="latitude" sort={sort} onSort={onSort} align="right" className="justify-self-end" />
-              <SortHeader label="Longitude" sortKey="longitude" sort={sort} onSort={onSort} align="right" className="justify-self-end" />
+              <SortHeader label={tr("Name")} sortKey="name" sort={sort} onSort={onSort} />
+              <SortHeader label={tr("Type")} sortKey="type" sort={sort} onSort={onSort} />
+              <SortHeader label={tr("Technologies")} sortKey="techs" sort={sort} onSort={onSort} />
+              <SortHeader label={tr("Latitude")} sortKey="latitude" sort={sort} onSort={onSort} align="right" className="justify-self-end" />
+              <SortHeader label={tr("Longitude")} sortKey="longitude" sort={sort} onSort={onSort} align="right" className="justify-self-end" />
               <span />
             </div>
             <div className="divide-y divide-black/10">
@@ -537,7 +541,7 @@ const Locations = () => {
                   <button
                     onClick={() => setExpandedLocation(isExpanded ? null : originalIndex)}
                     className="grid h-7 w-7 place-items-center rounded-md text-slate-400 transition-colors hover:bg-slate-200/70 hover:text-slate-800"
-                    aria-label={isExpanded ? 'Collapse' : 'Expand'}
+                    aria-label={isExpanded ? tr("Collapse") : tr("Expand")}
                   >
                     {isExpanded ? <LuChevronDown size={16} /> : <LuChevronRight size={16} />}
                   </button>
@@ -564,13 +568,13 @@ const Locations = () => {
                       onChange={(e) => setEditData({ ...editData, type: e.target.value })}
                       className="h-8 w-full rounded-lg border border-black/15 bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 text-xs"
                     >
-                      <option value="demand">demand</option>
-                      <option value="supply">supply</option>
+                      <option value="demand">{tr("demand")}</option>
+                      <option value="supply">{tr("supply")}</option>
                       <option value="supply_plus">supply_plus</option>
-                      <option value="storage">storage</option>
-                      <option value="conversion">conversion</option>
+                      <option value="storage">{tr("storage")}</option>
+                      <option value="conversion">{tr("conversion")}</option>
                       <option value="conversion_plus">conversion_plus</option>
-                      <option value="transmission">transmission</option>
+                      <option value="transmission">{tr("transmission")}</option>
                     </SelectField>
                   ) : (
                     <span className="w-fit rounded-md border border-black/15 bg-white px-1.5 py-0.5 font-mono text-[11px] text-slate-600">
@@ -596,7 +600,7 @@ const Locations = () => {
                         onClick={() => setExpandedLocation(originalIndex)}
                         className="text-xs text-slate-400 transition-colors hover:text-slate-800"
                       >
-                        + Add technologies
+                        {tr("+ Add technologies")}
                       </button>
                     )}
                   </div>
@@ -609,7 +613,7 @@ const Locations = () => {
                         value={editData.latitude}
                         onChange={(e) => setEditData({ ...editData, latitude: parseFloat(e.target.value) })}
                         className="h-8 w-full rounded-lg border border-black/15 bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 text-right font-mono text-xs"
-                        aria-label="Latitude"
+                        aria-label={tr("Latitude")}
                       />
                       <input
                         type="number"
@@ -617,7 +621,7 @@ const Locations = () => {
                         value={editData.longitude}
                         onChange={(e) => setEditData({ ...editData, longitude: parseFloat(e.target.value) })}
                         className="h-8 w-full rounded-lg border border-black/15 bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 text-right font-mono text-xs"
-                        aria-label="Longitude"
+                        aria-label={tr("Longitude")}
                       />
                     </>
                   ) : (
@@ -630,10 +634,10 @@ const Locations = () => {
                   <div className="flex justify-end gap-0.5">
                     {isEditing ? (
                       <>
-                        <button onClick={saveEdit} title="Save" className="grid h-7 w-7 place-items-center rounded-md bg-black text-white hover:bg-black/80">
+                        <button onClick={saveEdit} title={tr("Save")} className="grid h-7 w-7 place-items-center rounded-md bg-black text-white hover:bg-black/80">
                           <LuCheck size={14} />
                         </button>
-                        <button onClick={cancelEdit} title="Cancel" className="grid h-7 w-7 place-items-center rounded-md text-slate-500 hover:bg-slate-200/70">
+                        <button onClick={cancelEdit} title={tr("Cancel")} className="grid h-7 w-7 place-items-center rounded-md text-slate-500 hover:bg-slate-200/70">
                           <LuX size={14} />
                         </button>
                       </>
@@ -642,14 +646,14 @@ const Locations = () => {
                         <button
                           onClick={() => startEdit(originalIndex)}
                           className={`${iconBtn('edit', 'md')}`}
-                          title="Edit location"
+                          title={tr("Edit location")}
                         >
                           <LuPencil size={ICON_PX.md} />
                         </button>
                         <button
                           onClick={() => deleteLocation(originalIndex)}
                           className={`${iconBtn('delete', 'md')}`}
-                          title="Delete location"
+                          title={tr("Delete location")}
                         >
                           <LuTrash2 size={ICON_PX.md} />
                         </button>
@@ -664,20 +668,20 @@ const Locations = () => {
                     <div className="flex items-center justify-between mb-3">
                       <h4 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
                         <LuCpu className="text-gray-600" />
-                        Technologies at this Location
+                        {tr("Technologies at this Location")}
                       </h4>
                       {editingTech && editingTech.locationIndex === originalIndex && (
                         <button
                           onClick={saveEditTech}
                           className="px-3 py-1 bg-gray-600 text-white rounded text-xs hover:bg-black/80"
                         >
-                          <LuCheck className="inline mr-1" /> Done Editing
+                          <LuCheck className="inline mr-1" /> {tr("Done Editing")}
                         </button>
                       )}
                     </div>
                     
                     {!location.techs || Object.keys(location.techs).length === 0 ? (
-                      <p className="text-sm text-slate-500 italic mb-3">No technologies assigned to this location yet.</p>
+                      <p className="text-sm text-slate-500 italic mb-3">{tr("No technologies assigned to this location yet.")}</p>
                     ) : (
                       <div className="space-y-3 mb-4">
                         {Object.entries(location.techs).map(([techName, techData], techIdx) => {
@@ -722,7 +726,7 @@ const Locations = () => {
                                       className="flex items-center gap-2 text-xs font-semibold text-slate-700 mb-2 hover:text-gray-600"
                                     >
                                       {expandedSections[`${sectionKey}_essentials`] ? <LuChevronDown size={14} /> : <LuChevronRight size={14} />}
-                                      <span>Essentials</span>
+                                      <span>{tr("Essentials")}</span>
                                     </button>
                                     {expandedSections[`${sectionKey}_essentials`] && (
                                       <div className="pl-4 space-y-2 mb-2">
@@ -780,7 +784,7 @@ const Locations = () => {
                                       className="flex items-center gap-2 text-xs font-semibold text-slate-700 mb-2 hover:text-gray-600"
                                     >
                                       {expandedSections[`${sectionKey}_constraints`] ? <LuChevronDown size={14} /> : <LuChevronRight size={14} />}
-                                      <span>Constraints ({mergedTechData.constraints ? Object.keys(mergedTechData.constraints).length : 0})</span>
+                                      <span>{tr("Constraints (")}{mergedTechData.constraints ? Object.keys(mergedTechData.constraints).length : 0})</span>
                                     </button>
                                     {expandedSections[`${sectionKey}_constraints`] && (
                                       <div className="pl-4 space-y-2">
@@ -805,7 +809,7 @@ const Locations = () => {
                                                       value={typeof value === 'object' ? JSON.stringify(value) : value}
                                                       onChange={(e) => updateTechConstraint(originalIndex, techName, key, e.target.value)}
                                                       className="flex-1 px-2 py-1 border border-black/15 rounded text-xs font-mono bg-white"
-                                                      placeholder={isResourceConstraint ? "Value or upload CSV below" : "Value"}
+                                                      placeholder={isResourceConstraint ? tr("Value or upload CSV below") : tr("Value")}
                                                     />
                                                     <button
                                                       onClick={() => removeTechConstraint(originalIndex, techName, key)}
@@ -828,7 +832,7 @@ const Locations = () => {
                                               {isEditing && isResourceConstraint && (
                                                 <div className="pl-4 mt-1">
                                                   <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
-                                                    <span>Or upload timeseries CSV:</span>
+                                                    <span>{tr("Or upload timeseries CSV:")}</span>
                                                     <input
                                                       type="file"
                                                       accept=".csv"
@@ -855,7 +859,7 @@ const Locations = () => {
                                               <span className="rounded-full bg-gray-600 p-1 text-sm transition-colors duration-300 group-hover:bg-white">
                                                 <LuArrowRight className="-translate-x-[200%] text-[0px] transition-all duration-300 group-hover:translate-x-0 group-hover:text-base group-hover:text-gray-600" />
                                               </span>
-                                              <span>Add Constraint</span>
+                                              <span>{tr("Add Constraint")}</span>
                                             </button>
                                           </div>
                                         )}
@@ -872,7 +876,7 @@ const Locations = () => {
                                       className="flex items-center gap-2 text-xs font-semibold text-slate-700 mb-2 hover:text-gray-600"
                                     >
                                       {expandedSections[`${sectionKey}_costs`] ? <LuChevronDown size={14} /> : <LuChevronRight size={14} />}
-                                      <span>Costs ({mergedTechData.costs ? Object.keys(mergedTechData.costs.monetary || mergedTechData.costs || {}).length : 0})</span>
+                                      <span>{tr("Costs (")}{mergedTechData.costs ? Object.keys(mergedTechData.costs.monetary || mergedTechData.costs || {}).length : 0})</span>
                                     </button>
                                     {expandedSections[`${sectionKey}_costs`] && (
                                       <div className="pl-4 space-y-2">
@@ -895,7 +899,7 @@ const Locations = () => {
                                               <span className="rounded-full bg-gray-600 p-1 text-sm transition-colors duration-300 group-hover:bg-white">
                                                 <LuArrowRight className="-translate-x-[200%] text-[0px] transition-all duration-300 group-hover:translate-x-0 group-hover:text-base group-hover:text-gray-600" />
                                               </span>
-                                              <span>Add Cost</span>
+                                              <span>{tr("Add Cost")}</span>
                                             </button>
                                           </div>
                                         )}
@@ -908,7 +912,7 @@ const Locations = () => {
                                 {(!mergedTechData.essentials || Object.keys(mergedTechData.essentials).length === 0) &&
                                  (!mergedTechData.constraints || Object.keys(mergedTechData.constraints).length === 0) &&
                                  (!mergedTechData.costs || Object.keys(mergedTechData.costs).length === 0) && (
-                                  <p className="text-xs text-slate-500 italic">No configuration data available for this technology.</p>
+                                  <p className="text-xs text-slate-500 italic">{tr("No configuration data available for this technology.")}</p>
                                 )}
                               </div>
                             </div>
@@ -922,20 +926,20 @@ const Locations = () => {
                       <div className="border-t border-black/15 pt-3">
                         <div className="flex items-center justify-between mb-2">
                           <label className="text-xs font-semibold text-slate-600">
-                            Add Technology from Library
+                            {tr("Add Technology from Library")}
                           </label>
                           {techsLoading && (
-                            <span className="text-xs text-gray-400 italic">Loading catalog…</span>
+                            <span className="text-xs text-gray-400 italic">{tr("Loading catalog…")}</span>
                           )}
                         </div>
                         <div className="space-y-2 max-h-[480px] overflow-y-auto">
                           {[
-                            { key: 'supply_plus', label: 'Variable Renewables' },
-                            { key: 'supply', label: 'Dispatchable Generation' },
-                            { key: 'demand', label: 'Demand' },
-                            { key: 'storage', label: 'Storage' },
-                            { key: 'conversion_plus', label: 'Sector Coupling' },
-                            { key: 'conversion', label: 'Conversion' },
+                            { key: 'supply_plus', label: tr("Variable Renewables") },
+                            { key: 'supply', label: tr("Dispatchable Generation") },
+                            { key: 'demand', label: tr("Demand") },
+                            { key: 'storage', label: tr("Storage") },
+                            { key: 'conversion_plus', label: tr("Sector Coupling") },
+                            { key: 'conversion', label: tr("Conversion") },
                           ].map(({ key: parentType, label: categoryLabel }) => {
                             const techsInCategory = Object.entries(techMap).filter(([, tech]) => tech.parent === parentType);
                             if (techsInCategory.length === 0) return null;
@@ -974,7 +978,7 @@ const Locations = () => {
                                             </div>
                                             <div className="flex items-center gap-2">
                                               {instances.length > 0 && (
-                                                <span className="text-[10px] text-slate-400">{instances.length} variant{instances.length !== 1 ? 's' : ''}</span>
+                                                <span className="text-[10px] text-slate-400">{instances.length} {tr("variant")}{instances.length !== 1 ? 's' : ''}</span>
                                               )}
                                               {isSubExpanded ? <LuChevronDown size={12} className="text-slate-400" /> : <LuChevronRight size={12} className="text-slate-400" />}
                                             </div>
@@ -1007,10 +1011,10 @@ const Locations = () => {
                                                             </span>
                                                           )}
                                                           {lifetime != null && (
-                                                            <span className="text-[9px] text-slate-400 bg-slate-100 px-1 py-0.5 rounded">{lifetime} yr</span>
+                                                            <span className="text-[9px] text-slate-400 bg-slate-100 px-1 py-0.5 rounded">{lifetime} {tr("yr")}</span>
                                                           )}
                                                           {capex != null && (
-                                                            <span className="text-[9px] text-slate-400 bg-slate-100 px-1 py-0.5 rounded">CAPEX {capex}</span>
+                                                            <span className="text-[9px] text-slate-400 bg-slate-100 px-1 py-0.5 rounded">{tr("CAPEX")} {capex}</span>
                                                           )}
                                                         </div>
                                                       )}
@@ -1024,7 +1028,7 @@ const Locations = () => {
                                                           : 'bg-gray-600 text-white hover:bg-black/80'
                                                       }`}
                                                     >
-                                                      {isAssigned ? '✓' : '+ Add'}
+                                                      {isAssigned ? '✓' : tr("+ Add")}
                                                     </button>
                                                   </div>
                                                 );
@@ -1049,7 +1053,7 @@ const Locations = () => {
             })}
             </div>
             <div className="border-t border-black/10 bg-slate-50/60 px-4 py-2 text-xs text-slate-500">
-              Showing {sortedLocations.length} of {locations.length} locations
+              {tr("Showing")} {sortedLocations.length} {tr("of")} {locations.length} {tr("locations")}
             </div>
           </div>
         )}
@@ -1075,13 +1079,13 @@ const Locations = () => {
           <div key={sectionKey} className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10001]" onClick={() => { setConstraintSearch({ ...constraintSearch, [sectionKey]: '' }); setSelectedConstraintGroup({}); }}>
             <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
               <div className="p-4 border-b border-black/15 bg-gray-600 text-white">
-                <h3 className="text-lg font-bold">Available Constraints for {formatTechName(techTemplate?.parent || '')}</h3>
-                <p className="text-xs text-gray-100 mt-1">Browse by category and click to add</p>
+                <h3 className="text-lg font-bold">{tr("Available Constraints for")} {formatTechName(techTemplate?.parent || '')}</h3>
+                <p className="text-xs text-gray-100 mt-1">{tr("Browse by category and click to add")}</p>
               </div>
               <div className="overflow-y-auto max-h-[calc(80vh-120px)]">
                 {available.length === 0 ? (
                   <div className="p-8 text-center text-slate-500">
-                    <p className="text-sm">All available constraints have been added.</p>
+                    <p className="text-sm">{tr("All available constraints have been added.")}</p>
                   </div>
                 ) : (
                   (() => {
@@ -1156,7 +1160,7 @@ const Locations = () => {
                   }}
                   className="w-full px-4 py-2 bg-slate-600 text-white rounded hover:bg-slate-700 transition-colors"
                 >
-                  Close
+                  {tr("Close")}
                 </button>
               </div>
             </div>
@@ -1181,13 +1185,13 @@ const Locations = () => {
           <div key={sectionKey} className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10001]" onClick={() => { setCostSearch({ ...costSearch, [sectionKey]: '' }); setSelectedCostGroup({}); }}>
             <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
               <div className="p-4 border-b border-black/15 bg-gray-600 text-white">
-                <h3 className="text-lg font-bold">Available Costs</h3>
-                <p className="text-xs text-gray-100 mt-1">Browse by category and click to add</p>
+                <h3 className="text-lg font-bold">{tr("Available Costs")}</h3>
+                <p className="text-xs text-gray-100 mt-1">{tr("Browse by category and click to add")}</p>
               </div>
               <div className="overflow-y-auto max-h-[calc(80vh-120px)]">
                 {available.length === 0 ? (
                   <div className="p-8 text-center text-slate-500">
-                    <p className="text-sm">All available costs have been added.</p>
+                    <p className="text-sm">{tr("All available costs have been added.")}</p>
                   </div>
                 ) : (
                   (() => {
@@ -1265,7 +1269,7 @@ const Locations = () => {
                   }}
                   className="w-full px-4 py-2 bg-slate-600 text-white rounded hover:bg-slate-700 transition-colors"
                 >
-                  Close
+                  {tr("Close")}
                 </button>
               </div>
             </div>
@@ -1279,48 +1283,48 @@ const Locations = () => {
           <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-900/5">
             <div className="flex items-start justify-between border-b border-black/10 px-6 py-5">
               <div>
-                <h3 className="text-base font-semibold text-slate-900">Add location</h3>
-                <p className="mt-0.5 text-xs text-slate-500">Create a new node in the active model.</p>
+                <h3 className="text-base font-semibold text-slate-900">{tr("Add location")}</h3>
+                <p className="mt-0.5 text-xs text-slate-500">{tr("Create a new node in the active model.")}</p>
               </div>
               <button
                 onClick={() => { setIsAdding(false); setNewLocation({ name: '', latitude: '', longitude: '', type: 'demand' }); }}
                 className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                aria-label="Close"
+                aria-label={tr("Close")}
               >
                 <LuX size={16} />
               </button>
             </div>
             <div className="space-y-4 px-6 py-5">
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-slate-700">Name</label>
+                <label className="mb-1.5 block text-xs font-medium text-slate-700">{tr("Name")}</label>
                 <input
                   type="text"
                   value={newLocation.name}
                   onChange={(e) => setNewLocation({ ...newLocation, name: e.target.value })}
                   className="h-9 w-full rounded-lg border border-black/15 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200"
-                  placeholder="e.g. Berlin"
+                  placeholder={tr("e.g. Berlin")}
                   autoFocus
                 />
               </div>
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-slate-700">Type</label>
+                <label className="mb-1.5 block text-xs font-medium text-slate-700">{tr("Type")}</label>
                 <SelectField
                   value={newLocation.type}
                   onChange={(e) => setNewLocation({ ...newLocation, type: e.target.value })}
                   className="h-9 w-full rounded-lg border border-black/15 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200"
                 >
-                  <option value="demand">Demand</option>
-                  <option value="supply">Supply</option>
-                  <option value="supply_plus">Supply Plus</option>
-                  <option value="storage">Storage</option>
-                  <option value="conversion">Conversion</option>
-                  <option value="conversion_plus">Conversion Plus</option>
-                  <option value="transmission">Transmission</option>
+                  <option value="demand">{tr("Demand")}</option>
+                  <option value="supply">{tr("Supply")}</option>
+                  <option value="supply_plus">{tr("Supply Plus")}</option>
+                  <option value="storage">{tr("Storage")}</option>
+                  <option value="conversion">{tr("Conversion")}</option>
+                  <option value="conversion_plus">{tr("Conversion Plus")}</option>
+                  <option value="transmission">{tr("Transmission")}</option>
                 </SelectField>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium text-slate-700">Latitude</label>
+                  <label className="mb-1.5 block text-xs font-medium text-slate-700">{tr("Latitude")}</label>
                   <input
                     type="number"
                     step="0.0001"
@@ -1331,7 +1335,7 @@ const Locations = () => {
                   />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium text-slate-700">Longitude</label>
+                  <label className="mb-1.5 block text-xs font-medium text-slate-700">{tr("Longitude")}</label>
                   <input
                     type="number"
                     step="0.0001"
@@ -1351,14 +1355,14 @@ const Locations = () => {
                 }}
                 className="h-9 rounded-lg border border-black/15 bg-white px-4 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-50"
               >
-                Cancel
+                {tr("Cancel")}
               </button>
               <button
                 onClick={addLocation}
                 disabled={!newLocation.name || !newLocation.latitude || !newLocation.longitude}
                 className="h-9 rounded-lg bg-black px-4 text-[13px] font-semibold text-white transition-colors hover:bg-black/80 disabled:cursor-not-allowed disabled:bg-slate-300"
               >
-                Add location
+                {tr("Add location")}
               </button>
             </div>
           </div>
@@ -1370,7 +1374,7 @@ const Locations = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000]">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
             <div className="p-6 border-b border-black/15">
-              <h3 className="text-xl font-bold text-slate-800">Confirm Deletion</h3>
+              <h3 className="text-xl font-bold text-slate-800">{tr("Confirm Deletion")}</h3>
             </div>
             <div className="p-6">
               <p className="text-sm text-slate-700">{deleteConfirmDialog.message}</p>
@@ -1380,13 +1384,13 @@ const Locations = () => {
                 onClick={() => setDeleteConfirmDialog(null)}
                 className="px-4 py-2 border border-black/15 text-slate-700 rounded-md hover:bg-slate-50 transition-colors"
               >
-                Cancel
+                {tr("Cancel")}
               </button>
               <button
                 onClick={confirmDelete}
                 className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-black/80 transition-colors"
               >
-                Delete
+                {tr("Delete")}
               </button>
             </div>
           </div>

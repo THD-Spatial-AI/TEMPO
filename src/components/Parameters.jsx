@@ -1,5 +1,6 @@
 import React from "react";
 import { useData } from "../context/DataContext";
+import { tr } from '../i18n';
 
 const Parameters = () => {
   const { parameters, getCurrentModel } = useData();
@@ -8,23 +9,23 @@ const Parameters = () => {
   return (
     <div className="flex-1 p-8 bg-gray-50">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-900 mb-2">Parameters</h1>
-        <p className="text-slate-600">Configure model parameters and settings</p>
+        <h1 className="text-2xl font-bold text-slate-900 mb-2">{tr("Parameters")}</h1>
+        <p className="text-slate-600">{tr("Configure model parameters and settings")}</p>
         {currentModel && (
-          <p className="text-sm text-gray-600 mt-1">Model: {currentModel.name}</p>
+          <p className="text-sm text-gray-600 mt-1">{tr("Model:")} {currentModel.name}</p>
         )}
       </div>
 
       <div className="bg-surface-container-lowest rounded-lg p-6 border border-black/15">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold text-slate-800">
-            Parameter Configuration ({parameters.length})
+            {tr("Parameter Configuration (")}{parameters.length})
           </h2>
         </div>
 
         {parameters.length === 0 ? (
           <div className="border-2 border-dashed border-slate-300 rounded-lg h-96 flex items-center justify-center bg-slate-50">
-            <p className="text-slate-500">No parameters configured yet. Load a model to get started.</p>
+            <p className="text-slate-500">{tr("No parameters configured yet. Load a model to get started.")}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -32,13 +33,13 @@ const Parameters = () => {
               <thead className="bg-slate-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">
-                    Name
+                    {tr("Name")}
                   </th>
                   <th className="px-6 py-3 text-left text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">
-                    Value
+                    {tr("Value")}
                   </th>
                   <th className="px-6 py-3 text-left text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">
-                    Unit
+                    {tr("Unit")}
                   </th>
                 </tr>
               </thead>

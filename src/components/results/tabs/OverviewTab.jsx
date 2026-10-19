@@ -2,14 +2,15 @@
 // Renders the pre-computed chart options / data passed as props.
 import { useState } from 'react';
 import { FiAlertTriangle, FiBarChart2, FiChevronDown, FiGrid, FiMap, FiMapPin, FiPieChart, FiShare2, FiTrendingUp, FiZap } from '../../ui/icons';
-import ReactECharts from 'echarts-for-react';
+import ReactECharts from '../../ui/Chart';
 import { ResultsMap, TransmissionFlowMap, RegionChoropleth } from '../ResultMaps';
 import { autoScale, axisNameStyle, fmtCost, fmtEnergy, fmtPower, scaledFmt } from '../../../utils/resultFormat';
+import { tr, trLoose } from '../../../i18n';
 
 const CHORO_OPTIONS = [
-  { id: 'demand',    label: 'Demand',       ramp: 'blue'  },
-  { id: 'unmet',     label: 'Unmet Demand', ramp: 'amber' },
-  { id: 'demandMet', label: 'Demand Met %', ramp: 'green' },
+  { id: 'demand',    label: tr("Demand"),       ramp: 'blue'  },
+  { id: 'unmet',     label: tr("Unmet Demand"), ramp: 'amber' },
+  { id: 'demandMet', label: tr("Demand Met %"), ramp: 'green' },
 ];
 
 export default function OverviewTab({
@@ -43,14 +44,14 @@ export default function OverviewTab({
                 <div className="bg-white rounded-2xl border border-black/15 shadow-sm overflow-hidden">
                     <div className="px-4 pt-3 pb-2 flex items-center gap-2 flex-wrap">
                       <FiMap size={14} className="text-gray-600 flex-shrink-0" />
-                      <span className="text-sm font-semibold text-slate-800">Location Map</span>
+                      <span className="text-sm font-semibold text-slate-800">{tr("Location Map")}</span>
                       <div className="ml-auto flex gap-1 flex-wrap">
                         {[
-                          { id: 'capacity',     label: 'Capacity',     icon: FiBarChart2 },
-                          ...(Object.keys(techMixByLoc).length > 0 ? [{ id: 'mix', label: 'Tech Mix', icon: FiPieChart }] : []),
-                          ...(hasRegions ? [{ id: 'regions', label: 'Regions', icon: FiMap }] : []),
-                          ...(hasFlow ? [{ id: 'generation', label: 'Gen Heatmap', icon: FiZap }] : []),
-                          { id: 'transmission', label: 'Transmission', icon: FiShare2 },
+                          { id: 'capacity',     label: tr("Capacity"),     icon: FiBarChart2 },
+                          ...(Object.keys(techMixByLoc).length > 0 ? [{ id: 'mix', label: tr("Tech Mix"), icon: FiPieChart }] : []),
+                          ...(hasRegions ? [{ id: 'regions', label: tr("Regions"), icon: FiMap }] : []),
+                          ...(hasFlow ? [{ id: 'generation', label: tr("Gen Heatmap"), icon: FiZap }] : []),
+                          { id: 'transmission', label: tr("Transmission"), icon: FiShare2 },
                         ].map(({ id, label, icon: Icon }) => (
                           <button key={id} onClick={() => setMapView(id)}
                             className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-all ${
@@ -64,7 +65,7 @@ export default function OverviewTab({
                     {/* Choropleth metric selector — only shown in regions view */}
                     {mapView === 'regions' && hasRegions && (
                       <div className="px-4 pb-2 flex items-center gap-2">
-                        <span className="text-xs text-slate-500">Show:</span>
+                        <span className="text-xs text-slate-500">{tr("Show:")}</span>
                         {CHORO_OPTIONS.map(opt => (
                           <button key={opt.id} onClick={() => setChoroSel(opt.id)}
                             className={`px-2 py-0.5 rounded text-xs font-medium transition-all ${
@@ -117,7 +118,7 @@ export default function OverviewTab({
                         )
                       ) : (
                         <div className="h-full flex items-center justify-center text-slate-400 text-sm">
-                          <FiMapPin size={20} className="mr-2 opacity-40" /> Location data unavailable
+                          <FiMapPin size={20} className="mr-2 opacity-40" /> {tr("Location data unavailable")}
                         </div>
                       )}
                     </div>
@@ -128,40 +129,40 @@ export default function OverviewTab({
                   <div className="bg-white rounded-2xl border border-black/15 shadow-sm overflow-hidden">
                     <button onClick={() => toggleSection('cap-by-tech')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
                       <FiBarChart2 size={14} className="text-gray-600 flex-shrink-0" />
-                      <span className="text-sm font-semibold text-slate-800 flex-1">Installed Capacity by Technology</span>
+                      <span className="text-sm font-semibold text-slate-800 flex-1">{tr("Installed Capacity by Technology")}</span>
                       <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('cap-by-tech') ? '' : '-rotate-90'}`} />
                     </button>
                     {sectionOpen('cap-by-tech') && <div className="px-5 pb-5">
                       {capBarOption ? (
                         <ReactECharts option={capBarOption} style={{ height: chartHeight }} notMerge />
-                      ) : <div className="text-slate-400 text-sm text-center py-16">No capacity data</div>}
+                      ) : <div className="text-slate-400 text-sm text-center py-16">{tr("No capacity data")}</div>}
                     </div>}
                   </div>
                   {/* Generation donut */}
                   <div className="bg-white rounded-2xl border border-black/15 shadow-sm overflow-hidden">
                     <button onClick={() => toggleSection('gen-mix')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
                       <FiPieChart size={14} className="text-gray-500 flex-shrink-0" />
-                      <span className="text-sm font-semibold text-slate-800 flex-1">Generation Mix</span>
-                      <span className="text-xs text-slate-400 mr-1">generation technologies</span>
+                      <span className="text-sm font-semibold text-slate-800 flex-1">{tr("Generation Mix")}</span>
+                      <span className="text-xs text-slate-400 mr-1">{tr("generation technologies")}</span>
                       <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('gen-mix') ? '' : '-rotate-90'}`} />
                     </button>
                     {sectionOpen('gen-mix') && <div className="px-5 pb-5">
                       {genDonutOption ? (
                         <ReactECharts option={genDonutOption} style={{ height: chartHeight }} notMerge />
-                      ) : <div className="text-slate-400 text-sm text-center py-16">No generation data</div>}
+                      ) : <div className="text-slate-400 text-sm text-center py-16">{tr("No generation data")}</div>}
                     </div>}
                   </div>
                   {/* Capacity by location */}
                   <div className="bg-white rounded-2xl border border-black/15 shadow-sm overflow-hidden lg:col-span-2">
                     <button onClick={() => toggleSection('cap-by-loc')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
                       <FiMapPin size={14} className="text-gray-600 flex-shrink-0" />
-                      <span className="text-sm font-semibold text-slate-800 flex-1">Capacity by Location & Technology</span>
+                      <span className="text-sm font-semibold text-slate-800 flex-1">{tr("Capacity by Location & Technology")}</span>
                       <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('cap-by-loc') ? '' : '-rotate-90'}`} />
                     </button>
                     {sectionOpen('cap-by-loc') && <div className="px-5 pb-5">
                       {capLocOption ? (
                         <ReactECharts option={capLocOption} style={{ height: 360 }} notMerge />
-                      ) : <div className="text-slate-400 text-sm text-center py-16">No location data</div>}
+                      ) : <div className="text-slate-400 text-sm text-center py-16">{tr("No location data")}</div>}
                     </div>}
                   </div>
                 </div>
@@ -171,23 +172,22 @@ export default function OverviewTab({
                   <div className="bg-amber-50 border border-amber-200 rounded-2xl overflow-hidden">
                     <button onClick={() => toggleSection('unmet-demand')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-amber-100/60 transition text-left">
                       <FiAlertTriangle size={14} className="text-amber-500 flex-shrink-0" />
-                      <span className="font-semibold text-amber-900 text-sm flex-1">Unmet Demand</span>
+                      <span className="font-semibold text-amber-900 text-sm flex-1">{tr("Unmet Demand")}</span>
                       <span className="text-xs text-amber-600 mr-1">· {fmtEnergy(result.total_unmet_demand_mwh)}</span>
                       <FiChevronDown size={12} className={`text-amber-400 transition-transform duration-150 ${sectionOpen('unmet-demand') ? '' : '-rotate-90'}`} />
                     </button>
                     {sectionOpen('unmet-demand') && (
                       <div className="px-5 pb-5">
                         <p className="text-xs text-amber-700 mb-3">
-                          The solver used <span className="font-semibold">{fmtEnergy(result.total_unmet_demand_mwh)}</span> of unmet-demand slack to remain feasible.
-                          Consider relaxing demand constraints or adding generation capacity.
+                          {tr("The solver used")} <span className="font-semibold">{fmtEnergy(result.total_unmet_demand_mwh)}</span> {tr("of unmet-demand slack to remain feasible. Consider relaxing demand constraints or adding generation capacity.")}
                         </p>
                         {result.unmet_demand_by_location && Object.keys(result.unmet_demand_by_location).length > 0 && (
                           <table className="w-full text-xs">
                             <thead>
                               <tr className="border-b border-amber-200">
-                                <th className="text-left py-1.5 font-bold text-amber-700 uppercase tracking-widest">Location</th>
-                                <th className="text-right py-1.5 font-bold text-amber-700 uppercase tracking-widest">Unmet (MWh)</th>
-                                <th className="text-right py-1.5 font-bold text-amber-700 uppercase tracking-widest">Share</th>
+                                <th className="text-left py-1.5 font-bold text-amber-700 uppercase tracking-widest">{tr("Location")}</th>
+                                <th className="text-right py-1.5 font-bold text-amber-700 uppercase tracking-widest">{tr("Unmet (MWh)")}</th>
+                                <th className="text-right py-1.5 font-bold text-amber-700 uppercase tracking-widest">{tr("Share")}</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -215,19 +215,19 @@ export default function OverviewTab({
                   <div className="bg-white rounded-2xl border border-black/15 shadow-sm overflow-hidden">
                     <button onClick={() => toggleSection('tech-summary')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
                       <FiTrendingUp size={14} className="text-slate-500 flex-shrink-0" />
-                      <span className="text-sm font-semibold text-slate-800 flex-1">Technology Summary</span>
+                      <span className="text-sm font-semibold text-slate-800 flex-1">{tr("Technology Summary")}</span>
                       <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('tech-summary') ? '' : '-rotate-90'}`} />
                     </button>
                     {sectionOpen('tech-summary') && <div className="px-5 pb-5 overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="border-b border-black/10">
-                            <th className="text-left py-2 pr-6 font-bold text-black/60 text-[0.6875rem] uppercase tracking-widest">Technology</th>
-                            <th className="text-right py-2 px-4 font-bold text-black/60 text-[0.6875rem] uppercase tracking-widest">Capacity</th>
-                            <th className="text-right py-2 px-4 font-bold text-black/60 text-[0.6875rem] uppercase tracking-widest">Generation</th>
-                            <th className="text-right py-2 px-4 font-bold text-black/60 text-[0.6875rem] uppercase tracking-widest">Cost</th>
-                            <th className="text-right py-2 px-4 font-bold text-black/60 text-[0.6875rem] uppercase tracking-widest">€ / MWh</th>
-                            <th className="text-right py-2 pl-4 font-bold text-black/60 text-[0.6875rem] uppercase tracking-widest">Cap. Factor</th>
+                            <th className="text-left py-2 pr-6 font-bold text-black/60 text-[0.6875rem] uppercase tracking-widest">{tr("Technology")}</th>
+                            <th className="text-right py-2 px-4 font-bold text-black/60 text-[0.6875rem] uppercase tracking-widest">{tr("Capacity")}</th>
+                            <th className="text-right py-2 px-4 font-bold text-black/60 text-[0.6875rem] uppercase tracking-widest">{tr("Generation")}</th>
+                            <th className="text-right py-2 px-4 font-bold text-black/60 text-[0.6875rem] uppercase tracking-widest">{tr("Cost")}</th>
+                            <th className="text-right py-2 px-4 font-bold text-black/60 text-[0.6875rem] uppercase tracking-widest">{tr("€ / MWh")}</th>
+                            <th className="text-right py-2 pl-4 font-bold text-black/60 text-[0.6875rem] uppercase tracking-widest">{tr("Cap. Factor")}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -243,7 +243,7 @@ export default function OverviewTab({
                                 <td className="py-2.5 pr-6">
                                   <div className="flex items-center gap-2">
                                     <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: techColorFn(tech) }} />
-                                    <span className="font-medium text-slate-700 capitalize">{tech.replace(/_/g, ' ')}</span>
+                                    <span className="font-medium text-slate-700 capitalize">{trLoose(tech.replace(/_/g, ' '))}</span>
                                   </div>
                                 </td>
                                 <td className="py-2.5 px-4 text-right text-slate-600 font-mono text-xs">{fmtPower(cap)}</td>
@@ -296,28 +296,28 @@ export default function OverviewTab({
                     <div className="bg-white rounded-2xl border border-black/15 shadow-sm overflow-hidden">
                       <button onClick={() => toggleSection('tx-capacity')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
                         <FiShare2 size={14} className="text-slate-500 flex-shrink-0" />
-                        <span className="text-sm font-semibold text-slate-800 flex-1">Transmission Capacity</span>
-                        <span className="text-xs text-slate-400 mr-1">· {constrained.length} link{constrained.length !== 1 ? 's' : ''}</span>
+                        <span className="text-sm font-semibold text-slate-800 flex-1">{tr("Transmission Capacity")}</span>
+                        <span className="text-xs text-slate-400 mr-1">· {constrained.length} {tr("link")}{constrained.length !== 1 ? 's' : ''}</span>
                         <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('tx-capacity') ? '' : '-rotate-90'}`} />
                       </button>
                       {sectionOpen('tx-capacity') && (
                         <div className="px-5 pb-5">
                           {txBarOption ? (
                             <>
-                              <p className="text-xs text-slate-400 mb-3">Per-link installed capacity (constrained lines only). Capacity shown per unique pair.</p>
+                              <p className="text-xs text-slate-400 mb-3">{tr("Per-link installed capacity (constrained lines only). Capacity shown per unique pair.")}</p>
                               <ReactECharts option={txBarOption} style={{ height: Math.max(160, barLinks.length * 26 + 30) }} notMerge />
                               {constrained.length > MAX_BARS && (
-                                <p className="text-xs text-slate-400 mt-2 text-center">Showing top {MAX_BARS} of {constrained.length} links</p>
+                                <p className="text-xs text-slate-400 mt-2 text-center">{tr("Showing top")} {MAX_BARS} {tr("of")} {constrained.length} {tr("links")}</p>
                               )}
                             </>
                           ) : (
-                            <p className="text-xs text-slate-400 py-4 text-center">No constrained transmission links</p>
+                            <p className="text-xs text-slate-400 py-4 text-center">{tr("No constrained transmission links")}</p>
                           )}
                           {free.length > 0 && (
                             <div className="mt-4 pt-4 border-t border-black/10">
                               <p className="text-xs text-slate-400">
-                                <span className="font-medium text-slate-500">{free.length} unconstrained link{free.length !== 1 ? 's' : ''}</span>
-                                {' '}({[...new Set(free.map(l => l.tech))].join(', ')}) — fixed at very high capacity, omitted from chart.
+                                <span className="font-medium text-slate-500">{free.length} {tr("unconstrained link")}{free.length !== 1 ? 's' : ''}</span>
+                                {' '}({[...new Set(free.map(l => l.tech))].join(', ')}{tr(") — fixed at very high capacity, omitted from chart.")}
                               </p>
                             </div>
                           )}

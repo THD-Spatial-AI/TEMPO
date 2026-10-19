@@ -1,3 +1,4 @@
+import { tr } from '../../../i18n';
 /**
  * Cost sensitivity sweep recipe.
  *
@@ -18,8 +19,8 @@
  */
 
 export const PARAM_SCHEMA = {
-  techMatch:  { type: 'techMatch', label: 'Technology',    default: 'solar_pv' },
-  paramPath:  { type: 'select',    label: 'Parameter',     default: 'costs.monetary.energy_cap',
+  techMatch:  { type: 'techMatch', label: tr("Technology"),    default: 'solar_pv' },
+  paramPath:  { type: 'select',    label: tr("Parameter"),     default: 'costs.monetary.energy_cap',
     options: [
       'costs.monetary.energy_cap',
       'costs.monetary.energy_prod',
@@ -27,11 +28,11 @@ export const PARAM_SCHEMA = {
       'constraints.energy_eff',
     ],
   },
-  valueFrom:  { type: 'number',    label: 'From value',    default: 800 },
-  valueTo:    { type: 'number',    label: 'To value',      default: 300 },
-  steps:      { type: 'number',    label: 'Steps',         default: 5, min: 2, max: 20 },
-  unit:       { type: 'text',      label: 'Display unit',  default: '€/kW' },
-  level:      { type: 'select',    label: 'Apply to',      default: 'global', options: ['global', 'both'] },
+  valueFrom:  { type: 'number',    label: tr("From value"),    default: 800 },
+  valueTo:    { type: 'number',    label: tr("To value"),      default: 300 },
+  steps:      { type: 'number',    label: tr("Steps"),         default: 5, min: 2, max: 20 },
+  unit:       { type: 'text',      label: tr("Display unit"),  default: '€/kW' },
+  level:      { type: 'select',    label: tr("Apply to"),      default: 'global', options: ['global', 'both'] },
 };
 
 /** Generate the step values as an evenly spaced array. */

@@ -2,6 +2,7 @@
 // to a year, chain years into a timeline, and run (parallel vs sequential).
 import { a, kt, move, INK } from '../illustrations/anim';
 import { Cursor, Ripple } from '../illustrations/Parts';
+import { tr } from '../../i18n';
 
 const W = 280;
 const H = 150;
@@ -30,7 +31,7 @@ function YearBox({ x, y, w = 100, h = 70, year, highlight }) {
       <rect x={x} y={y} width={w} height="17" fill="#fff" stroke="#cbd5e1" />
       <rect x={x + 5} y={y + 4} width="9" height="9" fill={INK} />
       <text x={x + 19} y={y + 12} fontSize="9" fontWeight="700" fill={INK}>{year}</text>
-      <text x={x + w - 6} y={y + 12} textAnchor="end" fontSize="7.5" fontWeight="600" fill="#475569">+ Card</text>
+      <text x={x + w - 6} y={y + 12} textAnchor="end" fontSize="7.5" fontWeight="600" fill="#475569">{tr("+ Card")}</text>
       <rect x={x + 6} y={y + 23} width={w - 12} height={h - 29} fill="none" stroke="#cbd5e1" strokeDasharray="3 3" />
       {highlight}
       <circle cx={x} cy={y + h / 2} r="3" fill="#94a3b8" />
@@ -52,12 +53,12 @@ function Card({ color, title, sub, w = 74 }) {
 
 function AddCardScene() {
   const D = 5;
-  const items = [['Demand', BLUE], ['Emissions', RED], ['Renewables', GREEN], ['Technology', '#f59e0b']];
+  const items = [[tr("Demand"), BLUE], [tr("Emissions"), RED], [tr("Renewables"), GREEN], [tr("Technology"), '#f59e0b']];
   return (
     <>
       <g transform="translate(10 10)">
         <rect width="60" height="18" fill={INK} />
-        <text x="30" y="12.5" textAnchor="middle" fontSize="8.5" fontWeight="700" fill="#fff">+ Add card</text>
+        <text x="30" y="12.5" textAnchor="middle" fontSize="8.5" fontWeight="700" fill="#fff">{tr("+ Add card")}</text>
       </g>
       <g opacity="0" transform="translate(10 32)">
         {a('opacity', '0;0;1;1;0;0', kt(0, 0.2, 0.24, 0.5, 0.54, 1), D)}
@@ -78,12 +79,12 @@ function AddCardScene() {
         {a('opacity', '0;0;1;1;0', kt(0, 0.52, 0.58, 0.92, 1), D)}
         <g>
           {move('0 -8;0 -8;0 0;0 0', kt(0, 0.52, 0.6, 1), D)}
-          <Card color={RED} title="Emissions" sub="−55 % CO₂ cap" w={92} />
+          <Card color={RED} title={tr("Emissions")} sub={tr("−55 % CO₂ cap")} w={92} />
         </g>
       </g>
       <g opacity="0" transform="translate(196 104)">
         {a('opacity', '0;0;1;1;0', kt(0, 0.62, 0.68, 0.92, 1), D)}
-        <text textAnchor="middle" fontSize="7.5" fontWeight="600" fill="#64748b">On the canvas → applies to all years</text>
+        <text textAnchor="middle" fontSize="7.5" fontWeight="600" fill="#64748b">{tr("On the canvas → applies to all years")}</text>
       </g>
       <Ripple x={40} y={19} t={0.18} dur={D} />
       <Ripple x={45} y={58} t={0.46} dur={D} color={RED} />
@@ -104,12 +105,12 @@ function NestScene() {
       <YearBox x={140} y={22} w={130} h={90} year="2030" highlight={glow} />
       <g>
         {move('16 62;16 62;16 62;152 60;152 60;152 60;16 62', kt(0, 0.2, 0.26, 0.58, 0.62, 0.94, 1), D)}
-        <Card color={BLUE} title="Demand" sub="+15 % by 2030" />
+        <Card color={BLUE} title={tr("Demand")} sub={tr("+15 % by 2030")} />
       </g>
       <g opacity="0" transform="translate(205 124)">
         {a('opacity', '0;0;1;1;0', kt(0, 0.64, 0.7, 0.92, 1), D)}
         <rect x="-52" y="-9" width="104" height="15" rx="7.5" fill={BLUE} />
-        <text y="1.5" textAnchor="middle" fontSize="7.5" fontWeight="700" fill="#fff">Applies to 2030 only</text>
+        <text y="1.5" textAnchor="middle" fontSize="7.5" fontWeight="700" fill="#fff">{tr("Applies to 2030 only")}</text>
       </g>
       <Ripple x={50} y={74} t={0.22} dur={D} color={BLUE} />
       <Cursor values="40 135;50 74;50 74;186 72;186 72;40 135" keyTimes={kt(0, 0.2, 0.26, 0.58, 0.7, 1)} dur={D} />
@@ -125,8 +126,8 @@ function LinkYearsScene() {
     <>
       <YearBox x={12} y={40} year="2025" />
       <YearBox x={168} y={40} year="2030" />
-      <g transform="translate(18 66)"><Card color={GREEN} title="Renewables" sub="40 % share" w={88} /></g>
-      <g transform="translate(174 66)"><Card color={GREEN} title="Renewables" sub="65 % share" w={88} /></g>
+      <g transform="translate(18 66)"><Card color={GREEN} title={tr("Renewables")} sub={tr("40 % share")} w={88} /></g>
+      <g transform="translate(174 66)"><Card color={GREEN} title={tr("Renewables")} sub={tr("65 % share")} w={88} /></g>
       <line x1={A[0]} y1={A[1]} x2={A[0]} y2={A[1]} stroke="#94a3b8" strokeWidth="1.6" strokeDasharray="4 3" opacity="0">
         {a('x2', `${A[0]};${A[0]};${B[0]};${B[0]}`, kt(0, 0.26, 0.5, 1), D)}
         {a('opacity', '0;0;1;1;0;0', kt(0, 0.25, 0.26, 0.5, 0.52, 1), D)}
@@ -139,7 +140,7 @@ function LinkYearsScene() {
       <g opacity="0" transform="translate(140 30)">
         {a('opacity', '0;0;1;1;0', kt(0, 0.56, 0.62, 0.92, 1), D)}
         <rect x="-50" y="-9" width="100" height="15" rx="7.5" fill={INK} />
-        <text y="1.5" textAnchor="middle" fontSize="7.5" fontWeight="700" fill="#fff">2030 follows on from 2025</text>
+        <text y="1.5" textAnchor="middle" fontSize="7.5" fontWeight="700" fill="#fff">{tr("2030 follows on from 2025")}</text>
       </g>
       <Ripple x={A[0]} y={A[1]} t={0.22} dur={D} />
       <Ripple x={B[0]} y={B[1]} t={0.5} dur={D} />
@@ -161,11 +162,11 @@ function RunScene() {
         </rect>
         <text x="36" y="12.5" textAnchor="middle" fontSize="8" fontWeight="700" fill="#fff">
           {a('fill', '#ffffff;#475569', kt(0, 0.5), D, { calcMode: 'discrete' })}
-          Parallel
+          {tr("Parallel")}
         </text>
         <text x="104" y="12.5" textAnchor="middle" fontSize="8" fontWeight="700" fill="#475569">
           {a('fill', '#475569;#ffffff', kt(0, 0.5), D, { calcMode: 'discrete' })}
-          Sequential
+          {tr("Sequential")}
         </text>
       </g>
       {years.map((y, i) => {
@@ -188,11 +189,11 @@ function RunScene() {
       })}
       <text x={W / 2} y="140" textAnchor="middle" fontSize="7.5" fontWeight="600" fill="#64748b">
         {a('opacity', '1;1;0;0', kt(0, 0.46, 0.48, 1), D)}
-        All years solve at the same time
+        {tr("All years solve at the same time")}
       </text>
       <text x={W / 2} y="140" textAnchor="middle" fontSize="7.5" fontWeight="600" fill="#64748b" opacity="0">
         {a('opacity', '0;0;1;1', kt(0, 0.48, 0.5, 1), D)}
-        One year after another, in year order
+        {tr("One year after another, in year order")}
       </text>
     </>
   );
@@ -203,7 +204,7 @@ const SCENES = { 'scn-add': AddCardScene, 'scn-nest': NestScene, 'scn-link': Lin
 export default function ScenarioIllustration({ mode = 'scn-add', className = '' }) {
   const Scene = SCENES[mode] || AddCardScene;
   return (
-    <svg key={mode} viewBox={`0 0 ${W} ${H}`} className={`block w-full ${className}`} role="img" aria-label={`${mode} illustration`}>
+    <svg key={mode} viewBox={`0 0 ${W} ${H}`} className={`block w-full ${className}`} role="img" aria-label={tr("{0} illustration", { 0: mode })}>
       <Canvas id={`si-${mode}`} />
       <Scene />
     </svg>

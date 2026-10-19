@@ -16,8 +16,11 @@ import { confirmAction } from './ui/confirm';
 import { usePinnedModels, togglePinnedModel, sortPinnedFirst } from '../services/pinnedModels';
 import { LuPin } from './ui/icons';
 import { iconBtn, ICON_PX } from './ui/iconButton';
+import { useT, locale } from '../i18n';
+import { tr } from '../i18n';
 
 const Models = () => {
+  const t = useT();
   const { models, setModels, currentModelId, loadModel, deleteModel, renameModel, createModel, setTimeSeries, setOverrides, setScenarios, showNotification } = useData();
   const [viewingTemplate, setViewingTemplate] = useState(null);
   const [showYAMLImporter, setShowYAMLImporter] = useState(false);
@@ -49,11 +52,11 @@ const Models = () => {
       if (format === 'calliope') {
         setShowCreatePanel(false);
         setShowYAMLImporter(true);
-        showNotification('This is a Calliope archive — use the YAML importer that just opened.', 'info');
+        showNotification(tr("This is a Calliope archive — use the YAML importer that just opened."), 'info');
         return;
       }
       if (format === 'unknown') {
-        showNotification('Could not detect the archive format (expected PyPSA, OSeMOSYS, AdOpT-NET0, or Calliope).', 'error');
+        showNotification(tr("Could not detect the archive format (expected PyPSA, OSeMOSYS, AdOpT-NET0, or Calliope)."), 'error');
         return;
       }
 
@@ -69,7 +72,7 @@ const Models = () => {
         {
           source: `${format}_import`,
           modelConfig: model.modelConfig || {},
-          description: `Imported from ${format} archive: ${file.name}`,
+          description: tr("Imported from {0} archive: {1}", { 0: format, 1: file.name }),
         },
       );
       for (const extra of extraModels || []) {
@@ -84,20 +87,20 @@ const Models = () => {
           {
             source: `${format}_import`,
             modelConfig: extra.modelConfig || {},
-            description: `Imported from ${format} archive: ${file.name}`,
+            description: tr("Imported from {0} archive: {1}", { 0: format, 1: file.name }),
           },
         );
       }
       setImportReport(report || []);
       const total = 1 + (extraModels?.length || 0);
       showNotification(
-        total > 1 ? `${total} models imported from ${format} archive!` : `${name} imported from ${format} archive!`,
+        total > 1 ? tr("{0} models imported from {1} archive!", { 0: total, 1: format }) : tr("{0} imported from {1} archive!", { 0: name, 1: format }),
         'success'
       );
       setShowCreatePanel(false);
     } catch (err) {
       console.error('Archive import error:', err);
-      showNotification(`Import failed: ${err.message}`, 'error');
+      showNotification(tr("Import failed: {0}", { 0: err.message }), 'error');
     } finally {
       setArchiveImporting(false);
       if (archiveInputRef.current) archiveInputRef.current.value = '';
@@ -113,8 +116,8 @@ const Models = () => {
     {
       id: 'calliope',
       name: 'Calliope',
-      shortDesc: 'Multi-carrier LP energy system model',
-      longDesc: 'Supports Calliope 0.6.8 and 0.7. Import via YAML archive or CSV wizard.',
+      shortDesc: tr("Multi-carrier LP energy system model"),
+      longDesc: tr("Supports Calliope 0.6.8 and 0.7. Import via YAML archive or CSV wizard."),
       icon: <FiZap size={18} />,
       color: 'blue',
       enabled: true,
@@ -122,8 +125,8 @@ const Models = () => {
     {
       id: 'adoptnet0',
       name: 'AdOpT-NET0',
-      shortDesc: 'Net-zero transition pathway optimization',
-      longDesc: 'Capacity expansion model focused on net-zero energy system transitions.',
+      shortDesc: tr("Net-zero transition pathway optimization"),
+      longDesc: tr("Capacity expansion model focused on net-zero energy system transitions."),
       icon: <FiActivity size={18} />,
       color: 'gray',
       enabled: false,
@@ -131,8 +134,8 @@ const Models = () => {
     {
       id: 'osemosys',
       name: 'OSeMOSYS',
-      shortDesc: 'Open Source energy Modelling SYStem',
-      longDesc: 'Long-run energy planning model widely used for policy analysis.',
+      shortDesc: tr("Open Source energy Modelling SYStem"),
+      longDesc: tr("Long-run energy planning model widely used for policy analysis."),
       icon: <FiDatabase size={18} />,
       color: 'gray',
       enabled: false,
@@ -140,8 +143,8 @@ const Models = () => {
     {
       id: 'pypsa',
       name: 'PyPSA',
-      shortDesc: 'Python for Power System Analysis',
-      longDesc: 'Network-constrained power flow and capacity expansion model.',
+      shortDesc: tr("Python for Power System Analysis"),
+      longDesc: tr("Network-constrained power flow and capacity expansion model."),
       icon: <FiCpu size={18} />,
       color: 'gray',
       enabled: false,
@@ -164,7 +167,7 @@ const Models = () => {
       id: 'german',
       name: 'German Energy System',
       country: '🇩🇪 Germany',
-      description: 'Comprehensive model of German energy infrastructure with 10 major cities and 2 transmission nodes. Features Energiewende transition with high renewable penetration.',
+      description: tr("Comprehensive model of German energy infrastructure with 10 major cities and 2 transmission nodes. Features Energiewende transition with high renewable penetration."),
       locations: 12,
       sites: 10,
       nodes: 2,
@@ -177,13 +180,13 @@ const Models = () => {
       scenariosFile: 'german_energy_system/scenarios.json',
       statisticsFile: 'german_energy_system/statistics.json',
       color: 'blue',
-      features: ['Energiewende Modeling', 'High Renewable Mix', 'Coal Phase-out', 'Demand Profiles', 'Storage Integration', 'Grid Expansion Planning']
+      features: [tr("Energiewende Modeling"), tr("High Renewable Mix"), tr("Coal Phase-out"), tr("Demand Profiles"), tr("Storage Integration"), tr("Grid Expansion Planning")]
     },
     {
       id: 'european',
       name: 'European Network',
       country: '🇪🇺 Europe',
-      description: 'Pan-European energy network with 12 major cities and 3 transmission hubs. Includes complete technology mix, demand data, and cross-border transmission infrastructure.',
+      description: tr("Pan-European energy network with 12 major cities and 3 transmission hubs. Includes complete technology mix, demand data, and cross-border transmission infrastructure."),
       locations: 15,
       sites: 12,
       nodes: 3,
@@ -196,13 +199,13 @@ const Models = () => {
       scenariosFile: 'european_network/scenarios.json',
       statisticsFile: 'european_network/statistics.json',
       color: 'green',
-      features: ['Multi-Country System', 'Complete Technology Mix', 'Cross-Border Transmission', 'Demand Profiles', 'Pre-configured Scenarios', 'Multiple Voltage Levels']
+      features: [tr("Multi-Country System"), tr("Complete Technology Mix"), tr("Cross-Border Transmission"), tr("Demand Profiles"), tr("Pre-configured Scenarios"), tr("Multiple Voltage Levels")]
     },
     {
       id: 'chile',
       name: 'Chilean Energy Grid',
       country: '🇨🇱 Chile',
-      description: 'Complete Chilean energy system with 2,241 locations (substations and power plants) and 2,319 transmission links. Includes demand data, solar PV and wind resource timeseries for 2024. Multi-voltage transmission network (11-500kV) with technologies, scenarios, and statistics.',
+      description: tr("Complete Chilean energy system with 2,241 locations (substations and power plants) and 2,319 transmission links. Includes demand data, solar PV and wind resource timeseries for 2024. Multi-voltage transmission network (11-500kV) with technologies, scenarios, and statistics."),
       locations: 2241,
       sites: 1081,
       substations: 1048,
@@ -220,12 +223,12 @@ const Models = () => {
       scenariosFile: 'chilean_energy_grid/scenarios.json',
       statisticsFile: 'chilean_energy_grid/statistics.json',
       color: 'purple',
-      features: ['Complete Technology Suite', 'Real Demand & Resource Data 2024', 'Multi-Voltage Transmission', 'Pre-configured Scenarios', 'Detailed Statistics', 'Real Grid Topology']
+      features: [tr("Complete Technology Suite"), tr("Real Demand & Resource Data 2024"), tr("Multi-Voltage Transmission"), tr("Pre-configured Scenarios"), tr("Detailed Statistics"), tr("Real Grid Topology")]
     }
   ];
 
   const handleDelete = async (modelId) => {
-    if (await confirmAction({ title: 'Delete this model?', message: 'Its locations, links, technologies and time series will be permanently removed.', details: models.find(m => m.id === modelId)?.name })) {
+    if (await confirmAction({ title: tr("Delete this model?"), message: tr("Its locations, links, technologies and time series will be permanently removed."), details: models.find(m => m.id === modelId)?.name })) {
       deleteModel(modelId);
     }
   };
@@ -240,7 +243,7 @@ const Models = () => {
   const saveEditName = () => {
     if (editModalName.trim()) {
       renameModel(editingModelId, editModalName.trim());
-      showNotification('Name updated', 'success');
+      showNotification(tr("Name updated"), 'success');
     }
   };
 
@@ -250,7 +253,7 @@ const Models = () => {
         ? { ...m, metadata: { ...m.metadata, description: editModalDesc }, updatedAt: new Date().toISOString() }
         : m
     ));
-    showNotification('Description updated', 'success');
+    showNotification(tr("Description updated"), 'success');
   };
 
   const deleteTs = (modelId, tsId) => {
@@ -262,7 +265,7 @@ const Models = () => {
     if (currentModelId === modelId) {
       setTimeSeries(prev => prev.filter(ts => ts.id !== tsId));
     }
-    showNotification('Time series removed', 'success');
+    showNotification(tr("Time series removed"), 'success');
   };
 
   const saveTsRename = (modelId) => {
@@ -276,7 +279,7 @@ const Models = () => {
       setTimeSeries(prev => prev.map(ts => ts.id === renamingTsId ? { ...ts, name: renamingTsName.trim() } : ts));
     }
     setRenamingTsId(null);
-    showNotification('Time series renamed', 'success');
+    showNotification(tr("Time series renamed"), 'success');
   };
 
   const handleAddTsFile = (e) => {
@@ -306,9 +309,9 @@ const Models = () => {
           if (currentModelId === editingModelId) {
             setTimeSeries(prev => [...prev, newTs]);
           }
-          showNotification(`Added ${file.name}`, 'success');
+          showNotification(tr("Added {0}", { 0: file.name }), 'success');
         },
-        error: (err) => showNotification(`Error reading ${file.name}: ${err.message}`, 'error'),
+        error: (err) => showNotification(tr("Error reading {0}: {1}", { 0: file.name, 1: err.message }), 'error'),
       });
     });
     e.target.value = '';
@@ -318,7 +321,7 @@ const Models = () => {
     try {
       const response = await fetchTemplate(filename);
       if (!response.ok) {
-        showNotification(`File ${filename} not found in templates folder`, 'error');
+        showNotification(tr("File {0} not found in templates folder", { 0: filename }), 'error');
         return;
       }
       
@@ -329,9 +332,9 @@ const Models = () => {
       link.download = filename;
       link.click();
       URL.revokeObjectURL(url);
-      showNotification(`Downloaded ${displayName}`, 'success');
+      showNotification(tr("Downloaded {0}", { 0: displayName }), 'success');
     } catch (error) {
-      showNotification(`Error downloading ${displayName}: ${error.message}`, 'error');
+      showNotification(tr("Error downloading {0}: {1}", { 0: displayName, 1: error.message }), 'error');
     }
   };
 
@@ -379,7 +382,7 @@ const Models = () => {
       }
     }
 
-    showNotification(`Downloaded ${successCount} of ${files.length} template files`, 'success');
+    showNotification(tr("Downloaded {0} of {1} template files", { 0: successCount, 1: files.length }), 'success');
   };
 
 
@@ -742,10 +745,10 @@ const Models = () => {
         });
       }
 
-      showNotification(`Template "${template.name}" loaded successfully!`, 'success');
+      showNotification(tr("Template \"{0}\" loaded successfully!", { 0: template.name }), 'success');
     } catch (error) {
       console.error('Error loading template:', error);
-      showNotification('Error loading template model. Make sure template files exist in /public/templates/', 'error');
+      showNotification(tr("Error loading template model. Make sure template files exist in /public/templates/"), 'error');
     }
   };
 
@@ -776,10 +779,10 @@ const Models = () => {
 
   const handleBulkDelete = async () => {
     const count = selectedIds.size;
-    if (!(await confirmAction({ title: `Delete ${count} model${count > 1 ? 's' : ''}?`, message: 'The selected models and all their data will be permanently removed.' }))) return;
+    if (!(await confirmAction({ title: tr("Delete {0} model{1}?", { 0: count, 1: count > 1 ? 's' : '' }), message: tr("The selected models and all their data will be permanently removed.") }))) return;
     selectedIds.forEach(id => deleteModel(id));
     setSelectedIds(new Set());
-    showNotification(`Deleted ${count} model${count > 1 ? 's' : ''}`, 'success');
+    showNotification(tr("Deleted {0} model{1}", { 0: count, 1: count > 1 ? 's' : '' }), 'success');
   };
 
   const handleBulkExport = () => {
@@ -795,7 +798,7 @@ const Models = () => {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     });
-    showNotification(`Exported ${toExport.length} model${toExport.length > 1 ? 's' : ''}`, 'success');
+    showNotification(tr("Exported {0} model{1}", { 0: toExport.length, 1: toExport.length > 1 ? 's' : '' }), 'success');
     setSelectedIds(new Set());
   };
 
@@ -803,8 +806,8 @@ const Models = () => {
     <div className="flex-1 p-8 bg-gray-50 overflow-y-auto">
       {/* Header */}
       <div className="mb-5">
-        <h1 className="text-2xl font-bold text-slate-900">Models</h1>
-        <p className="mt-1 text-sm text-slate-500">Import, manage and switch between your energy system models.</p>
+        <h1 className="text-2xl font-bold text-slate-900">{t('page.models.title')}</h1>
+        <p className="mt-1 text-sm text-slate-500">{t('page.models.subtitle')}</p>
       </div>
 
       {/* Calliope YAML Importer panel */}
@@ -814,7 +817,7 @@ const Models = () => {
             onClose={() => setShowYAMLImporter(false)}
             onImport={(name, locations, links, parameters, technologies, timeSeries, metadata, overrides, scenarios) => {
               createModel(name, locations, links, parameters, technologies, timeSeries, { ...metadata, modelType: 'calliope' }, overrides, scenarios);
-              showNotification(`Calliope model "${name}" imported successfully!`, 'success');
+              showNotification(tr("Calliope model \"{0}\" imported successfully!", { 0: name }), 'success');
               setShowYAMLImporter(false);
             }}
           />
@@ -824,8 +827,8 @@ const Models = () => {
       {/* Create New Model — model type cards */}
       <div className="mb-8">
         <div className="mb-4">
-          <h2 className="text-lg font-semibold text-slate-900">Import a model</h2>
-          <p className="mt-0.5 text-sm text-slate-500">Choose the format of your model files.</p>
+          <h2 className="text-lg font-semibold text-slate-900">{tr("Import a model")}</h2>
+          <p className="mt-0.5 text-sm text-slate-500">{tr("Choose the format of your model files.")}</p>
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {MODEL_TYPES.map((mt) => (
@@ -849,11 +852,11 @@ const Models = () => {
               {mt.enabled ? (
                 <span className="flex-shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-black text-white text-[11px] font-semibold whitespace-nowrap ">
                   <FiPlus size={12} />
-                  Import
+                  {tr("Import")}
                 </span>
               ) : (
                 <span className="flex-shrink-0 px-2 py-0.5 bg-gray-200 text-gray-600 text-[9px] font-bold uppercase tracking-wide whitespace-nowrap">
-                  Soon
+                  {tr("Soon")}
                 </span>
               )}
             </button>
@@ -867,8 +870,8 @@ const Models = () => {
           <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full">
             <div className="flex items-center justify-between px-6 py-4 border-b border-black/15">
               <div>
-                <h3 className="text-xl font-bold text-slate-800">Import Calliope Model</h3>
-                <p className="text-sm text-slate-500 mt-0.5">Choose how to bring your model into TEMPO</p>
+                <h3 className="text-xl font-bold text-slate-800">{tr("Import Calliope Model")}</h3>
+                <p className="text-sm text-slate-500 mt-0.5">{tr("Choose how to bring your model into TEMPO")}</p>
               </div>
               <button
                 onClick={() => setShowCreatePanel(false)}
@@ -885,8 +888,8 @@ const Models = () => {
                 <div className="p-2 bg-gray-100 rounded-lg mb-3 group-hover:bg-gray-200 transition-colors">
                   <FiPackage size={22} className="text-gray-700" />
                 </div>
-                <div className="font-bold text-slate-800 mb-1">YAML Archive</div>
-                <div className="text-xs text-slate-500">Import a Calliope 0.6.8 or 0.7 YAML model bundle</div>
+                <div className="font-bold text-slate-800 mb-1">{tr("YAML Archive")}</div>
+                <div className="text-xs text-slate-500">{tr("Import a Calliope 0.6.8 or 0.7 YAML model bundle")}</div>
               </button>
               <button
                 onClick={() => { setShowCreatePanel(false); setShowCSVWizard(true); }}
@@ -895,8 +898,8 @@ const Models = () => {
                 <div className="p-2 bg-gray-100 rounded-lg mb-3 group-hover:bg-gray-200 transition-colors">
                   <FiUpload size={22} className="text-gray-700" />
                 </div>
-                <div className="font-bold text-slate-800 mb-1">CSV Wizard</div>
-                <div className="text-xs text-slate-500">Build a model from locations, links and timeseries CSV files</div>
+                <div className="font-bold text-slate-800 mb-1">{tr("CSV Wizard")}</div>
+                <div className="text-xs text-slate-500">{tr("Build a model from locations, links and timeseries CSV files")}</div>
               </button>
               <button
                 onClick={() => archiveInputRef.current?.click()}
@@ -907,11 +910,10 @@ const Models = () => {
                   <FiUploadCloud size={22} className="text-gray-700" />
                 </div>
                 <div className="font-bold text-slate-800 mb-1">
-                  {archiveImporting ? 'Importing…' : 'Framework Archive (auto-detect)'}
+                  {archiveImporting ? tr("Importing…") : tr("Framework Archive (auto-detect)")}
                 </div>
                 <div className="text-xs text-slate-500">
-                  Import a PyPSA (netCDF/CSV), OSeMOSYS, or AdOpT-NET0 archive — TEMPO detects the
-                  format and translates it. Requires the matching engine to be installed (Settings).
+                  {tr("Import a PyPSA (netCDF/CSV), OSeMOSYS, or AdOpT-NET0 archive — TEMPO detects the format and translates it. Requires the matching engine to be installed (Settings).")}
                 </div>
               </button>
             </div>
@@ -931,7 +933,7 @@ const Models = () => {
       {/* Translation report from the last framework-archive import */}
       {importReport.length > 0 && (
         <div className="mb-6">
-          <TranslationReport report={importReport} title="Import translation report" />
+          <TranslationReport report={importReport} title={tr("Import translation report")} />
         </div>
       )}
 
@@ -940,12 +942,12 @@ const Models = () => {
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
             <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-              Your Models
+              {tr("Your Models")}
               <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
-                {filteredModels.length !== models.length ? `${filteredModels.length} of ${models.length}` : models.length}
+                {filteredModels.length !== models.length ? tr("{0} of {1}", { 0: filteredModels.length, 1: models.length }) : models.length}
               </span>
             </h2>
-            <p className="text-xs text-slate-500">Models saved on this device.</p>
+            <p className="text-xs text-slate-500">{tr("Models saved on this device.")}</p>
           </div>
         </div>
 
@@ -955,7 +957,7 @@ const Models = () => {
               <FiSearch size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
-                placeholder="Search models"
+                placeholder={tr("Search models")}
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 className="h-10 w-full rounded-lg border border-black/15 bg-slate-50 pl-9 pr-3 text-[13px] text-slate-800 placeholder:text-slate-400 transition-colors focus:border-black/15 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-200"
@@ -966,31 +968,31 @@ const Models = () => {
                 value={filterType}
                 onChange={setFilterType}
                 options={[
-                  { value: 'all', label: 'All types', description: `${models.length} model${models.length === 1 ? '' : 's'}` },
-                  ...[['calliope', 'Calliope'], ['pypsa', 'PyPSA'], ['osemosys', 'OSeMOSYS'], ['adoptnet0', 'AdOpT-NET0']].map(([value, label]) => {
+                  { value: 'all', label: tr("All types"), description: tr("{0} model{1}", { 0: models.length, 1: models.length === 1 ? '' : 's' }) },
+                  ...[['calliope', tr("Calliope")], ['pypsa', tr("PyPSA")], ['osemosys', tr("OSeMOSYS")], ['adoptnet0', 'AdOpT-NET0']].map(([value, label]) => {
                     const n = models.filter(m => (m.modelType || m.metadata?.modelType || 'calliope') === value).length;
-                    return { value, label, description: `${n} model${n === 1 ? '' : 's'}` };
+                    return { value, label, description: tr("{0} model{1}", { 0: n, 1: n === 1 ? '' : 's' }) };
                   }),
                 ]}
               />
             </div>
             {someSelected && (
-              <div className="tempo-tour-card flex h-10 items-center gap-1.5 rounded-full border border-black/15 bg-white pl-1.5 pr-1.5 shadow-sm" role="toolbar" aria-label="Selected models">
+              <div className="tempo-tour-card flex h-10 items-center gap-1.5 rounded-full border border-black/15 bg-white pl-1.5 pr-1.5 shadow-sm" role="toolbar" aria-label={tr("Selected models")}>
                 <span className="flex h-7 min-w-7 items-center justify-center rounded-full bg-slate-900 px-2 text-xs font-semibold tabular-nums text-white">
                   {selectedIds.size}
                 </span>
-                <span className="pr-1 text-xs font-medium text-slate-500">selected</span>
+                <span className="pr-1 text-xs font-medium text-slate-500">{tr("selected")}</span>
                 <span className="h-5 w-px bg-black/10" aria-hidden="true" />
-                <button onClick={handleBulkExport} title={`Export ${selectedIds.size} selected`} aria-label="Export selected"
+                <button onClick={handleBulkExport} title={tr("Export {0} selected", { 0: selectedIds.size })} aria-label={tr("Export selected")}
                   className="grid h-8 w-8 place-items-center rounded-full text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900">
                   <FiDownload size={17} />
                 </button>
-                <button onClick={handleBulkDelete} title={`Delete ${selectedIds.size} selected`} aria-label="Delete selected"
+                <button onClick={handleBulkDelete} title={tr("Delete {0} selected", { 0: selectedIds.size })} aria-label={tr("Delete selected")}
                   className="grid h-8 w-8 place-items-center rounded-full text-red-600 transition-colors hover:bg-red-50">
                   <FiTrash2 size={17} />
                 </button>
                 <span className="h-5 w-px bg-black/10" aria-hidden="true" />
-                <button onClick={() => setSelectedIds(new Set())} title="Clear selection" aria-label="Clear selection"
+                <button onClick={() => setSelectedIds(new Set())} title={tr("Clear selection")} aria-label={tr("Clear selection")}
                   className="grid h-8 w-8 place-items-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700">
                   <FiX size={16} />
                 </button>
@@ -1002,21 +1004,21 @@ const Models = () => {
         {models.length === 0 ? (
           <div className="flex flex-col items-center rounded-xl border border-dashed border-black/15 px-6 py-12 text-center">
             <div className="mb-3 grid h-12 w-12 place-items-center rounded-full bg-slate-100 text-slate-500"><FiFolder size={20} /></div>
-            <p className="text-sm font-semibold text-slate-800">No models yet</p>
-            <p className="mb-5 mt-1 text-sm text-slate-500">Pick a model type above, or load a template below.</p>
+            <p className="text-sm font-semibold text-slate-800">{tr("No models yet")}</p>
+            <p className="mb-5 mt-1 text-sm text-slate-500">{tr("Pick a model type above, or load a template below.")}</p>
             <button
               onClick={() => setShowCreatePanel(true)}
               className="inline-flex h-10 items-center gap-2 rounded-lg bg-black px-4 text-sm font-semibold text-white  transition-colors hover:bg-black/80"
             >
               <FiPlus size={16} />
-              Create Your First Model
+              {tr("Create Your First Model")}
             </button>
           </div>
         ) : filteredModels.length === 0 ? (
           <div className="flex flex-col items-center rounded-xl border border-dashed border-black/15 px-6 py-10 text-center">
             <FiSearch size={18} className="mb-2 text-slate-400" />
-            <p className="text-sm font-semibold text-slate-800">No matches</p>
-            <p className="mt-1 text-sm text-slate-500">No models match your search or type filter.</p>
+            <p className="text-sm font-semibold text-slate-800">{tr("No matches")}</p>
+            <p className="mt-1 text-sm text-slate-500">{tr("No models match your search or type filter.")}</p>
           </div>
         ) : (
           <div className="overflow-hidden rounded-xl border border-black/15">
@@ -1027,7 +1029,7 @@ const Models = () => {
                 onChange={toggleSelectAll}
                 className="h-4 w-4 cursor-pointer rounded border-black/15 accent-slate-900"
               />
-              Select all ({filteredModels.length})
+              {tr("Select all (")}{filteredModels.length})
             </label>
             <div className="divide-y divide-black/10">
             {filteredModels.map((model) => {
@@ -1035,11 +1037,11 @@ const Models = () => {
               const pinned = pinnedIds.has(model.id);
               const selected = selectedIds.has(model.id);
               const stats = [
-                [model.locations?.length || 0, 'locations'],
-                [model.links?.length || 0, 'links'],
-                [model.technologies?.length || 0, 'techs'],
-                ...((model.timeSeries?.length || 0) > 0 ? [[model.timeSeries.length, 'time series']] : []),
-                ...(Object.keys(model.scenarios || {}).length > 0 ? [[Object.keys(model.scenarios).length, 'scenarios']] : []),
+                [model.locations?.length || 0, tr("locations")],
+                [model.links?.length || 0, tr("links")],
+                [model.technologies?.length || 0, tr("techs")],
+                ...((model.timeSeries?.length || 0) > 0 ? [[model.timeSeries.length, tr("time series")]] : []),
+                ...(Object.keys(model.scenarios || {}).length > 0 ? [[Object.keys(model.scenarios).length, tr("scenarios")]] : []),
               ];
               return (
               <div
@@ -1063,16 +1065,16 @@ const Models = () => {
                     <span className="truncate text-sm font-semibold text-slate-900">{model.name}</span>
                     {pinned && (
                       <span className="inline-flex items-center gap-1 bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-700">
-                        <LuPin size={12} style={{ fontVariationSettings: "'FILL' 1" }} /> Pinned
+                        <LuPin size={12} style={{ fontVariationSettings: "'FILL' 1" }} /> {tr("Pinned")}
                       </span>
                     )}
                     {active && (
                       <span className="inline-flex items-center gap-1 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
-                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Active
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> {tr("Active")}
                       </span>
                     )}
                     {model.metadata?.template && (
-                      <span className="rounded-md bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-700">Template</span>
+                      <span className="rounded-md bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-700">{tr("Template")}</span>
                     )}
                     <span className="rounded-md border border-black/15 px-1.5 py-0.5 text-[11px] font-medium text-slate-600">
                       {getModelTypeBadgeLabel(model)}
@@ -1084,7 +1086,7 @@ const Models = () => {
                         <span className="font-semibold tabular-nums text-slate-800">{n}</span> {label}
                       </span>
                     ))}
-                    <span className="ml-1 text-[11px] text-slate-400">Updated {new Date(model.updatedAt).toLocaleDateString()}</span>
+                    <span className="ml-1 text-[11px] text-slate-400">{tr("Updated")} {new Date(model.updatedAt).toLocaleDateString(locale())}</span>
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
@@ -1093,16 +1095,16 @@ const Models = () => {
                   ) : (
                     <button
                       onClick={() => loadModel(model.id)}
-                      title="Make this the active model"
+                      title={tr("Make this the active model")}
                       className="h-8 w-[60px] border border-black/15 bg-white text-[13px] font-semibold text-slate-800 transition-colors hover:border-slate-900 hover:bg-slate-900 hover:text-white"
                     >
-                      Load
+                      {tr("Load")}
                     </button>
                   )}
                   <button
                     onClick={() => togglePinnedModel(model.id)}
-                    aria-label={pinned ? 'Unpin model' : 'Pin model to top'}
-                    title={pinned ? 'Unpin model' : 'Pin to top'}
+                    aria-label={pinned ? tr("Unpin model") : tr("Pin model to top")}
+                    title={pinned ? tr("Unpin model") : tr("Pin to top")}
                     aria-pressed={pinned}
                     className={`${iconBtn('edit')} ${pinned ? 'text-slate-900' : ''}`}
                   >
@@ -1110,16 +1112,16 @@ const Models = () => {
                   </button>
                   <button
                     onClick={() => openEditModal(model)}
-                    aria-label="Edit model"
-                    title="Edit model"
+                    aria-label={tr("Edit model")}
+                    title={tr("Edit model")}
                     className={`${iconBtn('edit', 'md')}`}
                   >
                     <FiEdit2 size={ICON_PX.md} />
                   </button>
                   <button
                     onClick={() => handleDelete(model.id)}
-                    aria-label="Delete model"
-                    title="Delete model"
+                    aria-label={tr("Delete model")}
+                    title={tr("Delete model")}
                     className={`${iconBtn('delete', 'md')}`}
                   >
                     <FiTrash2 size={ICON_PX.md} />
@@ -1141,7 +1143,7 @@ const Models = () => {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl shadow-2xl max-w-xl w-full max-h-[85vh] flex flex-col">
               <div className="flex items-center justify-between px-6 py-4 border-b border-black/15">
-                <h3 className="text-lg font-bold text-slate-800">Edit Model</h3>
+                <h3 className="text-lg font-bold text-slate-800">{tr("Edit Model")}</h3>
                 <button onClick={() => setEditingModelId(null)} className="text-gray-400 hover:text-gray-600">
                   <FiX size={22} />
                 </button>
@@ -1150,7 +1152,7 @@ const Models = () => {
               <div className="flex-1 overflow-y-auto p-6 space-y-5">
                 {/* Name */}
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">Name</label>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">{tr("Name")}</label>
                   <div className="flex gap-2">
                     <input
                       value={editModalName}
@@ -1159,14 +1161,14 @@ const Models = () => {
                       className="flex-1 px-3 py-2 border border-black/15 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
                     />
                     <button onClick={saveEditName} className="px-4 py-2 bg-slate-700 text-white rounded-lg text-sm hover:bg-black/80">
-                      Save
+                      {tr("Save")}
                     </button>
                   </div>
                 </div>
 
                 {/* Description */}
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">Description</label>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">{tr("Description")}</label>
                   <div className="flex gap-2 items-start">
                     <textarea
                       value={editModalDesc}
@@ -1175,7 +1177,7 @@ const Models = () => {
                       className="flex-1 px-3 py-2 border border-black/15 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 resize-none"
                     />
                     <button onClick={saveEditDesc} className="px-4 py-2 bg-slate-700 text-white rounded-lg text-sm hover:bg-black/80">
-                      Save
+                      {tr("Save")}
                     </button>
                   </div>
                 </div>
@@ -1184,19 +1186,19 @@ const Models = () => {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-sm font-semibold text-slate-700">
-                      Time Series Files
+                      {tr("Time Series Files")}
                       <span className="ml-2 text-xs font-normal text-slate-400">({em.timeSeries?.length || 0})</span>
                     </label>
                     <label className="cursor-pointer px-3 py-1.5 bg-black text-white rounded-lg text-xs font-medium hover:bg-black/80 inline-flex items-center gap-1">
                       <FiPlus size={12} />
-                      Add CSV
+                      {tr("Add CSV")}
                       <input type="file" accept=".csv" multiple className="hidden" onChange={handleAddTsFile} />
                     </label>
                   </div>
 
                   {(em.timeSeries?.length || 0) === 0 ? (
                     <p className="text-xs text-slate-400 text-center py-4 border border-dashed border-black/15 rounded-lg">
-                      No time series files — click Add CSV to upload one
+                      {tr("No time series files — click Add CSV to upload one")}
                     </p>
                   ) : (
                     <div className="space-y-1.5">
@@ -1222,24 +1224,24 @@ const Models = () => {
                             <>
                               <div className="flex-1 min-w-0">
                                 <div className="text-sm font-medium text-slate-800 truncate">{ts.name || ts.fileName}</div>
-                                <div className="text-[10px] text-slate-500">{ts.fileName} · {ts.rowCount || 0} rows</div>
+                                <div className="text-[10px] text-slate-500">{ts.fileName} · {ts.rowCount || 0} {tr("rows")}</div>
                               </div>
                               <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold flex-shrink-0 ${
                                 ts.type === 'demand' ? 'bg-gray-100 text-gray-700' :
                                 ts.type?.startsWith('resource') ? 'bg-gray-100 text-gray-700' :
                                 'bg-gray-200 text-gray-600'
-                              }`}>{ts.type || 'other'}</span>
+                              }`}>{ts.type || tr("other")}</span>
                               <button
                                 onClick={() => { setRenamingTsId(ts.id); setRenamingTsName(ts.name || ts.fileName || ''); }}
                                 className={`${iconBtn('edit', 'md')}`}
-                                title="Rename"
+                                title={tr("Rename")}
                               >
                                 <FiEdit2 size={ICON_PX.md} />
                               </button>
                               <button
                                 onClick={() => deleteTs(editingModelId, ts.id)}
                                 className={`${iconBtn('delete', 'md')}`}
-                                title="Delete"
+                                title={tr("Delete")}
                               >
                                 <FiTrash2 size={ICON_PX.md} />
                               </button>
@@ -1257,7 +1259,7 @@ const Models = () => {
                   onClick={() => setEditingModelId(null)}
                   className="px-5 py-2 border border-black/15 rounded-lg text-sm text-slate-700 hover:bg-slate-50"
                 >
-                  Done
+                  {tr("Done")}
                 </button>
               </div>
             </div>
@@ -1269,10 +1271,10 @@ const Models = () => {
       <div className="mb-8 rounded-2xl border border-black/15 bg-white p-6 ">
         <div className="mb-4">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            Template Models
+            {tr("Template Models")}
             <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">{TEMPLATE_MODELS.length}</span>
           </h2>
-          <p className="text-xs text-slate-500">Ready-made example systems to explore or start from.</p>
+          <p className="text-xs text-slate-500">{tr("Ready-made example systems to explore or start from.")}</p>
         </div>
 
         <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -1289,9 +1291,9 @@ const Models = () => {
                 </div>
                 <p className="mt-3 line-clamp-2 text-xs leading-relaxed text-slate-500" title={template.description}>{template.description}</p>
                 <div className="mt-3 flex flex-wrap gap-1.5 text-xs text-slate-500">
-                  <span className="rounded-md bg-slate-100 px-1.5 py-0.5"><span className="font-semibold tabular-nums text-slate-800">{template.locations.toLocaleString()}</span> locations</span>
-                  <span className="rounded-md bg-slate-100 px-1.5 py-0.5"><span className="font-semibold tabular-nums text-slate-800">{template.links.toLocaleString()}</span> links</span>
-                  <span className="rounded-md bg-slate-100 px-1.5 py-0.5"><span className="font-semibold tabular-nums text-slate-800">{template.technologies.length}</span> techs</span>
+                  <span className="rounded-md bg-slate-100 px-1.5 py-0.5"><span className="font-semibold tabular-nums text-slate-800">{template.locations.toLocaleString()}</span> {tr("locations")}</span>
+                  <span className="rounded-md bg-slate-100 px-1.5 py-0.5"><span className="font-semibold tabular-nums text-slate-800">{template.links.toLocaleString()}</span> {tr("links")}</span>
+                  <span className="rounded-md bg-slate-100 px-1.5 py-0.5"><span className="font-semibold tabular-nums text-slate-800">{template.technologies.length}</span> {tr("techs")}</span>
                 </div>
                 <div className="mt-2.5 flex flex-wrap gap-1">
                   {template.technologies.slice(0, 4).map((tech, i) => (
@@ -1309,13 +1311,13 @@ const Models = () => {
                   className="flex h-8 items-center gap-1 rounded-lg px-2 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
                 >
                   {viewingTemplate === template.id ? <FiChevronDown size={14} /> : <FiChevronRight size={14} />}
-                  Files
+                  {tr("Files")}
                 </button>
                 <button
                   onClick={() => loadTemplateModel(template)}
                   className="ml-auto h-8 rounded-lg bg-black px-4 text-xs font-semibold text-white  transition-colors hover:bg-black/80"
                 >
-                  Load template
+                  {tr("Load template")}
                 </button>
               </div>
 
@@ -1326,16 +1328,16 @@ const Models = () => {
                   {/* File list */}
                   <div className="space-y-1.5">
                     {[
-                      { icon: FiMap,         label: 'Locations',         file: template.locationsFile,   required: true  },
-                      { icon: FiZap,         label: 'Links',             file: template.linksFile,        required: true  },
-                      { icon: FiActivity,    label: 'Demand timeseries', file: template.demandFile,       required: false },
+                      { icon: FiMap,         label: tr("Locations"),         file: template.locationsFile,   required: true  },
+                      { icon: FiZap,         label: tr("Links"),             file: template.linksFile,        required: true  },
+                      { icon: FiActivity,    label: tr("Demand timeseries"), file: template.demandFile,       required: false },
                       ...(template.resourceFiles || []).map(rf => ({
                         icon: FiUploadCloud, label: rf.name,             file: rf.file,                   required: false,
                       })),
-                      { icon: FiCpu,         label: 'Technologies',      file: template.technologiesFile, required: false },
-                      { icon: FiLayers,      label: 'Scenarios',         file: template.scenariosFile,    required: false },
-                      { icon: FiDatabase,    label: 'Statistics',        file: template.statisticsFile,   required: false },
-                      ...(template.modelDataFile ? [{ icon: FiDatabase,  label: 'Model Config',          file: template.modelDataFile, required: false }] : []),
+                      { icon: FiCpu,         label: tr("Technologies"),      file: template.technologiesFile, required: false },
+                      { icon: FiLayers,      label: tr("Scenarios"),         file: template.scenariosFile,    required: false },
+                      { icon: FiDatabase,    label: tr("Statistics"),        file: template.statisticsFile,   required: false },
+                      ...(template.modelDataFile ? [{ icon: FiDatabase,  label: tr("Model Config"),          file: template.modelDataFile, required: false }] : []),
                     ].filter(f => f.file).map(({ icon: Icon, label, file, required }, i) => (
                       <div key={i} className="flex items-center gap-2 text-xs">
                         <Icon size={12} className="text-gray-400 flex-shrink-0" />
@@ -1343,12 +1345,12 @@ const Models = () => {
                           {label}
                         </span>
                         {required && (
-                          <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded flex-shrink-0">required</span>
+                          <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded flex-shrink-0">{tr("required")}</span>
                         )}
                         <button
                           onClick={() => downloadTemplateFile(file, label)}
                           className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors flex-shrink-0"
-                          title={`Download ${label}`}
+                          title={tr("Download {0}", { 0: label })}
                         >
                           <FiDownload size={12} />
                         </button>
@@ -1362,12 +1364,12 @@ const Models = () => {
                     className="flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-black/15 bg-white text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50"
                   >
                     <FiDownload size={11} />
-                    Download all (
+                    {tr("Download all (")}
                     {[template.locationsFile, template.linksFile, template.demandFile,
                       ...(template.resourceFiles || []).map(r => r.file),
                       template.technologiesFile, template.scenariosFile,
                       template.statisticsFile, template.modelDataFile,
-                    ].filter(Boolean).length} files)
+                    ].filter(Boolean).length} {tr("files)")}
                   </button>
 
                 </div>

@@ -8,10 +8,11 @@
 
 import React, { useMemo } from 'react';
 import { FiX, FiCalendar, FiTrash2, FiArrowRight } from '../ui/icons';
-import ReactECharts from 'echarts-for-react';
+import ReactECharts from '../ui/Chart';
 import { summarizeYearOps } from '../../services/scenarioStudio/scenario.js';
 import { extractDemandSeries } from '../../services/scenarioStudio/recipeParams.js';
 import { iconBtn, ICON_PX } from '../ui/iconButton';
+import { tr } from '../../i18n';
 
 // renewable_min carries an object { share, techs }; everything else is a scalar.
 function fmtConstraint(kind, v) {
@@ -58,15 +59,15 @@ export default function YearDetailPanel({
           <FiCalendar size={16} />
         </span>
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold text-slate-900">Year {year}</div>
+          <div className="text-sm font-semibold text-slate-900">{tr("Year")} {year}</div>
           <div className="text-[11px] text-slate-400">
-            {prevYear != null ? <>compared with <span className="font-medium text-slate-500">{prevYear}</span></> : 'first year — baseline'}
+            {prevYear != null ? <>{tr("compared with")} <span className="font-medium text-slate-500">{prevYear}</span></> : tr("first year — baseline")}
           </div>
         </div>
-        <button onClick={onDelete} className={`${iconBtn('delete', 'md')}`} title="Remove year">
+        <button onClick={onDelete} className={`${iconBtn('delete', 'md')}`} title={tr("Remove year")}>
           <FiTrash2 size={ICON_PX.md} />
         </button>
-        <button onClick={onClose} aria-label="Close" className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700">
+        <button onClick={onClose} aria-label={tr("Close")} className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700">
           <FiX size={16} />
         </button>
       </div>
@@ -75,10 +76,10 @@ export default function YearDetailPanel({
         {/* Demand */}
         <div>
           <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-semibold text-slate-700">Demand</span>
+            <span className="text-xs font-semibold text-slate-700">{tr("Demand")}</span>
             <span className="text-xs text-slate-500">
               {summary.demandScale}×
-              {demandDelta && <span className={`ml-1.5 font-medium ${demandDelta.startsWith('+') ? 'text-blue-600' : 'text-red-600'}`}>{demandDelta} vs {prevYear}</span>}
+              {demandDelta && <span className={`ml-1.5 font-medium ${demandDelta.startsWith('+') ? 'text-blue-600' : 'text-red-600'}`}>{demandDelta} {tr("vs")} {prevYear}</span>}
             </span>
           </div>
           {preview ? (
@@ -95,15 +96,15 @@ export default function YearDetailPanel({
               }}
             />
           ) : (
-            <p className="text-xs text-slate-400 italic">No demand time series for this model.</p>
+            <p className="text-xs text-slate-400 italic">{tr("No demand time series for this model.")}</p>
           )}
         </div>
 
         {/* Constraints */}
         <div>
-          <span className="text-xs font-semibold text-slate-700">Constraints</span>
+          <span className="text-xs font-semibold text-slate-700">{tr("Constraints")}</span>
           {constraintKinds.length === 0 ? (
-            <p className="text-xs text-slate-400 italic mt-1">None this year.</p>
+            <p className="text-xs text-slate-400 italic mt-1">{tr("None this year.")}</p>
           ) : (
             <div className="mt-1.5 space-y-1">
               {constraintKinds.map(k => {
@@ -116,7 +117,7 @@ export default function YearDetailPanel({
                     <span className="ml-auto font-mono text-slate-800">{fmtConstraint(k, cur)}</span>
                     {changed && (
                       <span className="flex items-center gap-1 text-[10px] text-amber-600">
-                        <FiArrowRight size={9} /> was {fmtConstraint(k, prev)}
+                        <FiArrowRight size={9} /> {tr("was")} {fmtConstraint(k, prev)}
                       </span>
                     )}
                   </div>
@@ -129,13 +130,13 @@ export default function YearDetailPanel({
         {/* Disabled techs */}
         {summary.disabled.length > 0 && (
           <div>
-            <span className="text-xs font-semibold text-slate-700">Disabled technologies</span>
+            <span className="text-xs font-semibold text-slate-700">{tr("Disabled technologies")}</span>
             <div className="flex flex-wrap gap-1.5 mt-1.5">
               {summary.disabled.map(t => (
                 <span key={t} className={`text-[11px] font-mono px-2 py-0.5 rounded-md ${
                   newlyDisabled.includes(t) ? 'bg-red-50 text-red-600 border border-red-200' : 'bg-slate-100 text-slate-600'
                 }`}>
-                  {t}{newlyDisabled.includes(t) ? ' • new' : ''}
+                  {t}{newlyDisabled.includes(t) ? tr(" • new") : ''}
                 </span>
               ))}
             </div>
@@ -143,7 +144,7 @@ export default function YearDetailPanel({
         )}
 
         <div className="text-[11px] text-slate-400 bg-slate-50 rounded-lg px-3 py-2">
-          Wire config cards into this Year card to change what applies here. Unwired configs apply to every year.
+          {tr("Wire config cards into this Year card to change what applies here. Unwired configs apply to every year.")}
         </div>
       </div>
     </div>

@@ -6,6 +6,7 @@ import { formatTechName } from '../../utils/mapVisuals';
 import { confirmAction } from '../ui/confirm';
 import SelectField from '../ui/SelectField';
 import { iconBtn, ICON_PX } from '../ui/iconButton';
+import { tr } from '../../i18n';
 
 export default function MapSidebarLists({
   handleDeleteLocation,
@@ -43,21 +44,21 @@ export default function MapSidebarLists({
                   className="flex-1 px-4 py-3 flex items-center gap-2 hover:bg-slate-50 transition-colors text-left"
                 >
                   <FiMapPin size={14} className="text-slate-600" />
-                  <span className="text-sm font-semibold text-slate-700">Locations</span>
+                  <span className="text-sm font-semibold text-slate-700">{tr("Locations")}</span>
                   <span className="text-xs bg-slate-200 text-slate-600 px-1.5">{locations.length}</span>
                   <span className="ml-auto">{locationsExpanded ? <FiChevronDown size={14} /> : <FiChevronRight size={14} />}</span>
                 </button>
                 {locations.length > 0 && (
                   <button
                     onClick={async () => {
-                      if (await confirmAction({ title: 'Delete all locations?', message: `All ${locations.length} locations and every link between them will be removed.`, confirmLabel: 'Delete all' })) {
+                      if (await confirmAction({ title: tr("Delete all locations?"), message: tr("All {0} locations and every link between them will be removed.", { 0: locations.length }), confirmLabel: tr("Delete all") })) {
                         setLocations([]);
                         setLinks([]);
-                        showNotification('All locations and links deleted', 'success');
+                        showNotification(tr("All locations and links deleted"), 'success');
                       }
                     }}
                     className={`${iconBtn('delete')} mr-2`}
-                    title="Delete all locations"
+                    title={tr("Delete all locations")}
                   >
                     <FiTrash2 size={ICON_PX.md} />
                   </button>
@@ -68,7 +69,7 @@ export default function MapSidebarLists({
                 <div className="pb-2 space-y-1.5 px-2">
                   {locations.length === 0 ? (
                     <div className="text-center py-4 text-xs text-slate-400">
-                      No locations yet — use Single, Multiple, or Polyline mode to add
+                      {tr("No locations yet — use Single, Multiple, or Polyline mode to add")}
                     </div>
                   ) : (
                     locations.map((loc, idx) => {
@@ -107,14 +108,14 @@ export default function MapSidebarLists({
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleEditLocation(loc, idx); }}
                                 className={`${iconBtn('edit', 'md')}`}
-                                title="Edit location"
+                                title={tr("Edit location")}
                               >
                                 <FiEdit2 size={ICON_PX.md} />
                               </button>
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleDeleteLocation(idx); }}
                                 className={`${iconBtn('delete', 'md')}`}
-                                title="Delete location"
+                                title={tr("Delete location")}
                               >
                                 <FiTrash2 size={ICON_PX.md} />
                               </button>
@@ -136,20 +137,20 @@ export default function MapSidebarLists({
                   className="flex-1 px-4 py-3 flex items-center gap-2 hover:bg-slate-50 transition-colors text-left"
                 >
                   <FiLink size={14} className="text-slate-600" />
-                  <span className="text-sm font-semibold text-slate-700">Links</span>
+                  <span className="text-sm font-semibold text-slate-700">{tr("Links")}</span>
                   <span className="text-xs bg-slate-200 text-slate-600 px-1.5">{links.length}</span>
                   <span className="ml-auto">{linksExpanded ? <FiChevronDown size={14} /> : <FiChevronRight size={14} />}</span>
                 </button>
                 {links.length > 0 && (
                   <button
                     onClick={async () => {
-                      if (await confirmAction({ title: 'Delete all links?', message: `All ${links.length} links will be removed. Locations are kept.`, confirmLabel: 'Delete all' })) {
+                      if (await confirmAction({ title: tr("Delete all links?"), message: tr("All {0} links will be removed. Locations are kept.", { 0: links.length }), confirmLabel: tr("Delete all") })) {
                         setLinks([]);
-                        showNotification('All links deleted', 'success');
+                        showNotification(tr("All links deleted"), 'success');
                       }
                     }}
                     className={`${iconBtn('delete')} mr-2`}
-                    title="Delete all links"
+                    title={tr("Delete all links")}
                   >
                     <FiTrash2 size={ICON_PX.md} />
                   </button>
@@ -160,7 +161,7 @@ export default function MapSidebarLists({
                 <div className="pb-2 space-y-1.5 px-2">
                   {links.length === 0 ? (
                     <div className="text-center py-4 text-xs text-slate-400">
-                      No links yet — use Link or Polyline mode
+                      {tr("No links yet — use Link or Polyline mode")}
                     </div>
                   ) : (
                     links.map((link, idx) => (
@@ -176,17 +177,17 @@ export default function MapSidebarLists({
                               <span className="truncate max-w-[60px]">{link.to}</span>
                             </div>
                             {link.distance != null && (
-                              <span className="text-xs text-slate-400 mt-0.5 block">{link.distance} km</span>
+                              <span className="text-xs text-slate-400 mt-0.5 block">{link.distance} {tr("km")}</span>
                             )}
                           </div>
                           <button
                             onClick={async () => {
-                              if (await confirmAction({ title: 'Delete this link?', message: 'The connection and its transmission settings will be removed.', details: `${link.from} → ${link.to}` })) {
+                              if (await confirmAction({ title: tr("Delete this link?"), message: tr("The connection and its transmission settings will be removed."), details: `${link.from} → ${link.to}` })) {
                                 setLinks(links.filter((_, i) => i !== idx));
                               }
                             }}
                             className={iconBtn('delete')}
-                            title="Delete link"
+                            title={tr("Delete link")}
                           >
                             <FiTrash2 size={ICON_PX.md} />
                           </button>
@@ -209,7 +210,7 @@ export default function MapSidebarLists({
                   >
                     <div className="flex items-center gap-2">
                       <FiActivity size={16} className="text-slate-700" />
-                      <span className="text-sm font-semibold text-slate-700">Timeseries Data ({locationsWithDemand.length})</span>
+                      <span className="text-sm font-semibold text-slate-700">{tr("Timeseries Data (")}{locationsWithDemand.length})</span>
                     </div>
                     {showTimeseriesSection ? <FiChevronDown size={16} /> : <FiChevronRight size={16} />}
                   </button>
@@ -223,22 +224,22 @@ export default function MapSidebarLists({
                         const avgMWh = totalMWh / locationsWithDemand.length;
                         return (
                           <div className="bg-surface-container-low p-3 rounded-lg border border-black/15">
-                            <div className="text-xs font-bold text-gray-900 mb-2 uppercase tracking-wide">Demand Statistics</div>
+                            <div className="text-xs font-bold text-gray-900 mb-2 uppercase tracking-wide">{tr("Demand Statistics")}</div>
                             <div className="grid grid-cols-2 gap-2 text-xs">
                               <div className="bg-white/60 p-2 rounded">
-                                <div className="text-slate-600">Total Energy</div>
-                                <div className="font-bold text-gray-700">{totalGWh.toFixed(2)} GWh</div>
+                                <div className="text-slate-600">{tr("Total Energy")}</div>
+                                <div className="font-bold text-gray-700">{totalGWh.toFixed(2)} {tr("GWh")}</div>
                               </div>
                               <div className="bg-white/60 p-2 rounded">
-                                <div className="text-slate-600">Avg/Substation</div>
-                                <div className="font-bold text-gray-700">{avgMWh.toFixed(2)} MWh</div>
+                                <div className="text-slate-600">{tr("Avg/Substation")}</div>
+                                <div className="font-bold text-gray-700">{avgMWh.toFixed(2)} {tr("MWh")}</div>
                               </div>
                               <div className="bg-white/60 p-2 rounded">
-                                <div className="text-slate-600">Substations</div>
+                                <div className="text-slate-600">{tr("Substations")}</div>
                                 <div className="font-bold text-gray-700">{locationsWithDemand.length}</div>
                               </div>
                               <div className="bg-white/60 p-2 rounded">
-                                <div className="text-slate-600">Time Period</div>
+                                <div className="text-slate-600">{tr("Time Period")}</div>
                                 <div className="font-bold text-gray-700">{locationsWithDemand[0]?.demandProfile?.hours || 0}h</div>
                               </div>
                             </div>
@@ -251,7 +252,7 @@ export default function MapSidebarLists({
                         <div className="space-y-2">
                           <input
                             type="text"
-                            placeholder="Filter substations..."
+                            placeholder={tr("Filter substations...")}
                             value={timeseriesFilter}
                             onChange={(e) => setTimeseriesFilter(e.target.value)}
                             className="w-full px-3 py-2 text-xs border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-gray-500"
@@ -261,11 +262,11 @@ export default function MapSidebarLists({
                             onChange={(e) => setTimeseriesSortBy(e.target.value)}
                             className="w-full px-3 py-2 text-xs border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-gray-500"
                           >
-                            <option value="name">Sort by Name</option>
-                            <option value="total">Sort by Total (High to Low)</option>
-                            <option value="total-asc">Sort by Total (Low to High)</option>
-                            <option value="avg">Sort by Average (High to Low)</option>
-                            <option value="max">Sort by Peak Demand</option>
+                            <option value="name">{tr("Sort by Name")}</option>
+                            <option value="total">{tr("Sort by Total (High to Low)")}</option>
+                            <option value="total-asc">{tr("Sort by Total (Low to High)")}</option>
+                            <option value="avg">{tr("Sort by Average (High to Low)")}</option>
+                            <option value="max">{tr("Sort by Peak Demand")}</option>
                           </SelectField>
                         </div>
                       )}
@@ -297,8 +298,8 @@ export default function MapSidebarLists({
                         return (
                           <div className="space-y-2">
                             <div className="text-xs font-semibold text-gray-700 uppercase tracking-wide flex items-center justify-between">
-                              <span>Demand Profiles</span>
-                              <span className="text-slate-500 font-normal">{filtered.length} of {locationsWithDemand.length}</span>
+                              <span>{tr("Demand Profiles")}</span>
+                              <span className="text-slate-500 font-normal">{filtered.length} {tr("of")} {locationsWithDemand.length}</span>
                             </div>
                             <div className="max-h-96 overflow-y-auto space-y-1.5">
                               {filtered.map(loc => (
@@ -319,16 +320,16 @@ export default function MapSidebarLists({
                                   <div className="text-xs font-semibold text-slate-800 mb-1">{loc.name}</div>
                                   <div className="grid grid-cols-2 gap-1 text-xs">
                                     <div className="text-slate-600">
-                                      <span className="font-medium">Total:</span> {(parseFloat(loc.totalDemandMWh) / 1000).toFixed(2)} GWh
+                                      <span className="font-medium">{tr("Total:")}</span> {(parseFloat(loc.totalDemandMWh) / 1000).toFixed(2)} {tr("GWh")}
                                     </div>
                                     <div className="text-slate-600">
-                                      <span className="font-medium">Avg:</span> {loc.demandProfile.avgMW} MW
+                                      <span className="font-medium">{tr("Avg:")}</span> {loc.demandProfile.avgMW} {tr("MW")}
                                     </div>
                                     <div className="text-slate-600">
-                                      <span className="font-medium">Peak:</span> {loc.demandProfile.maxMW} MW
+                                      <span className="font-medium">{tr("Peak:")}</span> {loc.demandProfile.maxMW} {tr("MW")}
                                     </div>
                                     <div className="text-slate-600">
-                                      <span className="font-medium">Min:</span> {loc.demandProfile.minMW} MW
+                                      <span className="font-medium">{tr("Min:")}</span> {loc.demandProfile.minMW} {tr("MW")}
                                     </div>
                                   </div>
                                   {timeseriesPreview === loc.name && loc.demandProfile.timeseries && (
@@ -341,13 +342,13 @@ export default function MapSidebarLists({
                                               key={idx}
                                               className="flex-1 bg-gray-400 rounded-t"
                                               style={{ height: `${height}%`, minWidth: '1px' }}
-                                              title={`Hour ${idx}: ${val.toFixed(0)} MW`}
+                                              title={tr("Hour {0}: {1} MW", { 0: idx, 1: val.toFixed(0) })}
                                             />
                                           );
                                         })}
                                       </div>
                                       <div className="text-xs text-slate-500 mt-1 text-center">
-                                        First 7 days • Click location for full details
+                                        {tr("First 7 days • Click location for full details")}
                                       </div>
                                     </div>
                                   )}
@@ -358,7 +359,7 @@ export default function MapSidebarLists({
                                     }}
                                     className="mt-2 w-full text-xs text-gray-600 hover:text-gray-800 font-medium"
                                   >
-                                    {timeseriesPreview === loc.name ? '− Hide Preview' : '+ Show Preview'}
+                                    {timeseriesPreview === loc.name ? tr("− Hide Preview") : tr("+ Show Preview")}
                                   </button>
                                 </div>
                               ))}

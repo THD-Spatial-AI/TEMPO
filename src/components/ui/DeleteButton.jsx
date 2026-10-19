@@ -1,6 +1,7 @@
 // Delete/remove button that asks for confirmation before calling onConfirm.
 import { LuTrash2 } from './icons';
 import { confirmAction } from './confirm';
+import { tr } from '../../i18n';
 
 const SIZES = {
   sm: { box: 'h-8 px-2.5 text-xs gap-1.5', icon: 15, square: 'h-8 w-8' },
@@ -9,7 +10,7 @@ const SIZES = {
 
 export default function DeleteButton({
   onConfirm,
-  label = 'Remove',
+  label = tr("Remove"),
   title,
   message,
   details,
@@ -24,7 +25,7 @@ export default function DeleteButton({
     e.stopPropagation();
     const ok = await confirmAction({
       title: title || `${label}?`,
-      message: message || 'This action cannot be undone.',
+      message: message || tr("This action cannot be undone."),
       details,
       confirmLabel: confirmLabel || label,
     });

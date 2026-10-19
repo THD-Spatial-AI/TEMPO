@@ -1,6 +1,7 @@
 // ActiveJobsPanel — displays all active runs, including those launched from Scenario Studio.
 import { useState, useEffect } from 'react';
 import { FiActivity, FiClock, FiStopCircle, FiTerminal, FiLayers } from '../ui/icons';
+import { tr } from '../../i18n';
 
 function useElapsed(startTime) {
   const [elapsed, setElapsed] = useState('0s');
@@ -31,15 +32,15 @@ function JobCard({ job, expandedLog, setExpandedLog, handleStopJob, logEndRef })
             <div className="font-semibold text-sm text-slate-800 truncate">{job.modelName ?? job.displayName}</div>
             {isFromStudio && (
               <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 bg-electric-50 text-electric-700 border border-electric-200 flex-shrink-0">
-                <FiLayers size={8} /> Scenario Studio
+                <FiLayers size={8} /> {tr("Scenario Studio")}
               </span>
             )}
           </div>
           <div className="text-xs text-slate-500 mt-0.5">
-            {job.framework ?? 'calliope'} · {job.solver?.toUpperCase() ?? 'HIGHS'} · {elapsed}
+            {job.framework ?? tr("calliope")} · {job.solver?.toUpperCase() ?? tr("HIGHS")} · {elapsed}
           </div>
         </div>
-        <button onClick={() => handleStopJob(job.id)} className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg flex-shrink-0 ml-2" title="Stop">
+        <button onClick={() => handleStopJob(job.id)} className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg flex-shrink-0 ml-2" title={tr("Stop")}>
           <FiStopCircle size={16} />
         </button>
       </div>
@@ -52,11 +53,11 @@ function JobCard({ job, expandedLog, setExpandedLog, handleStopJob, logEndRef })
       {/* resource stats */}
       <div className="mb-3 grid grid-cols-4 gap-2">
         <div className="bg-white border border-black/10 rounded-lg p-2 text-center">
-          <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Elapsed</div>
+          <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">{tr("Elapsed")}</div>
           <div className="text-xs font-bold text-slate-700">{elapsed}</div>
         </div>
         <div className="bg-white border border-black/10 rounded-lg p-2 text-center">
-          <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">CPU</div>
+          <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">{tr("CPU")}</div>
           <div className="text-xs font-bold text-slate-700">{s?.cpu_pct != null ? `${s.cpu_pct}%` : '—'}</div>
           {s?.cpu_pct != null && (
             <div className="mt-1 w-full bg-slate-100 rounded-full h-1 overflow-hidden">
@@ -65,13 +66,13 @@ function JobCard({ job, expandedLog, setExpandedLog, handleStopJob, logEndRef })
           )}
         </div>
         <div className="bg-white border border-black/10 rounded-lg p-2 text-center">
-          <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Proc RAM</div>
+          <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">{tr("Proc RAM")}</div>
           <div className="text-xs font-bold text-slate-700">
-            {s?.proc_ram_mb != null ? (s.proc_ram_mb >= 1024 ? `${(s.proc_ram_mb / 1024).toFixed(1)} GB` : `${s.proc_ram_mb} MB`) : '—'}
+            {s?.proc_ram_mb != null ? (s.proc_ram_mb >= 1024 ? tr("{0} GB", { 0: (s.proc_ram_mb / 1024).toFixed(1) }) : tr("{0} MB", { 0: s.proc_ram_mb })) : '—'}
           </div>
         </div>
         <div className="bg-white border border-black/10 rounded-lg p-2 text-center">
-          <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Sys RAM</div>
+          <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">{tr("Sys RAM")}</div>
           <div className="text-xs font-bold text-slate-700">{s?.sys_ram_pct != null ? `${s.sys_ram_pct}%` : '—'}</div>
           {s?.sys_ram_pct != null && (
             <div className="mt-1 w-full bg-slate-100 rounded-full h-1 overflow-hidden">
@@ -79,7 +80,7 @@ function JobCard({ job, expandedLog, setExpandedLog, handleStopJob, logEndRef })
             </div>
           )}
           {s?.sys_ram_used_gb != null && (
-            <div className="text-[9px] text-slate-400 mt-0.5">{s.sys_ram_used_gb} / {s.sys_ram_total_gb} GB</div>
+            <div className="text-[9px] text-slate-400 mt-0.5">{s.sys_ram_used_gb} / {s.sys_ram_total_gb} {tr("GB")}</div>
           )}
         </div>
       </div>
@@ -90,12 +91,12 @@ function JobCard({ job, expandedLog, setExpandedLog, handleStopJob, logEndRef })
         className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600"
       >
         <FiTerminal size={11} />
-        {expandedLog === job.id ? 'Hide' : 'Show'} logs ({job.logs.length} lines)
+        {expandedLog === job.id ? tr("Hide") : tr("Show")} {tr("logs (")}{job.logs.length} {tr("lines)")}
       </button>
       {expandedLog === job.id && (
         <div className="mt-2 bg-black text-green-400 rounded-lg p-3 text-xs font-mono h-48 overflow-y-auto">
           {job.logs.length === 0
-            ? <span className="text-slate-500">Waiting for output…</span>
+            ? <span className="text-slate-500">{tr("Waiting for output…")}</span>
             : job.logs.map((l, i) => (
                 <div key={i} className={
                   l.includes('ERROR') || l.includes('error') ? 'text-red-400'
@@ -121,28 +122,28 @@ export default function ActiveJobsPanel({ expandedLog, handleStopJob, logEndRef,
       <div className="bg-white rounded-2xl  border border-black/15 p-5">
         <h2 className="mb-1 flex items-center gap-2 text-sm font-semibold text-slate-900">
           <FiActivity size={14} className="text-slate-500" />
-          Active runs
+          {tr("Active runs")}
           {runningJobs.length > 0 && (
             <span className="ml-auto flex items-center gap-1.5 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
-              {runningJobs.length} live
+              {runningJobs.length} {tr("live")}
             </span>
           )}
         </h2>
 
         {runningJobs.length > 1 && (
           <p className="text-[10px] text-slate-400 mb-3">
-            {studioCount > 0 && `${studioCount} from Scenario Studio`}
+            {studioCount > 0 && tr("{0} from Scenario Studio", { 0: studioCount })}
             {studioCount > 0 && directCount > 0 && ' · '}
-            {directCount > 0 && `${directCount} direct`}
-            {' · running concurrently'}
+            {directCount > 0 && tr("{0} direct", { 0: directCount })}
+            {tr(" · running concurrently")}
           </p>
         )}
 
         {runningJobs.length === 0 ? (
           <div className="mt-3 flex items-center gap-3 rounded-xl border border-dashed border-black/15 px-4 py-4">
             <FiClock size={18} className="shrink-0 text-slate-300" />
-            <p className="text-xs text-slate-500">No active runs. Runs you start appear here with live logs.</p>
+            <p className="text-xs text-slate-500">{tr("No active runs. Runs you start appear here with live logs.")}</p>
           </div>
         ) : (
           <div className="space-y-4">

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { FiCheckCircle, FiAlertCircle, FiDownload, FiTerminal, FiRefreshCw } from './ui/icons';
+import { tr } from '../i18n';
 
 /**
  * Generic install/status panel for an optional optimisation engine
@@ -65,8 +66,8 @@ export default function EngineInstallPanel({ title, icon: Icon, description, che
         onInstallSuccess?.();
       }
       if (data.type === 'error') {
-        appendLog('✗ ' + (data.error || data.label || 'Install error'));
-        setError(data.error || 'Installation failed.');
+        appendLog('✗ ' + (data.error || data.label || tr("Install error")));
+        setError(data.error || tr("Installation failed."));
         setInstalling(false);
         if (unsub) unsub();
         unsubRef.current = null;
@@ -81,7 +82,7 @@ export default function EngineInstallPanel({ title, icon: Icon, description, che
       {!embedded && (
         <h3 className="text-lg font-semibold text-slate-800 mb-1 flex items-center gap-2">
           {Icon && <Icon className="w-5 h-5 text-gray-500" />} {title}
-          <span className="text-xs px-2 py-0.5 font-medium bg-gray-100 text-gray-700">Optional</span>
+          <span className="text-xs px-2 py-0.5 font-medium bg-gray-100 text-gray-700">{tr("Optional")}</span>
         </h3>
       )}
       <p className="text-sm text-slate-500 mb-4">{description}</p>
@@ -102,21 +103,21 @@ export default function EngineInstallPanel({ title, icon: Icon, description, che
         )}
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-slate-800">
-            {statusLoading ? 'Checking…' : envStatus?.envExists ? 'Engine installed' : 'Not installed'}
+            {statusLoading ? tr("Checking…") : envStatus?.envExists ? tr("Engine installed") : tr("Not installed")}
           </p>
           {!statusLoading && envStatus?.venvPath && (
             <p className="text-xs text-slate-400 font-mono truncate">{envStatus.venvPath}</p>
           )}
           {!statusLoading && (
             <p className="text-xs mt-0.5">
-              Service:{' '}
+              {tr("Service:")}{' '}
               <span className={envStatus?.serviceRunning ? 'text-gray-600 font-medium' : 'text-slate-400'}>
-                {envStatus?.serviceRunning ? 'running' : 'stopped'}
+                {envStatus?.serviceRunning ? tr("running") : tr("stopped")}
               </span>
             </p>
           )}
         </div>
-        <button onClick={refreshStatus} className="p-1 text-slate-400 hover:text-slate-600 transition-colors" title="Refresh">
+        <button onClick={refreshStatus} className="p-1 text-slate-400 hover:text-slate-600 transition-colors" title={tr("Refresh")}>
           <FiRefreshCw className="w-4 h-4" />
         </button>
       </div>
@@ -130,13 +131,13 @@ export default function EngineInstallPanel({ title, icon: Icon, description, che
           className="flex items-center gap-2 px-5 py-2.5 border-2 border-gray-300 text-gray-800 bg-gray-50 rounded-xl font-semibold hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm"
         >
           {installing ? (
-            <><span className="w-4 h-4 border-2 border-gray-500 border-t-transparent rounded-full animate-spin" /> Installing…</>
+            <><span className="w-4 h-4 border-2 border-gray-500 border-t-transparent rounded-full animate-spin" /> {tr("Installing…")}</>
           ) : (
-            <><FiDownload className="w-4 h-4" /> {envStatus?.envExists ? 'Reinstall from scratch' : `Install ${title}`}</>
+            <><FiDownload className="w-4 h-4" /> {envStatus?.envExists ? tr("Reinstall from scratch") : tr("Install {0}", { 0: title })}</>
           )}
         </button>
       ) : (
-        <p className="text-sm text-slate-400">Engine installation is available in the desktop app only.</p>
+        <p className="text-sm text-slate-400">{tr("Engine installation is available in the desktop app only.")}</p>
       )}
 
       {/* Log output */}
@@ -144,7 +145,7 @@ export default function EngineInstallPanel({ title, icon: Icon, description, che
         <div className="mt-4">
           <div className="flex items-center gap-2 mb-1">
             <FiTerminal className="w-4 h-4 text-slate-400" />
-            <span className="text-xs font-mono text-slate-400 uppercase tracking-wide">Output</span>
+            <span className="text-xs font-mono text-slate-400 uppercase tracking-wide">{tr("Output")}</span>
           </div>
           <div className="bg-slate-950 rounded-xl p-4 h-48 overflow-y-auto font-mono text-xs leading-relaxed">
             {logs.map((l, i) => (
@@ -165,12 +166,12 @@ export default function EngineInstallPanel({ title, icon: Icon, description, che
       {success && (
         <div className="mt-3 flex items-center gap-2 p-3 bg-gray-50 border border-black/15 rounded-xl text-sm text-gray-700">
           <FiCheckCircle className="w-4 h-4 flex-shrink-0" />
-          {title} installed and service started.
+          {title} {tr("installed and service started.")}
         </div>
       )}
       {error && (
         <div className="mt-3 p-3 bg-gray-50 border border-black/15 rounded-xl text-sm text-gray-700">
-          <p className="font-semibold mb-1">Installation failed:</p>
+          <p className="font-semibold mb-1">{tr("Installation failed:")}</p>
           <pre className="whitespace-pre-wrap break-all text-xs bg-gray-100 rounded p-2 max-h-24 overflow-y-auto">{error}</pre>
         </div>
       )}

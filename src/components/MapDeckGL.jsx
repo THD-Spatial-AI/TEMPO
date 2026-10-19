@@ -26,6 +26,7 @@ import HoverTooltip from './creation/HoverTooltip';
 import LayerSelector from './creation/LayerSelector';
 import MapZoomControls from './creation/MapZoomControls';
 import { confirmAction } from './ui/confirm';
+import { tr } from '../i18n';
 
 const MapDeckGL = () => {
   const { locations, setLocations, links, setLinks, showNotification, technologies, models, currentModelId, loadModel, updateCurrentModel, createModel } = useData();
@@ -194,7 +195,7 @@ const MapDeckGL = () => {
           fillOpacity: 0.9,
           weight: 2,
         }).addTo(map);
-        marker.bindPopup(`<b>${loc.name || 'Location'}</b><br/>${techNames.length} tech${techNames.length === 1 ? '' : 's'}`);
+        marker.bindPopup(`<b>${loc.name || tr("Location")}</b><br/>${tr("{0} techs", { 0: techNames.length })}`);
       });
 
       (links || []).forEach(link => {
@@ -454,7 +455,7 @@ const MapDeckGL = () => {
     updatedLocations[editingIndex] = updatedLocation;
     setLocations(updatedLocations);
     setIsNewLocation(false);
-    showNotification(`Location "${updatedLocation.name}" updated successfully`, 'success');
+    showNotification(tr("Location \"{0}\" updated successfully", { 0: updatedLocation.name }), 'success');
     setShowEditDialog(false);
     setEditingLocation(null);
     setEditingIndex(null);
@@ -548,9 +549,9 @@ const MapDeckGL = () => {
           const accentColor = kind === 'substation' ? '#ef4444'
             : kind === 'plant' ? '#22c55e'
             : kind === 'transmission_node' ? '#f59e0b' : '#6B7280';
-          const details = [{ label: 'Technologies', value: String(Object.keys(o.techs || {}).length) }];
+          const details = [{ label: tr("Technologies"), value: String(Object.keys(o.techs || {}).length) }];
           if (o.latitude != null && o.longitude != null) {
-            details.push({ label: 'Lat, Lon', value: `${Number(o.latitude).toFixed(3)}, ${Number(o.longitude).toFixed(3)}` });
+            details.push({ label: tr("Lat, Lon"), value: `${Number(o.latitude).toFixed(3)}, ${Number(o.longitude).toFixed(3)}` });
           }
           setHoveredInfo({
             name: o.name,
@@ -686,10 +687,10 @@ const MapDeckGL = () => {
     
     if (!linkStart) {
       setLinkStart(location);
-      showNotification(`Link start: ${location.name}. Click another location to complete.`, 'info');
+      showNotification(tr("Link start: {0}. Click another location to complete.", { 0: location.name }), 'info');
     } else {
       if (linkStart.name === location.name) {
-        showNotification('Cannot link location to itself', 'error');
+        showNotification(tr("Cannot link location to itself"), 'error');
         return;
       }
       
@@ -712,7 +713,7 @@ const MapDeckGL = () => {
       };
       
       setLinks([...links, newLink]);
-      showNotification(`Link created: ${linkStart.name} → ${location.name}`, 'success');
+      showNotification(tr("Link created: {0} → {1}", { 0: linkStart.name, 1: location.name }), 'success');
       setLinkStart(null);
     }
   };
@@ -735,7 +736,7 @@ const MapDeckGL = () => {
 
     if (mode === 'add-location') {
       const newLocation = {
-        name: `Location ${locations.length + 1}`,
+        name: tr("Location {0}", { 0: locations.length + 1 }),
         latitude,
         longitude,
         techs: {},
@@ -749,7 +750,7 @@ const MapDeckGL = () => {
 
     if (mode === 'polyline') {
       const newLocation = {
-        name: `Point ${locations.length + 1}`,
+        name: tr("Point {0}", { 0: locations.length + 1 }),
         latitude,
         longitude,
         techs: {},
@@ -767,7 +768,7 @@ const MapDeckGL = () => {
         }]);
       }
       setLastPolylineLocation(newLocation);
-      showNotification(`Point added${lastPolylineLocation ? ' and linked' : ''}`, 'success');
+      showNotification(tr("Point added{0}", { 0: lastPolylineLocation ? tr(" and linked") : '' }), 'success');
       return;
     }
   };
@@ -786,13 +787,13 @@ const MapDeckGL = () => {
   
   // Handle delete location
   const handleDeleteLocation = async (index) => {
-    if (await confirmAction({ title: 'Delete this location?', message: 'Links connected to it will be removed as well.', details: locations[index]?.name })) {
+    if (await confirmAction({ title: tr("Delete this location?"), message: tr("Links connected to it will be removed as well."), details: locations[index]?.name })) {
       const locationName = locations[index].name;
       const newLocations = locations.filter((_, i) => i !== index);
       const newLinks = links.filter(link => link.from !== locationName && link.to !== locationName);
       setLocations(newLocations);
       setLinks(newLinks);
-      showNotification('Location deleted', 'success');
+      showNotification(tr("Location deleted"), 'success');
     }
   };
   
@@ -863,7 +864,7 @@ const MapDeckGL = () => {
       <div className="flex items-center justify-center w-full h-screen bg-slate-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-600 mx-auto mb-4"></div>
-          <p className="text-slate-600">Initializing map...</p>
+          <p className="text-slate-600">{tr("Initializing map...")}</p>
         </div>
       </div>
     );
@@ -879,13 +880,13 @@ const MapDeckGL = () => {
           {!leftSidebarCollapsed && (
             <>
               <div className="min-w-0 flex-1">
-                <h2 className="text-sm font-semibold text-slate-900">Map View</h2>
-                <p className="truncate text-[11px] text-slate-500">Edit the active model on the map</p>
+                <h2 className="text-sm font-semibold text-slate-900">{tr("Map View")}</h2>
+                <p className="truncate text-[11px] text-slate-500">{tr("Edit the active model on the map")}</p>
               </div>
               <button
-                onClick={() => { updateCurrentModel(); showNotification('Model saved!', 'success'); }}
+                onClick={() => { updateCurrentModel(); showNotification(tr("Model saved!"), 'success'); }}
                 className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors"
-                title="Save current model"
+                title={tr("Save current model")}
               >
                 <FiSave size={16} />
               </button>
@@ -894,7 +895,7 @@ const MapDeckGL = () => {
           <button
             onClick={() => setLeftSidebarCollapsed(!leftSidebarCollapsed)}
             className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors"
-            title={leftSidebarCollapsed ? 'Expand panel' : 'Collapse panel'}
+            title={leftSidebarCollapsed ? tr("Expand panel") : tr("Collapse panel")}
           >
             {leftSidebarCollapsed ? <LuPanelLeftOpen size={18} /> : <LuPanelLeftClose size={18} />}
           </button>
@@ -903,9 +904,9 @@ const MapDeckGL = () => {
         {leftSidebarCollapsed ? (
           <div className="flex flex-col items-center gap-1 py-3">
             {[
-              { m: 'add-location', Icon: FiMapPin, title: 'Add location' },
-              { m: 'add-link', Icon: FiLink, title: 'Link' },
-              { m: 'polyline', Icon: FiNavigation, title: 'Polyline' },
+              { m: 'add-location', Icon: FiMapPin, title: tr("Add location") },
+              { m: 'add-link', Icon: FiLink, title: tr("Link") },
+              { m: 'polyline', Icon: FiNavigation, title: tr("Polyline") },
             ].map(({ m, Icon, title }) => (
               <button
                 key={m}
@@ -927,11 +928,11 @@ const MapDeckGL = () => {
             className={`flex h-9 w-full items-center gap-2 rounded-lg border px-2.5 text-left transition-colors ${
               showModelPanel ? 'border-black/15 bg-slate-50' : 'border-black/15 hover:border-black/15 hover:bg-slate-50'
             }`}
-            title="Switch / load model"
+            title={tr("Switch / load model")}
           >
             <FiFolder size={14} className="shrink-0 text-slate-400" />
             <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-slate-800">
-              {models.find(m => m.id === currentModelId)?.name || 'No model loaded'}
+              {models.find(m => m.id === currentModelId)?.name || tr("No model loaded")}
             </span>
             <FiChevronDown size={14} className={`shrink-0 text-slate-400 transition-transform ${showModelPanel ? 'rotate-180' : ''}`} />
           </button>
@@ -939,13 +940,13 @@ const MapDeckGL = () => {
           {showModelPanel && (
             <div className="mt-2 rounded-lg border border-black/15 bg-white p-1 ">
               {models.length === 0 ? (
-                <p className="px-2 py-2 text-xs text-slate-400">No saved models yet</p>
+                <p className="px-2 py-2 text-xs text-slate-400">{tr("No saved models yet")}</p>
               ) : (
                 <div className="max-h-44 space-y-0.5 overflow-y-auto">
                   {models.map(m => (
                     <button
                       key={m.id}
-                      onClick={() => { loadModel(m.id); setShowModelPanel(false); showNotification(`Loaded "${m.name}"`, 'success'); }}
+                      onClick={() => { loadModel(m.id); setShowModelPanel(false); showNotification(tr("Loaded \"{0}\"", { 0: m.name }), 'success'); }}
                       className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors ${
                         m.id === currentModelId ? 'bg-slate-100 font-semibold text-slate-900' : 'text-slate-700 hover:bg-slate-50'
                       }`}
@@ -958,12 +959,12 @@ const MapDeckGL = () => {
               )}
               <button
                 onClick={() => {
-                  const name = prompt('New model name:');
+                  const name = prompt(tr("New model name:"));
                   if (name) { createModel(name); setShowModelPanel(false); }
                 }}
                 className="mt-1 w-full rounded-md border border-dashed border-black/15 py-1.5 text-xs text-slate-500 transition-colors hover:border-black/15 hover:text-slate-800"
               >
-                + New empty model
+                {tr("+ New empty model")}
               </button>
             </div>
           )}
@@ -973,9 +974,9 @@ const MapDeckGL = () => {
         <div className="border-b border-black/15 px-4 py-3 shrink-0">
           <div className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1">
             {[
-              { m: 'add-location', Icon: FiMapPin, label: 'Location' },
-              { m: 'add-link', Icon: FiLink, label: 'Link' },
-              { m: 'polyline', Icon: FiNavigation, label: 'Polyline' },
+              { m: 'add-location', Icon: FiMapPin, label: tr("Location") },
+              { m: 'add-link', Icon: FiLink, label: tr("Link") },
+              { m: 'polyline', Icon: FiNavigation, label: tr("Polyline") },
             ].map(({ m, Icon, label }) => (
               <button
                 key={m}
@@ -991,10 +992,10 @@ const MapDeckGL = () => {
             ))}
           </div>
           <p className="mt-2 px-0.5 text-[11px] leading-snug text-slate-500">
-            {mode === 'view' && 'Click a location to edit it, or pick a tool to add nodes and links'}
-            {mode === 'add-location' && 'Click the map to add a location and edit it'}
-            {mode === 'add-link' && (linkStart ? `Select the destination for the link from "${linkStart.name}"` : 'Click a location to start a link')}
-            {mode === 'polyline' && (lastPolylineLocation ? `Continue from "${lastPolylineLocation.name}" — click to extend` : 'Click the map to start a polyline chain')}
+            {mode === 'view' && tr("Click a location to edit it, or pick a tool to add nodes and links")}
+            {mode === 'add-location' && tr("Click the map to add a location and edit it")}
+            {mode === 'add-link' && (linkStart ? tr("Select the destination for the link from \"{0}\"", { 0: linkStart.name }) : tr("Click a location to start a link"))}
+            {mode === 'polyline' && (lastPolylineLocation ? tr("Continue from \"{0}\" — click to extend", { 0: lastPolylineLocation.name }) : tr("Click the map to start a polyline chain"))}
           </p>
         </div>
 
@@ -1007,14 +1008,14 @@ const MapDeckGL = () => {
             onEditLocation={(loc, index) => handleEditLocation(loc, index)}
             onDeleteLocation={(loc, index) => handleDeleteLocation(index)}
             onClearLocations={async () => {
-              if (await confirmAction({ title: 'Delete all locations?', message: `All ${locations.length} locations and every link between them will be removed.`, confirmLabel: 'Delete all' })) {
-                setLocations([]); setLinks([]); showNotification('All locations and links deleted', 'success');
+              if (await confirmAction({ title: tr("Delete all locations?"), message: tr("All {0} locations and every link between them will be removed.", { 0: locations.length }), confirmLabel: tr("Delete all") })) {
+                setLocations([]); setLinks([]); showNotification(tr("All locations and links deleted"), 'success');
               }
             }}
             onClearLinks={async () => {
               if (!links.length) return;
-              if (await confirmAction({ title: 'Delete all links?', message: `All ${links.length} links will be removed. Locations are kept.`, confirmLabel: 'Delete all' })) {
-                setLinks([]); showNotification('All links deleted', 'success');
+              if (await confirmAction({ title: tr("Delete all links?"), message: tr("All {0} links will be removed. Locations are kept.", { 0: links.length }), confirmLabel: tr("Delete all") })) {
+                setLinks([]); showNotification(tr("All links deleted"), 'success');
               }
             }}
             onUpdateLink={(link, patch, index) => setLinks(prev => prev.map((l, i) => (i === index ? { ...l, ...patch } : l)))}
@@ -1080,9 +1081,9 @@ const MapDeckGL = () => {
           <div className="absolute inset-0 z-0">
             <div ref={leafletContainerRef} className="w-full h-full" />
             <div className="absolute top-4 left-4 bg-white/95 backdrop-blur rounded-lg shadow-lg px-4 py-3 max-w-md z-20">
-              <div className="font-semibold text-slate-800 text-sm">Compatibility map mode</div>
+              <div className="font-semibold text-slate-800 text-sm">{tr("Compatibility map mode")}</div>
               <div className="text-slate-600 text-xs mt-1">
-                WebGL failed here, so this map is using Leaflet instead.
+                {tr("WebGL failed here, so this map is using Leaflet instead.")}
               </div>
               {webglErrorMsg && (
                 <div className="text-slate-500 text-[11px] mt-1 break-words">{webglErrorMsg}</div>
@@ -1105,7 +1106,7 @@ const MapDeckGL = () => {
               if (techName.toLowerCase().includes('demand')) return; // demand isn't a colour chip
               if (!techMapEntries.has(techName)) {
                 const color = getTechColor(techName, techMap);
-                const displayName = techMap[techName]?.essentials?.name || techName;
+                const displayName = tr(techMap[techName]?.essentials?.name || techName);
                 techMapEntries.set(techName, { color, displayName });
               }
             });
@@ -1121,38 +1122,38 @@ const MapDeckGL = () => {
                 className="flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-slate-50/80"
               >
                 <span className="grid h-7 w-7 place-items-center rounded-lg bg-black text-white"><FiLayers size={14} /></span>
-                <span className="flex-1 text-sm font-semibold text-slate-900">Legend</span>
+                <span className="flex-1 text-sm font-semibold text-slate-900">{tr("Legend")}</span>
                 <FiChevronDown size={15} className={`text-slate-400 transition-transform ${legendOpen ? '' : '-rotate-180'}`} />
               </button>
               {legendOpen && (
               <div className="max-h-80 space-y-4 overflow-y-auto border-t border-black/10 px-4 pb-4 pt-3">
               {totalNodes === 0 && techMapEntries.size === 0 && links.length === 0 && (
-                <p className="text-xs text-slate-500">Add technologies or links to see them here.</p>
+                <p className="text-xs text-slate-500">{tr("Add technologies or links to see them here.")}</p>
               )}
               
               {/* Node types — same palette as the map (red subs / green plants / amber transmission) */}
               {totalNodes > 0 && (
                 <div>
-                  <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Node types</div>
+                  <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">{tr("Node types")}</div>
                   <div className="space-y-1.5 text-xs">
                     {kindCounts.substation > 0 && (
                       <div className="flex items-center gap-2">
                         <span className="h-3 w-3 shrink-0 rounded-full ring-2 ring-white " style={{ backgroundColor: 'rgb(239, 68, 68)' }} />
-                        <span className="flex-1 text-slate-700">Substations</span>
+                        <span className="flex-1 text-slate-700">{tr("Substations")}</span>
                         <span className="tabular-nums text-slate-400">{kindCounts.substation}</span>
                       </div>
                     )}
                     {kindCounts.plant > 0 && (
                       <div className="flex items-center gap-2">
                         <span className="h-3 w-3 shrink-0 rounded-full ring-2 ring-white " style={{ backgroundColor: 'rgb(34, 197, 94)' }} />
-                        <span className="flex-1 text-slate-700">Power plants</span>
+                        <span className="flex-1 text-slate-700">{tr("Power plants")}</span>
                         <span className="tabular-nums text-slate-400">{kindCounts.plant}</span>
                       </div>
                     )}
                     {kindCounts.transmission_node > 0 && (
                       <div className="flex items-center gap-2">
                         <span className="h-3 w-3 shrink-0 rounded-full ring-2 ring-white " style={{ backgroundColor: 'rgb(245, 158, 11)' }} />
-                        <span className="flex-1 text-slate-700">Transmission nodes</span>
+                        <span className="flex-1 text-slate-700">{tr("Transmission nodes")}</span>
                         <span className="tabular-nums text-slate-400">{kindCounts.transmission_node}</span>
                       </div>
                     )}
@@ -1163,7 +1164,7 @@ const MapDeckGL = () => {
               {/* Technologies */}
               {techMapEntries.size > 0 && (
                 <div>
-                  <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Technologies</div>
+                  <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">{tr("Technologies")}</div>
                   <div className="space-y-1.5 text-xs">
                     {Array.from(techMapEntries.entries()).map(([techName, { color, displayName }]) => {
                       const rgbaColor = `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${color[3] / 255})`;
@@ -1219,17 +1220,17 @@ const MapDeckGL = () => {
                 return (
                   <div>
                     <div className="mb-2 flex items-center text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                      <span className="flex-1">Transmission</span>
-                      <span className="normal-case tracking-normal">{links.length} link{links.length === 1 ? '' : 's'}</span>
+                      <span className="flex-1">{tr("Transmission")}</span>
+                      <span className="normal-case tracking-normal">{links.length} {tr("link")}{links.length === 1 ? '' : 's'}</span>
                     </div>
                     
                     {/* Power Lines (Plant to Substation) */}
                     {powerLines.length > 0 && (
                       <div className="mb-2">
-                        <div className="mb-1 text-[11px] text-slate-500">Power plant connections</div>
+                        <div className="mb-1 text-[11px] text-slate-500">{tr("Power plant connections")}</div>
                         <div className="mb-1 flex items-center gap-2 text-xs">
                           <span className="h-1 w-5 shrink-0 rounded-full" style={{ backgroundColor: 'rgb(28, 3, 255)' }} />
-                          <span className="flex-1 text-slate-700">Power lines</span>
+                          <span className="flex-1 text-slate-700">{tr("Power lines")}</span>
                           <span className="tabular-nums text-slate-400">{powerLines.length}</span>
                         </div>
                       </div>
@@ -1238,7 +1239,7 @@ const MapDeckGL = () => {
                     {/* Voltage Level Lines */}
                     {sortedVoltages.length > 0 && (
                       <div>
-                        <div className="mb-1 text-[11px] text-slate-500">By voltage level</div>
+                        <div className="mb-1 text-[11px] text-slate-500">{tr("By voltage level")}</div>
                         {sortedVoltages.map(voltage => {
                           const color = getVoltageColor(voltage);
                           const count = voltageGroups[voltage].length;
@@ -1249,7 +1250,7 @@ const MapDeckGL = () => {
                                 style={{ backgroundColor: `rgb(${color[0]}, ${color[1]}, ${color[2]})` }}
                               />
                               <span className="flex-1 truncate text-slate-700">
-                                {voltage === 'unknown' ? 'Other links' : voltage.replace(/_/g, ' ').replace(/\b(ac|dc|hv|hvac|hvdc)\b/gi, m => m.toUpperCase()).replace(/\b[a-z]/g, c => c.toUpperCase())}
+                                {voltage === 'unknown' ? tr("Other links") : voltage.replace(/_/g, ' ').replace(/\b(ac|dc|hv|hvac|hvdc)\b/gi, m => m.toUpperCase()).replace(/\b[a-z]/g, c => c.toUpperCase())}
                               </span>
                               <span className="tabular-nums text-slate-400">{count}</span>
                             </div>
@@ -1314,7 +1315,7 @@ const MapDeckGL = () => {
             return copy;
           });
           setShowEditDialog(false);
-          showNotification(`Location "${updated.name}" updated`, 'success');
+          showNotification(tr("Location \"{0}\" updated", { 0: updated.name }), 'success');
         }}
       />
     </div>

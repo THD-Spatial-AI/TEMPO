@@ -1,8 +1,9 @@
 // AnalysisTab — the "analysis" result tab, extracted verbatim from Results.jsx.
 // Renders the pre-computed chart options / data passed as props.
 import { FiChevronDown, FiGrid } from '../../ui/icons';
-import ReactECharts from 'echarts-for-react';
+import ReactECharts from '../../ui/Chart';
 import { fmtCost, fmtEnergy, fmtPower } from '../../../utils/resultFormat';
+import { tr } from '../../../i18n';
 
 export default function AnalysisTab({
   LOC_CHART_LIMIT,
@@ -21,20 +22,20 @@ export default function AnalysisTab({
                   <button onClick={() => toggleSection('cf-chart')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
                     <FiGrid size={14} className="text-gray-600 flex-shrink-0" />
                     <span className="font-semibold text-slate-800 text-sm flex-1">
-                      {isLargeModel ? 'Average Capacity Factor by Technology' : 'Capacity Factor Heatmap'}
+                      {isLargeModel ? tr("Average Capacity Factor by Technology") : tr("Capacity Factor Heatmap")}
                     </span>
                     <span className="text-xs text-slate-400 mr-1">
-                      {isLargeModel ? '· aggregated' : '· Loc × Tech'}
+                      {isLargeModel ? tr("· aggregated") : tr("· Loc × Tech")}
                     </span>
                     <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('cf-chart') ? '' : '-rotate-90'}`} />
                   </button>
                   {sectionOpen('cf-chart') && <div className="px-5 pb-5">
-                    <p className="text-xs text-slate-400 mb-4">CF = total generation ÷ (installed capacity × hours). High CF means the asset is heavily used.</p>
+                    <p className="text-xs text-slate-400 mb-4">{tr("CF = total generation ÷ (installed capacity × hours). High CF means the asset is heavily used.")}</p>
                     {cfHeatmapOption ? (
                       <ReactECharts option={cfHeatmapOption} style={{ height: isLargeModel ? 220 : 320 }} notMerge />
                     ) : (
                       <div className="text-slate-400 text-sm text-center py-16">
-                        Insufficient data — needs both capacity and generation outputs
+                        {tr("Insufficient data — needs both capacity and generation outputs")}
                       </div>
                     )}
                   </div>}
@@ -52,13 +53,13 @@ export default function AnalysisTab({
                       const share = derivedData.totalGen > 0 ? (renewGen / derivedData.totalGen * 100) : 0;
                       return (
                         <div className="bg-white rounded-2xl border border-black/15 shadow-sm p-5">
-                          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Renewable Share</div>
+                          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">{tr("Renewable Share")}</div>
                           <div className="text-4xl font-bold text-gray-900 mb-1">{share.toFixed(1)}<span className="text-xl font-normal text-slate-400">%</span></div>
-                          <div className="text-xs text-slate-400 mb-3">of total generation</div>
+                          <div className="text-xs text-slate-400 mb-3">{tr("of total generation")}</div>
                           <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
                             <div className="h-full rounded-full bg-black transition-all" style={{ width: `${share}%` }} />
                           </div>
-                          <div className="mt-2 text-xs text-slate-500">{fmtEnergy(renewGen)} renewables / {fmtEnergy(derivedData.totalGen)} total</div>
+                          <div className="mt-2 text-xs text-slate-500">{fmtEnergy(renewGen)} {tr("renewables /")} {fmtEnergy(derivedData.totalGen)} {tr("total")}</div>
                         </div>
                       );
                     })()}
@@ -69,12 +70,12 @@ export default function AnalysisTab({
                       const lcoe = derivedData.totalGen > 0 ? totalCost / derivedData.totalGen : null;
                       return (
                         <div className="bg-white rounded-2xl border border-black/15 shadow-sm p-5">
-                          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">System Average LCOE</div>
+                          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">{tr("System Average LCOE")}</div>
                           <div className="text-4xl font-bold text-gray-900 mb-1">
-                            {lcoe != null ? lcoe.toFixed(2) : '—'}<span className="text-xl font-normal text-slate-400"> €/MWh</span>
+                            {lcoe != null ? lcoe.toFixed(2) : '—'}<span className="text-xl font-normal text-slate-400"> {tr("€/MWh")}</span>
                           </div>
-                          <div className="text-xs text-slate-400 mt-2">Total Cost: {fmtCost(totalCost)}</div>
-                          <div className="text-xs text-slate-400">Total Gen: {fmtEnergy(derivedData.totalGen)}</div>
+                          <div className="text-xs text-slate-400 mt-2">{tr("Total Cost:")} {fmtCost(totalCost)}</div>
+                          <div className="text-xs text-slate-400">{tr("Total Gen:")} {fmtEnergy(derivedData.totalGen)}</div>
                         </div>
                       );
                     })()}
@@ -86,12 +87,12 @@ export default function AnalysisTab({
                       const topTech = Object.entries(derivedData.capByTech).sort(([,a],[,b]) => b-a)[0];
                       return (
                         <div className="bg-white rounded-2xl border border-black/15 shadow-sm p-5">
-                          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">System Profile</div>
+                          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">{tr("System Profile")}</div>
                           <div className="space-y-2 text-sm">
-                            <div className="flex justify-between"><span className="text-slate-500">Technologies</span> <strong className="text-slate-800">{techCount}</strong></div>
-                            <div className="flex justify-between"><span className="text-slate-500">Locations</span> <strong className="text-slate-800">{locCount}</strong></div>
-                            <div className="flex justify-between"><span className="text-slate-500">Timesteps</span> <strong className="text-slate-800">{(result?.timestamps?.length || 0).toLocaleString()}</strong></div>
-                            <div className="flex justify-between"><span className="text-slate-500">Dominant tech</span>
+                            <div className="flex justify-between"><span className="text-slate-500">{tr("Technologies")}</span> <strong className="text-slate-800">{techCount}</strong></div>
+                            <div className="flex justify-between"><span className="text-slate-500">{tr("Locations")}</span> <strong className="text-slate-800">{locCount}</strong></div>
+                            <div className="flex justify-between"><span className="text-slate-500">{tr("Timesteps")}</span> <strong className="text-slate-800">{(result?.timestamps?.length || 0).toLocaleString()}</strong></div>
+                            <div className="flex justify-between"><span className="text-slate-500">{tr("Dominant tech")}</span>
                               <span className="flex items-center gap-1.5">
                                 <span className="w-2 h-2 rounded-full" style={{ background: techColorFn(topTech?.[0] || '') }} />
                                 <strong className="text-slate-800 capitalize">{topTech?.[0]?.replace(/_/g,' ') || '—'}</strong>
@@ -115,8 +116,8 @@ export default function AnalysisTab({
                       return (
                         <>
                           <div className="flex items-center justify-between mb-3">
-                            <h3 className="font-semibold text-slate-800 text-sm">Per-Location Capacity Breakdown</h3>
-                            {truncated && <span className="text-xs text-gray-500">Top {LOC_CHART_LIMIT} of {allEntries.length} locations</span>}
+                            <h3 className="font-semibold text-slate-800 text-sm">{tr("Per-Location Capacity Breakdown")}</h3>
+                            {truncated && <span className="text-xs text-gray-500">{tr("Top")} {LOC_CHART_LIMIT} {tr("of")} {allEntries.length} {tr("locations")}</span>}
                           </div>
                           <div className="space-y-3">
                             {entries.map(([loc, cap]) => {
@@ -139,7 +140,7 @@ export default function AnalysisTab({
                             })}
                           </div>
                           {truncated && (
-                            <p className="mt-3 text-xs text-slate-400 text-center">… {allEntries.length - LOC_CHART_LIMIT} more locations. Export JSON for full data.</p>
+                            <p className="mt-3 text-xs text-slate-400 text-center">… {allEntries.length - LOC_CHART_LIMIT} {tr("more locations. Export JSON for full data.")}</p>
                           )}
                         </>
                       );

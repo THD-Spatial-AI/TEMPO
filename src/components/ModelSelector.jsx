@@ -3,6 +3,7 @@ import { FiFolder, FiTrash2, FiEdit2, FiCheck, FiX, FiPlus } from './ui/icons';
 import { useData } from '../context/DataContext';
 import { confirmAction } from './ui/confirm';
 import { iconBtn, ICON_PX } from './ui/iconButton';
+import { tr, locale } from '../i18n';
 
 const ModelSelector = () => {
   const { models, currentModelId, loadModel, deleteModel, renameModel } = useData();
@@ -22,7 +23,7 @@ const ModelSelector = () => {
 
   const handleDelete = async (modelId, e) => {
     e.stopPropagation();
-    if (await confirmAction({ title: 'Delete this model?', message: 'Its locations, links, technologies and time series will be permanently removed.', details: models.find(m => m.id === modelId)?.name })) {
+    if (await confirmAction({ title: tr("Delete this model?"), message: tr("Its locations, links, technologies and time series will be permanently removed."), details: models.find(m => m.id === modelId)?.name })) {
       deleteModel(modelId);
     }
   };
@@ -42,7 +43,7 @@ const ModelSelector = () => {
       >
         <FiFolder />
         <span className="font-medium">
-          {currentModel ? currentModel.name : 'Select Model'}
+          {currentModel ? currentModel.name : tr("Select Model")}
         </span>
         <span className="text-slate-400">
           {models.length > 0 && `(${models.length})`}
@@ -59,7 +60,7 @@ const ModelSelector = () => {
             <div className="p-2">
               {models.length === 0 ? (
                 <div className="p-4 text-center text-slate-500 text-sm">
-                  No models yet. Upload data to create a model.
+                  {tr("No models yet. Upload data to create a model.")}
                 </div>
               ) : (
                 models.map((model) => (
@@ -110,10 +111,10 @@ const ModelSelector = () => {
                             {model.name}
                           </div>
                           <div className="text-xs text-slate-500 mt-1">
-                            {model.locations.length} locations, {model.links.length} links
+                            {model.locations.length} {tr("locations,")} {model.links.length} {tr("links")}
                           </div>
                           <div className="text-xs text-slate-400 mt-1">
-                            Updated: {new Date(model.updatedAt).toLocaleDateString()}
+                            {tr("Updated:")} {new Date(model.updatedAt).toLocaleDateString(locale())}
                           </div>
                         </div>
                         <div className="flex items-center gap-1">

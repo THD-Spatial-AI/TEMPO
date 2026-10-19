@@ -2,11 +2,12 @@ import { expand as expandDemandGrowth,      PARAM_SCHEMA as demandGrowthSchema  
 import { expand as expandRenewableTransition, PARAM_SCHEMA as renewableTransitionSchema } from './renewableTransition.js';
 import { expand as expandCarbonCap,           PARAM_SCHEMA as carbonCapSchema           } from './carbonCap.js';
 import { expand as expandCostSensitivity,     PARAM_SCHEMA as costSensitivitySchema     } from './costSensitivity.js';
+import { tr } from '../../../i18n';
 
 export const RECIPES = {
   demandGrowth: {
     id: 'demandGrowth',
-    label: 'Demand growth pathway',
+    label: tr("Demand growth pathway"),
     description: 'Grow electricity demand year by year at a defined rate, solving each year as an independent snapshot.',
     icon: 'FiTrendingUp',
     paramSchema: demandGrowthSchema,
@@ -14,7 +15,7 @@ export const RECIPES = {
   },
   renewableTransition: {
     id: 'renewableTransition',
-    label: 'Renewable transition',
+    label: tr("Renewable transition"),
     description: 'Phase out fossil techs and build toward a renewable-dominated grid across yearly snapshots.',
     icon: 'FiSun',
     paramSchema: renewableTransitionSchema,
@@ -22,7 +23,7 @@ export const RECIPES = {
   },
   carbonCap: {
     id: 'carbonCap',
-    label: 'Carbon cap / net-zero',
+    label: tr("Carbon cap / net-zero"),
     description: 'Tighten a CO₂ emission cap from a starting level toward net-zero across yearly snapshots.',
     icon: 'FiCloud',
     paramSchema: carbonCapSchema,
@@ -30,7 +31,7 @@ export const RECIPES = {
   },
   costSensitivity: {
     id: 'costSensitivity',
-    label: 'Cost sensitivity sweep',
+    label: tr("Cost sensitivity sweep"),
     description: 'Sweep a key cost parameter across a range of values to see how the optimal mix shifts.',
     icon: 'FiDollarSign',
     paramSchema: costSensitivitySchema,
@@ -41,7 +42,7 @@ export const RECIPES = {
 // Custom op builder: ops are provided directly in params; generates a single variant.
 RECIPES.custom = {
   id: 'custom',
-  label: 'Custom ops',
+  label: tr("Custom ops"),
   description: 'Compose your own set of operations, or import from a saved legacy scenario.',
   icon: 'FiSliders',
   paramSchema: {},

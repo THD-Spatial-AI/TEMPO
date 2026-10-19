@@ -10,6 +10,7 @@ import { buildResultContextString, summarizeResult, summarizeModelInputs, estima
 import { SYSTEM_PROMPT, buildReportMessages, buildChatMessages } from '../../../services/aiPrompts';
 import { getAIConfig, providerMeta } from '../../../services/aiSettings';
 import { getAdvisorCache, setAdvisorCache } from '../../../services/aiAdvisorCache';
+import { tr } from '../../../i18n';
 
 // ── Minimal markdown → React (headings, bold, bullets) — avoids a new dep ─────
 function renderMarkdown(text) {
@@ -151,7 +152,7 @@ export default function AIAnalysisTab({ result, selectedJob, model, onOpenSettin
     return (
       <div className="bg-white rounded-2xl border border-black/15 shadow-sm p-10 text-center text-slate-400">
         <FiCpu size={40} className="mx-auto mb-3 opacity-20" />
-        <p className="text-sm">Model Advisor is only available in the TEMPO desktop app.</p>
+        <p className="text-sm">{tr("Model Advisor is only available in the TEMPO desktop app.")}</p>
       </div>
     );
   }
@@ -162,16 +163,15 @@ export default function AIAnalysisTab({ result, selectedJob, model, onOpenSettin
     return (
       <div className="bg-white rounded-2xl border border-black/15 shadow-sm p-10 text-center">
         <FiCpu size={40} className="mx-auto mb-3 text-slate-300" />
-        <h3 className="text-lg font-semibold text-slate-700 mb-1">No API key configured</h3>
+        <h3 className="text-lg font-semibold text-slate-700 mb-1">{tr("No API key configured")}</h3>
         <p className="text-sm text-slate-500 mb-5 max-w-md mx-auto">
-          Model Advisor uses your own {meta.label} API key. Add one in Settings → Model Advisor. Your
-          key is stored encrypted on this device; results are sent to your chosen provider only.
+          {tr("Model Advisor uses your own")} {meta.label} {tr("API key. Add one in Settings → Model Advisor. Your key is stored encrypted on this device; results are sent to your chosen provider only.")}
         </p>
         <button
           onClick={() => onOpenSettings?.()}
           className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold uppercase tracking-wide text-white bg-black hover:bg-black/80 transition-colors"
         >
-          <FiSettings size={14} /> Open Model Advisor settings
+          <FiSettings size={14} /> {tr("Open Model Advisor settings")}
         </button>
       </div>
     );
@@ -190,7 +190,7 @@ export default function AIAnalysisTab({ result, selectedJob, model, onOpenSettin
           </div>
           <div className="flex items-center gap-2">
             <span className={`text-xs font-medium ${heavy ? 'text-amber-600' : 'text-slate-500'}`}>
-              ~{tokens.toLocaleString()} tokens of context
+              ~{tokens.toLocaleString()} {tr("tokens of context")}
             </span>
             <button
               onClick={() => setShowControls((v) => !v)}
@@ -198,7 +198,7 @@ export default function AIAnalysisTab({ result, selectedJob, model, onOpenSettin
                 showControls ? 'bg-black text-white border-gray-900' : 'bg-white text-slate-600 border-black/15 hover:bg-slate-50'
               }`}
             >
-              <FiSliders size={11} /> Data sent
+              <FiSliders size={11} /> {tr("Data sent")}
             </button>
           </div>
         </div>
@@ -206,7 +206,7 @@ export default function AIAnalysisTab({ result, selectedJob, model, onOpenSettin
         {heavy && (
           <div className="mt-2 flex items-start gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2">
             <FiAlertTriangle size={13} className="mt-0.5 shrink-0" />
-            <span>Large context (~{tokens.toLocaleString()} tokens) may exceed your model's window or be costly. Use “Data sent” to downsample dispatch or cap to the top-N keys.</span>
+            <span>{tr("Large context (~")}{tokens.toLocaleString()} {tr("tokens) may exceed your model's window or be costly. Use “Data sent” to downsample dispatch or cap to the top-N keys.")}</span>
           </div>
         )}
 
@@ -214,19 +214,19 @@ export default function AIAnalysisTab({ result, selectedJob, model, onOpenSettin
           <div className="mt-3 pt-3 border-t border-black/10 grid grid-cols-1 sm:grid-cols-3 gap-4">
             <label className="flex items-center gap-2 text-xs text-slate-600">
               <input type="checkbox" checked={includeDispatch} onChange={(e) => setIncludeDispatch(e.target.checked)} className="rounded text-gray-600" />
-              Include dispatch timeseries
+              {tr("Include dispatch timeseries")}
             </label>
             <div className="text-xs text-slate-600">
-              <label className="block mb-1">Dispatch downsample: every {dispatchStride}</label>
+              <label className="block mb-1">{tr("Dispatch downsample: every")} {dispatchStride}</label>
               <input type="range" min="1" max="24" value={dispatchStride} onChange={(e) => setDispatchStride(+e.target.value)} disabled={!includeDispatch} className="w-full" />
             </div>
             <div className="text-xs text-slate-600">
-              <label className="block mb-1">Cap keys: {topNKeys > 0 ? `top ${topNKeys}` : 'all'}</label>
+              <label className="block mb-1">{tr("Cap keys:")} {topNKeys > 0 ? tr("top {0}", { 0: topNKeys }) : tr("all")}</label>
               <input type="range" min="0" max="200" step="10" value={topNKeys} onChange={(e) => setTopNKeys(+e.target.value)} className="w-full" />
             </div>
             <label className={`flex items-center gap-2 text-xs ${inputsDigestFull ? 'text-slate-600' : 'text-slate-300'}`}>
               <input type="checkbox" checked={includeInputs} disabled={!inputsDigestFull} onChange={(e) => setIncludeInputs(e.target.checked)} className="rounded text-gray-600" />
-              Include model input assumptions{inputsDigestFull ? '' : ' (unavailable)'}
+              {tr("Include model input assumptions")}{inputsDigestFull ? '' : tr(" (unavailable)")}
             </label>
           </div>
         )}
@@ -236,14 +236,14 @@ export default function AIAnalysisTab({ result, selectedJob, model, onOpenSettin
       <div className="bg-white rounded-2xl border border-black/15 shadow-sm overflow-hidden">
         <div className="flex items-center gap-2 px-5 py-3 border-b border-black/10">
           <FiCpu size={14} className="text-gray-600" />
-          <span className="text-sm font-semibold text-slate-800 flex-1">Model Advisor</span>
+          <span className="text-sm font-semibold text-slate-800 flex-1">{tr("Model Advisor")}</span>
           {reportBusy ? (
             <button onClick={() => reportHandle.current?.cancel()} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 border border-black/15 hover:bg-slate-50">
-              <FiStopCircle size={12} /> Stop
+              <FiStopCircle size={12} /> {tr("Stop")}
             </button>
           ) : (
             <button onClick={runReport} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide text-white bg-black hover:bg-black/80">
-              <FiRefreshCw size={12} /> {report ? 'Regenerate' : 'Generate report'}
+              <FiRefreshCw size={12} /> {report ? tr("Regenerate") : tr("Generate report")}
             </button>
           )}
         </div>
@@ -255,7 +255,7 @@ export default function AIAnalysisTab({ result, selectedJob, model, onOpenSettin
           )}
           {!report && !reportBusy && !reportErr && (
             <p className="text-sm text-slate-400 text-center py-8">
-              Generate a plain-language report of what the solver decided, the key trade-offs, and recommendations.
+              {tr("Generate a plain-language report of what the solver decided, the key trade-offs, and recommendations.")}
             </p>
           )}
           {(report || reportBusy) && (
@@ -269,10 +269,10 @@ export default function AIAnalysisTab({ result, selectedJob, model, onOpenSettin
 
       {/* ── Chat ── */}
       <div className="bg-white rounded-2xl border border-black/15 shadow-sm overflow-hidden flex flex-col">
-        <div className="px-5 py-3 border-b border-black/10 font-semibold text-slate-800 text-sm">Ask about this run</div>
+        <div className="px-5 py-3 border-b border-black/10 font-semibold text-slate-800 text-sm">{tr("Ask about this run")}</div>
         <div ref={threadRef} className="max-h-96 overflow-y-auto px-5 py-4 space-y-3">
           {messages.length === 0 && (
-            <p className="text-sm text-slate-400 text-center py-6">e.g. “Why is gas capacity so low?” · “Which region is most expensive and why?”</p>
+            <p className="text-sm text-slate-400 text-center py-6">{tr("e.g. “Why is gas capacity so low?” · “Which region is most expensive and why?”")}</p>
           )}
           {messages.map((m, i) => (
             <div key={i} className={m.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
@@ -291,15 +291,15 @@ export default function AIAnalysisTab({ result, selectedJob, model, onOpenSettin
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
-            placeholder="Ask a question about these results…"
+            placeholder={tr("Ask a question about these results…")}
             className="flex-1 resize-none px-3 py-2 text-sm rounded-xl border border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-300 max-h-32"
           />
           {chatBusy ? (
-            <button onClick={() => chatHandle.current?.cancel()} className="p-2.5 rounded-xl text-slate-600 border border-black/15 hover:bg-slate-50" title="Stop">
+            <button onClick={() => chatHandle.current?.cancel()} className="p-2.5 rounded-xl text-slate-600 border border-black/15 hover:bg-slate-50" title={tr("Stop")}>
               <FiStopCircle size={16} />
             </button>
           ) : (
-            <button onClick={sendChat} disabled={!input.trim()} className="uppercase tracking-wide font-bold p-2.5 rounded-xl text-white bg-black hover:bg-black/80 disabled:opacity-40" title="Send">
+            <button onClick={sendChat} disabled={!input.trim()} className="uppercase tracking-wide font-bold p-2.5 rounded-xl text-white bg-black hover:bg-black/80 disabled:opacity-40" title={tr("Send")}>
               <FiSend size={16} />
             </button>
           )}

@@ -23,6 +23,7 @@ import {
   BASE_OPS as ITALY_BASE_OPS, SENSITIVITY_VARIANTS as ITALY_VARIANTS, SLACKS as ITALY_SLACKS,
   MODEL_CONFIG as ITALY_MODEL_CONFIG, SPORES_PLAN as ITALY_SPORES_PLAN,
 } from './presets/lombardi2020Italy.js';
+import { tr } from '../../i18n';
 
 // Recipes usable as Global-lane trajectory shortcuts (year-based only — cost
 // sensitivity is a sweep = multiple scenarios, deferred to multi-scenario step).
@@ -36,21 +37,21 @@ export const EMPTY_SCENARIO = () => ({
 // Card category metadata. `icon` is a name string resolved to a component in the
 // UI (keeps this service free of icon components). `lanes` restricts placement.
 export const CARD_CATEGORIES = [
-  { id: 'demand',     label: 'Demand',     icon: 'FiTrendingUp', color: 'from-blue-500 to-blue-600',     lanes: ['global', 'year'] },
-  { id: 'constraint', label: 'Constraint', icon: 'FiCloud',      color: 'from-green-500 to-emerald-600', lanes: ['global', 'year'] },
-  { id: 'tech',       label: 'Technology', icon: 'FiZap',        color: 'from-amber-500 to-orange-500',  lanes: ['global', 'year'] },
-  { id: 'emissions',  label: 'Emissions',  icon: 'FiWind',       color: 'from-red-500 to-orange-600',    lanes: ['global', 'year'] },
-  { id: 'renewables', label: 'Renewables', icon: 'FiSun',        color: 'from-emerald-500 to-green-600', lanes: ['global', 'year'] },
-  { id: 'location',   label: 'Location',   icon: 'FiMapPin',     color: 'from-rose-500 to-pink-600',     lanes: ['global', 'year'] },
-  { id: 'custom',     label: 'Custom ops', icon: 'FiSliders',    color: 'from-slate-500 to-slate-600',   lanes: ['global', 'year'] },
-  { id: 'timeseries', label: 'Time series', icon: 'FiActivity',   color: 'from-cyan-500 to-sky-600',      lanes: ['global', 'year'] },
+  { id: 'demand',     label: tr("Demand"),     icon: 'FiTrendingUp', color: 'from-blue-500 to-blue-600',     lanes: ['global', 'year'] },
+  { id: 'constraint', label: tr("Constraint"), icon: 'FiCloud',      color: 'from-green-500 to-emerald-600', lanes: ['global', 'year'] },
+  { id: 'tech',       label: tr("Technology"), icon: 'FiZap',        color: 'from-amber-500 to-orange-500',  lanes: ['global', 'year'] },
+  { id: 'emissions',  label: tr("Emissions"),  icon: 'FiWind',       color: 'from-red-500 to-orange-600',    lanes: ['global', 'year'] },
+  { id: 'renewables', label: tr("Renewables"), icon: 'FiSun',        color: 'from-emerald-500 to-green-600', lanes: ['global', 'year'] },
+  { id: 'location',   label: tr("Location"),   icon: 'FiMapPin',     color: 'from-rose-500 to-pink-600',     lanes: ['global', 'year'] },
+  { id: 'custom',     label: tr("Custom ops"), icon: 'FiSliders',    color: 'from-slate-500 to-slate-600',   lanes: ['global', 'year'] },
+  { id: 'timeseries', label: tr("Time series"), icon: 'FiActivity',   color: 'from-cyan-500 to-sky-600',      lanes: ['global', 'year'] },
   // Global-only multipliers: each sensitivity case / each SPORES cost slack is its own run.
-  { id: 'sensitivity', label: 'Sensitivity cases', icon: 'FiLayers',  color: 'from-violet-500 to-purple-600', lanes: ['global'] },
-  { id: 'spores',     label: 'SPORES alternatives', icon: 'FiGitMerge', color: 'from-teal-500 to-cyan-600', lanes: ['global'] },
+  { id: 'sensitivity', label: tr("Sensitivity cases"), icon: 'FiLayers',  color: 'from-violet-500 to-purple-600', lanes: ['global'] },
+  { id: 'spores',     label: tr("SPORES alternatives"), icon: 'FiGitMerge', color: 'from-teal-500 to-cyan-600', lanes: ['global'] },
   // Global-lane trajectory shortcuts (expand across the year axis).
-  { id: 'recipe:demandGrowth',        label: 'Demand growth (trajectory)',   icon: 'FiTrendingUp', color: 'from-blue-500 to-blue-600',     lanes: ['global'] },
-  { id: 'recipe:carbonCap',           label: 'Carbon cap (trajectory)',      icon: 'FiCloud',      color: 'from-green-500 to-emerald-600', lanes: ['global'] },
-  { id: 'recipe:renewableTransition', label: 'Renewable transition (traj.)', icon: 'FiSun',        color: 'from-amber-500 to-orange-500',  lanes: ['global'] },
+  { id: 'recipe:demandGrowth',        label: tr("Demand growth (trajectory)"),   icon: 'FiTrendingUp', color: 'from-blue-500 to-blue-600',     lanes: ['global'] },
+  { id: 'recipe:carbonCap',           label: tr("Carbon cap (trajectory)"),      icon: 'FiCloud',      color: 'from-green-500 to-emerald-600', lanes: ['global'] },
+  { id: 'recipe:renewableTransition', label: tr("Renewable transition (traj.)"), icon: 'FiSun',        color: 'from-amber-500 to-orange-500',  lanes: ['global'] },
 ];
 
 export const CATEGORY_BY_ID = Object.fromEntries(CARD_CATEGORIES.map(c => [c.id, c]));
@@ -69,7 +70,7 @@ export function defaultCardParams(category) {
     case 'location':   return { location: '', target: 'single', group: 'nonRenewable', mode: 'disable', techMatch: '', path: 'constraints.energy_cap_max', value: 0, factor: 1 };
     case 'custom':     return { ops: [], variantLabel: 'Custom' };
     case 'timeseries': return { fromFile: '', toFile: '', techMatch: '' };
-    case 'sensitivity': return { variants: [{ id: 'reference', label: 'Reference', ops: [] }] };
+    case 'sensitivity': return { variants: [{ id: 'reference', label: tr("Reference"), ops: [] }] };
     case 'spores':     return {
       slacks: [10],
       plan: { algorithm: 'lombardi2020', scoredTechs: [], weights: { excl: 10, nos: 1 },
@@ -314,7 +315,7 @@ function nestedConfig(id, parentId, category, params) {
 export const SCENARIO_TEMPLATES = [
   {
     id: 'lombardi2020Italy',
-    label: 'Lombardi et al. 2020 — Italy SPORES',
+    label: tr("Lombardi et al. 2020 — Italy SPORES"),
     description: 'Calliope-Italy study: 2050_eff + no old techs, 9 sensitivity cases × 5/10/20 % cost relaxation, 178 SPORES each (27 runs). Calliope 0.6.8.',
     build: () => {
       const { nodes, edges } = chainedYears([2050], 'tpl');
@@ -339,7 +340,7 @@ export const SCENARIO_TEMPLATES = [
   },
   {
     id: 'blank',
-    label: 'Blank timeline',
+    label: tr("Blank timeline"),
     description: 'Three consecutive years, no configs — start from scratch.',
     build: () => {
       const { nodes, edges } = chainedYears([2025, 2030, 2035], 'tpl');
@@ -348,7 +349,7 @@ export const SCENARIO_TEMPLATES = [
   },
   {
     id: 'demandGrowth',
-    label: 'Demand growth pathway',
+    label: tr("Demand growth pathway"),
     description: 'A Demand card nested in each year, compounding at 1.5 %/yr.',
     build: () => {
       const years = rangeYears(2025, 2040, 5);
@@ -362,7 +363,7 @@ export const SCENARIO_TEMPLATES = [
   },
   {
     id: 'carbonCap',
-    label: 'Carbon cap / net-zero',
+    label: tr("Carbon cap / net-zero"),
     description: 'A CO₂-cap card nested in each year, tightening linearly to net-zero.',
     build: () => {
       const years = rangeYears(2025, 2040, 5);
@@ -377,7 +378,7 @@ export const SCENARIO_TEMPLATES = [
   },
   {
     id: 'renewableTransition',
-    label: 'Renewable transition',
+    label: tr("Renewable transition"),
     description: 'Yearly snapshots + a global Renewable-transition trajectory card.',
     build: () => {
       const years = rangeYears(2025, 2040, 5);
@@ -391,7 +392,7 @@ export const SCENARIO_TEMPLATES = [
   },
   {
     id: 'renewablesBoost',
-    label: 'Renewables boost',
+    label: tr("Renewables boost"),
     description: 'A Technology card in each year scaling renewables’ buildable capacity up over time.',
     build: () => {
       const years = rangeYears(2025, 2040, 5);
@@ -439,7 +440,7 @@ export function buildScenarioVariants(model, scenario) {
       return slacks.map(slack => (slack == null
         ? { label, year, ops: composed }
         : {
-          label: `${label} · SPORES ${slack}%`, year, ops: composed,
+          label: tr("{0} · SPORES {1}%", { 0: label, 1: slack }), year, ops: composed,
           sporesPlan: { ...spores.params.plan, slack: slack / 100 },
           modelConfig: spores.params.modelConfig || {},
         }));
@@ -512,12 +513,12 @@ export function composeOps(ops) {
     }
     if (kinds.size === 1 && kinds.has('setParam')) {
       out.push(group[group.length - 1]);
-      warnings.push(`Multiple cards set ${paramLabel(group[0])}; using the last value (${group[group.length - 1].value}).`);
+      warnings.push(tr("Multiple cards set {0}; using the last value ({1}).", { 0: paramLabel(group[0]), 1: group[group.length - 1].value }));
       continue;
     }
     if (kinds.size === 1 && kinds.has('systemConstraint')) {
       out.push(group[group.length - 1]);
-      warnings.push(`Multiple cards set system constraint "${group[0].kind}"; using the last value.`);
+      warnings.push(tr("Multiple cards set system constraint \"{0}\"; using the last value.", { 0: group[0].kind }));
       continue;
     }
     if (kinds.size === 1 && kinds.has('disableTech')) {
@@ -526,7 +527,7 @@ export function composeOps(ops) {
     }
     // mixed set/scale on the same slot — order-dependent, keep all
     group.forEach(o => out.push(o));
-    warnings.push(`Cards both set and scale ${paramLabel(group[0])}; applied in order (result is order-dependent).`);
+    warnings.push(tr("Cards both set and scale {0}; applied in order (result is order-dependent).", { 0: paramLabel(group[0]) }));
   }
 
   return { ops: out, warnings };

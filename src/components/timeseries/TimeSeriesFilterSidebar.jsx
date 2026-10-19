@@ -1,15 +1,16 @@
 // Filter / resolution / columns / stats sidebar for the TimeSeries chart view.
 // All view state is passed as props.
 import { FiChevronDown, FiChevronUp, FiCalendar, FiList, FiSearch, FiCheck, FiClock } from '../ui/icons';
+import { tr } from '../../i18n';
 
 // ECharts 6 default palette, in series order, so swatches match the chart lines.
 const ECHARTS_COLORS = ['#5070dd', '#b6d634', '#505372', '#ff994d', '#0ca8df', '#ffd10a', '#fb628b', '#785db0', '#3fbe95'];
 const fmtFull = (v) => (Number.isFinite(v) ? v.toLocaleString(undefined, { maximumFractionDigits: 1 }) : '—');
 
-const RANGES = [['weeks2', 'First 2 weeks'], ['month', 'Month'], ['seasonal', 'Season'], ['custom', 'Custom']];
-const RESOLUTIONS = [['hourly', 'Hourly'], ['daily', 'Daily'], ['weekly', 'Weekly']];
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const SEASONS = [['DJF', 'Winter'], ['MAM', 'Spring'], ['JJA', 'Summer'], ['SON', 'Autumn']];
+const RANGES = [['weeks2', tr("First 2 weeks")], ['month', tr("Month")], ['seasonal', tr("Season")], ['custom', tr("Custom")]];
+const RESOLUTIONS = [['hourly', tr("Hourly")], ['daily', tr("Daily")], ['weekly', tr("Weekly")]];
+const MONTHS = [tr("Jan"), tr("Feb"), tr("Mar"), tr("Apr"), tr("May"), tr("Jun"), tr("Jul"), tr("Aug"), tr("Sep"), tr("Oct"), tr("Nov"), tr("Dec")];
+const SEASONS = [['DJF', tr("Winter")], ['MAM', tr("Spring")], ['JJA', tr("Summer")], ['SON', tr("Autumn")]];
 
 function SectionTitle({ icon: Icon, children, extra }) {
   return (
@@ -28,7 +29,7 @@ function Segmented({ items, value, onChange, cols = 2 }) {
     <div className="grid gap-1 bg-slate-100 p-1" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
       {items.map(([id, label, hint]) => (
         <button key={id} onClick={() => onChange(id)}
-          className={`truncate px-2 py-1.5 text-[12px] font-medium transition-colors ${value === id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}>
+          className={`px-2 py-1.5 text-[12px] font-medium leading-tight transition-colors ${value === id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}>
           {label}{hint && <span className="ml-1 text-[10px] text-slate-400">{hint}</span>}
         </button>
       ))}
@@ -87,7 +88,7 @@ export default function TimeSeriesFilterSidebar({
 
         {/* Range */}
         <section>
-          <SectionTitle icon={FiCalendar}>Range</SectionTitle>
+          <SectionTitle icon={FiCalendar}>{tr("Range")}</SectionTitle>
           <Segmented items={RANGES} value={viewMode} onChange={setViewMode} />
           {viewMode === 'month' && (
             <div className="mt-2 grid grid-cols-4 gap-1">
@@ -108,17 +109,17 @@ export default function TimeSeriesFilterSidebar({
             <div className="mt-2 space-y-2">
               <div className="grid grid-cols-2 gap-2">
                 <label className="block">
-                  <span className="mb-0.5 block text-[10px] text-slate-400">From</span>
+                  <span className="mb-0.5 block text-[10px] text-slate-400">{tr("From")}</span>
                   <input type="date" value={viewCustomStart} onChange={(e) => setViewCustomStart(e.target.value)} className={inputCls} />
                 </label>
                 <label className="block">
-                  <span className="mb-0.5 block text-[10px] text-slate-400">To</span>
+                  <span className="mb-0.5 block text-[10px] text-slate-400">{tr("To")}</span>
                   <input type="date" value={viewCustomEnd} onChange={(e) => setViewCustomEnd(e.target.value)} className={inputCls} />
                 </label>
               </div>
               {viewCustomStart && viewCustomEnd && (
                 <p className="text-center text-[11px] text-slate-500">
-                  {Math.max(0, Math.round((new Date(viewCustomEnd) - new Date(viewCustomStart)) / 86400000))} days selected
+                  {Math.max(0, Math.round((new Date(viewCustomEnd) - new Date(viewCustomStart)) / 86400000))} {tr("days selected")}
                 </p>
               )}
             </div>
@@ -127,7 +128,7 @@ export default function TimeSeriesFilterSidebar({
 
         {/* Resolution */}
         <section>
-          <SectionTitle icon={FiClock}>Resolution</SectionTitle>
+          <SectionTitle icon={FiClock}>{tr("Resolution")}</SectionTitle>
           <Segmented items={RESOLUTIONS} value={viewResolution} onChange={setViewResolution} cols={3} />
         </section>
 
@@ -138,16 +139,16 @@ export default function TimeSeriesFilterSidebar({
             extra={
               <span className="flex items-center gap-2 text-[11px]">
                 <span className="tabular-nums text-slate-400">{selectedColumns.length}/{allCols.length}</span>
-                <button onClick={() => setSelectedColumns(allCols)} className="font-medium text-slate-600 hover:text-slate-900">All</button>
-                <button onClick={() => setSelectedColumns([])} className="font-medium text-slate-400 hover:text-slate-900">None</button>
+                <button onClick={() => setSelectedColumns(allCols)} className="font-medium text-slate-600 hover:text-slate-900">{tr("All")}</button>
+                <button onClick={() => setSelectedColumns([])} className="font-medium text-slate-400 hover:text-slate-900">{tr("None")}</button>
               </span>
             }
           >
-            Columns
+            {tr("Columns")}
           </SectionTitle>
           <div className="relative mb-2">
             <FiSearch size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input type="text" placeholder="Search columns…" value={colSearch} onChange={(e) => setColSearch(e.target.value)} className={`${inputCls} pl-8`} />
+            <input type="text" placeholder={tr("Search columns…")} value={colSearch} onChange={(e) => setColSearch(e.target.value)} className={`${inputCls} pl-8`} />
           </div>
           <div className="max-h-64 space-y-0.5 overflow-y-auto">
             {visibleCols.map((col) => {
@@ -164,7 +165,7 @@ export default function TimeSeriesFilterSidebar({
                 </button>
               );
             })}
-            {visibleCols.length === 0 && <p className="px-2 py-3 text-center text-[11px] text-slate-400">No columns match</p>}
+            {visibleCols.length === 0 && <p className="px-2 py-3 text-center text-[11px] text-slate-400">{tr("No columns match")}</p>}
           </div>
         </section>
 
@@ -172,7 +173,7 @@ export default function TimeSeriesFilterSidebar({
         <section>
           <button className="w-full" onClick={() => setShowStats(!showStats)}>
             <SectionTitle extra={showStats ? <FiChevronUp size={13} className="text-slate-400" /> : <FiChevronDown size={13} className="text-slate-400" />}>
-              Statistics
+              {tr("Statistics")}
             </SectionTitle>
           </button>
           {showStats && selectedTimeSeries.statistics && (
@@ -189,14 +190,14 @@ export default function TimeSeriesFilterSidebar({
                       <div className="mb-1.5 flex items-center gap-1.5">
                         <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: color }} />
                         <span className="truncate text-[12px] font-semibold text-slate-800" title={col}>{col}</span>
-                        <span className="ml-auto text-[10px] tabular-nums text-slate-400">{colData.length} pts</span>
+                        <span className="ml-auto text-[10px] tabular-nums text-slate-400">{colData.length} {tr("pts")}</span>
                       </div>
                       <svg className="mb-2 h-9 w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
                         <path d={area} fill={color} opacity="0.12" />
                         <path d={line} fill="none" stroke={color} strokeWidth="1.6" vectorEffect="non-scaling-stroke" />
                       </svg>
                       <div className="grid grid-cols-3 gap-1 text-center">
-                        {[['Min', stats.min], ['Max', stats.max], ['Avg', stats.mean]].map(([k, v]) => (
+                        {[[tr("Min"), stats.min], [tr("Max"), stats.max], [tr("Avg"), stats.mean]].map(([k, v]) => (
                           <div key={k} className="bg-slate-50 px-1 py-1">
                             <div className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">{k}</div>
                             <div className="truncate text-[11px] font-semibold tabular-nums text-slate-800" title={String(v)}>{fmtFull(v)}</div>

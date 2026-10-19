@@ -6,14 +6,15 @@ import { FiChevronDown, FiChevronUp, FiFilter, FiMapPin } from '../ui/icons';
 import 'leaflet/dist/leaflet.css';
 import { popupCard } from '../../utils/mapPopup';
 import { ORG_CREDIT_HTML, OSM_CREDIT_HTML } from '../../config/attribution';
+import { tr } from '../../i18n';
 
 
 // ── Time-range + location filter controls (vertical right-sidebar) ───────────
 export const TsViewControls = ({ opts, onChange, ts, locSearch, onLocSearch, accentColor = '#6b7280' }) => {
-  const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const SEASONS = [{ id: 'DJF', label: 'Winter' }, { id: 'MAM', label: 'Spring' }, { id: 'JJA', label: 'Summer' }, { id: 'SON', label: 'Autumn' }];
-  const RESOLUTIONS = [{ id: 'hourly', label: 'Hourly' }, { id: 'daily', label: 'Daily' }, { id: 'weekly', label: 'Weekly' }];
-  const RANGES = [{ id: 'weeks2', label: 'First 2 wks' }, { id: 'month', label: 'Month' }, { id: 'seasonal', label: 'Season' }, { id: 'custom', label: 'Custom' }];
+  const MONTHS_SHORT = [tr("Jan"),tr("Feb"),tr("Mar"),tr("Apr"),tr("May"),tr("Jun"),tr("Jul"),tr("Aug"),tr("Sep"),tr("Oct"),tr("Nov"),tr("Dec")];
+  const SEASONS = [{ id: 'DJF', label: tr("Winter") }, { id: 'MAM', label: tr("Spring") }, { id: 'JJA', label: tr("Summer") }, { id: 'SON', label: tr("Autumn") }];
+  const RESOLUTIONS = [{ id: 'hourly', label: tr("Hourly") }, { id: 'daily', label: tr("Daily") }, { id: 'weekly', label: tr("Weekly") }];
+  const RANGES = [{ id: 'weeks2', label: tr("First 2 wks") }, { id: 'month', label: tr("Month") }, { id: 'seasonal', label: tr("Season") }, { id: 'custom', label: tr("Custom") }];
   const allCols = ts?.dataColumns || [];
   const visibleCols = locSearch ? allCols.filter(c => c.toLowerCase().includes(locSearch.toLowerCase())) : allCols;
   const isAll = (opts.locs?.length ?? 0) === 0;
@@ -33,7 +34,7 @@ export const TsViewControls = ({ opts, onChange, ts, locSearch, onLocSearch, acc
     <div className="w-52 shrink-0 flex flex-col gap-4 bg-white border border-black/15 rounded-xl p-3 self-start sticky top-4">
       {/* Range */}
       <div>
-        {sectionHead('Range')}
+        {sectionHead(tr("Range"))}
         <div className="flex flex-col gap-1">
           {RANGES.map(r => chip(opts.mode === r.id, r.label, () => onChange({ ...opts, mode: r.id })))}
         </div>
@@ -63,18 +64,18 @@ export const TsViewControls = ({ opts, onChange, ts, locSearch, onLocSearch, acc
         {opts.mode === 'custom' && (
           <div className="mt-2 flex flex-col gap-1.5">
             <div>
-              <label className="text-[10px] text-slate-400 block mb-0.5">From</label>
+              <label className="text-[10px] text-slate-400 block mb-0.5">{tr("From")}</label>
               <input type="date" value={opts.customStart || ''} onChange={e => onChange({ ...opts, customStart: e.target.value })}
                 className="w-full px-2 py-1 border border-black/15 rounded text-[11px] bg-white" />
             </div>
             <div>
-              <label className="text-[10px] text-slate-400 block mb-0.5">To</label>
+              <label className="text-[10px] text-slate-400 block mb-0.5">{tr("To")}</label>
               <input type="date" value={opts.customEnd || ''} onChange={e => onChange({ ...opts, customEnd: e.target.value })}
                 className="w-full px-2 py-1 border border-black/15 rounded text-[11px] bg-white" />
             </div>
             {opts.customStart && opts.customEnd && (
               <span className="text-[10px] text-slate-400 text-center">
-                {Math.max(0, Math.round((new Date(opts.customEnd) - new Date(opts.customStart)) / 86400000))} days
+                {Math.max(0, Math.round((new Date(opts.customEnd) - new Date(opts.customStart)) / 86400000))} {tr("days")}
               </span>
             )}
           </div>
@@ -83,7 +84,7 @@ export const TsViewControls = ({ opts, onChange, ts, locSearch, onLocSearch, acc
 
       {/* Resolution */}
       <div>
-        {sectionHead('Resolution')}
+        {sectionHead(tr("Resolution"))}
         <div className="flex flex-col gap-1">
           {RESOLUTIONS.map(r => chip(opts.resolution === r.id, r.label, () => onChange({ ...opts, resolution: r.id })))}
         </div>
@@ -92,17 +93,17 @@ export const TsViewControls = ({ opts, onChange, ts, locSearch, onLocSearch, acc
       {/* Location filter */}
       {allCols.length > 1 && (
         <div className="flex flex-col gap-1.5 min-h-0">
-          {sectionHead('Locations')}
+          {sectionHead(tr("Locations"))}
           <div className="flex items-center gap-1.5 mb-0.5">
             <span className="text-[10px] text-slate-400 flex-1">
-              {isAll ? `All ${allCols.length}` : `${opts.locs.length}/${allCols.length}`}
+              {isAll ? tr("All {0}", { 0: allCols.length }) : `${opts.locs.length}/${allCols.length}`}
             </span>
-            <button onClick={() => onChange({ ...opts, locs: [] })} className="text-[10px] text-gray-500 hover:underline">All</button>
-            <button onClick={() => onChange({ ...opts, locs: [...allCols] })} className="text-[10px] text-slate-400 hover:underline">None</button>
+            <button onClick={() => onChange({ ...opts, locs: [] })} className="text-[10px] text-gray-500 hover:underline">{tr("All")}</button>
+            <button onClick={() => onChange({ ...opts, locs: [...allCols] })} className="text-[10px] text-slate-400 hover:underline">{tr("None")}</button>
           </div>
           <div className="relative">
             <FiFilter size={10} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-300" />
-            <input type="text" placeholder="Search locations…" value={locSearch} onChange={e => onLocSearch(e.target.value)}
+            <input type="text" placeholder={tr("Search locations…")} value={locSearch} onChange={e => onLocSearch(e.target.value)}
               className="w-full pl-6 pr-2 py-1 border border-black/15 rounded text-[11px] bg-white" />
           </div>
           <div className="flex flex-col gap-0.5 max-h-48 overflow-y-auto pr-0.5">
@@ -122,7 +123,7 @@ export const TsViewControls = ({ opts, onChange, ts, locSearch, onLocSearch, acc
                 </button>
               );
             })}
-            {visibleCols.length > 150 && <span className="text-[10px] text-slate-400 text-center py-1">+{visibleCols.length - 150} more — refine search</span>}
+            {visibleCols.length > 150 && <span className="text-[10px] text-slate-400 text-center py-1">+{visibleCols.length - 150} {tr("more — refine search")}</span>}
           </div>
         </div>
       )}
@@ -252,9 +253,9 @@ export const InputMap = ({ locations, links, getTechColor, getTechName = (t) => 
             const radius = maxCap > 0 ? 5 + 11 * Math.sqrt(cap / maxCap) : 7;
             const popupHtml = popupCard({
               title: loc.name,
-              stats: [['Technologies', techNames.length], ...(cap ? [['Capacity', cap >= 1000 ? (cap / 1000).toFixed(1) + ' GW' : cap.toFixed(0) + ' MW']] : [])],
+              stats: [[tr("Technologies"), techNames.length], ...(cap ? [[tr("Capacity"), cap >= 1000 ? (cap / 1000).toFixed(1) + ' GW' : cap.toFixed(0) + ' MW']] : [])],
               rows: techNames.slice(0, 8).map(t => ({ color: getTechColor(t), name: getTechName(t) })),
-              note: techNames.length > 8 ? `+${techNames.length - 8} more` : '',
+              note: techNames.length > 8 ? tr("+{0} more", { 0: techNames.length - 8 }) : '',
             });
 
             L.circleMarker([loc.latitude, loc.longitude], { radius, color: '#fff', weight: 1.5, fillColor: color, fillOpacity: 0.9 })
@@ -275,20 +276,20 @@ export const InputMap = ({ locations, links, getTechColor, getTechName = (t) => 
 
   if (!located.length) return (
     <div className="h-full flex items-center justify-center text-slate-400 text-sm">
-      <div className="text-center"><FiMapPin size={26} className="mx-auto mb-2 opacity-40" /><p>No coordinates available</p></div>
+      <div className="text-center"><FiMapPin size={26} className="mx-auto mb-2 opacity-40" /><p>{tr("No coordinates available")}</p></div>
     </div>
   );
   return (
     <div className="relative h-full w-full">
       <div ref={mapRef} className="h-full w-full" />
       <div className="pointer-events-none absolute left-14 top-3 z-[1000] flex gap-1.5">
-        <span className="rounded-md bg-white/95 px-2 py-1 text-[11px] font-medium text-slate-700 shadow-sm ring-1 ring-slate-900/10">{located.length} locations</span>
-        <span className="rounded-md bg-white/95 px-2 py-1 text-[11px] font-medium text-slate-700 shadow-sm ring-1 ring-slate-900/10">{linkCount} links</span>
+        <span className="rounded-md bg-white/95 px-2 py-1 text-[11px] font-medium text-slate-700 shadow-sm ring-1 ring-slate-900/10">{located.length} {tr("locations")}</span>
+        <span className="rounded-md bg-white/95 px-2 py-1 text-[11px] font-medium text-slate-700 shadow-sm ring-1 ring-slate-900/10">{linkCount} {tr("links")}</span>
       </div>
       {legend.length > 0 && (
         <div className="absolute bottom-6 left-3 z-[1000] w-52 rounded-lg bg-white/95 text-[11px] shadow-md ring-1 ring-slate-900/10 backdrop-blur">
           <button onClick={() => setLegendOpen(o => !o)} className="flex w-full items-center justify-between px-3 py-2 font-semibold uppercase tracking-wider text-[10px] text-slate-500">
-            Main technology
+            {tr("Main technology")}
             {legendOpen ? <FiChevronDown size={12} /> : <FiChevronUp size={12} />}
           </button>
           {legendOpen && (
@@ -297,7 +298,7 @@ export const InputMap = ({ locations, links, getTechColor, getTechName = (t) => 
                 {legend.map(([tech, n]) => (
                   <li key={tech || 'none'} className="flex items-center gap-2 text-slate-700">
                     <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: getTechColor(tech) || '#64748b' }} />
-                    <span className="flex-1 truncate">{tech ? getTechName(tech) : 'No technology'}</span>
+                    <span className="flex-1 truncate">{tech ? getTechName(tech) : tr("No technology")}</span>
                     <span className="tabular-nums text-slate-400">{n}</span>
                   </li>
                 ))}
@@ -306,7 +307,7 @@ export const InputMap = ({ locations, links, getTechColor, getTechName = (t) => 
                 <div className="flex items-center gap-2 border-t border-slate-100 pt-2 text-slate-400">
                   <span className="h-2.5 w-2.5 rounded-full border border-slate-400" />
                   <span className="h-4 w-4 rounded-full border border-slate-400" />
-                  <span>size = max capacity</span>
+                  <span>{tr("size = max capacity")}</span>
                 </div>
               )}
             </div>

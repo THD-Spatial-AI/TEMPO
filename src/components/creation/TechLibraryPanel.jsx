@@ -3,14 +3,15 @@ import { FiSearch, FiX, FiPlus, FiCheck, FiTrash2 } from '../ui/icons';
 import { useData } from '../../context/DataContext';
 import { oeoDetailToCalliope } from '../../services/techDatabaseApi';
 import { iconBtn, ICON_PX } from '../ui/iconButton';
+import { tr, trLoose } from '../../i18n';
 
 const PARENT_META = {
-  supply_plus:     { color: '#f59e0b', label: 'Variable Renewables'     },
-  supply:          { color: '#3b82f6', label: 'Dispatchable'            },
-  storage:         { color: '#8b5cf6', label: 'Storage'                 },
-  conversion_plus: { color: '#10b981', label: 'Conversion'              },
-  transmission:    { color: '#64748b', label: 'Transmission'            },
-  demand:          { color: '#ef4444', label: 'Demand'                  },
+  supply_plus:     { color: '#f59e0b', label: tr("Variable Renewables")     },
+  supply:          { color: '#3b82f6', label: tr("Dispatchable")            },
+  storage:         { color: '#8b5cf6', label: tr("Storage")                 },
+  conversion_plus: { color: '#10b981', label: tr("Conversion")              },
+  transmission:    { color: '#64748b', label: tr("Transmission")            },
+  demand:          { color: '#ef4444', label: tr("Demand")                  },
 };
 
 const PARENT_ORDER = ['supply_plus', 'supply', 'storage', 'conversion_plus', 'transmission', 'demand'];
@@ -92,10 +93,10 @@ export default function TechLibraryPanel({ onClose, liveTechTemplates, isApiLive
     >
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2.5 border-b border-black/10 flex-shrink-0">
-        <span className="text-[11px] font-bold text-slate-700 flex-1 tracking-wide uppercase">Tech Library</span>
+        <span className="text-[11px] font-bold text-slate-700 flex-1 tracking-wide uppercase">{tr("Tech Library")}</span>
         {oeoInModel.length > 0 && (
           <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-indigo-50 text-indigo-600">
-            {oeoInModel.length} in model
+            {oeoInModel.length} {tr("in model")}
           </span>
         )}
         <button
@@ -114,7 +115,7 @@ export default function TechLibraryPanel({ onClose, liveTechTemplates, isApiLive
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Search catalog to add…"
+            placeholder={tr("Search catalog to add…")}
             className="w-full pl-7 pr-2.5 py-1.5 text-[11px] bg-slate-50 border border-black/15 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-300 focus:border-indigo-300 placeholder:text-slate-400"
           />
           {search && (
@@ -133,7 +134,7 @@ export default function TechLibraryPanel({ onClose, liveTechTemplates, isApiLive
         <div className="px-3 py-2 bg-amber-50 border-b border-amber-100 flex items-start gap-2 flex-shrink-0">
           <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0 mt-1" />
           <p className="text-[10px] text-amber-700 leading-snug">
-            OpenTech·DB offline — catalog unavailable. Technologies already in the model are still shown.
+            {tr("OpenTech·DB offline — catalog unavailable. Technologies already in the model are still shown.")}
           </p>
         </div>
       )}
@@ -143,11 +144,11 @@ export default function TechLibraryPanel({ onClose, liveTechTemplates, isApiLive
         {search.trim() ? (
           <div className="p-2">
             {searchResults.length === 0 ? (
-              <p className="text-[11px] text-slate-400 text-center py-4">No matches for "{search}"</p>
+              <p className="text-[11px] text-slate-400 text-center py-4">{tr("No matches for \"")}{search}"</p>
             ) : (
               <>
                 <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 px-1">
-                  {searchResults.length} result{searchResults.length !== 1 ? 's' : ''}
+                  {searchResults.length} {tr("result")}{searchResults.length !== 1 ? 's' : ''}
                 </p>
                 <div className="space-y-px">
                   {searchResults.map(tech => {
@@ -160,7 +161,7 @@ export default function TechLibraryPanel({ onClose, liveTechTemplates, isApiLive
                       >
                         <div className="flex-1 min-w-0">
                           <p className="text-[11px] font-medium text-slate-700 truncate leading-none">
-                            {tech.essentials?.name || formatName(techName)}
+                            {trLoose(tech.essentials?.name || formatName(techName))}
                           </p>
                           <div className="mt-0.5">
                             <ParentBadge parent={tech.parent} />
@@ -170,7 +171,7 @@ export default function TechLibraryPanel({ onClose, liveTechTemplates, isApiLive
                           <button
                             onClick={() => removeTechFromModel(techName)}
                             className="flex-shrink-0 flex items-center gap-0.5 text-[10px] font-semibold text-emerald-600 hover:text-red-500 transition-colors"
-                            title="Remove from model"
+                            title={tr("Remove from model")}
                           >
                             <FiCheck size={11} />
                           </button>
@@ -178,7 +179,7 @@ export default function TechLibraryPanel({ onClose, liveTechTemplates, isApiLive
                           <button
                             onClick={() => handleAdd(tech)}
                             className="flex-shrink-0 flex items-center gap-0.5 text-[10px] text-slate-400 hover:text-indigo-600 transition-colors"
-                            title="Add to model"
+                            title={tr("Add to model")}
                           >
                             <FiPlus size={11} />
                           </button>
@@ -195,8 +196,8 @@ export default function TechLibraryPanel({ onClose, liveTechTemplates, isApiLive
           <div className="p-2">
             {oeoInModel.length === 0 ? (
               <div className="py-6 text-center">
-                <p className="text-[11px] text-slate-400">No OpenTech·DB technologies in this model yet.</p>
-                <p className="text-[10px] text-slate-300 mt-1">Search the catalog above or use the Technologies view.</p>
+                <p className="text-[11px] text-slate-400">{tr("No OpenTech·DB technologies in this model yet.")}</p>
+                <p className="text-[10px] text-slate-300 mt-1">{tr("Search the catalog above or use the Technologies view.")}</p>
               </div>
             ) : (
               libraryParents.map(parent => {
@@ -216,7 +217,7 @@ export default function TechLibraryPanel({ onClose, liveTechTemplates, isApiLive
                     <div className="space-y-px">
                       {group.map(tech => {
                         const techName = tech.name || tech.essentials?.name || '';
-                        const displayName = tech.essentials?.name || formatName(techName);
+                        const displayName = trLoose(tech.essentials?.name || formatName(techName));
                         return (
                           <div
                             key={techName}
@@ -232,7 +233,7 @@ export default function TechLibraryPanel({ onClose, liveTechTemplates, isApiLive
                             <button
                               onClick={() => removeTechFromModel(techName)}
                               className={`${iconBtn('delete', 'sm')} opacity-0 group-hover:opacity-100`}
-                              title="Remove from model"
+                              title={tr("Remove from model")}
                             >
                               <FiTrash2 size={ICON_PX.sm} />
                             </button>

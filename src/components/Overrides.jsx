@@ -11,6 +11,7 @@ import {
 import { getModelFramework, FRAMEWORKS, FrameworkBadge } from '../utils/modelFramework.jsx';
 import SelectField from './ui/SelectField';
 import { iconBtn, ICON_PX } from './ui/iconButton';
+import { tr } from '../i18n';
 
 // ─── Config flattener + viewer ────────────────────────────────────────────────
 function flattenConfig(obj, prefix = '') {
@@ -30,7 +31,7 @@ function flattenConfig(obj, prefix = '') {
 const OverrideDetails = ({ config }) => {
   const entries = flattenConfig(config ?? {});
   if (entries.length === 0) {
-    return <p className="text-xs text-slate-400 italic px-1 py-2">Empty configuration</p>;
+    return <p className="text-xs text-slate-400 italic px-1 py-2">{tr("Empty configuration")}</p>;
   }
   return (
     <div className="space-y-1">
@@ -70,7 +71,7 @@ const TemplateCard = ({ template, onImport, alreadyAdded }) => {
                 <FrameworkBadge framework="calliope06" />
                 {alreadyAdded && (
                   <span className="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 flex items-center gap-1">
-                    <FiCheck size={10} /> Added
+                    <FiCheck size={10} /> {tr("Added")}
                   </span>
                 )}
               </div>
@@ -81,7 +82,7 @@ const TemplateCard = ({ template, onImport, alreadyAdded }) => {
             <button
               onClick={() => setExpanded(!expanded)}
               className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-              title="More info"
+              title={tr("More info")}
             >
               <FiInfo size={14} />
             </button>
@@ -93,7 +94,7 @@ const TemplateCard = ({ template, onImport, alreadyAdded }) => {
                   : 'bg-black text-white hover:bg-black/80'
               }`}
             >
-              {alreadyAdded ? 'Re-add' : 'Add'}
+              {alreadyAdded ? tr("Re-add") : tr("Add")}
             </button>
           </div>
         </div>
@@ -149,7 +150,7 @@ const ImportModal = ({ template, onConfirm, onClose }) => {
           {/* Override name */}
           <div>
             <label className="block text-[0.6875rem] font-bold text-black/60 mb-1.5 uppercase tracking-widest">
-              Override name <span className="text-gray-500">*</span>
+              {tr("Override name")} <span className="text-gray-500">*</span>
             </label>
             <input
               type="text"
@@ -162,7 +163,7 @@ const ImportModal = ({ template, onConfirm, onClose }) => {
           {/* Template params */}
           {template.params.length > 0 && (
             <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-slate-700">Parameters</h3>
+              <h3 className="text-sm font-semibold text-slate-700">{tr("Parameters")}</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {template.params.map((param) => (
                   <div key={param.key}>
@@ -204,7 +205,7 @@ const ImportModal = ({ template, onConfirm, onClose }) => {
           {/* JSON preview */}
           <div>
             <h3 className="text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
-              Config preview
+              {tr("Config preview")}
             </h3>
             <pre className="text-xs bg-slate-800 text-green-300 p-4 rounded-xl overflow-x-auto max-h-48 font-mono">
               {preview}
@@ -221,13 +222,13 @@ const ImportModal = ({ template, onConfirm, onClose }) => {
             disabled={!name.trim()}
             className="flex-1 px-4 py-2.5 bg-black text-white rounded-xl font-bold uppercase tracking-wide hover:bg-black/80 transition-colors disabled:opacity-40"
           >
-            Add to Model
+            {tr("Add to Model")}
           </button>
           <button
             onClick={onClose}
             className="px-4 py-2.5 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors"
           >
-            Cancel
+            {tr("Cancel")}
           </button>
         </div>
       </div>
@@ -237,11 +238,11 @@ const ImportModal = ({ template, onConfirm, onClose }) => {
 
 // ─── Custom Override Form ──────────────────────────────────────────────────────
 const OVERRIDE_TYPES = [
-  { value: 'subset_time',    label: 'Time Subset (date range)' },
-  { value: 'time_resolution', label: 'Time Resolution (resample)' },
-  { value: 'solver_config',  label: 'Solver Configuration' },
-  { value: 'tech_parameter', label: 'Technology Parameter' },
-  { value: 'raw_json',       label: 'Raw JSON (advanced)' },
+  { value: 'subset_time',    label: tr("Time Subset (date range)") },
+  { value: 'time_resolution', label: tr("Time Resolution (resample)") },
+  { value: 'solver_config',  label: tr("Solver Configuration") },
+  { value: 'tech_parameter', label: tr("Technology Parameter") },
+  { value: 'raw_json',       label: tr("Raw JSON (advanced)") },
 ];
 
 const buildCustomConfig = (type, data) => {
@@ -289,7 +290,7 @@ const CustomOverrideModal = ({ initial, onConfirm, onClose }) => {
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="p-6 border-b border-black/15 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-slate-800">Custom Override</h2>
+          <h2 className="text-lg font-bold text-slate-800">{tr("Custom Override")}</h2>
           <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg">
             <FiX size={18} className="text-slate-500" />
           </button>
@@ -297,17 +298,17 @@ const CustomOverrideModal = ({ initial, onConfirm, onClose }) => {
 
         <div className="p-6 space-y-4">
           <div>
-            <label className="block text-[0.6875rem] font-bold text-black/60 mb-1.5 uppercase tracking-widest">Name *</label>
+            <label className="block text-[0.6875rem] font-bold text-black/60 mb-1.5 uppercase tracking-widest">{tr("Name *")}</label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. my_debug_run"
+              placeholder={tr("e.g. my_debug_run")}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-500"
             />
           </div>
 
           <div>
-            <label className="block text-[0.6875rem] font-bold text-black/60 mb-1.5 uppercase tracking-widest">Type</label>
+            <label className="block text-[0.6875rem] font-bold text-black/60 mb-1.5 uppercase tracking-widest">{tr("Type")}</label>
             <SelectField
               value={type}
               onChange={(e) => setType(e.target.value)}
@@ -324,7 +325,7 @@ const CustomOverrideModal = ({ initial, onConfirm, onClose }) => {
               {['startDate', 'endDate'].map((k, i) => (
                 <div key={k}>
                   <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">
-                    {i === 0 ? 'Start date' : 'End date'}
+                    {i === 0 ? tr("Start date") : tr("End date")}
                   </label>
                   <input type="date" value={data[k]} onChange={(e) => set(k, e.target.value)}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-500" />
@@ -335,7 +336,7 @@ const CustomOverrideModal = ({ initial, onConfirm, onClose }) => {
 
           {type === 'time_resolution' && (
             <div>
-              <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Resolution</label>
+              <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">{tr("Resolution")}</label>
               <SelectField value={data.resolution} onChange={(e) => set('resolution', e.target.value)}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-500">
                 {['1H','2H','3H','4H','6H','12H','24H'].map((r) => (
@@ -348,7 +349,7 @@ const CustomOverrideModal = ({ initial, onConfirm, onClose }) => {
           {type === 'solver_config' && (
             <div className="space-y-3">
               <div>
-                <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Solver</label>
+                <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">{tr("Solver")}</label>
                 <SelectField value={data.solver} onChange={(e) => set('solver', e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-500">
                   {['highs','gurobi','cbc','glpk','cplex'].map((s) => (
@@ -358,8 +359,8 @@ const CustomOverrideModal = ({ initial, onConfirm, onClose }) => {
               </div>
               <div className="flex gap-4">
                 {[
-                  { k: 'ensureFeasibility', l: 'Ensure Feasibility' },
-                  { k: 'cyclicStorage',     l: 'Cyclic Storage' },
+                  { k: 'ensureFeasibility', l: tr("Ensure Feasibility") },
+                  { k: 'cyclicStorage',     l: tr("Cyclic Storage") },
                 ].map(({ k, l }) => (
                   <label key={k} className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" checked={data[k]} onChange={(e) => set(k, e.target.checked)}
@@ -374,22 +375,22 @@ const CustomOverrideModal = ({ initial, onConfirm, onClose }) => {
           {type === 'tech_parameter' && (
             <div className="space-y-3">
               <div>
-                <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Technology name</label>
+                <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">{tr("Technology name")}</label>
                 <input value={data.tech} onChange={(e) => set('tech', e.target.value)}
-                  placeholder="e.g. solar_pv"
+                  placeholder={tr("e.g. solar_pv")}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-500" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Parameter</label>
+                  <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">{tr("Parameter")}</label>
                   <input value={data.parameter} onChange={(e) => set('parameter', e.target.value)}
-                    placeholder="e.g. energy_cap_max"
+                    placeholder={tr("e.g. energy_cap_max")}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-500" />
                 </div>
                 <div>
-                  <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Value</label>
+                  <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">{tr("Value")}</label>
                   <input value={data.value} onChange={(e) => set('value', e.target.value)}
-                    placeholder="e.g. 100000"
+                    placeholder={tr("e.g. {0}", { 0: "100000" })}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-500" />
                 </div>
               </div>
@@ -398,7 +399,7 @@ const CustomOverrideModal = ({ initial, onConfirm, onClose }) => {
 
           {type === 'raw_json' && (
             <div>
-              <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Raw JSON config</label>
+              <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">{tr("Raw JSON config")}</label>
               <textarea
                 value={data.rawJson}
                 onChange={(e) => set('rawJson', e.target.value)}
@@ -411,7 +412,7 @@ const CustomOverrideModal = ({ initial, onConfirm, onClose }) => {
 
           {type !== 'raw_json' && (
             <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Preview</p>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">{tr("Preview")}</p>
               <pre className="text-xs bg-slate-800 text-green-300 p-3 rounded-xl overflow-x-auto font-mono max-h-36">
                 {JSON.stringify(config, null, 2)}
               </pre>
@@ -425,11 +426,11 @@ const CustomOverrideModal = ({ initial, onConfirm, onClose }) => {
             disabled={!name.trim()}
             className="flex-1 px-4 py-2.5 bg-black text-white rounded-xl font-bold uppercase tracking-wide hover:bg-black/80 transition-colors disabled:opacity-40"
           >
-            Create Override
+            {tr("Create Override")}
           </button>
           <button onClick={onClose}
             className="px-4 py-2.5 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors">
-            Cancel
+            {tr("Cancel")}
           </button>
         </div>
       </div>
@@ -477,23 +478,22 @@ const Overrides = () => {
   };
 
   const doAddOverride = (name, config) => {
-    const verb = overrides[name] ? 'updated' : 'added';
-    const existingMeta = overrides[name]?._meta;
+        const existingMeta = overrides[name]?._meta;
     setOverrides({ ...overrides, [name]: { _meta: existingMeta ?? { fw: 'calliope06' }, ...config } });
-    showNotification(`Override "${name}" ${verb}`, 'success');
+    showNotification((overrides[name] ? tr("Override \"{0}\" updated", { 0: name }) : tr("Override \"{0}\" added", { 0: name })), 'success');
   };
 
   // —— Your overrides handlers ——
   const handleDeleteOverride = (name) => {
     const { [name]: _, ...rest } = overrides;
     setOverrides(rest);
-    showNotification(`Override "${name}" deleted`, 'success');
+    showNotification(tr("Override \"{0}\" deleted", { 0: name }), 'success');
   };
 
   const handleDuplicate = (name) => {
     const copy = `${name}_copy`;
     setOverrides({ ...overrides, [copy]: { ...overrides[name] } });
-    showNotification(`Duplicated as "${copy}"`, 'success');
+    showNotification(tr("Duplicated as \"{0}\"", { 0: copy }), 'success');
   };
 
   const saveJsonEdit = (name) => {
@@ -501,21 +501,21 @@ const Overrides = () => {
       const parsed = JSON.parse(jsonEditText[name]);
       const existingMeta = overrides[name]?._meta;
       setOverrides({ ...overrides, [name]: { _meta: existingMeta ?? { fw: 'calliope06' }, ...parsed } });
-      showNotification(`Override "${name}" updated`, 'success');
+      showNotification(tr("Override \"{0}\" updated", { 0: name }), 'success');
       setShowJsonEditor((p) => ({ ...p, [name]: false }));
     } catch (e) {
-      showNotification(`Invalid JSON: ${e.message}`, 'error');
+      showNotification(tr("Invalid JSON: {0}", { 0: e.message }), 'error');
     }
   };
 
   const commitRename = (oldName) => {
     const newName = renameValue.trim();
     if (!newName || newName === oldName) { setRenamingId(null); return; }
-    if (overrides[newName]) { showNotification('Name already exists', 'warning'); return; }
+    if (overrides[newName]) { showNotification(tr("Name already exists"), 'warning'); return; }
     const { [oldName]: config, ...rest } = overrides;
     setOverrides({ ...rest, [newName]: config });
     setRenamingId(null);
-    showNotification(`Renamed to "${newName}"`, 'success');
+    showNotification(tr("Renamed to \"{0}\"", { 0: newName }), 'success');
   };
 
   // Search filtered templates
@@ -536,8 +536,8 @@ const Overrides = () => {
       <div className="flex-1 flex items-center justify-center bg-slate-50">
         <div className="text-center">
           <FiEdit3 className="mx-auto text-slate-300 mb-3" size={32} />
-          <p className="font-semibold text-slate-600 mb-1">No model selected</p>
-          <p className="text-sm text-slate-400">Select a model to manage overrides</p>
+          <p className="font-semibold text-slate-600 mb-1">{tr("No model selected")}</p>
+          <p className="text-sm text-slate-400">{tr("Select a model to manage overrides")}</p>
         </div>
       </div>
     );
@@ -550,17 +550,17 @@ const Overrides = () => {
     const fw = FRAMEWORKS[framework] ?? FRAMEWORKS.unknown;
     return (
       <div className="flex-1 flex flex-col bg-slate-50">
-        <SaveBar label="Overrides" />
+        <SaveBar label={tr("Overrides")} />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center max-w-sm px-6">
             <FiEdit3 className="mx-auto text-slate-300 mb-3" size={32} />
             <p className="font-semibold text-slate-700 mb-1">
-              Model Variants — {fw.label}
+              {tr("Model Variants —")} {fw.label}
             </p>
             <p className="text-sm text-slate-400 mb-4">
               {framework === 'calliope07'
-                ? 'Calliope 0.7 uses a different scenario format. Variant management for 0.7 models is coming soon.'
-                : `Model variant management for ${fw.label} is not yet supported.`}
+                ? tr("Calliope 0.7 uses a different scenario format. Variant management for 0.7 models is coming soon.")
+                : tr("Model variant management for {0} is not yet supported.", { 0: fw.label })}
             </p>
             <FrameworkBadge framework={framework} className="text-xs" />
           </div>
@@ -571,12 +571,12 @@ const Overrides = () => {
 
   return (
     <div className="flex-1 h-screen overflow-hidden flex flex-col bg-slate-50">
-      <SaveBar label="Overrides" />
+      <SaveBar label={tr("Overrides")} />
       {/* ── Page Header ── */}
       <div className="bg-white border-b border-black/15 px-5 py-2.5 shrink-0 flex items-center gap-3">
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <FiEdit3 size={14} className="text-slate-500 shrink-0" />
-          <h1 className="text-sm font-black tracking-tighter text-black">Overrides</h1>
+          <h1 className="text-sm font-black tracking-tighter text-black">{tr("Overrides")}</h1>
           <span className="text-xs text-slate-400 truncate">{currentModel?.name}</span>
           {overrideCount > 0 && (
             <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs font-medium shrink-0">
@@ -586,8 +586,8 @@ const Overrides = () => {
         </div>
         <div className="flex gap-1 shrink-0">
           {[
-            { id: 'library', label: 'Template Library' },
-            { id: 'yours',   label: `My Overrides${overrideCount > 0 ? ` (${overrideCount})` : ''}` },
+            { id: 'library', label: tr("Template Library") },
+            { id: 'yours',   label: tr("My Overrides{0}", { 0: overrideCount > 0 ? ` (${overrideCount})` : '' }) },
           ].map(({ id, label }) => (
             <button
               key={id}
@@ -605,7 +605,7 @@ const Overrides = () => {
           className="px-3 py-1.5 bg-black text-white rounded-lg text-xs font-bold uppercase tracking-wide hover:bg-black/80 transition-colors flex items-center gap-1.5 shrink-0"
         >
           <FiPlus size={12} />
-          Custom
+          {tr("Custom")}
         </button>
       </div>
 
@@ -621,7 +621,7 @@ const Overrides = () => {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search templates…"
+                placeholder={tr("Search templates…")}
                 className="w-full pl-8 pr-3 py-2 text-sm border border-black/15 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-400"
               />
               {searchQuery && (
@@ -672,7 +672,7 @@ const Overrides = () => {
           <div className="flex-1 overflow-y-auto p-5">
             {searchQuery && (
               <p className="text-sm text-slate-500 mb-3">
-                {searchedTemplates.length} result{searchedTemplates.length !== 1 ? 's' : ''} for "{searchQuery}"
+                {searchedTemplates.length} {tr("result")}{searchedTemplates.length !== 1 ? 's' : ''} {tr("for \"")}{searchQuery}"
               </p>
             )}
             {!searchQuery && (
@@ -687,7 +687,7 @@ const Overrides = () => {
             {searchedTemplates.length === 0 ? (
               <div className="text-center py-16 text-slate-400">
                 <FiSearch size={40} className="mx-auto mb-3 opacity-40" />
-                <p>No templates found</p>
+                <p>{tr("No templates found")}</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
@@ -712,22 +712,22 @@ const Overrides = () => {
             {overrideCount === 0 ? (
               <div className="text-center py-20">
                 <FiZap className="mx-auto text-slate-200 mb-3" size={32} />
-                <h3 className="text-lg font-medium text-slate-500 mb-1">No overrides yet</h3>
+                <h3 className="text-lg font-medium text-slate-500 mb-1">{tr("No overrides yet")}</h3>
                 <p className="text-sm text-slate-400 mb-5">
-                  Browse the template library or create a custom override
+                  {tr("Browse the template library or create a custom override")}
                 </p>
                 <div className="flex justify-center gap-3">
                   <button
                     onClick={() => setActiveTab('library')}
                     className="px-4 py-2 bg-black text-white rounded-xl text-sm font-bold uppercase tracking-wide hover:bg-black/80 transition-colors"
                   >
-                    Browse Templates
+                    {tr("Browse Templates")}
                   </button>
                   <button
                     onClick={() => setCustomModal({})}
                     className="px-4 py-2 border border-slate-300 text-slate-700 rounded-xl text-sm hover:bg-slate-50 transition-colors"
                   >
-                    Custom Override
+                    {tr("Custom Override")}
                   </button>
                 </div>
               </div>
@@ -775,21 +775,21 @@ const Overrides = () => {
                           <button
                             onClick={() => { setRenamingId(name); setRenameValue(name); }}
                             className={`${iconBtn('edit', 'md')}`}
-                            title="Rename"
+                            title={tr("Rename")}
                           >
                             <FiEdit2 size={ICON_PX.md} />
                           </button>
                           <button
                             onClick={() => handleDuplicate(name)}
                             className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg"
-                            title="Duplicate"
+                            title={tr("Duplicate")}
                           >
                             <FiCopy size={14} />
                           </button>
                           <button
                             onClick={() => handleDeleteOverride(name)}
                             className={`${iconBtn('delete', 'md')}`}
-                            title="Delete"
+                            title={tr("Delete")}
                           >
                             <FiTrash2 size={ICON_PX.md} />
                           </button>
@@ -801,7 +801,7 @@ const Overrides = () => {
                         <div className="border-t border-black/10 bg-slate-50 p-4">
                           <div className="flex items-center justify-between mb-2">
                             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                              {isJsonOpen ? 'Edit JSON' : 'Configuration'}
+                              {isJsonOpen ? tr("Edit JSON") : tr("Configuration")}
                             </span>
                             <div className="flex gap-2">
                               {isJsonOpen && (
@@ -809,7 +809,7 @@ const Overrides = () => {
                                   onClick={() => saveJsonEdit(name)}
                                   className="uppercase tracking-wide font-bold px-3 py-1 text-xs bg-black text-white rounded-lg hover:bg-black/80"
                                 >
-                                  Save JSON
+                                  {tr("Save JSON")}
                                 </button>
                               )}
                               <button
@@ -822,7 +822,7 @@ const Overrides = () => {
                                 }}
                                 className="px-3 py-1 text-xs bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300"
                               >
-                                {isJsonOpen ? 'View' : 'Edit JSON'}
+                                {isJsonOpen ? tr("View") : tr("Edit JSON")}
                               </button>
                             </div>
                           </div>

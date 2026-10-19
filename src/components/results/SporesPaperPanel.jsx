@@ -3,11 +3,12 @@
 // (Table 1) and per-SPORE metrics, with CSV export for the paper's tables.
 // Shown for Lombardi-2020 SPORES results (result.spores_meta).
 import { useMemo } from 'react';
-import ReactECharts from 'echarts-for-react';
+import ReactECharts from '../ui/Chart';
 import { FiDownload, FiAward } from '../ui/icons';
 import {
   resolveMetrics, groupUtilisation, sporeMetrics, bestRanking, toCsv,
 } from '../../services/sporesAnalysis';
+import { tr } from '../../i18n';
 
 const ZERO = 1e-3;
 
@@ -61,30 +62,30 @@ export default function SporesPaperPanel({ result }) {
     ['spore_id', 'stage', 'target', 'cost', 'maxWindShare', 'maxWindRegion', 'minLineCF', 'transmissionExpansion', 'overcapacity', 'curtailment']));
 
   const best = ranking && [
-    ['Cost-optimal', rows[0]],
-    ['Low wind concentration', ranking.lowWindConcentration],
-    ['High transmission use', ranking.highTransmissionUse],
-    ['High overcapacity', ranking.highOvercapacity],
+    [tr("Cost-optimal"), rows[0]],
+    [tr("Low wind concentration"), ranking.lowWindConcentration],
+    [tr("High transmission use"), ranking.highTransmissionUse],
+    [tr("High overcapacity"), ranking.highOvercapacity],
   ];
 
   return (
     <div className="bg-white rounded-xl border border-black/15 p-4 space-y-5">
       <div className="flex items-center gap-2">
         <FiAward size={14} className="text-teal-600" />
-        <h3 className="text-sm font-semibold text-slate-700">Paper analysis — Lombardi et al. (2020)</h3>
+        <h3 className="text-sm font-semibold text-slate-700">{tr("Paper analysis — Lombardi et al. (2020)")}</h3>
         <span className="text-xs text-slate-400">
-          {sd.length - 1}/{meta.planned} SPORES · {((meta.plan?.slack ?? 0) * 100).toFixed(0)}% cost relaxation
+          {sd.length - 1}/{meta.planned} {tr("SPORES ·")} {((meta.plan?.slack ?? 0) * 100).toFixed(0)}{tr("% cost relaxation")}
         </span>
       </div>
 
       <div>
         <div className="flex items-center justify-between">
-          <p className="text-xs font-semibold text-slate-600">Utilisation of capacity expansion potential (Fig 2)</p>
-          <button onClick={utilCsv} className="flex items-center gap-1 text-xs text-electric-600 hover:underline"><FiDownload size={12} /> CSV</button>
+          <p className="text-xs font-semibold text-slate-600">{tr("Utilisation of capacity expansion potential (Fig 2)")}</p>
+          <button onClick={utilCsv} className="flex items-center gap-1 text-xs text-electric-600 hover:underline"><FiDownload size={12} /> {tr("CSV")}</button>
         </div>
         <ReactECharts option={boxOption} style={{ height: 40 + labels.length * 34 }} />
         <table className="w-full text-xs mt-1">
-          <thead><tr className="text-slate-500 text-left"><th className="py-1 font-bold uppercase tracking-widest">Group</th><th>Cost-optimal</th><th>Median</th><th>SPORES avoiding it</th></tr></thead>
+          <thead><tr className="text-slate-500 text-left"><th className="py-1 font-bold uppercase tracking-widest">{tr("Group")}</th><th>{tr("Cost-optimal")}</th><th>{tr("Median")}</th><th>{tr("SPORES avoiding it")}</th></tr></thead>
           <tbody>
             {labels.map(l => {
               const vals = alternatives.map(u => u[l]).filter(v => v != null);
@@ -94,7 +95,7 @@ export default function SporesPaperPanel({ result }) {
                 <tr key={l} className="border-t border-black/10">
                   <td className="py-1 font-medium text-slate-700">{l}</td>
                   <td>{pct(util[0][l])}</td><td>{pct(q?.[2])}</td>
-                  <td className={zero === 0 ? 'text-teal-700 font-semibold' : ''}>{zero == null ? '–' : `${(zero * 100).toFixed(0)}%`}{zero === 0 ? ' · never avoided' : ''}</td>
+                  <td className={zero === 0 ? 'text-teal-700 font-semibold' : ''}>{zero == null ? '–' : `${(zero * 100).toFixed(0)}%`}{zero === 0 ? tr(" · never avoided") : ''}</td>
                 </tr>
               );
             })}
@@ -106,14 +107,14 @@ export default function SporesPaperPanel({ result }) {
         <div>
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold text-slate-600">
-              Best-ranking SPORES (Table 1) — {ranking.subset.length} with lower wind concentration than optimal and all inter-zonal lines ≥ 30% CF
+              {tr("Best-ranking SPORES (Table 1) —")} {ranking.subset.length} {tr("with lower wind concentration than optimal and all inter-zonal lines ≥ 30% CF")}
             </p>
-            <button onClick={metricsCsv} className="flex items-center gap-1 text-xs text-electric-600 hover:underline"><FiDownload size={12} /> CSV (all SPORES)</button>
+            <button onClick={metricsCsv} className="flex items-center gap-1 text-xs text-electric-600 hover:underline"><FiDownload size={12} /> {tr("CSV (all SPORES)")}</button>
           </div>
           <table className="w-full text-xs mt-1">
             <thead><tr className="text-slate-500 text-left">
-              <th className="py-1 font-bold uppercase tracking-widest">SPORE</th><th>Max regional wind share</th><th>Min inter-zonal line CF</th>
-              <th>Transmission expansion ({unit.powerLabel})</th><th>Overcapacity ({unit.powerLabel})</th><th>Curtailment ({unit.energyLabel})</th>
+              <th className="py-1 font-bold uppercase tracking-widest">{tr("SPORE")}</th><th>{tr("Max regional wind share")}</th><th>{tr("Min inter-zonal line CF")}</th>
+              <th>{tr("Transmission expansion (")}{unit.powerLabel})</th><th>{tr("Overcapacity (")}{unit.powerLabel})</th><th>{tr("Curtailment (")}{unit.energyLabel})</th>
             </tr></thead>
             <tbody>
               {best.map(([name, r]) => (
@@ -127,7 +128,7 @@ export default function SporesPaperPanel({ result }) {
                       <td>{(r.overcapacity / unit.power).toFixed(2)}</td>
                       <td>{(r.curtailment / unit.energy).toFixed(1)}</td>
                     </>
-                  ) : <td colSpan={5} className="text-slate-400 italic">no SPORE in the subset</td>}
+                  ) : <td colSpan={5} className="text-slate-400 italic">{tr("no SPORE in the subset")}</td>}
                 </tr>
               ))}
             </tbody>

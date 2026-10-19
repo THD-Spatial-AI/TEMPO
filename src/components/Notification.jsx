@@ -1,10 +1,12 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { FiAlertCircle, FiX, FiCheckCircle, FiAlertTriangle, FiInfo } from "./ui/icons";
 import { useEffect } from "react";
+import { useT } from "../i18n";
 
 const NOTIFICATION_TTL = 5000;
 
 const Notification = ({ text, id, removeNotif, type = "info", action = null }) => {
+  const t = useT();
   const ttl = action ? NOTIFICATION_TTL * 2 : NOTIFICATION_TTL;
   useEffect(() => {
     const timeoutRef = setTimeout(() => {
@@ -15,10 +17,10 @@ const Notification = ({ text, id, removeNotif, type = "info", action = null }) =
   }, [removeNotif, ttl]);
 
   const TYPES = {
-    success: { icon: FiCheckCircle, label: 'Success', tint: 'bg-emerald-400/15 text-emerald-300', bar: 'bg-emerald-400' },
-    error: { icon: FiAlertCircle, label: 'Error', tint: 'bg-red-400/15 text-red-300', bar: 'bg-red-400' },
-    warning: { icon: FiAlertTriangle, label: 'Warning', tint: 'bg-amber-400/15 text-amber-300', bar: 'bg-amber-400' },
-    info: { icon: FiInfo, label: 'Info', tint: 'bg-sky-400/15 text-sky-300', bar: 'bg-sky-400' },
+    success: { icon: FiCheckCircle, label: t('notify.success'), tint: 'bg-emerald-400/15 text-emerald-300', bar: 'bg-emerald-400' },
+    error: { icon: FiAlertCircle, label: t('notify.error'), tint: 'bg-red-400/15 text-red-300', bar: 'bg-red-400' },
+    warning: { icon: FiAlertTriangle, label: t('notify.warning'), tint: 'bg-amber-400/15 text-amber-300', bar: 'bg-amber-400' },
+    info: { icon: FiInfo, label: t('notify.info'), tint: 'bg-sky-400/15 text-sky-300', bar: 'bg-sky-400' },
   };
   const style = TYPES[type] || TYPES.info;
   const IconComponent = style.icon;
@@ -50,7 +52,7 @@ const Notification = ({ text, id, removeNotif, type = "info", action = null }) =
             </button>
           )}
         </div>
-        <button onClick={() => removeNotif(id)} aria-label="Dismiss notification"
+        <button onClick={() => removeNotif(id)} aria-label={t('notify.dismiss')}
           className="grid h-7 w-7 shrink-0 place-items-center text-white/50 transition-colors hover:bg-white/10 hover:text-white">
           <FiX size={15} />
         </button>

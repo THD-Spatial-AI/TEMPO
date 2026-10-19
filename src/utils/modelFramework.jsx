@@ -1,12 +1,13 @@
 import React from 'react';
+import { tr } from '../i18n';
 
 export const FRAMEWORKS = {
-  calliope06: { label: 'Calliope 0.6', badge: 'C0.6', color: 'bg-blue-50 text-blue-700' },
-  calliope07: { label: 'Calliope 0.7', badge: 'C0.7', color: 'bg-purple-50 text-purple-700' },
-  pypsa:      { label: 'PyPSA',        badge: 'PyPSA', color: 'bg-green-50 text-green-700' },
-  osemosys:   { label: 'OSeMOSYS',     badge: 'OSeMOSYS', color: 'bg-orange-50 text-orange-700' },
-  adoptnet:   { label: 'AdoptNET',     badge: 'AdoptNET', color: 'bg-rose-50 text-rose-700' },
-  unknown:    { label: 'Unknown',      badge: '?', color: 'bg-gray-100 text-gray-600' },
+  calliope06: { label: tr("Calliope 0.6"), badge: 'C0.6', color: 'bg-blue-50 text-blue-700' },
+  calliope07: { label: tr("Calliope 0.7"), badge: 'C0.7', color: 'bg-purple-50 text-purple-700' },
+  pypsa:      { label: tr("PyPSA"),        badge: 'PyPSA', color: 'bg-green-50 text-green-700' },
+  osemosys:   { label: tr("OSeMOSYS"),     badge: 'OSeMOSYS', color: 'bg-orange-50 text-orange-700' },
+  adoptnet:   { label: tr("AdoptNET"),     badge: 'AdoptNET', color: 'bg-rose-50 text-rose-700' },
+  unknown:    { label: tr("Unknown"),      badge: '?', color: 'bg-gray-100 text-gray-600' },
 };
 
 export function getModelFramework(model) {

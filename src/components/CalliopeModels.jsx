@@ -3,6 +3,7 @@ import { FiFolder, FiFile, FiDownload, FiTrash2, FiEdit2, FiX, FiSave, FiChevron
 import { useData } from "../context/DataContext";
 import { confirmAction } from './ui/confirm';
 import { iconBtn, ICON_PX } from './ui/iconButton';
+import { tr, locale } from '../i18n';
 
 const CalliopeModels = () => {
   const [exportedModels, setExportedModels] = useState([]);
@@ -39,7 +40,7 @@ const CalliopeModels = () => {
   };
 
   const handleDeleteModel = async (modelId) => {
-    if (await confirmAction({ title: 'Delete this exported model?', message: 'The exported files will be permanently removed.', details: exportedModels.find(m => m.id === modelId)?.name })) {
+    if (await confirmAction({ title: tr("Delete this exported model?"), message: tr("The exported files will be permanently removed."), details: exportedModels.find(m => m.id === modelId)?.name })) {
       const updated = exportedModels.filter(m => m.id !== modelId);
       saveModels(updated);
       if (selectedModel?.id === modelId) {
@@ -70,7 +71,7 @@ const CalliopeModels = () => {
       });
       saveModels(updated);
       setIsEditing(false);
-      alert("File saved successfully!");
+      alert(tr("File saved successfully!"));
     }
   };
 
@@ -161,10 +162,10 @@ const CalliopeModels = () => {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 mb-2">
-              Calliope Models
+              {tr("Calliope Models")}
             </h1>
             <p className="text-slate-600">
-              Manage and edit your exported Calliope model files
+              {tr("Manage and edit your exported Calliope model files")}
             </p>
           </div>
         </div>
@@ -174,14 +175,14 @@ const CalliopeModels = () => {
         {/* Models List */}
         <div className="col-span-3 bg-surface-container-lowest rounded-lg overflow-auto border border-black/15">
           <div className="p-4 border-b border-black/15">
-            <h2 className="font-semibold text-slate-800">Exported Models</h2>
-            <p className="text-xs text-slate-500 mt-1">{exportedModels.length} models</p>
+            <h2 className="font-semibold text-slate-800">{tr("Exported Models")}</h2>
+            <p className="text-xs text-slate-500 mt-1">{exportedModels.length} {tr("models")}</p>
           </div>
           
           <div className="divide-y divide-black/10">
             {exportedModels.length === 0 ? (
               <div className="p-4 text-center text-slate-500 text-sm">
-                No exported models yet. Export a model to get started.
+                {tr("No exported models yet. Export a model to get started.")}
               </div>
             ) : (
               exportedModels.map(model => (
@@ -201,10 +202,10 @@ const CalliopeModels = () => {
                         </h3>
                       </div>
                       <p className="text-xs text-slate-500 mt-1">
-                        {new Date(model.timestamp).toLocaleString()}
+                        {new Date(model.timestamp).toLocaleString(locale())}
                       </p>
                       <p className="text-xs text-slate-400 mt-1">
-                        {model.files.length} files
+                        {model.files.length} {tr("files")}
                       </p>
                     </div>
                     <button
@@ -226,7 +227,7 @@ const CalliopeModels = () => {
         {/* File Tree */}
         <div className="col-span-3 bg-surface-container-lowest rounded-lg overflow-auto border border-black/15">
           <div className="p-4 border-b border-black/15">
-            <h2 className="font-semibold text-slate-800">File Structure</h2>
+            <h2 className="font-semibold text-slate-800">{tr("File Structure")}</h2>
             {selectedModel && (
               <p className="text-xs text-slate-500 mt-1">{selectedModel.name}</p>
             )}
@@ -238,7 +239,7 @@ const CalliopeModels = () => {
             </div>
           ) : (
             <div className="p-4 text-center text-slate-500 text-sm">
-              Select a model to view its files
+              {tr("Select a model to view its files")}
             </div>
           )}
         </div>
@@ -248,7 +249,7 @@ const CalliopeModels = () => {
           <div className="p-4 border-b border-black/15 flex items-center justify-between">
             <div>
               <h2 className="font-semibold text-slate-800">
-                {selectedFile ? selectedFile.path : "File Editor"}
+                {selectedFile ? selectedFile.path : tr("File Editor")}
               </h2>
               {selectedFile && (
                 <p className="text-xs text-slate-500 mt-1">
@@ -265,7 +266,7 @@ const CalliopeModels = () => {
                       className="uppercase tracking-wide font-bold flex items-center gap-2 px-4 py-2 bg-black text-white rounded-md hover:bg-black/80 transition-colors text-sm"
                     >
                       <FiSave />
-                      Save
+                      {tr("Save")}
                     </button>
                     <button
                       onClick={() => {
@@ -275,7 +276,7 @@ const CalliopeModels = () => {
                       className="flex items-center gap-2 px-4 py-2 border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50 transition-colors text-sm"
                     >
                       <FiX />
-                      Cancel
+                      {tr("Cancel")}
                     </button>
                   </>
                 ) : (
@@ -284,7 +285,7 @@ const CalliopeModels = () => {
                     className="uppercase tracking-wide font-bold flex items-center gap-2 px-4 py-2 bg-black text-white rounded-md hover:bg-black/80 transition-colors text-sm"
                   >
                     <FiEdit2 />
-                    Edit
+                    {tr("Edit")}
                   </button>
                 )}
               </div>
@@ -309,7 +310,7 @@ const CalliopeModels = () => {
               <div className="flex items-center justify-center h-full text-slate-400">
                 <div className="text-center">
                   <FiFile size={48} className="mx-auto mb-4 opacity-50" />
-                  <p>Select a file to view or edit</p>
+                  <p>{tr("Select a file to view or edit")}</p>
                 </div>
               </div>
             )}

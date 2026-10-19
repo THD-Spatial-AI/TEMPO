@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { FiLayers, FiCheck } from '../ui/icons';
 import { MAP_STYLE_NAMES } from "../../config/mapStyles";
+import { tr } from '../../i18n';
 
 // Small CSS-only previews so each style is recognisable at a glance.
 const STYLE_PREVIEWS = {
@@ -46,8 +47,8 @@ const LayerSelector = ({ currentLayer, onLayerChange }) => {
         onClick={() => setIsOpen((o) => !o)}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
-        title={`Map style: ${MAP_STYLE_NAMES[currentLayer]}`}
-        aria-label={`Map style: ${MAP_STYLE_NAMES[currentLayer]}`}
+        title={tr("Map style: {0}", { 0: MAP_STYLE_NAMES[currentLayer] })}
+        aria-label={tr("Map style: {0}", { 0: MAP_STYLE_NAMES[currentLayer] })}
         className={`group w-9 h-9 p-[3px] rounded-xl bg-white/90 backdrop-blur-md shadow-lg shadow-slate-900/10 ring-1 transition-all hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 ${
           isOpen ? "ring-slate-900/20" : "ring-slate-900/5"
         }`}
@@ -64,12 +65,12 @@ const LayerSelector = ({ currentLayer, onLayerChange }) => {
       {isOpen && (
         <div
           role="listbox"
-          aria-label="Map style"
+          aria-label={tr("Map style")}
           className="absolute top-full right-0 mt-2 w-56 p-2 rounded-2xl bg-white/95 backdrop-blur-md shadow-xl shadow-slate-900/15 ring-1 ring-slate-900/5 z-[10002]"
         >
           <div className="flex items-center gap-1.5 px-1.5 pt-0.5 pb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
             <FiLayers size={11} />
-            Map style
+            {tr("Map style")}
           </div>
           <div className="grid grid-cols-2 gap-1.5">
             {Object.entries(MAP_STYLE_NAMES).map(([key, name]) => {

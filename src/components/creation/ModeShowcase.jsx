@@ -3,47 +3,48 @@ import { useEffect, useState } from 'react';
 import ModeIllustration from './ModeIllustration';
 import ScenarioIllustration from '../scenarioStudio/ScenarioIllustration';
 import { FiActivity, FiLink, FiMapPin, FiLayers, FiPlus, FiCalendar, FiPlay } from '../ui/icons';
+import { tr } from '../../i18n';
 
 const SHOWCASE = {
   location: {
-    label: 'Location', icon: FiMapPin, seconds: 4,
-    text: 'A node of your energy system: a city, region, power plant or substation. Technologies are assigned to locations.',
-    how: 'Click the map to drop one.',
+    label: tr("Location"), icon: FiMapPin, seconds: 4,
+    text: tr("A node of your energy system: a city, region, power plant or substation. Technologies are assigned to locations."),
+    how: tr("Click the map to drop one."),
   },
   link: {
-    label: 'Link', icon: FiLink, seconds: 4.5,
-    text: 'A transmission connection between two locations, e.g. a power line or pipeline. The link type sets its technology.',
-    how: 'Click a first location, then a second.',
+    label: tr("Link"), icon: FiLink, seconds: 4.5,
+    text: tr("A transmission connection between two locations, e.g. a power line or pipeline. The link type sets its technology."),
+    how: tr("Click a first location, then a second."),
   },
   polyline: {
-    label: 'Polyline', icon: FiActivity, seconds: 5,
-    text: 'Draws a route quickly: every click adds a point and links it to the previous one.',
-    how: 'Click repeatedly; switch mode to finish.',
+    label: tr("Polyline"), icon: FiActivity, seconds: 5,
+    text: tr("Draws a route quickly: every click adds a point and links it to the previous one."),
+    how: tr("Click repeatedly; switch mode to finish."),
   },
   model: {
-    label: 'Full model', icon: FiLayers, seconds: 7.5,
-    text: 'Place locations, connect them with links, add technologies such as solar, wind or storage, then save the model.',
-    how: 'Save appears bottom-right once a location exists.',
+    label: tr("Full model"), icon: FiLayers, seconds: 7.5,
+    text: tr("Place locations, connect them with links, add technologies such as solar, wind or storage, then save the model."),
+    how: tr("Save appears bottom-right once a location exists."),
   },
   'scn-add': {
-    label: 'Add card', icon: FiPlus, seconds: 5,
-    text: 'Config cards change the base model: demand, emissions, renewables, technologies, locations and more.',
-    how: 'Click “+ Add card” (or right-click the canvas) and pick a category.',
+    label: tr("Add card"), icon: FiPlus, seconds: 5,
+    text: tr("Config cards change the base model: demand, emissions, renewables, technologies, locations and more."),
+    how: tr("Click “+ Add card” (or right-click the canvas) and pick a category."),
   },
   'scn-nest': {
-    label: 'Year', icon: FiCalendar, seconds: 5,
-    text: 'Drop a card into a Year box to apply it to that year only. Cards left on the canvas apply to every year.',
-    how: 'Drag the card into the year, or use “+ Card” on the year.',
+    label: tr("Year"), icon: FiCalendar, seconds: 5,
+    text: tr("Drop a card into a Year box to apply it to that year only. Cards left on the canvas apply to every year."),
+    how: tr("Drag the card into the year, or use “+ Card” on the year."),
   },
   'scn-link': {
-    label: 'Chain', icon: FiLink, seconds: 5,
-    text: 'Link years into a timeline so each year follows on from the previous one.',
-    how: 'Drag from a year’s right dot to the next year’s left dot.',
+    label: tr("Chain"), icon: FiLink, seconds: 5,
+    text: tr("Link years into a timeline so each year follows on from the previous one."),
+    how: tr("Drag from a year’s right dot to the next year’s left dot."),
   },
   'scn-run': {
-    label: 'Run', icon: FiPlay, seconds: 8,
-    text: 'Every year becomes one run. Parallel solves them all at once; Sequential solves them one after another.',
-    how: 'Choose the mode in the bottom bar, then Run scenario.',
+    label: tr("Run"), icon: FiPlay, seconds: 8,
+    text: tr("Every year becomes one run. Parallel solves them all at once; Sequential solves them one after another."),
+    how: tr("Choose the mode in the bottom bar, then Run scenario."),
   },
 };
 

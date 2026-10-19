@@ -14,6 +14,7 @@ import { FiTrash2, FiClock } from '../ui/icons';
 import { RECIPE_BY_ID, summarizeOps } from './recipeMeta.js';
 import { BoardCtx } from './boardContext.js';
 import { iconBtn, ICON_PX } from '../ui/iconButton';
+import { tr } from '../../i18n';
 
 // One-line summary of a card's configuration for the node face.
 function faceSummary(recipeId, params = {}) {
@@ -82,7 +83,7 @@ function RecipeCardNodeImpl({ id, data, selected }) {
           <button
             onClick={(e) => { e.stopPropagation(); onDeleteNode?.(id); }}
             className={`${iconBtn('delete', 'sm')} nodrag`}
-            title="Remove card"
+            title={tr("Remove card")}
           >
             <FiTrash2 size={ICON_PX.sm} />
           </button>
@@ -95,10 +96,10 @@ function RecipeCardNodeImpl({ id, data, selected }) {
             {badge}
           </span>
           {meta.chainLen > 1 && (
-            <span className="text-[10px] text-slate-400">layer {meta.chainPos + 1}/{meta.chainLen}</span>
+            <span className="text-[10px] text-slate-400">{tr("layer")} {meta.chainPos + 1}/{meta.chainLen}</span>
           )}
           {isSpores && !sporesEngineOk && (
-            <span className="text-[10px] font-medium text-amber-600">needs Calliope 0.6</span>
+            <span className="text-[10px] font-medium text-amber-600">{tr("needs Calliope 0.6")}</span>
           )}
         </div>
 
@@ -107,10 +108,10 @@ function RecipeCardNodeImpl({ id, data, selected }) {
           <div className="nodrag mt-2 pt-2 border-t border-black/10">
             <div className="flex items-center gap-1 mb-1">
               <FiClock size={10} className="text-electric-500" />
-              <span className="text-[10px] font-semibold text-slate-600">Temporal mode</span>
+              <span className="text-[10px] font-semibold text-slate-600">{tr("Temporal mode")}</span>
             </div>
             <div className="flex gap-1">
-              {[{ id: false, label: 'Snapshots' }, { id: true, label: 'Pathway' }].map(opt => (
+              {[{ id: false, label: tr("Snapshots") }, { id: true, label: tr("Pathway") }].map(opt => (
                 <button key={String(opt.id)}
                   onClick={(e) => { e.stopPropagation(); onTogglePathway?.(id, opt.id); }}
                   className={`px-2 py-0.5 text-[10px] rounded-md font-bold uppercase tracking-wide transition-colors ${

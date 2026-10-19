@@ -22,6 +22,7 @@ import {
 import { PARENT_CONSTRAINTS, CONSTRAINT_DEFINITIONS, COST_DEFINITIONS } from '../../utils/constraintDefinitions';
 import { fetchTechFramework, frameworkParamNames } from '../../services/techDatabaseApi';
 import SelectField from '../ui/SelectField';
+import { tr } from '../../i18n';
 
 // Raw Calliope cost keys offered in the Calliope power-user panel.
 const RAW_COST_KEYS = ['energy_cap', 'storage_cap', 'resource_cap', 'purchase', 'om_annual', 'om_prod', 'om_con'];
@@ -31,37 +32,37 @@ const RAW_COST_KEYS = ['energy_cap', 'storage_cap', 'resource_cap', 'purchase', 
 // translator overlay (engineParams) — see python/*_translate.py.
 const ENGINE_PARAM_CATALOG = {
   pypsa: {
-    p_min_pu: 'Minimum output, fraction of capacity',
-    p_max_pu: 'Maximum output, fraction of capacity',
-    committable: 'Unit commitment on/off (true/false)',
-    ramp_limit_up: 'Max ramp up per snapshot (fraction)',
-    ramp_limit_down: 'Max ramp down per snapshot (fraction)',
-    min_up_time: 'Minimum up time (snapshots)',
-    min_down_time: 'Minimum down time (snapshots)',
-    start_up_cost: 'Start-up cost',
+    p_min_pu: tr("Minimum output, fraction of capacity"),
+    p_max_pu: tr("Maximum output, fraction of capacity"),
+    committable: tr("Unit commitment on/off (true/false)"),
+    ramp_limit_up: tr("Max ramp up per snapshot (fraction)"),
+    ramp_limit_down: tr("Max ramp down per snapshot (fraction)"),
+    min_up_time: tr("Minimum up time (snapshots)"),
+    min_down_time: tr("Minimum down time (snapshots)"),
+    start_up_cost: tr("Start-up cost"),
   },
   osemosys: {
-    CapacityFactor: 'Capacity factor (0-1)',
-    AvailabilityFactor: 'Availability factor (0-1)',
-    CapacityToActivityUnit: 'Capacity→activity conversion (e.g. 31.536)',
-    ResidualCapacity: 'Existing capacity (GW)',
-    OperationalLife: 'Operational life (years)',
-    EmissionActivityRatio: 'Emission per unit activity',
-    TotalTechnologyAnnualActivityUpperLimit: 'Annual activity upper limit (PJ)',
+    CapacityFactor: tr("Capacity factor (0-1)"),
+    AvailabilityFactor: tr("Availability factor (0-1)"),
+    CapacityToActivityUnit: tr("Capacity→activity conversion (e.g. 31.536)"),
+    ResidualCapacity: tr("Existing capacity (GW)"),
+    OperationalLife: tr("Operational life (years)"),
+    EmissionActivityRatio: tr("Emission per unit activity"),
+    TotalTechnologyAnnualActivityUpperLimit: tr("Annual activity upper limit (PJ)"),
   },
   adoptnet0: {
-    size_min: 'Minimum size',
-    size_max: 'Maximum size',
-    min_part_load: 'Minimum part load (0-1)',
-    standby_power: 'Standby power draw',
-    size_is_int: 'Integer sizing (true/false)',
+    size_min: tr("Minimum size"),
+    size_max: tr("Maximum size"),
+    min_part_load: tr("Minimum part load (0-1)"),
+    standby_power: tr("Standby power draw"),
+    size_is_int: tr("Integer sizing (true/false)"),
   },
 };
 
 const NON_CALLIOPE_ENGINES = [
-  { id: 'pypsa', label: 'PyPSA' },
-  { id: 'osemosys', label: 'OSeMOSYS' },
-  { id: 'adoptnet0', label: 'AdOpT-NET0' },
+  { id: 'pypsa', label: tr("PyPSA") },
+  { id: 'osemosys', label: tr("OSeMOSYS") },
+  { id: 'adoptnet0', label: tr("AdOpT-NET0") },
 ];
 
 // Numbers persist as numbers; everything else (carriers, 'inf', bools) stays text.
@@ -88,7 +89,7 @@ function AddFromList({ label, options, onAdd }) {
         disabled={!sel}
         className="uppercase tracking-wide font-bold px-2 py-0.5 text-xs bg-black text-white rounded disabled:bg-gray-300"
       >
-        Add
+        {tr("Add")}
       </button>
     </div>
   );
@@ -101,7 +102,7 @@ function AddFreeForm({ onAdd }) {
       <input
         value={key}
         onChange={(e) => setKey(e.target.value)}
-        placeholder="custom parameter name"
+        placeholder={tr("custom parameter name")}
         className="flex-1 text-xs border border-black/15 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-gray-400 font-mono"
       />
       <button
@@ -109,7 +110,7 @@ function AddFreeForm({ onAdd }) {
         disabled={!key.trim()}
         className="px-2 py-0.5 text-xs bg-slate-500 text-white rounded disabled:bg-gray-300"
       >
-        + Custom
+        {tr("+ Custom")}
       </button>
     </div>
   );
@@ -184,7 +185,7 @@ export default function TechParameterEditor({
     <div className="space-y-4">
       {/* ── Common (ontology) parameters ─────────────────────────────── */}
       <div>
-        <p className="text-xs font-semibold text-slate-600 mb-2">Common parameters</p>
+        <p className="text-xs font-semibold text-slate-600 mb-2">{tr("Common parameters")}</p>
         <div className="space-y-2">
           {commonDefs.map((def) => {
             const val = commonValue(def);
@@ -193,23 +194,23 @@ export default function TechParameterEditor({
               <div key={def.id} className="flex items-center gap-2">
                 <label
                   className="text-[11px] text-slate-600 w-44 flex-shrink-0"
-                  title={`${def.description}\n\nCalliope: ${def.calliope.name}`}
+                  title={tr("{0}\n\nCalliope: {1}", { 0: tr(def.description), 1: def.calliope.name })}
                 >
-                  {def.label}
-                  <span className="text-slate-400"> ({def.unit})</span>
+                  {tr(def.label)}
+                  <span className="text-slate-400"> ({tr(def.unit)})</span>
                 </label>
                 <input
                   type="text"
                   value={val ?? ''}
                   onChange={(e) => setCommon(def, coerce(e.target.value))}
-                  placeholder="not set"
+                  placeholder={tr("not set")}
                   className="flex-1 px-2 py-0.5 text-xs border border-black/15 rounded focus:ring-1 focus:ring-gray-400 font-mono"
                 />
                 <button
                   onClick={() => clearCommon(def)}
                   disabled={!set}
                   className="text-slate-300 hover:text-gray-600 disabled:opacity-30 disabled:hover:text-slate-300"
-                  title="Clear"
+                  title={tr("Clear")}
                 >
                   <FiX size={12} />
                 </button>
@@ -221,18 +222,18 @@ export default function TechParameterEditor({
 
       {/* ── Engine-specific parameters ───────────────────────────────── */}
       <div>
-        <p className="text-xs font-semibold text-slate-600 mb-1">Engine-specific parameters</p>
+        <p className="text-xs font-semibold text-slate-600 mb-1">{tr("Engine-specific parameters")}</p>
 
         {/* Calliope raw power-user panel */}
         <EngineSection
           id="calliope"
-          label="Calliope (advanced)"
+          label={tr("Calliope (advanced)")}
           open={openEngine === 'calliope'}
           onToggle={() => setOpenEngine(openEngine === 'calliope' ? null : 'calliope')}
           count={rawConstraints.length + rawCosts.length}
         >
-          <p className="text-[11px] font-semibold text-slate-500 mb-1">Constraints</p>
-          {rawConstraints.length === 0 && <p className="text-[11px] text-slate-400 italic mb-1">none</p>}
+          <p className="text-[11px] font-semibold text-slate-500 mb-1">{tr("Constraints")}</p>
+          {rawConstraints.length === 0 && <p className="text-[11px] text-slate-400 italic mb-1">{tr("none")}</p>}
           <div className="space-y-1">
             {rawConstraints.map(([k, v]) => (
               <ParamRow
@@ -244,10 +245,10 @@ export default function TechParameterEditor({
               />
             ))}
           </div>
-          <AddFromList label="+ Add constraint…" options={rawConstraintOptions} onAdd={(k) => onConstraintChange(k, '')} />
+          <AddFromList label={tr("+ Add constraint…")} options={rawConstraintOptions} onAdd={(k) => onConstraintChange(k, '')} />
 
-          <p className="text-[11px] font-semibold text-slate-500 mt-3 mb-1">Costs (monetary)</p>
-          {rawCosts.length === 0 && <p className="text-[11px] text-slate-400 italic mb-1">none</p>}
+          <p className="text-[11px] font-semibold text-slate-500 mt-3 mb-1">{tr("Costs (monetary)")}</p>
+          {rawCosts.length === 0 && <p className="text-[11px] text-slate-400 italic mb-1">{tr("none")}</p>}
           <div className="space-y-1">
             {rawCosts.map(([k, v]) => (
               <ParamRow
@@ -259,7 +260,7 @@ export default function TechParameterEditor({
               />
             ))}
           </div>
-          <AddFromList label="+ Add cost…" options={rawCostOptions} onAdd={(k) => onCostChange(k, '')} />
+          <AddFromList label={tr("+ Add cost…")} options={rawCostOptions} onAdd={(k) => onCostChange(k, '')} />
         </EngineSection>
 
         {/* Non-Calliope engines */}
@@ -270,7 +271,7 @@ export default function TechParameterEditor({
           const optionKeys = [...new Set([...Object.keys(catalog), ...(dbParams[id] || [])])];
           const options = optionKeys
             .filter((k) => !(k in params))
-            .map((k) => ({ key: k, desc: catalog[k] || 'from technology database' }));
+            .map((k) => ({ key: k, desc: catalog[k] || tr("from technology database") }));
           return (
             <EngineSection
               key={id}
@@ -286,8 +287,7 @@ export default function TechParameterEditor({
             >
               {entries.length === 0 && (
                 <p className="text-[11px] text-slate-400 italic mb-1">
-                  No {label}-specific parameters. These override the values translated from the common
-                  parameters when the model is run/exported on {label}.
+                  {tr("No")} {label}{tr("-specific parameters. These override the values translated from the common parameters when the model is run/exported on")} {label}.
                 </p>
               )}
               <div className="space-y-1">
@@ -301,7 +301,7 @@ export default function TechParameterEditor({
                   />
                 ))}
               </div>
-              <AddFromList label={`+ Add ${label} parameter…`} options={options} onAdd={(k) => onEngineParamChange(id, k, '')} />
+              <AddFromList label={tr("+ Add {0} parameter…", { 0: label })} options={options} onAdd={(k) => onEngineParamChange(id, k, '')} />
               <AddFreeForm onAdd={(k) => onEngineParamChange(id, k, '')} />
             </EngineSection>
           );

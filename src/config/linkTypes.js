@@ -15,17 +15,18 @@
  */
 
 import { CARRIERS } from './carriers';
+import { tr } from '../i18n';
 
 /** @type {Record<string, LinkTypeDefinition>} */
 export const LINK_TYPES = {
   // ── Electricity ───────────────────────────────────────────────────────────
   hvac_overhead: {
     id: 'hvac_overhead',
-    label: 'HVAC Overhead Line',
+    label: tr("HVAC Overhead Line"),
     carrier: 'electricity',
     group: 'Electricity',
     icon: '⚡',
-    description: 'High-voltage AC overhead transmission line. Best for regional grids up to ~800 km.',
+    description: tr("High-voltage AC overhead transmission line. Best for regional grids up to ~800 km."),
     calliopeTech: 'hvac_overhead_lines',
     defaults: { energy_eff: 0.98, lifetime: 40, energy_cap_per_distance: 0.91 },
     lineDash: [],
@@ -33,11 +34,11 @@ export const LINK_TYPES = {
   },
   hvdc_overhead: {
     id: 'hvdc_overhead',
-    label: 'HVDC Overhead Line',
+    label: tr("HVDC Overhead Line"),
     carrier: 'electricity',
     group: 'Electricity',
     icon: '⚡',
-    description: 'High-voltage DC overhead line for long-distance bulk power transfer.',
+    description: tr("High-voltage DC overhead line for long-distance bulk power transfer."),
     calliopeTech: 'hvdc_overhead_lines',
     defaults: { energy_eff: 0.97, lifetime: 40, energy_cap_per_distance: 1.10 },
     lineDash: [],
@@ -45,11 +46,11 @@ export const LINK_TYPES = {
   },
   hvac_cable: {
     id: 'hvac_cable',
-    label: 'HVAC Underground Cable',
+    label: tr("HVAC Underground Cable"),
     carrier: 'electricity',
     group: 'Electricity',
     icon: '⚡',
-    description: 'Underground high-voltage AC cable for urban or sensitive areas.',
+    description: tr("Underground high-voltage AC cable for urban or sensitive areas."),
     calliopeTech: 'hvac_underground_cables',
     defaults: { energy_eff: 0.97, lifetime: 40, energy_cap_per_distance: 3.00 },
     lineDash: [4, 4],
@@ -57,11 +58,11 @@ export const LINK_TYPES = {
   },
   hvdc_subsea: {
     id: 'hvdc_subsea',
-    label: 'HVDC Subsea Cable',
+    label: tr("HVDC Subsea Cable"),
     carrier: 'electricity',
     group: 'Electricity',
     icon: '⚡',
-    description: 'Submarine HVDC cable interconnector across bodies of water.',
+    description: tr("Submarine HVDC cable interconnector across bodies of water."),
     calliopeTech: 'hvdc_subsea_cables',
     defaults: { energy_eff: 0.96, lifetime: 40, energy_cap_per_distance: 4.50 },
     lineDash: [6, 3],
@@ -71,11 +72,11 @@ export const LINK_TYPES = {
   // ── Heat ─────────────────────────────────────────────────────────────────
   district_heat: {
     id: 'district_heat',
-    label: 'District Heating Network',
+    label: tr("District Heating Network"),
     carrier: 'heat',
     group: 'Heat',
     icon: '🔥',
-    description: 'Insulated pipe network for district heat distribution.',
+    description: tr("Insulated pipe network for district heat distribution."),
     calliopeTech: 'district_heating_networks',
     defaults: { energy_eff: 0.90, lifetime: 40, energy_cap_per_distance: 0.60 },
     lineDash: [],
@@ -83,11 +84,11 @@ export const LINK_TYPES = {
   },
   district_cooling: {
     id: 'district_cooling',
-    label: 'District Cooling Network',
+    label: tr("District Cooling Network"),
     carrier: 'cooling',
     group: 'Heat',
     icon: '❄️',
-    description: 'Chilled water pipe network for district cooling.',
+    description: tr("Chilled water pipe network for district cooling."),
     calliopeTech: 'district_cooling_networks',
     defaults: { energy_eff: 0.92, lifetime: 40, energy_cap_per_distance: 0.70 },
     lineDash: [3, 3],
@@ -97,11 +98,11 @@ export const LINK_TYPES = {
   // ── Hydrogen ─────────────────────────────────────────────────────────────
   h2_pipeline: {
     id: 'h2_pipeline',
-    label: 'Hydrogen Pipeline',
+    label: tr("Hydrogen Pipeline"),
     carrier: 'hydrogen',
     group: 'Hydrogen',
     icon: 'H₂',
-    description: 'Dedicated high-pressure hydrogen pipeline. Can be new-build or repurposed gas pipeline.',
+    description: tr("Dedicated high-pressure hydrogen pipeline. Can be new-build or repurposed gas pipeline."),
     calliopeTech: 'hydrogen_pipelines',
     defaults: { energy_eff: 0.98, lifetime: 40, energy_cap_per_distance: 1.20 },
     lineDash: [],
@@ -109,11 +110,11 @@ export const LINK_TYPES = {
   },
   h2_truck: {
     id: 'h2_truck',
-    label: 'Hydrogen Truck Transport',
+    label: tr("Hydrogen Truck Transport"),
     carrier: 'hydrogen',
     group: 'Hydrogen',
     icon: '🚚',
-    description: 'Compressed or liquid H₂ transport by road vehicle. Suitable for dispersed demand.',
+    description: tr("Compressed or liquid H₂ transport by road vehicle. Suitable for dispersed demand."),
     calliopeTech: 'hydrogen_truck',
     defaults: { energy_eff: 0.95, lifetime: 15, energy_cap_per_distance: 0.20 },
     lineDash: [8, 4],
@@ -123,11 +124,11 @@ export const LINK_TYPES = {
   // ── Natural Gas ──────────────────────────────────────────────────────────
   gas_pipeline: {
     id: 'gas_pipeline',
-    label: 'Natural Gas Pipeline',
+    label: tr("Natural Gas Pipeline"),
     carrier: 'gas',
     group: 'Gas',
     icon: '🔆',
-    description: 'High-pressure natural gas transmission pipeline.',
+    description: tr("High-pressure natural gas transmission pipeline."),
     calliopeTech: 'natural_gas_pipelines',
     defaults: { energy_eff: 0.99, lifetime: 50, energy_cap_per_distance: 0.50 },
     lineDash: [],
@@ -137,11 +138,11 @@ export const LINK_TYPES = {
   // ── Biogas ────────────────────────────────────────────────────────────────
   biogas_pipeline: {
     id: 'biogas_pipeline',
-    label: 'Biogas Pipeline',
+    label: tr("Biogas Pipeline"),
     carrier: 'biogas',
     group: 'Gas',
     icon: '🌿',
-    description: 'Low-pressure biogas distribution pipeline.',
+    description: tr("Low-pressure biogas distribution pipeline."),
     calliopeTech: 'biogas_pipelines',
     defaults: { energy_eff: 0.98, lifetime: 30, energy_cap_per_distance: 0.40 },
     lineDash: [4, 4],
@@ -151,11 +152,11 @@ export const LINK_TYPES = {
   // ── CO₂ ──────────────────────────────────────────────────────────────────
   co2_pipeline: {
     id: 'co2_pipeline',
-    label: 'CO₂ Pipeline',
+    label: tr("CO₂ Pipeline"),
     carrier: 'co2',
     group: 'Carbon',
     icon: 'CO₂',
-    description: 'Supercritical CO₂ pipeline for CCS/CCU transport to storage or utilisation sites.',
+    description: tr("Supercritical CO₂ pipeline for CCS/CCU transport to storage or utilisation sites."),
     calliopeTech: 'co2_pipelines',
     defaults: { energy_eff: 0.99, lifetime: 40, energy_cap_per_distance: 0.80 },
     lineDash: [],
@@ -165,11 +166,11 @@ export const LINK_TYPES = {
   // ── Biomass ───────────────────────────────────────────────────────────────
   biomass_truck: {
     id: 'biomass_truck',
-    label: 'Biomass Truck Transport',
+    label: tr("Biomass Truck Transport"),
     carrier: 'biomass',
     group: 'Biomass',
     icon: '🌾',
-    description: 'Solid biomass transport by truck.',
+    description: tr("Solid biomass transport by truck."),
     calliopeTech: 'biomass_truck',
     defaults: { energy_eff: 0.97, lifetime: 15, energy_cap_per_distance: 0.10 },
     lineDash: [8, 4],
@@ -177,11 +178,11 @@ export const LINK_TYPES = {
   },
   biomass_train: {
     id: 'biomass_train',
-    label: 'Biomass Rail Transport',
+    label: tr("Biomass Rail Transport"),
     carrier: 'biomass',
     group: 'Biomass',
     icon: '🚂',
-    description: 'Solid biomass bulk transport by rail.',
+    description: tr("Solid biomass bulk transport by rail."),
     calliopeTech: 'biomass_train',
     defaults: { energy_eff: 0.98, lifetime: 30, energy_cap_per_distance: 0.05 },
     lineDash: [5, 5],
@@ -191,11 +192,11 @@ export const LINK_TYPES = {
   // ── Oil & Liquid Fuels ────────────────────────────────────────────────────
   oil_pipeline: {
     id: 'oil_pipeline',
-    label: 'Oil Pipeline',
+    label: tr("Oil Pipeline"),
     carrier: 'oil',
     group: 'Liquid Fuels',
     icon: '🛢️',
-    description: 'Crude oil or refined products pipeline.',
+    description: tr("Crude oil or refined products pipeline."),
     calliopeTech: 'oil_pipelines',
     defaults: { energy_eff: 0.995, lifetime: 50, energy_cap_per_distance: 0.45 },
     lineDash: [],
@@ -203,11 +204,11 @@ export const LINK_TYPES = {
   },
   oil_truck: {
     id: 'oil_truck',
-    label: 'Fuel Truck',
+    label: tr("Fuel Truck"),
     carrier: 'oil',
     group: 'Liquid Fuels',
     icon: '⛽',
-    description: 'Liquid fuel distribution by tanker truck.',
+    description: tr("Liquid fuel distribution by tanker truck."),
     calliopeTech: 'fuel_truck',
     defaults: { energy_eff: 0.98, lifetime: 15, energy_cap_per_distance: 0.15 },
     lineDash: [8, 4],
@@ -217,11 +218,11 @@ export const LINK_TYPES = {
   // ── Water ─────────────────────────────────────────────────────────────────
   water_pipeline: {
     id: 'water_pipeline',
-    label: 'Water Pipeline',
+    label: tr("Water Pipeline"),
     carrier: 'water',
     group: 'Water',
     icon: '💧',
-    description: 'Water transmission pipeline (drinking, industrial or cooling water).',
+    description: tr("Water transmission pipeline (drinking, industrial or cooling water)."),
     calliopeTech: 'water_pipelines',
     defaults: { energy_eff: 0.99, lifetime: 60, energy_cap_per_distance: 0.30 },
     lineDash: [3, 3],
@@ -231,11 +232,11 @@ export const LINK_TYPES = {
   // ── Generic ───────────────────────────────────────────────────────────────
   generic: {
     id: 'generic',
-    label: 'Generic Link',
+    label: tr("Generic Link"),
     carrier: 'electricity',
     group: 'Generic',
     icon: '🔗',
-    description: 'Generic connection — select a specific type above for more accurate defaults.',
+    description: tr("Generic connection — select a specific type above for more accurate defaults."),
     calliopeTech: 'power_lines',
     defaults: { energy_eff: 1.0, lifetime: 40 },
     lineDash: [],

@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { LuX, LuArrowRight, LuChevronLeft, LuSparkles } from '../ui/icons';
 import { TOURS, hasSeenTour, markTourSeen, onTourStart, tourForView } from './tour';
 import ModeShowcase from '../creation/ModeShowcase';
+import { tr } from '../../i18n';
 
 const PAD = 6;
 const CARD_W = 320;
@@ -118,11 +119,11 @@ export default function GuidedTour({ view }) {
           )}
           <div className="min-w-0 flex-1">
             <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-              Step {step + 1} of {steps.length}
+              {tr("Step")} {step + 1} {tr("of")} {steps.length}
             </div>
             <h3 className="mt-1 text-base font-semibold text-slate-900">{current.title}</h3>
           </div>
-          <button onClick={finish} aria-label="Close tour" className="-mr-1 -mt-1 grid h-8 w-8 place-items-center text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+          <button onClick={finish} aria-label={tr("Close tour")} className="-mr-1 -mt-1 grid h-8 w-8 place-items-center text-slate-400 hover:bg-slate-100 hover:text-slate-700">
             <LuX size={16} />
           </button>
         </div>
@@ -141,16 +142,16 @@ export default function GuidedTour({ view }) {
 
         <div className="mt-4 flex items-center justify-between border-t border-black/10 px-5 py-3">
           <button onClick={finish} className="text-xs font-medium text-slate-500 hover:text-slate-900">
-            {step === 0 ? 'Skip tour' : 'End tour'}
+            {step === 0 ? tr("Skip tour") : tr("End tour")}
           </button>
           <div className="flex gap-2">
             {step > 0 && (
               <button onClick={back} className="flex h-9 items-center gap-1 border border-black/15 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
-                <LuChevronLeft size={16} /> Back
+                <LuChevronLeft size={16} /> {tr("Back")}
               </button>
             )}
             <button onClick={next} className="flex h-9 items-center gap-1.5 bg-black px-4 text-sm font-semibold text-white hover:bg-slate-800">
-              {step === 0 ? 'Start tour' : isLast ? 'Finish' : 'Next'}
+              {step === 0 ? tr("Start tour") : isLast ? tr("Finish") : tr("Next")}
               {!isLast && <LuArrowRight size={16} />}
             </button>
           </div>

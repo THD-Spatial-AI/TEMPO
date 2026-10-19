@@ -10,6 +10,7 @@ import {
   fetchDemandlibShape, syntheticShape,
 } from '../services/demandlibClient';
 import SelectField from './ui/SelectField';
+import { tr } from '../i18n';
 
 // Tiny dependency-free SVG sparkline for the demand-shape preview.
 function Sparkline({ values, color = '#0369a1', height = 40 }) {
@@ -33,22 +34,22 @@ function Sparkline({ values, color = '#0369a1', height = 40 }) {
 
 // Network-builder wizard steps (order matters — later steps wire into earlier ones).
 const WIZARD_STEPS = [
-  { key: 'transmission', label: 'Transmission network', color: '#f59e0b' },
-  { key: 'substations', label: 'Substations', color: '#ef4444' },
-  { key: 'plants', label: 'Power plants', color: '#22c55e' },
+  { key: 'transmission', label: tr("Transmission network"), color: '#f59e0b' },
+  { key: 'substations', label: tr("Substations"), color: '#ef4444' },
+  { key: 'plants', label: tr("Power plants"), color: '#22c55e' },
 ];
 
 // Representative BDEW sectors for the "sector mix" advanced mode.
 const MIX_SECTORS = [
-  { code: 'h0_dyn', label: 'Household' },
-  { code: 'g0', label: 'Commercial' },
-  { code: 'g3', label: 'Industry (24/7)' },
-  { code: 'l0', label: 'Agriculture' },
+  { code: 'h0_dyn', label: tr("Household") },
+  { code: 'g0', label: tr("Commercial") },
+  { code: 'g3', label: tr("Industry (24/7)") },
+  { code: 'l0', label: tr("Agriculture") },
 ];
 
 // Curated holiday-calendar countries (BDEW curves are German → DE default).
 const DEMAND_COUNTRIES = ['DE', 'CL', 'US', 'GB', 'FR', 'ES', 'IT', 'PL', 'NL', 'SE', 'NO', 'DK', 'BR', 'AR', 'MX', 'ZA', 'IN', 'CN', 'AU'];
-const DEMAND_RESOLUTIONS = [['60min', 'Hourly (60 min)'], ['30min', '30 min'], ['15min', '15 min']];
+const DEMAND_RESOLUTIONS = [['60min', tr("Hourly (60 min)")], ['30min', tr("30 min")], ['15min', tr("15 min")]];
 
 // Compact multi-select dropdown: a button ("Label · 2/3 ▾") that opens a checklist.
 function CategoryDropdown({ label, color, options, selected, onToggle, onSetAll }) {
@@ -77,11 +78,11 @@ function CategoryDropdown({ label, color, options, selected, onToggle, onSetAll 
         <div className="absolute z-20 mt-1 w-full bg-white border border-black/15 rounded-lg shadow-lg py-1 max-h-52 overflow-y-auto">
           {onSetAll && (
             <div className="flex justify-between px-2 pb-1 mb-1 border-b border-black/10 text-[10px]">
-              <button onClick={() => onSetAll(true)} className="text-electric-600 hover:underline">All</button>
-              <button onClick={() => onSetAll(false)} className="text-slate-400 hover:underline">None</button>
+              <button onClick={() => onSetAll(true)} className="text-electric-600 hover:underline">{tr("All")}</button>
+              <button onClick={() => onSetAll(false)} className="text-slate-400 hover:underline">{tr("None")}</button>
             </div>
           )}
-          {options.length === 0 && <div className="px-3 py-1 text-[11px] text-slate-400">none detected</div>}
+          {options.length === 0 && <div className="px-3 py-1 text-[11px] text-slate-400">{tr("none detected")}</div>}
           {options.map(o => (
             <label key={o.value} className="flex items-center gap-2 px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-50 cursor-pointer">
               <input type="checkbox" checked={sel.has(o.value)} onChange={() => onToggle(o.value)} className="w-3.5 h-3.5 rounded accent-electric-600" />
@@ -103,12 +104,12 @@ function StepHeader({ label, desc, include, onToggle }) {
         <button
           type="button" role="switch" aria-checked={include} onClick={onToggle}
           className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors ${include ? 'bg-electric-500' : 'bg-slate-300'}`}
-          title={include ? 'Included — click to skip' : 'Skipped — click to include'}
+          title={include ? tr("Included — click to skip") : tr("Skipped — click to include")}
         >
           <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${include ? 'translate-x-4' : 'translate-x-0.5'}`} />
         </button>
       </div>
-      <p className="text-[11px] text-slate-500 mt-0.5">{include ? desc : 'Skipped — this layer won’t be built.'}</p>
+      <p className="text-[11px] text-slate-500 mt-0.5">{include ? desc : tr("Skipped — this layer won’t be built.")}</p>
     </div>
   );
 }
@@ -142,10 +143,10 @@ function LegendItem({ color, label }) {
 function MaxKmField({ value, onChange }) {
   return (
     <label className="block">
-      <span className="block text-[11px] font-medium text-slate-600 mb-1">Max connection distance (km)</span>
+      <span className="block text-[11px] font-medium text-slate-600 mb-1">{tr("Max connection distance (km)")}</span>
       <input
         type="number" min="0" value={value} onChange={e => onChange(e.target.value)}
-        placeholder="no limit"
+        placeholder={tr("no limit")}
         className="w-full px-2 py-1.5 text-xs border border-black/15 rounded-lg bg-white focus:ring-2 focus:ring-electric-400"
       />
     </label>
@@ -431,7 +432,7 @@ export default function ZonalStudyAreaPanel({
       try {
         setResults(await searchPlaces(v, { signal: ctrl.signal }));
       } catch (e) {
-        if (e.name !== 'AbortError') { setResults([]); setError('Search failed (offline or rate-limited).'); }
+        if (e.name !== 'AbortError') { setResults([]); setError(tr("Search failed (offline or rate-limited).")); }
       } finally {
         setSearching(false);
       }
@@ -490,7 +491,7 @@ export default function ZonalStudyAreaPanel({
     <div className="px-3 py-3 space-y-3">
       <div className="flex items-center gap-1.5 px-1 text-xs font-semibold uppercase tracking-wider text-slate-500">
         <FiLayers size={13} />
-        Study area
+        {tr("Study area")}
       </div>
 
       {/* Search */}
@@ -501,7 +502,7 @@ export default function ZonalStudyAreaPanel({
         <input
           value={query}
           onChange={e => onQueryChange(e.target.value)}
-          placeholder="Search a country, region or district"
+          placeholder={tr("Search a country, region or district")}
           className="h-9 w-full rounded-lg border border-black/15 bg-slate-50 pl-9 pr-3 text-[13px] text-slate-800 placeholder:text-slate-400 transition-colors focus:border-black/15 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-200"
         />
         {results.length > 0 && (
@@ -529,8 +530,8 @@ export default function ZonalStudyAreaPanel({
           <div className="mx-auto mb-2 grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-slate-500">
             <FiMapPin size={15} />
           </div>
-          <p className="text-xs font-medium text-slate-700">No study area yet</p>
-          <p className="mt-0.5 text-[11px] leading-snug text-slate-500">Search a place and the map loads its transmission grid.</p>
+          <p className="text-xs font-medium text-slate-700">{tr("No study area yet")}</p>
+          <p className="mt-0.5 text-[11px] leading-snug text-slate-500">{tr("Search a place and the map loads its transmission grid.")}</p>
           <div className="mt-3 flex flex-wrap justify-center gap-1.5">
             {['Niederbayern', 'Bavaria', 'Austria'].map(example => (
               <button
@@ -550,9 +551,9 @@ export default function ZonalStudyAreaPanel({
         <div>
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
-              Study area · {units.length}
+              {tr("Study area ·")} {units.length}
             </span>
-            <button onClick={() => setStudyArea(null)} className="text-[11px] text-slate-400 hover:text-slate-600">Clear all</button>
+            <button onClick={() => setStudyArea(null)} className="text-[11px] text-slate-400 hover:text-slate-600">{tr("Clear all")}</button>
           </div>
           <div className="flex flex-wrap gap-1.5">
             {units.map(u => (
@@ -566,7 +567,7 @@ export default function ZonalStudyAreaPanel({
             ))}
           </div>
           <p className="text-[10px] text-indigo-500 mt-1.5">
-            Neighbouring regions are shaded on the map — hover one and click to add it.
+            {tr("Neighbouring regions are shaded on the map — hover one and click to add it.")}
           </p>
         </div>
       )}
@@ -580,13 +581,13 @@ export default function ZonalStudyAreaPanel({
                 {boundaryLoading
                   ? <FiLoader size={12} className="animate-spin text-electric-600" />
                   : <FiCheck size={12} />}
-                {boundaryLoading ? 'Fetching territory boundary…' : 'Boundary loaded'}
+                {boundaryLoading ? tr("Fetching territory boundary…") : tr("Boundary loaded")}
               </div>
               <div className={`flex items-center gap-1.5 text-[11px] ${osmLoading ? 'text-slate-700 font-medium' : 'text-slate-400'}`}>
                 {osmLoading
                   ? <FiLoader size={12} className="animate-spin text-electric-600" />
                   : <span className="w-3 h-3 rounded-full border border-black/15 inline-block" />}
-                {osmLoading ? (osmLoadingStage || 'Loading power grid…') : 'Power grid'}
+                {osmLoading ? (osmLoadingStage || tr("Loading power grid…")) : tr("Power grid")}
               </div>
             </div>
           ) : (
@@ -594,29 +595,29 @@ export default function ZonalStudyAreaPanel({
               <div className="grid grid-cols-3 gap-1 text-center">
                 <div>
                   <div className="text-sm font-bold text-amber-600">{osmPowerLines?.features?.length ?? 0}</div>
-                  <div className="text-[9px] text-slate-400 uppercase tracking-wide">Lines</div>
+                  <div className="text-[9px] text-slate-400 uppercase tracking-wide">{tr("Lines")}</div>
                 </div>
                 <div>
                   <div className="text-sm font-bold text-red-600">{osmSubstations?.features?.length ?? 0}</div>
-                  <div className="text-[9px] text-slate-400 uppercase tracking-wide">Substations</div>
+                  <div className="text-[9px] text-slate-400 uppercase tracking-wide">{tr("Substations")}</div>
                 </div>
                 <div>
                   <div className="text-sm font-bold text-green-600">{plantCount}</div>
-                  <div className="text-[9px] text-slate-400 uppercase tracking-wide">Plants</div>
+                  <div className="text-[9px] text-slate-400 uppercase tracking-wide">{tr("Plants")}</div>
                 </div>
               </div>
               {(subFeatures.length > 0 || plantCount > 0) && (
                 <div className="text-[10px] text-slate-500 space-y-0.5 border-t border-black/15 pt-1.5">
                   {subFeatures.length > 0 && (
                     <div>
-                      Substations: <span className="text-red-600 font-medium">{subTransmission} transmission</span>
-                      {' · '}{subDistribution} distribution
+                      {tr("Substations:")} <span className="text-red-600 font-medium">{subTransmission} {tr("transmission")}</span>
+                      {' · '}{subDistribution} {tr("distribution")}
                     </div>
                   )}
                   {plantCount > 0 && (
                     <div>
-                      Plants: {plantsWithCap} with capacity
-                      {plantsUnknownCap > 0 && <span className="text-amber-600">{' · '}{plantsUnknownCap} unknown ⚠</span>}
+                      {tr("Plants:")} {plantsWithCap} {tr("with capacity")}
+                      {plantsUnknownCap > 0 && <span className="text-amber-600">{' · '}{plantsUnknownCap} {tr("unknown ⚠")}</span>}
                     </div>
                   )}
                 </div>
@@ -653,19 +654,19 @@ export default function ZonalStudyAreaPanel({
             {step === 0 && (
               <>
                 <StepHeader
-                  label="Transmission network"
-                  desc="TEMPO meshes the OpenStreetMap power lines into grid nodes + links (unchanged)."
+                  label={tr("Transmission network")}
+                  desc={tr("TEMPO meshes the OpenStreetMap power lines into grid nodes + links (unchanged).")}
                   include={txInclude} onToggle={() => setTxInclude(v => !v)}
                 />
                 {txInclude && (
                   <>
                     <CategoryDropdown
-                      label="Voltage levels" color="#f59e0b"
-                      options={levels.map(kv => ({ value: kv, label: `${kv} kV` }))}
+                      label={tr("Voltage levels")} color="#f59e0b"
+                      options={levels.map(kv => ({ value: kv, label: tr("{0} kV", { 0: kv }) }))}
                       selected={selectedLevels} onToggle={toggleLevel} onSetAll={setAllLevels}
                     />
                     <p className="text-[11px] text-slate-500">
-                      Preview: <b>{planSummary?.txNodes ?? 0}</b> nodes · <b>{planSummary?.txLinks ?? 0}</b> links
+                      {tr("Preview:")} <b>{planSummary?.txNodes ?? 0}</b> {tr("nodes ·")} <b>{planSummary?.txLinks ?? 0}</b> {tr("links")}
                     </p>
                   </>
                 )}
@@ -675,31 +676,31 @@ export default function ZonalStudyAreaPanel({
             {step === 1 && (
               <>
                 <StepHeader
-                  label="Substations"
-                  desc="Import substations. Optionally wire each to the nearest grid node."
+                  label={tr("Substations")}
+                  desc={tr("Import substations. Optionally wire each to the nearest grid node.")}
                   include={subInclude} onToggle={() => setSubInclude(v => !v)}
                 />
                 {subInclude && (
                   <>
                     <CategoryDropdown
-                      label="Types" color="#ef4444"
+                      label={tr("Types")} color="#ef4444"
                       options={subTypes.map(t => ({ value: t, label: cap(t) }))}
                       selected={substationFilters?.selectedTypes || []}
                       onToggle={toggleSubType} onSetAll={setAllSubTypes}
                     />
                     <TargetSelect
-                      label="Wire each substation to" value={subTarget} onChange={setSubTarget}
-                      options={[['none', "Don't connect (import as-is)"], ['transmission', 'Nearest transmission node']]}
+                      label={tr("Wire each substation to")} value={subTarget} onChange={setSubTarget}
+                      options={[['none', tr("Don't connect (import as-is)")], ['transmission', tr("Nearest transmission node")]]}
                     />
                     {subTarget !== 'none' && <MaxKmField value={subMaxKm} onChange={setSubMaxKm} />}
                     <p className="text-[10px] text-slate-400 -mt-1">
-                      Each substation gets a transformer tech; connection lines use HVAC-overhead.
+                      {tr("Each substation gets a transformer tech; connection lines use HVAC-overhead.")}
                     </p>
 
                     {/* Optional population-based electricity demand on the substations */}
                     <div className="pt-1.5 border-t border-black/10">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-[11px] font-medium text-slate-600">Add estimated demand</span>
+                        <span className="text-[11px] font-medium text-slate-600">{tr("Add estimated demand")}</span>
                         <button
                           type="button" role="switch" aria-checked={subDemand}
                           onClick={() => setSubDemand(v => !v)}
@@ -711,7 +712,7 @@ export default function ZonalStudyAreaPanel({
                       {subDemand && (
                         <div className="mt-1.5 space-y-1.5">
                           <label className="block">
-                            <span className="block text-[11px] font-medium text-slate-600 mb-1">Per-capita demand (kWh/person·year)</span>
+                            <span className="block text-[11px] font-medium text-slate-600 mb-1">{tr("Per-capita demand (kWh/person·year)")}</span>
                             <input
                               type="number" min="0" value={perCapitaKWh} onChange={e => setPerCapitaKWh(e.target.value)}
                               className="w-full px-2 py-1.5 text-xs border border-black/15 rounded-lg bg-white focus:ring-2 focus:ring-electric-400"
@@ -721,13 +722,13 @@ export default function ZonalStudyAreaPanel({
                           {!dlInstalled && (
                             <div className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 space-y-1">
                               <p className="text-[10px] text-amber-700">
-                                Using a synthetic approximation. Install BDEW load profiles (demandlib) for real curves.
+                                {tr("Using a synthetic approximation. Install BDEW load profiles (demandlib) for real curves.")}
                               </p>
                               <button
                                 type="button" disabled={dlInstalling} onClick={handleInstallDemandlib}
                                 className="w-full px-2 py-1 text-[11px] font-medium rounded-md bg-amber-500 text-white disabled:opacity-60 hover:bg-amber-600"
                               >
-                                {dlInstalling ? 'Installing…' : 'Install demand profiles'}
+                                {dlInstalling ? tr("Installing…") : tr("Install demand profiles")}
                               </button>
                               {dlInstallMsg && <p className="text-[9px] text-amber-600 truncate">{dlInstallMsg}</p>}
                             </div>
@@ -736,11 +737,11 @@ export default function ZonalStudyAreaPanel({
                           {/* Single SLP vs sector mix */}
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-[11px] font-medium text-slate-600">
-                              {useMix ? 'Sector mix' : 'Load shape (BDEW SLP)'}
+                              {useMix ? tr("Sector mix") : tr("Load shape (BDEW SLP)")}
                             </span>
                             <label className="flex items-center gap-1 text-[10px] text-slate-500">
                               <input type="checkbox" checked={useMix} onChange={e => setUseMix(e.target.checked)} />
-                              Mix
+                              {tr("Mix")}
                             </label>
                           </div>
 
@@ -757,7 +758,7 @@ export default function ZonalStudyAreaPanel({
                                   <span className="text-[10px] text-slate-400 w-4 text-right">%</span>
                                 </div>
                               ))}
-                              <p className="text-[9px] text-slate-400">Weights are normalised; a 0 drops the sector.</p>
+                              <p className="text-[9px] text-slate-400">{tr("Weights are normalised; a 0 drops the sector.")}</p>
                             </div>
                           ) : (
                             <SelectField
@@ -775,7 +776,7 @@ export default function ZonalStudyAreaPanel({
                           {/* Holiday calendar + timeseries resolution */}
                           <div className="grid grid-cols-2 gap-1.5">
                             <label className="block">
-                              <span className="block text-[10px] font-medium text-slate-500 mb-0.5">Calendar</span>
+                              <span className="block text-[10px] font-medium text-slate-500 mb-0.5">{tr("Calendar")}</span>
                               <SelectField
                                 value={demandCountry}
                                 onChange={e => { countryTouchedRef.current = true; setDemandCountry(e.target.value); }}
@@ -785,7 +786,7 @@ export default function ZonalStudyAreaPanel({
                               </SelectField>
                             </label>
                             <label className="block">
-                              <span className="block text-[10px] font-medium text-slate-500 mb-0.5">Resolution</span>
+                              <span className="block text-[10px] font-medium text-slate-500 mb-0.5">{tr("Resolution")}</span>
                               <SelectField
                                 value={demandResolution} onChange={e => setDemandResolution(e.target.value)}
                                 className="w-full px-2 py-1 text-xs border border-black/15 rounded-lg bg-white focus:ring-2 focus:ring-electric-400"
@@ -799,39 +800,39 @@ export default function ZonalStudyAreaPanel({
                             <div className="rounded-md border border-black/15 bg-slate-50 px-2 py-1.5">
                               <div className="flex items-center justify-between text-[10px] text-slate-400 mb-0.5">
                                 <span>
-                                  Shape preview · {previewSource === 'demandlib' ? 'BDEW (demandlib)' : previewSource === 'loading' ? 'loading…' : 'synthetic (approx.)'}
+                                  {tr("Shape preview ·")} {previewSource === 'demandlib' ? tr("BDEW (demandlib)") : previewSource === 'loading' ? tr("loading…") : tr("synthetic (approx.)")}
                                 </span>
-                                <span>Mon–Sun</span>
+                                <span>{tr("Mon–Sun")}</span>
                               </div>
                               <Sparkline values={previewCurve} />
                             </div>
                           )}
                           <label className="block">
-                            <span className="block text-[11px] font-medium text-slate-600 mb-1">Split demand across substations</span>
+                            <span className="block text-[11px] font-medium text-slate-600 mb-1">{tr("Split demand across substations")}</span>
                             <SelectField
                               value={demandWeight} onChange={e => setDemandWeight(e.target.value)}
                               className="w-full px-2 py-1.5 text-xs border border-black/15 rounded-lg bg-white focus:ring-2 focus:ring-electric-400"
                             >
-                              <option value="even">Evenly</option>
-                              <option value="voltage">Weighted by voltage (size proxy)</option>
+                              <option value="even">{tr("Evenly")}</option>
+                              <option value="voltage">{tr("Weighted by voltage (size proxy)")}</option>
                             </SelectField>
                           </label>
                           {areaPopulation > 0 ? (
                             <p className="text-[10px] text-slate-400">
-                              Population {areaPopulation.toLocaleString()} × {Number(perCapitaKWh) || 0} kWh, split across the substations.
+                              {tr("Population")} {areaPopulation.toLocaleString()} × {Number(perCapitaKWh) || 0} {tr("kWh, split across the substations.")}
                               {!demandSectors
-                                ? ' Flat constant load.'
-                                : ` A ${demandResolution} timeseries is generated on import.`}
+                                ? tr(" Flat constant load.")
+                                : tr(" A {0} timeseries is generated on import.", { 0: demandResolution })}
                             </p>
                           ) : (
-                            <p className="text-[10px] text-amber-600">No population found for this area — demand can’t be estimated. Add a place that reports population, or set it later.</p>
+                            <p className="text-[10px] text-amber-600">{tr("No population found for this area — demand can’t be estimated. Add a place that reports population, or set it later.")}</p>
                           )}
                         </div>
                       )}
                     </div>
 
                     <p className="text-[11px] text-slate-500">
-                      Preview: <b>{planSummary?.subNodes ?? 0}</b> substations · <b>{planSummary?.subLinks ?? 0}</b> links
+                      {tr("Preview:")} <b>{planSummary?.subNodes ?? 0}</b> {tr("substations ·")} <b>{planSummary?.subLinks ?? 0}</b> {tr("links")}
                     </p>
                   </>
                 )}
@@ -841,25 +842,25 @@ export default function ZonalStudyAreaPanel({
             {step === 2 && (
               <>
                 <StepHeader
-                  label="Power plants"
-                  desc="Import plants. Optionally wire each to the nearest substation or grid node."
+                  label={tr("Power plants")}
+                  desc={tr("Import plants. Optionally wire each to the nearest substation or grid node.")}
                   include={plantInclude} onToggle={() => setPlantInclude(v => !v)}
                 />
                 {plantInclude && (
                   <>
                     <CategoryDropdown
-                      label="Sources" color="#22c55e"
+                      label={tr("Sources")} color="#22c55e"
                       options={plantSources.map(s => ({ value: s, label: cap(s) }))}
                       selected={powerPlantFilters?.selectedSources || []}
                       onToggle={togglePlantSource} onSetAll={setAllPlantSources}
                     />
                     <TargetSelect
-                      label="Wire each plant to" value={plantTarget} onChange={setPlantTarget}
-                      options={[['none', "Don't connect (import as-is)"], ['substation', 'Nearest substation'], ['transmission', 'Nearest transmission node']]}
+                      label={tr("Wire each plant to")} value={plantTarget} onChange={setPlantTarget}
+                      options={[['none', tr("Don't connect (import as-is)")], ['substation', tr("Nearest substation")], ['transmission', tr("Nearest transmission node")]]}
                     />
                     {plantTarget !== 'none' && <MaxKmField value={plantMaxKm} onChange={setPlantMaxKm} />}
                     <p className="text-[11px] text-slate-500">
-                      Preview: <b>{planSummary?.plantNodes ?? 0}</b> plants · <b>{planSummary?.plantLinks ?? 0}</b> links
+                      {tr("Preview:")} <b>{planSummary?.plantNodes ?? 0}</b> {tr("plants ·")} <b>{planSummary?.plantLinks ?? 0}</b> {tr("links")}
                     </p>
                   </>
                 )}
@@ -872,28 +873,28 @@ export default function ZonalStudyAreaPanel({
             <button
               onClick={() => setStep(s => Math.max(0, s - 1))} disabled={step === 0}
               className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg text-slate-600 hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed"
-            >◂ Back</button>
+            >{tr("◂ Back")}</button>
             {step < WIZARD_STEPS.length - 1 ? (
               <button
                 onClick={() => setStep(s => Math.min(WIZARD_STEPS.length - 1, s + 1))}
                 className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold uppercase tracking-wide rounded-lg bg-black text-white hover:bg-black/80"
-              >Next ▸</button>
+              >{tr("Next ▸")}</button>
             ) : (
               <button
                 onClick={() => { window.commitStudyAreaPlan?.(); setStep(0); }}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-electric-600 text-white hover:bg-electric-700"
-              ><FiCheck size={14} /> Import all</button>
+              ><FiCheck size={14} /> {tr("Import all")}</button>
             )}
           </div>
           {/* Colour legend for whatever wiring is currently chosen */}
           <div className="px-3 pt-1.5 flex flex-wrap gap-x-3 gap-y-1">
-            {txInclude && <LegendItem color="#f59e0b" label="Transmission grid" />}
-            {subInclude && subTarget !== 'none' && <LegendItem color="#4f46e5" label="Substation → grid" />}
-            {plantInclude && plantTarget === 'substation' && <LegendItem color="#db2777" label="Plant → substation" />}
-            {plantInclude && plantTarget === 'transmission' && <LegendItem color="#0d9488" label="Plant → grid" />}
+            {txInclude && <LegendItem color="#f59e0b" label={tr("Transmission grid")} />}
+            {subInclude && subTarget !== 'none' && <LegendItem color="#4f46e5" label={tr("Substation → grid")} />}
+            {plantInclude && plantTarget === 'substation' && <LegendItem color="#db2777" label={tr("Plant → substation")} />}
+            {plantInclude && plantTarget === 'transmission' && <LegendItem color="#0d9488" label={tr("Plant → grid")} />}
           </div>
           <p className="px-3 pb-2 pt-1 text-[10px] text-slate-400">
-            The coloured lines on the map are a live preview of the wiring you chose — nothing is added to the model until you press Import.
+            {tr("The coloured lines on the map are a live preview of the wiring you chose — nothing is added to the model until you press Import.")}
           </p>
         </div>
       )}

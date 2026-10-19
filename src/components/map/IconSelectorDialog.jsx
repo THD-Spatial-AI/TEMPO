@@ -2,6 +2,7 @@
 // from MapDeckGL.jsx; the parent still gates on `showIconSelector &&
 // selectedLocationForIcon`. Icon presets come from utils/mapVisuals.
 import { ICON_TYPES, getDefaultIconType } from '../../utils/mapVisuals';
+import { tr } from '../../i18n';
 
 export default function IconSelectorDialog({
   selectedLocationForIcon,
@@ -15,13 +16,13 @@ export default function IconSelectorDialog({
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10002]">
       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full mx-4">
         <div className="bg-black text-white px-6 py-4 rounded-t-xl">
-          <h3 className="text-lg font-bold">Select Icon</h3>
+          <h3 className="text-lg font-bold">{tr("Select Icon")}</h3>
           <p className="text-sm text-gray-100 mt-1">{selectedLocationForIcon.name}</p>
         </div>
 
         <div className="p-6">
           <p className="text-sm text-slate-600 mb-4">
-            Choose an icon to represent this location on the map:
+            {tr("Choose an icon to represent this location on the map:")}
           </p>
 
           <div className="grid grid-cols-3 gap-3">
@@ -43,7 +44,7 @@ export default function IconSelectorDialog({
                         iconType: key
                       };
                       setLocations(updatedLocations);
-                      showNotification(`Icon changed to ${iconInfo.label}`, 'success');
+                      showNotification(tr("Icon changed to {0}", { 0: iconInfo.label }), 'success');
                       setShowIconSelector(false);
                       setSelectedLocationForIcon(null);
                     }
@@ -78,14 +79,14 @@ export default function IconSelectorDialog({
                   // Remove custom icon to use default
                   delete updatedLocations[locationIndex].iconType;
                   setLocations(updatedLocations);
-                  showNotification('Icon reset to default', 'info');
+                  showNotification(tr("Icon reset to default"), 'info');
                   setShowIconSelector(false);
                   setSelectedLocationForIcon(null);
                 }
               }}
               className="flex-1 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition-colors"
             >
-              Reset to Default
+              {tr("Reset to Default")}
             </button>
             <button
               onClick={() => {
@@ -94,7 +95,7 @@ export default function IconSelectorDialog({
               }}
               className="flex-1 px-4 py-2.5 bg-black hover:bg-black/80 text-white font-bold uppercase tracking-wide transition-colors"
             >
-              Close
+              {tr("Close")}
             </button>
           </div>
         </div>

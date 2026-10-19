@@ -1,14 +1,15 @@
 import { useMemo, useState } from 'react';
-import ReactECharts from 'echarts-for-react';
+import ReactECharts from '../ui/Chart';
 import { FiZap, FiBattery, FiRefreshCw, FiActivity, FiShare2, FiBox, FiChevronDown, FiMapPin } from '../ui/icons';
+import { tr } from '../../i18n';
 
 const CATEGORY_META = {
-  supply:       { label: 'Supply',       color: '#f59e0b', icon: FiZap },
-  storage:      { label: 'Storage',      color: '#0ea5e9', icon: FiBattery },
-  conversion:   { label: 'Conversion',   color: '#8b5cf6', icon: FiRefreshCw },
-  demand:       { label: 'Demand',       color: '#334155', icon: FiActivity },
-  transmission: { label: 'Transmission', color: '#14b8a6', icon: FiShare2 },
-  other:        { label: 'Other',        color: '#94a3b8', icon: FiBox },
+  supply:       { label: tr("Supply"),       color: '#f59e0b', icon: FiZap },
+  storage:      { label: tr("Storage"),      color: '#0ea5e9', icon: FiBattery },
+  conversion:   { label: tr("Conversion"),   color: '#8b5cf6', icon: FiRefreshCw },
+  demand:       { label: tr("Demand"),       color: '#334155', icon: FiActivity },
+  transmission: { label: tr("Transmission"), color: '#14b8a6', icon: FiShare2 },
+  other:        { label: tr("Other"),        color: '#94a3b8', icon: FiBox },
 };
 const ORDER = Object.keys(CATEGORY_META);
 
@@ -72,11 +73,11 @@ export default function TechCategoryBreakdown({ byParent, capByTech, techsPerLoc
   }), []);
 
   if (!rows.length) {
-    return <div className="flex h-full min-h-40 items-center justify-center text-sm text-slate-400">No technologies loaded</div>;
+    return <div className="flex h-full min-h-40 items-center justify-center text-sm text-slate-400">{tr("No technologies loaded")}</div>;
   }
 
   const centreValue = active ? (byCap ? fmtCap(active.cap) || '—' : active.techs.length) : (byCap ? fmtCap(totalCap) : totalCount);
-  const centreLabel = active ? active.label : byCap ? 'max capacity' : 'technologies';
+  const centreLabel = active ? active.label : byCap ? tr("max capacity") : tr("technologies");
 
   return (
     <div className="flex h-full flex-col overflow-y-auto">
@@ -91,7 +92,7 @@ export default function TechCategoryBreakdown({ byParent, capByTech, techsPerLoc
         </div>
         <div className="min-w-0 flex-1">
           <div className="inline-flex bg-slate-100 p-0.5 text-[11px] font-medium">
-            {[['count', 'Count'], ['capacity', 'Capacity']].map(([id, label]) => (
+            {[['count', tr("Count")], ['capacity', tr("Capacity")]].map(([id, label]) => (
               <button key={id} onClick={() => setMetric(id)} disabled={id === 'capacity' && totalCap === 0}
                 className={`px-2.5 py-1 transition-colors disabled:opacity-40 ${metric === id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>
                 {label}
@@ -99,7 +100,7 @@ export default function TechCategoryBreakdown({ byParent, capByTech, techsPerLoc
             ))}
           </div>
           <dl className="mt-3 grid grid-cols-3 gap-1.5 text-center">
-            {[['Techs', totalCount], ['Groups', rows.length], ['Locations', totalLocs || '—']].map(([k, v]) => (
+            {[[tr("Techs"), totalCount], [tr("Groups"), rows.length], [tr("Locations"), totalLocs || '—']].map(([k, v]) => (
               <div key={k} className="bg-slate-50 px-1 py-1.5">
                 <dd className="text-sm font-bold tabular-nums text-slate-900">{v}</dd>
                 <dt className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">{k}</dt>
@@ -134,9 +135,9 @@ export default function TechCategoryBreakdown({ byParent, capByTech, techsPerLoc
                       <span className="block h-full" style={{ width: `${share}%`, background: r.color }} />
                     </span>
                     <span className="mt-1.5 flex items-center gap-3 text-[11px] text-slate-500">
-                      <span className="flex items-center gap-1"><FiMapPin size={11} /> {r.locations} location{r.locations === 1 ? '' : 's'}</span>
-                      {!byCap && fmtCap(r.cap) && r.id !== 'demand' && <span title="Sum of maximum capacity (energy_cap_max)">{fmtCap(r.cap)} max</span>}
-                      {byCap && <span>{r.techs.length} technolog{r.techs.length === 1 ? 'y' : 'ies'}</span>}
+                      <span className="flex items-center gap-1"><FiMapPin size={11} /> {r.locations} {tr("location")}{r.locations === 1 ? '' : 's'}</span>
+                      {!byCap && fmtCap(r.cap) && r.id !== 'demand' && <span title={tr("Sum of maximum capacity (energy_cap_max)")}>{fmtCap(r.cap)} {tr("max")}</span>}
+                      {byCap && <span>{r.techs.length === 1 ? tr("1 technology") : tr("{0} technologies", { 0: r.techs.length })}</span>}
                     </span>
                   </span>
                   <FiChevronDown size={15} className={`shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
@@ -149,7 +150,7 @@ export default function TechCategoryBreakdown({ byParent, capByTech, techsPerLoc
                         <span className="truncate">{getTechName(t)}</span>
                       </span>
                     ))}
-                    {r.techs.length > 3 && <span className="px-1 py-0.5 text-[10.5px] text-slate-400">+{r.techs.length - 3} more</span>}
+                    {r.techs.length > 3 && <span className="px-1 py-0.5 text-[10.5px] text-slate-400">+{r.techs.length - 3} {tr("more")}</span>}
                   </span>
                 )}
               </button>
@@ -173,8 +174,8 @@ export default function TechCategoryBreakdown({ byParent, capByTech, techsPerLoc
       {topTechs.length > 0 && (
         <div className="mt-auto border-t border-black/5 px-5 py-4">
           <div className="mb-2.5 flex items-baseline justify-between">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Largest technologies</span>
-            <span className="text-[10px] text-slate-400">by max capacity</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{tr("Largest technologies")}</span>
+            <span className="text-[10px] text-slate-400">{tr("by max capacity")}</span>
           </div>
           <ol className="space-y-2">
             {topTechs.map(([t, v], i) => (

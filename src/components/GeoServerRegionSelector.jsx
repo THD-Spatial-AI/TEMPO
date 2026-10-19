@@ -22,6 +22,7 @@ import {
   FiCrosshair, FiRefreshCw, FiAlertCircle, FiGlobe,
 } from './ui/icons';
 import { useLoadedRegions } from '../hooks/useLoadedRegions';
+import { tr } from '../i18n';
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 
@@ -149,10 +150,10 @@ const GeoServerRegionSelector = ({
       >
         <div className="flex items-center gap-2">
           <FiGlobe className="text-gray-600" size={20} />
-          <h3 className="font-semibold text-gray-800">OSM Infrastructure</h3>
+          <h3 className="font-semibold text-gray-800">{tr("OSM Infrastructure")}</h3>
           {totalLoaded > 0 && (
             <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-700 font-medium">
-              {totalLoaded} region{totalLoaded !== 1 ? 's' : ''} loaded
+              {totalLoaded} {tr("region")}{totalLoaded !== 1 ? 's' : ''} {tr("loaded")}
             </span>
           )}
         </div>
@@ -166,13 +167,13 @@ const GeoServerRegionSelector = ({
           <div className="p-3">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Available in GeoServer
+                {tr("Available in GeoServer")}
               </span>
               <button
                 onClick={refresh}
                 disabled={regionsLoading}
                 className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
-                title="Refresh region list"
+                title={tr("Refresh region list")}
               >
                 <FiRefreshCw size={13} className={regionsLoading ? 'animate-spin' : ''} />
               </button>
@@ -191,7 +192,7 @@ const GeoServerRegionSelector = ({
             {!regionsLoading && regionsError && (
               <div className="flex items-center gap-2 text-gray-600 bg-gray-50 rounded p-2 text-xs">
                 <FiAlertCircle size={14} />
-                <span>Cannot reach backend. Is it running on port 8082?</span>
+                <span>{tr("Cannot reach backend. Is it running on port 8082?")}</span>
               </div>
             )}
 
@@ -199,9 +200,9 @@ const GeoServerRegionSelector = ({
             {!regionsLoading && !regionsError && totalLoaded === 0 && (
               <div className="text-center py-4 text-gray-400">
                 <FiMap className="mx-auto mb-1" size={20} />
-                <p className="text-xs">No regions loaded yet.</p>
+                <p className="text-xs">{tr("No regions loaded yet.")}</p>
                 <p className="text-xs mt-1">
-                  Run <code className="bg-gray-100 px-1 rounded">add_region_to_geoserver.py</code> to add data.
+                  {tr("Run")} <code className="bg-gray-100 px-1 rounded">add_region_to_geoserver.py</code> {tr("to add data.")}
                 </p>
               </div>
             )}
@@ -276,7 +277,7 @@ const GeoServerRegionSelector = ({
                     setSelectedPath(null);
                     if (onRegionChange) onRegionChange({ regionPath: null, bbox: null });
                   }}
-                  title="Clear selection"
+                  title={tr("Clear selection")}
                 >✕</button>
               </div>
             )}
@@ -285,23 +286,23 @@ const GeoServerRegionSelector = ({
           {/* ── Viewport / Custom BBox ─────────────────────────────────── */}
           <div className="p-3 space-y-3">
             <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              Load by Area
+              {tr("Load by Area")}
             </span>
 
             <button
               onClick={handleCurrentViewport}
               className="uppercase tracking-wide font-bold w-full px-3 py-2 bg-black text-white rounded hover:bg-black/80 disabled:bg-gray-300 flex items-center justify-center gap-2 text-sm transition-colors"
               disabled={loading || !viewport}
-              title="Load data for the current map view"
+              title={tr("Load data for the current map view")}
             >
               <FiCrosshair size={15} />
-              Current Map View
+              {tr("Current Map View")}
             </button>
 
             <div className="grid grid-cols-2 gap-1.5">
               {[
-                ['minLon', 'Min Lon'], ['maxLon', 'Max Lon'],
-                ['minLat', 'Min Lat'], ['maxLat', 'Max Lat'],
+                ['minLon', tr("Min Lon")], ['maxLon', tr("Max Lon")],
+                ['minLat', tr("Min Lat")], ['maxLat', tr("Max Lat")],
               ].map(([field, ph]) => (
                 <input
                   key={field}
@@ -320,7 +321,7 @@ const GeoServerRegionSelector = ({
               className="uppercase tracking-wide font-bold w-full px-3 py-1.5 bg-black text-white rounded hover:bg-black/80 disabled:bg-gray-300 text-sm transition-colors"
               disabled={loading || !parseBboxFloats(customBbox)}
             >
-              Load Custom Bbox
+              {tr("Load Custom Bbox")}
             </button>
           </div>
 
@@ -328,15 +329,15 @@ const GeoServerRegionSelector = ({
           <div className="p-3">
             <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
               <FiLayers className="inline mr-1 mb-0.5" size={11} />
-              Visible Layers
+              {tr("Visible Layers")}
             </span>
             <div className="mt-2 space-y-1.5">
               {[
-                { key: 'substations', label: 'Substations',  icon: '⚡' },
-                { key: 'powerPlants', label: 'Power Plants', icon: '🏭' },
-                { key: 'powerLines',  label: 'Power Lines',  icon: '📡' },
-                { key: 'communes',    label: 'Communes',     icon: '🏘️' },
-                { key: 'districts',   label: 'Districts',    icon: '🗺️' },
+                { key: 'substations', label: tr("Substations"),  icon: '⚡' },
+                { key: 'powerPlants', label: tr("Power Plants"), icon: '🏭' },
+                { key: 'powerLines',  label: tr("Power Lines"),  icon: '📡' },
+                { key: 'communes',    label: tr("Communes"),     icon: '🏘️' },
+                { key: 'districts',   label: tr("Districts"),    icon: '🗺️' },
               ].map(({ key, label, icon }) => (
                 <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
                   <input
@@ -355,7 +356,7 @@ const GeoServerRegionSelector = ({
           {parentLoading && (
             <div className="px-4 py-2 flex items-center gap-2 text-gray-600 bg-gray-50">
               <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-gray-600 border-t-transparent flex-shrink-0" />
-              <span className="text-xs">Loading layer data…</span>
+              <span className="text-xs">{tr("Loading layer data…")}</span>
             </div>
           )}
 

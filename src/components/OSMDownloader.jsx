@@ -13,6 +13,7 @@ import {
 } from './ui/icons';
 import { api } from '../services/api';
 import SelectField from './ui/SelectField';
+import { tr } from '../i18n';
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 
@@ -43,7 +44,7 @@ const StatusBadge = ({ status }) => {
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold ${styles[status] || ''}`}>
       {icons[status]}
-      {status === 'running' ? 'Importing…' : status === 'done' ? 'Done' : 'Error'}
+      {status === 'running' ? tr("Importing…") : status === 'done' ? tr("Done") : tr("Error")}
     </span>
   );
 };
@@ -195,7 +196,7 @@ const OSMDownloader = () => {
       <div className="p-6 text-center">
         <FiAlertCircle size={32} className="mx-auto text-gray-400 mb-3" />
         <p className="text-sm text-slate-600">{loadError}</p>
-        <p className="text-xs text-slate-400 mt-1">Make sure the Go backend is running.</p>
+        <p className="text-xs text-slate-400 mt-1">{tr("Make sure the Go backend is running.")}</p>
       </div>
     );
   }
@@ -209,8 +210,8 @@ const OSMDownloader = () => {
             <FiDownloadCloud size={20} className="text-white" />
           </div>
           <div>
-            <h1 className="text-lg font-black tracking-tighter text-black">GIS Data Download</h1>
-            <p className="text-xs text-slate-500">Import OSM power-infrastructure data by country or region</p>
+            <h1 className="text-lg font-black tracking-tighter text-black">{tr("GIS Data Download")}</h1>
+            <p className="text-xs text-slate-500">{tr("Import OSM power-infrastructure data by country or region")}</p>
           </div>
         </div>
       </div>
@@ -219,7 +220,7 @@ const OSMDownloader = () => {
         {/* ── left panel: country selector ── */}
         <div className="w-72 border-r border-black/15 bg-white flex flex-col">
           <div className="px-4 py-3 border-b border-black/10">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Select Region</p>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{tr("Select Region")}</p>
           </div>
 
           <div className="flex-1 overflow-y-auto">
@@ -272,7 +273,7 @@ const OSMDownloader = () => {
             <div className="border-t border-black/10 px-4 py-3">
               <div className="flex items-center gap-1.5 mb-2">
                 <FiDatabase size={13} className="text-gray-500" />
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Loaded</p>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{tr("Loaded")}</p>
               </div>
               <div className="space-y-1 max-h-28 overflow-y-auto">
                 {loadedRegions.map(r => (
@@ -288,8 +289,8 @@ const OSMDownloader = () => {
           {!selectedCountry ? (
             <div className="flex flex-col items-center justify-center h-full text-center px-8">
               <FiGlobe size={40} className="text-slate-200 mb-4" />
-              <p className="text-sm font-medium text-slate-500">Select a country from the list</p>
-              <p className="text-xs text-slate-400 mt-1">OSM power infrastructure data will be downloaded and imported into PostGIS / GeoServer.</p>
+              <p className="text-sm font-medium text-slate-500">{tr("Select a country from the list")}</p>
+              <p className="text-xs text-slate-400 mt-1">{tr("OSM power infrastructure data will be downloaded and imported into PostGIS / GeoServer.")}</p>
             </div>
           ) : (
             <div className="flex flex-col h-full overflow-y-auto p-6 gap-5">
@@ -300,7 +301,7 @@ const OSMDownloader = () => {
                   <p className="text-sm text-slate-500">{selectedContinent}</p>
                   {isLoaded(selectedContinent, selectedCountry) && (
                     <span className="inline-flex items-center gap-1 text-xs text-gray-600 bg-gray-50 px-2 py-0.5 mt-1">
-                      <FiCheckCircle size={11} /> In database
+                      <FiCheckCircle size={11} /> {tr("In database")}
                     </span>
                   )}
                 </div>
@@ -313,14 +314,14 @@ const OSMDownloader = () => {
               {countryData?.has_regions && countryData.regions?.length > 0 && (
                 <div>
                   <label className="block text-[0.6875rem] font-bold text-black/60 uppercase mb-2 tracking-widest">
-                    Sub-region (optional)
+                    {tr("Sub-region (optional)")}
                   </label>
                   <SelectField
                     className="w-full border border-black/15 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-electric-500"
                     value={selectedRegion}
                     onChange={e => setSelectedRegion(e.target.value)}
                   >
-                    <option value="">— Entire country —</option>
+                    <option value="">{tr("— Entire country —")}</option>
                     {countryData.regions.map(r => (
                       <option key={r.url_name} value={r.name}>
                         {r.name}
@@ -336,10 +337,10 @@ const OSMDownloader = () => {
 
               {/* info box */}
               <div className="bg-gray-50 border border-black/10 rounded-xl p-4 text-xs text-gray-700 space-y-1">
-                <p className="font-semibold">What will be downloaded?</p>
-                <p>Power substations, plants, transmission lines, and admin boundaries from OpenStreetMap via Geofabrik.</p>
-                <p>Data is automatically uploaded to PostGIS and made available in GeoServer for map layers and model creation.</p>
-                <p className="text-gray-500">Large countries (e.g. Germany full) can take 5–15 minutes.</p>
+                <p className="font-semibold">{tr("What will be downloaded?")}</p>
+                <p>{tr("Power substations, plants, transmission lines, and admin boundaries from OpenStreetMap via Geofabrik.")}</p>
+                <p>{tr("Data is automatically uploaded to PostGIS and made available in GeoServer for map layers and model creation.")}</p>
+                <p className="text-gray-500">{tr("Large countries (e.g. Germany full) can take 5–15 minutes.")}</p>
               </div>
 
               {/* action button */}
@@ -350,10 +351,10 @@ const OSMDownloader = () => {
                   className="flex items-center justify-center gap-2 px-6 py-3 bg-black text-white font-bold uppercase tracking-wide hover:opacity-80 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <FiDownloadCloud size={18} />
-                  {downloadStatus === 'done' ? 'Re-import' : (
+                  {downloadStatus === 'done' ? tr("Re-import") : (
                     selectedRegion
-                      ? `Download ${selectedCountry} / ${selectedRegion}`
-                      : `Download ${selectedCountry}`
+                      ? tr("Download {0} / {1}", { 0: selectedCountry, 1: selectedRegion })
+                      : tr("Download {0}", { 0: selectedCountry })
                   )}
                 </button>
               ) : (
@@ -361,7 +362,7 @@ const OSMDownloader = () => {
                   onClick={cancelDownload}
                   className="flex items-center justify-center gap-2 px-6 py-3 border-2 border-black/15 text-gray-600 font-semibold rounded-xl hover:bg-gray-50 transition-all"
                 >
-                  <FiX size={16} /> Cancel
+                  <FiX size={16} /> {tr("Cancel")}
                 </button>
               )}
 
@@ -369,12 +370,12 @@ const OSMDownloader = () => {
               {logLines.length > 0 && (
                 <div className="flex-1 min-h-0">
                   <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Import Log</p>
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{tr("Import Log")}</p>
                     <button
                       className="text-xs text-slate-400 hover:text-slate-600 flex items-center gap-1"
                       onClick={() => setLogLines([])}
                     >
-                      <FiRefreshCw size={11} /> Clear
+                      <FiRefreshCw size={11} /> {tr("Clear")}
                     </button>
                   </div>
                   <div
@@ -399,7 +400,7 @@ const OSMDownloader = () => {
                     ))}
                     {downloadStatus === 'running' && (
                       <div className="flex items-center gap-1.5 text-blue-400 mt-1">
-                        <FiLoader className="animate-spin" size={12} /> Running…
+                        <FiLoader className="animate-spin" size={12} /> {tr("Running…")}
                       </div>
                     )}
                   </div>

@@ -3,15 +3,16 @@
 //   • must-have / costly to replace / real choice across cost relaxations (Fig 2)
 //   • sensitivity clusters: renewable vs transmission utilisation per SPORE (Fig 6)
 import { useMemo, useState } from 'react';
-import ReactECharts from 'echarts-for-react';
+import ReactECharts from '../ui/Chart';
 import { FiDownload, FiGitMerge } from '../ui/icons';
 import {
   resolveMetrics, groupUtilisation, aggregateUtilisation, classifyTechs, parseRunLabel, toCsv,
 } from '../../services/sporesAnalysis';
 import SelectField from '../ui/SelectField';
+import { tr } from '../../i18n';
 
 const RENEWABLES = ['Onshore wind', 'Offshore wind', 'PV'];
-const TRANSMISSION = ['International transmission', 'Inter-zone transmission'];
+const TRANSMISSION = [tr("International transmission"), tr("Inter-zone transmission")];
 const CLASS_CHIP = {
   'must-have': 'bg-teal-100 text-teal-800',
   'costly to replace': 'bg-amber-100 text-amber-800',
@@ -72,7 +73,7 @@ export default function SporesEnsembleComparison({ completedJobs }) {
     }));
     return {
       backgroundColor: 'transparent',
-      tooltip: { trigger: 'item', formatter: p => `${p.seriesName} · SPORE ${p.value[2]}<br/>renewables ${(p.value[0] * 100).toFixed(1)}% · transmission ${(p.value[1] * 100).toFixed(1)}%` },
+      tooltip: { trigger: 'item', formatter: p => `${p.seriesName} · SPORE ${p.value[2]}<br/>${tr("renewables")} ${(p.value[0] * 100).toFixed(1)}% · ${tr("transmission")} ${(p.value[1] * 100).toFixed(1)}%` },
       legend: { bottom: 0, type: 'scroll', textStyle: { fontSize: 10 } },
       grid: { top: 20, right: 20, bottom: 60, left: 60 },
       xAxis: { type: 'value', name: 'Renewable capacity potential utilisation', nameLocation: 'middle', nameGap: 28, axisLabel: { formatter: v => `${Math.round(v * 100)}%` }, scale: true },
@@ -94,31 +95,31 @@ export default function SporesEnsembleComparison({ completedJobs }) {
     <div className="bg-white rounded-xl border border-black/15 p-4 mb-4 space-y-4">
       <div className="flex items-center gap-2 flex-wrap">
         <FiGitMerge size={14} className="text-teal-600" />
-        <h3 className="text-sm font-semibold text-slate-700">SPORES ensembles</h3>
-        <span className="text-xs text-slate-400">{inBatch.length} ensemble{inBatch.length === 1 ? '' : 's'} · {cases.length} case{cases.length === 1 ? '' : 's'} · relaxations {slacks.map(s => `${s}%`).join('/')}</span>
+        <h3 className="text-sm font-semibold text-slate-700">{tr("SPORES ensembles")}</h3>
+        <span className="text-xs text-slate-400">{inBatch.length} {tr("ensemble")}{inBatch.length === 1 ? '' : 's'} · {cases.length} {tr("case")}{cases.length === 1 ? '' : 's'} {tr("· relaxations")} {slacks.map(s => `${s}%`).join('/')}</span>
         {batches.length > 1 && (
           <SelectField value={activeBatch} onChange={e => setBatchId(e.target.value)} className="ml-auto text-xs border border-black/15 rounded px-2 py-1">
-            {batches.map((b, i) => <option key={b} value={b}>Batch {i + 1}</option>)}
+            {batches.map((b, i) => <option key={b} value={b}>{tr("Batch")} {i + 1}</option>)}
           </SelectField>
         )}
       </div>
 
       <div>
         <div className="flex items-center gap-2 mb-1">
-          <p className="text-xs font-semibold text-slate-600">Must-haves and real choices across relaxations (Fig 2)</p>
+          <p className="text-xs font-semibold text-slate-600">{tr("Must-haves and real choices across relaxations (Fig 2)")}</p>
           {cases.length > 1 && (
             <SelectField value={activeCase} onChange={e => setCaseSel(e.target.value)} className="text-xs border border-black/15 rounded px-2 py-0.5">
               {cases.map(c => <option key={c}>{c}</option>)}
             </SelectField>
           )}
-          <button onClick={classCsv} className="ml-auto flex items-center gap-1 text-xs text-electric-600 hover:underline"><FiDownload size={12} /> CSV</button>
+          <button onClick={classCsv} className="ml-auto flex items-center gap-1 text-xs text-electric-600 hover:underline"><FiDownload size={12} /> {tr("CSV")}</button>
         </div>
         <table className="w-full text-xs">
           <thead>
             <tr className="text-slate-500 text-left">
-              <th className="py-1 font-bold uppercase tracking-widest">Technology</th>
-              {slacks.map(s => <th key={s}>{s}%: avoided in / median</th>)}
-              <th>Class</th>
+              <th className="py-1 font-bold uppercase tracking-widest">{tr("Technology")}</th>
+              {slacks.map(s => <th key={s}>{s}{tr("%: avoided in / median")}</th>)}
+              <th>{tr("Class")}</th>
             </tr>
           </thead>
           <tbody>
@@ -135,16 +136,16 @@ export default function SporesEnsembleComparison({ completedJobs }) {
           </tbody>
         </table>
         <p className="text-[11px] text-slate-400 mt-1">
-          Must-have: never fully avoided at any relaxation. Real choice: fully avoided already at the lowest relaxation. Costly to replace: avoidable only at higher relaxations.
+          {tr("Must-have: never fully avoided at any relaxation. Real choice: fully avoided already at the lowest relaxation. Costly to replace: avoidable only at higher relaxations.")}
         </p>
       </div>
 
       {scatter && (
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <p className="text-xs font-semibold text-slate-600">Sensitivity clusters (Fig 6)</p>
+            <p className="text-xs font-semibold text-slate-600">{tr("Sensitivity clusters (Fig 6)")}</p>
             <SelectField value={activeSlack} onChange={e => setSlackSel(Number(e.target.value))} className="text-xs border border-black/15 rounded px-2 py-0.5">
-              {slacks.map(s => <option key={s} value={s}>{s}% relaxation</option>)}
+              {slacks.map(s => <option key={s} value={s}>{s}{tr("% relaxation")}</option>)}
             </SelectField>
           </div>
           <ReactECharts option={scatter} style={{ height: 360 }} />

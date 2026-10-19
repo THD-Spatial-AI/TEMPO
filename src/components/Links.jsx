@@ -10,6 +10,8 @@ import { CARRIERS, getCarrierColor, getCarrierLabel } from "../config/carriers";
 import { confirmAction } from './ui/confirm';
 import SelectField from './ui/SelectField';
 import { iconBtn, ICON_PX } from './ui/iconButton';
+import { useT } from '../i18n';
+import { tr } from '../i18n';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -40,7 +42,7 @@ function CarrierBadge({ carrierId }) {
 function LinkTypeSelect({ value, onChange, className = '' }) {
   return (
     <SelectField value={value} onChange={onChange} className={className}>
-      <option value="">— Select link type —</option>
+      <option value="">{tr("— Select link type —")}</option>
       {Object.entries(LINK_TYPES_BY_GROUP).map(([group, types]) => (
         <optgroup key={group} label={group}>
           {types.map(lt => (
@@ -55,6 +57,7 @@ function LinkTypeSelect({ value, onChange, className = '' }) {
 }
 
 const Links = () => {
+  const t = useT();
   const { links, setLinks, locations } = useData();
 
   const [editingIndex, setEditingIndex] = useState(null);
@@ -140,7 +143,7 @@ const Links = () => {
   };
 
   const deleteLink = async (index) => {
-    if (await confirmAction({ title: 'Delete this link?', message: 'The connection and its transmission settings will be removed.', details: `${links[index]?.from} → ${links[index]?.to}` })) {
+    if (await confirmAction({ title: tr("Delete this link?"), message: tr("The connection and its transmission settings will be removed."), details: `${links[index]?.from} → ${links[index]?.to}` })) {
       setLinks(links.filter((_, i) => i !== index));
     }
   };
@@ -172,17 +175,17 @@ const Links = () => {
       {/* Header */}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Links</h1>
-          <p className="mt-1 text-sm text-slate-500">Connections between locations, each carrying an energy carrier such as electricity, heat, hydrogen or gas.</p>
+          <h1 className="text-2xl font-bold text-slate-900">{t('page.links.title')}</h1>
+          <p className="mt-1 text-sm text-slate-500">{t('page.links.subtitle')}</p>
         </div>
-        <SaveBar label="Links" inline />
+        <SaveBar label={tr("Links")} inline />
       </div>
 
       {links.length > 0 && (
         <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4 2xl:grid-cols-6">
-          <KpiCard icon={LuLink} label="Links" value={links.length} sub="connections" />
-          <KpiCard icon={LuRuler} label="Total length" value={totalDistance.toLocaleString(undefined, { maximumFractionDigits: 0 })} sub="km" />
-          <KpiCard icon={LuZap} label="Carriers" value={presentCarriers.length} sub="energy carriers" />
+          <KpiCard icon={LuLink} label={tr("Links")} value={links.length} sub={tr("connections")} />
+          <KpiCard icon={LuRuler} label={tr("Total length")} value={totalDistance.toLocaleString(undefined, { maximumFractionDigits: 0 })} sub={tr("km")} />
+          <KpiCard icon={LuZap} label={tr("Carriers")} value={presentCarriers.length} sub={tr("energy carriers")} />
         </div>
       )}
 
@@ -191,21 +194,21 @@ const Links = () => {
         <div className="border-b border-black/10 px-5 py-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
-              All links
+              {tr("All links")}
               <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
-                {filteredLinks.length}{filteredLinks.length !== links.length ? ` of ${links.length}` : ''}
+                {filteredLinks.length}{filteredLinks.length !== links.length ? tr(" of {0}", { 0: links.length }) : ''}
               </span>
             </h2>
             <div className="flex items-center gap-2">
               <div className="relative">
                 <LuSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                <input type="text" placeholder="Search by location or type" value={searchQuery}
+                <input type="text" placeholder={tr("Search by location or type")} value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   className="h-10 w-72 rounded-lg border border-black/15 bg-slate-50 pl-9 pr-3 text-[13px] text-slate-800 placeholder:text-slate-400 transition-colors focus:border-black/15 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-200" />
               </div>
               <button onClick={() => setIsAdding(true)}
                 className="flex h-10 items-center gap-1.5 rounded-lg bg-black px-4 text-sm font-semibold text-white  transition-colors hover:bg-black/80">
-                <LuPlus size={16} /> Add link
+                <LuPlus size={16} /> {tr("Add link")}
               </button>
             </div>
           </div>
@@ -221,7 +224,7 @@ const Links = () => {
                     className={`flex items-center gap-1.5 border px-2.5 py-1 text-xs font-medium transition-all ${active ? '' : 'hover:border-black/15'}`}
                     style={{ backgroundColor: active ? `${color}14` : 'white', borderColor: active ? `${color}66` : '#e2e8f0', color: active ? color : '#64748b' }}
                   >
-                    {c === 'all' ? 'All' : (<><span>{CARRIERS[c]?.icon ?? '•'}</span>{getCarrierLabel(c)}</>)}
+                    {c === 'all' ? tr("All") : (<><span>{CARRIERS[c]?.icon ?? '•'}</span>{getCarrierLabel(c)}</>)}
                     <span className="tabular-nums opacity-60">{count}</span>
                   </button>
                 );
@@ -235,18 +238,18 @@ const Links = () => {
             <div className="mb-3 grid h-12 w-12 place-items-center rounded-full bg-slate-100 text-slate-500">
               <LuLink size={20} />
             </div>
-            <p className="text-sm font-semibold text-slate-800">No links yet</p>
-            <p className="mt-1 max-w-sm text-sm text-slate-500">Connect two locations with a transmission line, pipeline or other carrier.</p>
+            <p className="text-sm font-semibold text-slate-800">{tr("No links yet")}</p>
+            <p className="mt-1 max-w-sm text-sm text-slate-500">{tr("Connect two locations with a transmission line, pipeline or other carrier.")}</p>
             <button onClick={() => setIsAdding(true)}
               className="mt-5 flex h-10 items-center gap-1.5 rounded-lg bg-black px-4 text-sm font-semibold text-white  transition-colors hover:bg-black/80">
-              <LuPlus size={16} /> Add link
+              <LuPlus size={16} /> {tr("Add link")}
             </button>
           </div>
         ) : filteredLinks.length === 0 ? (
           <div className="m-3 flex flex-col items-center justify-center rounded-xl border border-dashed border-black/15 px-6 py-16 text-center">
             <LuSearch size={20} className="mb-2 text-slate-400" />
-            <p className="text-sm font-semibold text-slate-800">No matches</p>
-            <p className="mt-1 text-sm text-slate-500">No links match your search or filter.</p>
+            <p className="text-sm font-semibold text-slate-800">{tr("No matches")}</p>
+            <p className="mt-1 text-sm text-slate-500">{tr("No links match your search or filter.")}</p>
           </div>
         ) : (
           <div className="m-3 overflow-hidden rounded-xl border border-black/15">
@@ -254,10 +257,10 @@ const Links = () => {
             <table className="min-w-full">
               <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur">
                 <tr className="border-b border-black/15 text-left">
-                  <th className="px-5 py-2.5"><SortHeader label="Route" sortKey="from" sort={sort} onSort={onSort} /></th>
-                  <th className="px-5 py-2.5"><SortHeader label="Carrier / Type" sortKey="carrier" sort={sort} onSort={onSort} /></th>
-                  <th className="px-5 py-2.5 text-right"><SortHeader label="Capacity" sortKey="capacity" sort={sort} onSort={onSort} align="right" /></th>
-                  <th className="px-5 py-2.5 text-right"><SortHeader label="Distance" sortKey="distance" sort={sort} onSort={onSort} align="right" /></th>
+                  <th className="px-5 py-2.5"><SortHeader label={tr("Route")} sortKey="from" sort={sort} onSort={onSort} /></th>
+                  <th className="px-5 py-2.5"><SortHeader label={tr("Carrier / Type")} sortKey="carrier" sort={sort} onSort={onSort} /></th>
+                  <th className="px-5 py-2.5 text-right"><SortHeader label={tr("Capacity")} sortKey="capacity" sort={sort} onSort={onSort} align="right" /></th>
+                  <th className="px-5 py-2.5 text-right"><SortHeader label={tr("Distance")} sortKey="distance" sort={sort} onSort={onSort} align="right" /></th>
                   <th className="w-24 px-5 py-2.5" />
                 </tr>
               </thead>
@@ -274,13 +277,13 @@ const Links = () => {
                             <div className="flex items-center gap-2">
                               <SelectField value={editData.from} onChange={e => setEditData({ ...editData, from: e.target.value })}
                                 className="h-8 w-full rounded-lg border border-black/15 bg-white px-2 text-xs focus:outline-none focus:ring-2 focus:ring-slate-200">
-                                <option value="">From…</option>
+                                <option value="">{tr("From…")}</option>
                                 {locations.map((loc, i) => <option key={i} value={loc.name}>{loc.name}</option>)}
                               </SelectField>
                               <LuArrowRight size={14} className="shrink-0 text-slate-400" />
                               <SelectField value={editData.to} onChange={e => setEditData({ ...editData, to: e.target.value })}
                                 className="h-8 w-full rounded-lg border border-black/15 bg-white px-2 text-xs focus:outline-none focus:ring-2 focus:ring-slate-200">
-                                <option value="">To…</option>
+                                <option value="">{tr("To…")}</option>
                                 {locations.map((loc, i) => <option key={i} value={loc.name}>{loc.name}</option>)}
                               </SelectField>
                             </div>
@@ -300,17 +303,17 @@ const Links = () => {
                           <td className="px-5 py-3 text-right">
                             <input type="number" value={editData.capacity ?? ''}
                               onChange={e => setEditData({ ...editData, capacity: e.target.value })}
-                              className="h-8 w-full rounded-lg border border-black/15 bg-white px-2 text-xs focus:outline-none focus:ring-2 focus:ring-slate-200 ml-auto w-24 text-right font-mono" placeholder="kW" />
+                              className="h-8 w-full rounded-lg border border-black/15 bg-white px-2 text-xs focus:outline-none focus:ring-2 focus:ring-slate-200 ml-auto w-24 text-right font-mono" placeholder={tr("kW")} />
                           </td>
                           <td className="px-5 py-3 text-right">
                             <input type="number" value={editData.distance ?? ''}
                               onChange={e => setEditData({ ...editData, distance: e.target.value })}
-                              className="h-8 w-full rounded-lg border border-black/15 bg-white px-2 text-xs focus:outline-none focus:ring-2 focus:ring-slate-200 ml-auto w-24 text-right font-mono" placeholder="km" />
+                              className="h-8 w-full rounded-lg border border-black/15 bg-white px-2 text-xs focus:outline-none focus:ring-2 focus:ring-slate-200 ml-auto w-24 text-right font-mono" placeholder={tr("km")} />
                           </td>
                           <td className="px-5 py-3">
                             <div className="flex justify-end gap-1">
-                              <button onClick={saveEdit} title="Save" className="grid h-7 w-7 place-items-center rounded-md bg-black text-white hover:bg-black/80"><LuCheck size={14}/></button>
-                              <button onClick={cancelEdit} title="Cancel" className="grid h-7 w-7 place-items-center rounded-md text-slate-500 hover:bg-slate-200/70"><LuX size={14}/></button>
+                              <button onClick={saveEdit} title={tr("Save")} className="grid h-7 w-7 place-items-center rounded-md bg-black text-white hover:bg-black/80"><LuCheck size={14}/></button>
+                              <button onClick={cancelEdit} title={tr("Cancel")} className="grid h-7 w-7 place-items-center rounded-md text-slate-500 hover:bg-slate-200/70"><LuX size={14}/></button>
                             </div>
                           </td>
                         </>
@@ -331,12 +334,12 @@ const Links = () => {
                             </div>
                           </td>
                           <td className="px-5 py-3 text-right font-mono text-xs text-slate-600">{link.capacity ?? '—'}</td>
-                          <td className="px-5 py-3 text-right font-mono text-xs text-slate-600">{link.distance != null ? `${link.distance} km` : '—'}</td>
+                          <td className="px-5 py-3 text-right font-mono text-xs text-slate-600">{link.distance != null ? tr("{0} km", { 0: link.distance }) : '—'}</td>
                           <td className="px-5 py-3">
                             <div className="flex justify-end gap-0.5">
-                              <button onClick={() => startEdit(index)} title="Edit link"
+                              <button onClick={() => startEdit(index)} title={tr("Edit link")}
                                 className={`${iconBtn('edit', 'md')}`}><LuPencil size={ICON_PX.md}/></button>
-                              <button onClick={() => deleteLink(index)} title="Delete link"
+                              <button onClick={() => deleteLink(index)} title={tr("Delete link")}
                                 className={`${iconBtn('delete', 'md')}`}><LuTrash2 size={ICON_PX.md}/></button>
                             </div>
                           </td>
@@ -349,7 +352,7 @@ const Links = () => {
             </table>
           </div>
           <div className="border-t border-black/10 bg-slate-50/60 px-5 py-2 text-xs text-slate-500">
-            Showing {sortedLinks.length} of {links.length} links
+            {tr("Showing")} {sortedLinks.length} {tr("of")} {links.length} {tr("links")}
           </div>
           </div>
         )}
@@ -362,27 +365,27 @@ const Links = () => {
           <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-900/5">
             <div className="flex items-start justify-between border-b border-black/10 px-6 py-5">
               <div>
-                <h3 className="text-base font-semibold text-slate-900">Add link</h3>
-                <p className="mt-0.5 text-xs text-slate-500">Connect two locations in the active model.</p>
+                <h3 className="text-base font-semibold text-slate-900">{tr("Add link")}</h3>
+                <p className="mt-0.5 text-xs text-slate-500">{tr("Connect two locations in the active model.")}</p>
               </div>
-              <button onClick={() => { setIsAdding(false); setNewLink(emptyLink); }} aria-label="Close"
+              <button onClick={() => { setIsAdding(false); setNewLink(emptyLink); }} aria-label={tr("Close")}
                 className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700"><LuX size={16}/></button>
             </div>
 
             <div className="space-y-4 px-6 py-5">
               <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2">
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium text-slate-700">From</label>
+                  <label className="mb-1.5 block text-xs font-medium text-slate-700">{tr("From")}</label>
                   <SelectField value={newLink.from} onChange={e => setNewLink({ ...newLink, from: e.target.value })} className="h-10 w-full rounded-lg border border-black/15 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200">
-                    <option value="">Select…</option>
+                    <option value="">{tr("Select…")}</option>
                     {locations.map((loc, i) => <option key={i} value={loc.name}>{loc.name}</option>)}
                   </SelectField>
                 </div>
                 <LuArrowRight size={16} className="mb-3 text-slate-400" />
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium text-slate-700">To</label>
+                  <label className="mb-1.5 block text-xs font-medium text-slate-700">{tr("To")}</label>
                   <SelectField value={newLink.to} onChange={e => setNewLink({ ...newLink, to: e.target.value })} className="h-10 w-full rounded-lg border border-black/15 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200">
-                    <option value="">Select…</option>
+                    <option value="">{tr("Select…")}</option>
                     {locations.map((loc, i) => <option key={i} value={loc.name}>{loc.name}</option>)}
                   </SelectField>
                 </div>
@@ -391,7 +394,7 @@ const Links = () => {
               {/* Link Type */}
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-slate-700">
-                  Link type <span className="font-normal text-slate-400">· sets carrier &amp; default costs</span>
+                  {tr("Link type")} <span className="font-normal text-slate-400">{tr("· sets carrier & default costs")}</span>
                 </label>
                 <LinkTypeSelect value={newLink.linkType} onChange={handleNewLinkTypeChange} className="h-10 w-full rounded-lg border border-black/15 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200" />
                 {newLink.linkType && LINK_TYPES[newLink.linkType] && (
@@ -402,7 +405,7 @@ const Links = () => {
               {/* Carrier override */}
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-slate-700">
-                  Carrier <span className="font-normal text-slate-400">· auto-set from type, override if needed</span>
+                  {tr("Carrier")} <span className="font-normal text-slate-400">{tr("· auto-set from type, override if needed")}</span>
                 </label>
                 <div className="flex items-center gap-2">
                   <SelectField value={newLink.carrier} onChange={e => setNewLink({ ...newLink, carrier: e.target.value })} className="h-10 w-full rounded-lg border border-black/15 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200">
@@ -420,24 +423,24 @@ const Links = () => {
               {/* Capacity / Distance */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium text-slate-700">Capacity (kW)</label>
+                  <label className="mb-1.5 block text-xs font-medium text-slate-700">{tr("Capacity (kW)")}</label>
                   <input type="number" value={newLink.capacity} onChange={e => setNewLink({ ...newLink, capacity: e.target.value })}
-                    className="h-10 w-full rounded-lg border border-black/15 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200 font-mono" placeholder="optional" />
+                    className="h-10 w-full rounded-lg border border-black/15 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200 font-mono" placeholder={tr("optional")} />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium text-slate-700">Distance (km)</label>
+                  <label className="mb-1.5 block text-xs font-medium text-slate-700">{tr("Distance (km)")}</label>
                   <input type="number" value={newLink.distance} onChange={e => setNewLink({ ...newLink, distance: e.target.value })}
-                    className="h-10 w-full rounded-lg border border-black/15 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200 font-mono" placeholder="auto" />
+                    className="h-10 w-full rounded-lg border border-black/15 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200 font-mono" placeholder={tr("auto")} />
                 </div>
               </div>
             </div>
 
             <div className="flex justify-end gap-2 border-t border-black/10 bg-slate-50/60 px-6 py-4">
               <button onClick={() => { setIsAdding(false); setNewLink(emptyLink); }}
-                className="h-9 rounded-lg border border-black/15 bg-white px-4 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-50">Cancel</button>
+                className="h-9 rounded-lg border border-black/15 bg-white px-4 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-50">{tr("Cancel")}</button>
               <button onClick={addLink} disabled={!newLink.from || !newLink.to || !newLink.linkType}
                 className="h-9 rounded-lg bg-black px-4 text-[13px] font-semibold text-white transition-colors hover:bg-black/80 disabled:cursor-not-allowed disabled:bg-slate-300">
-                Add link
+                {tr("Add link")}
               </button>
             </div>
           </div>

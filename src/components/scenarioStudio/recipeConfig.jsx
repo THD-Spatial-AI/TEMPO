@@ -9,7 +9,7 @@
 
 import React from 'react';
 import { FiInfo, FiPlus, FiTrash2, FiDownload } from '../ui/icons';
-import ReactECharts from 'echarts-for-react';
+import ReactECharts from '../ui/Chart';
 import { autoDetectTechs, FOSSIL_KEYWORDS, RENEWABLE_KEYWORDS, techGroupsForModel, resolveTechGroup } from '../../services/scenarioStudio/utils.js';
 import { importLegacyScenario } from '../../services/scenarioStudio/legacyImport.js';
 import { summarizeOps, extractDemandSeries } from '../../services/scenarioStudio/recipeParams.js';
@@ -19,12 +19,13 @@ import {
 } from '../../services/scenarioStudio/presets/lombardi2020Italy.js';
 import SelectField from '../ui/SelectField';
 import { iconBtn, ICON_PX } from '../ui/iconButton';
+import { tr } from '../../i18n';
 
 const COST_PARAM_OPTIONS = [
-  { value: 'costs.monetary.energy_cap',  label: 'CAPEX (€/kW)' },
-  { value: 'costs.monetary.energy_prod', label: 'OPEX per output (€/MWh)' },
-  { value: 'costs.monetary.storage_cap', label: 'Storage CAPEX (€/kWh)' },
-  { value: 'constraints.energy_eff',     label: 'Efficiency (fraction)' },
+  { value: 'costs.monetary.energy_cap',  label: tr("CAPEX (€/kW)") },
+  { value: 'costs.monetary.energy_prod', label: tr("OPEX per output (€/MWh)") },
+  { value: 'costs.monetary.storage_cap', label: tr("Storage CAPEX (€/kWh)") },
+  { value: 'constraints.energy_eff',     label: tr("Efficiency (fraction)") },
 ];
 
 // ─── Shared UI helpers ───────────────────────────────────────────────────────
@@ -59,14 +60,14 @@ function ToggleBtn({ value, options, onChange }) {
 function SnapshotConfig({ params, setParam }) {
   return (
     <div>
-      <Label>Snapshot years</Label>
+      <Label>{tr("Snapshot years")}</Label>
       <ToggleBtn value={params.snapshotMode}
-        options={[{ id: 'range', label: 'Range' }, { id: 'list', label: 'Custom list' }]}
+        options={[{ id: 'range', label: tr("Range") }, { id: 'list', label: tr("Custom list") }]}
         onChange={v => setParam('snapshotMode', v)} />
       <div className="mt-2">
         {params.snapshotMode === 'range' ? (
           <div className="flex items-end gap-2 flex-wrap">
-            {[['From', 'snapshotFrom'], ['To', 'snapshotTo'], ['Step', 'snapshotStep']].map(([lbl, key]) => (
+            {[[tr("From"), 'snapshotFrom'], [tr("To"), 'snapshotTo'], [tr("Step"), 'snapshotStep']].map(([lbl, key]) => (
               <div key={key}>
                 <span className="text-xs text-slate-500 block mb-0.5">{lbl}</span>
                 <input type="number" value={params[key]} min={2000} max={2200} step={1}
@@ -81,7 +82,7 @@ function SnapshotConfig({ params, setParam }) {
               onChange={e => setParam('snapshotList', e.target.value)}
               placeholder="2025, 2030, 2035, 2040"
               className="w-full px-3 py-1.5 text-sm border border-black/15 rounded-lg focus:outline-none focus:ring-2 focus:ring-electric-400" />
-            <Hint>Comma-separated years</Hint>
+            <Hint>{tr("Comma-separated years")}</Hint>
           </>
         )}
       </div>
@@ -89,7 +90,7 @@ function SnapshotConfig({ params, setParam }) {
   );
 }
 function TechCheckList({ techs, selected, onChange }) {
-  if (!techs.length) return <p className="text-xs text-slate-400 italic">No matching technologies found in model.</p>;
+  if (!techs.length) return <p className="text-xs text-slate-400 italic">{tr("No matching technologies found in model.")}</p>;
   return (
     <div className="space-y-1">
       {techs.map(t => (
@@ -112,28 +113,28 @@ function DemandGrowthConfig({ params, setParam, model }) {
     <div className="space-y-5">
       <div className="flex gap-4 flex-wrap">
         <div>
-          <Label>Base year</Label>
+          <Label>{tr("Base year")}</Label>
           <NumInput value={params.baseYear} onChange={v => setParam('baseYear', Math.round(v))} min={2000} max={2100} />
-          <Hint>Demand in this year = 1.0 (no scaling)</Hint>
+          <Hint>{tr("Demand in this year = 1.0 (no scaling)")}</Hint>
         </div>
         <div>
-          <Label>Annual growth rate</Label>
+          <Label>{tr("Annual growth rate")}</Label>
           <div className="flex items-center gap-2">
             <NumInput value={params.ratePerYear} onChange={v => setParam('ratePerYear', v)} min={-20} max={20} step={0.1} />
-            <span className="text-xs text-slate-500">% / yr</span>
+            <span className="text-xs text-slate-500">{tr("% / yr")}</span>
           </div>
-          <Hint>Negative = shrink</Hint>
+          <Hint>{tr("Negative = shrink")}</Hint>
         </div>
       </div>
       <SnapshotConfig params={params} setParam={setParam} />
       <div>
-        <Label>Demand technologies</Label>
+        <Label>{tr("Demand technologies")}</Label>
         <ToggleBtn value={params.demandTechsMode}
-          options={[{ id: 'auto', label: 'Auto-detect' }, { id: 'manual', label: 'Select manually' }]}
+          options={[{ id: 'auto', label: tr("Auto-detect") }, { id: 'manual', label: tr("Select manually") }]}
           onChange={v => setParam('demandTechsMode', v)} />
         <div className="mt-2">
           {params.demandTechsMode === 'auto'
-            ? <p className="text-xs text-slate-500">All techs with <code className="bg-slate-100 px-1 rounded">parent: demand</code> will be scaled.</p>
+            ? <p className="text-xs text-slate-500">{tr("All techs with")} <code className="bg-slate-100 px-1 rounded">parent: demand</code> {tr("will be scaled.")}</p>
             : <TechCheckList techs={demandTechs.map(t => t.name)} selected={params.demandTechsManual}
                 onChange={v => setParam('demandTechsManual', v)} />
           }
@@ -151,65 +152,65 @@ function RenewableTransitionConfig({ params, setParam, model }) {
     <div className="space-y-5">
       <div className="flex gap-4 flex-wrap">
         <div>
-          <Label>Base year</Label>
+          <Label>{tr("Base year")}</Label>
           <NumInput value={params.baseYear} onChange={v => setParam('baseYear', Math.round(v))} min={2000} max={2100} />
         </div>
         <div>
-          <Label>Target year</Label>
+          <Label>{tr("Target year")}</Label>
           <NumInput value={params.targetYear} onChange={v => setParam('targetYear', Math.round(v))} min={2000} max={2200} />
-          <Hint>Year fossil techs are fully phased out</Hint>
+          <Hint>{tr("Year fossil techs are fully phased out")}</Hint>
         </div>
       </div>
       <SnapshotConfig params={params} setParam={setParam} />
       <div>
-        <Label>Fossil technologies to phase out</Label>
+        <Label>{tr("Fossil technologies to phase out")}</Label>
         <ToggleBtn value={params.fossilMode}
-          options={[{ id: 'auto', label: 'Auto-detect' }, { id: 'manual', label: 'Select manually' }]}
+          options={[{ id: 'auto', label: tr("Auto-detect") }, { id: 'manual', label: tr("Select manually") }]}
           onChange={v => setParam('fossilMode', v)} />
         <div className="mt-2">
           {params.fossilMode === 'auto'
-            ? <p className="text-xs text-slate-500">Techs with names matching: coal, gas, oil, diesel, ccgt, ocgt…</p>
+            ? <p className="text-xs text-slate-500">{tr("Techs with names matching: coal, gas, oil, diesel, ccgt, ocgt…")}</p>
             : <TechCheckList techs={fossilTechs} selected={params.fossilManual} onChange={v => setParam('fossilManual', v)} />
           }
         </div>
       </div>
       <div>
-        <Label>Phase-out mode</Label>
+        <Label>{tr("Phase-out mode")}</Label>
         <ToggleBtn value={params.phaseOutMode}
-          options={[{ id: 'graduated', label: 'Graduated (linear)' }, { id: 'cliff', label: 'Hard stop at target year' }]}
+          options={[{ id: 'graduated', label: tr("Graduated (linear)") }, { id: 'cliff', label: tr("Hard stop at target year") }]}
           onChange={v => setParam('phaseOutMode', v)} />
       </div>
       <div>
-        <Label>Renewable capacity scale at target year (optional)</Label>
+        <Label>{tr("Renewable capacity scale at target year (optional)")}</Label>
         <div className="flex items-center gap-2">
           <input type="number" value={params.renewableCapScale} min={1} max={10} step={0.1}
-            placeholder="e.g. 2.0"
+            placeholder={tr("e.g. {0}", { 0: "2.0" })}
             onChange={e => setParam('renewableCapScale', e.target.value)}
             className="w-24 px-2.5 py-1.5 text-sm border border-black/15 rounded-lg focus:outline-none focus:ring-2 focus:ring-electric-400" />
-          <span className="text-xs text-slate-500">× current cap</span>
+          <span className="text-xs text-slate-500">{tr("× current cap")}</span>
         </div>
-        <Hint>Leave blank to not constrain renewable capacity growth</Hint>
+        <Hint>{tr("Leave blank to not constrain renewable capacity growth")}</Hint>
       </div>
       <div>
         <label className="flex items-center gap-2 cursor-pointer">
           <input type="checkbox" checked={params.enableRenewableMin}
             onChange={e => setParam('enableRenewableMin', e.target.checked)}
             className="rounded text-electric-500 focus:ring-electric-400" />
-          <span className="text-xs font-medium text-slate-700">Add renewable minimum share constraint</span>
+          <span className="text-xs font-medium text-slate-700">{tr("Add renewable minimum share constraint")}</span>
         </label>
         {params.enableRenewableMin && (
           <div className="mt-3 pl-4 space-y-3">
             <div>
-              <Label>Target share at target year</Label>
+              <Label>{tr("Target share at target year")}</Label>
               <div className="flex items-center gap-2">
                 <NumInput value={params.renewableMinShare} onChange={v => setParam('renewableMinShare', v)} min={0} max={100} step={5} />
                 <span className="text-xs text-slate-500">%</span>
               </div>
             </div>
             <div>
-              <Label>Renewable technologies for constraint</Label>
+              <Label>{tr("Renewable technologies for constraint")}</Label>
               <ToggleBtn value={params.renewableMinMode}
-                options={[{ id: 'auto', label: 'Auto-detect' }, { id: 'manual', label: 'Select' }]}
+                options={[{ id: 'auto', label: tr("Auto-detect") }, { id: 'manual', label: tr("Select") }]}
                 onChange={v => setParam('renewableMinMode', v)} />
               {params.renewableMinMode === 'manual' && (
                 <div className="mt-2">
@@ -230,42 +231,42 @@ function CarbonCapConfig({ params, setParam }) {
     <div className="space-y-5">
       <div className="flex gap-4 flex-wrap">
         <div>
-          <Label>Base year</Label>
+          <Label>{tr("Base year")}</Label>
           <NumInput value={params.baseYear} onChange={v => setParam('baseYear', Math.round(v))} min={2000} max={2100} />
         </div>
         <div>
-          <Label>Target year</Label>
+          <Label>{tr("Target year")}</Label>
           <NumInput value={params.targetYear} onChange={v => setParam('targetYear', Math.round(v))} min={2000} max={2200} />
         </div>
       </div>
       <div className="flex gap-4 flex-wrap">
         <div>
-          <Label>CO₂ cap at base year</Label>
+          <Label>{tr("CO₂ cap at base year")}</Label>
           <div className="flex items-center gap-2">
             <NumInput value={params.startCap} onChange={v => setParam('startCap', v)} min={0} step={1} />
-            <span className="text-xs text-slate-500">Mt</span>
+            <span className="text-xs text-slate-500">{tr("Mt")}</span>
           </div>
-          <Hint>Current / reference emissions level</Hint>
+          <Hint>{tr("Current / reference emissions level")}</Hint>
         </div>
         <div>
-          <Label>CO₂ cap at target year</Label>
+          <Label>{tr("CO₂ cap at target year")}</Label>
           <div className="flex items-center gap-2">
             <NumInput value={params.endCap} onChange={v => setParam('endCap', v)} min={0} step={1} />
-            <span className="text-xs text-slate-500">Mt (0 = net-zero)</span>
+            <span className="text-xs text-slate-500">{tr("Mt (0 = net-zero)")}</span>
           </div>
         </div>
       </div>
       <SnapshotConfig params={params} setParam={setParam} />
       <div>
-        <Label>Interpolation</Label>
+        <Label>{tr("Interpolation")}</Label>
         <ToggleBtn value={params.interpolation}
-          options={[{ id: 'linear', label: 'Linear' }, { id: 'exponential', label: 'Exponential decay' }]}
+          options={[{ id: 'linear', label: tr("Linear") }, { id: 'exponential', label: tr("Exponential decay") }]}
           onChange={v => setParam('interpolation', v)} />
-        <Hint>Exponential decay = faster reduction early on</Hint>
+        <Hint>{tr("Exponential decay = faster reduction early on")}</Hint>
       </div>
       <div className="flex gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-relaxed text-amber-800">
         <FiInfo size={13} className="shrink-0 mt-0.5" />
-          <span>Requires model technologies to have CO₂ costs defined (<code className="rounded bg-amber-100 px-1 font-mono">costs.co2.*</code>).</span>
+          <span>{tr("Requires model technologies to have CO₂ costs defined (")}<code className="rounded bg-amber-100 px-1 font-mono">costs.co2.*</code>).</span>
         </div>
     </div>
   );
@@ -276,16 +277,16 @@ function CostSensitivityConfig({ params, setParam, model }) {
   return (
     <div className="space-y-5">
       <div>
-        <Label>Technology</Label>
+        <Label>{tr("Technology")}</Label>
         <SelectField value={params.techName}
           onChange={e => setParam('techName', e.target.value)}
           className="h-9 w-full rounded-lg border border-black/15 bg-white px-3 text-sm text-slate-800 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200">
-          <option value="">— select a technology —</option>
+          <option value="">{tr("— select a technology —")}</option>
           {allTechs.map(n => <option key={n} value={n}>{n}</option>)}
         </SelectField>
       </div>
       <div>
-        <Label>Parameter to sweep</Label>
+        <Label>{tr("Parameter to sweep")}</Label>
         <SelectField value={params.paramPath}
           onChange={e => setParam('paramPath', e.target.value)}
           className="h-9 w-full rounded-lg border border-black/15 bg-white px-3 text-sm text-slate-800 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200">
@@ -294,28 +295,28 @@ function CostSensitivityConfig({ params, setParam, model }) {
       </div>
       <div className="flex gap-4 flex-wrap">
         <div>
-          <Label>From value</Label>
+          <Label>{tr("From value")}</Label>
           <NumInput value={params.valueFrom} onChange={v => setParam('valueFrom', v)} min={0} step={1} />
         </div>
         <div>
-          <Label>To value</Label>
+          <Label>{tr("To value")}</Label>
           <NumInput value={params.valueTo} onChange={v => setParam('valueTo', v)} min={0} step={1} />
         </div>
         <div>
-          <Label>Steps</Label>
+          <Label>{tr("Steps")}</Label>
           <NumInput value={params.steps} onChange={v => setParam('steps', Math.round(v))} min={2} max={20} step={1} className="w-20" />
         </div>
       </div>
       <div>
-        <Label>Display unit (for labels)</Label>
+        <Label>{tr("Display unit (for labels)")}</Label>
         <input type="text" value={params.unit}
           onChange={e => setParam('unit', e.target.value)}
           className="w-32 px-3 py-1.5 text-sm border border-black/15 rounded-lg focus:outline-none focus:ring-2 focus:ring-electric-400" />
       </div>
       <div>
-        <Label>Apply to</Label>
+        <Label>{tr("Apply to")}</Label>
         <ToggleBtn value={params.level}
-          options={[{ id: 'global', label: 'Global tech only' }, { id: 'both', label: 'Global + all location overrides' }]}
+          options={[{ id: 'global', label: tr("Global tech only") }, { id: 'both', label: tr("Global + all location overrides") }]}
           onChange={v => setParam('level', v)} />
       </div>
     </div>
@@ -325,10 +326,10 @@ function CostSensitivityConfig({ params, setParam, model }) {
 // ─── Custom op editor (verbatim from dev form shell) ────────────────────────────
 
 const OP_TYPES = [
-  { id: 'setParam',         label: 'Set parameter' },
-  { id: 'scaleParam',       label: 'Scale parameter' },
-  { id: 'disableTech',      label: 'Disable technology' },
-  { id: 'systemConstraint', label: 'System constraint' },
+  { id: 'setParam',         label: tr("Set parameter") },
+  { id: 'scaleParam',       label: tr("Scale parameter") },
+  { id: 'disableTech',      label: tr("Disable technology") },
+  { id: 'systemConstraint', label: tr("System constraint") },
 ];
 
 const SYS_KINDS = ['co2_cap', 'renewable_min', 'reserve_margin'];
@@ -358,13 +359,13 @@ function OpRow({ op, index, onChange, onDelete }) {
       {(op.op === 'setParam' || op.op === 'scaleParam' || op.op === 'disableTech') && (
         <div className="flex gap-2">
           <div className="flex-1">
-            <span className="mb-1 block text-xs font-medium text-slate-600">Tech name</span>
+            <span className="mb-1 block text-xs font-medium text-slate-600">{tr("Tech name")}</span>
             <input value={op.techMatch} onChange={e => set('techMatch', e.target.value)} placeholder="solar_pv"
               className="h-8 w-full rounded-lg border border-black/15 bg-white px-2 font-mono focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200" />
           </div>
           {op.op !== 'disableTech' && (
             <div className="flex-1">
-              <span className="mb-1 block text-xs font-medium text-slate-600">Param path</span>
+              <span className="mb-1 block text-xs font-medium text-slate-600">{tr("Param path")}</span>
               <input value={op.path} onChange={e => set('path', e.target.value)} placeholder="constraints.energy_cap_max"
                 className="h-8 w-full rounded-lg border border-black/15 bg-white px-2 font-mono focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200" />
             </div>
@@ -375,17 +376,17 @@ function OpRow({ op, index, onChange, onDelete }) {
       {op.op === 'setParam' && (
         <div className="flex gap-2">
           <div className="flex-1">
-            <span className="mb-1 block text-xs font-medium text-slate-600">Value</span>
+            <span className="mb-1 block text-xs font-medium text-slate-600">{tr("Value")}</span>
             <input type="number" value={op.value} onChange={e => set('value', parseFloat(e.target.value) || 0)}
               className="h-8 w-full rounded-lg border border-black/15 bg-white px-2 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200" />
           </div>
           <div>
-            <span className="mb-1 block text-xs font-medium text-slate-600">Apply to</span>
+            <span className="mb-1 block text-xs font-medium text-slate-600">{tr("Apply to")}</span>
             <SelectField value={op.level || 'global'} onChange={e => set('level', e.target.value)}
               className="h-8 rounded-lg border border-black/15 bg-white px-2 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200">
-              <option value="global">Global tech</option>
-              <option value="location">Location overrides</option>
-              <option value="both">Both</option>
+              <option value="global">{tr("Global tech")}</option>
+              <option value="location">{tr("Location overrides")}</option>
+              <option value="both">{tr("Both")}</option>
             </SelectField>
           </div>
         </div>
@@ -394,17 +395,17 @@ function OpRow({ op, index, onChange, onDelete }) {
       {op.op === 'scaleParam' && (
         <div className="flex gap-2">
           <div className="w-28">
-            <span className="mb-1 block text-xs font-medium text-slate-600">Factor</span>
+            <span className="mb-1 block text-xs font-medium text-slate-600">{tr("Factor")}</span>
             <input type="number" step="0.01" value={op.factor} onChange={e => set('factor', parseFloat(e.target.value) || 1)}
               className="h-8 w-full rounded-lg border border-black/15 bg-white px-2 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200" />
           </div>
           <div>
-            <span className="mb-1 block text-xs font-medium text-slate-600">Apply to</span>
+            <span className="mb-1 block text-xs font-medium text-slate-600">{tr("Apply to")}</span>
             <SelectField value={op.level || 'global'} onChange={e => set('level', e.target.value)}
               className="h-8 rounded-lg border border-black/15 bg-white px-2 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200">
-              <option value="global">Global tech</option>
-              <option value="location">Location overrides</option>
-              <option value="both">Both</option>
+              <option value="global">{tr("Global tech")}</option>
+              <option value="location">{tr("Location overrides")}</option>
+              <option value="both">{tr("Both")}</option>
             </SelectField>
           </div>
         </div>
@@ -413,14 +414,14 @@ function OpRow({ op, index, onChange, onDelete }) {
       {op.op === 'systemConstraint' && (
         <div className="flex gap-2">
           <div>
-            <span className="mb-1 block text-xs font-medium text-slate-600">Kind</span>
+            <span className="mb-1 block text-xs font-medium text-slate-600">{tr("Kind")}</span>
             <SelectField value={op.kind} onChange={e => set('kind', e.target.value)}
               className="h-8 rounded-lg border border-black/15 bg-white px-2 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200">
               {SYS_KINDS.map(k => <option key={k} value={k}>{k}</option>)}
             </SelectField>
           </div>
           <div className="flex-1">
-            <span className="mb-1 block text-xs font-medium text-slate-600">Value</span>
+            <span className="mb-1 block text-xs font-medium text-slate-600">{tr("Value")}</span>
             <input type="number" value={typeof op.value === 'number' ? op.value : 0}
               onChange={e => set('value', parseFloat(e.target.value) || 0)}
               className="h-8 w-full rounded-lg border border-black/15 bg-white px-2 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200" />
@@ -457,33 +458,33 @@ function CustomConfigPanel({ params, setParam, model }) {
     <div className="space-y-4">
       {scenarioNames.length > 0 && (
         <div>
-          <Label>Import from saved scenario</Label>
+          <Label>{tr("Import from saved scenario")}</Label>
           <div className="flex gap-2 items-center">
             <SelectField value={params.selectedScenario || ''}
               onChange={e => setParam('selectedScenario', e.target.value)}
               className="flex-1 px-3 py-1.5 text-sm border border-black/15 rounded-lg focus:outline-none focus:ring-2 focus:ring-electric-400 bg-white">
-              <option value="">— choose scenario —</option>
+              <option value="">{tr("— choose scenario —")}</option>
               {scenarioNames.map(n => <option key={n} value={n}>{n}</option>)}
             </SelectField>
             <button onClick={handleImport} disabled={!params.selectedScenario}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-black/15 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-              <FiDownload size={12} /> Import ops
+              <FiDownload size={12} /> {tr("Import ops")}
             </button>
           </div>
-          <Hint>Appends the scenario's overrides as setParam ops.</Hint>
+          <Hint>{tr("Appends the scenario's overrides as setParam ops.")}</Hint>
         </div>
       )}
 
       <div>
         <div className="flex items-center justify-between mb-2">
-          <Label>Operations ({ops.length})</Label>
+          <Label>{tr("Operations (")}{ops.length})</Label>
           <button onClick={addOp}
             className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-electric-600 hover:bg-electric-50 rounded-lg transition-colors border border-electric-200">
-            <FiPlus size={12} /> Add op
+            <FiPlus size={12} /> {tr("Add op")}
           </button>
         </div>
         {ops.length === 0 ? (
-          <p className="text-xs text-slate-400 italic">No ops yet. Add one above or import from a saved scenario.</p>
+          <p className="text-xs text-slate-400 italic">{tr("No ops yet. Add one above or import from a saved scenario.")}</p>
         ) : (
           <div className="space-y-2 max-h-80 overflow-y-auto pr-0.5">
             {ops.map((op, i) => (
@@ -514,7 +515,7 @@ function DemandCardConfig({ params, setParam, model, timeSeries }) {
   return (
     <div className="space-y-4">
       <div>
-        <Label>Demand scale for this cell</Label>
+        <Label>{tr("Demand scale for this cell")}</Label>
         <div className="flex items-center gap-2">
           <input type="range" min={0.2} max={3} step={0.01} value={scale}
             onChange={e => setParam('scale', parseFloat(e.target.value))}
@@ -522,11 +523,11 @@ function DemandCardConfig({ params, setParam, model, timeSeries }) {
           <NumInput value={scale} onChange={v => setParam('scale', v)} min={0.2} max={5} step={0.01} className="w-20" />
           <span className="text-xs text-slate-500">×</span>
         </div>
-        <Hint>Scales the demand profile ({params.scale === 1 ? 'baseline' : `${((scale - 1) * 100).toFixed(0)}%`}). Drag-to-reshape the hourly profile is coming later.</Hint>
+        <Hint>{tr("Scales the demand profile (")}{params.scale === 1 ? tr("baseline") : `${((scale - 1) * 100).toFixed(0)}%`}{tr("). Drag-to-reshape the hourly profile is coming later.")}</Hint>
       </div>
       {preview ? (
         <div>
-          <Label>Demand preview — {series.name}</Label>
+          <Label>{tr("Demand preview —")} {series.name}</Label>
           <ReactECharts
             style={{ height: 160 }}
             option={{
@@ -543,7 +544,7 @@ function DemandCardConfig({ params, setParam, model, timeSeries }) {
           />
         </div>
       ) : (
-        <p className="text-xs text-slate-400 italic">No demand time series found for this model.</p>
+        <p className="text-xs text-slate-400 italic">{tr("No demand time series found for this model.")}</p>
       )}
     </div>
   );
@@ -553,21 +554,21 @@ function ConstraintCardConfig({ params, setParam }) {
   return (
     <div className="space-y-4">
       <div>
-        <Label>Constraint</Label>
+        <Label>{tr("Constraint")}</Label>
         <SelectField value={params.kind} onChange={e => setParam('kind', e.target.value)}
           className="h-9 w-full rounded-lg border border-black/15 bg-white px-3 text-sm text-slate-800 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200">
           {SYS_KINDS.map(k => <option key={k} value={k}>{k}</option>)}
         </SelectField>
       </div>
       <div>
-        <Label>Value</Label>
+        <Label>{tr("Value")}</Label>
         <NumInput value={params.value} onChange={v => setParam('value', v)} step={1} />
-        <Hint>{params.kind === 'co2_cap' ? 'CO₂ cap (0 = net-zero)' : params.kind === 'renewable_min' ? 'Minimum renewable share (fraction 0–1)' : 'Reserve margin'}</Hint>
+        <Hint>{params.kind === 'co2_cap' ? tr("CO₂ cap (0 = net-zero)") : params.kind === 'renewable_min' ? tr("Minimum renewable share (fraction 0–1)") : tr("Reserve margin")}</Hint>
       </div>
       {params.kind === 'co2_cap' && (
         <div className="flex gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-relaxed text-amber-800">
           <FiInfo size={13} className="shrink-0 mt-0.5" />
-          <span>Requires technologies to have CO₂ costs (<code className="rounded bg-amber-100 px-1 font-mono">costs.co2.*</code>).</span>
+          <span>{tr("Requires technologies to have CO₂ costs (")}<code className="rounded bg-amber-100 px-1 font-mono">costs.co2.*</code>).</span>
         </div>
       )}
     </div>
@@ -578,11 +579,11 @@ function ConstraintCardConfig({ params, setParam }) {
 // model's own technology info so the user sees exactly what a card will hit).
 function MatchedTechs({ names }) {
   if (!names || names.length === 0) {
-    return <p className="text-xs text-amber-600 italic mt-1">No matching technologies in this model.</p>;
+    return <p className="text-xs text-amber-600 italic mt-1">{tr("No matching technologies in this model.")}</p>;
   }
   return (
     <div className="mt-1.5">
-      <p className="text-[11px] text-slate-500 mb-1">Affects {names.length} tech{names.length > 1 ? 's' : ''}:</p>
+      <p className="text-[11px] text-slate-500 mb-1">{tr("Affects")} {names.length} {tr("tech")}{names.length > 1 ? 's' : ''}:</p>
       <div className="flex flex-wrap gap-1">
         {names.map(n => <span key={n} className="text-[10px] font-mono bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">{n}</span>)}
       </div>
@@ -611,54 +612,54 @@ function TechCardConfig({ params, setParam, model }) {
   return (
     <div className="space-y-4">
       <div>
-        <Label>Target</Label>
+        <Label>{tr("Target")}</Label>
         <ToggleBtn value={params.target || 'single'}
-          options={[{ id: 'single', label: 'A technology' }, { id: 'group', label: 'A group' }]}
+          options={[{ id: 'single', label: tr("A technology") }, { id: 'group', label: tr("A group") }]}
           onChange={v => setParam('target', v)} />
-        <Hint>Groups (renewables, emitting…) are read from the model — target many techs at once.</Hint>
+        <Hint>{tr("Groups (renewables, emitting…) are read from the model — target many techs at once.")}</Hint>
       </div>
       {isGroup ? (
         <div>
-          <Label>Technology group</Label>
+          <Label>{tr("Technology group")}</Label>
           <GroupSelect value={params.group} model={model} onChange={v => setParam('group', v)} />
           <MatchedTechs names={matched} />
         </div>
       ) : (
         <div>
-          <Label>Technology</Label>
+          <Label>{tr("Technology")}</Label>
           {multi && <MatchedTechs names={params.techMatch} />}
           <SelectField value={multi ? '' : params.techMatch} onChange={e => setParam('techMatch', e.target.value)}
             className="h-9 w-full rounded-lg border border-black/15 bg-white px-3 text-sm text-slate-800 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200">
-            <option value="">— select a technology —</option>
+            <option value="">{tr("— select a technology —")}</option>
             {allTechs.map(n => <option key={n} value={n}>{n}</option>)}
           </SelectField>
         </div>
       )}
       <div>
-        <Label>Action</Label>
+        <Label>{tr("Action")}</Label>
         <ToggleBtn value={params.mode}
-          options={[{ id: 'disable', label: 'Disable' }, { id: 'remove', label: 'Remove' }, { id: 'set', label: 'Set param' }, { id: 'scale', label: 'Scale param' }]}
+          options={[{ id: 'disable', label: tr("Disable") }, { id: 'remove', label: tr("Remove") }, { id: 'set', label: tr("Set param") }, { id: 'scale', label: tr("Scale param") }]}
           onChange={v => setParam('mode', v)} />
-        {params.mode === 'remove' && <Hint>Removes the technology from the model entirely (Calliope <code>exists: false</code>).</Hint>}
+        {params.mode === 'remove' && <Hint>{tr("Removes the technology from the model entirely (Calliope")} <code>exists: false</code>).</Hint>}
       </div>
       {params.mode !== 'disable' && params.mode !== 'remove' && (
         <>
           <div>
-            <Label>Param path</Label>
+            <Label>{tr("Param path")}</Label>
             <input value={params.path} onChange={e => setParam('path', e.target.value)} placeholder="constraints.energy_cap_max"
               className="h-9 w-full rounded-lg border border-black/15 bg-white px-3 text-sm text-slate-800 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200 font-mono" />
           </div>
           <div className="flex gap-3 items-end">
             <div>
-              <Label>{params.mode === 'scale' ? 'Factor' : 'Value'}</Label>
+              <Label>{params.mode === 'scale' ? tr("Factor") : tr("Value")}</Label>
               {params.mode === 'scale'
                 ? <NumInput value={params.factor} onChange={v => setParam('factor', v)} step={0.01} className="w-24" />
                 : <NumInput value={params.value} onChange={v => setParam('value', v)} step={1} className="w-24" />}
             </div>
             <div>
-              <Label>Apply to</Label>
+              <Label>{tr("Apply to")}</Label>
               <ToggleBtn value={params.level}
-                options={[{ id: 'global', label: 'Global' }, { id: 'both', label: 'Both' }]}
+                options={[{ id: 'global', label: tr("Global") }, { id: 'both', label: tr("Both") }]}
                 onChange={v => setParam('level', v)} />
             </div>
           </div>
@@ -673,33 +674,33 @@ function EmissionsCardConfig({ params, setParam, model }) {
   return (
     <div className="space-y-4">
       <div className="text-xs text-slate-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-        Reduce emissions by acting on all matching techs at once — pulled live from the model.
+        {tr("Reduce emissions by acting on all matching techs at once — pulled live from the model.")}
       </div>
       <div>
-        <Label>Target group</Label>
+        <Label>{tr("Target group")}</Label>
         <GroupSelect value={params.group || 'emitting'} model={model} onChange={v => setParam('group', v)} />
         <MatchedTechs names={matched} />
       </div>
       <div>
-        <Label>Lever</Label>
+        <Label>{tr("Lever")}</Label>
         <ToggleBtn value={params.lever || 'reduceCap'}
-          options={[{ id: 'reduceCap', label: 'Reduce capacity' }, { id: 'phaseOut', label: 'Phase out' }]}
+          options={[{ id: 'reduceCap', label: tr("Reduce capacity") }, { id: 'phaseOut', label: tr("Phase out") }]}
           onChange={v => setParam('lever', v)} />
       </div>
       {(params.lever || 'reduceCap') === 'reduceCap' && (
         <div>
-          <Label>Reduce buildable capacity by</Label>
+          <Label>{tr("Reduce buildable capacity by")}</Label>
           <div className="flex items-center gap-2">
             <input type="range" min={0} max={100} step={5} value={params.reducePct ?? 50}
               onChange={e => setParam('reducePct', parseInt(e.target.value, 10))}
               className="flex-1 accent-slate-900" />
             <span className="text-xs font-mono text-slate-700 w-10 text-right">{params.reducePct ?? 50}%</span>
           </div>
-          <Hint>Caps the group's <code className="bg-slate-100 px-1 rounded">energy_cap_max</code> at {(100 - (params.reducePct ?? 50))}% of its current value.</Hint>
+          <Hint>{tr("Caps the group's")} <code className="bg-slate-100 px-1 rounded">energy_cap_max</code> {tr("at")} {(100 - (params.reducePct ?? 50))}{tr("% of its current value.")}</Hint>
         </div>
       )}
       {(params.lever === 'phaseOut') && (
-        <Hint>Disables every matched tech (energy_cap_max = 0) for the card's scope.</Hint>
+        <Hint>{tr("Disables every matched tech (energy_cap_max = 0) for the card's scope.")}</Hint>
       )}
     </div>
   );
@@ -711,24 +712,24 @@ function LocationCardConfig({ params, setParam, model }) {
   return (
     <div className="space-y-4">
       <div>
-        <Label>Location (from model)</Label>
+        <Label>{tr("Location (from model)")}</Label>
         <SelectField value={params.location} onChange={e => setParam('location', e.target.value)}
           className="h-9 w-full rounded-lg border border-black/15 bg-white px-3 text-sm text-slate-800 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200">
-          <option value="">— select a location —</option>
+          <option value="">{tr("— select a location —")}</option>
           {locations.map(n => <option key={n} value={n}>{n}</option>)}
         </SelectField>
-        {locations.length === 0 && <Hint>This model has no locations defined.</Hint>}
+        {locations.length === 0 && <Hint>{tr("This model has no locations defined.")}</Hint>}
       </div>
       <div>
-        <Label>Action</Label>
+        <Label>{tr("Action")}</Label>
         <ToggleBtn value={params.mode}
-          options={[{ id: 'disable', label: 'Disable here' }, { id: 'set', label: 'Set param' }, { id: 'scale', label: 'Scale param' }]}
+          options={[{ id: 'disable', label: tr("Disable here") }, { id: 'set', label: tr("Set param") }, { id: 'scale', label: tr("Scale param") }]}
           onChange={v => setParam('mode', v)} />
       </div>
       <div>
-        <Label>Technology</Label>
+        <Label>{tr("Technology")}</Label>
         <ToggleBtn value={params.target || 'single'}
-          options={[{ id: 'single', label: 'A technology' }, { id: 'group', label: 'A group' }]}
+          options={[{ id: 'single', label: tr("A technology") }, { id: 'group', label: tr("A group") }]}
           onChange={v => setParam('target', v)} />
         <div className="mt-2">
           {params.target === 'group' ? (
@@ -739,7 +740,7 @@ function LocationCardConfig({ params, setParam, model }) {
           ) : (
             <SelectField value={params.techMatch} onChange={e => setParam('techMatch', e.target.value)}
               className="h-9 w-full rounded-lg border border-black/15 bg-white px-3 text-sm text-slate-800 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200">
-              <option value="">— select a technology —</option>
+              <option value="">{tr("— select a technology —")}</option>
               {allTechs.map(n => <option key={n} value={n}>{n}</option>)}
             </SelectField>
           )}
@@ -748,12 +749,12 @@ function LocationCardConfig({ params, setParam, model }) {
       {params.mode !== 'disable' && (
         <>
           <div>
-            <Label>Param path</Label>
+            <Label>{tr("Param path")}</Label>
             <input value={params.path} onChange={e => setParam('path', e.target.value)} placeholder="constraints.energy_cap_max"
               className="h-9 w-full rounded-lg border border-black/15 bg-white px-3 text-sm text-slate-800 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200 font-mono" />
           </div>
           <div>
-            <Label>{params.mode === 'scale' ? 'Factor' : 'Value'}</Label>
+            <Label>{params.mode === 'scale' ? tr("Factor") : tr("Value")}</Label>
             {params.mode === 'scale'
               ? <NumInput value={params.factor} onChange={v => setParam('factor', v)} step={0.01} className="w-24" />
               : <NumInput value={params.value} onChange={v => setParam('value', v)} step={1} className="w-24" />}
@@ -761,8 +762,7 @@ function LocationCardConfig({ params, setParam, model }) {
         </>
       )}
       <div className="text-[11px] text-slate-400 bg-slate-50 rounded-lg px-3 py-2">
-        Applies only within this location (location-level override; only affects a tech that already
-        exists at that location).
+        {tr("Applies only within this location (location-level override; only affects a tech that already exists at that location).")}
       </div>
     </div>
   );
@@ -773,22 +773,22 @@ function RenewablesCardConfig({ params, setParam, model }) {
   return (
     <div className="space-y-4">
       <div className="text-xs text-slate-600 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
-        Boost renewables by raising the buildable capacity of all matching techs at once.
+        {tr("Boost renewables by raising the buildable capacity of all matching techs at once.")}
       </div>
       <div>
-        <Label>Target group</Label>
+        <Label>{tr("Target group")}</Label>
         <GroupSelect value={params.group || 'renewable'} model={model} onChange={v => setParam('group', v)} />
         <MatchedTechs names={matched} />
       </div>
       <div>
-        <Label>Increase buildable capacity by</Label>
+        <Label>{tr("Increase buildable capacity by")}</Label>
         <div className="flex items-center gap-2">
           <input type="range" min={0} max={300} step={10} value={params.boostPct ?? 50}
             onChange={e => setParam('boostPct', parseInt(e.target.value, 10))}
             className="flex-1 accent-slate-900" />
           <span className="text-xs font-mono text-slate-700 w-12 text-right">+{params.boostPct ?? 50}%</span>
         </div>
-        <Hint>Scales the group's <code className="bg-slate-100 px-1 rounded">energy_cap_max</code> to {100 + (params.boostPct ?? 50)}% of its current value.</Hint>
+        <Hint>{tr("Scales the group's")} <code className="bg-slate-100 px-1 rounded">energy_cap_max</code> {tr("to")} {100 + (params.boostPct ?? 50)}{tr("% of its current value.")}</Hint>
       </div>
     </div>
   );
@@ -815,26 +815,26 @@ function TimeseriesCardConfig({ params, setParam, model, timeSeries }) {
   return (
     <div className="space-y-4">
       <div>
-        <Label>Replace profile</Label>
+        <Label>{tr("Replace profile")}</Label>
         <SelectField value={params.fromFile} onChange={e => setParam('fromFile', e.target.value)}
           className="w-full px-3 py-1.5 text-sm border border-black/15 rounded-lg bg-white font-mono focus:outline-none focus:ring-2 focus:ring-electric-400">
-          <option value="">— a CSV the model uses —</option>
+          <option value="">{tr("— a CSV the model uses —")}</option>
           {refs.map(f => <option key={f} value={f}>{f}</option>)}
         </SelectField>
       </div>
       <div>
-        <Label>With</Label>
+        <Label>{tr("With")}</Label>
         <input list="ts-available" value={params.toFile} onChange={e => setParam('toFile', e.target.value)}
-          placeholder="e.g. pv_1989.csv"
+          placeholder={tr("e.g. pv_1989.csv")}
           className="h-9 w-full rounded-lg border border-black/15 bg-white px-3 text-sm text-slate-800 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200 font-mono" />
         <datalist id="ts-available">{available.map(f => <option key={f} value={f} />)}</datalist>
-        <Hint>A time series of this model, or a CSV bundled with its template (weather years, demand scenarios). Columns must match the original.</Hint>
+        <Hint>{tr("A time series of this model, or a CSV bundled with its template (weather years, demand scenarios). Columns must match the original.")}</Hint>
       </div>
       <div>
-        <Label>Only for technology (optional)</Label>
+        <Label>{tr("Only for technology (optional)")}</Label>
         <SelectField value={techValue} onChange={e => setParam('techMatch', e.target.value ? [e.target.value] : '')}
           className="w-full px-3 py-1.5 text-sm border border-black/15 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-electric-400">
-          <option value="">All technologies using it</option>
+          <option value="">{tr("All technologies using it")}</option>
           {techs.map(n => <option key={n} value={n}>{n}</option>)}
         </SelectField>
       </div>
@@ -861,10 +861,10 @@ function SensitivityCardConfig({ params, setParam }) {
   };
   return (
     <div className="space-y-3">
-      <Hint>Each case runs separately on top of the rest of the board (and once per SPORES slack, if a SPORES card is present).</Hint>
+      <Hint>{tr("Each case runs separately on top of the rest of the board (and once per SPORES slack, if a SPORES card is present).")}</Hint>
       <button onClick={() => update(JSON.parse(JSON.stringify(ITALY_VARIANTS)))}
         className="w-full px-3 py-1.5 text-xs font-medium rounded-lg border border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100">
-        Load Lombardi et al. 2020 cases (9)
+        {tr("Load Lombardi et al. 2020 cases (9)")}
       </button>
       <div className="space-y-1.5">
         {cases.map((c, i) => (
@@ -873,27 +873,27 @@ function SensitivityCardConfig({ params, setParam }) {
               <input value={c.label} onChange={e => update(cases.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))}
                 className="flex-1 min-w-0 px-2 py-1 text-xs border border-black/15 rounded" />
               <button onClick={() => (editing === i ? setEditing(null) : startEdit(i))} className="text-[11px] text-electric-600 hover:underline">
-                {editing === i ? 'close' : 'ops'}
+                {editing === i ? tr("close") : tr("ops")}
               </button>
               <button onClick={() => update(cases.filter((_, j) => j !== i))} className={`${iconBtn('delete', 'sm')}`}>
                 <FiTrash2 size={ICON_PX.sm} />
               </button>
             </div>
-            <p className="text-[10px] text-slate-500 mt-1 truncate">{summarizeOps(c.ops) || 'no changes (baseline)'}</p>
+            <p className="text-[10px] text-slate-500 mt-1 truncate">{summarizeOps(c.ops) || tr("no changes (baseline)")}</p>
             {editing === i && (
               <div className="mt-2">
                 <textarea value={draft} onChange={e => setDraft(e.target.value)} rows={6}
                   className="w-full px-2 py-1 text-[11px] font-mono border border-black/15 rounded" />
                 {error && <p className="text-[11px] text-red-600">{error}</p>}
-                <button onClick={saveEdit} className="mt-1 px-2 py-1 text-xs rounded bg-black text-white">Save ops</button>
+                <button onClick={saveEdit} className="mt-1 px-2 py-1 text-xs rounded bg-black text-white">{tr("Save ops")}</button>
               </div>
             )}
           </div>
         ))}
       </div>
-      <button onClick={() => update([...cases, { id: `case_${Date.now()}`, label: `Case ${cases.length + 1}`, ops: [] }])}
+      <button onClick={() => update([...cases, { id: `case_${Date.now()}`, label: tr("Case {0}", { 0: cases.length + 1 }), ops: [] }])}
         className="flex items-center gap-1 text-xs text-electric-600 hover:underline">
-        <FiPlus size={12} /> Add case
+        <FiPlus size={12} /> {tr("Add case")}
       </button>
     </div>
   );
@@ -921,11 +921,11 @@ function SporesCardConfig({ params, setParam, model }) {
         setParam('modelConfig', JSON.parse(JSON.stringify(ITALY_MODEL_CONFIG)));
       }}
         className="w-full px-3 py-1.5 text-xs font-medium rounded-lg border border-teal-200 bg-teal-50 text-teal-700 hover:bg-teal-100">
-        Load Lombardi et al. 2020 settings (178 per slack)
+        {tr("Load Lombardi et al. 2020 settings (178 per slack)")}
       </button>
 
       <div>
-        <Label>Cost relaxations (one ensemble each)</Label>
+        <Label>{tr("Cost relaxations (one ensemble each)")}</Label>
         <div className="flex gap-1 flex-wrap">
           {SLACK_CHOICES.map(v => (
             <button key={v} onClick={() => setParam('slacks', slacks.includes(v) ? slacks.filter(x => x !== v) : [...slacks, v].sort((a, b) => a - b))}
@@ -937,17 +937,17 @@ function SporesCardConfig({ params, setParam, model }) {
       </div>
 
       <div>
-        <Label>Stages</Label>
+        <Label>{tr("Stages")}</Label>
         <div className="space-y-1.5">
           {plan.stages.map((st, i) => (
             <div key={i} className="flex items-center gap-2 rounded-lg border border-black/15 px-2 py-1.5">
               <div className="flex-1 min-w-0">
                 <div className="text-xs font-medium text-slate-700">
-                  {st.type === 'explore' ? 'Explore (spatial diversity)' : `Minimise: ${st.label || 'targets'}`}
+                  {st.type === 'explore' ? tr("Explore (spatial diversity)") : tr("Minimise: {0}", { 0: st.label || 'targets' })}
                 </div>
                 {st.type === 'minimise' && (
                   <div className="text-[10px] text-slate-500 truncate" title={(st.targets || []).map(t => t.join('+')).join(', ')}>
-                    {(st.targets || []).length} targets · {(st.targets || []).map(t => t.join('+')).join(', ')}
+                    {(st.targets || []).length} {tr("targets ·")} {(st.targets || []).map(t => t.join('+')).join(', ')}
                   </div>
                 )}
               </div>
@@ -957,13 +957,13 @@ function SporesCardConfig({ params, setParam, model }) {
             </div>
           ))}
         </div>
-        <Hint>Explore: number of SPORES. Minimise: SPORES per target — the first minimises only the target, later ones also keep exploring.</Hint>
+        <Hint>{tr("Explore: number of SPORES. Minimise: SPORES per target — the first minimises only the target, later ones also keep exploring.")}</Hint>
       </div>
 
       <div>
-        <Label>Scored technologies</Label>
+        <Label>{tr("Scored technologies")}</Label>
         {(plan.scoredTechs || []).length === 0
-          ? <p className="text-xs text-slate-500">All investment technologies ({investTechs.length}).</p>
+          ? <p className="text-xs text-slate-500">{tr("All investment technologies (")}{investTechs.length}).</p>
           : <MatchedTechs names={plan.scoredTechs} />}
       </div>
 
@@ -971,16 +971,15 @@ function SporesCardConfig({ params, setParam, model }) {
         <label className="flex items-center gap-2 text-xs text-slate-600">
           <input type="checkbox" checked={mc.ensureFeasibility === false}
             onChange={e => setParam('modelConfig', { ...mc, ensureFeasibility: e.target.checked ? false : undefined })} />
-          No unmet-demand slack (ensure_feasibility: false)
+          {tr("No unmet-demand slack (ensure_feasibility: false)")}
         </label>
         {mc.solverOptions && (
-          <p className="text-[11px] text-slate-500">Solver: HiGHS {mc.solverOptions.method || ''}{mc.solverOptions.crossover ? `, crossover ${mc.solverOptions.crossover}` : ''}{mc.solverOptions.optimalityTol ? `, tol ${mc.solverOptions.optimalityTol}` : ''}</p>
+          <p className="text-[11px] text-slate-500">{tr("Solver: HiGHS")} {mc.solverOptions.method || ''}{mc.solverOptions.crossover ? tr(", crossover {0}", { 0: mc.solverOptions.crossover }) : ''}{mc.solverOptions.optimalityTol ? tr(", tol {0}", { 0: mc.solverOptions.optimalityTol }) : ''}</p>
         )}
       </div>
 
       <div className="rounded-lg bg-teal-50 border border-teal-200 p-3 text-xs text-teal-800">
-        <span className="font-semibold">{n} SPORES</span> × {slacks.length || 0} relaxation{slacks.length === 1 ? '' : 's'} per scenario.
-        Runs on Calliope 0.6.8 locally, or Calliope 0.7 on MEME. Every SPORE is a full re-solve of the model.
+        <span className="font-semibold">{n} {tr("SPORES")}</span> × {slacks.length || 0} {tr("relaxation")}{slacks.length === 1 ? '' : 's'} {tr("per scenario. Runs on Calliope 0.6.8 locally, or Calliope 0.7 on MEME. Every SPORE is a full re-solve of the model.")}
       </div>
     </div>
   );
@@ -999,7 +998,7 @@ export function CardConfig({ category, params, setParam, model, timeSeries }) {
   if (!model) {
     return (
       <div className="flex items-center gap-2 text-sm text-slate-500 italic">
-        <FiInfo size={14} /> Select a model to configure this card.
+        <FiInfo size={14} /> {tr("Select a model to configure this card.")}
       </div>
     );
   }
@@ -1017,7 +1016,7 @@ export function CardConfig({ category, params, setParam, model, timeSeries }) {
     const Panel = RECIPE_PANEL[category.slice(7)];
     return Panel ? <Panel params={params} setParam={setParam} model={model} /> : null;
   }
-  return <p className="text-sm text-slate-500 italic">No configuration for this card.</p>;
+  return <p className="text-sm text-slate-500 italic">{tr("No configuration for this card.")}</p>;
 }
 
 // ─── Variant badge (for the side panel variant list) ────────────────────────────
@@ -1029,7 +1028,7 @@ export function VariantBadge({ variant }) {
       <span className="font-semibold text-slate-700">{variant.label}</span>
       {summary
         ? <span className="text-slate-500 truncate max-w-[200px]" title={summary}>{summary}</span>
-        : <span className="text-slate-400">baseline</span>}
+        : <span className="text-slate-400">{tr("baseline")}</span>}
     </div>
   );
 }

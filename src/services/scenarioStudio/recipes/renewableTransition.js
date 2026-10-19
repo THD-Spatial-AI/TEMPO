@@ -26,16 +26,17 @@
  */
 
 import { resolveYears, resolveTechMatch, progress, FOSSIL_KEYWORDS } from '../utils.js';
+import { tr } from '../../../i18n';
 
 export const PARAM_SCHEMA = {
-  baseYear:          { type: 'number',   label: 'Base year',         default: 2025 },
-  targetYear:        { type: 'number',   label: 'Target year',       default: 2040 },
-  snapshotYears:     { type: 'yearRange',label: 'Snapshot years',    default: { from: 2025, to: 2040, step: 5 } },
-  fossilTechs:       { type: 'techMatch',label: 'Fossil technologies',default: { nameContains: FOSSIL_KEYWORDS } },
-  phaseOutMode:      { type: 'select',   label: 'Phase-out mode',    default: 'graduated', options: ['graduated', 'cliff'] },
-  renewableCapScale: { type: 'number',   label: 'Renewable cap scale (at target)', default: null },
-  renewableMinShare: { type: 'percent',  label: 'Renewable min share (at target)', default: null },
-  renewableTechs:    { type: 'techMatch',label: 'Renewable technologies (for min constraint)', default: [] },
+  baseYear:          { type: 'number',   label: tr("Base year"),         default: 2025 },
+  targetYear:        { type: 'number',   label: tr("Target year"),       default: 2040 },
+  snapshotYears:     { type: 'yearRange',label: tr("Snapshot years"),    default: { from: 2025, to: 2040, step: 5 } },
+  fossilTechs:       { type: 'techMatch',label: tr("Fossil technologies"),default: { nameContains: FOSSIL_KEYWORDS } },
+  phaseOutMode:      { type: 'select',   label: tr("Phase-out mode"),    default: 'graduated', options: ['graduated', 'cliff'] },
+  renewableCapScale: { type: 'number',   label: tr("Renewable cap scale (at target)"), default: null },
+  renewableMinShare: { type: 'percent',  label: tr("Renewable min share (at target)"), default: null },
+  renewableTechs:    { type: 'techMatch',label: tr("Renewable technologies (for min constraint)"), default: [] },
 };
 
 function fossilOps(model, fossilNames, t, phaseOutMode) {

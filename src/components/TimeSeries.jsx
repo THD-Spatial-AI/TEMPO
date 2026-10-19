@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { FiUpload, FiTrash2, FiBarChart2, FiDownload, FiClock, FiTrendingUp, FiActivity, FiDatabase, FiFileText, FiChevronDown, FiChevronUp } from './ui/icons';
-import ReactECharts from 'echarts-for-react';
+import ReactECharts from './ui/Chart';
 import DataTablePanel from './timeseries/DataTablePanel';
 import TimeSeriesFilterSidebar from './timeseries/TimeSeriesFilterSidebar';
 import TimeSeriesChart from './timeseries/TimeSeriesChart';
@@ -12,8 +12,11 @@ import { expectedTimestepCount } from '../services/demandProfiles';
 import SaveBar from './ui/SaveBar';
 import TimeSeriesGuide from './timeseries/TimeSeriesGuide';
 import { confirmAction } from './ui/confirm';
+import { useT } from '../i18n';
+import { tr } from '../i18n';
 
 const TimeSeries = () => {
+  const t = useT();
   const { timeSeries, setTimeSeries, getCurrentModel } = useData();
   const currentModel = getCurrentModel();
   const chartRef = useRef(null);
@@ -393,14 +396,14 @@ const TimeSeries = () => {
         event.target.value = null;
       },
       error: (error) => {
-        alert(`Error parsing CSV: ${error.message}`);
+        alert(tr("Error parsing CSV: {0}", { 0: error.message }));
       }
     });
   };
 
   // Delete timeseries
   const handleDelete = async (id) => {
-    if (await confirmAction({ title: 'Delete this time series?', message: 'Technologies that reference its columns will need a new source.', details: timeSeries.find(ts => ts.id === id)?.name })) {
+    if (await confirmAction({ title: tr("Delete this time series?"), message: tr("Technologies that reference its columns will need a new source."), details: timeSeries.find(ts => ts.id === id)?.name })) {
       setTimeSeries(timeSeries.filter(ts => ts.id !== id));
       if (selectedTimeSeries?.id === id) {
         setSelectedTimeSeries(null);
@@ -478,7 +481,7 @@ const TimeSeries = () => {
     a.download = selectedTimeSeries.fileName;
     a.click();
     URL.revokeObjectURL(url);
-    showNotification('CSV exported successfully!', 'success');
+    showNotification(tr("CSV exported successfully!"), 'success');
   };
 
   // Get date/time column (always the first column)
@@ -667,15 +670,15 @@ const TimeSeries = () => {
       <div className="flex flex-wrap items-center gap-3 border-b border-black/15 bg-white px-6 py-4">
         <div className="min-w-0">
           <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight text-slate-900">
-            Time Series
+            {t('page.timeseries.title')}
             {modelTimeSeries.length > 0 && (
-              <span className="bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600" title={`${modelTimeSeries.length} file${modelTimeSeries.length === 1 ? '' : 's'}`}>{modelTimeSeries.length}</span>
+              <span className="bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600" title={tr("{0} file{1}", { 0: modelTimeSeries.length, 1: modelTimeSeries.length === 1 ? '' : 's' })}>{modelTimeSeries.length}</span>
             )}
           </h1>
-          <p className="text-xs text-slate-500">Demand profiles and resource availability used by your model</p>
+          <p className="text-xs text-slate-500">{t('page.timeseries.subtitle')}</p>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <SaveBar label="Time Series" inline />
+          <SaveBar label={tr("Time Series")} inline />
           <span className="mx-1 h-6 w-px bg-black/10" />
           <button
             onClick={() => setShowGuide(v => !v)}
@@ -683,11 +686,11 @@ const TimeSeries = () => {
               showGuide ? 'border-black/15 bg-slate-50 text-slate-900' : 'border-black/15 bg-white text-slate-700 hover:bg-slate-50'
             }`}
           >
-            <FiFileText size={14} /> File format
+            <FiFileText size={14} /> {tr("File format")}
           </button>
           <label className="flex h-9 cursor-pointer items-center gap-1.5 rounded-lg bg-black px-3 text-[13px] font-semibold text-white  transition-colors hover:bg-black/80">
             <FiUpload size={14} />
-            Upload CSV
+            {tr("Upload CSV")}
             <input type="file" accept=".csv" onChange={handleFileUpload} className="hidden" />
           </label>
         </div>
@@ -709,7 +712,7 @@ const TimeSeries = () => {
                       const dataColumns = getDataColumns(ts);
                       setSelectedColumns(dataColumns.slice(0, Math.min(5, dataColumns.length)));
                     }}
-                    title={`${ts.fileName} - ${ts.rowCount} rows, ${ts.columns?.length} columns`}
+                    title={tr("{0} - {1} rows, {2} columns", { 0: ts.fileName, 1: ts.rowCount, 2: ts.columns?.length })}
                     className={`group flex w-60 shrink-0 cursor-pointer items-center gap-2.5 rounded-xl border px-3 py-2 transition-all ${
                       sel ? 'border-slate-900 bg-black text-white ' : 'border-black/15 bg-white hover:border-black/15 hover:'
                     }`}
@@ -720,22 +723,22 @@ const TimeSeries = () => {
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[13px] font-semibold">{ts.name}</span>
                       <span className={`block truncate text-[11px] ${sel ? 'text-white/60' : 'text-slate-500'}`}>
-                        {ts.type === 'data_table' ? 'Data table' : 'Time series'} · {ts.rowCount} × {Math.max(0, (ts.columns?.length || 1) - 1)}
-                        {ts.source === 'template' ? ' · template' : ''}{ts.modified ? ' · edited' : ''}
+                        {ts.type === 'data_table' ? tr("Data table") : tr("Time series")} · {ts.rowCount} × {Math.max(0, (ts.columns?.length || 1) - 1)}
+                        {ts.source === 'template' ? tr(" · template") : ''}{ts.modified ? tr(" · edited") : ''}
                       </span>
                     </span>
                     <span className="flex shrink-0 gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
                       <button
                         onClick={(e) => { e.stopPropagation(); handleDownload(ts); }}
                         className={`grid h-6 w-6 place-items-center rounded-md ${sel ? 'hover:bg-white/15' : 'text-slate-400 hover:bg-slate-100 hover:text-slate-900'}`}
-                        title="Download"
+                        title={tr("Download")}
                       >
                         <FiDownload size={12} />
                       </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); handleDelete(ts.id); }}
                         className={`grid h-6 w-6 place-items-center rounded-md ${sel ? 'hover:bg-white/15' : 'text-slate-400 hover:bg-red-50 hover:text-red-600'}`}
-                        title="Delete"
+                        title={tr("Delete")}
                       >
                         <FiTrash2 size={12} />
                       </button>
@@ -759,19 +762,19 @@ const TimeSeries = () => {
             <div className="h-full overflow-y-auto px-6 py-8">
               {loading ? (
                 <div className="flex h-full items-center justify-center gap-2 text-sm text-slate-500">
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-black/15 border-t-slate-700" /> Loading…
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-black/15 border-t-slate-700" /> {tr("Loading…")}
                 </div>
               ) : modelTimeSeries.length === 0 ? (
                 <div className="mx-auto max-w-6xl">
-                  <h2 className="text-lg font-semibold text-slate-900">Add your first time series</h2>
-                  <p className="mb-5 text-sm text-slate-500">Upload a CSV with hourly demand or resource data. Here is the format TEMPO expects.</p>
+                  <h2 className="text-lg font-semibold text-slate-900">{tr("Add your first time series")}</h2>
+                  <p className="mb-5 text-sm text-slate-500">{tr("Upload a CSV with hourly demand or resource data. Here is the format TEMPO expects.")}</p>
                   <TimeSeriesGuide onFile={uploadFile} />
                 </div>
               ) : (
                 <div className="flex h-full flex-col items-center justify-center text-center">
                   <div className="mb-3 grid h-12 w-12 place-items-center rounded-full bg-slate-100 text-slate-500"><FiBarChart2 size={20} /></div>
-                  <p className="text-sm font-semibold text-slate-800">Select a file to visualise</p>
-                  <p className="mt-1 text-sm text-slate-500">Pick one of the files above, or upload a new CSV.</p>
+                  <p className="text-sm font-semibold text-slate-800">{tr("Select a file to visualise")}</p>
+                  <p className="mt-1 text-sm text-slate-500">{tr("Pick one of the files above, or upload a new CSV.")}</p>
                 </div>
               )}
             </div>
@@ -784,14 +787,14 @@ const TimeSeries = () => {
                     <FiFileText size={12} />
                     <span className="font-semibold text-slate-800">{selectedTimeSeries.name}</span>
                     {selectedTimeSeries.modified && (
-                      <span className="px-1.5 py-0.5 text-[9px] bg-gray-100 text-gray-800 rounded">Modified</span>
+                      <span className="px-1.5 py-0.5 text-[9px] bg-gray-100 text-gray-800 rounded">{tr("Modified")}</span>
                     )}
                     <span className="text-slate-500">•</span>
-                    <span className="text-slate-600">{getDateColumn(selectedTimeSeries)}</span>
+                    <span className="text-slate-600">{tr("Time column: {0}", { 0: getDateColumn(selectedTimeSeries) })}</span>
                     <span className="text-slate-500">•</span>
-                    <span className="text-slate-600">{selectedTimeSeries.rowCount} rows</span>
+                    <span className="text-slate-600">{selectedTimeSeries.rowCount} {tr("rows")}</span>
                     <span className="text-slate-500">•</span>
-                    <span className="text-slate-600">{getDataColumns(selectedTimeSeries).length} columns</span>
+                    <span className="text-slate-600">{getDataColumns(selectedTimeSeries).length} {tr("columns")}</span>
                   </div>
                   <div className="flex gap-1.5">
                     <button
@@ -799,7 +802,7 @@ const TimeSeries = () => {
                       className="px-2 py-1 text-[11px] bg-black text-white rounded hover:bg-black/80 transition-colors flex items-center gap-1"
                     >
                       <FiDownload size={10} />
-                      Export
+                      {tr("Export")}
                     </button>
                   </div>
                 </div>
@@ -811,15 +814,15 @@ const TimeSeries = () => {
                 <div className={`px-4 py-1.5 border-b flex items-center justify-between gap-2 ${demandMeta.stale ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-black/15'}`}>
                   <span className={`text-[11px] ${demandMeta.stale ? 'text-amber-700' : 'text-slate-500'}`}>
                     {demandMeta.stale
-                      ? `Demand series out of date — ${demandMeta.rows} rows vs ${demandMeta.expected} model timesteps. Regenerate to match.`
-                      : `Generated demand series (${demandMeta.source || 'synthetic'}). Regenerate after changing model dates or resolution.`}
+                      ? tr("Demand series out of date — {0} rows vs {1} model timesteps. Regenerate to match.", { 0: demandMeta.rows, 1: demandMeta.expected })
+                      : tr("Generated demand series ({0}). Regenerate after changing model dates or resolution.", { 0: demandMeta.source || 'synthetic' })}
                   </span>
                   <button
                     onClick={handleRegenerateDemand} disabled={regeneratingDemand}
                     className={`px-2 py-1 text-[11px] rounded text-white disabled:opacity-60 flex items-center gap-1 ${demandMeta.stale ? 'bg-amber-500 hover:bg-amber-600' : 'bg-slate-600 hover:bg-slate-700'}`}
                   >
                     <FiClock size={10} />
-                    {regeneratingDemand ? 'Regenerating…' : 'Regenerate from demandlib'}
+                    {regeneratingDemand ? tr("Regenerating…") : tr("Regenerate from demandlib")}
                   </button>
                 </div>
               )}

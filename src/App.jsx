@@ -6,6 +6,10 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import PrivacyDialog from "./components/PrivacyDialog";
 // Dashboard is the initial view — load eagerly
 import Dashboard from "./components/Dashboard";
+import { tr, getLanguage } from './i18n';
+
+// Language at load
+const BOOT_LANG = getLanguage();
 // All other views are lazy-loaded to reduce initial bundle size (LCP/INP fix)
 const Tutorial = lazy(() => import("./components/Tutorial"));
 const Models = lazy(() => import("./components/Models"));
@@ -25,6 +29,7 @@ const Export = lazy(() => import("./components/Export"));
 const Run = lazy(() => import("./components/Run"));
 const Results = lazy(() => import("./components/Results"));
 const SetupScreen = lazy(() => import("./components/SetupScreen"));
+const LanguageStep = lazy(() => import("./components/SetupScreen").then((m) => ({ default: m.LanguageStep })));
 
 function AppContent() {
   const [selected, setSelected] = useState(() => getSetting('defaultView'));
@@ -45,7 +50,7 @@ function AppContent() {
         e.preventDefault();
         if (currentModelId && EDITING_VIEWS.has(selected)) {
           saveNow();
-          showNotification('Model saved.', 'success');
+          showNotification(tr("Model saved."), 'success');
         }
       }
     };
@@ -89,7 +94,7 @@ function AppContent() {
 
   const handleSaveAndNavigate = () => {
     saveNow();
-    showNotification('Changes saved.', 'success');
+    showNotification(tr("Changes saved."), 'success');
     confirmNavigation();
   };
 
@@ -126,7 +131,7 @@ function AppContent() {
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[99999] focus:px-4 focus:py-2 focus:bg-electric-600 focus:text-white focus:rounded-lg focus:shadow-lg focus:outline-none"
       >
-        Skip to main content
+        {tr("Skip to main content")}
       </a>
 
       <div className="flex h-screen overflow-hidden relative">
@@ -160,15 +165,15 @@ function AppContent() {
                 </svg>
               </span>
               <div>
-                <h3 className="text-base font-semibold text-slate-900">Unsaved changes</h3>
-                <p className="text-xs text-slate-500 mt-0.5">You're leaving <span className="font-medium text-slate-700">{selected}</span> with unsaved edits</p>
+                <h3 className="text-base font-semibold text-slate-900">{tr("Unsaved changes")}</h3>
+                <p className="text-xs text-slate-500 mt-0.5">{tr("You're leaving")} <span className="font-medium text-slate-700">{selected}</span> {tr("with unsaved edits")}</p>
               </div>
             </div>
 
             {/* Body */}
             <div className="px-6 py-4">
               <p className="text-sm text-slate-600">
-                Your changes haven't been saved yet. Save now to make sure nothing is lost.
+                {tr("Your changes haven't been saved yet. Save now to make sure nothing is lost.")}
               </p>
             </div>
 
@@ -178,20 +183,20 @@ function AppContent() {
                 onClick={cancelNavigation}
                 className="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 border border-black/15 hover:bg-slate-50 transition-colors"
               >
-                Stay here
+                {tr("Stay here")}
               </button>
               <button
                 onClick={confirmNavigation}
                 className="px-4 py-2 rounded-lg text-sm font-medium text-slate-500 hover:bg-slate-100 transition-colors"
-                title="Leave without an explicit save — auto-save will still run in ~1.5 s"
+                title={tr("Leave without an explicit save — auto-save will still run in ~1.5 s")}
               >
-                Leave anyway
+                {tr("Leave anyway")}
               </button>
               <button
                 onClick={handleSaveAndNavigate}
                 className="px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wide text-white bg-black hover:bg-black/80 shadow-sm transition-colors"
               >
-                Save &amp; leave
+                {tr("Save & leave")}
               </button>
             </div>
           </div>
@@ -204,6 +209,7 @@ function AppContent() {
 function App() {
   // 'checking' | 'setup' | 'ready'
   const [appState, setAppState]       = useState('checking');
+  const [langPicked, setLangPicked]   = useState(() => !!getSetting('languageChosen'));
   const [freshInstall, setFreshInstall] = useState(false); // true when this is a new-version launch
   const [consentGiven, setConsentGiven] = useState(true); // optimistic; corrected after check
 
@@ -261,12 +267,28 @@ function App() {
     );
   }
 
+  // Language picker until chosen
+  if (!langPicked && !(appState === 'setup' && freshInstall)) {
+    return (
+      <Suspense fallback={null}>
+        <LanguageStep
+          onNext={() => {
+            if (getLanguage() !== BOOT_LANG) { window.location.reload(); return; }
+            setLangPicked(true);
+          }}
+        />
+      </Suspense>
+    );
+  }
+
   if (appState === 'setup') {
     return (
       <SetupScreen
         freshInstall={freshInstall}
-        onComplete={() => {
-          window.electronAPI?.markSetupComplete?.();
+        onComplete={async () => {
+          await window.electronAPI?.markSetupComplete?.();
+          // reload for new language
+          if (getLanguage() !== BOOT_LANG) { window.location.reload(); return; }
           setAppState('ready');
         }}
       />

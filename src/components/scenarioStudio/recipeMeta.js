@@ -10,49 +10,50 @@ import {
   FiTrendingUp, FiSun, FiCloud, FiDollarSign, FiSliders, FiGitMerge,
 } from '../ui/icons';
 import { autoDetectTechs, FOSSIL_KEYWORDS, RENEWABLE_KEYWORDS } from '../../services/scenarioStudio/utils.js';
+import { tr } from '../../i18n';
 
 // ─── Recipe catalogue (UI metadata) ─────────────────────────────────────────
 
 export const RECIPE_CARDS = [
   {
     id: 'demandGrowth',
-    label: 'Demand growth pathway',
-    description: 'Grow electricity demand year by year at a defined rate. Each year is an independent solve.',
+    label: tr("Demand growth pathway"),
+    description: tr("Grow electricity demand year by year at a defined rate. Each year is an independent solve."),
     Icon: FiTrendingUp,
     color: 'from-blue-500 to-blue-600',
   },
   {
     id: 'renewableTransition',
-    label: 'Renewable transition',
-    description: 'Phase out fossil techs across yearly snapshots toward a renewable-dominated grid.',
+    label: tr("Renewable transition"),
+    description: tr("Phase out fossil techs across yearly snapshots toward a renewable-dominated grid."),
     Icon: FiSun,
     color: 'from-amber-500 to-orange-500',
   },
   {
     id: 'carbonCap',
-    label: 'Carbon cap / net-zero',
-    description: 'Tighten a CO₂ cap from a starting level toward net-zero across yearly snapshots.',
+    label: tr("Carbon cap / net-zero"),
+    description: tr("Tighten a CO₂ cap from a starting level toward net-zero across yearly snapshots."),
     Icon: FiCloud,
     color: 'from-green-500 to-emerald-600',
   },
   {
     id: 'costSensitivity',
-    label: 'Cost sensitivity sweep',
-    description: 'Sweep a key cost parameter to see how the optimal energy mix shifts with prices.',
+    label: tr("Cost sensitivity sweep"),
+    description: tr("Sweep a key cost parameter to see how the optimal energy mix shifts with prices."),
     Icon: FiDollarSign,
     color: 'from-purple-500 to-violet-600',
   },
   {
     id: 'spores',
-    label: 'Explore alternatives (SPORES)',
-    description: 'Generate N near-optimal, spatially diverse designs at nearly equal cost. Calliope 0.6 only.',
+    label: tr("Explore alternatives (SPORES)"),
+    description: tr("Generate N near-optimal, spatially diverse designs at nearly equal cost. Calliope 0.6 only."),
     Icon: FiGitMerge,
     color: 'from-teal-500 to-cyan-600',
   },
   {
     id: 'custom',
-    label: 'Custom ops',
-    description: 'Compose your own ops manually or import from a saved legacy scenario.',
+    label: tr("Custom ops"),
+    description: tr("Compose your own ops manually or import from a saved legacy scenario."),
     Icon: FiSliders,
     color: 'from-slate-500 to-slate-600',
   },

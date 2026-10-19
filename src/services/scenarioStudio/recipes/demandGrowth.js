@@ -1,3 +1,4 @@
+import { tr } from '../../../i18n';
 /**
  * Demand growth pathway recipe.
  *
@@ -15,10 +16,10 @@
  */
 
 export const PARAM_SCHEMA = {
-  baseYear:     { type: 'number',    label: 'Base year',           default: 2025 },
-  ratePerYear:  { type: 'percent',   label: 'Annual growth rate',  default: 1.5 },
-  snapshotYears:{ type: 'yearRange', label: 'Snapshot years',      default: { from: 2025, to: 2040, step: 5 } },
-  demandTechs:  { type: 'techMatch', label: 'Demand technologies', default: { parentIs: 'demand' } },
+  baseYear:     { type: 'number',    label: tr("Base year"),           default: 2025 },
+  ratePerYear:  { type: 'percent',   label: tr("Annual growth rate"),  default: 1.5 },
+  snapshotYears:{ type: 'yearRange', label: tr("Snapshot years"),      default: { from: 2025, to: 2040, step: 5 } },
+  demandTechs:  { type: 'techMatch', label: tr("Demand technologies"), default: { parentIs: 'demand' } },
 };
 
 function resolveYears(snapshotYears) {

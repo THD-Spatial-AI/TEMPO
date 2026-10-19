@@ -8,27 +8,29 @@ import Calliope07EnginePanel from './Calliope07EnginePanel';
 import EngineInstallPanel from './EngineInstallPanel';
 import { getSettings, setSetting } from '../services/appSettings';
 import { useData } from '../context/DataContext';
+import { useT, LANGUAGES, setLanguage } from '../i18n';
 import { checkMemeService } from '../services/memeClient';
 import { AI_PROVIDERS, getAIConfig, setAIConfig, providerMeta } from '../services/aiSettings';
+import { tr } from '../i18n';
 
 // ── Module catalogue (mirrors SetupScreen) ───────────────────────────────────
 const PYTHON_MODULES = [
   {
     id: 'calliope',
-    label: 'Calliope 0.6.8',
-    badge: 'Recommended',
+    label: tr("Calliope 0.6.8"),
+    badge: tr("Recommended"),
     badgeColor: 'bg-gray-100 text-gray-700',
-    description: 'Full energy system modelling & optimisation.',
+    description: tr("Full energy system modelling & optimisation."),
   },
   // NOTE: PyPSA is no longer installed into calliope-venv — it has its own
   // isolated engine venv (see EngineInstallPanel below). requirements.pypsa.txt
   // now targets that venv and is incompatible with the 0.6.8 stack.
   {
     id: 'adopt',
-    label: 'ADOPT (latest)',
-    badge: 'Experimental',
+    label: tr("ADOPT (latest)"),
+    badge: tr("Experimental"),
     badgeColor: 'bg-gray-100 text-gray-500',
-    description: 'Agent-based power system optimisation framework.',
+    description: tr("Agent-based power system optimisation framework."),
   },
 ];
 
@@ -89,8 +91,8 @@ function PythonEnvironmentPanel({ embedded = false, onInstallSuccess }) {
         onInstallSuccess?.();
       }
       if (data.type === 'error') {
-        appendLog('✗ ' + (data.error || data.label || 'Install error'));
-        setError(data.error || 'Installation failed.');
+        appendLog('✗ ' + (data.error || data.label || tr("Install error")));
+        setError(data.error || tr("Installation failed."));
         setInstalling(false);
         if (unsub) unsub();
         unsubRef.current = null;
@@ -106,13 +108,12 @@ function PythonEnvironmentPanel({ embedded = false, onInstallSuccess }) {
     <div>
       {!embedded && (
         <h3 className="text-lg font-semibold text-slate-800 mb-1 flex items-center gap-2">
-          <FiBox className="w-5 h-5 text-slate-400" /> Calliope 0.6.8 Engine
-          <span className="text-xs px-2 py-0.5 font-medium bg-gray-100 text-gray-700">Core</span>
+          <FiBox className="w-5 h-5 text-slate-400" /> {tr("Calliope 0.6.8 Engine")}
+          <span className="text-xs px-2 py-0.5 font-medium bg-gray-100 text-gray-700">{tr("Core")}</span>
         </h3>
       )}
       <p className="text-sm text-slate-500 mb-4">
-        Manage the Python environment used for energy model optimisation.
-        Reinstalling wipes the existing environment and creates a fresh one from scratch.
+        {tr("Manage the Python environment used for energy model optimisation. Reinstalling wipes the existing environment and creates a fresh one from scratch.")}
       </p>
 
       {/* Status badge */}
@@ -130,20 +131,20 @@ function PythonEnvironmentPanel({ embedded = false, onInstallSuccess }) {
         )}
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-slate-800">
-            {statusLoading ? 'Checking…' : envStatus?.envExists ? 'Environment installed' : 'Not installed'}
+            {statusLoading ? tr("Checking…") : envStatus?.envExists ? tr("Environment installed") : tr("Not installed")}
           </p>
           {!statusLoading && envStatus?.venvPath && (
             <p className="text-xs text-slate-400 font-mono truncate">{envStatus.venvPath}</p>
           )}
           {!statusLoading && (
             <p className="text-xs mt-0.5">
-              Service: <span className={envStatus?.serviceRunning ? 'text-gray-700 font-medium' : 'text-slate-400'}>
-                {envStatus?.serviceRunning ? 'running' : 'stopped'}
+              {tr("Service:")} <span className={envStatus?.serviceRunning ? 'text-gray-700 font-medium' : 'text-slate-400'}>
+                {envStatus?.serviceRunning ? tr("running") : tr("stopped")}
               </span>
             </p>
           )}
         </div>
-        <button onClick={refreshStatus} className="p-1 text-slate-400 hover:text-slate-600 transition-colors" title="Refresh">
+        <button onClick={refreshStatus} className="p-1 text-slate-400 hover:text-slate-600 transition-colors" title={tr("Refresh")}>
           <FiRefreshCw className="w-4 h-4" />
         </button>
       </div>
@@ -151,7 +152,7 @@ function PythonEnvironmentPanel({ embedded = false, onInstallSuccess }) {
 
       {/* Module selection */}
       <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-2">
-        <FiBox className="w-3.5 h-3.5" /> Modules to install
+        <FiBox className="w-3.5 h-3.5" /> {tr("Modules to install")}
       </h4>
       <div className="space-y-2 mb-4">
         {PYTHON_MODULES.map(mod => {
@@ -189,7 +190,7 @@ function PythonEnvironmentPanel({ embedded = false, onInstallSuccess }) {
       {isWindows && selectedModules.includes('calliope') && (
         <>
           <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-2">
-            <FiCpu className="w-3.5 h-3.5" /> Solver
+            <FiCpu className="w-3.5 h-3.5" /> {tr("Solver")}
           </h4>
           <button
             onClick={() => setDownloadCbc(v => !v)}
@@ -209,10 +210,10 @@ function PythonEnvironmentPanel({ embedded = false, onInstallSuccess }) {
             <div>
               <div className="flex items-center gap-2">
                 <span className={`text-sm font-semibold ${downloadCbc ? 'text-gray-800' : 'text-slate-700'}`}>
-                  Download CBC solver binary (~7 MB)
+                  {tr("Download CBC solver binary (~7 MB)")}
                 </span>
               </div>
-              <p className="text-xs text-slate-500 mt-0.5">Recommended for large models. Downloaded once and stored in your profile.</p>
+              <p className="text-xs text-slate-500 mt-0.5">{tr("Recommended for large models. Downloaded once and stored in your profile.")}</p>
             </div>
           </button>
         </>
@@ -225,9 +226,9 @@ function PythonEnvironmentPanel({ embedded = false, onInstallSuccess }) {
         className="flex items-center gap-2 px-5 py-2.5 bg-black text-white rounded-xl font-semibold shadow hover:bg-black/80 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm"
       >
         {installing ? (
-          <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Installing…</>
+          <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> {tr("Installing…")}</>
         ) : (
-          <><FiDownload className="w-4 h-4" /> {envStatus?.envExists ? 'Reinstall from scratch' : 'Install'}</>
+          <><FiDownload className="w-4 h-4" /> {envStatus?.envExists ? tr("Reinstall from scratch") : tr("Install")}</>
         )}
       </button>
 
@@ -236,7 +237,7 @@ function PythonEnvironmentPanel({ embedded = false, onInstallSuccess }) {
         <div className="mt-4">
           <div className="flex items-center gap-2 mb-1">
             <FiTerminal className="w-4 h-4 text-slate-400" />
-            <span className="text-xs font-mono text-slate-400 uppercase tracking-wide">Output</span>
+            <span className="text-xs font-mono text-slate-400 uppercase tracking-wide">{tr("Output")}</span>
           </div>
           <div className="bg-slate-950 rounded-xl p-4 h-48 overflow-y-auto font-mono text-xs leading-relaxed">
             {logs.map((l, i) => (
@@ -258,12 +259,12 @@ function PythonEnvironmentPanel({ embedded = false, onInstallSuccess }) {
       {success && (
         <div className="mt-3 flex items-center gap-2 p-3 bg-gray-50 border border-black/15 rounded-xl text-sm text-gray-700">
           <FiCheckCircle className="w-4 h-4 flex-shrink-0" />
-          Installation complete. TEMPO services restarted.
+          {tr("Installation complete. TEMPO services restarted.")}
         </div>
       )}
       {error && (
         <div className="mt-3 p-3 bg-gray-50 border border-black/15 rounded-xl text-sm text-gray-700">
-          <p className="font-semibold mb-1">Installation failed:</p>
+          <p className="font-semibold mb-1">{tr("Installation failed:")}</p>
           <pre className="whitespace-pre-wrap break-all text-xs bg-gray-100 rounded p-2 max-h-24 overflow-y-auto">{error}</pre>
         </div>
       )}
@@ -294,8 +295,8 @@ function EngineAccordion({ title, icon: Icon, badge, checkFn, defaultOpen = fals
 
   const installed = status?.envExists;
   const statusLabel = installed
-    ? (status?.serviceRunning ? 'Installed' : 'Installed · stopped')
-    : 'Not installed';
+    ? (status?.serviceRunning ? tr("Installed") : tr("Installed · stopped"))
+    : tr("Not installed");
 
   return (
     <div className={`overflow-hidden rounded-xl border bg-white transition-shadow ${open ? 'border-black/15 ' : 'border-black/15'}`}>
@@ -366,54 +367,52 @@ function SettingRow({ title, description, children }) {
 }
 
 function GeneralPanel() {
+  const t = useT();
   const [settings, setSettings] = useState(() => getSettings());
   const [viewChanged, setViewChanged] = useState(false);
   const { showNotification, saveNow } = useData();
   const update = (key, value) => setSettings(setSetting(key, value));
+  const viewLabel = (v) => t(`nav.${v}`);
   const chooseDefaultView = (v) => {
     update('defaultView', v);
     setViewChanged(true);
-    showNotification(`TEMPO will open on ${v} next time. Restart now to apply.`, 'info', {
-      label: 'Restart now',
+    showNotification(t('settings.restartNotice', { view: viewLabel(v) }), 'info', {
+      label: t('settings.restartNow'),
       onClick: () => { saveNow?.(); setTimeout(() => window.location.reload(), 300); },
     });
   };
 
   return (
     <div className="divide-y divide-black/10">
-      <SettingRow title="Default view" description="The page TEMPO opens on. Takes effect the next time TEMPO starts.">
+      <SettingRow title={t('settings.language')} description={t('settings.languageDesc')}>
+        <div className="w-48">
+          <Select
+            value={settings.language || 'en'}
+            onChange={(v) => { if (v === settings.language) return; setLanguage(v); saveNow?.(); setTimeout(() => window.location.reload(), 250); }}
+            options={LANGUAGES}
+          />
+        </div>
+      </SettingRow>
+      <SettingRow title={t('settings.defaultView')} description={t('settings.defaultViewDesc')}>
         <div className="w-48">
           <Select
             value={settings.defaultView}
             onChange={chooseDefaultView}
-            options={[
-              { value: 'Dashboard', label: 'Dashboard' },
-              { value: 'Models', label: 'Models' },
-              { value: 'Creation', label: 'Creation' },
-              { value: 'Map View', label: 'Map View' },
-              { value: 'Run', label: 'Run' },
-              { value: 'Results', label: 'Results' },
-            ]}
+            options={['Dashboard', 'Models', 'Creation', 'Map View', 'Run', 'Results'].map((v) => ({ value: v, label: viewLabel(v) }))}
           />
           {viewChanged && (
             <p className="mt-1.5 flex items-center gap-1 text-[11px] text-emerald-700">
-              <FiCheckCircle size={12} /> Opens on {settings.defaultView} next time
+              <FiCheckCircle size={12} /> {t('settings.opensOn', { view: viewLabel(settings.defaultView) })}
             </p>
           )}
         </div>
       </SettingRow>
-      <SettingRow
-        title="Auto-save"
-        description="Save model changes 1.5 s after you stop editing. When off, save with Ctrl+S — TEMPO still asks before you leave unsaved changes."
-      >
-        <Toggle checked={settings.autoSave} onChange={(v) => update('autoSave', v)} label="Auto-save" />
+      <SettingRow title={t('settings.autoSave')} description={t('settings.autoSaveDesc')}>
+        <Toggle checked={settings.autoSave} onChange={(v) => update('autoSave', v)} label={t('settings.autoSave')} />
       </SettingRow>
       {window.electronAPI?.updates && (
-        <SettingRow
-          title="Check for updates automatically"
-          description="Ask GitHub for a newer TEMPO release at startup and every 6 hours. You can always check manually in About."
-        >
-          <Toggle checked={settings.autoUpdateCheck} onChange={(v) => update('autoUpdateCheck', v)} label="Check for updates automatically" />
+        <SettingRow title={t('settings.autoUpdate')} description={t('settings.autoUpdateDesc')}>
+          <Toggle checked={settings.autoUpdateCheck} onChange={(v) => update('autoUpdateCheck', v)} label={t('settings.autoUpdate')} />
         </SettingRow>
       )}
     </div>
@@ -449,27 +448,25 @@ function RemoteExecutionPanel() {
     setTesting(false);
     setTestResult(caps
       ? { ok: true, targets: caps.targets || [] }
-      : { ok: false, error: 'Could not reach the MEME server, or /capabilities failed.' });
+      : { ok: false, error: tr("Could not reach the MEME server, or /capabilities failed.") });
   };
 
   return (
     <div>
       <h3 className="text-lg font-semibold text-slate-800 mb-1 flex items-center gap-2">
-        <FiServer className="w-5 h-5 text-slate-400" /> Remote Execution (MEME)
-        <span className="text-xs px-2 py-0.5 font-medium bg-gray-100 text-gray-600">Beta</span>
+        <FiServer className="w-5 h-5 text-slate-400" /> {tr("Remote Execution (MEME)")}
+        <span className="text-xs px-2 py-0.5 font-medium bg-gray-100 text-gray-600">{tr("Beta")}</span>
       </h3>
       <p className="text-sm text-slate-500 mb-5 max-w-2xl">
-        Point TEMPO at a remote MEME server to run models on its hardware instead of this
-        machine. Only <span className="font-medium text-slate-600">PyPSA</span>,{' '}
-        <span className="font-medium text-slate-600">Calliope 0.7</span> and{' '}
-        <span className="font-medium text-slate-600">AdOpT-NET0</span> can run remotely; Calliope
-        0.6.8 and OSeMOSYS always run locally. Choose Local or Remote per run in the Run panel.
+        {tr("Point TEMPO at a remote MEME server to run models on its hardware instead of this machine. Only")} <span className="font-medium text-slate-600">{tr("PyPSA")}</span>,{' '}
+        <span className="font-medium text-slate-600">{tr("Calliope 0.7")}</span> {tr("and")}{' '}
+        <span className="font-medium text-slate-600">{tr("AdOpT-NET0")}</span> {tr("can run remotely; Calliope 0.6.8 and OSeMOSYS always run locally. Choose Local or Remote per run in the Run panel.")}
       </p>
 
       <div className="space-y-5 max-w-md">
         {/* Server URL */}
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-2">Server URL</label>
+          <label className="block text-sm font-medium text-slate-700 mb-2">{tr("Server URL")}</label>
           <input
             type="text"
             value={form.url}
@@ -481,13 +478,13 @@ function RemoteExecutionPanel() {
 
         {/* API key */}
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-2">API key</label>
+          <label className="block text-sm font-medium text-slate-700 mb-2">{tr("API key")}</label>
           <div className="flex gap-2">
             <input
               type={showKey ? 'text' : 'password'}
               value={form.apiKey}
               onChange={(e) => update('apiKey', e.target.value)}
-              placeholder="Leave blank if the server has no API_KEY set"
+              placeholder={tr("Leave blank if the server has no API_KEY set")}
               className="flex-1 h-10 px-3 border border-black/15 bg-white rounded-lg font-mono text-sm focus:outline-none focus:border-black/15 focus:ring-2 focus:ring-slate-200"
             />
             <button
@@ -495,12 +492,11 @@ function RemoteExecutionPanel() {
               onClick={() => setShowKey(v => !v)}
               className="px-3 py-2 text-xs font-medium text-slate-500 border border-black/15 rounded-md hover:bg-slate-50"
             >
-              {showKey ? 'Hide' : 'Show'}
+              {showKey ? tr("Hide") : tr("Show")}
             </button>
           </div>
           <p className="text-xs text-slate-400 mt-1.5">
-            Sent as the top-level <code className="font-mono">api_key</code> field on each request.
-            Stored in this device's local settings (not encrypted).
+            {tr("Sent as the top-level")} <code className="font-mono">api_key</code> {tr("field on each request. Stored in this device's local settings (not encrypted).")}
           </p>
         </div>
 
@@ -510,7 +506,7 @@ function RemoteExecutionPanel() {
             onClick={save}
             className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-black hover:bg-black/80 transition-colors"
           >
-            Save
+            {tr("Save")}
           </button>
           <button
             onClick={testConnection}
@@ -518,10 +514,10 @@ function RemoteExecutionPanel() {
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-slate-600 border border-black/15 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {testing
-              ? <><span className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" /> Testing…</>
-              : <><FiRefreshCw className="w-4 h-4" /> Test connection</>}
+              ? <><span className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" /> {tr("Testing…")}</>
+              : <><FiRefreshCw className="w-4 h-4" /> {tr("Test connection")}</>}
           </button>
-          {saved && <span className="text-xs text-gray-600 flex items-center gap-1"><FiCheckCircle className="w-3.5 h-3.5" /> Saved</span>}
+          {saved && <span className="text-xs text-gray-600 flex items-center gap-1"><FiCheckCircle className="w-3.5 h-3.5" /> {tr("Saved")}</span>}
         </div>
 
         {/* Test result */}
@@ -531,9 +527,9 @@ function RemoteExecutionPanel() {
               <div className="flex items-start gap-2">
                 <FiCheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="font-semibold">Server reachable</p>
+                  <p className="font-semibold">{tr("Server reachable")}</p>
                   <p className="text-xs mt-1">
-                    Targets:{' '}
+                    {tr("Targets:")}{' '}
                     {(testResult.targets.length ? testResult.targets : ['—']).map(t => (
                       <span key={t} className="inline-block px-2 py-0.5 mr-1 bg-white border border-black/15 font-mono text-[11px]">{t}</span>
                     ))}
@@ -608,7 +604,7 @@ function AIPanel() {
     const r = await window.electronAPI?.ai?.testKey?.({ provider: cfg.provider, model: cfg.model || meta.defaultModel, baseUrl: cfg.baseUrl })
       .catch(err => ({ ok: false, error: err.message }));
     setTesting(false);
-    setTestResult(r || { ok: false, error: 'LLM bridge unavailable.' });
+    setTestResult(r || { ok: false, error: tr("LLM bridge unavailable.") });
   };
 
   const desktop = Boolean(window.electronAPI?.ai);
@@ -616,19 +612,17 @@ function AIPanel() {
   return (
     <div>
       <h3 className="text-lg font-semibold text-slate-800 mb-1 flex items-center gap-2">
-        <FiMessageSquare className="w-5 h-5 text-slate-400" /> Model Advisor
-        <span className="text-xs px-2 py-0.5 font-medium bg-gray-100 text-gray-600">Bring your own key</span>
+        <FiMessageSquare className="w-5 h-5 text-slate-400" /> {tr("Model Advisor")}
+        <span className="text-xs px-2 py-0.5 font-medium bg-gray-100 text-gray-600">{tr("Bring your own key")}</span>
       </h3>
       <p className="text-sm text-slate-500 mb-5 max-w-2xl">
-        Powers the <span className="font-medium text-slate-600">Model Advisor</span> tab in Results —
-        an auto-generated report and a chat to ask questions about a run. TEMPO uses your own API
-        key and never provides one. Your key is stored encrypted on this device.
+        {tr("Powers the")} <span className="font-medium text-slate-600">{tr("Model Advisor")}</span> {tr("tab in Results — an auto-generated report and a chat to ask questions about a run. TEMPO uses your own API key and never provides one. Your key is stored encrypted on this device.")}
       </p>
 
       {!desktop && (
         <div className="mb-5 flex items-start gap-2 p-3 bg-gray-50 border border-black/15 rounded-xl text-sm text-gray-700">
           <FiAlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-          Model Advisor is only available in the TEMPO desktop app.
+          {tr("Model Advisor is only available in the TEMPO desktop app.")}
         </div>
       )}
 
@@ -637,17 +631,14 @@ function AIPanel() {
         <div className="mb-5 flex items-start gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 max-w-2xl">
           <FiShield className="w-4 h-4 mt-0.5 shrink-0" />
           <span>
-            {meta.label} runs on your own hardware — model data goes only to your Ollama server,
-            never to a third-party service.
+            {meta.label} {tr("runs on your own hardware — model data goes only to your Ollama server, never to a third-party service.")}
           </span>
         </div>
       ) : (
         <div className="mb-5 flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 max-w-2xl">
           <FiShield className="w-4 h-4 mt-0.5 shrink-0" />
           <span>
-            Using this feature sends your selected run's results to your chosen LLM provider
-            ({meta.label}). This is the only case where TEMPO transmits model data off this device.
-            Review the provider's data-handling terms before use.
+            {tr("Using this feature sends your selected run's results to your chosen LLM provider (")}{meta.label}{tr("). This is the only case where TEMPO transmits model data off this device. Review the provider's data-handling terms before use.")}
           </span>
         </div>
       )}
@@ -655,7 +646,7 @@ function AIPanel() {
       <div className="space-y-5 max-w-md">
         {/* Provider */}
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-2">Provider</label>
+          <label className="block text-sm font-medium text-slate-700 mb-2">{tr("Provider")}</label>
           <Select
             value={cfg.provider}
             onChange={changeProvider}
@@ -663,9 +654,9 @@ function AIPanel() {
               value: p.id,
               label: p.label,
               description: [
-                p.local ? 'Runs on your own hardware · no key needed'
-                  : p.needsBaseUrl ? 'Your own endpoint URL'
-                  : 'Cloud · API key required',
+                p.local ? tr("Runs on your own hardware · no key needed")
+                  : p.needsBaseUrl ? tr("Your own endpoint URL")
+                  : tr("Cloud · API key required"),
                 p.defaultModel ? `default ${p.defaultModel}` : null,
               ].filter(Boolean).join(' · '),
             }))}
@@ -675,7 +666,7 @@ function AIPanel() {
         {/* Base URL (compatible + Ollama) */}
         {meta.needsBaseUrl && (
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">{meta.local ? 'Ollama server URL' : 'Base URL'}</label>
+            <label className="block text-sm font-medium text-slate-700 mb-2">{meta.local ? tr("Ollama server URL") : tr("Base URL")}</label>
             <input
               type="text"
               value={cfg.baseUrl}
@@ -685,20 +676,20 @@ function AIPanel() {
             />
             <p className="text-xs text-slate-400 mt-1.5">
               {meta.local
-                ? 'Where Ollama is running. Leave blank for localhost; use the host machine’s IP:11434 when Ollama runs on another computer.'
-                : 'Any OpenAI-compatible endpoint (OpenRouter, Azure, a local server).'}
+                ? tr("Where Ollama is running. Leave blank for localhost; use the host machine’s IP:11434 when Ollama runs on another computer.")
+                : tr("Any OpenAI-compatible endpoint (OpenRouter, Azure, a local server).")}
             </p>
           </div>
         )}
 
         {/* Model */}
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-2">Model</label>
+          <label className="block text-sm font-medium text-slate-700 mb-2">{tr("Model")}</label>
           <input
             type="text"
             value={cfg.model}
             onChange={(e) => updateCfg({ model: e.target.value })}
-            placeholder={meta.defaultModel || 'model id'}
+            placeholder={meta.defaultModel || tr("model id")}
             className="w-full h-10 px-3 border border-black/15 bg-white rounded-lg font-mono text-sm focus:outline-none focus:border-black/15 focus:ring-2 focus:ring-slate-200"
           />
         </div>
@@ -706,31 +697,30 @@ function AIPanel() {
         {/* API key (remote providers) / local connection note (Ollama) */}
         {meta.needsKey === false ? (
           <div className="rounded-md border border-black/15 bg-slate-50 p-3 text-xs text-slate-600">
-            No API key needed — TEMPO connects to your Ollama server at
-            <span className="font-mono text-slate-500"> {cfg.baseUrl || 'http://localhost:11434'}</span>. Make sure Ollama is
-            running there and the model above is pulled (<span className="font-mono text-slate-500">ollama pull {cfg.model || meta.defaultModel}</span>).
+            {tr("No API key needed — TEMPO connects to your Ollama server at")}
+            <span className="font-mono text-slate-500"> {cfg.baseUrl || 'http://localhost:11434'}</span>{tr(". Make sure Ollama is running there and the model above is pulled (")}<span className="font-mono text-slate-500">{tr("ollama pull")} {cfg.model || meta.defaultModel}</span>).
           </div>
         ) : (
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">
-              API key
-              {hasKey && <span className="ml-2 text-xs text-gray-600 font-normal"><FiCheckCircle className="inline w-3.5 h-3.5" /> stored</span>}
+              {tr("API key")}
+              {hasKey && <span className="ml-2 text-xs text-gray-600 font-normal"><FiCheckCircle className="inline w-3.5 h-3.5" /> {tr("stored")}</span>}
             </label>
             <div className="flex gap-2">
               <input
                 type={showKey ? 'text' : 'password'}
                 value={keyInput}
                 onChange={(e) => setKeyInput(e.target.value)}
-                placeholder={hasKey ? '•••••••• (a key is stored)' : 'Paste your API key'}
+                placeholder={hasKey ? tr("•••••••• (a key is stored)") : tr("Paste your API key")}
                 className="flex-1 h-10 px-3 border border-black/15 bg-white rounded-lg font-mono text-sm focus:outline-none focus:border-black/15 focus:ring-2 focus:ring-slate-200"
               />
               <button type="button" onClick={() => setShowKey(v => !v)} className="px-3 py-2 text-xs font-medium text-slate-500 border border-black/15 rounded-md hover:bg-slate-50">
-                {showKey ? 'Hide' : 'Show'}
+                {showKey ? tr("Hide") : tr("Show")}
               </button>
             </div>
             {meta.keysUrl && (
               <p className="text-xs text-slate-400 mt-1.5">
-                Get a key at <span className="font-mono text-slate-500">{meta.keysUrl}</span>. Stored encrypted on this device.
+                {tr("Get a key at")} <span className="font-mono text-slate-500">{meta.keysUrl}</span>{tr(". Stored encrypted on this device.")}
               </p>
             )}
           </div>
@@ -744,7 +734,7 @@ function AIPanel() {
               disabled={!desktop || !keyInput.trim()}
               className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-black hover:bg-black/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              Save key
+              {tr("Save key")}
             </button>
           )}
           <button
@@ -753,15 +743,15 @@ function AIPanel() {
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-slate-600 border border-black/15 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {testing
-              ? <><span className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" /> Testing…</>
-              : <><FiRefreshCw className="w-4 h-4" /> {meta.needsKey === false ? 'Test connection' : 'Test key'}</>}
+              ? <><span className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" /> {tr("Testing…")}</>
+              : <><FiRefreshCw className="w-4 h-4" /> {meta.needsKey === false ? tr("Test connection") : tr("Test key")}</>}
           </button>
           {hasKey && (
             <button onClick={clearKey} disabled={!desktop} className="px-3 py-2 rounded-lg text-sm font-medium text-slate-500 hover:bg-slate-100 transition-colors">
-              Remove key
+              {tr("Remove key")}
             </button>
           )}
-          {saved && <span className="text-xs text-gray-600 flex items-center gap-1"><FiCheckCircle className="w-3.5 h-3.5" /> Saved</span>}
+          {saved && <span className="text-xs text-gray-600 flex items-center gap-1"><FiCheckCircle className="w-3.5 h-3.5" /> {tr("Saved")}</span>}
         </div>
 
         {/* Test result */}
@@ -770,7 +760,7 @@ function AIPanel() {
             {testResult.ok ? (
               <div className="flex items-start gap-2">
                 <FiCheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                <span>{meta.needsKey === false ? 'Connection works' : 'Key works'}. Model replied: <span className="font-mono">{testResult.sample || 'ok'}</span></span>
+                <span>{meta.needsKey === false ? tr("Connection works") : tr("Key works")}{tr(". Model replied:")} <span className="font-mono">{testResult.sample || tr("ok")}</span></span>
               </div>
             ) : (
               <div className="space-y-2">
@@ -780,12 +770,12 @@ function AIPanel() {
                 </div>
                 {meta.local && (
                   <div className="mt-1 pt-2 border-t border-black/15 text-xs text-slate-500">
-                    <p className="font-medium text-slate-600 mb-1">Can’t reach Ollama? On the machine running it, check:</p>
+                    <p className="font-medium text-slate-600 mb-1">{tr("Can’t reach Ollama? On the machine running it, check:")}</p>
                     <ul className="list-disc pl-4 space-y-1">
-                      <li>Port is published — <span className="font-mono">docker ps</span> shows <span className="font-mono">0.0.0.0:11434-&gt;11434/tcp</span> (else run with <span className="font-mono">-p 11434:11434</span>).</li>
-                      <li>Reachable from here — <span className="font-mono">curl {cfg.baseUrl || 'http://localhost:11434'}/api/tags</span> lists your models.</li>
-                      <li>Firewall allows inbound TCP <span className="font-mono">11434</span> on that host.</li>
-                      <li>Model is pulled — <span className="font-mono">ollama pull {cfg.model || meta.defaultModel}</span>.</li>
+                      <li>{tr("Port is published —")} <span className="font-mono">{tr("docker ps")}</span> {tr("shows")} <span className="font-mono">{tr("0.0.0.0:11434->11434/tcp")}</span> {tr("(else run with")} <span className="font-mono">-p 11434:11434</span>).</li>
+                      <li>{tr("Reachable from here —")} <span className="font-mono">{tr("curl")} {cfg.baseUrl || 'http://localhost:11434'}{tr("/api/tags")}</span> {tr("lists your models.")}</li>
+                      <li>{tr("Firewall allows inbound TCP")} <span className="font-mono">11434</span> {tr("on that host.")}</li>
+                      <li>{tr("Model is pulled —")} <span className="font-mono">{tr("ollama pull")} {cfg.model || meta.defaultModel}</span>.</li>
                     </ul>
                   </div>
                 )}
@@ -809,9 +799,9 @@ function AboutPanel() {
   }, []);
 
   const rows = [
-    { label: 'TEMPO version',  value: version ? `v${version}` : '—' },
-    { label: 'Calliope core',  value: '0.6.8' },
-    { label: 'Optional engines', value: 'Calliope 0.7 · PyPSA · OSeMOSYS · AdOpT-NET0' },
+    { label: tr("TEMPO version"),  value: version ? `v${version}` : '—' },
+    { label: tr("Calliope core"),  value: '0.6.8' },
+    { label: tr("Optional engines"), value: 'Calliope 0.7 · PyPSA · OSeMOSYS · AdOpT-NET0' },
   ];
 
   return (
@@ -821,13 +811,13 @@ function AboutPanel() {
           <img src={tempoLogo} alt="" className="h-9 w-9 object-contain" style={{ mixBlendMode: 'multiply' }} />
         </div>
         <div>
-          <div className="text-lg font-semibold text-slate-900">TEMPO</div>
-          <p className="text-sm text-slate-500">Tool for Energy Model Preparation and Optimization. All model data is stored locally on this device.</p>
+          <div className="text-lg font-semibold text-slate-900">{tr("TEMPO")}</div>
+          <p className="text-sm text-slate-500">{tr("Tool for Energy Model Preparation and Optimization. All model data is stored locally on this device.")}</p>
         </div>
         {window.electronAPI?.updates && (
           <button onClick={requestUpdateCheck}
             className="ml-auto flex h-10 shrink-0 items-center gap-2 border border-black/15 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50">
-            <FiRefreshCw size={15} /> Check for updates
+            <FiRefreshCw size={15} /> {tr("Check for updates")}
           </button>
         )}
       </div>
@@ -844,15 +834,16 @@ function AboutPanel() {
 }
 
 const SECTIONS = [
-  { id: 'general', label: 'General',              icon: LuSlidersHorizontal, hint: 'Startup and saving' },
-  { id: 'engines', label: 'Optimization Engines', icon: LuCpu,               hint: 'Install and manage solvers' },
-  { id: 'remote',  label: 'Remote Execution',     icon: LuServer,            hint: 'Run on a MEME server' },
-  { id: 'ai',      label: 'Model Advisor',        icon: LuMessageSquare,     hint: 'AI provider and API key' },
-  { id: 'data',    label: 'Privacy & Data',       icon: LuShield,            hint: 'Local data and consent' },
-  { id: 'about',   label: 'About',                icon: LuInfo,              hint: 'Version information' },
+  { id: 'general', label: tr("General"),              icon: LuSlidersHorizontal, hint: tr("Startup and saving") },
+  { id: 'engines', label: tr("Optimization Engines"), icon: LuCpu,               hint: tr("Install and manage solvers") },
+  { id: 'remote',  label: tr("Remote Execution"),     icon: LuServer,            hint: tr("Run on a MEME server") },
+  { id: 'ai',      label: tr("Model Advisor"),        icon: LuMessageSquare,     hint: tr("AI provider and API key") },
+  { id: 'data',    label: tr("Privacy & Data"),       icon: LuShield,            hint: tr("Local data and consent") },
+  { id: 'about',   label: tr("About"),                icon: LuInfo,              hint: tr("Version information") },
 ];
 
 const Settings = () => {
+  const t = useT();
   const [activeSection, setActiveSection] = useState('general');
   const [clearing, setClearing]       = useState(false);
   const [clearResult, setClearResult] = useState(null); // null | { success, deleted? }
@@ -861,7 +852,7 @@ const Settings = () => {
   const handleClearAll = async () => {
     setConfirmOpen(false);
     if (!window.electronAPI?.clearAllData) {
-      setClearResult({ success: false, error: 'Not available in browser mode.' });
+      setClearResult({ success: false, error: tr("Not available in browser mode.") });
       return;
     }
     setClearing(true);
@@ -879,8 +870,8 @@ const Settings = () => {
   return (
     <div className="flex-1 bg-gray-50 px-8 py-8">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
-        <p className="mt-1 text-sm text-slate-500">Application configuration and preferences</p>
+        <h1 className="text-2xl font-bold text-slate-900">{t('settings.title')}</h1>
+        <p className="mt-1 text-sm text-slate-500">{t('settings.subtitle')}</p>
       </div>
 
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
@@ -901,8 +892,8 @@ const Settings = () => {
                   <Icon size={15} />
                 </span>
                 <span className="min-w-0">
-                  <span className={`block text-sm font-medium ${active ? 'text-slate-900' : 'text-slate-700'}`}>{section.label}</span>
-                  <span className="block truncate text-[11px] text-slate-400">{section.hint}</span>
+                  <span className={`block text-sm font-medium ${active ? 'text-slate-900' : 'text-slate-700'}`}>{section.id === 'general' ? t('settings.section.general') : section.label}</span>
+                  <span className="block truncate text-[11px] text-slate-400">{section.id === 'general' ? t('settings.section.generalHint') : section.hint}</span>
                 </span>
               </button>
             );
@@ -919,25 +910,24 @@ const Settings = () => {
           {/* Optimization Engines */}
           <div className={activeSection === 'engines' ? '' : 'hidden'}>
             <p className="text-sm text-slate-500 mb-4">
-              Install and manage the optimisation engines TEMPO can run models on. Expand a row for
-              details, installation, and logs.
+              {tr("Install and manage the optimisation engines TEMPO can run models on. Expand a row for details, installation, and logs.")}
             </p>
             <div className="space-y-3">
-              <EngineAccordion title="Calliope 0.6.8" icon={FiBox} badge="Core" checkFn="checkCalliopeEnv" defaultOpen>
+              <EngineAccordion title={tr("Calliope 0.6.8")} icon={FiBox} badge={tr("Core")} checkFn="checkCalliopeEnv" defaultOpen>
                 {(onInstalled) => <PythonEnvironmentPanel embedded onInstallSuccess={onInstalled} />}
               </EngineAccordion>
 
-              <EngineAccordion title="Calliope 0.7" icon={FiZap} badge="Experimental" checkFn="checkCalliope07Env">
+              <EngineAccordion title={tr("Calliope 0.7")} icon={FiZap} badge={tr("Experimental")} checkFn="checkCalliope07Env">
                 {(onInstalled) => <Calliope07EnginePanel embedded onInstallSuccess={onInstalled} />}
               </EngineAccordion>
 
-              <EngineAccordion title="PyPSA" icon={FiCpu} badge="Optional" checkFn="checkPypsaEnv">
+              <EngineAccordion title={tr("PyPSA")} icon={FiCpu} badge={tr("Optional")} checkFn="checkPypsaEnv">
                 {(onInstalled) => (
                   <EngineInstallPanel
                     embedded
-                    title="PyPSA Engine"
+                    title={tr("PyPSA Engine")}
                     icon={FiCpu}
-                    description="Python for Power System Analysis, in its own isolated Python environment. Any TEMPO model can run on it — the translation from TEMPO's internal representation happens automatically at run time. Also enables PyPSA model import/export. Requires Python 3.10+."
+                    description={tr("Python for Power System Analysis, in its own isolated Python environment. Any TEMPO model can run on it — the translation from TEMPO's internal representation happens automatically at run time. Also enables PyPSA model import/export. Requires Python 3.10+.")}
                     checkFn="checkPypsaEnv"
                     installFn="installPypsaEnv"
                     onProgressFn="onPypsaInstallProgress"
@@ -946,13 +936,13 @@ const Settings = () => {
                 )}
               </EngineAccordion>
 
-              <EngineAccordion title="OSeMOSYS" icon={FiZap} badge="Optional" checkFn="checkOsemosysEnv">
+              <EngineAccordion title={tr("OSeMOSYS")} icon={FiZap} badge={tr("Optional")} checkFn="checkOsemosysEnv">
                 {(onInstalled) => (
                   <EngineInstallPanel
                     embedded
-                    title="OSeMOSYS Engine"
+                    title={tr("OSeMOSYS Engine")}
                     icon={FiZap}
-                    description="Open Source Energy Modelling System (via otoole + GLPK), in its own isolated Python environment. Hourly time series are aggregated into configurable timeslices at run time. Also enables OSeMOSYS dataset import/export. Requires Python 3.10+; the GLPK solver is bundled on Windows."
+                    description={tr("Open Source Energy Modelling System (via otoole + GLPK), in its own isolated Python environment. Hourly time series are aggregated into configurable timeslices at run time. Also enables OSeMOSYS dataset import/export. Requires Python 3.10+; the GLPK solver is bundled on Windows.")}
                     checkFn="checkOsemosysEnv"
                     installFn="installOsemosysEnv"
                     onProgressFn="onOsemosysInstallProgress"
@@ -961,13 +951,13 @@ const Settings = () => {
                 )}
               </EngineAccordion>
 
-              <EngineAccordion title="AdOpT-NET0" icon={FiBox} badge="Optional" checkFn="checkAdoptnet0Env">
+              <EngineAccordion title={tr("AdOpT-NET0")} icon={FiBox} badge={tr("Optional")} checkFn="checkAdoptnet0Env">
                 {(onInstalled) => (
                   <EngineInstallPanel
                     embedded
-                    title="AdOpT-NET0 Engine"
+                    title={tr("AdOpT-NET0 Engine")}
                     icon={FiBox}
-                    description="Advanced Optimization Tool for Energy Networks, in its own isolated Python environment. Any TEMPO model can run on it — the translation happens automatically at run time. Also enables AdOpT-NET0 model import/export. Requires Python 3.10+."
+                    description={tr("Advanced Optimization Tool for Energy Networks, in its own isolated Python environment. Any TEMPO model can run on it — the translation happens automatically at run time. Also enables AdOpT-NET0 model import/export. Requires Python 3.10+.")}
                     checkFn="checkAdoptnet0Env"
                     installFn="installAdoptnet0Env"
                     onProgressFn="onAdoptnet0InstallProgress"
@@ -990,15 +980,15 @@ const Settings = () => {
 
           {/* Privacy & Data */}
           <div className={activeSection === 'data' ? '' : 'hidden'}>
-            <h3 className="mb-1 text-lg font-semibold text-slate-900">Privacy &amp; Data</h3>
-            <p className="mb-6 text-sm text-slate-500">TEMPO stores all model data locally on this device. To look for updates it contacts GitHub (api.github.com) and sends no model data; turn this off under General.</p>
+            <h3 className="mb-1 text-lg font-semibold text-slate-900">{tr("Privacy & Data")}</h3>
+            <p className="mb-6 text-sm text-slate-500">{tr("TEMPO stores all model data locally on this device. To look for updates it contacts GitHub (api.github.com) and sends no model data; turn this off under General.")}</p>
 
             <div className="rounded-xl border border-red-200 bg-red-50/40">
               <div className="flex flex-wrap items-center justify-between gap-4 p-5">
                 <div className="max-w-xl">
-                  <div className="text-sm font-semibold text-red-700">Danger zone · clear all data</div>
+                  <div className="text-sm font-semibold text-red-700">{tr("Danger zone · clear all data")}</div>
                   <p className="mt-0.5 text-[13px] leading-relaxed text-slate-600">
-                    Permanently delete all locally stored data — models, exports and the privacy consent record. This cannot be undone.
+                    {tr("Permanently delete all locally stored data — models, exports and the privacy consent record. This cannot be undone.")}
                   </p>
                 </div>
                 <button
@@ -1009,18 +999,18 @@ const Settings = () => {
                   {clearing ? (
                     <>
                       <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                      Clearing…
+                      {tr("Clearing…")}
                     </>
                   ) : (
-                    <><LuTrash2 size={15} /> Clear all data</>
+                    <><LuTrash2 size={15} /> {tr("Clear all data")}</>
                   )}
                 </button>
               </div>
               {clearResult && (
                 <div className="border-t border-red-200 px-5 py-3 text-sm text-slate-700">
                   {clearResult.success
-                    ? `Data cleared successfully. Removed: ${(clearResult.deleted || []).join(', ') || 'nothing to remove'}.`
-                    : `Error: ${clearResult.error || 'Unknown error'}`}
+                    ? tr("Data cleared successfully. Removed: {0}.", { 0: (clearResult.deleted || []).join(', ') || 'nothing to remove' })
+                    : tr("Error: {0}", { 0: clearResult.error || tr("Unknown error") })}
                 </div>
               )}
             </div>
@@ -1042,14 +1032,13 @@ const Settings = () => {
                 <LuTrash2 size={17} />
               </span>
               <div>
-                <h3 className="text-base font-semibold text-slate-900">Clear all data?</h3>
-                <p className="text-xs text-slate-500 mt-0.5">This action cannot be undone</p>
+                <h3 className="text-base font-semibold text-slate-900">{tr("Clear all data?")}</h3>
+                <p className="text-xs text-slate-500 mt-0.5">{tr("This action cannot be undone")}</p>
               </div>
             </div>
             <div className="px-6 py-4">
               <p className="text-sm text-slate-600">
-                All models, exports, and the privacy consent record stored on this device
-                will be permanently deleted. TEMPO will restart clean on next launch.
+                {tr("All models, exports, and the privacy consent record stored on this device will be permanently deleted. TEMPO will restart clean on next launch.")}
               </p>
             </div>
             <div className="p-6 pt-0 flex gap-2 justify-end">
@@ -1057,13 +1046,13 @@ const Settings = () => {
                 onClick={() => setConfirmOpen(false)}
                 className="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 border border-black/15 hover:bg-slate-50 transition-colors"
               >
-                Cancel
+                {tr("Cancel")}
               </button>
               <button
                 onClick={handleClearAll}
                 className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-red-600 hover:bg-red-700  transition-colors"
               >
-                Yes, delete everything
+                {tr("Yes, delete everything")}
               </button>
             </div>
           </div>

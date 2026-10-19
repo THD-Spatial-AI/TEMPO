@@ -27,6 +27,7 @@
 
 import { expandRecipe } from './recipes/index.js';
 
+import { tr } from '../../i18n';
 // ─── slot keys ─────────────────────────────────────────────────────────────────
 
 function techMatchKey(tm) {
@@ -94,13 +95,13 @@ export function composeOps(ops) {
     }
     if (kinds.size === 1 && kinds.has('setParam')) {
       out.push(group[group.length - 1]);
-      warnings.push(`Multiple layers set ${paramLabel(group[0])}; using the last layer's value (${group[group.length - 1].value}).`);
+      warnings.push(tr("Multiple layers set {0}; using the last layer's value ({1}).", { 0: paramLabel(group[0]), 1: group[group.length - 1].value }));
       continue;
     }
     if (kinds.size === 1 && kinds.has('systemConstraint')) {
       out.push(group[group.length - 1]);
       const kind = group[0].kind;
-      warnings.push(`Multiple layers set system constraint "${kind}"; using the last layer's value.`);
+      warnings.push(tr("Multiple layers set system constraint \"{0}\"; using the last layer's value.", { 0: kind }));
       continue;
     }
     if (kinds.size === 1 && kinds.has('disableTech')) {
@@ -109,7 +110,7 @@ export function composeOps(ops) {
     }
     // mixed set/scale (or disable + scale/set) on the same slot — order-dependent, keep all
     group.forEach(o => out.push(o));
-    warnings.push(`Layers both set and scale ${paramLabel(group[0])}; applied in layer order (result is order-dependent).`);
+    warnings.push(tr("Layers both set and scale {0}; applied in layer order (result is order-dependent).", { 0: paramLabel(group[0]) }));
   }
 
   return { ops: out, warnings };
@@ -147,7 +148,7 @@ export function composeRecipes(model, layers) {
   const sweepLayers = expanded.filter(e => !isYearVariants(e.variants) && !isConstant(e.variants));
 
   if (sweepLayers.length > 0) {
-    warnings.push('Multi-step sweeps (e.g. cost sensitivity) cannot be stacked with other recipes yet — run them on their own.');
+    warnings.push(tr("Multi-step sweeps (e.g. cost sensitivity) cannot be stacked with other recipes yet — run them on their own."));
   }
 
   const constOps = constLayers.flatMap(e => e.variants[0].ops);

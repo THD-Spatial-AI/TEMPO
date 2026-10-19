@@ -3,6 +3,7 @@ import Papa from 'papaparse';
 import { FiUpload, FiX, FiFile, FiCheck, FiDownload } from './ui/icons';
 import { useData } from '../context/DataContext';
 import { fetchTemplate } from '../utils/templateFetch';
+import { tr } from '../i18n';
 
 const CSVUploader = () => {
   const { createModel } = useData();
@@ -17,7 +18,7 @@ const CSVUploader = () => {
   const downloadTemplate = async (type) => {
     const filename = `${type}_template.csv`;
     const response = await fetchTemplate(filename);
-    if (!response.ok) { alert(`Template file not found: ${filename}`); return; }
+    if (!response.ok) { alert(tr("Template file not found: {0}", { 0: filename })); return; }
     const blob = await response.blob();
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -48,7 +49,7 @@ const CSVUploader = () => {
       setIsOpen(false);
     } catch (error) {
       console.error('Error loading example data:', error);
-      alert('Error loading example data.');
+      alert(tr("Error loading example data."));
     } finally {
       setLoading(false);
     }
@@ -92,7 +93,7 @@ const CSVUploader = () => {
         parametersData = await parseCSV(uploadedFiles.parameters);
       }
 
-      const modelName = prompt('Enter a name for this model:', 'New Calliope Model');
+      const modelName = prompt(tr("Enter a name for this model:"), 'New Calliope Model');
       if (modelName) {
         createModel(modelName, locationsData, linksData, parametersData);
       }
@@ -100,7 +101,7 @@ const CSVUploader = () => {
       setUploadedFiles({ locations: null, links: null, parameters: null });
     } catch (error) {
       console.error('Error processing CSV files:', error);
-      alert('Error processing files. Please check the CSV format.');
+      alert(tr("Error processing files. Please check the CSV format."));
     } finally {
       setLoading(false);
     }
@@ -121,14 +122,14 @@ const CSVUploader = () => {
           className="text-xs text-gray-600 hover:text-gray-800 flex items-center gap-1"
         >
           <FiDownload size={14} />
-          Download Template
+          {tr("Download Template")}
         </button>
       </div>
       {!file ? (
         <label className="flex items-center justify-center w-full h-24 px-4 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
           <div className="text-center">
             <FiUpload className="mx-auto text-2xl text-slate-400 mb-1" />
-            <span className="text-sm text-slate-500">Click to upload CSV</span>
+            <span className="text-sm text-slate-500">{tr("Click to upload CSV")}</span>
           </div>
           <input
             type="file"
@@ -161,7 +162,7 @@ const CSVUploader = () => {
         onClick={() => setIsOpen(true)}
         className="uppercase tracking-wide font-bold px-4 py-2 bg-black text-white rounded-md hover:bg-black/80 transition-colors text-sm"
       >
-        Load Model
+        {tr("Load Model")}
       </button>
 
       {isOpen && (
@@ -170,7 +171,7 @@ const CSVUploader = () => {
             <div className="p-6 border-b border-black/15">
               <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-bold text-slate-800">
-                  Upload Calliope Model Data
+                  {tr("Upload Calliope Model Data")}
                 </h2>
                 <button
                   onClick={() => setIsOpen(false)}
@@ -180,42 +181,42 @@ const CSVUploader = () => {
                 </button>
               </div>
               <p className="text-sm text-slate-600 mt-2">
-                Upload CSV files containing your Calliope model data or load example data
+                {tr("Upload CSV files containing your Calliope model data or load example data")}
               </p>
               <button
                 onClick={loadExampleData}
                 disabled={loading}
                 className="uppercase tracking-wide font-bold mt-3 px-4 py-2 bg-black text-white rounded-md hover:bg-black/80 transition-colors text-sm disabled:bg-slate-300"
               >
-                {loading ? 'Loading...' : 'Load Example Data'}
+                {loading ? tr("Loading...") : tr("Load Example Data")}
               </button>
             </div>
 
             <div className="p-6">
               <FileUploadField
                 type="locations"
-                label="Locations CSV (Required)"
+                label={tr("Locations CSV (Required)")}
                 file={uploadedFiles.locations}
               />
               <FileUploadField
                 type="links"
-                label="Links CSV (Optional)"
+                label={tr("Links CSV (Optional)")}
                 file={uploadedFiles.links}
               />
               <FileUploadField
                 type="parameters"
-                label="Parameters CSV (Optional)"
+                label={tr("Parameters CSV (Optional)")}
                 file={uploadedFiles.parameters}
               />
 
               <div className="mt-6 bg-gray-50 border border-black/15 rounded-lg p-4">
                 <h3 className="text-sm font-semibold text-gray-900 mb-2">
-                  Expected CSV Format:
+                  {tr("Expected CSV Format:")}
                 </h3>
                 <ul className="text-xs text-gray-800 space-y-1">
-                  <li>• <strong>Locations:</strong> name, latitude, longitude, type</li>
-                  <li>• <strong>Links:</strong> from, to, capacity, distance</li>
-                  <li>• <strong>Parameters:</strong> name, value, unit</li>
+                  <li>• <strong>{tr("Locations:")}</strong> {tr("name, latitude, longitude, type")}</li>
+                  <li>• <strong>{tr("Links:")}</strong> {tr("from, to, capacity, distance")}</li>
+                  <li>• <strong>{tr("Parameters:")}</strong> {tr("name, value, unit")}</li>
                 </ul>
               </div>
             </div>
@@ -225,14 +226,14 @@ const CSVUploader = () => {
                 onClick={() => setIsOpen(false)}
                 className="px-4 py-2 border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50 transition-colors"
               >
-                Cancel
+                {tr("Cancel")}
               </button>
               <button
                 onClick={processData}
                 disabled={!uploadedFiles.locations || loading}
                 className="uppercase tracking-wide font-bold px-4 py-2 bg-black text-white rounded-md hover:bg-black/80 transition-colors disabled:bg-slate-300 disabled:cursor-not-allowed"
               >
-                {loading ? 'Processing...' : 'Load Data'}
+                {loading ? tr("Processing...") : tr("Load Data")}
               </button>
             </div>
           </div>

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { LuTrash2, LuInfo, LuX } from './icons';
 import { subscribeConfirm, nextConfirm } from './confirm';
+import { t } from '../../i18n';
 
 const TONES = {
   danger:  { icon: LuTrash2, badge: 'bg-red-50 text-red-600 ring-red-100',   button: 'bg-red-600 hover:bg-red-700 focus-visible:ring-red-300' },
@@ -46,15 +47,15 @@ export function ConfirmHost() {
 
   if (!request) return null;
   const {
-    title = 'Are you sure?',
+    title = t('confirm.title'),
     message,
     details,
-    confirmLabel = 'Delete',
-    cancelLabel = 'Cancel',
+    confirmLabel = t('confirm.delete'),
+    cancelLabel = t('confirm.cancel'),
     tone = 'danger',
   } = request;
-  const t = TONES[tone] || TONES.danger;
-  const Icon = t.icon;
+  const toneStyle = TONES[tone] || TONES.danger;
+  const Icon = toneStyle.icon;
 
   return createPortal(
     <div className="fixed inset-0 z-[10050] flex items-center justify-center p-4" onMouseDown={() => close(false)}>
@@ -66,12 +67,12 @@ export function ConfirmHost() {
         onMouseDown={(e) => e.stopPropagation()}
         className="tempo-confirm-panel relative w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-slate-900/10"
       >
-        <button onClick={() => close(false)} aria-label="Close"
+        <button onClick={() => close(false)} aria-label={t('confirm.close')}
           className="absolute right-3 top-3 grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700">
           <LuX size={18} />
         </button>
         <div className="flex gap-4 px-6 pb-5 pt-6">
-          <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-full ring-8 ${t.badge}`}>
+          <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-full ring-8 ${toneStyle.badge}`}>
             <Icon size={20} />
           </span>
           <div className="min-w-0 pr-6">
@@ -90,7 +91,7 @@ export function ConfirmHost() {
             {cancelLabel}
           </button>
           <button ref={confirmRef} onClick={() => close(true)}
-            className={`h-10 rounded-lg px-4 text-sm font-semibold text-white transition-colors focus:outline-none focus-visible:ring-4 ${t.button}`}>
+            className={`h-10 rounded-lg px-4 text-sm font-semibold text-white transition-colors focus:outline-none focus-visible:ring-4 ${toneStyle.button}`}>
             {confirmLabel}
           </button>
         </div>

@@ -1,3 +1,4 @@
+import { tr } from '../../i18n';
 /**
  * Shared helpers for Scenario Studio recipes.
  */
@@ -48,10 +49,10 @@ export function isEmittingTech(tech) {
 
 /** Semantic tech-group catalogue for the actuator UI. */
 export const TECH_GROUPS = [
-  { id: 'all',          label: 'All supply techs' },
-  { id: 'renewable',    label: 'Renewables' },
-  { id: 'nonRenewable', label: 'Non-renewables' },
-  { id: 'emitting',     label: 'Emitting (CO₂) techs' },
+  { id: 'all',          label: tr("All supply techs") },
+  { id: 'renewable',    label: tr("Renewables") },
+  { id: 'nonRenewable', label: tr("Non-renewables") },
+  { id: 'emitting',     label: tr("Emitting (CO₂) techs") },
 ];
 
 /** Semantic groups + the model's own parent groups (supply, conversion, …). */

@@ -4,6 +4,7 @@ import { FiActivity, FiAlertTriangle, FiBarChart2, FiCheckCircle, FiClock, FiCpu
 import { confirmAction } from '../ui/confirm';
 import SelectField from '../ui/SelectField';
 import { iconBtn, ICON_PX } from '../ui/iconButton';
+import { tr, locale } from '../../i18n';
 
 export default function CompletedRunsSection({
   onNavigate,
@@ -44,7 +45,7 @@ export default function CompletedRunsSection({
 
   const handleBulkDelete = async () => {
     const count = selectedIds.size;
-    if (!(await confirmAction({ title: `Delete ${count} run${count > 1 ? 's' : ''}?`, message: 'The selected runs and their results will be permanently removed.' }))) return;
+    if (!(await confirmAction({ title: tr("Delete {0} run{1}?", { 0: count, 1: count > 1 ? 's' : '' }), message: tr("The selected runs and their results will be permanently removed.") }))) return;
     selectedIds.forEach(id => removeCompletedJob(id));
     setSelectedIds(new Set());
   };
@@ -59,15 +60,15 @@ export default function CompletedRunsSection({
           <div className="flex items-center justify-between px-6 py-4 border-b border-black/10">
             <h2 className="text-base font-semibold text-slate-800 flex items-center gap-2">
               <FiList size={16} className="text-electric-500" />
-              Completed Runs
+              {tr("Completed Runs")}
               <span className="ml-1 px-2 py-0.5 bg-electric-100 text-electric-700 text-xs font-bold">
                 {filteredJobs.length !== completedJobs.length
-                  ? `${filteredJobs.length} of ${completedJobs.length}`
+                  ? tr("{0} of {1}", { 0: filteredJobs.length, 1: completedJobs.length })
                   : completedJobs.length}
               </span>
             </h2>
             {completedJobs.length > 0 && (
-              <span className="text-xs text-slate-400">Stored in database · latest first</span>
+              <span className="text-xs text-slate-400">{tr("Stored in database · latest first")}</span>
             )}
           </div>
 
@@ -77,7 +78,7 @@ export default function CompletedRunsSection({
                 <FiSearch size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                 <input
                   type="text"
-                  placeholder="Search by model name…"
+                  placeholder={tr("Search by model name…")}
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   className="w-full pl-8 pr-3 py-1.5 border border-black/15 rounded-lg text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300"
@@ -88,34 +89,34 @@ export default function CompletedRunsSection({
                 onChange={e => setFilterStatus(e.target.value)}
                 className="px-3 py-1.5 border border-black/15 rounded-lg text-sm text-gray-600 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300"
               >
-                <option value="all">All statuses</option>
-                <option value="done">Done</option>
-                <option value="failed">Failed</option>
+                <option value="all">{tr("All statuses")}</option>
+                <option value="done">{tr("Done")}</option>
+                <option value="failed">{tr("Failed")}</option>
               </SelectField>
             </div>
           )}
 
           {someSelected && (
             <div className="flex items-center gap-2 mx-6 my-3 px-3 py-2 bg-gray-800 text-white rounded-lg text-sm">
-              <span className="flex-1 font-medium">{selectedIds.size} selected</span>
+              <span className="flex-1 font-medium">{selectedIds.size} {tr("selected")}</span>
               <button
                 onClick={handleBulkDownload}
                 className="px-3 py-1 bg-white/10 hover:bg-white/20 rounded text-xs font-medium flex items-center gap-1.5 transition-colors"
               >
                 <FiDownload size={13} />
-                Download
+                {tr("Download")}
               </button>
               <button
                 onClick={handleBulkDelete}
                 className="px-3 py-1 bg-red-500/70 hover:bg-red-500 rounded text-xs font-medium flex items-center gap-1.5 transition-colors"
               >
                 <FiTrash2 size={13} />
-                Delete
+                {tr("Delete")}
               </button>
               <button
                 onClick={() => setSelectedIds(new Set())}
                 className="p-1 hover:bg-white/10 rounded transition-colors"
-                title="Clear selection"
+                title={tr("Clear selection")}
               >
                 <FiX size={15} />
               </button>
@@ -125,11 +126,11 @@ export default function CompletedRunsSection({
           {completedJobs.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-slate-300">
               <FiCheckCircle size={48} className="mb-3 opacity-30" />
-              <p className="text-base font-medium">No completed runs yet</p>
-              <p className="text-sm mt-1 opacity-70">Run a model above to see results here</p>
+              <p className="text-base font-medium">{tr("No completed runs yet")}</p>
+              <p className="text-sm mt-1 opacity-70">{tr("Run a model above to see results here")}</p>
             </div>
           ) : filteredJobs.length === 0 ? (
-            <p className="text-center py-10 text-sm text-slate-400">No runs match your search.</p>
+            <p className="text-center py-10 text-sm text-slate-400">{tr("No runs match your search.")}</p>
           ) : (
             <div className="divide-y divide-slate-50">
               <div className="flex items-center gap-4 px-6 py-2 text-xs text-gray-500 border-b border-black/10">
@@ -139,7 +140,7 @@ export default function CompletedRunsSection({
                   onChange={toggleSelectAll}
                   className="rounded w-3.5 h-3.5 cursor-pointer"
                 />
-                <span>Select all ({filteredJobs.length})</span>
+                <span>{tr("Select all (")}{filteredJobs.length})</span>
               </div>
               {filteredJobs.map(job => {
                 const failed = job.status === 'failed';
@@ -170,14 +171,14 @@ export default function CompletedRunsSection({
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-semibold text-slate-800 text-sm">{job.modelName}</span>
                           <span className="text-[10px] font-bold px-2 py-0.5 bg-gray-100 text-gray-600">
-                            {failed ? 'FAILED' : 'DONE'}
+                            {failed ? tr("FAILED") : tr("DONE")}
                           </span>
                         </div>
                         <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-400 flex-wrap">
                           <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 select-all">
                             {job.id?.replace('job_', '#')}
                           </span>
-                          <span>{new Date(job.completedAt).toLocaleString(undefined, {
+                          <span>{new Date(job.completedAt).toLocaleString(locale(), {
                             year: 'numeric', month: 'short', day: 'numeric',
                             hour: '2-digit', minute: '2-digit',
                           })}</span>
@@ -218,16 +219,16 @@ export default function CompletedRunsSection({
                         {!failed && (
                           <button
                             onClick={() => { setActiveResultJobId(job.id); onNavigate && onNavigate('Results'); }}
-                            title="View Results dashboard"
+                            title={tr("View Results dashboard")}
                             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-electric-50 text-electric-600 border border-electric-200 rounded-lg hover:bg-electric-100 transition-colors"
                           >
                             <FiBarChart2 size={13} />
-                            Results
+                            {tr("Results")}
                           </button>
                         )}
                         <button
                           onClick={() => setExpandedCompletedLog(isLogOpen ? null : job.id)}
-                          title="Toggle logs"
+                          title={tr("Toggle logs")}
                           className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wide rounded-lg border transition-colors ${
                             isLogOpen
                               ? 'bg-black text-white border-black'
@@ -235,19 +236,19 @@ export default function CompletedRunsSection({
                           }`}
                         >
                           <FiTerminal size={13} />
-                          Logs {job.logs?.length ? `(${job.logs.length})` : ''}
+                          {tr("Logs")} {job.logs?.length ? `(${job.logs.length})` : ''}
                         </button>
                         <button
                           onClick={() => downloadJob(job)}
-                          title="Download as JSON"
+                          title={tr("Download as JSON")}
                           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-slate-50 text-slate-600 border border-black/15 rounded-lg hover:bg-slate-100 transition-colors"
                         >
                           <FiDownload size={13} />
-                          JSON
+                          {tr("JSON")}
                         </button>
                         <button
                           onClick={() => removeCompletedJob(job.id)}
-                          title="Delete run"
+                          title={tr("Delete run")}
                           className={`${iconBtn('delete', 'md')}`}
                         >
                           <FiTrash2 size={ICON_PX.md} />
@@ -259,7 +260,7 @@ export default function CompletedRunsSection({
                     {isLogOpen && (
                       <div className="mt-3 bg-slate-900 text-green-400 rounded-xl p-4 text-xs font-mono max-h-64 overflow-y-auto">
                         {(job.logs || []).length === 0
-                          ? <span className="text-slate-500">No logs available</span>
+                          ? <span className="text-slate-500">{tr("No logs available")}</span>
                           : (job.logs || []).map((l, i) => <div key={i} className="leading-relaxed">{l}</div>)
                         }
                       </div>

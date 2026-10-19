@@ -50,6 +50,7 @@ import SearchBar from './creation/SearchBar';
 import MapZoomControls from './creation/MapZoomControls';
 import TechLibraryPanel from './creation/TechLibraryPanel';
 import { confirmAction } from './ui/confirm';
+import { tr } from '../i18n';
 
 // Colour of each Study Area wizard preview element, keyed by metadata.kind.
 // The transmission mesh is amber (matches the OSM lines); each wiring type gets a
@@ -74,7 +75,7 @@ const SUBSTATION_TECH_DEF = {
   id: SUBSTATION_TECH_ID,
   name: 'Electricity Substation',
   parent: 'conversion',
-  description: 'Substation / transformer node (electricity in → electricity out, with losses).',
+  description: tr("Substation / transformer node (electricity in → electricity out, with losses)."),
   essentials: { name: 'Electricity Substation', color: '#4A148C', parent: 'conversion', carrier_in: 'electricity', carrier_out: 'electricity' },
   constraints: { energy_cap_max: 'inf', energy_eff: 0.995, lifetime: 40 },
   costs: { monetary: { interest_rate: 0.05, energy_cap: 50 } },
@@ -89,7 +90,7 @@ const POWER_DEMAND_TECH_DEF = {
   id: POWER_DEMAND_TECH_ID,
   name: 'Power demand',
   parent: 'demand',
-  description: 'Electricity withdrawal (demand) attached to substation nodes.',
+  description: tr("Electricity withdrawal (demand) attached to substation nodes."),
   essentials: { name: 'Power demand', color: '#607D8B', parent: 'demand', carrier: 'electricity' },
 };
 const HOURS_PER_YEAR = 8760;
@@ -207,7 +208,7 @@ const Creation = ({ onNavigate }) => {
           // Don't set ID here - let it be assigned during save
           latitude: coordinate[1],
           longitude: coordinate[0],
-          name: `Location ${(locationManager.tempLocations?.length || 0) + 1}`,
+          name: tr("Location {0}", { 0: (locationManager.tempLocations?.length || 0) + 1 }),
           techs: {},
           isNode: false
         };
@@ -563,7 +564,7 @@ const Creation = ({ onNavigate }) => {
           fillColor: '#3b82f6',
           fillOpacity: 0.9,
           weight: 2,
-        }).addTo(map).bindPopup(`<b>${loc.name || 'Location'}</b><br/>${techCount} tech${techCount === 1 ? '' : 's'}`);
+        }).addTo(map).bindPopup(`<b>${loc.name || tr("Location")}</b><br/>${tr("{0} techs", { 0: techCount })}`);
       });
 
       tempLinks.forEach(link => {
@@ -600,7 +601,7 @@ const Creation = ({ onNavigate }) => {
       });
     }).catch((err) => {
       console.error('Creation Leaflet fallback failed:', err);
-      setWebglErrorMsg(err?.message || 'Leaflet fallback map failed to initialize');
+      setWebglErrorMsg(err?.message || tr("Leaflet fallback map failed to initialize"));
     });
 
     return () => {
@@ -807,7 +808,7 @@ const Creation = ({ onNavigate }) => {
         return;
       }
       setOsmLoading(true);
-      setOsmLoadingStage('Querying OpenStreetMap for the power grid…');
+      setOsmLoadingStage(tr("Querying OpenStreetMap for the power grid…"));
       try {
         // Fetch power infrastructure directly from Overpass (no backend / PostGIS),
         // clipped to the selected territory polygon(s) so bbox-corner features
@@ -827,16 +828,16 @@ const Creation = ({ onNavigate }) => {
         // transient Overpass failure (a mirror returned empty) — keep what we
         // have rather than blanking the map.
         if (nLines + nSubs + nPlants === 0 && hadData) {
-          showNotification('Could not refresh the grid (OpenStreetMap returned nothing) — kept the previous data. Try again.', 'warning');
+          showNotification(tr("Could not refresh the grid (OpenStreetMap returned nothing) — kept the previous data. Try again."), 'warning');
         } else {
-          setOsmLoadingStage('Rendering grid on the map…');
+          setOsmLoadingStage(tr("Rendering grid on the map…"));
           setOsmSubstations(data.substations);
           setOsmPowerPlants(data.powerPlants);
           setOsmPowerLines(data.powerLines);
           setOsmCommunes(null);
           setOsmDistricts(null);
           showNotification(
-            `Grid loaded: ${nLines} lines · ${nSubs} substations · ${nPlants} plants`,
+            tr("Grid loaded: {0} lines · {1} substations · {2} plants", { 0: nLines, 1: nSubs, 2: nPlants }),
             nLines + nSubs + nPlants > 0 ? 'success' : 'warning',
           );
         }
@@ -846,8 +847,8 @@ const Creation = ({ onNavigate }) => {
         const timedOut = /50\d|429|timeout|aborted|connection/i.test(error.message || '');
         showNotification(
           timedOut
-            ? 'OpenStreetMap is busy or the area is too large. Try a smaller region or raise the min-voltage, then reselect.'
-            : `Grid load failed: ${error.message}`,
+            ? tr("OpenStreetMap is busy or the area is too large. Try a smaller region or raise the min-voltage, then reselect.")
+            : tr("Grid load failed: {0}", { 0: error.message }),
           'error',
         );
         setOsmSubstations(null);
@@ -1097,7 +1098,7 @@ const Creation = ({ onNavigate }) => {
   
   // Clear all locations and links
   const clearAll = useCallback(async () => {
-    if (await confirmAction({ title: 'Clear the map?', message: 'All unsaved locations and links on the map will be removed.', confirmLabel: 'Clear all' })) {
+    if (await confirmAction({ title: tr("Clear the map?"), message: tr("All unsaved locations and links on the map will be removed."), confirmLabel: tr("Clear all") })) {
       locationManager.clearAll();
     }
   }, [locationManager]);
@@ -1105,7 +1106,7 @@ const Creation = ({ onNavigate }) => {
   // Save model to main data
   const saveToMainData = useCallback(async () => {
     if (!modelName.trim()) {
-      showNotification('Please enter a model name', 'warning');
+      showNotification(tr("Please enter a model name"), 'warning');
       return;
     }
 
@@ -1213,7 +1214,7 @@ const Creation = ({ onNavigate }) => {
       techsToAdd,
       modelTimeSeries,
       {
-        description: `Model created in Creation mode with ${locationManager.tempLocations.length} locations and ${locationManager.tempLinks.length} links`,
+        description: tr("Model created in Creation mode with {0} locations and {1} links", { 0: locationManager.tempLocations.length, 1: locationManager.tempLinks.length }),
         createdInCreationMode: true,
         modelConfig: {
           calliopeVersion: modelConfig.calliopeVersion,
@@ -1230,7 +1231,7 @@ const Creation = ({ onNavigate }) => {
       }
     );
     
-    showNotification(`Model "${modelConfig.name || modelName}" created successfully!`, 'success');
+    showNotification(tr("Model \"{0}\" created successfully!", { 0: modelConfig.name || modelName }), 'success');
 
     // Reset creation state
     locationManager.clearAll();
@@ -1244,7 +1245,7 @@ const Creation = ({ onNavigate }) => {
   // Generate power mesh from OSM power lines
   const generateMeshFromLines = useCallback(() => {
     if (!osmPowerLines) {
-      showNotification('Please load OSM power lines data first', 'warning');
+      showNotification(tr("Please load OSM power lines data first"), 'warning');
       return;
     }
 
@@ -1265,17 +1266,17 @@ const Creation = ({ onNavigate }) => {
       const validation = validateMesh(result);
       if (!validation.valid) {
         console.error('Mesh validation errors:', validation.issues);
-        showNotification('Mesh generated with errors. Check console for details.', 'warning');
+        showNotification(tr("Mesh generated with errors. Check console for details."), 'warning');
       } else if (validation.warnings.length > 0) {
         console.warn('Mesh validation warnings:', validation.warnings);
       }
 
       showNotification(
-        `✅ ${result.message}\n📊 Stats: ${result.statistics.avgConnectivity} avg connections, ${result.statistics.isolatedNodes} isolated nodes`,
+        tr("✅ {0}\n📊 Stats: {1} avg connections, {2} isolated nodes", { 0: result.message, 1: result.statistics.avgConnectivity, 2: result.statistics.isolatedNodes }),
         'success'
       );
     } else {
-      showNotification(`Failed to generate mesh: ${result.message}`, 'error');
+      showNotification(tr("Failed to generate mesh: {0}", { 0: result.message }), 'error');
     }
   }, [osmPowerLines, powerLineFilters, showNotification]);
 
@@ -1283,7 +1284,7 @@ const Creation = ({ onNavigate }) => {
   const importMeshAsLocations = useCallback((meshArg) => {
     const mesh = (meshArg && meshArg.nodes) ? meshArg : generatedMesh;
     if (!mesh) {
-      showNotification('No mesh generated yet', 'warning');
+      showNotification(tr("No mesh generated yet"), 'warning');
       return;
     }
 
@@ -1334,7 +1335,7 @@ const Creation = ({ onNavigate }) => {
     setGeneratedMesh(null);
     
     showNotification(
-      `Imported ${meshLocations.length} locations and ${meshLinks.length} links from mesh.`,
+      tr("Imported {0} locations and {1} links from mesh.", { 0: meshLocations.length, 1: meshLinks.length }),
       'success'
     );
   }, [generatedMesh, showNotification, locationManager]);
@@ -1560,7 +1561,7 @@ const Creation = ({ onNavigate }) => {
   const commitStudyAreaPlan = useCallback(async () => {
     const plan = planPreview;
     if (!plan || !plan.locations.length) {
-      showNotification('Nothing to import — every step was skipped or empty.', 'warning');
+      showNotification(tr("Nothing to import — every step was skipped or empty."), 'warning');
       return;
     }
     // Register the substation conversion tech + the demand tech in the model if
@@ -1626,7 +1627,7 @@ const Creation = ({ onNavigate }) => {
         // Record the resolution on the model so later timeseries share it.
         if (modelConfig.resolution !== resolution) setModelConfig(prev => ({ ...prev, resolution }));
         const nCols = dataColumns.length;
-        demandNote = ` · generated a ${source} demand timeseries (${values.length} steps, ${nCols} column${nCols > 1 ? 's' : ''}) on ${demandSubs.length} substations`;
+        demandNote = tr(" · generated a {0} demand timeseries ({1} steps, {2} column{3}) on {4} substations", { 0: source, 1: values.length, 2: nCols, 3: nCols > 1 ? 's' : '', 4: demandSubs.length });
       }
     }
 
@@ -1635,7 +1636,7 @@ const Creation = ({ onNavigate }) => {
     setPlanPreview(null);
     setPlanSummary(null);
     setStudyBuildConfig(null);
-    showNotification(`Imported ${plan.locations.length} nodes and ${plan.links.length} links into the model${demandNote}.`, 'success');
+    showNotification(tr("Imported {0} nodes and {1} links into the model{2}.", { 0: plan.locations.length, 1: plan.links.length, 2: demandNote }), 'success');
   }, [planPreview, locationManager, showNotification, setPlanSummary, setStudyBuildConfig, technologies, setTechnologies, studyBuildConfig, modelConfig, setModelConfig, setTimeSeries, currentModelId]);
 
   // Add a neighbouring admin unit (hovered/clicked on the map) to the study area.
@@ -1652,7 +1653,7 @@ const Creation = ({ onNavigate }) => {
       }],
       voltageThreshold: studyArea?.voltageThreshold ?? 0,
     });
-    showNotification(`Added ${props.name} to the study area.`, 'success');
+    showNotification(tr("Added {0} to the study area.", { 0: props.name }), 'success');
   }, [studyArea, setStudyArea, showNotification]);
 
   // Neighbour candidates: a LIGHT Overpass call finds nearby same-level admin
@@ -1787,18 +1788,18 @@ const Creation = ({ onNavigate }) => {
     if (locationData.id && locationManager.tempLocations.find(l => l.id === locationData.id)) {
       // Update existing location
       locationManager.updateLocation(locationData.id, locationData);
-      showNotification(`Updated location: ${locationData.name}`, 'success');
+      showNotification(tr("Updated location: {0}", { 0: locationData.name }), 'success');
     } else {
       // Add new location
       locationManager.addLocation(locationData);
-      showNotification(`Created location: ${locationData.name}`, 'success');
+      showNotification(tr("Created location: {0}", { 0: locationData.name }), 'success');
     }
   }, [locationManager, showNotification]);
   
   // Export mesh to JSON
   const exportMesh = useCallback(() => {
     if (!generatedMesh) {
-      showNotification('No mesh generated yet', 'warning');
+      showNotification(tr("No mesh generated yet"), 'warning');
       return;
     }
 
@@ -1811,7 +1812,7 @@ const Creation = ({ onNavigate }) => {
     link.click();
     URL.revokeObjectURL(url);
 
-    showNotification('Mesh exported successfully', 'success');
+    showNotification(tr("Mesh exported successfully"), 'success');
   }, [generatedMesh, showNotification]);
 
   // Add edge between two mesh nodes
@@ -1822,7 +1823,7 @@ const Creation = ({ onNavigate }) => {
     const toNode = generatedMesh.nodes.find(n => n.id === toNodeId);
 
     if (!fromNode || !toNode || fromNodeId === toNodeId) {
-      showNotification('Invalid nodes selected for edge creation', 'warning');
+      showNotification(tr("Invalid nodes selected for edge creation"), 'warning');
       return;
     }
 
@@ -1832,7 +1833,7 @@ const Creation = ({ onNavigate }) => {
     );
 
     if (edgeExists) {
-      showNotification('Edge already exists between these nodes', 'warning');
+      showNotification(tr("Edge already exists between these nodes"), 'warning');
       return;
     }
 
@@ -1864,7 +1865,7 @@ const Creation = ({ onNavigate }) => {
       })
     });
 
-    showNotification('Edge added successfully', 'success');
+    showNotification(tr("Edge added successfully"), 'success');
   }, [generatedMesh, showNotification]);
 
   // Expose mesh functions to window for OsmInfrastructurePanel
@@ -1877,7 +1878,7 @@ const Creation = ({ onNavigate }) => {
     window.clearMesh = () => {
       setGeneratedMesh(null);
       setMeshVisible(false);
-      showNotification('Mesh cleared', 'info');
+      showNotification(tr("Mesh cleared"), 'info');
     };
     
     // Update mesh existence and statistics
@@ -1921,7 +1922,7 @@ const Creation = ({ onNavigate }) => {
       })
     });
 
-    showNotification('Edge removed successfully', 'success');
+    showNotification(tr("Edge removed successfully"), 'success');
   }, [generatedMesh, showNotification]);
 
   // Update mesh node properties
@@ -1941,7 +1942,7 @@ const Creation = ({ onNavigate }) => {
       setSelectedMeshNode({ ...selectedMeshNode, ...updates });
     }
 
-    showNotification('Node updated successfully', 'success');
+    showNotification(tr("Node updated successfully"), 'success');
   }, [generatedMesh, selectedMeshNode, showNotification]);
 
   return (
@@ -1975,8 +1976,8 @@ const Creation = ({ onNavigate }) => {
             <div className="tempo-calc-badge flex items-center gap-2 px-3.5 py-1.5 bg-blue-600/95 text-white text-xs font-medium shadow-lg">
               <span className="inline-block w-2 h-2 rounded-full bg-white animate-ping" />
               {osmLoading
-                ? 'Calculating power lines, substations & plants…'
-                : 'Getting the surrounding regions…'}
+                ? tr("Calculating power lines, substations & plants…")
+                : tr("Getting the surrounding regions…")}
             </div>
           </div>
         )}
@@ -1987,7 +1988,7 @@ const Creation = ({ onNavigate }) => {
             <div className="bg-surface-container-lowest rounded-lg p-6 border border-black/15">
               <div className="flex items-center space-x-3">
                 <div className="animate-spin h-8 w-8 border-4 border-gray-500 border-t-transparent rounded-full"></div>
-                <span className="text-lg font-semibold text-gray-800">Loading infrastructure data...</span>
+                <span className="text-lg font-semibold text-gray-800">{tr("Loading infrastructure data...")}</span>
               </div>
             </div>
           </div>
@@ -2007,7 +2008,7 @@ const Creation = ({ onNavigate }) => {
               }
             }}
             onError={(error) => {
-              const msg = error?.message || error?.statusMessage || 'Failed to initialize WebGL';
+              const msg = error?.message || error?.statusMessage || tr("Failed to initialize WebGL");
               if (/webgl|gl context|webglcontextcreationerror|FEATURE_FAILURE_EGL_NO_CONFIG|FEATURE_FAILURE_WEBGL_EXHAUSTED_DRIVERS|Failed to initialize WebGL/i.test(msg)) {
                 setWebglAvailable(false);
                 setWebglErrorMsg(msg);
@@ -2087,12 +2088,12 @@ const Creation = ({ onNavigate }) => {
                     if (info.object) {
                       const props = info.object.properties;
                       setHoveredInfo({
-                        name: props.name || 'Selected Region',
+                        name: props.name || tr("Selected Region"),
                         layerType: 'Region Boundary',
                         details: [
-                          props.admin_level && { label: 'Admin Level', value: props.admin_level },
-                          props.population && { label: 'Population', value: props.population.toLocaleString() },
-                          props.region_path && { label: 'Region Path', value: props.region_path },
+                          props.admin_level && { label: tr("Admin Level"), value: props.admin_level },
+                          props.population && { label: tr("Population"), value: props.population.toLocaleString() },
+                          props.region_path && { label: tr("Region Path"), value: props.region_path },
                         ].filter(Boolean),
                         x: info.x,
                         y: info.y
@@ -2156,16 +2157,16 @@ const Creation = ({ onNavigate }) => {
                         if (voltage > 1000) voltage = voltage / 1000;
                         const vLabel = voltage > 0 ? `${voltage.toFixed(0)} kV` : null;
                         setHoveredInfo({
-                          name: props.name || props.ref || (vLabel ? `${vLabel} Line` : 'Power Line'),
+                          name: props.name || props.ref || (vLabel ? tr("{0} Line", { 0: vLabel }) : tr("Power Line")),
                           layerType: 'Power Line',
                           details: [
-                            vLabel             && { label: 'Voltage',   value: vLabel },
-                            props.ref          && { label: 'Ref',       value: props.ref },
-                            props.operator     && { label: 'Operator',  value: props.operator },
-                            props.cables       && { label: 'Cables',    value: props.cables },
-                            props.wires        && { label: 'Wires',     value: props.wires },
-                            props.frequency    && { label: 'Frequency', value: `${props.frequency} Hz` },
-                            props.location     && { label: 'Location',  value: props.location },
+                            vLabel             && { label: tr("Voltage"),   value: vLabel },
+                            props.ref          && { label: tr("Ref"),       value: props.ref },
+                            props.operator     && { label: tr("Operator"),  value: props.operator },
+                            props.cables       && { label: tr("Cables"),    value: props.cables },
+                            props.wires        && { label: tr("Wires"),     value: props.wires },
+                            props.frequency    && { label: tr("Frequency"), value: `${props.frequency} Hz` },
+                            props.location     && { label: tr("Location"),  value: props.location },
                           ].filter(Boolean),
                           x: info.x,
                           y: info.y
@@ -2216,16 +2217,16 @@ const Creation = ({ onNavigate }) => {
                       const source = props.plant_source || props.source || 'unknown';
                       const cap = props.capacity_mw;
                       setHoveredInfo({
-                        name: props.name || 'Power Plant',
+                        name: props.name || tr("Power Plant"),
                         layerType: 'Power Plant',
                         accentColor: source && source !== 'unknown' ? getFuelColor(source) : '#6B7280',
                         details: [
-                          { label: 'Source', value: source === 'unknown' ? 'Unknown ⚠' : source.charAt(0).toUpperCase() + source.slice(1) },
-                          props.plant_method && { label: 'Method', value: props.plant_method },
-                          { label: 'Capacity', value: (cap != null) ? `${cap} MW` : 'unknown ⚠' },
-                          props.operator     && { label: 'Operator', value: props.operator },
-                          props.start_date   && { label: 'Since',    value: props.start_date },
-                          props.ref          && { label: 'Ref',      value: props.ref },
+                          { label: tr("Source"), value: source === 'unknown' ? 'Unknown ⚠' : source.charAt(0).toUpperCase() + source.slice(1) },
+                          props.plant_method && { label: tr("Method"), value: props.plant_method },
+                          { label: tr("Capacity"), value: (cap != null) ? `${cap} MW` : 'unknown ⚠' },
+                          props.operator     && { label: tr("Operator"), value: props.operator },
+                          props.start_date   && { label: tr("Since"),    value: props.start_date },
+                          props.ref          && { label: tr("Ref"),      value: props.ref },
                         ].filter(Boolean),
                         x: info.x,
                         y: info.y
@@ -2270,19 +2271,19 @@ const Creation = ({ onNavigate }) => {
                       const props = info.object.properties;
                       const kv = props.voltage_kv || null;
                       const grid = props.substation; // classified: transmission | distribution | …
-                      const gridLabel = grid === 'transmission' ? 'Transmission (HV)'
-                        : grid === 'distribution' ? 'Distribution (MV/LV)'
+                      const gridLabel = grid === 'transmission' ? tr("Transmission (HV)")
+                        : grid === 'distribution' ? tr("Distribution (MV/LV)")
                         : grid ? grid.charAt(0).toUpperCase() + grid.slice(1)
                         : 'Unknown ⚠';
                       setHoveredInfo({
-                        name: props.name || 'Substation',
+                        name: props.name || tr("Substation"),
                         layerType: 'Substation',
                         details: [
-                          { label: 'Grid', value: gridLabel },
-                          kv                    && { label: 'Voltage',   value: `${kv} kV` },
-                          props.operator        && { label: 'Operator',  value: props.operator },
-                          props.frequency       && { label: 'Frequency', value: `${props.frequency} Hz` },
-                          props.ref             && { label: 'Ref',       value: props.ref },
+                          { label: tr("Grid"), value: gridLabel },
+                          kv                    && { label: tr("Voltage"),   value: `${kv} kV` },
+                          props.operator        && { label: tr("Operator"),  value: props.operator },
+                          props.frequency       && { label: tr("Frequency"), value: `${props.frequency} Hz` },
+                          props.ref             && { label: tr("Ref"),       value: props.ref },
                         ].filter(Boolean),
                         x: info.x,
                         y: info.y
@@ -2331,8 +2332,8 @@ const Creation = ({ onNavigate }) => {
                       const loc = info.object;
                       const techCount = Object.keys(loc.techs || {}).length;
                       setHoveredInfo({
-                        name: loc.name || 'Location',
-                        techs: `${techCount} technolog${techCount !== 1 ? 'ies' : 'y'}`,
+                        name: loc.name || tr("Location"),
+                        techs: techCount === 1 ? tr("1 technology") : tr("{0} technologies", { 0: techCount }),
                         x: info.x,
                         y: info.y
                       });
@@ -2369,7 +2370,7 @@ const Creation = ({ onNavigate }) => {
                   onHover: (info) => {
                     if (info.object) {
                       const link = info.object;
-                      const carrierLabel = link.carrier ? getCarrierLabel(link.carrier) : 'Electricity';
+                      const carrierLabel = link.carrier ? getCarrierLabel(link.carrier) : tr("Electricity");
                       setHoveredInfo({
                         name: `Link: ${link.fromName || link.from} → ${link.toName || link.to}`,
                         techs: `${carrierLabel}${link.distance ? ` | ${link.distance} km` : ''}`,
@@ -2503,9 +2504,9 @@ const Creation = ({ onNavigate }) => {
           <div className="absolute inset-0 z-10">
             <div ref={leafletContainerRef} className="w-full h-full" />
             <div className="absolute top-4 left-4 bg-white/95 backdrop-blur rounded-lg shadow-lg px-4 py-3 max-w-md">
-              <div className="font-semibold text-slate-800 text-sm">Compatibility map mode</div>
+              <div className="font-semibold text-slate-800 text-sm">{tr("Compatibility map mode")}</div>
               <div className="text-slate-600 text-xs mt-1">
-                DeckGL could not create a WebGL context, so Creation is using Leaflet instead.
+                {tr("DeckGL could not create a WebGL context, so Creation is using Leaflet instead.")}
               </div>
               {webglErrorMsg && (
                 <div className="text-slate-500 text-[11px] mt-1 break-words">{webglErrorMsg}</div>
@@ -2532,7 +2533,7 @@ const Creation = ({ onNavigate }) => {
           }`}
         >
           <FiCpu size={12} />
-          Tech Library
+          {tr("Tech Library")}
           {technologies.filter(t => t.uuid).length > 0 && (
             <span className={`text-[9px] font-bold px-1 py-0.5 ml-0.5 ${
               showTechLibrary ? 'bg-indigo-500 text-white' : 'bg-indigo-50 text-indigo-600'
@@ -2559,18 +2560,18 @@ const Creation = ({ onNavigate }) => {
               <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
             </span>
             <span className="shrink-0 font-semibold text-slate-900">
-              {mode === 'add' && 'Add location'}
-              {mode === 'link' && 'Link'}
-              {mode === 'polyline' && 'Polyline'}
+              {mode === 'add' && tr("Add location")}
+              {mode === 'link' && tr("Link")}
+              {mode === 'polyline' && tr("Polyline")}
             </span>
             <span className="truncate text-slate-500">
-              {mode === 'add' && 'Click the map to place a location'}
+              {mode === 'add' && tr("Click the map to place a location")}
               {mode === 'link' && (locationManager.linkStart
-                ? `From ${locationManager.linkStart.name} · select the end location`
-                : 'Select the start location')}
+                ? tr("From {0} · select the end location", { 0: locationManager.linkStart.name })
+                : tr("Select the start location"))}
               {mode === 'polyline' && (polylineMode.lastCreatedLocation
-                ? `Last: ${polylineMode.lastCreatedLocation.name} · click to add the next point`
-                : 'Click the map to start a chain of connected points')}
+                ? tr("Last: {0} · click to add the next point", { 0: polylineMode.lastCreatedLocation.name })
+                : tr("Click the map to start a chain of connected points"))}
             </span>
           </div>
         )}
@@ -2595,10 +2596,10 @@ const Creation = ({ onNavigate }) => {
             onClick={() => setShowSaveDialog(true)}
             data-tour="save-model"
             className="absolute bottom-8 right-4 z-[600] flex h-11 items-center gap-2.5 rounded-xl bg-black pl-4 pr-2.5 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 ring-1 ring-slate-900/10 transition-colors hover:bg-black/80"
-            title="Save this model and open it in the Map View"
+            title={tr("Save this model and open it in the Map View")}
           >
             <FiSave size={17} />
-            Save model
+            {tr("Save model")}
             <span className="rounded-md bg-white/15 px-2 py-0.5 text-xs font-semibold tabular-nums">
               {locationManager.tempLocations.length}
             </span>
@@ -2651,7 +2652,7 @@ const Creation = ({ onNavigate }) => {
           if (savedLocation.id && locationManager.tempLocations.find(l => l.id === savedLocation.id)) {
             // Update existing location
             locationManager.updateLocation(savedLocation.id, savedLocation);
-            showNotification(`Updated location: ${savedLocation.name}`, 'success');
+            showNotification(tr("Updated location: {0}", { 0: savedLocation.name }), 'success');
           } else {
             // Add new location with generated ID
             const newLocationWithId = {
@@ -2659,7 +2660,7 @@ const Creation = ({ onNavigate }) => {
               id: Date.now()
             };
             locationManager.addLocation(newLocationWithId);
-            showNotification(`Created location: ${savedLocation.name}`, 'success');
+            showNotification(tr("Created location: {0}", { 0: savedLocation.name }), 'success');
           }
           setShowLocationDialog(false);
           setPendingLocation(null);

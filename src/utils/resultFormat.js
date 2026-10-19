@@ -1,3 +1,4 @@
+import { tr } from '../i18n';
 // Pure, stateless helpers for rendering optimisation results: SI-aware number
 // formatters, the tech colour palette + fallback classifier, the Calliope
 // location-name transform, and the shared OSM map style. Extracted from
@@ -116,32 +117,32 @@ export const scaledFmt = (div, decimals = 1) => (v) => (v / div).toFixed(decimal
 //   ter / TER → thermal  bat → battery  emb → reservoir storage
 export const TECH_GROUPS = [
   {
-    id: 'tx', label: 'Links', color: '#0ea5e9',
+    id: 'tx', label: tr("Links"), color: '#0ea5e9',
     // Structural: colon inside name = "techType:destLocation" in Calliope
     match: (t) => t.includes(':'),
   },
   {
-    id: 'demand', label: 'Demand', color: '#ef4444',
+    id: 'demand', label: tr("Demand"), color: '#ef4444',
     match: (base) => /\bdemand\b|\bload\b|\bconsumo\b|\bdemanda\b/i.test(base),
   },
   {
-    id: 'stor', label: 'Storage', color: '#8b5cf6',
+    id: 'stor', label: tr("Storage"), color: '#8b5cf6',
     match: (base) => /\bbat(ter)?\b|_bat\b|bat_|\bBATT?|storage(?!.*tx|.*pipe)|pumped|embalse|\bemb\b|capacitor|thermal.?stor|heat.?stor/i.test(base),
   },
   {
-    id: 'h2', label: 'Hydrogen', color: '#7c3aed',
+    id: 'h2', label: tr("Hydrogen"), color: '#7c3aed',
     match: (base) => /\bh2\b|hydrogen|electrolys|fuel.?cell|h2_|_h2|hidrogeno|pila/i.test(base),
   },
   {
-    id: 'conv', label: 'Conversion', color: '#10b981',
+    id: 'conv', label: tr("Conversion"), color: '#10b981',
     match: (base) => /heat.?pump|boiler|chp|methan|fischer|haber|dac|desalination|convert/i.test(base),
   },
   {
-    id: 'gen', label: 'Generation', color: '#f59e0b',
+    id: 'gen', label: tr("Generation"), color: '#f59e0b',
     match: (base) => /solar|\bpv\b|pfv\b|fv\b|wind|\beol|hidro|hydro(?!gen)|biomass|coal|gas\b|nuclear|geotherm|csp|ccgt|ocgt|diesel|oil|lignite|turbine|ter\b|termica|hid\b|hidraulic|ernc|renovable/i.test(base),
   },
   {
-    id: 'infra', label: 'Substations', color: '#94a3b8',
+    id: 'infra', label: tr("Substations"), color: '#94a3b8',
     match: (base) => /substation|busbar|\bbus\b|\bhub\b|transformer|\bnode\b|barra|subestacion|\bSE_/i.test(base),
   },
 ];

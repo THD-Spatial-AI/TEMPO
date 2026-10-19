@@ -5,11 +5,12 @@ import { FiActivity, FiLink, FiMapPin } from '../ui/icons';
 import { LuPanelLeftClose, LuPanelLeftOpen } from '../ui/icons';
 import EntityListsPanel from '../shared/EntityListsPanel';
 import ModeGuide from './ModeGuide';
+import { tr } from '../../i18n';
 
 const MODES = [
-  { id: 'add', label: 'Location', icon: FiMapPin, hint: 'Click the map to drop a location' },
-  { id: 'link', label: 'Link', icon: FiLink, hint: 'Click two locations to connect them' },
-  { id: 'polyline', label: 'Polyline', icon: FiActivity, hint: 'Click repeatedly to add auto-linked points' },
+  { id: 'add', label: tr("Location"), icon: FiMapPin, hint: tr("Click the map to drop a location") },
+  { id: 'link', label: tr("Link"), icon: FiLink, hint: tr("Click two locations to connect them") },
+  { id: 'polyline', label: tr("Polyline"), icon: FiActivity, hint: tr("Click repeatedly to add auto-linked points") },
 ];
 
 export default function CreationSidebar({
@@ -50,14 +51,14 @@ export default function CreationSidebar({
         <div className={`flex items-center border-b border-black/15 ${leftSidebarCollapsed ? 'justify-center py-3' : 'justify-between px-4 py-3'}`}>
           {!leftSidebarCollapsed && (
             <div className="min-w-0">
-              <h2 className="text-sm font-semibold text-slate-900">Creation Mode</h2>
-              <p className="text-[11px] text-slate-500">Build your energy system</p>
+              <h2 className="text-sm font-semibold text-slate-900">{tr("Creation Mode")}</h2>
+              <p className="text-[11px] text-slate-500">{tr("Build your energy system")}</p>
             </div>
           )}
           <button
             onClick={() => setLeftSidebarCollapsed(!leftSidebarCollapsed)}
             className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors"
-            title={leftSidebarCollapsed ? 'Expand panel' : 'Collapse panel'}
+            title={leftSidebarCollapsed ? tr("Expand panel") : tr("Collapse panel")}
           >
             <ToggleIcon size={18} />
           </button>
@@ -99,7 +100,7 @@ export default function CreationSidebar({
               </div>
               <div className="mt-2 flex items-start justify-between gap-2 px-0.5">
                 <p className="pt-1 text-[11px] leading-snug text-slate-500">
-                  {activeMode ? activeMode.hint : 'Pick a mode to start editing the map'}
+                  {activeMode ? activeMode.hint : tr("Pick a mode to start editing the map")}
                 </p>
                 <ModeGuide />
               </div>
@@ -114,7 +115,7 @@ export default function CreationSidebar({
               onEditLocation={(loc) => { setPendingLocation(loc); setShowLocationDialog(true); }}
               onDeleteLocation={(loc) => locationManager.removeLocation(loc.id)}
               onClearLocations={clearAll}
-              onClearLinks={() => { locationManager.setTempLinks([]); showNotification('All links cleared', 'success'); }}
+              onClearLinks={() => { locationManager.setTempLinks([]); showNotification(tr("All links cleared"), 'success'); }}
               onUpdateLink={(link, patch) => locationManager.updateLink(link.id, patch)}
               onDeleteLink={(link) => locationManager.removeLink(link.id)}
               locationsExpanded={locationsExpanded}

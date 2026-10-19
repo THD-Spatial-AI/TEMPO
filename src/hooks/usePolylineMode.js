@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { tr } from '../i18n';
 
 /**
  * Custom hook for managing polyline mode
@@ -16,20 +17,20 @@ export const usePolylineMode = (locationManager, showNotification) => {
       id: Date.now(),
       latitude: coordinate[1],
       longitude: coordinate[0],
-      name: `Point ${(locationManager.tempLocations?.length || 0) + 1}`,
+      name: tr("Point {0}", { 0: (locationManager.tempLocations?.length || 0) + 1 }),
       techs: {},
       isNode: false
     };
     
     // Add the location immediately
     locationManager.addLocation(newLocationWithId);
-    showNotification(`Point created: ${newLocationWithId.name}`, 'success');
+    showNotification(tr("Point created: {0}", { 0: newLocationWithId.name }), 'success');
     
     // If there's a previous location, create a link between them
     if (lastCreatedLocation) {
       // Use the locationManager's addLink which expects two location objects
       locationManager.addLink(lastCreatedLocation, newLocationWithId);
-      showNotification(`Link created: ${lastCreatedLocation.name} → ${newLocationWithId.name}`, 'info');
+      showNotification(tr("Link created: {0} → {1}", { 0: lastCreatedLocation.name, 1: newLocationWithId.name }), 'info');
     }
     
     // Remember this location for the next click

@@ -9,6 +9,7 @@ import { LINK_TYPES, LINK_TYPES_BY_GROUP, getLinkTypeColor } from '../../config/
 import { getCarrierColor } from '../../config/carriers';
 import { formatTechName } from '../../utils/nameUtils';
 import SelectField from '../ui/SelectField';
+import { tr } from '../../i18n';
 
 export default function EntityListsPanel({
   locations = [],
@@ -34,18 +35,18 @@ export default function EntityListsPanel({
       {/* Locations Section */}
       <section className="mb-3" data-tour="entity-locations">
         <SectionHeader
-          title="Locations"
+          title={tr("Locations")}
           count={locations.length}
           expanded={locationsExpanded}
           onToggle={() => setLocationsExpanded(!locationsExpanded)}
         >
           {onSave && (
-            <IconButton onClick={onSave} title="Save model" disabled={locations.length === 0}>
+            <IconButton onClick={onSave} title={tr("Save model")} disabled={locations.length === 0}>
               <FiSave size={ICON_PX.md} />
             </IconButton>
           )}
           {onClearLocations && (
-            <IconButton onClick={onClearLocations} title="Clear all" danger disabled={locations.length === 0}>
+            <IconButton onClick={onClearLocations} title={tr("Clear all")} danger disabled={locations.length === 0}>
               <FiTrash2 size={ICON_PX.md} />
             </IconButton>
           )}
@@ -53,7 +54,7 @@ export default function EntityListsPanel({
 
         {locationsExpanded && (
           locations.length === 0 ? (
-            <EmptyState icon={FiMapPin} text="No locations yet" />
+            <EmptyState icon={FiMapPin} text={tr("No locations yet")} />
           ) : (
             <ul className="space-y-0.5">
               {locations.map((loc, index) => {
@@ -75,19 +76,19 @@ export default function EntityListsPanel({
                         {index + 1}
                       </span>
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-[13px] font-medium leading-tight text-slate-800">{loc.name || `Location ${index + 1}`}</div>
+                        <div className="truncate text-[13px] font-medium leading-tight text-slate-800">{loc.name || tr("Location {0}", { 0: index + 1 })}</div>
                         <div className="font-mono text-[10px] leading-tight text-slate-400">
                           {Number(loc.latitude).toFixed(4)}, {Number(loc.longitude).toFixed(4)}
                         </div>
                       </div>
                       <div className="flex shrink-0 gap-0.5">
                         {onEditLocation && (
-                          <IconButton onClick={(e) => { e.stopPropagation(); onEditLocation(loc, index); }} title="Edit location">
+                          <IconButton onClick={(e) => { e.stopPropagation(); onEditLocation(loc, index); }} title={tr("Edit location")}>
                             <FiEdit2 size={ICON_PX.md} />
                           </IconButton>
                         )}
                         {onDeleteLocation && (
-                          <IconButton onClick={(e) => { e.stopPropagation(); onDeleteLocation(loc, index); }} title="Delete location" danger>
+                          <IconButton onClick={(e) => { e.stopPropagation(); onDeleteLocation(loc, index); }} title={tr("Delete location")} danger>
                             <FiTrash2 size={ICON_PX.md} />
                           </IconButton>
                         )}
@@ -113,13 +114,13 @@ export default function EntityListsPanel({
       {/* Links Section */}
       <section className="border-t border-black/10 pt-3" data-tour="entity-links">
         <SectionHeader
-          title="Links"
+          title={tr("Links")}
           count={links.length}
           expanded={linksExpanded}
           onToggle={() => setLinksExpanded(!linksExpanded)}
         >
           {onClearLinks && (
-            <IconButton onClick={onClearLinks} title="Clear all links" danger disabled={links.length === 0}>
+            <IconButton onClick={onClearLinks} title={tr("Clear all links")} danger disabled={links.length === 0}>
               <FiTrash2 size={ICON_PX.md} />
             </IconButton>
           )}
@@ -128,7 +129,7 @@ export default function EntityListsPanel({
         {/* Link type selector — Creation-only (applies to new links drawn on the map) */}
         {setCurrentLinkType && (
           <div className="mb-2 flex items-center gap-2 rounded-lg border border-black/15 bg-slate-50 px-2 py-1.5" data-tour="link-type">
-            <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-slate-400">New</span>
+            <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-slate-400">{tr("New")}</span>
             <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: getLinkTypeColor(currentLinkType) }} />
             <SelectField
               value={currentLinkType}
@@ -146,7 +147,7 @@ export default function EntityListsPanel({
 
         {linksExpanded && (
           links.length === 0 ? (
-            <EmptyState icon={FiLink} text="No links yet" />
+            <EmptyState icon={FiLink} text={tr("No links yet")} />
           ) : (
             <ul className="space-y-0.5">
               {links.map((link, linkIndex) => {
@@ -164,7 +165,7 @@ export default function EntityListsPanel({
                       {distance && <span className="shrink-0 font-mono text-[10px] text-slate-400">{distance}</span>}
                       {onDeleteLink && (
                         <span className="shrink-0">
-                          <IconButton onClick={(e) => { e.stopPropagation(); onDeleteLink(link, linkIndex); }} title="Delete link" danger>
+                          <IconButton onClick={(e) => { e.stopPropagation(); onDeleteLink(link, linkIndex); }} title={tr("Delete link")} danger>
                             <FiTrash2 size={ICON_PX.md} />
                           </IconButton>
                         </span>
@@ -182,7 +183,7 @@ export default function EntityListsPanel({
                         }}
                         className="ml-4 mt-0.5 w-[calc(100%-1rem)] cursor-pointer rounded bg-transparent text-[11px] text-slate-500 hover:text-slate-800 focus:outline-none"
                       >
-                        <option value="">No type</option>
+                        <option value="">{tr("No type")}</option>
                         {Object.entries(LINK_TYPES_BY_GROUP).map(([group, types]) => (
                           <optgroup key={group} label={group}>
                             {types.map(t => (<option key={t.id} value={t.id}>{t.label}</option>))}

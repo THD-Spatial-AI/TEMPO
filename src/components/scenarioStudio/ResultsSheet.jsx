@@ -6,6 +6,7 @@ import React, { useState } from 'react';
 import { FiChevronUp, FiChevronDown, FiBarChart2 } from '../ui/icons';
 import BatchComparison from '../results/BatchComparison.jsx';
 import SporesEnsembleComparison from '../results/SporesEnsembleComparison.jsx';
+import { tr } from '../../i18n';
 
 export default function ResultsSheet({ completedJobs }) {
   const [open, setOpen] = useState(false);
@@ -16,8 +17,8 @@ export default function ResultsSheet({ completedJobs }) {
       <button onClick={() => setOpen(o => !o)}
         className="w-full flex items-center gap-2 px-4 py-2 hover:bg-slate-50 transition-colors">
         <FiBarChart2 size={14} className="text-electric-500" />
-        <span className="text-sm font-semibold text-slate-700">Results</span>
-        <span className="text-xs text-slate-400">{completedJobs.length} completed run{completedJobs.length === 1 ? '' : 's'}</span>
+        <span className="text-sm font-semibold text-slate-700">{tr("Results")}</span>
+        <span className="text-xs text-slate-400">{completedJobs.length} {tr("completed run")}{completedJobs.length === 1 ? '' : 's'}</span>
         <span className="ml-auto text-slate-400">{open ? <FiChevronDown size={16} /> : <FiChevronUp size={16} />}</span>
       </button>
       {open && (

@@ -1,4 +1,5 @@
 import React from 'react';
+import { tr } from '../i18n';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -27,12 +28,12 @@ class ErrorBoundary extends React.Component {
       return (
         <div className="flex items-center justify-center w-full h-full bg-surface">
           <div className="text-center">
-            <p className="text-slate-600">Something went wrong with the map.</p>
+            <p className="text-slate-600">{tr("Something went wrong with the map.")}</p>
             <button 
               onClick={() => this.setState({ hasError: false })}
               className="mt-4 px-4 py-2 bg-primary text-white text-sm font-bold uppercase tracking-wide hover:opacity-80"
             >
-              Try Again
+              {tr("Try Again")}
             </button>
           </div>
         </div>

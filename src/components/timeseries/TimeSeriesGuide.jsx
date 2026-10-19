@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { LuUpload, LuDownload, LuCalendarClock, LuColumns3, LuHash, LuLink } from '../ui/icons';
+import { tr } from '../../i18n';
 
 const pad = (n) => String(n).padStart(2, '0');
 const hourStamp = (h) => `2024-01-01 ${pad(h)}:00`;
@@ -33,14 +34,14 @@ function downloadExample(kind) {
 }
 
 const RULES = [
-  { icon: LuColumns3, title: 'CSV with a header row', text: 'Comma-separated, one header line with column names.' },
-  { icon: LuCalendarClock, title: 'First column = timestamp', text: 'e.g. 2024-01-01 00:00 — one row per time step (usually hourly), covering the period you run.' },
-  { icon: LuHash, title: 'Other columns = numeric series', text: 'One column per series, usually named after a location (Berlin, Munich…). Numbers only.' },
-  { icon: LuLink, title: 'Referenced by file and column', text: 'Technologies point at a column as file=demand.csv:Berlin.' },
+  { icon: LuColumns3, title: tr("CSV with a header row"), text: tr("Comma-separated, one header line with column names.") },
+  { icon: LuCalendarClock, title: tr("First column = timestamp"), text: tr("e.g. 2024-01-01 00:00 — one row per time step (usually hourly), covering the period you run.") },
+  { icon: LuHash, title: tr("Other columns = numeric series"), text: tr("One column per series, usually named after a location (Berlin, Munich…). Numbers only.") },
+  { icon: LuLink, title: tr("Referenced by file and column"), text: tr("Technologies point at a column as file=demand.csv:Berlin.") },
 ];
 
 const SAMPLE = [
-  ['timestamp', 'Berlin', 'Munich'],
+  ['timestamp', tr("Berlin"), tr("Munich")],
   ['2024-01-01 00:00', '-1050.2', '-787.6'],
   ['2024-01-01 01:00', '-998.7', '-749.0'],
   ['2024-01-01 02:00', '-963.1', '-722.3'],
@@ -70,15 +71,15 @@ export default function TimeSeriesGuide({ onFile, compact = false }) {
         <span className="mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-black text-white shadow-lg shadow-slate-900/20">
           <LuUpload size={24} />
         </span>
-        <span className="text-base font-semibold text-slate-900">Drop a CSV file here</span>
-        <span className="mt-1 text-sm text-slate-500">or click to browse your computer</span>
-        <span className="mt-4 bg-slate-100 px-3 py-1 text-xs text-slate-500">.csv · header row · timestamp first</span>
+        <span className="text-base font-semibold text-slate-900">{tr("Drop a CSV file here")}</span>
+        <span className="mt-1 text-sm text-slate-500">{tr("or click to browse your computer")}</span>
+        <span className="mt-4 bg-slate-100 px-3 py-1 text-xs text-slate-500">{tr(".csv · header row · timestamp first")}</span>
         <input type="file" accept=".csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = null; }} />
       </label>
 
       <div className="rounded-2xl border border-black/15 bg-white p-6 ">
-        <h2 className="text-base font-semibold text-slate-900">Required structure</h2>
-        <p className="mt-0.5 text-xs text-slate-500">What a time series file needs to look like.</p>
+        <h2 className="text-base font-semibold text-slate-900">{tr("Required structure")}</h2>
+        <p className="mt-0.5 text-xs text-slate-500">{tr("What a time series file needs to look like.")}</p>
 
         <ul className="mt-4 grid gap-3 sm:grid-cols-2">
           {RULES.map(({ icon: Icon, title, text }) => (
@@ -94,8 +95,8 @@ export default function TimeSeriesGuide({ onFile, compact = false }) {
 
         <div className="mt-5 overflow-hidden rounded-xl border border-black/15">
           <div className="flex items-center justify-between border-b border-black/15 bg-slate-50 px-3 py-1.5">
-            <span className="font-mono text-[11px] text-slate-500">demand.csv</span>
-            <span className="text-[11px] text-slate-400">example</span>
+            <span className="font-mono text-[11px] text-slate-500">{tr("demand.csv")}</span>
+            <span className="text-[11px] text-slate-400">{tr("example")}</span>
           </div>
           <table className="w-full font-mono text-xs">
             <tbody>
@@ -112,24 +113,24 @@ export default function TimeSeriesGuide({ onFile, compact = false }) {
 
         <div className="mt-4 grid gap-2 sm:grid-cols-2">
           <div className="rounded-xl bg-slate-50 px-3 py-2.5">
-            <div className="text-xs font-semibold text-slate-900">Demand profiles</div>
-            <p className="mt-0.5 text-[11px] leading-snug text-slate-500">Power per time step in kW. Calliope 0.6 stores demand as <b>negative</b> numbers; the chart shows them as positive.</p>
+            <div className="text-xs font-semibold text-slate-900">{tr("Demand profiles")}</div>
+            <p className="mt-0.5 text-[11px] leading-snug text-slate-500">{tr("Power per time step in kW. Calliope 0.6 stores demand as")} <b>{tr("negative")}</b> {tr("numbers; the chart shows them as positive.")}</p>
           </div>
           <div className="rounded-xl bg-slate-50 px-3 py-2.5">
-            <div className="text-xs font-semibold text-slate-900">Resource / capacity factors</div>
-            <p className="mt-0.5 text-[11px] leading-snug text-slate-500">Solar or wind availability as a fraction from <b>0 to 1</b> per time step.</p>
+            <div className="text-xs font-semibold text-slate-900">{tr("Resource / capacity factors")}</div>
+            <p className="mt-0.5 text-[11px] leading-snug text-slate-500">{tr("Solar or wind availability as a fraction from")} <b>{tr("0 to 1")}</b> {tr("per time step.")}</p>
           </div>
         </div>
         <p className="mt-3 text-[11px] leading-snug text-slate-400">
-          A file whose first column is not a date is imported as a <b>data table</b> (Calliope 0.7 <span className="font-mono">data_tables</span>).
+          {tr("A file whose first column is not a date is imported as a")} <b>{tr("data table")}</b> {tr("(Calliope 0.7")} <span className="font-mono">data_tables</span>).
         </p>
 
         <div className="mt-4 flex flex-wrap gap-2">
           <button onClick={() => downloadExample('demand')} className="flex h-8 items-center gap-1.5 rounded-lg border border-black/15 bg-white px-3 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50">
-            <LuDownload size={13} /> Demand example
+            <LuDownload size={13} /> {tr("Demand example")}
           </button>
           <button onClick={() => downloadExample('capacityFactor')} className="flex h-8 items-center gap-1.5 rounded-lg border border-black/15 bg-white px-3 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50">
-            <LuDownload size={13} /> Capacity-factor example
+            <LuDownload size={13} /> {tr("Capacity-factor example")}
           </button>
         </div>
       </div>

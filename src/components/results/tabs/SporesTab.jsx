@@ -4,11 +4,12 @@
 // { result, modelLocations }.
 import { useMemo, useState } from 'react';
 import { FiActivity, FiBarChart2, FiDollarSign, FiFilter, FiGitMerge, FiGrid, FiLayers, FiMap, FiShare2 } from '../../ui/icons';
-import ReactECharts from 'echarts-for-react';
+import ReactECharts from '../../ui/Chart';
 import { GroupedCorrMatrixSVG, ResultsMap } from '../ResultMaps';
 import { autoScale, axisNameStyle, fmtCost, fmtPower, makeIsGenTech, techColor } from '../../../utils/resultFormat';
 import SporesPaperPanel from '../SporesPaperPanel';
 import SelectField from '../../ui/SelectField';
+import { tr, trLoose } from '../../../i18n';
 
 export default function SporesTab({
   result,
@@ -58,7 +59,7 @@ export default function SporesTab({
                 techTotals[t] = sporeCapByTech.map(s => s[t]);
               });
 
-              const sporeLabels = sporesData.map(s => s.spore_id === 0 ? 'Optimal' : `S${s.spore_id}`);
+              const sporeLabels = sporesData.map(s => s.spore_id === 0 ? tr("Optimal") : `S${s.spore_id}`);
 
               // ── Fig 1: Stacked bar + cost line (Lombardi Fig 1) ──
               const allTotals = sporesData.map((_, i) =>
@@ -324,9 +325,9 @@ export default function SporesTab({
                   <div className="bg-surface-container-low border border-black/15 rounded-2xl p-4 flex items-start gap-3">
                     <FiGitMerge className="text-electric-500 mt-0.5 shrink-0" size={16} />
                     <div>
-                      <p className="text-sm font-semibold text-electric-700">{sporesData.length} near-optimal solutions explored</p>
+                      <p className="text-sm font-semibold text-electric-700">{sporesData.length} {tr("near-optimal solutions explored")}</p>
                       <p className="text-xs text-slate-500 mt-0.5">
-                        SPORE 0 is the cost-optimal reference. SPORES 1–{sporesData.length - 1} are spatially diverse alternatives within the cost slack budget. Lombardi et al. (Joule 2020).
+                        {tr("SPORE 0 is the cost-optimal reference. SPORES 1–")}{sporesData.length - 1} {tr("are spatially diverse alternatives within the cost slack budget. Lombardi et al. (Joule 2020).")}
                       </p>
                     </div>
                   </div>
@@ -334,15 +335,15 @@ export default function SporesTab({
                   {/* Cost summary table */}
                   <div className="bg-white rounded-2xl border border-black/15 shadow-sm p-5">
                     <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
-                      <FiDollarSign size={14} /> Cost Summary
+                      <FiDollarSign size={14} /> {tr("Cost Summary")}
                     </h3>
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="border-b border-black/10">
-                            <th className="text-left py-2 pr-4 text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">Solution</th>
-                            <th className="text-right py-2 pr-4 text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">Total cost</th>
-                            <th className="text-right py-2 text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">% above optimal</th>
+                            <th className="text-left py-2 pr-4 text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">{tr("Solution")}</th>
+                            <th className="text-right py-2 pr-4 text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">{tr("Total cost")}</th>
+                            <th className="text-right py-2 text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">{tr("% above optimal")}</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
@@ -354,7 +355,7 @@ export default function SporesTab({
                               <tr key={s.spore_id} className={s.spore_id === 0 ? 'bg-electric-50/60' : 'hover:bg-slate-50/60'}>
                                 <td className="py-2 pr-4 font-mono text-slate-700">
                                   <span className={`inline-block w-2 h-2 rounded-full mr-2 align-middle ${s.spore_id === 0 ? 'bg-electric-500' : 'bg-slate-300'}`} />
-                                  {s.spore_id === 0 ? '0 — cost-optimal' : `SPORE ${s.spore_id}`}
+                                  {s.spore_id === 0 ? tr("0 — cost-optimal") : tr("SPORE {0}", { 0: s.spore_id })}
                                 </td>
                                 <td className="py-2 pr-4 text-right tabular-nums">{fmtCost(s.cost)}</td>
                                 <td className="py-2 text-right tabular-nums">
@@ -373,10 +374,10 @@ export default function SporesTab({
                   {/* Fig 1 — Technology mix + cost line */}
                   <div className="bg-white rounded-2xl border border-black/15 shadow-sm p-5">
                     <h3 className="text-sm font-semibold text-slate-700 mb-1 flex items-center gap-2">
-                      <FiBarChart2 size={14} /> Fig 1 — Technology Mix &amp; System Cost per Solution
+                      <FiBarChart2 size={14} /> {tr("Fig 1 — Technology Mix & System Cost per Solution")}
                     </h3>
                     <p className="text-xs text-slate-400 mb-3">
-                      Stacked bars: total installed capacity by technology. Amber line: system cost (right axis). All solutions lie within the cost slack of the optimum.
+                      {tr("Stacked bars: total installed capacity by technology. Amber line: system cost (right axis). All solutions lie within the cost slack of the optimum.")}
                     </p>
                     <ReactECharts option={stackedBarOption} style={{ height: 380 }} />
                   </div>
@@ -384,10 +385,10 @@ export default function SporesTab({
                   {/* Fig 2 — Technology variability strip chart */}
                   <div className="bg-white rounded-2xl border border-black/15 shadow-sm p-5">
                     <h3 className="text-sm font-semibold text-slate-700 mb-1 flex items-center gap-2">
-                      <FiActivity size={14} /> Fig 2 — Technology Deployment Variability
+                      <FiActivity size={14} /> {tr("Fig 2 — Technology Deployment Variability")}
                     </h3>
                     <p className="text-xs text-slate-400 mb-3">
-                      Each dot is one solution. Technologies clustered far from zero are <span className="font-medium text-gray-700">must-haves</span>; those scattered down to zero are <span className="font-medium text-gray-500">real choices</span>.
+                      {tr("Each dot is one solution. Technologies clustered far from zero are")} <span className="font-medium text-gray-700">{tr("must-haves")}</span>{tr("; those scattered down to zero are")} <span className="font-medium text-gray-500">{tr("real choices")}</span>.
                     </p>
                     <ReactECharts option={stripOption} style={{ height: Math.max(260, activeTechs.length * 30 + 60) }} />
                   </div>
@@ -395,30 +396,30 @@ export default function SporesTab({
                   {/* Fig 3 — Pairwise trade-off scatter */}
                   <div className="bg-white rounded-2xl border border-black/15 shadow-sm p-5">
                     <h3 className="text-sm font-semibold text-slate-700 mb-1 flex items-center gap-2">
-                      <FiShare2 size={14} /> Fig 3 — Pairwise Technology Trade-off
+                      <FiShare2 size={14} /> {tr("Fig 3 — Pairwise Technology Trade-off")}
                     </h3>
                     <p className="text-xs text-slate-400 mb-2">
-                      Each dot = one solution. <span className="font-medium text-gray-700">Negative slope</span> = substitutes. <span className="font-medium text-gray-500">Positive slope</span> = complements.
+                      {tr("Each dot = one solution.")} <span className="font-medium text-gray-700">{tr("Negative slope")}</span> {tr("= substitutes.")} <span className="font-medium text-gray-500">{tr("Positive slope")}</span> {tr("= complements.")}
                     </p>
                     <div className="flex gap-3 mb-3">
                       <div className="flex-1">
-                        <label className="block text-[0.6875rem] text-black/60 mb-1 font-bold uppercase tracking-widest">X-axis technology</label>
+                        <label className="block text-[0.6875rem] text-black/60 mb-1 font-bold uppercase tracking-widest">{tr("X-axis technology")}</label>
                         <SelectField
                           value={scatterTechA}
                           onChange={e => setSporeScatterA(e.target.value)}
                           className="w-full text-xs border border-black/15 rounded-lg px-2 py-1.5 bg-white text-slate-700"
                         >
-                          {activeTechs.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
+                          {activeTechs.map(t => <option key={t} value={t}>{trLoose(t.replace(/_/g, ' '))}</option>)}
                         </SelectField>
                       </div>
                       <div className="flex-1">
-                        <label className="block text-[0.6875rem] text-black/60 mb-1 font-bold uppercase tracking-widest">Y-axis technology</label>
+                        <label className="block text-[0.6875rem] text-black/60 mb-1 font-bold uppercase tracking-widest">{tr("Y-axis technology")}</label>
                         <SelectField
                           value={scatterTechB}
                           onChange={e => setSporeScatterB(e.target.value)}
                           className="w-full text-xs border border-black/15 rounded-lg px-2 py-1.5 bg-white text-slate-700"
                         >
-                          {activeTechs.filter(t => t !== scatterTechA).map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
+                          {activeTechs.filter(t => t !== scatterTechA).map(t => <option key={t} value={t}>{trLoose(t.replace(/_/g, ' '))}</option>)}
                         </SelectField>
                       </div>
                     </div>
@@ -429,11 +430,11 @@ export default function SporesTab({
                   {activeTechs.length >= 2 && (
                     <div className="bg-white rounded-2xl border border-black/15 shadow-sm p-5">
                       <h3 className="text-sm font-semibold text-slate-700 mb-1 flex items-center gap-2">
-                        <FiFilter size={14} /> Fig 4 — Near-Optimal Space (Parallel Coordinates)
+                        <FiFilter size={14} /> {tr("Fig 4 — Near-Optimal Space (Parallel Coordinates)")}
                       </h3>
                       <p className="text-xs text-slate-400 mb-3">
-                        Each line = one solution. <span className="font-medium text-gray-700">Bold</span> = cost-optimal (SPORE 0). Gray lines = near-optimal alternatives.
-                        {parallelTechs.length < activeTechs.length && ` Showing top ${parallelTechs.length} technologies by maximum capacity.`}
+                        {tr("Each line = one solution.")} <span className="font-medium text-gray-700">{tr("Bold")}</span> {tr("= cost-optimal (SPORE 0). Gray lines = near-optimal alternatives.")}
+                        {parallelTechs.length < activeTechs.length && tr(" Showing top {0} technologies by maximum capacity.", { 0: parallelTechs.length })}
                       </p>
                       <ReactECharts option={parallelOption} style={{ height: 320 }} />
                     </div>
@@ -443,10 +444,10 @@ export default function SporesTab({
                   {modelLocations && modelLocations.length > 0 && (
                     <div className="bg-white rounded-2xl border border-black/15 shadow-sm p-5">
                       <h3 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
-                        <FiMap size={14} /> Fig 5 — Geographic Capacity Distribution per Solution
+                        <FiMap size={14} /> {tr("Fig 5 — Geographic Capacity Distribution per Solution")}
                       </h3>
                       <div className="flex items-center gap-3 mb-3">
-                        <label className="text-xs text-slate-500 shrink-0">Solution:</label>
+                        <label className="text-xs text-slate-500 shrink-0">{tr("Solution:")}</label>
                         <SelectField
                           value={safeSpore}
                           onChange={e => setSelectedSpore(+e.target.value)}
@@ -454,7 +455,7 @@ export default function SporesTab({
                         >
                           {sporesData.map(s => (
                             <option key={s.spore_id} value={s.spore_id}>
-                              {s.spore_id === 0 ? '0 — Cost-optimal' : `SPORE ${s.spore_id}`}
+                              {s.spore_id === 0 ? tr("0 — Cost-optimal") : tr("SPORE {0}", { 0: s.spore_id })}
                               {s.cost != null ? ` · ${fmtCost(s.cost)}` : ''}
                             </option>
                           ))}
@@ -477,19 +478,19 @@ export default function SporesTab({
                   {ltAtoms.length >= 3 && sporesData.length >= 3 && (
                     <div className="bg-white rounded-2xl border border-black/15 shadow-sm p-5">
                       <h3 className="text-sm font-semibold text-slate-700 mb-1 flex items-center gap-2">
-                        <FiGrid size={14} /> Technology Deployment Correlation
+                        <FiGrid size={14} /> {tr("Technology Deployment Correlation")}
                       </h3>
                       <p className="text-xs text-slate-400 mb-3">
-                        Spearman ρ of capacity utilisation across all {sporesData.length} SPORES, grouped by region.{' '}
-                        <span className="font-medium text-gray-800">Dark (+1)</span> = deployed together.{' '}
-                        <span className="font-medium text-gray-400">Light (−1)</span> = substitutes.{' '}
-                        Square size ∝ |ρ|. Self-correlation not shown. Hover for values.
+                        {tr("Spearman ρ of capacity utilisation across all")} {sporesData.length} {tr("SPORES, grouped by region.")}{' '}
+                        <span className="font-medium text-gray-800">{tr("Dark (+1)")}</span> {tr("= deployed together.")}{' '}
+                        <span className="font-medium text-gray-400">{tr("Light (−1)")}</span> {tr("= substitutes.")}{' '}
+                        {tr("Square size ∝ |ρ|. Self-correlation not shown. Hover for values.")}
                       </p>
 
                       {/* Region selector — click to add/remove from the matrix */}
                       {ltGroups.length > 1 && (
                         <div className="flex flex-wrap items-center gap-1.5 mb-3">
-                          <span className="text-xs text-slate-400 shrink-0">Select regions:</span>
+                          <span className="text-xs text-slate-400 shrink-0">{tr("Select regions:")}</span>
                           {ltGroups.map(g => {
                             const selected = corrLocFilter.has(g.loc);
                             return (
@@ -515,7 +516,7 @@ export default function SporesTab({
                               style={{ fontSize: 10, padding: '2px 8px', borderRadius: 0,
                                        border: '1px solid #e2e8f0', cursor: 'pointer',
                                        background: 'white', color: '#64748b', fontFamily: "'DM Sans', system-ui" }}>
-                              Select all
+                              {tr("Select all")}
                             </button>
                           )}
                           {corrLocFilter.size > 0 && (
@@ -523,7 +524,7 @@ export default function SporesTab({
                               style={{ fontSize: 10, padding: '2px 8px', borderRadius: 0,
                                        border: '1px solid #e2e8f0', cursor: 'pointer',
                                        background: 'white', color: '#64748b', fontFamily: "'DM Sans', system-ui" }}>
-                              Clear
+                              {tr("Clear")}
                             </button>
                           )}
                         </div>
@@ -532,7 +533,7 @@ export default function SporesTab({
                       {visLtGroups.length >= 1
                         ? <GroupedCorrMatrixSVG ltGroups={visLtGroups} ltCorrMap={ltCorrMap} />
                         : <p className="text-xs text-slate-400 py-6 text-center">
-                            Select one or more regions above to display their correlation matrix.
+                            {tr("Select one or more regions above to display their correlation matrix.")}
                           </p>
                       }
                     </div>
@@ -541,22 +542,22 @@ export default function SporesTab({
                   {/* Classification table */}
                   <div className="bg-white rounded-2xl border border-black/15 shadow-sm p-5">
                     <h3 className="text-sm font-semibold text-slate-700 mb-1 flex items-center gap-2">
-                      <FiLayers size={14} /> Technology Classification
+                      <FiLayers size={14} /> {tr("Technology Classification")}
                     </h3>
                     <p className="text-xs text-slate-400 mb-3">
-                      <span className="font-medium text-gray-800">Must-have</span> = present in every solution.{' '}
-                      <span className="font-medium text-gray-600">Preferred</span> = present in ≥70% of solutions.{' '}
-                      <span className="font-medium text-gray-400">Real choice</span> = absent in at least one solution.
+                      <span className="font-medium text-gray-800">{tr("Must-have")}</span> {tr("= present in every solution.")}{' '}
+                      <span className="font-medium text-gray-600">{tr("Preferred")}</span> {tr("= present in ≥70% of solutions.")}{' '}
+                      <span className="font-medium text-gray-400">{tr("Real choice")}</span> {tr("= absent in at least one solution.")}
                     </p>
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="border-b border-black/10">
-                            <th className="text-left py-2 pr-4 text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">Technology</th>
-                            <th className="text-right py-2 pr-4 text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">Min</th>
-                            <th className="text-right py-2 pr-4 text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">Max</th>
-                            <th className="text-right py-2 pr-4 text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">Present in</th>
-                            <th className="text-left py-2 text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">Role</th>
+                            <th className="text-left py-2 pr-4 text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">{tr("Technology")}</th>
+                            <th className="text-right py-2 pr-4 text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">{tr("Min")}</th>
+                            <th className="text-right py-2 pr-4 text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">{tr("Max")}</th>
+                            <th className="text-right py-2 pr-4 text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">{tr("Present in")}</th>
+                            <th className="text-left py-2 text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">{tr("Role")}</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
@@ -565,14 +566,14 @@ export default function SporesTab({
                               <td className="py-2 pr-4">
                                 <div className="flex items-center gap-2">
                                   <span className="inline-block w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: techColor(tech) }} />
-                                  <span className="text-slate-700">{tech.replace(/_/g, ' ')}</span>
+                                  <span className="text-slate-700">{trLoose(tech.replace(/_/g, ' '))}</span>
                                 </div>
                               </td>
                               <td className="py-2 pr-4 text-right tabular-nums text-slate-500">{fmtPower(min)}</td>
                               <td className="py-2 pr-4 text-right tabular-nums text-slate-500">{fmtPower(max)}</td>
                               <td className="py-2 pr-4 text-right tabular-nums text-slate-400 text-xs">{nonZero}/{total}</td>
                               <td className="py-2">
-                                <span className={`px-2 py-0.5 rounded text-xs font-medium ${roleChip(role)}`}>{role}</span>
+                                <span className={`px-2 py-0.5 rounded text-xs font-medium ${roleChip(role)}`}>{tr(role)}</span>
                               </td>
                             </tr>
                           ))}

@@ -4,6 +4,7 @@
 // one testable unit; the <CSVImportWizard> modal consumes what this returns.
 import { useState } from 'react';
 import Papa from 'papaparse';
+import { tr } from '../i18n';
 
 export function useCsvImportWizard({ createModel, setOverrides, setScenarios, showNotification, setShowCSVWizard }) {
   const [wizardData, setWizardData] = useState({
@@ -54,10 +55,10 @@ export function useCsvImportWizard({ createModel, setOverrides, setScenarios, sh
           locationsFile: file,
           locationsData: results.data
         }));
-        showNotification(`Locations file loaded: ${results.data.length} rows`, 'success');
+        showNotification(tr("Locations file loaded: {0} rows", { 0: results.data.length }), 'success');
       },
       error: (error) => {
-        showNotification(`Error parsing locations file: ${error.message}`, 'error');
+        showNotification(tr("Error parsing locations file: {0}", { 0: error.message }), 'error');
       }
     });
   };
@@ -73,10 +74,10 @@ export function useCsvImportWizard({ createModel, setOverrides, setScenarios, sh
           linksFile: file,
           linksData: results.data
         }));
-        showNotification(`Links file loaded: ${results.data.length} rows`, 'success');
+        showNotification(tr("Links file loaded: {0} rows", { 0: results.data.length }), 'success');
       },
       error: (error) => {
-        showNotification(`Error parsing links file: ${error.message}`, 'error');
+        showNotification(tr("Error parsing links file: {0}", { 0: error.message }), 'error');
       }
     });
   };
@@ -92,10 +93,10 @@ export function useCsvImportWizard({ createModel, setOverrides, setScenarios, sh
           demandFile: file,
           demandData: results.data
         }));
-        showNotification(`Demand file loaded: ${results.data.length} rows`, 'success');
+        showNotification(tr("Demand file loaded: {0} rows", { 0: results.data.length }), 'success');
       },
       error: (error) => {
-        showNotification(`Error parsing demand file: ${error.message}`, 'error');
+        showNotification(tr("Error parsing demand file: {0}", { 0: error.message }), 'error');
       }
     });
   };
@@ -110,9 +111,9 @@ export function useCsvImportWizard({ createModel, setOverrides, setScenarios, sh
           configFile: file, 
           parsedConfig: config 
         }));
-        showNotification('Configuration file loaded successfully', 'success');
+        showNotification(tr("Configuration file loaded successfully"), 'success');
       } catch (error) {
-        showNotification(`Error parsing JSON file: ${error.message}`, 'error');
+        showNotification(tr("Error parsing JSON file: {0}", { 0: error.message }), 'error');
       }
     };
     reader.readAsText(file);
@@ -129,9 +130,9 @@ export function useCsvImportWizard({ createModel, setOverrides, setScenarios, sh
           technologiesFile: file, 
           technologiesData: technologies 
         }));
-        showNotification(`Technologies loaded: ${Object.keys(technologies).length} technologies`, 'success');
+        showNotification(tr("Technologies loaded: {0} technologies", { 0: Object.keys(technologies).length }), 'success');
       } catch (error) {
-        showNotification(`Error parsing technologies JSON: ${error.message}`, 'error');
+        showNotification(tr("Error parsing technologies JSON: {0}", { 0: error.message }), 'error');
       }
     };
     reader.readAsText(file);
@@ -147,9 +148,9 @@ export function useCsvImportWizard({ createModel, setOverrides, setScenarios, sh
           scenariosFile: file, 
           scenariosData: scenarios 
         }));
-        showNotification('Scenarios loaded successfully', 'success');
+        showNotification(tr("Scenarios loaded successfully"), 'success');
       } catch (error) {
-        showNotification(`Error parsing scenarios JSON: ${error.message}`, 'error');
+        showNotification(tr("Error parsing scenarios JSON: {0}", { 0: error.message }), 'error');
       }
     };
     reader.readAsText(file);
@@ -184,10 +185,10 @@ export function useCsvImportWizard({ createModel, setOverrides, setScenarios, sh
             resourceFiles: newResourceFiles
           };
         });
-        showNotification(`Resource file loaded: ${file.name} (${results.data.length} rows, ${Object.keys(results.data[0] || {}).length} columns)`, 'success');
+        showNotification(tr("Resource file loaded: {0} ({1} rows, {2} columns)", { 0: file.name, 1: results.data.length, 2: Object.keys(results.data[0] || {}).length }), 'success');
       },
       error: (error) => {
-        showNotification(`Error parsing resource file: ${error.message}`, 'error');
+        showNotification(tr("Error parsing resource file: {0}", { 0: error.message }), 'error');
       }
     });
   };
@@ -197,21 +198,21 @@ export function useCsvImportWizard({ createModel, setOverrides, setScenarios, sh
       ...prev,
       resourceFiles: prev.resourceFiles.filter(rf => rf.name !== fileName)
     }));
-    showNotification(`Removed ${fileName}`, 'info');
+    showNotification(tr("Removed {0}", { 0: fileName }), 'info');
   };
   const completeWizard = () => {
     if (!wizardData.modelName.trim()) {
-      showNotification('Please enter a model name', 'error');
+      showNotification(tr("Please enter a model name"), 'error');
       return;
     }
 
     if (!wizardData.locationsData || wizardData.locationsData.length === 0) {
-      showNotification('Please upload a locations file', 'error');
+      showNotification(tr("Please upload a locations file"), 'error');
       return;
     }
 
     if (!wizardData.linksData || wizardData.linksData.length === 0) {
-      showNotification('Please upload a links file', 'error');
+      showNotification(tr("Please upload a links file"), 'error');
       return;
     }
 
@@ -230,7 +231,7 @@ export function useCsvImportWizard({ createModel, setOverrides, setScenarios, sh
       // Validate coordinates
       if (isNaN(lat) || isNaN(lon)) {
         console.error(`Invalid coordinates for location ${idx}:`, loc);
-        showNotification(`Location "${loc.name}" has invalid coordinates. Row ${idx + 2} in CSV.`, 'error');
+        showNotification(tr("Location \"{0}\" has invalid coordinates. Row {1} in CSV.", { 0: loc.name, 1: idx + 2 }), 'error');
         return null; // Skip invalid locations
       }
 
@@ -292,7 +293,7 @@ export function useCsvImportWizard({ createModel, setOverrides, setScenarios, sh
     const invalidLocs = locations.filter(loc => isNaN(loc.lat) || isNaN(loc.lon));
     if (invalidLocs.length > 0) {
       console.error('Found locations with invalid coordinates:', invalidLocs);
-      showNotification(`Error: ${invalidLocs.length} locations have invalid coordinates. Check console for details.`, 'error');
+      showNotification(tr("Error: {0} locations have invalid coordinates. Check console for details.", { 0: invalidLocs.length }), 'error');
       return;
     }
 
@@ -588,7 +589,7 @@ export function useCsvImportWizard({ createModel, setOverrides, setScenarios, sh
       parsedConfig: null
     });
 
-    showNotification('Model created successfully!', 'success');
+    showNotification(tr("Model created successfully!"), 'success');
   };
 
   // Download JSON and CSV templates

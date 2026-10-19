@@ -2,6 +2,7 @@
 // and the full build sequence. Pure SVG/SMIL, no runtime dependencies.
 import { a, kt, move, INK } from '../illustrations/anim';
 import { Cursor, Ripple } from '../illustrations/Parts';
+import { tr } from '../../i18n';
 
 const W = 280;
 const H = 150;
@@ -59,7 +60,7 @@ function LocationScene() {
         <g opacity="0">
           {a('opacity', '0;0;1;1;0', kt(0, 0.5, 0.56, 0.9, 1), D)}
           <rect x="-30" y="7" width="60" height="16" rx="8" fill="#fff" stroke="#e2e8f0" />
-          <text y="18.5" textAnchor="middle" fontSize="9" fontWeight="600" fill={INK}>Location 3</text>
+          <text y="18.5" textAnchor="middle" fontSize="9" fontWeight="600" fill={INK}>{tr("Location 3")}</text>
         </g>
       </g>
       <Cursor values="34 138;140 82;140 82;140 82;34 138" keyTimes={kt(0, 0.28, 0.4, 0.85, 1)} dur={D} />
@@ -92,10 +93,10 @@ function LinkScene() {
         {a('opacity', '0;0;1;1;0', kt(0, 0.62, 0.67, 0.92, 1), D)}
         <rect x="-32" y="-9" width="64" height="17" rx="8.5" fill="#fff" stroke="#fde68a" />
         <circle cx="-22" cy="-0.5" r="3" fill={LINK} />
-        <text x="4" y="2.8" textAnchor="middle" fontSize="9" fontWeight="600" fill="#92400e">HVAC line</text>
+        <text x="4" y="2.8" textAnchor="middle" fontSize="9" fontWeight="600" fill="#92400e">{tr("HVAC line")}</text>
       </g>
-      <Node x={A[0]} y={A[1]} label="Berlin" />
-      <Node x={B[0]} y={B[1]} label="Hamburg" labelDy={-12} />
+      <Node x={A[0]} y={A[1]} label={tr("Berlin")} />
+      <Node x={B[0]} y={B[1]} label={tr("Hamburg")} labelDy={-12} />
       <Ripple x={A[0]} y={A[1]} t={0.2} dur={D} color={LINK} />
       <Ripple x={B[0]} y={B[1]} t={0.55} dur={D} color={LINK} />
       <Cursor values={`30 140;${A[0]} ${A[1]};${A[0]} ${A[1]};${B[0]} ${B[1]};${B[0]} ${B[1]};30 140`} keyTimes={kt(0, 0.2, 0.28, 0.55, 0.8, 1)} dur={D} />
@@ -119,7 +120,7 @@ function PolylineScene() {
         <g key={`p${i}`} opacity="0">
           {a('opacity', '0;0;1;1;0', kt(0, T[i], T[i] + 0.02, 0.92, 1), D)}
           <circle cx={x} cy={y} r="5" fill="#fff" stroke={POLY} strokeWidth="2.5" />
-          <text x={x} y={y + (i % 2 ? -11 : 17)} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#0369a1">Point {i + 1}</text>
+          <text x={x} y={y + (i % 2 ? -11 : 17)} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#0369a1">{tr("Point")} {i + 1}</text>
         </g>
       ))}
       {P.map(([x, y], i) => <Ripple key={`r${i}`} x={x} y={y} t={T[i]} dur={D} color={POLY} />)}
@@ -129,13 +130,13 @@ function PolylineScene() {
 }
 
 const MODEL_NODES = [
-  { x: 56, y: 98, label: 'Berlin', icon: 'solar_power', color: '#f59e0b', t: 0.04 },
-  { x: 124, y: 50, label: 'Hamburg', icon: 'air', color: '#0ea5e9', t: 0.1 },
-  { x: 208, y: 58, label: 'Leipzig', icon: 'factory', color: '#475569', t: 0.16 },
-  { x: 186, y: 116, label: 'Munich', icon: 'battery_charging_full', color: '#10b981', t: 0.22 },
+  { x: 56, y: 98, label: tr("Berlin"), icon: 'solar_power', color: '#f59e0b', t: 0.04 },
+  { x: 124, y: 50, label: tr("Hamburg"), icon: 'air', color: '#0ea5e9', t: 0.1 },
+  { x: 208, y: 58, label: tr("Leipzig"), icon: 'factory', color: '#475569', t: 0.16 },
+  { x: 186, y: 116, label: tr("Munich"), icon: 'battery_charging_full', color: '#10b981', t: 0.22 },
 ];
 const MODEL_LINKS = [[0, 1, 0.28], [1, 2, 0.34], [2, 3, 0.4], [0, 3, 0.46]];
-const PHASES = [['Locations', 0, 0.27], ['Links', 0.27, 0.54], ['Technologies', 0.54, 0.76], ['Save', 0.76, 1]];
+const PHASES = [[tr("Locations"), 0, 0.27], [tr("Links"), 0.27, 0.54], [tr("Technologies"), 0.54, 0.76], [tr("Save"), 0.76, 1]];
 
 function ModelScene() {
   const D = 7.5;
@@ -177,7 +178,7 @@ function ModelScene() {
         {a('opacity', '0;0;1;1;0', kt(0, 0.78, 0.82, 0.93, 1), D)}
         <rect x="-44" y="-10" width="88" height="20" rx="10" fill={INK} />
         <text x="-30" y="4.5" textAnchor="middle" fontSize="12" fill="#34d399" style={{ fontFamily: 'Material Symbols Outlined' }}>check_circle</text>
-        <text x="6" y="3.5" textAnchor="middle" fontSize="9" fontWeight="600" fill="#fff">Model saved</text>
+        <text x="6" y="3.5" textAnchor="middle" fontSize="9" fontWeight="600" fill="#fff">{tr("Model saved")}</text>
       </g>
       <g transform={`translate(0 ${H + 4})`}>
         <rect width={W} height="26" fill="#fff" />
@@ -207,7 +208,7 @@ export default function ModeIllustration({ mode = 'model', className = '' }) {
   const Scene = SCENES[mode] || ModelScene;
   const height = mode === 'model' ? H + 30 : H;
   return (
-    <svg key={mode} viewBox={`0 0 ${W} ${height}`} className={`block w-full ${className}`} role="img" aria-label={`${mode} illustration`}>
+    <svg key={mode} viewBox={`0 0 ${W} ${height}`} className={`block w-full ${className}`} role="img" aria-label={tr("{0} illustration", { 0: mode })}>
       <Backdrop id={`mi-${mode}`} height={height} />
       <Scene />
     </svg>

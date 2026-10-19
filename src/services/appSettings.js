@@ -12,6 +12,7 @@ const DEFAULTS = {
   defaultView: 'Dashboard', // matches the view keys in App.jsx's switch
   autoSave: true,           // 1.5s debounced auto-save in DataContext
   autoUpdateCheck: true,    // UpdateNotifier checks GitHub on start and every 6 h
+  language: 'en',           // UI language (src/i18n)
 };
 
 export function getSettings() {

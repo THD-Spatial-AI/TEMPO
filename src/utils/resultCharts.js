@@ -7,6 +7,7 @@
  */
 import { autoScale, scaledFmt, axisNameStyle, fmtEnergy, fmtNum, parseLTC } from './resultFormat';
 import { aggregateResult } from './resultExports';
+import { tr, locale } from '../i18n';
 
 const SHOW_ALL = () => true;
 const GEN_PARENTS = new Set(['supply', 'supply_plus', 'conversion', 'conversion_plus', 'storage']);
@@ -26,7 +27,7 @@ export function deriveForCharts(result) {
   const { capByTech, genByTech } = aggregateResult(result);
   const timestamps = (result?.timestamps || []).map((t) => {
     const d = new Date(t);
-    return isNaN(d) ? t : d.toLocaleDateString('en-GB', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return isNaN(d) ? t : d.toLocaleDateString(locale() || 'en-GB', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   });
   return { capByTech, genByTech, timestamps };
 }
@@ -74,7 +75,7 @@ export function buildGenDonutOption(derivedData, { colorFn, isVisible = SHOW_ALL
   const rest = entries.slice(major.length);
   const data = major.map(([tech, v]) => ({ name: tech.replace(/_/g, ' '), value: Math.round(v), itemStyle: { color: colorFn(tech) } }));
   if (rest.length) {
-    data.push({ name: `Other (${rest.length})`, value: Math.round(rest.reduce((s, [, v]) => s + v, 0)), itemStyle: { color: '#cbd5e1' } });
+    data.push({ name: tr("Other ({0})", { 0: rest.length }), value: Math.round(rest.reduce((s, [, v]) => s + v, 0)), itemStyle: { color: '#cbd5e1' } });
   }
   return {
     backgroundColor: 'transparent',
@@ -82,7 +83,7 @@ export function buildGenDonutOption(derivedData, { colorFn, isVisible = SHOW_ALL
       type: 'scroll', orient: 'vertical', left: '58%', top: 'middle', icon: 'circle', itemWidth: 9, itemHeight: 9, itemGap: 9,
       textStyle: { fontSize: 11, color: '#334155', width: 150, overflow: 'truncate', rich: { pct: { color: '#94a3b8', fontSize: 10, padding: [0, 0, 0, 4] } } },
       formatter: (name) => {
-        const d = data.find(x => x.name === name);
+        const d = data.find(x => x.name === name || tr(x.name) === name);
         return `${name}{pct|${d ? ((d.value / total) * 100).toFixed(1) : 0}%}`;
       },
     },
@@ -90,7 +91,7 @@ export function buildGenDonutOption(derivedData, { colorFn, isVisible = SHOW_ALL
       type: 'group', left: '30%', top: 'middle', bounding: 'raw',
       children: [
         { type: 'text', style: { text: fmtEnergy(total, 1), x: 0, y: -8, align: 'center', verticalAlign: 'middle', fontSize: 18, fontWeight: 700, fill: '#0f172a' } },
-        { type: 'text', style: { text: 'TOTAL GENERATION', x: 0, y: 14, align: 'center', verticalAlign: 'middle', fontSize: 9, fontWeight: 600, fill: '#94a3b8' } },
+        { type: 'text', style: { text: tr("Total generation").toUpperCase(), x: 0, y: 14, align: 'center', verticalAlign: 'middle', fontSize: 9, fontWeight: 600, fill: '#94a3b8' } },
       ],
     }],
     series: [{
@@ -141,7 +142,7 @@ export function buildDispatchOption(result, derivedData, { colorFn, isVisible = 
   }));
   if (result.demand_timeseries) {
     series.push({
-      name: 'Demand', type: 'line', smooth: false, symbol: 'none',
+      name: tr("Demand"), type: 'line', smooth: false, symbol: 'none',
       lineStyle: { color: '#D32F2F', width: 2, type: 'dashed' }, itemStyle: { color: '#D32F2F' },
       data: result.demand_timeseries, z: 10,
     });
@@ -283,7 +284,7 @@ export function buildCfOption(result, derivedData, { colorFn, isVisible = SHOW_A
       xAxis: { type: 'value', max: 100, ...axisNameStyle('%'), axisLabel: { fontSize: 9, color: '#64748b', formatter: v => v }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
       yAxis: { type: 'category', data: data.map(d => d.tech.replace(/_/g, ' ')), axisLabel: { fontSize: 9, color: '#475569' } },
       series: [{ type: 'bar', barMaxWidth: 28, data: data.map(d => ({ value: +d.cf.toFixed(1), itemStyle: { color: colorFn(d.tech), borderRadius: 0 } })), label: { show: true, position: 'right', formatter: p => p.value.toFixed(1) + '%', fontSize: 9, color: '#64748b' } }],
-      tooltip: { trigger: 'axis', formatter: p => `${p[0].name}<br/><b>Avg CF: ${p[0].value}%</b>` },
+      tooltip: { trigger: 'axis', formatter: p => `${p[0].name}<br/><b>${tr("Avg CF")}: ${p[0].value}%</b>` },
     };
   }
   const locs = [...new Set(capEntries.map(e => e.loc))].sort();
@@ -327,15 +328,15 @@ export function buildCostPerMwhOption(result, derivedData, { colorFn, isVisible 
 
 // Catalogue of exportable charts (id → { label, build }) — mirrors the Results view
 export const RESULT_CHARTS = [
-  { id: 'capacity_by_tech',     label: 'Installed Capacity by Technology', build: (r, d, o) => buildCapBarOption(d, o) },
-  { id: 'capacity_by_location', label: 'Capacity by Location & Technology', build: (r, d, o) => buildCapLocOption(r, d, o) },
-  { id: 'generation_mix',       label: 'Generation Mix',                    build: (r, d, o) => buildGenDonutOption(d, o) },
-  { id: 'energy_flow_sankey',   label: 'Energy Flow (Sankey)',              build: (r, d, o) => buildSankeyOption(r, o) },
-  { id: 'capacity_factor',      label: 'Capacity Factor',                   build: (r, d, o) => buildCfOption(r, d, o) },
-  { id: 'costs_by_tech',        label: 'System Cost by Technology',         build: (r, d, o) => buildCostsTechOption(r, o) },
-  { id: 'costs_by_location',    label: 'Cost by Location & Technology',     build: (r, d, o) => buildCostsLocOption(r, o) },
-  { id: 'cost_per_mwh',         label: 'Cost per MWh by Technology',        build: (r, d, o) => buildCostPerMwhOption(r, d, o) },
-  { id: 'dispatch',             label: 'Dispatch',                          build: (r, d, o) => buildDispatchOption(r, d, o) },
+  { id: 'capacity_by_tech',     label: tr("Installed Capacity by Technology"), build: (r, d, o) => buildCapBarOption(d, o) },
+  { id: 'capacity_by_location', label: tr("Capacity by Location & Technology"), build: (r, d, o) => buildCapLocOption(r, d, o) },
+  { id: 'generation_mix',       label: tr("Generation Mix"),                    build: (r, d, o) => buildGenDonutOption(d, o) },
+  { id: 'energy_flow_sankey',   label: tr("Energy Flow (Sankey)"),              build: (r, d, o) => buildSankeyOption(r, o) },
+  { id: 'capacity_factor',      label: tr("Capacity Factor"),                   build: (r, d, o) => buildCfOption(r, d, o) },
+  { id: 'costs_by_tech',        label: tr("System Cost by Technology"),         build: (r, d, o) => buildCostsTechOption(r, o) },
+  { id: 'costs_by_location',    label: tr("Cost by Location & Technology"),     build: (r, d, o) => buildCostsLocOption(r, o) },
+  { id: 'cost_per_mwh',         label: tr("Cost per MWh by Technology"),        build: (r, d, o) => buildCostPerMwhOption(r, d, o) },
+  { id: 'dispatch',             label: tr("Dispatch"),                          build: (r, d, o) => buildDispatchOption(r, d, o) },
 ];
 
 // Build every available chart option for a result → { id: { label, option } }

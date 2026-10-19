@@ -6,6 +6,7 @@ import ZonalStudyAreaPanel from './ZonalStudyAreaPanel';
 import { api } from '../services/api';
 import { useData } from '../context/DataContext';
 import SelectField from './ui/SelectField';
+import { tr } from '../i18n';
 
 // The legacy Geofabrik cascade selector is disabled — the live Study Area
 // search replaced it. Kept behind this flag for now; safe to delete the block.
@@ -336,14 +337,14 @@ const OsmInfrastructurePanel = ({
       <div className={`flex items-center border-b border-black/15 ${collapsed ? 'justify-center py-3' : 'justify-between px-4 py-3'}`}>
         {!collapsed && (
           <div className="min-w-0">
-            <h2 className="text-sm font-semibold text-slate-900">OSM Infrastructure</h2>
-            <p className="text-[11px] text-slate-500">Real grid data for your study area</p>
+            <h2 className="text-sm font-semibold text-slate-900">{tr("OSM Infrastructure")}</h2>
+            <p className="text-[11px] text-slate-500">{tr("Real grid data for your study area")}</p>
           </div>
         )}
         <button
           onClick={onToggleCollapse}
           className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors"
-          title={collapsed ? 'Expand panel' : 'Collapse panel'}
+          title={collapsed ? tr("Expand panel") : tr("Collapse panel")}
         >
           {collapsed ? <LuPanelRightOpen size={18} /> : <LuPanelRightClose size={18} />}
         </button>
@@ -365,14 +366,14 @@ const OsmInfrastructurePanel = ({
           <div className="p-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
-                Select Region
+                {tr("Select Region")}
               </h3>
               {selectedContinent && (
                 <button
                   onClick={clearSelection}
                   className="text-xs text-gray-600 hover:text-gray-700 font-medium"
                 >
-                  Clear All
+                  {tr("Clear All")}
                 </button>
               )}
             </div>
@@ -380,7 +381,7 @@ const OsmInfrastructurePanel = ({
             {loading ? (
               <div className="text-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-600 mx-auto"></div>
-                <p className="text-xs text-slate-500 mt-2">Loading regions...</p>
+                <p className="text-xs text-slate-500 mt-2">{tr("Loading regions...")}</p>
               </div>
             ) : (
               <div className="space-y-4">
@@ -411,14 +412,14 @@ const OsmInfrastructurePanel = ({
                   <div>
                     <label className="block text-xs font-medium text-slate-700 mb-1.5">
                       <FiMapPin className="inline mr-1" size={12} />
-                      Commune (Optional)
+                      {tr("Commune (Optional)")}
                     </label>
                     <SelectField
                       value={selectedCommune || ''}
                       onChange={(e) => handleCommuneSelect(e.target.value || null)}
                       className="w-full px-3 py-2 text-sm border border-black/15 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500 bg-white"
                     >
-                      <option value="">Select a commune...</option>
+                      <option value="">{tr("Select a commune...")}</option>
                       {availableCommunes.map(commune => (
                         <option key={commune} value={commune}>{commune}</option>
                       ))}
@@ -431,7 +432,7 @@ const OsmInfrastructurePanel = ({
             {/* Selection Summary */}
             {selectedSubregion && (
               <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-black/15">
-                <div className="text-xs font-semibold text-gray-900 mb-1">Selected:</div>
+                <div className="text-xs font-semibold text-gray-900 mb-1">{tr("Selected:")}</div>
                 <div className="text-xs text-gray-700 space-y-1">
                   <div>🌍 {selectedContinent}</div>
                   <div>🏴 {selectedCountry}</div>
@@ -450,8 +451,8 @@ const OsmInfrastructurePanel = ({
       {collapsed && (
         <div className="flex flex-col items-center gap-1 py-3">
           {[
-            { icon: FiMap, label: 'Study area' },
-            { icon: FiLayers, label: 'Infrastructure layers' },
+            { icon: FiMap, label: tr("Study area") },
+            { icon: FiLayers, label: tr("Infrastructure layers") },
           ].map(({ icon: Icon, label }) => (
             <button
               key={label}

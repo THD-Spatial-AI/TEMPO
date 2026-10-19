@@ -1,3 +1,5 @@
+import { tr } from '../i18n';
+import { trLoose } from '../i18n';
 // Pure map-visual helpers for the Deck.GL map view: the tech colour palette,
 // location pie-chart icon generation, transmission voltage styling, and the
 // MapLibre base-map style presets. Extracted from MapDeckGL.jsx so the giant
@@ -72,47 +74,47 @@ export const getTechColor = (techNameOrObject, techMap = null) => {
 export const ICON_TYPES = {
   wind: { 
     path: 'M9 11l3-3m0 0l3 3m-3-3v8m0-13a9 9 0 110 18 9 9 0 010-18z',
-    label: 'Wind Turbine'
+    label: tr("Wind Turbine")
   },
   solar: { 
     path: 'M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z',
-    label: 'Solar PV'
+    label: tr("Solar PV")
   },
   transformer: { 
     path: 'M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z',
-    label: 'Transformer'
+    label: tr("Transformer")
   },
   power: { 
     path: 'M13 10V3L4 14h7v7l9-11h-7z',
-    label: 'Power Plant'
+    label: tr("Power Plant")
   },
   hydro: { 
     path: 'M12 2.69l5.66 5.66a8 8 0 11-11.31 0z',
-    label: 'Hydro'
+    label: tr("Hydro")
   },
   battery: { 
     path: 'M4 7h14a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V9a2 2 0 012-2zM22 10v4M8 10h2m2 0h2',
-    label: 'Battery Storage'
+    label: tr("Battery Storage")
   },
   demand: { 
     path: 'M3 3v18h18M7 16l4-4 4 4 6-6',
-    label: 'Demand'
+    label: tr("Demand")
   },
   coal: { 
     path: 'M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z',
-    label: 'Coal/Fossil'
+    label: tr("Coal/Fossil")
   },
   factory: { 
     path: 'M3 21h18M5 21V7l6 4V7l6 4v10',
-    label: 'Factory'
+    label: tr("Factory")
   },
   transmission: { 
     path: 'M12 2l9 4.5v3L12 14 3 9.5v-3L12 2zM12 14v8',
-    label: 'Transmission'
+    label: tr("Transmission")
   },
   generic: { 
     path: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z',
-    label: 'Generic'
+    label: tr("Generic")
   }
 };
 
@@ -366,10 +368,10 @@ export const getDefaultIconType = (location) => {
 
 // Helper function to format technology names
 export const formatTechName = (techName) => {
-  return techName
+  return trLoose(techName
     .split('_')
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
+    .join(' '));
 };
 
 // Function to get color based on voltage level (green for low, red for high)

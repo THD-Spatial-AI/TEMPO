@@ -3,6 +3,7 @@
 import { Children, isValidElement, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { LuCheck, LuChevronDown } from './icons';
+import { tr } from '../../i18n';
 
 const text = (node) => Children.toArray(node).map((c) => (typeof c === 'string' || typeof c === 'number' ? c : isValidElement(c) ? text(c.props.children) : '')).join('');
 
@@ -107,7 +108,7 @@ export default function SelectField({ value, onChange, children, className = '',
         aria-controls={listId}
         className="flex h-full w-full min-w-0 items-center gap-1.5 bg-transparent text-left outline-none disabled:cursor-not-allowed"
       >
-        <span className={`min-w-0 flex-1 truncate ${current ? '' : 'text-slate-400'}`}>{current ? current.label : 'Select…'}</span>
+        <span className={`min-w-0 flex-1 truncate ${current ? '' : 'text-slate-400'}`}>{current ? current.label : tr("Select…")}</span>
         <LuChevronDown size={14} className={`shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && pos && createPortal(

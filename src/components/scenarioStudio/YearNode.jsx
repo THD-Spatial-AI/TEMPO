@@ -16,6 +16,7 @@ import { BoardCtx } from './boardContext.js';
 import CategoryTile from './categoryIcon.jsx';
 import { CARD_CATEGORIES } from '../../services/scenarioStudio/scenario.js';
 import { iconBtn, ICON_PX } from '../ui/iconButton';
+import { tr } from '../../i18n';
 
 // Categories that make sense nested in a year (recipe trajectories are global-only).
 const YEAR_CATEGORIES = CARD_CATEGORIES.filter(c => c.lanes.includes('year'));
@@ -51,7 +52,7 @@ function YearNodeImpl({ id, data, selected }) {
           onClick={(e) => e.stopPropagation()}
           onChange={(e) => ctx.onSetYear?.(id, parseInt(e.target.value, 10) || data.year)}
           className="nodrag w-[70px] rounded-md border border-transparent bg-transparent px-1 py-0.5 text-[15px] font-bold tabular-nums text-slate-900 transition-colors hover:border-black/15 focus:border-black/15 focus:bg-white focus:outline-none focus:ring-2 focus:ring-slate-200"
-          aria-label="Year"
+          aria-label={tr("Year")}
         />
         <div className="ml-auto flex items-center gap-0.5">
           <button
@@ -62,21 +63,21 @@ function YearNodeImpl({ id, data, selected }) {
               setMenuPos({ top: r.bottom + 6, left: Math.max(8, r.right - 224) });
             }}
             className="nodrag flex h-6 items-center gap-1 rounded-md px-1.5 text-[11px] font-semibold text-slate-700 transition-colors hover:bg-slate-100"
-            title="Add a config card to this year"
+            title={tr("Add a config card to this year")}
           >
-            <FiPlus size={12} /> Card
+            <FiPlus size={12} /> {tr("Card")}
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); ctx.onDuplicateNode?.(id); }}
             className="nodrag grid h-6 w-6 place-items-center rounded-md text-slate-400 opacity-0 transition-all hover:bg-slate-100 hover:text-slate-900 group-hover:opacity-100"
-            title="Duplicate year"
+            title={tr("Duplicate year")}
           >
             <FiCopy size={11} />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); ctx.onDeleteNode?.(id); }}
             className={`${iconBtn('delete', 'sm')} nodrag opacity-0 group-hover:opacity-100`}
-            title="Remove year"
+            title={tr("Remove year")}
           >
             <FiTrash2 size={ICON_PX.sm} />
           </button>
@@ -91,7 +92,7 @@ function YearNodeImpl({ id, data, selected }) {
             className="fixed z-[1001] max-h-[60vh] w-56 overflow-y-auto rounded-xl border border-black/15 bg-white p-1 shadow-2xl shadow-slate-900/15"
           >
             <div className="px-2 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-              Add to {data.year}
+              {tr("Add to")} {data.year}
             </div>
             {YEAR_CATEGORIES.map(c => (
               <button key={c.id}
@@ -108,7 +109,7 @@ function YearNodeImpl({ id, data, selected }) {
 
       {!data._hasChildren && (
         <div className="pointer-events-none absolute inset-x-3 bottom-3 top-[50px] flex items-center justify-center rounded-xl border-2 border-dashed border-black/15">
-          <span className="text-[11px] text-slate-400">Drop cards here, or use “+ Card”</span>
+          <span className="text-[11px] text-slate-400">{tr("Drop cards here, or use “+ Card”")}</span>
         </div>
       )}
 

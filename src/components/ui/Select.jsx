@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { LuCheck, LuChevronDown } from './icons';
+import { tr } from '../../i18n';
 
 // options: [{ value, label, description?, disabled? }]
 export default function Select({ value, onChange, options, placeholder = 'Select…', className = '' }) {
@@ -76,7 +77,7 @@ export default function Select({ value, onChange, options, placeholder = 'Select
           role="listbox"
           className="absolute left-0 right-0 z-30 mt-1.5 max-h-72 overflow-y-auto rounded-xl border border-black/15 bg-white p-1 shadow-xl shadow-slate-900/10"
         >
-          {options.length === 0 && <li className="px-3 py-2 text-sm text-slate-400">No options</li>}
+          {options.length === 0 && <li className="px-3 py-2 text-sm text-slate-400">{tr("No options")}</li>}
           {options.map((opt, i) => {
             const isSelected = opt.value === value;
             return (

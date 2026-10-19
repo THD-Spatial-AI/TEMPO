@@ -1,3 +1,5 @@
+import { trLoose } from '../i18n';
+
 export const normalizeFolderName = (name) => {
   if (!name) return '';
   return name
@@ -22,5 +24,5 @@ export const formatTechName = (techName) => {
   const formatted = techName
     .replace(/_/g, ' ')
     .replace(/-/g, ' ');
-  return formatted.charAt(0).toUpperCase() + formatted.slice(1).toLowerCase();
+  return trLoose(formatted.charAt(0).toUpperCase() + formatted.slice(1).toLowerCase());
 };

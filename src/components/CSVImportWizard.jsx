@@ -3,8 +3,9 @@ import {
   FiX, FiCheck, FiMap, FiZap, FiActivity, FiCpu, FiLayers,
   FiDatabase, FiUploadCloud, FiDownload,
 } from './ui/icons';
+import { tr } from '../i18n';
 
-const STEP_LABELS = ['Model Info', 'Required Files', 'Optional Files', 'Review'];
+const STEP_LABELS = [tr("Model Info"), tr("Required Files"), tr("Optional Files"), tr("Review")];
 const TOTAL = 4;
 
 const FileRow = ({ icon: Icon, label, hint, accept, onUpload, status, optional = true }) => (
@@ -23,7 +24,7 @@ const FileRow = ({ icon: Icon, label, hint, accept, onUpload, status, optional =
       : <label className="cursor-pointer px-2.5 py-1 bg-gray-700 text-white rounded text-xs font-medium hover:bg-gray-800 flex-shrink-0 transition-colors">
           <input type="file" accept={accept} className="hidden"
             onChange={e => { if (e.target.files[0]) { onUpload(e.target.files[0]); e.target.value = ''; } }} />
-          Upload
+          {tr("Upload")}
         </label>
     }
   </div>
@@ -49,12 +50,12 @@ export default function CSVImportWizard({
 
   const handleNext = () => {
     if (step === 1 && !wizardData.modelName.trim()) {
-      showNotification('Please enter a model name', 'error');
+      showNotification(tr("Please enter a model name"), 'error');
       return;
     }
     if (step === 2) {
-      if (!wizardData.locationsData) { showNotification('Please upload a Locations CSV', 'error'); return; }
-      if (!wizardData.linksData) { showNotification('Please upload a Links CSV', 'error'); return; }
+      if (!wizardData.locationsData) { showNotification(tr("Please upload a Locations CSV"), 'error'); return; }
+      if (!wizardData.linksData) { showNotification(tr("Please upload a Links CSV"), 'error'); return; }
     }
     setStep(s => s + 1);
   };
@@ -66,8 +67,8 @@ export default function CSVImportWizard({
         {/* Header */}
         <div className="border-b border-black/15 px-5 py-3 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-3">
-            <span className="font-semibold text-sm text-gray-800">CSV Import Wizard</span>
-            <span className="text-xs text-gray-400">Step {step} of {TOTAL}</span>
+            <span className="font-semibold text-sm text-gray-800">{tr("CSV Import Wizard")}</span>
+            <span className="text-xs text-gray-400">{tr("Step")} {step} {tr("of")} {TOTAL}</span>
           </div>
           <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600 rounded transition-colors">
             <FiX size={15} />
@@ -90,42 +91,42 @@ export default function CSVImportWizard({
           {/* ── Step 1: Model Info ── */}
           {step === 1 && (
             <div className="space-y-3">
-              <p className="text-xs text-gray-500">Give your model a name to get started.</p>
+              <p className="text-xs text-gray-500">{tr("Give your model a name to get started.")}</p>
 
               <div>
                 <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">
-                  Model Name <span className="text-gray-400 font-normal">*</span>
+                  {tr("Model Name")} <span className="text-gray-400 font-normal">*</span>
                 </label>
                 <input
                   type="text"
                   value={wizardData.modelName}
                   onChange={e => setWizardData(p => ({ ...p, modelName: e.target.value }))}
-                  placeholder="e.g., My Regional Energy System"
+                  placeholder={tr("e.g., My Regional Energy System")}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400"
                   autoFocus
                 />
               </div>
 
               <div>
-                <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">Description (optional)</label>
+                <label className="block text-[0.6875rem] font-bold text-black/60 mb-1 uppercase tracking-widest">{tr("Description (optional)")}</label>
                 <textarea
                   value={wizardData.description}
                   onChange={e => setWizardData(p => ({ ...p, description: e.target.value }))}
-                  placeholder="Brief description of your energy system..."
+                  placeholder={tr("Brief description of your energy system...")}
                   rows={3}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-gray-400"
                 />
               </div>
 
               <div className="bg-gray-50 border border-dashed border-black/15 rounded-lg p-3">
-                <p className="text-xs font-semibold text-gray-700 mb-1">Need example files?</p>
-                <p className="text-xs text-gray-500 mb-2">Download templates to see the expected CSV / JSON format.</p>
+                <p className="text-xs font-semibold text-gray-700 mb-1">{tr("Need example files?")}</p>
+                <p className="text-xs text-gray-500 mb-2">{tr("Download templates to see the expected CSV / JSON format.")}</p>
                 <div className="flex gap-2 flex-wrap">
                   {[
-                    { type: 'config', label: 'Config JSON' },
-                    { type: 'demand', label: 'Demand CSV' },
-                    { type: 'solar', label: 'Solar CSV' },
-                    { type: 'wind', label: 'Wind CSV' },
+                    { type: 'config', label: tr("Config JSON") },
+                    { type: 'demand', label: tr("Demand CSV") },
+                    { type: 'solar', label: tr("Solar CSV") },
+                    { type: 'wind', label: tr("Wind CSV") },
                   ].map(({ type, label }) => (
                     <button key={type} onClick={() => downloadTemplate(type)}
                       className="flex items-center gap-1 px-2 py-1 bg-white border border-black/15 rounded text-xs text-gray-600 hover:bg-gray-50 transition-colors">
@@ -140,7 +141,7 @@ export default function CSVImportWizard({
           {/* ── Step 2: Required Files ── */}
           {step === 2 && (
             <div className="space-y-3">
-              <p className="text-xs text-gray-500">Upload the two required files that define your model topology.</p>
+              <p className="text-xs text-gray-500">{tr("Upload the two required files that define your model topology.")}</p>
 
               <div className={`border-2 rounded-lg p-4 transition-all ${
                 wizardData.locationsData ? 'border-gray-300 bg-gray-50' : 'border-dashed border-gray-300'
@@ -150,16 +151,16 @@ export default function CSVImportWizard({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-1">
                       <p className="text-sm font-semibold text-gray-800">
-                        Locations <span className="text-gray-400 font-normal text-xs">*</span>
+                        {tr("Locations")} <span className="text-gray-400 font-normal text-xs">*</span>
                       </p>
                       {wizardData.locationsData && (
                         <span className="text-xs font-semibold text-gray-600 bg-white border border-black/15 px-2 py-0.5">
-                          ✓ {wizardData.locationsData.length} rows
+                          ✓ {wizardData.locationsData.length} {tr("rows")}
                         </span>
                       )}
                     </div>
                     <p className="text-xs text-gray-500 mb-2">
-                      CSV with columns: <code className="bg-gray-100 px-1 rounded">name</code> <code className="bg-gray-100 px-1 rounded">lat</code> <code className="bg-gray-100 px-1 rounded">lon</code> <code className="bg-gray-100 px-1 rounded">type</code>
+                      {tr("CSV with columns:")} <code className="bg-gray-100 px-1 rounded">name</code> <code className="bg-gray-100 px-1 rounded">lat</code> <code className="bg-gray-100 px-1 rounded">lon</code> <code className="bg-gray-100 px-1 rounded">type</code>
                     </p>
                     <input type="file" accept=".csv"
                       onChange={e => e.target.files[0] && handleLocationsFileUpload(e.target.files[0])}
@@ -179,16 +180,16 @@ export default function CSVImportWizard({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-1">
                       <p className="text-sm font-semibold text-gray-800">
-                        Links <span className="text-gray-400 font-normal text-xs">*</span>
+                        {tr("Links")} <span className="text-gray-400 font-normal text-xs">*</span>
                       </p>
                       {wizardData.linksData && (
                         <span className="text-xs font-semibold text-gray-600 bg-white border border-black/15 px-2 py-0.5">
-                          ✓ {wizardData.linksData.length} rows
+                          ✓ {wizardData.linksData.length} {tr("rows")}
                         </span>
                       )}
                     </div>
                     <p className="text-xs text-gray-500 mb-2">
-                      CSV with columns: <code className="bg-gray-100 px-1 rounded">from</code> <code className="bg-gray-100 px-1 rounded">to</code> <code className="bg-gray-100 px-1 rounded">distance</code> <code className="bg-gray-100 px-1 rounded">tech</code>
+                      {tr("CSV with columns:")} <code className="bg-gray-100 px-1 rounded">from</code> <code className="bg-gray-100 px-1 rounded">to</code> <code className="bg-gray-100 px-1 rounded">distance</code> <code className="bg-gray-100 px-1 rounded">tech</code>
                     </p>
                     <input type="file" accept=".csv"
                       onChange={e => e.target.files[0] && handleLinksFileUpload(e.target.files[0])}
@@ -205,29 +206,29 @@ export default function CSVImportWizard({
           {/* ── Step 3: Optional Files ── */}
           {step === 3 && (
             <div className="space-y-2">
-              <p className="text-xs text-gray-500 mb-3">All files below are optional — add what your model needs.</p>
+              <p className="text-xs text-gray-500 mb-3">{tr("All files below are optional — add what your model needs.")}</p>
 
               <FileRow
-                icon={FiActivity} label="Demand Timeseries" accept=".csv" optional
-                hint="CSV — first col: date, remaining cols: location names"
+                icon={FiActivity} label={tr("Demand Timeseries")} accept=".csv" optional
+                hint={tr("CSV — first col: date, remaining cols: location names")}
                 onUpload={handleDemandFileUpload}
                 status={wizardData.demandData ? `✓ ${wizardData.demandData.length} rows` : null}
               />
               <FileRow
-                icon={FiCpu} label="Technologies" accept=".json" optional
-                hint="JSON with tech definitions (pv, wind, hydro, …)"
+                icon={FiCpu} label={tr("Technologies")} accept=".json" optional
+                hint={tr("JSON with tech definitions (pv, wind, hydro, …)")}
                 onUpload={handleTechnologiesFileUpload}
                 status={wizardData.technologiesData ? `✓ ${Object.keys(wizardData.technologiesData).length} techs` : null}
               />
               <FileRow
-                icon={FiLayers} label="Scenarios" accept=".json" optional
-                hint="JSON with scenarios and override configurations"
+                icon={FiLayers} label={tr("Scenarios")} accept=".json" optional
+                hint={tr("JSON with scenarios and override configurations")}
                 onUpload={handleScenariosFileUpload}
                 status={wizardData.scenariosData ? '✓ Loaded' : null}
               />
               <FileRow
-                icon={FiDatabase} label="Configuration" accept=".json" optional
-                hint="JSON with legacy config, constraints, and defaults"
+                icon={FiDatabase} label={tr("Configuration")} accept=".json" optional
+                hint={tr("JSON with legacy config, constraints, and defaults")}
                 onUpload={handleConfigFileUpload}
                 status={wizardData.parsedConfig ? '✓ Loaded' : null}
               />
@@ -239,14 +240,14 @@ export default function CSVImportWizard({
                 <div className="flex items-center gap-3 mb-2">
                   <FiUploadCloud size={14} className="text-gray-500 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-gray-700">Resource Timeseries</p>
-                    <p className="text-xs text-gray-400">CSVs for solar / wind — first col: date</p>
+                    <p className="text-xs font-semibold text-gray-700">{tr("Resource Timeseries")}</p>
+                    <p className="text-xs text-gray-400">{tr("CSVs for solar / wind — first col: date")}</p>
                   </div>
                   <div className="flex gap-1 flex-shrink-0">
                     {[
-                      { type: 'pv', label: '+PV' },
-                      { type: 'wind', label: '+Wind' },
-                      { type: 'other', label: '+Other' },
+                      { type: 'pv', label: tr("+PV") },
+                      { type: 'wind', label: tr("+Wind") },
+                      { type: 'other', label: tr("+Other") },
                     ].map(({ type, label }) => (
                       <label key={type} className="cursor-pointer px-2 py-1 bg-gray-700 text-white rounded text-xs font-medium hover:bg-gray-800 transition-colors">
                         <input type="file" accept=".csv" className="hidden"
@@ -262,7 +263,7 @@ export default function CSVImportWizard({
                       <div key={i} className="flex items-center gap-2 text-xs bg-white border border-black/15 rounded px-2 py-1">
                         <span className="font-mono font-semibold text-gray-600 uppercase">{rf.type}</span>
                         <span className="flex-1 truncate text-gray-700">{rf.name}</span>
-                        <span className="text-gray-400">{rf.data.length} rows</span>
+                        <span className="text-gray-400">{rf.data.length} {tr("rows")}</span>
                         <button onClick={() => removeResourceFile(rf.name)} className="text-gray-400 hover:text-gray-600 transition-colors">
                           <FiX size={12} />
                         </button>
@@ -288,9 +289,9 @@ export default function CSVImportWizard({
               {/* Stats grid */}
               <div className="grid grid-cols-3 gap-2">
                 {[
-                  { icon: FiMap,      value: wizardData.locationsData?.length ?? 0,      label: 'Locations' },
-                  { icon: FiZap,      value: wizardData.linksData?.length ?? 0,           label: 'Links' },
-                  { icon: FiActivity, value: wizardData.demandData?.length ?? 0,          label: 'Demand rows' },
+                  { icon: FiMap,      value: wizardData.locationsData?.length ?? 0,      label: tr("Locations") },
+                  { icon: FiZap,      value: wizardData.linksData?.length ?? 0,           label: tr("Links") },
+                  { icon: FiActivity, value: wizardData.demandData?.length ?? 0,          label: tr("Demand rows") },
                 ].map(({ icon: Icon, value, label }) => (
                   <div key={label} className="flex items-center gap-2 bg-gray-50 border border-black/15 rounded-lg px-3 py-2">
                     <Icon size={13} className="text-gray-400" />
@@ -305,14 +306,14 @@ export default function CSVImportWizard({
                 <div className="flex flex-wrap gap-1.5">
                   {wizardData.technologiesData && (
                     <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5">
-                      ✓ {Object.keys(wizardData.technologiesData).length} techs
+                      ✓ {Object.keys(wizardData.technologiesData).length} {tr("techs")}
                     </span>
                   )}
                   {wizardData.scenariosData && (
-                    <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5">✓ Scenarios</span>
+                    <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5">{tr("✓ Scenarios")}</span>
                   )}
                   {wizardData.parsedConfig && (
-                    <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5">✓ Config</span>
+                    <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5">{tr("✓ Config")}</span>
                   )}
                   {wizardData.resourceFiles.map((rf, i) => (
                     <span key={i} className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5">
@@ -326,15 +327,15 @@ export default function CSVImportWizard({
               {wizardData.locationsData && (
                 <div className="border border-black/15 rounded-lg overflow-hidden">
                   <div className="bg-gray-50 px-3 py-1.5 border-b border-black/15 flex items-center justify-between">
-                    <span className="text-xs font-semibold text-gray-600">Locations preview</span>
-                    <span className="text-xs text-gray-400">{wizardData.locationsData.length} total</span>
+                    <span className="text-xs font-semibold text-gray-600">{tr("Locations preview")}</span>
+                    <span className="text-xs text-gray-400">{wizardData.locationsData.length} {tr("total")}</span>
                   </div>
                   <table className="w-full text-xs">
                     <thead className="border-b border-black/15 bg-gray-50/50">
                       <tr>
-                        <th className="text-left px-3 py-1.5 text-black/60 font-bold uppercase tracking-widest">Name</th>
-                        <th className="text-left px-3 py-1.5 text-black/60 font-bold uppercase tracking-widest">Type</th>
-                        <th className="text-left px-3 py-1.5 text-black/60 font-bold uppercase tracking-widest">Lat, Lon</th>
+                        <th className="text-left px-3 py-1.5 text-black/60 font-bold uppercase tracking-widest">{tr("Name")}</th>
+                        <th className="text-left px-3 py-1.5 text-black/60 font-bold uppercase tracking-widest">{tr("Type")}</th>
+                        <th className="text-left px-3 py-1.5 text-black/60 font-bold uppercase tracking-widest">{tr("Lat, Lon")}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -343,7 +344,7 @@ export default function CSVImportWizard({
                           <td className="px-3 py-1.5 font-mono text-gray-800">
                             {loc.name || loc.Name || loc.location_name || `#${i + 1}`}
                           </td>
-                          <td className="px-3 py-1.5 text-gray-600">{loc.type || loc.Type || 'site'}</td>
+                          <td className="px-3 py-1.5 text-gray-600">{loc.type || loc.Type || tr("site")}</td>
                           <td className="px-3 py-1.5 text-gray-500">
                             {(loc.lat ?? loc.latitude)?.toFixed?.(2) ?? '—'}, {(loc.lon ?? loc.longitude)?.toFixed?.(2) ?? '—'}
                           </td>
@@ -353,7 +354,7 @@ export default function CSVImportWizard({
                   </table>
                   {wizardData.locationsData.length > 5 && (
                     <div className="text-center py-1.5 text-xs text-gray-400 bg-gray-50 border-t border-black/10">
-                      +{wizardData.locationsData.length - 5} more
+                      +{wizardData.locationsData.length - 5} {tr("more")}
                     </div>
                   )}
                 </div>
@@ -370,17 +371,17 @@ export default function CSVImportWizard({
             disabled={step === 1}
             className="px-3 py-1.5 text-sm text-gray-600 bg-white border border-black/15 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
-            ← Back
+            {tr("← Back")}
           </button>
           {step < TOTAL ? (
             <button onClick={handleNext}
               className="px-4 py-1.5 bg-black text-white rounded-lg text-sm font-bold uppercase tracking-wide hover:bg-black/80 transition-colors">
-              Continue →
+              {tr("Continue →")}
             </button>
           ) : (
             <button onClick={onComplete}
               className="px-4 py-1.5 bg-black text-white rounded-lg text-sm font-bold uppercase tracking-wide hover:bg-black/80 flex items-center gap-2 transition-colors">
-              <FiCheck size={14} /> Create Model
+              <FiCheck size={14} /> {tr("Create Model")}
             </button>
           )}
         </div>

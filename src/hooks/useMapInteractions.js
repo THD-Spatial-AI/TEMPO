@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 
+import { tr } from '../i18n';
 /**
  * Custom hook for handling map click interactions
  * Handles creating new locations, selecting locations, and creating links
@@ -34,7 +35,7 @@ export const useMapInteractions = (mode, addLocation, handleLocationClickForLink
         id: Date.now(),
         latitude: coordinate[1],
         longitude: coordinate[0],
-        name: `Location ${(tempLocations?.length || 0) + 1}`,
+        name: tr("Location {0}", { 0: (tempLocations?.length || 0) + 1 }),
         techs: {},
         isNode: false
       };

@@ -1,8 +1,9 @@
 // CostsTab — the "costs" result tab, extracted verbatim from Results.jsx.
 // Renders the pre-computed chart options / data passed as props.
 import { FiChevronDown, FiDollarSign, FiMapPin, FiTrendingUp } from '../../ui/icons';
-import ReactECharts from 'echarts-for-react';
+import ReactECharts from '../../ui/Chart';
 import { fmtFull } from '../../../utils/resultFormat';
+import { tr, trLoose } from '../../../i18n';
 
 export default function CostsTab({
   LOC_CHART_LIMIT,
@@ -20,27 +21,27 @@ export default function CostsTab({
                   <div className="bg-white rounded-2xl border border-black/15 shadow-sm overflow-hidden">
                     <button onClick={() => toggleSection('cost-by-tech')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
                       <FiDollarSign size={14} className="text-gray-500 flex-shrink-0" />
-                      <span className="text-sm font-semibold text-slate-800 flex-1">Total Cost by Technology</span>
+                      <span className="text-sm font-semibold text-slate-800 flex-1">{tr("Total Cost by Technology")}</span>
                       <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('cost-by-tech') ? '' : '-rotate-90'}`} />
                     </button>
                     {sectionOpen('cost-by-tech') && <div className="px-5 pb-5">
                       {costsTechOption ? (
                         <ReactECharts option={costsTechOption} style={{ height: 280 }} notMerge />
-                      ) : <div className="text-slate-400 text-sm text-center py-12">No cost data</div>}
+                      ) : <div className="text-slate-400 text-sm text-center py-12">{tr("No cost data")}</div>}
                     </div>}
                   </div>
 
                   <div className="bg-white rounded-2xl border border-black/15 shadow-sm overflow-hidden">
                     <button onClick={() => toggleSection('cost-per-mwh')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
                       <FiTrendingUp size={14} className="text-gray-600 flex-shrink-0" />
-                      <span className="text-sm font-semibold text-slate-800 flex-1">Cost per MWh by Technology</span>
-                      <span className="text-xs text-slate-400 mr-1">· LCOE proxy</span>
+                      <span className="text-sm font-semibold text-slate-800 flex-1">{tr("Cost per MWh by Technology")}</span>
+                      <span className="text-xs text-slate-400 mr-1">{tr("· LCOE proxy")}</span>
                       <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('cost-per-mwh') ? '' : '-rotate-90'}`} />
                     </button>
                     {sectionOpen('cost-per-mwh') && <div className="px-5 pb-5">
                       {costPerMwhOption ? (
                         <ReactECharts option={costPerMwhOption} style={{ height: 280 }} notMerge />
-                      ) : <div className="text-slate-400 text-sm text-center py-12">No data</div>}
+                      ) : <div className="text-slate-400 text-sm text-center py-12">{tr("No data")}</div>}
                     </div>}
                   </div>
                 </div>
@@ -49,7 +50,7 @@ export default function CostsTab({
                   <div className="bg-white rounded-2xl border border-black/15 shadow-sm overflow-hidden">
                     <button onClick={() => toggleSection('cost-by-loc')} className="w-full flex items-center gap-2 px-5 py-3 hover:bg-slate-50 transition text-left">
                       <FiMapPin size={14} className="text-gray-600 flex-shrink-0" />
-                      <span className="text-sm font-semibold text-slate-800 flex-1">Cost Breakdown by Location &amp; Technology</span>
+                      <span className="text-sm font-semibold text-slate-800 flex-1">{tr("Cost Breakdown by Location & Technology")}</span>
                       <FiChevronDown size={12} className={`text-slate-400 transition-transform duration-150 ${sectionOpen('cost-by-loc') ? '' : '-rotate-90'}`} />
                     </button>
                     {sectionOpen('cost-by-loc') && <div className="px-5 pb-5">
@@ -72,20 +73,20 @@ export default function CostsTab({
                       const techs = [...new Set(locs.flatMap(l => Object.keys(result.costs_by_location[l])))].sort();
                       return (
                         <>
-                          <h3 className="font-semibold text-slate-800 text-sm mb-1">Cost Detail Table (€)</h3>
+                          <h3 className="font-semibold text-slate-800 text-sm mb-1">{tr("Cost Detail Table (€)")}</h3>
                           {truncated && (
-                            <p className="text-xs text-gray-500 mb-3">Showing top {LOC_CHART_LIMIT} locations by total cost (of {allLocs.length}). Export JSON for full data.</p>
+                            <p className="text-xs text-gray-500 mb-3">{tr("Showing top")} {LOC_CHART_LIMIT} {tr("locations by total cost (of")} {allLocs.length}{tr("). Export JSON for full data.")}</p>
                           )}
                           <table className="w-full text-xs">
                             <thead>
                               <tr className="border-b border-black/15">
-                                <th className="text-left py-2 pr-4 font-bold text-black/60 uppercase tracking-widest">Location</th>
+                                <th className="text-left py-2 pr-4 font-bold text-black/60 uppercase tracking-widest">{tr("Location")}</th>
                                 {techs.map(t => (
                                   <th key={t} className="text-right py-2 px-3 font-bold text-black/60 uppercase whitespace-nowrap capitalize tracking-widest">
-                                    {t.replace(/_/g, ' ')}
+                                    {trLoose(t.replace(/_/g, ' '))}
                                   </th>
                                 ))}
-                                <th className="text-right py-2 pl-4 font-bold text-black/60 uppercase tracking-widest">Total</th>
+                                <th className="text-right py-2 pl-4 font-bold text-black/60 uppercase tracking-widest">{tr("Total")}</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -113,4 +114,4 @@ export default function CostsTab({
               </div>
   );
 }
-
+

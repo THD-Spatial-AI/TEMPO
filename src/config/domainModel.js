@@ -1,3 +1,4 @@
+import { tr } from '../i18n';
 /**
  * Domain Model Configuration for Calliope Energy System
  * 
@@ -10,7 +11,7 @@ export const ENTITY_TYPES = {
   SUBSTATION: {
     id: 'substation',
     name: 'Substation',
-    description: 'Connection point where transmission lines meet. Can act as a node without generation/consumption.',
+    description: tr("Connection point where transmission lines meet. Can act as a node without generation/consumption."),
     isNode: true,
     allowsTechnologies: false,
     allowsTransmission: true,
@@ -24,7 +25,7 @@ export const ENTITY_TYPES = {
   POWER_PLANT: {
     id: 'power_plant',
     name: 'Power Plant',
-    description: 'Electricity generation facility (fossil, nuclear, renewable)',
+    description: tr("Electricity generation facility (fossil, nuclear, renewable)"),
     isNode: false,
     allowsTechnologies: true,
     allowsTransmission: true,
@@ -38,7 +39,7 @@ export const ENTITY_TYPES = {
   RENEWABLE_SITE: {
     id: 'renewable_site',
     name: 'Renewable Generation Site',
-    description: 'Solar, wind, hydro, or other renewable energy installation',
+    description: tr("Solar, wind, hydro, or other renewable energy installation"),
     isNode: false,
     allowsTechnologies: true,
     allowsTransmission: true,
@@ -53,7 +54,7 @@ export const ENTITY_TYPES = {
   DEMAND_CENTER: {
     id: 'demand_center',
     name: 'Demand Center',
-    description: 'City, industrial zone, or consumption point',
+    description: tr("City, industrial zone, or consumption point"),
     isNode: false,
     allowsTechnologies: true,
     allowsTransmission: true,
@@ -68,7 +69,7 @@ export const ENTITY_TYPES = {
   STORAGE_FACILITY: {
     id: 'storage_facility',
     name: 'Storage Facility',
-    description: 'Battery, pumped hydro, or other energy storage system',
+    description: tr("Battery, pumped hydro, or other energy storage system"),
     isNode: false,
     allowsTechnologies: true,
     allowsTransmission: true,
@@ -83,7 +84,7 @@ export const ENTITY_TYPES = {
   NETWORK_NODE: {
     id: 'network_node',
     name: 'Network Node',
-    description: 'Generic connection point in the transmission network',
+    description: tr("Generic connection point in the transmission network"),
     isNode: true,
     allowsTechnologies: false,
     allowsTransmission: true,
@@ -98,7 +99,7 @@ export const TRANSMISSION_TYPES = {
   AC_LINE: {
     id: 'ac_transmission',
     name: 'AC Transmission Line',
-    description: 'Alternating Current transmission line',
+    description: tr("Alternating Current transmission line"),
     icon: '⚡',
     requiredFields: ['from', 'to', 'capacity_mw', 'voltage_kv'],
     optionalFields: ['length_km', 'resistance', 'reactance', 'efficiency_per_km', 'num_circuits', 'commissioning_year'],
@@ -109,7 +110,7 @@ export const TRANSMISSION_TYPES = {
   DC_LINE: {
     id: 'dc_transmission',
     name: 'DC Transmission Line',
-    description: 'Direct Current transmission line (HVDC)',
+    description: tr("Direct Current transmission line (HVDC)"),
     icon: '⚡',
     requiredFields: ['from', 'to', 'capacity_mw', 'voltage_kv'],
     optionalFields: ['length_km', 'efficiency', 'converter_loss', 'commissioning_year'],
@@ -120,7 +121,7 @@ export const TRANSMISSION_TYPES = {
   GAS_PIPELINE: {
     id: 'gas_pipeline',
     name: 'Gas Pipeline',
-    description: 'Natural gas or hydrogen pipeline',
+    description: tr("Natural gas or hydrogen pipeline"),
     icon: '🔥',
     requiredFields: ['from', 'to', 'capacity_mw_thermal', 'gas_type'],
     optionalFields: ['diameter_mm', 'length_km', 'pressure_bar', 'compressor_power'],
@@ -131,7 +132,7 @@ export const TRANSMISSION_TYPES = {
   HEAT_NETWORK: {
     id: 'heat_network',
     name: 'District Heating Network',
-    description: 'Hot water or steam distribution network',
+    description: tr("Hot water or steam distribution network"),
     icon: '♨️',
     requiredFields: ['from', 'to', 'capacity_mw_thermal'],
     optionalFields: ['length_km', 'temperature_c', 'heat_loss_per_km', 'pipe_diameter_mm'],
@@ -143,7 +144,7 @@ export const TRANSMISSION_TYPES = {
 export const DATA_CATEGORIES = {
   SPATIAL: {
     name: 'Spatial Data',
-    description: 'Geographic locations and coordinates',
+    description: tr("Geographic locations and coordinates"),
     icon: '🗺️',
     fileTypes: ['csv', 'geojson', 'json'],
     requiredColumns: ['name', 'latitude', 'longitude', 'type'],
@@ -152,7 +153,7 @@ export const DATA_CATEGORIES = {
   
   TECHNICAL: {
     name: 'Technical Parameters',
-    description: 'Technology specifications and constraints',
+    description: tr("Technology specifications and constraints"),
     icon: '⚙️',
     fileTypes: ['csv', 'json'],
     requiredColumns: ['location', 'technology', 'parameter', 'value'],
@@ -161,7 +162,7 @@ export const DATA_CATEGORIES = {
   
   TIMESERIES: {
     name: 'Time Series Data',
-    description: 'Temporal data (demand profiles, weather, prices)',
+    description: tr("Temporal data (demand profiles, weather, prices)"),
     icon: '📈',
     fileTypes: ['csv'],
     requiredColumns: ['timestamp'],
@@ -170,7 +171,7 @@ export const DATA_CATEGORIES = {
   
   ECONOMIC: {
     name: 'Economic Data',
-    description: 'Costs, prices, and financial parameters',
+    description: tr("Costs, prices, and financial parameters"),
     icon: '💰',
     fileTypes: ['csv', 'json'],
     requiredColumns: ['technology', 'cost_type', 'value', 'currency'],
@@ -179,7 +180,7 @@ export const DATA_CATEGORIES = {
   
   NETWORK: {
     name: 'Network Topology',
-    description: 'Transmission lines and connections',
+    description: tr("Transmission lines and connections"),
     icon: '🔗',
     fileTypes: ['csv', 'json'],
     requiredColumns: ['from', 'to', 'type', 'capacity'],

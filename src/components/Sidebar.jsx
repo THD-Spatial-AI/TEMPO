@@ -7,10 +7,12 @@ import UpdateNotifier from './UpdateNotifier';
 import { startTour, tourForView } from './tour/tour';
 import WhatsNewDialog from "./WhatsNewDialog";
 import { useData } from "../context/DataContext";
+import { useT } from "../i18n";
 import { usePinnedModels, sortPinnedFirst } from "../services/pinnedModels";
 import { useReleases } from "../services/releases";
 import { motion, AnimatePresence } from "framer-motion";
 import tempoLogo from '../assets/Logo_TEMPO.PNG';
+import { tr } from '../i18n';
 
 const WIDTH_OPEN = 240;
 const WIDTH_CLOSED = 72;
@@ -18,6 +20,7 @@ const EASE = [0.4, 0, 0.2, 1];
 const LABEL_TRANSITION = { duration: 0.18, ease: "easeOut" };
 
 const Sidebar = ({ selected, setSelected }) => {
+  useT();
   const [open, setOpen] = useState(true);
   const [structureOpen, setStructureOpen] = useState(true);
 
@@ -213,8 +216,10 @@ const Label = ({ open, className = "", children }) => (
 );
 
 const Option = ({ Icon, title, selected, setSelected, open, notifs, isNested = false }) => {
+  const t = useT();
+  const label = t(`nav.${title}`);
   const isSelected = selected === title;
-  const { tooltip, handlers } = useCollapsedTooltip(title, !open);
+  const { tooltip, handlers } = useCollapsedTooltip(label, !open);
 
   return (
     <>
@@ -222,7 +227,8 @@ const Option = ({ Icon, title, selected, setSelected, open, notifs, isNested = f
         onClick={() => setSelected(title)}
         whileHover={{ x: 2 }}
         whileTap={{ scale: 0.98 }}
-        aria-label={title}
+        aria-label={label}
+        data-nav={title}
         aria-current={isSelected ? "page" : undefined}
         {...handlers}
         className={`relative flex h-11 w-full items-center rounded-xl transition-colors duration-200 ${
@@ -235,7 +241,7 @@ const Option = ({ Icon, title, selected, setSelected, open, notifs, isNested = f
           <Icon className={isSelected ? "drop-shadow" : ""} />
         </div>
         <Label open={open} className={`text-sm font-medium ${isSelected ? "font-semibold" : ""}`}>
-          {title}
+          {label}
         </Label>
 
         {notifs && open && (
@@ -259,7 +265,9 @@ const Option = ({ Icon, title, selected, setSelected, open, notifs, isNested = f
 };
 
 const DropdownSection = ({ Icon, title, open, setOpen, isExpanded, setIsExpanded, children }) => {
-  const { tooltip, handlers } = useCollapsedTooltip(title, !open);
+  const t = useT();
+  const label = t(`nav.${title}`);
+  const { tooltip, handlers } = useCollapsedTooltip(label, !open);
 
   const handleClick = () => {
     if (!open) {
@@ -276,7 +284,8 @@ const DropdownSection = ({ Icon, title, open, setOpen, isExpanded, setIsExpanded
         onClick={handleClick}
         whileHover={{ x: 2 }}
         aria-expanded={isExpanded}
-        aria-label={title}
+        aria-label={label}
+        data-nav={title}
         {...handlers}
         className="relative flex h-11 w-full items-center rounded-xl pl-0.5 text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors duration-200"
       >
@@ -284,7 +293,7 @@ const DropdownSection = ({ Icon, title, open, setOpen, isExpanded, setIsExpanded
           <Icon />
         </div>
         <Label open={open} className="text-sm font-medium flex-1 text-left">
-          {title}
+          {label}
         </Label>
         {open && (
           <motion.div
@@ -320,12 +329,14 @@ const hasTitleBar = () => typeof window.electronAPI?.window?.state === 'function
 
 const ActiveModelCard = ({ open, setSelected }) => {
   const { models, currentModelId, loadModel } = useData();
+  const t = useT();
+  const counts = (m) => t('sidebar.counts', { locations: (m.locations || []).length, links: (m.links || []).length });
   const pins = usePinnedModels();
   const model = models.find((m) => m.id === currentModelId);
   const [menu, setMenu] = useState(null);
   const btnRef = React.useRef(null);
   const menuRef = React.useRef(null);
-  const { tooltip, handlers } = useCollapsedTooltip(model ? `Active model: ${model.name}` : 'No model loaded', !open && !menu);
+  const { tooltip, handlers } = useCollapsedTooltip(model ? t('sidebar.activeModelTip', { name: model.name }) : t('sidebar.noModel'), !open && !menu);
 
   useEffect(() => {
     if (!menu) return undefined;
@@ -359,11 +370,11 @@ const ActiveModelCard = ({ open, setSelected }) => {
         {open && (
           <>
             <span className="min-w-0 flex-1">
-              <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Active model</span>
-              <span className="block truncate text-[13px] font-semibold text-slate-900">{model ? model.name : 'Select a model'}</span>
+              <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">{t('sidebar.activeModel')}</span>
+              <span className="block truncate text-[13px] font-semibold text-slate-900">{model ? model.name : t('sidebar.selectModel')}</span>
               {model && (
-                <span className="block text-[11px] text-slate-500">
-                  {(model.locations || []).length} locations · {(model.links || []).length} links
+                <span className="block truncate text-[11px] text-slate-500">
+                  {counts(model)}
                 </span>
               )}
             </span>
@@ -373,12 +384,12 @@ const ActiveModelCard = ({ open, setSelected }) => {
       </button>
       {tooltip}
       {menu && createPortal(
-        <div ref={menuRef} role="listbox" aria-label="Switch model"
+        <div ref={menuRef} role="listbox" aria-label={t('sidebar.switchModel')}
           className="tempo-tour-card fixed z-[10150] border border-black/15 bg-white py-1.5 shadow-xl shadow-slate-900/10"
           style={{ left: menu.left, top: menu.top, width: Math.max(menu.width, 240) }}>
-          <div className="px-3 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Switch model</div>
+          <div className="px-3 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">{t('sidebar.switchModel')}</div>
           <div className="max-h-72 overflow-y-auto">
-            {models.length === 0 && <div className="px-3 py-2 text-[12px] text-slate-400">No models yet</div>}
+            {models.length === 0 && <div className="px-3 py-2 text-[12px] text-slate-400">{t('sidebar.noModels')}</div>}
             {sortPinnedFirst(models, pins).map((m) => {
               const active = m.id === currentModelId;
               return (
@@ -389,12 +400,12 @@ const ActiveModelCard = ({ open, setSelected }) => {
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className={`flex items-center gap-1 truncate text-[13px] ${active ? 'font-semibold text-slate-900' : 'text-slate-700'}`} title={m.name}>
-                      {pins.has(m.id) && <span className="material-symbols-outlined shrink-0 text-[13px] text-slate-500" style={{ fontVariationSettings: "'FILL' 1" }} aria-label="Pinned">keep</span>}
+                      {pins.has(m.id) && <span className="material-symbols-outlined shrink-0 text-[13px] text-slate-500" style={{ fontVariationSettings: "'FILL' 1" }} aria-label={tr("Pinned")}>{tr("keep")}</span>}
                       <span className="truncate">{m.name}</span>
                     </span>
-                    <span className="block text-[11px] text-slate-400">{(m.locations || []).length} locations · {(m.links || []).length} links</span>
+                    <span className="block text-[11px] text-slate-400">{counts(m)}</span>
                   </span>
-                  {active && <span className="material-symbols-outlined shrink-0 text-[16px] text-slate-900">check</span>}
+                  {active && <span className="material-symbols-outlined shrink-0 text-[16px] text-slate-900">{tr("check")}</span>}
                 </button>
               );
             })}
@@ -402,8 +413,8 @@ const ActiveModelCard = ({ open, setSelected }) => {
           <div className="mt-1 border-t border-black/10 pt-1">
             <button onClick={() => { setMenu(null); setSelected('Models'); }}
               className="flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900">
-              <span className="material-symbols-outlined text-[16px]">settings</span>
-              Manage models…
+              <span className="material-symbols-outlined text-[16px]">{tr("settings")}</span>
+              {t('sidebar.manageModels')}
             </button>
           </div>
         </div>,
@@ -428,8 +439,8 @@ const TitleSection = ({ open, setSelected }) => {
                 exit={{ opacity: 0, transition: { duration: 0.1 } }}
                 className="w-[150px] shrink-0"
               >
-                <span className="block text-sm font-bold bg-gradient-to-r from-electric-500 to-electric-900 bg-clip-text text-transparent">TEMPO</span>
-                <span className="block text-[11px] text-slate-500 font-medium tracking-wide">Tool for Energy Model Planning and Optimization</span>
+                <span className="block text-sm font-bold bg-gradient-to-r from-electric-500 to-electric-900 bg-clip-text text-transparent">{tr("TEMPO")}</span>
+                <span className="block text-[11px] text-slate-500 font-medium tracking-wide">{tr("Tool for Energy Model Planning and Optimization")}</span>
               </motion.div>
             )}
           </AnimatePresence>
@@ -445,7 +456,7 @@ const Logo = () => {
     <div className="shrink-0 size-10 flex items-center justify-center">
       <img
         src={tempoLogo}
-        alt="TEMPO logo"
+        alt={tr("TEMPO logo")}
         className="h-10 w-10 object-contain"
         style={{ mixBlendMode: 'multiply' }}
       />
@@ -461,12 +472,14 @@ const RestartTourButton = ({ open, selected }) => {
     return () => window.removeEventListener('tempo:restart-tour', onTour);
   }, [tourId]);
   const scope = tourId === 'app' ? null : tourId;
-  const { tooltip, handlers } = useCollapsedTooltip(scope ? `Restart ${scope} tour` : 'Restart tour', !open);
+  const t = useT();
+  const scopeLabel = scope ? t(`nav.${scope}`) : null;
+  const { tooltip, handlers } = useCollapsedTooltip(scope ? t('sidebar.restartScopedTour', { scope: scopeLabel }) : t('sidebar.restartTour'), !open);
   return (
     <>
       <button
         onClick={() => startTour(tourId)}
-        aria-label={scope ? `Restart ${scope} tour` : 'Restart tour'}
+        aria-label={scope ? t('sidebar.restartScopedTour', { scope: scopeLabel }) : t('sidebar.restartTour')}
         data-tour="restart-tour"
         {...handlers}
         className="mt-3 flex h-10 items-center rounded-xl pl-0.5 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900"
@@ -474,9 +487,9 @@ const RestartTourButton = ({ open, selected }) => {
         <div className="grid h-full w-11 shrink-0 place-items-center">
           <LuTour size={18} />
         </div>
-        <Label open={open} className="flex flex-1 items-center gap-2 pr-2 text-sm font-medium">
-          Restart tour
-          {scope && <span className="ml-auto border border-black/15 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">{scope}</span>}
+        <Label open={open} className="flex min-w-0 flex-1 flex-col items-start pr-2 text-left leading-tight">
+          <span className="text-sm font-medium">{t('sidebar.restartTour')}</span>
+          {scope && <span className="max-w-full truncate text-[11px] text-slate-400">{scopeLabel}</span>}
         </Label>
       </button>
       {tooltip}
@@ -492,14 +505,15 @@ const VersionButton = ({ open }) => {
     return () => window.removeEventListener('tempo:whats-new', onOpen);
   }, []);
   const releaseInfo = useReleases();
-  const versionLabel = releaseInfo.latest ? `v${releaseInfo.latest.version}` : 'Release notes';
-  const { tooltip, handlers } = useCollapsedTooltip(`${versionLabel} · What's new`, !open);
+  const versionLabel = releaseInfo.latest ? `v${releaseInfo.latest.version}` : tr("Release notes");
+  const t = useT();
+  const { tooltip, handlers } = useCollapsedTooltip(`${versionLabel} · ${t('sidebar.whatsNew')}`, !open);
 
   return (
     <>
       <button
         onClick={() => setShowNotes(true)}
-        aria-label={`${versionLabel} — what's new`}
+        aria-label={tr("{0} — what's new", { 0: versionLabel })}
         data-tour="version"
         {...handlers}
         className="flex h-10 items-center rounded-xl pl-0.5 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900"
@@ -507,9 +521,9 @@ const VersionButton = ({ open }) => {
         <div className="grid h-full w-11 shrink-0 place-items-center">
           <LuSparkles size={17} strokeWidth={1.75} />
         </div>
-        <Label open={open} className="flex flex-1 items-center gap-2 pr-2 text-sm">
-          <span className="font-medium">{versionLabel}</span>
-          <span className="ml-auto bg-black px-2 py-0.5 text-[10px] font-semibold text-white">What's new</span>
+        <Label open={open} className="flex min-w-0 flex-1 items-center gap-2 pr-2 text-sm">
+          <span className="truncate font-medium">{versionLabel}</span>
+          <span className="ml-auto shrink-0 bg-black px-2 py-0.5 text-[10px] font-semibold text-white">{t('sidebar.whatsNew')}</span>
         </Label>
       </button>
       {tooltip}
@@ -521,14 +535,15 @@ const VersionButton = ({ open }) => {
 };
 
 const ToggleClose = ({ open, setOpen }) => {
-  const { tooltip, handlers } = useCollapsedTooltip("Expand sidebar", !open);
+  const t = useT();
+  const { tooltip, handlers } = useCollapsedTooltip(t('sidebar.expand'), !open);
   const ToggleIcon = open ? LuPanelLeftClose : LuPanelLeftOpen;
 
   return (
     <>
       <button
         onClick={() => setOpen((pv) => !pv)}
-        aria-label={open ? "Collapse sidebar" : "Expand sidebar"}
+        aria-label={open ? t('sidebar.collapse') : t('sidebar.expand')}
         {...handlers}
         className="border-t border-black/15 pt-2"
       >
@@ -537,7 +552,7 @@ const ToggleClose = ({ open, setOpen }) => {
             <ToggleIcon size={19} strokeWidth={1.75} />
           </div>
           <Label open={open} className="text-sm font-medium">
-            Hide
+            {t('sidebar.hide')}
           </Label>
         </div>
       </button>

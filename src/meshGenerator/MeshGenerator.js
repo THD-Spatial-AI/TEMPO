@@ -6,6 +6,7 @@
 import { extractLineEndpoints, parseLocationName, extractVoltage } from './LineAnalyzer.js';
 import { deduplicatePoints, buildConnectivityGraph, calculateMeshStatistics } from './MeshUtils.js';
 
+import { tr } from '../i18n';
 /**
  * Generate power mesh from OSM power lines
  * @param {Object} powerLinesGeoJson - GeoJSON FeatureCollection of power lines
@@ -130,7 +131,7 @@ export const validateMesh = (mesh) => {
   const warnings = [];
 
   if (!mesh || !mesh.nodes || !mesh.edges) {
-    issues.push('Invalid mesh structure: missing nodes or edges');
+    issues.push(tr("Invalid mesh structure: missing nodes or edges"));
     return { valid: false, issues, warnings };
   }
 
@@ -143,34 +144,34 @@ export const validateMesh = (mesh) => {
 
   const isolatedNodes = mesh.nodes.filter(node => !connectedNodeIds.has(node.id));
   if (isolatedNodes.length > 0) {
-    warnings.push(`${isolatedNodes.length} isolated nodes found (not connected to any edges)`);
+    warnings.push(tr("{0} isolated nodes found (not connected to any edges)", { 0: isolatedNodes.length }));
   }
 
   // Check for duplicate node IDs
   const nodeIds = mesh.nodes.map(n => n.id);
   const duplicateIds = nodeIds.filter((id, index) => nodeIds.indexOf(id) !== index);
   if (duplicateIds.length > 0) {
-    issues.push(`Duplicate node IDs found: ${duplicateIds.join(', ')}`);
+    issues.push(tr("Duplicate node IDs found: {0}", { 0: duplicateIds.join(', ') }));
   }
 
   // Check for invalid edge references
   const nodeIdSet = new Set(nodeIds);
   mesh.edges.forEach((edge, index) => {
     if (!nodeIdSet.has(edge.from)) {
-      issues.push(`Edge ${index}: 'from' node ${edge.from} does not exist`);
+      issues.push(tr("Edge {0}: 'from' node {1} does not exist", { 0: index, 1: edge.from }));
     }
     if (!nodeIdSet.has(edge.to)) {
-      issues.push(`Edge ${index}: 'to' node ${edge.to} does not exist`);
+      issues.push(tr("Edge {0}: 'to' node {1} does not exist", { 0: index, 1: edge.to }));
     }
     if (edge.from === edge.to) {
-      warnings.push(`Edge ${index}: self-loop detected (from === to)`);
+      warnings.push(tr("Edge {0}: self-loop detected (from === to)", { 0: index }));
     }
   });
 
   // Check for nodes without coordinates
   mesh.nodes.forEach((node, index) => {
     if (!node.latitude || !node.longitude || isNaN(node.latitude) || isNaN(node.longitude)) {
-      issues.push(`Node ${index}: invalid or missing coordinates`);
+      issues.push(tr("Node {0}: invalid or missing coordinates", { 0: index }));
     }
   });
 

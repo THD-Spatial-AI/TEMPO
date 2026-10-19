@@ -4,6 +4,7 @@ import { CARRIERS_BY_GROUP } from '../config/carriers';
 import TechParameterEditor from './creation/TechParameterEditor';
 import SelectField from './ui/SelectField';
 import { iconBtn, ICON_PX } from './ui/iconButton';
+import { tr, trLoose } from '../i18n';
 
 // Format technology name: capitalize first letter only and replace underscores and hyphens
 const formatTechName = (techName) => {
@@ -11,7 +12,7 @@ const formatTechName = (techName) => {
   const formatted = techName
     .replace(/_/g, ' ')
     .replace(/-/g, ' ');
-  return formatted.charAt(0).toUpperCase() + formatted.slice(1).toLowerCase();
+  return trLoose(formatted.charAt(0).toUpperCase() + formatted.slice(1).toLowerCase());
 };
 
 const LocationEditDialog = ({
@@ -362,7 +363,7 @@ const LocationEditDialog = ({
           {/* Header */}
           <div className="p-6 border-b border-black/15 sticky top-0 bg-white">
             <h3 className="text-xl font-bold text-slate-800">
-              Configure Location
+              {tr("Configure Location")}
             </h3>
             <div className="flex items-center gap-3 mt-2">
               <span className="text-sm text-slate-600">📍</span>
@@ -372,7 +373,7 @@ const LocationEditDialog = ({
                 value={pendingLocation.latitude}
                 onChange={(e) => setPendingLocation({ ...pendingLocation, latitude: parseFloat(e.target.value) || 0 })}
                 className="w-32 px-2 py-1 text-xs border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-gray-500"
-                placeholder="Latitude"
+                placeholder={tr("Latitude")}
               />
               <span className="text-xs text-slate-400">,</span>
               <input
@@ -381,7 +382,7 @@ const LocationEditDialog = ({
                 value={pendingLocation.longitude}
                 onChange={(e) => setPendingLocation({ ...pendingLocation, longitude: parseFloat(e.target.value) || 0 })}
                 className="w-32 px-2 py-1 text-xs border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-gray-500"
-                placeholder="Longitude"
+                placeholder={tr("Longitude")}
               />
             </div>
           </div>
@@ -389,13 +390,13 @@ const LocationEditDialog = ({
           <div className="p-6 space-y-6">
             {/* Location Name */}
             <div>
-              <label className="block text-[0.6875rem] font-bold text-black/60 mb-2 uppercase tracking-widest">Location Name</label>
+              <label className="block text-[0.6875rem] font-bold text-black/60 mb-2 uppercase tracking-widest">{tr("Location Name")}</label>
               <input
                 type="text"
                 value={pendingLocation.name}
                 onChange={(e) => setPendingLocation({ ...pendingLocation, name: e.target.value })}
                 className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500"
-                placeholder="Enter location name"
+                placeholder={tr("Enter location name")}
               />
             </div>
 
@@ -403,14 +404,12 @@ const LocationEditDialog = ({
             <div>
                 <div className="flex items-center justify-between mb-3">
                   <label className="block text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">
-                    Technologies ({dialogTechs.length} selected)
+                    {tr("Technologies (")}{dialogTechs.length} {tr("selected)")}
                   </label>
                 </div>
                 {dialogTechs.length === 0 && (
                   <p className="text-xs text-slate-500 mb-3">
-                    A location with no technologies acts as a node (a connection
-                    point for links). Add one or more technologies below to make
-                    it a substation, power plant, storage, demand, etc.
+                    {tr("A location with no technologies acts as a node (a connection point for links). Add one or more technologies below to make it a substation, power plant, storage, demand, etc.")}
                   </p>
                 )}
                 
@@ -434,7 +433,7 @@ const LocationEditDialog = ({
                                 className="text-slate-600 hover:text-slate-800 text-xs flex items-center gap-1"
                               >
                                 {isExpanded ? <FiChevronDown size={14} /> : <FiChevronRight size={14} />}
-                                <span>Edit</span>
+                                <span>{tr("Edit")}</span>
                               </button>
                               <button
                                 onClick={() => removeTechFromDialog(techName)}
@@ -449,17 +448,17 @@ const LocationEditDialog = ({
                           {techTemplate?.parent === 'demand' && (
                             <div className="mt-2 p-3 bg-gray-50 border border-black/15 rounded-lg">
                               <label className="block text-[0.6875rem] font-bold text-black/60 mb-2 uppercase tracking-widest">
-                                Energy Demand * (Required)
+                                {tr("Energy Demand * (Required)")}
                               </label>
                               <input
                                 type="text"
                                 value={editingConstraints[techName]?.energy_cap || ''}
                                 onChange={(e) => updateDialogConstraint(techName, 'energy_cap', e.target.value)}
-                                placeholder="Enter demand value (kW) or upload CSV below"
+                                placeholder={tr("Enter demand value (kW) or upload CSV below")}
                                 className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-2 focus:ring-gray-500 mb-2"
                               />
                               <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
-                                <span>Or upload timeseries CSV:</span>
+                                <span>{tr("Or upload timeseries CSV:")}</span>
                                 <input
                                   type="file"
                                   accept=".csv"
@@ -477,7 +476,7 @@ const LocationEditDialog = ({
                           {techTemplate?.parent !== 'demand' && (
                             <div className="mt-2">
                               <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
-                                <span>Production/Consumption CSV:</span>
+                                <span>{tr("Production/Consumption CSV:")}</span>
                                 <input
                                   type="file"
                                   accept=".csv"
@@ -496,11 +495,11 @@ const LocationEditDialog = ({
                             <div className="mt-3 pt-3 border-t border-black/15 space-y-3">
                               {/* Essentials (carrier fields) */}
                               <div>
-                                <p className="text-xs font-semibold text-slate-600 mb-1">Essentials</p>
+                                <p className="text-xs font-semibold text-slate-600 mb-1">{tr("Essentials")}</p>
                                 {Object.keys(editingEssentials[techName] || {}).filter(
                                   k => !['name','color','parent'].includes(k)
                                 ).length === 0 && (
-                                  <p className="text-xs text-slate-400 italic mb-1">No essentials overridden</p>
+                                  <p className="text-xs text-slate-400 italic mb-1">{tr("No essentials overridden")}</p>
                                 )}
                                 <div className="space-y-1">
                                   {Object.entries(editingEssentials[techName] || {})
@@ -514,7 +513,7 @@ const LocationEditDialog = ({
                                           onChange={e => updateDialogEssential(techName, key, e.target.value)}
                                           className="flex-1 text-xs border border-black/15 rounded px-2 py-0.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-1 focus:ring-gray-400"
                                         >
-                                          <option value="">— select carrier —</option>
+                                          <option value="">{tr("— select carrier —")}</option>
                                           {Object.entries(CARRIERS_BY_GROUP).map(([group, carriers]) => (
                                             <optgroup key={group} label={group}>
                                               {carriers.map(c => (
@@ -593,25 +592,25 @@ const LocationEditDialog = ({
                 {/* Technology Library */}
                 <div className="max-h-[480px] overflow-y-auto border border-black/15 rounded-lg p-3">
                   <p className="text-xs font-semibold text-slate-600 mb-3">
-                    Technology Library ({Object.keys(techMap).length})
+                    {tr("Technology Library (")}{Object.keys(techMap).length})
                   </p>
                   {Object.keys(techMap).length === 0 ? (
                     <div className="text-center py-8 text-slate-500 text-sm">
-                      <p>No technologies available.</p>
-                      <p className="text-xs mt-2">The API catalog will load automatically.</p>
+                      <p>{tr("No technologies available.")}</p>
+                      <p className="text-xs mt-2">{tr("The API catalog will load automatically.")}</p>
                     </div>
                   ) : (
                     <div className="space-y-2">
                       {/* Note: transmission lines/pipelines are for links only. 
                           Transformers/substations are point infrastructure and can be added to locations. */}
                       {[
-                        { key: 'supply_plus', label: 'Variable Renewables' },
-                        { key: 'supply',      label: 'Dispatchable Generation' },
-                        { key: 'demand',      label: 'Demand' },
-                        { key: 'storage',     label: 'Storage' },
-                        { key: 'conversion_plus', label: 'Sector Coupling' },
-                        { key: 'conversion',  label: 'Conversion' },
-                        { key: 'transmission', label: 'Substations & Transformers' },
+                        { key: 'supply_plus', label: tr("Variable Renewables") },
+                        { key: 'supply',      label: tr("Dispatchable Generation") },
+                        { key: 'demand',      label: tr("Demand") },
+                        { key: 'storage',     label: tr("Storage") },
+                        { key: 'conversion_plus', label: tr("Sector Coupling") },
+                        { key: 'conversion',  label: tr("Conversion") },
+                        { key: 'transmission', label: tr("Substations & Transformers") },
                       ].map(({ key: parentType, label: categoryLabel }) => {
                         // For transmission, only show point infrastructure (transformers/substations)
                         // Exclude line/pipeline techs (cables, pipelines, networks)
@@ -671,7 +670,7 @@ const LocationEditDialog = ({
                                         <span className="text-xs font-semibold text-slate-700">{formatTechName(techName)}</span>
                                         <div className="flex items-center gap-2">
                                           {instances.length > 0 && (
-                                            <span className="text-[10px] text-slate-400">{instances.length} variant{instances.length !== 1 ? 's' : ''}</span>
+                                            <span className="text-[10px] text-slate-400">{instances.length === 1 ? tr("1 variant") : tr("{0} variants", { 0: instances.length })}</span>
                                           )}
                                           {subExpanded ? <FiChevronDown size={12} className="text-slate-400" /> : <FiChevronRight size={12} className="text-slate-400" />}
                                         </div>
@@ -686,7 +685,7 @@ const LocationEditDialog = ({
                                             const eff = inst?.constraints?.energy_eff;
                                             const lifetime = inst?.constraints?.lifetime;
                                             const capex = inst?.monetary?.energy_cap;
-                                            const rowLabel = inst?.displayLabel || inst?.label || inst?.raw?.label || `Variant ${idx + 1}`;
+                                            const rowLabel = inst?.displayLabel || inst?.label || inst?.raw?.label || tr("Variant {0}", { 0: idx + 1 });
                                             return (
                                               <div
                                                 key={idx}
@@ -706,10 +705,10 @@ const LocationEditDialog = ({
                                                         </span>
                                                       )}
                                                       {lifetime != null && (
-                                                        <span className="text-[9px] text-slate-400 bg-slate-100 px-1 py-0.5 rounded">{lifetime} yr</span>
+                                                        <span className="text-[9px] text-slate-400 bg-slate-100 px-1 py-0.5 rounded">{lifetime} {tr("yr")}</span>
                                                       )}
                                                       {capex != null && (
-                                                        <span className="text-[9px] text-slate-400 bg-slate-100 px-1 py-0.5 rounded">CAPEX {capex}</span>
+                                                        <span className="text-[9px] text-slate-400 bg-slate-100 px-1 py-0.5 rounded">{tr("CAPEX")} {capex}</span>
                                                       )}
                                                     </div>
                                                   )}
@@ -723,7 +722,7 @@ const LocationEditDialog = ({
                                                       : 'bg-black text-white hover:bg-black/80'
                                                   }`}
                                                 >
-                                                  {isAdded ? '✓' : '+ Add'}
+                                                  {isAdded ? '✓' : tr("+ Add")}
                                                 </button>
                                               </div>
                                             );
@@ -750,7 +749,7 @@ const LocationEditDialog = ({
               onClick={handleClose}
               className="px-4 py-2 border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50 transition-colors"
             >
-              Cancel
+              {tr("Cancel")}
             </button>
             <button
               onClick={confirmLocationCreation}
@@ -758,7 +757,7 @@ const LocationEditDialog = ({
               className="uppercase tracking-wide font-bold px-4 py-2 bg-black text-white rounded-md hover:bg-black/80 transition-colors flex items-center gap-2 disabled:bg-slate-300 disabled:cursor-not-allowed"
             >
               <FiCheck size={16} />
-              {originalLocationData ? 'Update Location' : 'Create Location'}
+              {originalLocationData ? tr("Update Location") : tr("Create Location")}
             </button>
           </div>
         </div>

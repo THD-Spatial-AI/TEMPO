@@ -1,3 +1,4 @@
+import { tr } from '../i18n';
 /**
  * techDatabaseApi.js
  * ------------------
@@ -461,7 +462,7 @@ export function instanceToParams(inst) {
 
   return {
     id: instanceId,
-    label: instanceName || instanceId || 'Instance',
+    label: instanceName || instanceId || tr("Instance"),
     displayLabel,
     life_cycle_stage: stage,
     typical_capacity_mw: capMw,

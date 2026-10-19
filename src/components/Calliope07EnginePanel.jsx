@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { FiZap, FiCheckCircle, FiAlertCircle, FiDownload, FiTerminal, FiRefreshCw } from './ui/icons';
+import { tr } from '../i18n';
 
 /**
  * Reusable install/status panel for the Calliope 0.7 (experimental) engine.
@@ -58,8 +59,8 @@ export default function Calliope07EnginePanel({ onInstallSuccess, embedded = fal
         onInstallSuccess?.();
       }
       if (data.type === 'error') {
-        appendLog('✗ ' + (data.error || data.label || 'Install error'));
-        setError(data.error || 'Installation failed.');
+        appendLog('✗ ' + (data.error || data.label || tr("Install error")));
+        setError(data.error || tr("Installation failed."));
         setInstalling(false);
         if (unsub) unsub();
         unsubRef.current = null;
@@ -73,15 +74,12 @@ export default function Calliope07EnginePanel({ onInstallSuccess, embedded = fal
     <div>
       {!embedded && (
         <h3 className="text-lg font-semibold text-slate-800 mb-1 flex items-center gap-2">
-          <FiZap className="w-5 h-5 text-gray-500" /> Calliope 0.7 Engine
-          <span className="text-xs px-2 py-0.5 font-medium bg-gray-100 text-gray-700">Experimental</span>
+          <FiZap className="w-5 h-5 text-gray-500" /> {tr("Calliope 0.7 Engine")}
+          <span className="text-xs px-2 py-0.5 font-medium bg-gray-100 text-gray-700">{tr("Experimental")}</span>
         </h3>
       )}
       <p className="text-sm text-slate-500 mb-4">
-        Optional second optimisation engine (Calliope 0.7.0.dev7, pre-release) in its own
-        isolated Python environment. Any TEMPO model can run on either engine — the
-        translation from TEMPO's internal representation happens automatically at run time.
-        Requires Python 3.10+.
+        {tr("Optional second optimisation engine (Calliope 0.7.0.dev7, pre-release) in its own isolated Python environment. Any TEMPO model can run on either engine — the translation from TEMPO's internal representation happens automatically at run time. Requires Python 3.10+.")}
       </p>
 
       {/* Status */}
@@ -100,21 +98,21 @@ export default function Calliope07EnginePanel({ onInstallSuccess, embedded = fal
         )}
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-slate-800">
-            {statusLoading ? 'Checking…' : envStatus?.envExists ? 'Engine installed' : 'Not installed'}
+            {statusLoading ? tr("Checking…") : envStatus?.envExists ? tr("Engine installed") : tr("Not installed")}
           </p>
           {!statusLoading && envStatus?.venvPath && (
             <p className="text-xs text-slate-400 font-mono truncate">{envStatus.venvPath}</p>
           )}
           {!statusLoading && (
             <p className="text-xs mt-0.5">
-              Service:{' '}
+              {tr("Service:")}{' '}
               <span className={envStatus?.serviceRunning ? 'text-gray-600 font-medium' : 'text-slate-400'}>
-                {envStatus?.serviceRunning ? 'running' : 'stopped'}
+                {envStatus?.serviceRunning ? tr("running") : tr("stopped")}
               </span>
             </p>
           )}
         </div>
-        <button onClick={refreshStatus} className="p-1 text-slate-400 hover:text-slate-600 transition-colors" title="Refresh">
+        <button onClick={refreshStatus} className="p-1 text-slate-400 hover:text-slate-600 transition-colors" title={tr("Refresh")}>
           <FiRefreshCw className="w-4 h-4" />
         </button>
       </div>
@@ -128,22 +126,22 @@ export default function Calliope07EnginePanel({ onInstallSuccess, embedded = fal
           className="flex items-center gap-2 px-5 py-2.5 border-2 border-gray-300 text-gray-800 bg-gray-50 rounded-xl font-semibold hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm"
         >
           {installing ? (
-            <><span className="w-4 h-4 border-2 border-gray-500 border-t-transparent rounded-full animate-spin" /> Installing…</>
+            <><span className="w-4 h-4 border-2 border-gray-500 border-t-transparent rounded-full animate-spin" /> {tr("Installing…")}</>
           ) : (
-            <><FiDownload className="w-4 h-4" /> {envStatus?.envExists ? 'Reinstall from scratch' : 'Install Calliope 0.7 engine'}</>
+            <><FiDownload className="w-4 h-4" /> {envStatus?.envExists ? tr("Reinstall from scratch") : tr("Install Calliope 0.7 engine")}</>
           )}
         </button>
       ) : (
         <div className="space-y-3">
           <div className="p-4 bg-slate-50 border border-black/15 rounded-xl">
-            <p className="text-sm font-medium text-slate-700 mb-1">Option 1 — Docker (recommended)</p>
+            <p className="text-sm font-medium text-slate-700 mb-1">{tr("Option 1 — Docker (recommended)")}</p>
             <pre className="text-xs font-mono bg-slate-900 text-green-400 rounded-lg p-3 select-all overflow-x-auto whitespace-pre">docker compose up calliope07-runner</pre>
-            <p className="text-xs text-slate-400 mt-1">Run from the TEMPO repo root. The service starts on port 5002 automatically.</p>
+            <p className="text-xs text-slate-400 mt-1">{tr("Run from the TEMPO repo root. The service starts on port 5002 automatically.")}</p>
           </div>
           <div className="p-4 bg-slate-50 border border-black/15 rounded-xl">
-            <p className="text-sm font-medium text-slate-700 mb-1">Option 2 — native install (Python 3.10+ from python.org required)</p>
+            <p className="text-sm font-medium text-slate-700 mb-1">{tr("Option 2 — native install (Python 3.10+ from python.org required)")}</p>
             <pre className="text-xs font-mono bg-slate-900 text-green-400 rounded-lg p-3 select-all overflow-x-auto whitespace-pre">powershell -ExecutionPolicy Bypass -File scripts\install_calliope07.ps1</pre>
-            <p className="text-xs text-slate-400 mt-1">After install, launch TEMPO with <code className="bg-slate-200 px-1 rounded">npm run dev:electron</code>.</p>
+            <p className="text-xs text-slate-400 mt-1">{tr("After install, launch TEMPO with")} <code className="bg-slate-200 px-1 rounded">npm run dev:electron</code>.</p>
           </div>
         </div>
       )}
@@ -153,7 +151,7 @@ export default function Calliope07EnginePanel({ onInstallSuccess, embedded = fal
         <div className="mt-4">
           <div className="flex items-center gap-2 mb-1">
             <FiTerminal className="w-4 h-4 text-slate-400" />
-            <span className="text-xs font-mono text-slate-400 uppercase tracking-wide">Output</span>
+            <span className="text-xs font-mono text-slate-400 uppercase tracking-wide">{tr("Output")}</span>
           </div>
           <div className="bg-slate-950 rounded-xl p-4 h-48 overflow-y-auto font-mono text-xs leading-relaxed">
             {logs.map((l, i) => (
@@ -174,12 +172,12 @@ export default function Calliope07EnginePanel({ onInstallSuccess, embedded = fal
       {success && (
         <div className="mt-3 flex items-center gap-2 p-3 bg-gray-50 border border-black/15 rounded-xl text-sm text-gray-700">
           <FiCheckCircle className="w-4 h-4 flex-shrink-0" />
-          Calliope 0.7 engine installed and service started.
+          {tr("Calliope 0.7 engine installed and service started.")}
         </div>
       )}
       {error && (
         <div className="mt-3 p-3 bg-gray-50 border border-black/15 rounded-xl text-sm text-gray-700">
-          <p className="font-semibold mb-1">Installation failed:</p>
+          <p className="font-semibold mb-1">{tr("Installation failed:")}</p>
           <pre className="whitespace-pre-wrap break-all text-xs bg-gray-100 rounded p-2 max-h-24 overflow-y-auto">{error}</pre>
         </div>
       )}

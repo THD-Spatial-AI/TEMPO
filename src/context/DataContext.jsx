@@ -5,6 +5,7 @@ import Notification from '../components/Notification';
 import { TECH_TEMPLATES } from '../components/TechnologiesData';
 import { api } from '../services/api';
 import { getSetting, SETTINGS_EVENT } from '../services/appSettings';
+import { tr } from '../i18n';
 
 // Convert TECH_TEMPLATES to flat array of technologies
 const getDefaultTechnologies = () => {
@@ -355,7 +356,7 @@ export const DataProvider = ({ children }) => {
           }
         } catch (e) {
           console.error('Failed to load models from backend:', e);
-          showNotification('Could not load models from database.', 'error');
+          showNotification(tr("Could not load models from database."), 'error');
           // Try localStorage as a last resort
           const local = loadFromLocalStorage();
           if (mounted && local.length > 0) {
@@ -460,7 +461,7 @@ export const DataProvider = ({ children }) => {
         payload = JSON.stringify(modelForBackend);
       } catch (serError) {
         console.error('Model contains non-serializable data, skipping backend save:', serError);
-        showNotification('Model saved locally (serialization error).', 'warning');
+        showNotification(tr("Model saved locally (serialization error)."), 'warning');
         return tempId;
       }
       import.meta.env.DEV && console.log(`Saving model to backend, payload size: ${(payload.length / 1024).toFixed(1)} KB`);
@@ -487,7 +488,7 @@ export const DataProvider = ({ children }) => {
         .catch(e => {
           pendingSaveIds.current.delete(tempId);
           console.error('Failed to save model to backend, using local fallback:', e);
-          showNotification('Model saved locally (backend save failed).', 'warning');
+          showNotification(tr("Model saved locally (backend save failed)."), 'warning');
           // Actually persist to localStorage so the model survives a page refresh.
           // stateRef.current.models already has the optimistic model entry.
           saveToLocalStorage(stateRef.current.models);

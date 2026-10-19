@@ -1,12 +1,13 @@
 // LogsTab — searchable, filterable solver log viewer for the selected run.
 import { useMemo, useState } from 'react';
 import { FiTerminal, FiSearch, FiX, FiCopy, FiDownload, FiCheck } from '../../ui/icons';
+import { tr } from '../../../i18n';
 
 const LEVELS = [
-  { id: 'all',     label: 'All' },
-  { id: 'error',   label: 'Errors',   dot: 'bg-red-500' },
-  { id: 'warning', label: 'Warnings', dot: 'bg-amber-500' },
-  { id: 'success', label: 'Success',  dot: 'bg-emerald-500' },
+  { id: 'all',     label: tr("All") },
+  { id: 'error',   label: tr("Errors"),   dot: 'bg-red-500' },
+  { id: 'warning', label: tr("Warnings"), dot: 'bg-amber-500' },
+  { id: 'success', label: tr("Success"),  dot: 'bg-emerald-500' },
 ];
 
 const SOURCE_TONES = ['text-sky-300', 'text-violet-300', 'text-teal-300', 'text-pink-300', 'text-orange-300'];
@@ -73,8 +74,8 @@ export default function LogsTab({ selectedJob }) {
         <div className="flex items-center gap-2 pr-2">
           <span className="grid h-8 w-8 place-items-center rounded-lg bg-slate-900 text-white"><FiTerminal size={15} /></span>
           <div className="leading-tight">
-            <div className="text-sm font-semibold text-slate-900">Solver log</div>
-            <div className="text-[11px] text-slate-500">{lines.length} lines{selectedJob?.duration ? ` · ${selectedJob.duration}` : ''}</div>
+            <div className="text-sm font-semibold text-slate-900">{tr("Solver log")}</div>
+            <div className="text-[11px] text-slate-500">{lines.length} {tr("lines")}{selectedJob?.duration ? ` · ${selectedJob.duration}` : ''}</div>
           </div>
         </div>
 
@@ -109,25 +110,25 @@ export default function LogsTab({ selectedJob }) {
 
         <div className="relative ml-auto w-full sm:w-64">
           <FiSearch size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search log…"
+          <input value={query} onChange={e => setQuery(e.target.value)} placeholder={tr("Search log…")}
             className="h-9 w-full rounded-lg border border-black/15 bg-white pl-8 pr-8 text-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200" />
           {query && (
-            <button onClick={() => setQuery('')} aria-label="Clear search" className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700">
+            <button onClick={() => setQuery('')} aria-label={tr("Clear search")} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700">
               <FiX size={14} />
             </button>
           )}
         </div>
 
         <div className="flex gap-1">
-          <button onClick={() => setWrap(w => !w)} title="Toggle line wrap"
+          <button onClick={() => setWrap(w => !w)} title={tr("Toggle line wrap")}
             className={`h-9 rounded-lg border px-3 text-xs font-medium transition-colors ${wrap ? 'border-black/15 bg-slate-100 text-slate-800' : 'border-black/15 text-slate-500 hover:bg-slate-50'}`}>
-            Wrap
+            {tr("Wrap")}
           </button>
-          <button onClick={copy} title="Copy visible lines"
+          <button onClick={copy} title={tr("Copy visible lines")}
             className="grid h-9 w-9 place-items-center rounded-lg border border-black/15 text-slate-600 transition-colors hover:bg-slate-50">
             {copied ? <FiCheck size={15} className="text-emerald-600" /> : <FiCopy size={15} />}
           </button>
-          <button onClick={download} title="Download full log"
+          <button onClick={download} title={tr("Download full log")}
             className="grid h-9 w-9 place-items-center rounded-lg border border-black/15 text-slate-600 transition-colors hover:bg-slate-50">
             <FiDownload size={15} />
           </button>
@@ -151,13 +152,13 @@ export default function LogsTab({ selectedJob }) {
             </span>
           </div>
         ))}
-        {lines.length === 0 && <div className="px-6 py-10 text-center italic text-slate-500">No log lines available</div>}
-        {lines.length > 0 && visible.length === 0 && <div className="px-6 py-10 text-center text-slate-500">No lines match the current filters</div>}
+        {lines.length === 0 && <div className="px-6 py-10 text-center italic text-slate-500">{tr("No log lines available")}</div>}
+        {lines.length > 0 && visible.length === 0 && <div className="px-6 py-10 text-center text-slate-500">{tr("No lines match the current filters")}</div>}
       </div>
 
       {visible.length !== lines.length && (
         <div className="border-t border-black/10 bg-slate-50 px-4 py-2 text-[11px] text-slate-500">
-          Showing {visible.length} of {lines.length} lines
+          {tr("Showing")} {visible.length} {tr("of")} {lines.length} {tr("lines")}
         </div>
       )}
     </div>

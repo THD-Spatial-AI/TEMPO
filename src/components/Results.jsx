@@ -1,6 +1,6 @@
 ﻿import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useData } from '../context/DataContext';
-import ReactECharts from 'echarts-for-react';
+import ReactECharts from './ui/Chart';
 import { FiBarChart2, FiPieChart, FiTrendingUp, FiDownload, FiRefreshCw, FiAlertCircle, FiCheckCircle, FiTrash2, FiTerminal, FiAlertTriangle, FiMapPin, FiDollarSign, FiZap, FiActivity, FiClock, FiCpu, FiMap, FiLayers, FiShare2, FiGrid, FiChevronDown, FiFilter, FiGitMerge, FiSearch, FiX } from './ui/icons';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
@@ -37,9 +37,12 @@ import LogsTab from './results/tabs/LogsTab';
 import SporesTab from './results/tabs/SporesTab';
 import ShadowTab from './results/tabs/ShadowTab';
 import AIAnalysisTab from './results/tabs/AIAnalysisTab';
+import { useT, locale } from '../i18n';
+import { tr } from '../i18n';
 
 // ── Main component ───────────────────────────────────────────────────────────
 const Results = ({ onNavigate }) => {
+  const t = useT();
   const { completedJobs, removeCompletedJob, showNotification, models, activeResultJobId, setActiveResultJobId } = useData();
   const [selectedJobId, setSelectedJobId] = useState(null);
   const [tab, setTab] = useState('overview');
@@ -291,7 +294,7 @@ const Results = ({ onNavigate }) => {
     const timestamps = (result.timestamps || []).map(t => {
       const d = new Date(t);
       if (isNaN(d)) return t;
-      return d.toLocaleDateString('en-GB', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      return d.toLocaleDateString(locale() || 'en-GB', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
     });
 
     return { capByTech, txCapByTech, txLinks, capByLoc, domTech, genByTech, genByLoc, techMixByLoc, totalGen, totalCap, timestamps };
@@ -401,7 +404,7 @@ const Results = ({ onNavigate }) => {
   const activeGroups = useMemo(() => {
     const ordered = [
       ...TECH_GROUPS,
-      { id: 'other', label: 'Other', color: '#64748b' },
+      { id: 'other', label: tr("Other"), color: '#64748b' },
     ];
     return ordered.filter(g => (techsByGroup[g.id] || []).length > 0);
   }, [techsByGroup]);
@@ -440,7 +443,7 @@ const Results = ({ onNavigate }) => {
     const fw = result.framework || 'results';
     a.href = url; a.download = `${fw}_${selectedJobId}.json`; a.click();
     URL.revokeObjectURL(url);
-    showNotification('Results exported as JSON', 'success');
+    showNotification(tr("Results exported as JSON"), 'success');
     setDownloadOpen(false);
   };
 
@@ -506,7 +509,7 @@ const Results = ({ onNavigate }) => {
 
     const blob = await zip.generateAsync({ type: 'blob' });
     saveAs(blob, `${fw}_${selectedJobId}_results.zip`);
-    showNotification('Results exported as CSV', 'success');
+    showNotification(tr("Results exported as CSV"), 'success');
     setDownloadOpen(false);
   };
 
@@ -539,15 +542,15 @@ const Results = ({ onNavigate }) => {
   const hasCosts    = Object.keys(result?.costs_by_tech || {}).length > 0;
 
   const TABS = [
-    { id: 'overview',  label: 'Overview',    icon: LuSummary },
-    ...(hasFlow     ? [{ id: 'flow',     label: 'Energy Flow',   icon: LuConversionPath }] : []),
-    ...(hasDispatch ? [{ id: 'dispatch', label: 'Dispatch',      icon: LuAreaChart }] : []),
-    ...(hasCosts    ? [{ id: 'costs',    label: 'Costs',         icon: LuEuro }] : []),
-    ...(hasShadowPrices ? [{ id: 'shadow', label: 'Shadow Prices', icon: LuPriceChange }] : []),
-    ...(hasFlow     ? [{ id: 'analysis', label: 'Analysis',      icon: LuQueryStats }] : []),
-    ...((isSporesRun || hasSpores) ? [{ id: 'spores', label: 'SPORES', icon: LuAltRoute }] : []),
-    { id: 'ai',        label: 'Model Advisor', icon: LuSparkles },
-    { id: 'logs',      label: 'Logs',        icon: LuTerminal },
+    { id: 'overview',  label: tr("Overview"),    icon: LuSummary },
+    ...(hasFlow     ? [{ id: 'flow',     label: tr("Energy Flow"),   icon: LuConversionPath }] : []),
+    ...(hasDispatch ? [{ id: 'dispatch', label: tr("Dispatch"),      icon: LuAreaChart }] : []),
+    ...(hasCosts    ? [{ id: 'costs',    label: tr("Costs"),         icon: LuEuro }] : []),
+    ...(hasShadowPrices ? [{ id: 'shadow', label: tr("Shadow Prices"), icon: LuPriceChange }] : []),
+    ...(hasFlow     ? [{ id: 'analysis', label: tr("Analysis"),      icon: LuQueryStats }] : []),
+    ...((isSporesRun || hasSpores) ? [{ id: 'spores', label: tr("SPORES"), icon: LuAltRoute }] : []),
+    { id: 'ai',        label: tr("Model Advisor"), icon: LuSparkles },
+    { id: 'logs',      label: tr("Logs"),        icon: LuTerminal },
   ];
 
   // Fall back to overview if the active tab was hidden by auto-hide logic
@@ -564,8 +567,8 @@ const Results = ({ onNavigate }) => {
           <div className="flex-shrink-0 px-6 pt-5 pb-0">
             <div className="flex items-end justify-between gap-4 flex-wrap">
               <div>
-                <h1 className="text-2xl font-bold text-slate-900">Results Dashboard</h1>
-                <p className="mt-1 text-sm text-slate-500">Optimisation results · interactive analysis</p>
+                <h1 className="text-2xl font-bold text-slate-900">{t('page.results.title')}</h1>
+                <p className="mt-1 text-sm text-slate-500">{t('page.results.subtitle')}</p>
               </div>
               <div className="flex items-center gap-2">
                 <div className="inline-flex gap-1 rounded-xl bg-slate-200/80 p-1 ring-1 ring-inset ring-slate-300/50">
@@ -573,13 +576,13 @@ const Results = ({ onNavigate }) => {
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                       !compareMode ? 'bg-black text-white ' : 'text-slate-600 hover:bg-white/70 hover:text-slate-900'
                     }`}>
-                    <FiLayers size={12} /> Single Run
+                    <FiLayers size={12} /> {tr("Single Run")}
                   </button>
                   <button onClick={() => setCompareMode(true)}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                       compareMode ? 'bg-black text-white ' : 'text-slate-600 hover:bg-white/70 hover:text-slate-900'
                     }`}>
-                    <FiGitMerge size={12} /> Compare Scenarios
+                    <FiGitMerge size={12} /> {tr("Compare Scenarios")}
                   </button>
                 </div>
               </div>
@@ -596,8 +599,8 @@ const Results = ({ onNavigate }) => {
           {/* ── Header ── */}
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Results Dashboard</h1>
-              <p className="mt-1 text-sm text-slate-500">Optimisation results · interactive analysis</p>
+              <h1 className="text-2xl font-bold text-slate-900">{t('page.results.title')}</h1>
+              <p className="mt-1 text-sm text-slate-500">{t('page.results.subtitle')}</p>
             </div>
             <div className="flex items-center gap-2">
               {/* View toggle */}
@@ -607,14 +610,14 @@ const Results = ({ onNavigate }) => {
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                     !compareMode ? 'bg-black text-white ' : 'text-slate-600 hover:bg-white/70 hover:text-slate-900'
                   }`}>
-                  <FiLayers size={12} /> Single Run
+                  <FiLayers size={12} /> {tr("Single Run")}
                 </button>
                 <button
                   onClick={() => setCompareMode(true)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                     compareMode ? 'bg-black text-white ' : 'text-slate-600 hover:bg-white/70 hover:text-slate-900'
                   }`}>
-                  <FiGitMerge size={12} /> Compare Scenarios
+                  <FiGitMerge size={12} /> {tr("Compare Scenarios")}
                 </button>
               </div>
               {result && !compareMode && (
@@ -622,19 +625,19 @@ const Results = ({ onNavigate }) => {
                   <button
                     onClick={() => setDownloadOpen(v => !v)}
                     className="flex h-9 items-center gap-2 rounded-lg border border-black/15 bg-white px-3 text-[13px] font-medium text-slate-700  transition hover:bg-slate-50">
-                    <FiDownload size={14} /> Download <FiChevronDown size={12} />
+                    <FiDownload size={14} /> {tr("Download")} <FiChevronDown size={12} />
                   </button>
                   {downloadOpen && (
                     <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-black/15 rounded-xl shadow-lg z-20 py-1 overflow-hidden">
                       <button
                         onClick={handleExportJSON}
                         className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2.5">
-                        <FiDownload size={13} className="text-slate-400" /> Results JSON
+                        <FiDownload size={13} className="text-slate-400" /> {tr("Results JSON")}
                       </button>
                       <button
                         onClick={handleExportCSV}
                         className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2.5">
-                        <FiGrid size={13} className="text-slate-400" /> Results CSV (ZIP)
+                        <FiGrid size={13} className="text-slate-400" /> {tr("Results CSV (ZIP)")}
                       </button>
                     </div>
                   )}
@@ -651,14 +654,14 @@ const Results = ({ onNavigate }) => {
                 <Select
                   value={selectedJobId || ''}
                   onChange={id => { setSelectedJobId(id || null); if (id) setTab('overview'); }}
-                  placeholder={completedJobs.length === 0 ? 'No completed runs yet' : 'Select a run'}
+                  placeholder={completedJobs.length === 0 ? tr("No completed runs yet") : tr("Select a run")}
                   options={completedJobs.map(job => ({
                     value: job.id,
                     label: `${job.status === 'failed' ? '⚠ ' : ''}${job.modelName}`,
                     description: [
                       RUN_ENGINE_LABELS[job.framework] || job.framework,
                       job.duration,
-                      job.completedAt ? new Date(job.completedAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : null,
+                      job.completedAt ? new Date(job.completedAt).toLocaleString(locale(), { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : null,
                       job.status === 'failed' ? 'failed' : null,
                     ].filter(Boolean).join(' · ') || undefined,
                   }))}
@@ -670,7 +673,7 @@ const Results = ({ onNavigate }) => {
                 return label ? (
                   <span className="flex h-10 items-center gap-2 whitespace-nowrap rounded-lg border border-black/15 bg-white px-3 text-sm text-slate-800">
                     <FiCpu size={17} className="text-slate-400" />
-                    <span className="text-slate-400">Engine</span>
+                    <span className="text-slate-400">{tr("Engine")}</span>
                     <span className="font-medium">{label}</span>
                   </span>
                 ) : null;
@@ -678,11 +681,11 @@ const Results = ({ onNavigate }) => {
               {selectedJobId && (
                 <DeleteButton
                   className="border border-black/15 bg-white"
-                  label="Delete run"
-                  title="Delete this run?"
-                  message="The run and its results will be removed from TEMPO. The model itself is not affected."
+                  label={tr("Delete run")}
+                  title={tr("Delete this run?")}
+                  message={tr("The run and its results will be removed from TEMPO. The model itself is not affected.")}
                   details={selectedJob?.modelName}
-                  confirmLabel="Delete run"
+                  confirmLabel={tr("Delete run")}
                   onConfirm={() => { removeCompletedJob(selectedJobId); setSelectedJobId(null); }}
                 />
               )}
@@ -694,15 +697,15 @@ const Results = ({ onNavigate }) => {
         {!compareMode && !selectedJob && (
           <div className="flex flex-col items-center rounded-2xl border border-dashed border-black/15 bg-white px-6 py-20 text-center">
             <div className="mb-3 grid h-12 w-12 place-items-center rounded-full bg-slate-100 text-slate-500"><FiBarChart2 size={20} /></div>
-            <h3 className="text-sm font-semibold text-slate-800">{completedJobs.length === 0 ? 'No results yet' : 'Select a run'}</h3>
+            <h3 className="text-sm font-semibold text-slate-800">{completedJobs.length === 0 ? tr("No results yet") : tr("Select a run")}</h3>
             <p className="mt-1 max-w-sm text-sm text-slate-500">
               {completedJobs.length === 0
-                ? 'Run a model from the Run page — finished runs appear here for analysis.'
-                : 'Pick a completed run from the dropdown above to explore its results.'}
+                ? tr("Run a model from the Run page — finished runs appear here for analysis.")
+                : tr("Pick a completed run from the dropdown above to explore its results.")}
             </p>
             {completedJobs.length === 0 && onNavigate && (
               <button onClick={() => onNavigate('Run')} className="mt-5 inline-flex h-10 items-center gap-2 rounded-lg bg-black px-4 text-sm font-semibold text-white  hover:bg-black/80">
-                Go to Run
+                {tr("Go to Run")}
               </button>
             )}
           </div>
@@ -712,8 +715,8 @@ const Results = ({ onNavigate }) => {
             <div className="bg-white rounded-2xl  border border-black/15 p-6 flex gap-4">
               <FiAlertTriangle className="text-gray-500 flex-shrink-0" size={24} />
               <div>
-                <h2 className="text-xl font-bold text-slate-800 mb-1">{selectedJob.modelName} — Failed</h2>
-                <p className="text-sm text-gray-700">{result?.error || 'Unknown error'}</p>
+                <h2 className="text-xl font-bold text-slate-800 mb-1">{selectedJob.modelName} {tr("— Failed")}</h2>
+                <p className="text-sm text-gray-700">{result?.error || tr("Unknown error")}</p>
               </div>
             </div>
             {selectedJob.logs?.length > 0 && (
@@ -746,7 +749,7 @@ const Results = ({ onNavigate }) => {
                       ? 'bg-black text-white border-gray-900'
                       : 'bg-white text-slate-600 border-black/15 hover:bg-slate-100'
                   }`}>
-                  <LuSlidersHorizontal size={17} /> Filters
+                  <LuSlidersHorizontal size={17} /> {tr("Filters")}
                   {techFilter.size > 0 && <span className="ml-0.5 text-[10px] font-bold">({allTechs.length - techFilter.size})</span>}
                 </button>
               )}
@@ -760,7 +763,7 @@ const Results = ({ onNavigate }) => {
                   <FiSearch size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     type="text"
-                    placeholder="Search technologies…"
+                    placeholder={tr("Search technologies…")}
                     value={filterSearch}
                     onChange={e => setFilterSearch(e.target.value)}
                     className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-black/15 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300"
@@ -794,7 +797,7 @@ const Results = ({ onNavigate }) => {
                         </div>
                         <button onClick={() => toggleGroup(grp.id)}
                           className="text-[10px] font-medium text-slate-400 hover:text-slate-600 transition-colors">
-                          {full ? 'Deselect all' : 'Select all'}
+                          {full ? tr("Deselect all") : tr("Select all")}
                         </button>
                       </div>
 
@@ -814,10 +817,10 @@ const Results = ({ onNavigate }) => {
                                 return expanded.size >= allTechs.length ? new Set() : expanded;
                               });
                             };
-                            const baseDisplayName = techMetaMap[base]?.display_name || base.replace(/_/g, ' ');
+                            const baseDisplayName = tr(techMetaMap[base]?.display_name || base.replace(/_/g, ' '));
                             return (
                               <button key={base} onClick={handleBaseToggle}
-                                title={`${baseDisplayName} — ${baseTechs.length} link(s)`}
+                                title={tr("{0} — {1} link(s)", { 0: baseDisplayName, 1: baseTechs.length })}
                                 className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium transition-all flex-shrink-0 border ${
                                   allActive
                                     ? 'border-transparent'
@@ -840,7 +843,7 @@ const Results = ({ onNavigate }) => {
 
                           return (
                             <button key={entry} onClick={() => toggleTech(entry)}
-                              title={techMetaMap[entry]?.display_name || entry.replace(/_/g, ' ')}
+                              title={tr(techMetaMap[entry]?.display_name || entry.replace(/_/g, ' '))}
                               className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium transition-all flex-shrink-0 border ${
                                 techFilter.size === 0 || techFilter.has(entry)
                                   ? 'border-transparent'
@@ -853,7 +856,7 @@ const Results = ({ onNavigate }) => {
                               } : {}}>
                               <span className="w-1.5 h-1.5 rounded-full flex-shrink-0"
                                 style={{ background: techFilter.size === 0 || techFilter.has(entry) ? grp.color : '#cbd5e1' }} />
-                              {(techMetaMap[entry]?.display_name || entry).replace(/_/g, ' ')}
+                              {tr((techMetaMap[entry]?.display_name || entry).replace(/_/g, ' '))}
                             </button>
                           );
                         })}
@@ -955,12 +958,12 @@ const Results = ({ onNavigate }) => {
                 <div className="bg-gray-50 border border-black/15 rounded-2xl p-5 flex items-start gap-3">
                   <FiAlertTriangle className="text-gray-500 mt-0.5 shrink-0" size={18} />
                   <div>
-                    <p className="text-sm font-semibold text-gray-800 mb-1">SPORES data not available in this result</p>
+                    <p className="text-sm font-semibold text-gray-800 mb-1">{tr("SPORES data not available in this result")}</p>
                     <p className="text-xs text-gray-700 mb-2">
-                      The run completed in SPORES mode, but the per-SPORE breakdown was not extracted. This usually means the backend encountered an error during SPORES result processing.
+                      {tr("The run completed in SPORES mode, but the per-SPORE breakdown was not extracted. This usually means the backend encountered an error during SPORES result processing.")}
                     </p>
                     <p className="text-xs text-gray-600">
-                      Check the <strong>Logs</strong> tab for <code>[SPORES]</code> messages or any Python traceback.
+                      {tr("Check the")} <strong>{tr("Logs")}</strong> {tr("tab for")} <code>[SPORES]</code> {tr("messages or any Python traceback.")}
                     </p>
                   </div>
                 </div>

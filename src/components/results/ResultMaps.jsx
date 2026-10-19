@@ -5,6 +5,7 @@ import { loadCommunesGeo } from '../../utils/loadCommunesGeo';
 import { popupCard } from '../../utils/mapPopup';
 import { ORG_CREDIT_HTML } from '../../config/attribution';
 import SelectField from '../ui/SelectField';
+import { tr, trLoose } from '../../i18n';
 
 // Pan the map so an opened popup is fully visible inside the map frame
 function keepPopupInView(map, popup, pad = 12) {
@@ -135,7 +136,7 @@ const ResultsMap = ({ locations, capacitiesByLoc, dominantTechByLoc, generationB
       el.innerHTML = `<span style="color:#1e293b;font-size:${fontSize}px;font-weight:700;font-family:'DM Sans',system-ui;line-height:1.15;text-align:center;pointer-events:none;padding:2px;text-shadow:0 1px 2px rgba(255,255,255,0.9)">${loc.name}<br/><span style="color:${color};font-size:${subSize}px;font-weight:700;text-shadow:-0.5px -0.5px 0 rgba(0,0,0,0.4),0.5px -0.5px 0 rgba(0,0,0,0.4),-0.5px 0.5px 0 rgba(0,0,0,0.4),0.5px 0.5px 0 rgba(0,0,0,0.4)">${fmtPower(cap, 0)}</span></span>`;
       const dom = dominantTechByLoc[key];
       const popup = new mgl.Popup({ offset: r + 6, closeButton: true, maxWidth: '280px', className: 'tempo-popup' })
-        .setHTML(popupCard({ title: loc.name, stats: [['Capacity', fmtPower(cap, 2)]], rows: dom ? [{ color, name: `Dominant: ${dom.replace(/_/g, ' ')}` }] : [] }));
+        .setHTML(popupCard({ title: loc.name, stats: [[tr("Capacity"), fmtPower(cap, 2)]], rows: dom ? [{ color, name: `Dominant: ${dom.replace(/_/g, ' ')}` }] : [] }));
       keepPopupInView(map, popup);
       const m = new mgl.Marker({ element: el }).setLngLat([loc.longitude, loc.latitude]).setPopup(popup).addTo(map);
       markersRef.current.push(m);
@@ -192,7 +193,7 @@ const ResultsMap = ({ locations, capacitiesByLoc, dominantTechByLoc, generationB
       el.title = `${loc.name} · ${fmtEnergy(gen, 0)}`;
       el.innerHTML = `<span style="color:#fff;font-size:${fontSize}px;font-weight:700;font-family:'DM Sans',system-ui;line-height:1.15;text-align:center;pointer-events:none;padding:2px;text-shadow:0 1px 3px rgba(0,0,0,0.45)">${loc.name}<br/><span style="font-size:${subSize}px;font-weight:600;opacity:0.92">${fmtEnergy(gen, 0)}</span></span>`;
       const popup = new mgl.Popup({ offset: r + 6, closeButton: true, maxWidth: '280px', className: 'tempo-popup' })
-        .setHTML(popupCard({ title: loc.name, stats: [['Generation', fmtEnergy(gen, 2)], ['Of max', `${(pct * 100).toFixed(1)}%`]] }));
+        .setHTML(popupCard({ title: loc.name, stats: [[tr("Generation"), fmtEnergy(gen, 2)], [tr("Of max"), `${(pct * 100).toFixed(1)}%`]] }));
       keepPopupInView(map, popup);
       const m = new mgl.Marker({ element: el }).setLngLat([loc.longitude, loc.latitude]).setPopup(popup).addTo(map);
       markersRef.current.push(m);
@@ -232,12 +233,12 @@ const ResultsMap = ({ locations, capacitiesByLoc, dominantTechByLoc, generationB
         return `<div class="tp-row"><span class="tp-dot" style="background:${color}"></span><span class="tp-name">${name}</span><span class="tp-val">${fmtEnergy(v, 1)}</span><span class="tp-pct">${pct.toFixed(0)}%</span>`
           + `<span class="tp-bar"><span style="width:${pct.toFixed(1)}%;background:${color}"></span></span></div>`;
       };
-      const rowsHtml = shown.map(([t, v]) => row(colorFn(t), t.replace(/_/g, ' '), v)).join('')
+      const rowsHtml = shown.map(([t, v]) => row(colorFn(t), trLoose(t.replace(/_/g, ' ')), v)).join('')
         + (restMWh > 0 ? row('#cbd5e1', `${ranked.length - 6} more`, restMWh) : '');
       const popup = new mgl.Popup({ offset: r + 6, closeButton: true, maxWidth: '280px', className: 'tempo-popup' })
         .setHTML(`<div class="tp-head"><div class="tp-title">${loc.name}</div>`
           + `<div class="tp-stats"><span><small>Capacity</small><b>${fmtPower(cap)}</b></span><span><small>Generation</small><b>${fmtEnergy(totalMWh, 1)}</b></span><span><small>Techs</small><b>${ranked.length}</b></span></div></div>`
-          + `<div class="tp-body">${rowsHtml || '<div class="tp-empty">No generation at this location</div>'}</div>`);
+          + `<div class="tp-body">${rowsHtml || `<div class="tp-empty">${tr("No generation at this location")}</div>`}</div>`);
       keepPopupInView(map, popup);
       const m = new mgl.Marker({ element: el }).setLngLat([loc.longitude, loc.latitude]).setPopup(popup).addTo(map);
       markersRef.current.push(m);
@@ -283,15 +284,15 @@ const ResultsMap = ({ locations, capacitiesByLoc, dominantTechByLoc, generationB
       <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
       {viewMode === 'capacity' && legendEntries.length > 0 && (
         <div style={{ position: 'absolute', top: 10, right: 10, background: 'rgba(255,255,255,0.95)', borderRadius: 0, padding: '8px 10px', fontSize: 11, boxShadow: '0 2px 8px rgba(0,0,0,0.12)', fontFamily: "'DM Sans',system-ui", border: '1px solid #e2e8f0', maxWidth: 160 }}>
-          <div style={{ fontWeight: 700, color: '#475569', marginBottom: 5, fontSize: 9.5, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Tech Mix</div>
+          <div style={{ fontWeight: 700, color: '#475569', marginBottom: 5, fontSize: 9.5, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{tr("Tech Mix")}</div>
           {legendEntries.map(([tech, color]) => (
             <div key={tech} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
               <div style={{ width: 10, height: 10, borderRadius: '50%', background: color, flexShrink: 0 }} />
-              <span style={{ color: '#475569', fontSize: 10.5 }}>{tech.replace(/_/g, ' ')}</span>
+              <span style={{ color: '#475569', fontSize: 10.5 }}>{trLoose(tech.replace(/_/g, ' '))}</span>
             </div>
           ))}
           <div style={{ marginTop: 7, paddingTop: 7, borderTop: '1px solid #f1f5f9' }}>
-            <div style={{ fontWeight: 700, color: '#475569', marginBottom: 6, fontSize: 9.5, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Capacity</div>
+            <div style={{ fontWeight: 700, color: '#475569', marginBottom: 6, fontSize: 9.5, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{tr("Capacity")}</div>
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6 }}>
               {[0.25, 0.55, 1.0].map(frac => {
                 const legR = Math.max(4, Math.sqrt(frac) * 18);
@@ -307,28 +308,28 @@ const ResultsMap = ({ locations, capacitiesByLoc, dominantTechByLoc, generationB
           {transmissionLinks.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 7, paddingTop: 7, borderTop: '1px solid #f1f5f9' }}>
               <div style={{ width: 16, height: 2.5, background: '#94a3b8', borderRadius: 0, flexShrink: 0 }} />
-              <span style={{ color: '#94a3b8', fontSize: 10 }}>TX link</span>
+              <span style={{ color: '#94a3b8', fontSize: 10 }}>{tr("TX link")}</span>
             </div>
           )}
         </div>
       )}
       {viewMode === 'mix' && mixLegendEntries.length > 0 && (
         <div style={{ position: 'absolute', top: 10, right: 10, background: 'rgba(255,255,255,0.95)', borderRadius: 0, padding: '8px 10px', fontSize: 11, boxShadow: '0 2px 8px rgba(0,0,0,0.12)', fontFamily: "'DM Sans',system-ui", border: '1px solid #e2e8f0', maxWidth: 170 }}>
-          <div style={{ fontWeight: 700, color: '#475569', marginBottom: 5, fontSize: 9.5, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Technology Mix</div>
+          <div style={{ fontWeight: 700, color: '#475569', marginBottom: 5, fontSize: 9.5, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{tr("Technology Mix")}</div>
           {mixLegendEntries.map(([tech, color]) => (
             <div key={tech} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
               <div style={{ width: 10, height: 10, borderRadius: 0, background: color, flexShrink: 0 }} />
-              <span style={{ color: '#475569', fontSize: 10.5 }}>{tech.replace(/_/g, ' ')}</span>
+              <span style={{ color: '#475569', fontSize: 10.5 }}>{trLoose(tech.replace(/_/g, ' '))}</span>
             </div>
           ))}
           <div style={{ marginTop: 7, paddingTop: 7, borderTop: '1px solid #f1f5f9', color: '#94a3b8', fontSize: 9.5 }}>
-            Pie size ∝ total capacity · slice ∝ share
+            {tr("Pie size ∝ total capacity · slice ∝ share")}
           </div>
         </div>
       )}
       {viewMode === 'generation' && (
         <div style={{ position: 'absolute', top: 10, right: 10, background: 'rgba(255,255,255,0.95)', borderRadius: 0, padding: '8px 10px', fontSize: 11, boxShadow: '0 2px 8px rgba(0,0,0,0.12)', fontFamily: "'DM Sans',system-ui", border: '1px solid #e2e8f0', minWidth: 130 }}>
-          <div style={{ fontWeight: 700, color: '#475569', marginBottom: 5, fontSize: 9.5, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Total Generation</div>
+          <div style={{ fontWeight: 700, color: '#475569', marginBottom: 5, fontSize: 9.5, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{tr("Total Generation")}</div>
           <div style={{ width: '100%', height: 7, borderRadius: 0, background: 'linear-gradient(to right, #fbbf24, #f59e0b, #ea580c, #dc2626)', marginBottom: 3 }} />
           <div style={{ display: 'flex', justifyContent: 'space-between', color: '#94a3b8', fontSize: 9.5 }}>
             <span>0</span>
@@ -337,7 +338,7 @@ const ResultsMap = ({ locations, capacitiesByLoc, dominantTechByLoc, generationB
           {transmissionLinks.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5, paddingTop: 5, borderTop: '1px solid #f1f5f9' }}>
               <div style={{ width: 16, height: 2.5, background: '#94a3b8', borderRadius: 0, flexShrink: 0 }} />
-              <span style={{ color: '#94a3b8', fontSize: 10 }}>TX link</span>
+              <span style={{ color: '#94a3b8', fontSize: 10 }}>{tr("TX link")}</span>
             </div>
           )}
         </div>
@@ -354,10 +355,10 @@ const congestionColor = (util) => {
   return '#16a34a';
 };
 const CONGESTION_LEVELS = [
-  { label: 'Free Flow', threshold: '< 50%',  color: '#16a34a' },
-  { label: 'Moderate',  threshold: '50-75%', color: '#ca8a04' },
-  { label: 'High Load', threshold: '75-90%', color: '#ea580c' },
-  { label: 'Congested', threshold: '> 90%',  color: '#dc2626' },
+  { label: tr("Free Flow"), threshold: '< 50%',  color: '#16a34a' },
+  { label: tr("Moderate"),  threshold: '50-75%', color: '#ca8a04' },
+  { label: tr("High Load"), threshold: '75-90%', color: '#ea580c' },
+  { label: tr("Congested"), threshold: '> 90%',  color: '#dc2626' },
 ];
 
 // ── Transmission Power-Flow Map ───────────────────────────────────────────────
@@ -614,7 +615,7 @@ const TransmissionFlowMap = ({ locations, transmissionFlowData, capacitiesByLoc,
           el.style.cssText = `width:${r*2}px;height:${r*2}px;border-radius:50%;background:rgba(255,255,255,0.97);border:2.5px solid #06b6d4;box-shadow:0 1px 6px rgba(0,0,0,0.15),0 0 14px rgba(6,182,212,0.18);display:flex;align-items:center;justify-content:center;cursor:default;`;
           el.innerHTML = `<span style="color:#1e293b;font-size:${Math.max(7, r*0.62)}px;font-weight:700;font-family:'DM Sans',system-ui;pointer-events:none;overflow:hidden;white-space:nowrap;max-width:${r*1.8}px;text-overflow:ellipsis">${label}</span>`;
           const nodePopup = new mgl.Popup({ offset: r + 6, closeButton: true, maxWidth: '280px', className: 'tempo-popup' })
-            .setHTML(popupCard({ title: loc.name, stats: [['Installed capacity', fmtPower(cap)]] }));
+            .setHTML(popupCard({ title: loc.name, stats: [[tr("Installed capacity"), fmtPower(cap)]] }));
           keepPopupInView(map, nodePopup);
           new mgl.Marker({ element: el }).setLngLat([loc.longitude, loc.latitude]).setPopup(nodePopup).addTo(map);
         });
@@ -632,10 +633,10 @@ const TransmissionFlowMap = ({ locations, transmissionFlowData, capacitiesByLoc,
           const dispUtil   = isTimeline ? stepUtil   : stat.peakUtil;
           const dispFlow   = isTimeline ? stepFlow   : stat.peakFlow;
           const col        = congestionColor(dispUtil);
-          const congLabel  = dispUtil >= 0.9 ? 'Congested' : dispUtil >= 0.75 ? 'High Load'
-                           : dispUtil >= 0.5 ? 'Moderate' : 'Free Flow';
-          const flowLabel  = isTimeline ? 'Flow now' : 'Peak flow';
-          const utilLabel  = isTimeline ? 'Util. now' : 'Peak util.';
+          const congLabel  = dispUtil >= 0.9 ? tr("Congested") : dispUtil >= 0.75 ? tr("High Load")
+                           : dispUtil >= 0.5 ? tr("Moderate") : tr("Free Flow");
+          const flowLabel  = isTimeline ? tr("Flow now") : tr("Peak flow");
+          const utilLabel  = isTimeline ? tr("Util. now") : tr("Peak util.");
           hoverPopup.setLngLat(e.lngLat).setHTML(`
             <div style="font-family:'DM Sans',system-ui;padding:6px 2px;min-width:210px">
               <div style="font-weight:700;font-size:12px;margin-bottom:8px;color:#1e293b;letter-spacing:-0.01em">
@@ -702,7 +703,7 @@ const TransmissionFlowMap = ({ locations, transmissionFlowData, capacitiesByLoc,
 
       {/* ── Top bar: mode toggle ──────────────────────────────────────── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '5px 8px', background: '#fff', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
-        {[{ id: 'timeline', label: 'Live Flow' }, { id: 'peak', label: 'Peak Map' }].map(({ id, label }) => (
+        {[{ id: 'timeline', label: tr("Live Flow") }, { id: 'peak', label: tr("Peak Map") }].map(({ id, label }) => (
           <button key={id} onClick={() => { setMode(id); if (id === 'peak') setPlaying(false); }}
             style={{ background: mode === id ? '#111827' : 'transparent',
                      color: mode === id ? '#fff' : '#64748b',
@@ -723,7 +724,7 @@ const TransmissionFlowMap = ({ locations, transmissionFlowData, capacitiesByLoc,
           {!hasFlow && (
             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
               <div style={{ background: 'rgba(255,255,255,0.97)', color: '#94a3b8', fontSize: 12, padding: '10px 18px', borderRadius: 0, border: '1px solid #e2e8f0', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
-                No transmission flow timeseries in results
+                {tr("No transmission flow timeseries in results")}
               </div>
             </div>
           )}
@@ -736,7 +737,7 @@ const TransmissionFlowMap = ({ locations, transmissionFlowData, capacitiesByLoc,
             {/* Legend */}
             <div style={{ padding: '10px 12px', borderBottom: '1px solid #f1f5f9' }}>
               <div style={{ color: '#94a3b8', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 7 }}>
-                Link Utilisation
+                {tr("Link Utilisation")}
               </div>
               {CONGESTION_LEVELS.map(({ label, threshold, color }) => (
                 <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
@@ -746,7 +747,7 @@ const TransmissionFlowMap = ({ locations, transmissionFlowData, capacitiesByLoc,
                 </div>
               ))}
               <div style={{ marginTop: 6, paddingTop: 5, borderTop: '1px solid #f1f5f9', color: '#94a3b8', fontSize: 9 }}>
-                {mode === 'peak' ? 'Peak utilisation across run' : `Step ${timestep + 1} / ${timestamps?.length || 1}`}
+                {mode === 'peak' ? tr("Peak utilisation across run") : tr("Step {0} / {1}", { 0: timestep + 1, 1: timestamps?.length || 1 })}
               </div>
             </div>
 
@@ -761,26 +762,26 @@ const TransmissionFlowMap = ({ locations, transmissionFlowData, capacitiesByLoc,
               return (
                 <div style={{ padding: '10px 12px', flex: 1 }}>
                   <div style={{ color: '#94a3b8', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 7 }}>
-                    Grid Issues
+                    {tr("Grid Issues")}
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginBottom: issues.length ? 8 : 0 }}>
                     {congested.length > 0 && (
                       <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 0, background: '#dc262615', color: '#dc2626', border: '1px solid #dc262630' }}>
-                        {congested.length} congested
+                        {congested.length} {tr("congested")}
                       </span>
                     )}
                     {highLoad.length > 0 && (
                       <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 0, background: '#ea580c15', color: '#ea580c', border: '1px solid #ea580c30' }}>
-                        {highLoad.length} high load
+                        {highLoad.length} {tr("high load")}
                       </span>
                     )}
                     {moderate.length > 0 && (
                       <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 0, background: '#ca8a0415', color: '#ca8a04', border: '1px solid #ca8a0430' }}>
-                        {moderate.length} moderate
+                        {moderate.length} {tr("moderate")}
                       </span>
                     )}
                     {issues.length === 0 && (
-                      <span style={{ fontSize: 9, fontWeight: 600, color: '#16a34a' }}>&#10003; All links free flow</span>
+                      <span style={{ fontSize: 9, fontWeight: 600, color: '#16a34a' }}>{tr("✓ All links free flow")}</span>
                     )}
                   </div>
                   {issues.map(({ fromLoc, toLoc, util }) => {
@@ -801,7 +802,7 @@ const TransmissionFlowMap = ({ locations, transmissionFlowData, capacitiesByLoc,
                   })}
                   {freeFlow.length > 0 && (
                     <div style={{ marginTop: issues.length ? 6 : 0, paddingTop: issues.length ? 5 : 0, borderTop: issues.length ? '1px solid #f1f5f9' : 'none', color: '#94a3b8', fontSize: 9 }}>
-                      {freeFlow.length} link{freeFlow.length > 1 ? 's' : ''} free flow (&lt; 50%)
+                      {freeFlow.length} {tr("link")}{freeFlow.length > 1 ? 's' : ''} {tr("free flow (< 50%)")}
                     </div>
                   )}
                 </div>
@@ -819,14 +820,14 @@ const TransmissionFlowMap = ({ locations, transmissionFlowData, capacitiesByLoc,
               style={{ background: '#111827', color: '#fff', border: 'none',
                        borderRadius: 0, padding: '4px 13px', fontSize: 11,
                        cursor: 'pointer', fontFamily: "'DM Sans', system-ui", fontWeight: 600 }}>
-              {playing ? '⏸ Pause' : '▶ Play'}
+              {playing ? tr("⏸ Pause") : tr("▶ Play")}
             </button>
             <button onClick={() => { setPlaying(false); setTimestep(0); }}
               style={{ background: 'transparent', color: '#64748b', border: '1px solid #e2e8f0',
                        borderRadius: 0, padding: '4px 9px', fontSize: 11,
-                       cursor: 'pointer', fontFamily: "'DM Sans', system-ui" }}>↩ Reset</button>
+                       cursor: 'pointer', fontFamily: "'DM Sans', system-ui" }}>{tr("↩ Reset")}</button>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ color: '#94a3b8', fontSize: 10 }}>Speed:</span>
+              <span style={{ color: '#94a3b8', fontSize: 10 }}>{tr("Speed:")}</span>
               <SelectField value={speed} onChange={e => setSpeed(+e.target.value)}
                 style={{ background: '#fff', color: '#374151', border: '1px solid #e2e8f0',
                          borderRadius: 0, fontSize: 10, padding: '2px 4px', cursor: 'pointer', fontFamily: "'DM Sans', system-ui" }}>
@@ -879,7 +880,7 @@ const TransmissionFlowMap = ({ locations, transmissionFlowData, capacitiesByLoc,
 
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 1 }}>
             <span style={{ color: '#cbd5e1', fontSize: 9, fontFamily: "'JetBrains Mono', monospace" }}>{timestamps?.[0]?.slice(0, 10) || ''}</span>
-            <span style={{ color: '#94a3b8', fontSize: 9 }}>{timestep + 1} / {timestamps?.length || 0} steps</span>
+            <span style={{ color: '#94a3b8', fontSize: 9 }}>{timestep + 1} / {timestamps?.length || 0} {tr("steps")}</span>
             <span style={{ color: '#cbd5e1', fontSize: 9, fontFamily: "'JetBrains Mono', monospace" }}>{timestamps?.[timestamps.length - 1]?.slice(0, 10) || ''}</span>
           </div>
         </div>
@@ -1024,7 +1025,7 @@ const GroupedCorrMatrixSVG = ({ ltGroups, ltCorrMap }) => {
           <text key={`xt-${atom.key}`}
             transform={`translate(${cx},${TOP + matH + 4}) rotate(-90)`}
             textAnchor="end" fontSize={fSm} fill="#64748b">
-            {atom.tech.replace(/_/g, ' ')}
+            {trLoose(atom.tech.replace(/_/g, ' '))}
           </text>
         ))}
 
@@ -1043,7 +1044,7 @@ const GroupedCorrMatrixSVG = ({ ltGroups, ltCorrMap }) => {
             x={LEFT - 6} y={cy}
             textAnchor="end" dominantBaseline="middle"
             fontSize={fSm} fill="#64748b">
-            {atom.tech.replace(/_/g, ' ')}
+            {trLoose(atom.tech.replace(/_/g, ' '))}
           </text>
         ))}
 
@@ -1081,7 +1082,7 @@ const CHORO_RAMPS = {
   green:  ['#dcfce7', '#15803d'],
 };
 
-const RegionChoropleth = ({ metric = {}, metricLabel = 'Value', colorRamp = 'blue', fmtValue = null }) => {
+const RegionChoropleth = ({ metric = {}, metricLabel = tr("Value"), colorRamp = 'blue', fmtValue = null }) => {
   const mapRef    = useRef(null);
   const mapInstRef = useRef(null);
   const [error, setError] = useState(null);
@@ -1099,7 +1100,7 @@ const RegionChoropleth = ({ metric = {}, metricLabel = 'Value', colorRamp = 'blu
       try {
         geoJSON = await loadCommunesGeo();
       } catch {
-        if (!destroyed) setError('Could not load region boundaries.');
+        if (!destroyed) setError(tr("Could not load region boundaries."));
         return;
       }
       if (destroyed) return;

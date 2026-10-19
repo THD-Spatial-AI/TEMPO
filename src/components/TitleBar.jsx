@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { LuMinimize, LuMaximize, LuRestore, LuX } from './ui/icons';
 import { runAppCommand } from '../services/appCommands';
+import { useT } from '../i18n';
 import tempoLogo from '../assets/Logo_TEMPO.PNG';
 
 const MENUS = [
@@ -28,6 +29,7 @@ const MENUS = [
 const noDrag = { WebkitAppRegion: 'no-drag' };
 
 export default function TitleBar() {
+  const t = useT();
   const api = window.electronAPI?.window;
   const [open, setOpen] = useState(null);
   const [win, setWin] = useState({ maximized: false, fullscreen: false, version: '' });
@@ -80,14 +82,14 @@ export default function TitleBar() {
               aria-expanded={open === i}
               className={`flex h-full items-center px-2.5 text-[13px] transition-colors ${open === i ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}
             >
-              {menu.label}
+              {t(`menu.${menu.label}`)}
             </button>
             {open === i && (
               <div role="menu" className="tempo-tour-card absolute left-0 top-full mt-1 min-w-[240px] border border-black/10 bg-white py-1.5 shadow-xl shadow-slate-900/10">
                 {menu.items.map((item, j) => item ? (
                   <button key={item[1]} role="menuitem" onClick={() => run(item[1])}
                     className="flex w-full items-center justify-between gap-6 px-3.5 py-1.5 text-left text-[13px] text-slate-700 hover:bg-slate-900 hover:text-white">
-                    <span>{item[0]}</span>
+                    <span>{t(`menu.${item[1]}`)}</span>
                     {item[2] && <span className="text-[11px] tabular-nums opacity-50">{item[2]}</span>}
                   </button>
                 ) : <div key={`sep${j}`} className="my-1.5 h-px bg-black/10" />)}
@@ -100,16 +102,16 @@ export default function TitleBar() {
         ))}
       </nav>
 
-      <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 text-[12px] font-semibold text-slate-600">Energy System Modeling</div>
+      <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 text-[12px] font-semibold text-slate-600">{t('titlebar.caption')}</div>
 
       <div className="ml-auto flex h-full" style={noDrag}>
-        <button onClick={() => runAppCommand('minimize')} aria-label="Minimize" className="grid h-full w-12 place-items-center text-slate-600 hover:bg-slate-100">
+        <button onClick={() => runAppCommand('minimize')} aria-label={t('window.minimize')} className="grid h-full w-12 place-items-center text-slate-600 hover:bg-slate-100">
           <LuMinimize size={16} />
         </button>
-        <button onClick={() => runAppCommand('maximize')} aria-label={win.maximized ? 'Restore' : 'Maximize'} className="grid h-full w-12 place-items-center text-slate-600 hover:bg-slate-100">
+        <button onClick={() => runAppCommand('maximize')} aria-label={win.maximized ? t('window.restore') : t('window.maximize')} className="grid h-full w-12 place-items-center text-slate-600 hover:bg-slate-100">
           {win.maximized ? <LuRestore size={13} /> : <LuMaximize size={15} />}
         </button>
-        <button onClick={() => runAppCommand('close')} aria-label="Close" className="grid h-full w-12 place-items-center text-slate-600 hover:bg-red-600 hover:text-white">
+        <button onClick={() => runAppCommand('close')} aria-label={t('window.close')} className="grid h-full w-12 place-items-center text-slate-600 hover:bg-red-600 hover:text-white">
           <LuX size={17} />
         </button>
       </div>

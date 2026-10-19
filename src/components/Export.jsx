@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect, useMemo } from 'react';
-import ReactECharts from 'echarts-for-react';
+import ReactECharts from './ui/Chart';
 import { useData } from '../context/DataContext';
 import { FiDownload, FiFolder, FiFile, FiCheckCircle, FiAlertCircle, FiPackage, FiZap, FiActivity, FiCpu, FiSettings, FiDatabase, FiLayers, FiMap, FiBarChart2 } from './ui/icons';
 import { loadCommunesGeo, normComuna } from '../utils/loadCommunesGeo';
@@ -19,13 +19,15 @@ import { resolveScenario } from '../services/scenarioResolver';
 import TranslationReport from './TranslationReport';
 import { FiCheck } from './ui/icons';
 import SelectField from './ui/SelectField';
+import { useT, locale } from '../i18n';
+import { tr } from '../i18n';
 
 
 const EXPORT_FORMATS = [
   {
     id: 'calliope',
     name: 'Calliope',
-    description: 'Multi-scale energy system modeling framework',
+    description: tr("Multi-scale energy system modeling framework"),
     icon: FiZap,
     color: 'from-gray-600 to-gray-700',
     supported: true
@@ -33,7 +35,7 @@ const EXPORT_FORMATS = [
   {
     id: 'pypsa',
     name: 'PyPSA',
-    description: 'Python for Power System Analysis — netCDF + CSV folder',
+    description: tr("Python for Power System Analysis — netCDF + CSV folder"),
     icon: FiActivity,
     color: 'from-gray-500 to-gray-600',
     supported: true
@@ -41,7 +43,7 @@ const EXPORT_FORMATS = [
   {
     id: 'osemosys',
     name: 'OSeMOSYS',
-    description: 'Open Source Energy Modelling System — otoole-compatible CSV dataset',
+    description: tr("Open Source Energy Modelling System — otoole-compatible CSV dataset"),
     icon: FiCpu,
     color: 'from-gray-500 to-gray-600',
     supported: true
@@ -49,7 +51,7 @@ const EXPORT_FORMATS = [
   {
     id: 'adoptnet0',
     name: 'AdOpT-NET0',
-    description: 'Advanced Optimisation of Polygeneration Technologies — NET-zero. Case-directory ZIP.',
+    description: tr("Advanced Optimisation of Polygeneration Technologies — NET-zero. Case-directory ZIP."),
     icon: FiSettings,
     color: 'from-gray-500 to-gray-600',
     supported: true
@@ -57,7 +59,7 @@ const EXPORT_FORMATS = [
   {
     id: 'calliope07',
     name: 'Calliope 0.7',
-    description: 'Calliope 0.7 schema — single model.yaml + CSV files (experimental)',
+    description: tr("Calliope 0.7 schema — single model.yaml + CSV files (experimental)"),
     icon: FiZap,
     color: 'from-gray-500 to-gray-600',
     supported: true
@@ -125,7 +127,7 @@ function spatialFromResult(r) {
       return { fromLoc, toLoc, timeseries: vals, cap };
     });
   }
-  const timestamps = (r?.timestamps || []).map(t => { const d = new Date(t); return isNaN(d) ? t : d.toLocaleDateString('en-GB', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); });
+  const timestamps = (r?.timestamps || []).map(t => { const d = new Date(t); return isNaN(d) ? t : d.toLocaleDateString(locale() || 'en-GB', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); });
   const locNames = new Set([...Object.keys(capByLoc), ...Object.keys(genByLoc), ...subSet]);
   const locations = [...locNames].map(n => { const c = coordOf(n); return c ? { name: n, calliopeName: n, latitude: c.lat, longitude: c.lon } : null; }).filter(Boolean);
 
@@ -134,7 +136,7 @@ function spatialFromResult(r) {
 
 const RESULT_OUTPUT_DEFS = [
   {
-    id: 'summary', group: 'data', label: 'Summary KPIs', filename: 'summary_kpis.csv',
+    id: 'summary', group: 'data', label: tr("Summary KPIs"), filename: 'summary_kpis.csv',
     hasData: (r) => !!r,
     build: (r) => {
       const totalCap = Object.values(r.capacities || {}).reduce((s, v) => s + v, 0);
@@ -142,24 +144,24 @@ const RESULT_OUTPUT_DEFS = [
       const totalCost = Object.values(r.costs_by_tech || {}).reduce((s, v) => s + v, 0);
       const totalImports = r.imports_by_location ? Object.values(r.imports_by_location).reduce((s, v) => s + v, 0) : 0;
       const rows = [
-        ['Metric', 'Value'],
-        ['Termination Condition', r.termination_condition ?? ''],
-        ['Objective', r.objective ?? ''],
-        ['Total Capacity (MW)', totalCap.toFixed(3)],
-        ['Total Generation (MWh)', totalGen.toFixed(3)],
-        ['Total Cost', totalCost.toFixed(3)],
+        [tr("Metric"), tr("Value")],
+        [tr("Termination Condition"), r.termination_condition ?? ''],
+        [tr("Objective"), r.objective ?? ''],
+        [tr("Total Capacity (MW)"), totalCap.toFixed(3)],
+        [tr("Total Generation (MWh)"), totalGen.toFixed(3)],
+        [tr("Total Cost"), totalCost.toFixed(3)],
         ['LCOE (cost/MWh)', totalGen > 0 ? (totalCost / totalGen).toFixed(6) : ''],
-        ['Unmet Demand (MWh)', (r.total_unmet_demand_mwh ?? 0).toFixed(3)],
-        ['Net Imports (MWh)', totalImports.toFixed(3)],
+        [tr("Unmet Demand (MWh)"), (r.total_unmet_demand_mwh ?? 0).toFixed(3)],
+        [tr("Net Imports (MWh)"), totalImports.toFixed(3)],
       ];
       return rows.map(r2 => r2.join(',')).join('\n');
     },
   },
   {
-    id: 'capacities', group: 'data', label: 'Capacities', filename: 'capacities.csv',
+    id: 'capacities', group: 'data', label: tr("Capacities"), filename: 'capacities.csv',
     hasData: (r) => !!Object.keys(r.capacities || {}).length,
     build: (r) => {
-      const rows = [['Location', 'Technology', 'Capacity_MW']];
+      const rows = [[tr("Location"), tr("Technology"), 'Capacity_MW']];
       Object.entries(r.capacities || {}).sort(([a], [b]) => a.localeCompare(b)).forEach(([k, v]) => {
         const { loc, tech } = parseLTCExport(k);
         rows.push([`"${loc}"`, `"${tech}"`, v]);
@@ -168,10 +170,10 @@ const RESULT_OUTPUT_DEFS = [
     },
   },
   {
-    id: 'generation', group: 'data', label: 'Generation', filename: 'generation.csv',
+    id: 'generation', group: 'data', label: tr("Generation"), filename: 'generation.csv',
     hasData: (r) => !!Object.keys(r.generation || {}).length,
     build: (r) => {
-      const rows = [['Location', 'Technology', 'Generation_MWh']];
+      const rows = [[tr("Location"), tr("Technology"), 'Generation_MWh']];
       Object.entries(r.generation || {}).sort(([a], [b]) => a.localeCompare(b)).forEach(([k, v]) => {
         const { loc, tech } = parseLTCExport(k);
         rows.push([`"${loc}"`, `"${tech}"`, v]);
@@ -180,53 +182,53 @@ const RESULT_OUTPUT_DEFS = [
     },
   },
   {
-    id: 'costs_tech', group: 'data', label: 'Costs by Technology', filename: 'costs_by_tech.csv',
+    id: 'costs_tech', group: 'data', label: tr("Costs by Technology"), filename: 'costs_by_tech.csv',
     hasData: (r) => !!Object.keys(r.costs_by_tech || {}).length,
     build: (r) => {
-      const rows = [['Technology', 'Cost']];
+      const rows = [[tr("Technology"), tr("Cost")]];
       Object.entries(r.costs_by_tech || {}).sort(([a], [b]) => a.localeCompare(b)).forEach(([k, v]) => rows.push([`"${k}"`, v]));
       return rows.map(r2 => r2.join(',')).join('\n');
     },
   },
   {
-    id: 'costs_loc', group: 'data', label: 'Costs by Location', filename: 'costs_by_location.csv',
+    id: 'costs_loc', group: 'data', label: tr("Costs by Location"), filename: 'costs_by_location.csv',
     hasData: (r) => !!r.costs_by_location && !!Object.keys(r.costs_by_location).length,
     build: (r) => {
-      const rows = [['Location', 'Cost']];
+      const rows = [[tr("Location"), tr("Cost")]];
       Object.entries(r.costs_by_location || {}).sort(([a], [b]) => a.localeCompare(b)).forEach(([k, v]) => rows.push([`"${k}"`, v]));
       return rows.map(r2 => r2.join(',')).join('\n');
     },
   },
   {
-    id: 'demand_loc', group: 'data', label: 'Demand by Location', filename: 'demand_by_location.csv',
+    id: 'demand_loc', group: 'data', label: tr("Demand by Location"), filename: 'demand_by_location.csv',
     hasData: (r) => !!r.demand_by_location && !!Object.keys(r.demand_by_location).length,
     build: (r) => {
-      const rows = [['Location', 'Demand_MWh']];
+      const rows = [[tr("Location"), 'Demand_MWh']];
       Object.entries(r.demand_by_location || {}).sort(([a], [b]) => a.localeCompare(b)).forEach(([k, v]) => rows.push([`"${k}"`, v]));
       return rows.map(r2 => r2.join(',')).join('\n');
     },
   },
   {
-    id: 'unmet', group: 'data', label: 'Unmet Demand by Location', filename: 'unmet_demand.csv',
+    id: 'unmet', group: 'data', label: tr("Unmet Demand by Location"), filename: 'unmet_demand.csv',
     hasData: (r) => !!r.unmet_demand_by_location && !!Object.keys(r.unmet_demand_by_location).length,
     build: (r) => {
-      const rows = [['Location', 'Unmet_MWh']];
+      const rows = [[tr("Location"), 'Unmet_MWh']];
       Object.entries(r.unmet_demand_by_location || {}).sort(([a], [b]) => a.localeCompare(b)).forEach(([k, v]) => rows.push([`"${k}"`, v]));
       return rows.map(r2 => r2.join(',')).join('\n');
     },
   },
   {
-    id: 'imports', group: 'data', label: 'Imports / Exports', filename: 'imports_exports.csv',
+    id: 'imports', group: 'data', label: tr("Imports / Exports"), filename: 'imports_exports.csv',
     hasData: (r) => !!r.imports_by_location && !!Object.keys(r.imports_by_location).length,
     build: (r) => {
       const locs = new Set([...Object.keys(r.imports_by_location || {}), ...Object.keys(r.exports_by_location || {})]);
-      const rows = [['Location', 'Imports_MWh', 'Exports_MWh']];
+      const rows = [[tr("Location"), 'Imports_MWh', 'Exports_MWh']];
       [...locs].sort().forEach(loc => rows.push([`"${loc}"`, r.imports_by_location?.[loc] ?? 0, r.exports_by_location?.[loc] ?? 0]));
       return rows.map(r2 => r2.join(',')).join('\n');
     },
   },
   {
-    id: 'dispatch', group: 'data', label: 'Dispatch timeseries', filename: 'dispatch.csv',
+    id: 'dispatch', group: 'data', label: tr("Dispatch timeseries"), filename: 'dispatch.csv',
     hasData: (r) => !!(r.dispatch && r.timestamps?.length),
     build: (r) => {
       const keys = Object.keys(r.dispatch || {}).sort();
@@ -239,78 +241,78 @@ const RESULT_OUTPUT_DEFS = [
     },
   },
   {
-    id: 'json', group: 'raw', label: 'Full Result (JSON)', filename: 'full_result.json',
+    id: 'json', group: 'raw', label: tr("Full Result (JSON)"), filename: 'full_result.json',
     hasData: (r) => !!r,
     build: (r) => JSON.stringify(r, null, 2),
   },
   {
-    id: 'svg_node_capacity', group: 'svg', label: 'Map — Capacity (SVG)', filename: 'map_capacity.svg',
+    id: 'svg_node_capacity', group: 'svg', label: tr("Map — Capacity (SVG)"), filename: 'map_capacity.svg',
     hasData: (r) => !!r.coordinates && !!Object.keys(r.coordinates).length && !!Object.keys(r.capacities || {}).length,
     build: async (r) => {
       const geo = await loadCommunesGeo(); const s = spatialFromResult(r);
       const communeNames = r.demand_by_location ? Object.keys(r.demand_by_location) : [];
-      return buildNodeMapSVG({ geo, communeNames, nodes: s.nodeCap, links: s.links, colorMode: 'tech', legend: s.legend, label: 'Installed capacity', unit: 'MW' });
+      return buildNodeMapSVG({ geo, communeNames, nodes: s.nodeCap, links: s.links, colorMode: 'tech', legend: s.legend, label: tr("Installed capacity"), unit: 'MW' });
     },
   },
   {
-    id: 'svg_node_generation', group: 'svg', label: 'Map — Generation (SVG)', filename: 'map_generation.svg',
+    id: 'svg_node_generation', group: 'svg', label: tr("Map — Generation (SVG)"), filename: 'map_generation.svg',
     hasData: (r) => !!r.coordinates && !!Object.keys(r.coordinates).length && !!Object.keys(r.generation || {}).length,
     build: async (r) => {
       const geo = await loadCommunesGeo(); const s = spatialFromResult(r);
       const communeNames = r.demand_by_location ? Object.keys(r.demand_by_location) : [];
-      return buildNodeMapSVG({ geo, communeNames, nodes: s.nodeGen, links: s.links, colorMode: 'value', ramp: ['#fbbf24', '#f59e0b', '#dc2626'], label: 'Generation', unit: 'MWh' });
+      return buildNodeMapSVG({ geo, communeNames, nodes: s.nodeGen, links: s.links, colorMode: 'value', ramp: ['#fbbf24', '#f59e0b', '#dc2626'], label: tr("Generation"), unit: 'MWh' });
     },
   },
   {
-    id: 'svg_techpie', group: 'svg', label: 'Map — Tech Mix (SVG)', filename: 'map_tech_mix.svg',
+    id: 'svg_techpie', group: 'svg', label: tr("Map — Tech Mix (SVG)"), filename: 'map_tech_mix.svg',
     hasData: (r) => !!r.coordinates && !!Object.keys(r.coordinates).length && !!Object.keys(r.capacities || {}).length,
     build: async (r) => {
       const geo = await loadCommunesGeo(); const s = spatialFromResult(r);
       const communeNames = r.demand_by_location ? Object.keys(r.demand_by_location) : [];
-      return buildTechPieMapSVG({ geo, communeNames, pies: s.pies, label: 'Technology mix' });
+      return buildTechPieMapSVG({ geo, communeNames, pies: s.pies, label: tr("Technology mix") });
     },
   },
   {
-    id: 'svg_transmission', group: 'svg', label: 'Map — Transmission (SVG)', filename: 'map_transmission.svg',
+    id: 'svg_transmission', group: 'svg', label: tr("Map — Transmission (SVG)"), filename: 'map_transmission.svg',
     hasData: (r) => !!r.coordinates && !!Object.keys(r.coordinates).length && Object.keys(r.capacities || {}).some(k => (k.split('::')[1] || '').includes(':')),
     build: async (r) => {
       const geo = await loadCommunesGeo(); const s = spatialFromResult(r);
       const communeNames = r.demand_by_location ? Object.keys(r.demand_by_location) : [];
-      return buildTransmissionMapSVG({ geo, communeNames, nodes: s.substations, links: s.links, label: 'Transmission utilisation' });
+      return buildTransmissionMapSVG({ geo, communeNames, nodes: s.substations, links: s.links, label: tr("Transmission utilisation") });
     },
   },
   {
-    id: 'svg_demand', group: 'svg', label: 'Map — Demand (SVG)', filename: 'map_demand.svg',
+    id: 'svg_demand', group: 'svg', label: tr("Map — Demand (SVG)"), filename: 'map_demand.svg',
     hasData: (r) => !!r.demand_by_location && !!Object.keys(r.demand_by_location).length,
     build: async (r) => {
       const geo = await loadCommunesGeo();
       const choro = choroMetricsFromResult(r);
-      return buildChoroplethSVG(geo, choro, 'demand', { ramp: ['#fff7ec', '#fdbb84', '#d7301f'], label: 'Demand (MWh)', unit: 'MWh' });
+      return buildChoroplethSVG(geo, choro, 'demand', { ramp: ['#fff7ec', '#fdbb84', '#d7301f'], label: tr("Demand (MWh)"), unit: 'MWh' });
     },
   },
   {
-    id: 'svg_unmet', group: 'svg', label: 'Map — Unmet Demand (SVG)', filename: 'map_unmet_demand.svg',
+    id: 'svg_unmet', group: 'svg', label: tr("Map — Unmet Demand (SVG)"), filename: 'map_unmet_demand.svg',
     hasData: (r) => !!r.demand_by_location && !!Object.keys(r.demand_by_location).length,
     build: async (r) => {
       const geo = await loadCommunesGeo();
       const choro = choroMetricsFromResult(r);
-      return buildChoroplethSVG(geo, choro, 'unmet', { ramp: ['#fff5f0', '#fb6a4a', '#a50f15'], label: 'Unmet Demand (MWh)', unit: 'MWh' });
+      return buildChoroplethSVG(geo, choro, 'unmet', { ramp: ['#fff5f0', '#fb6a4a', '#a50f15'], label: tr("Unmet Demand (MWh)"), unit: 'MWh' });
     },
   },
   {
-    id: 'svg_demand_met', group: 'svg', label: 'Map — Demand Met % (SVG)', filename: 'map_demand_met.svg',
+    id: 'svg_demand_met', group: 'svg', label: tr("Map — Demand Met % (SVG)"), filename: 'map_demand_met.svg',
     hasData: (r) => !!r.demand_by_location && !!Object.keys(r.demand_by_location).length,
     build: async (r) => {
       const geo = await loadCommunesGeo();
       const choro = choroMetricsFromResult(r);
-      return buildChoroplethSVG(geo, choro, 'demandMet', { kind: 'pct', ramp: ['#d73027', '#fee08b', '#1a9850'], label: 'Demand Met (%)' });
+      return buildChoroplethSVG(geo, choro, 'demandMet', { kind: 'pct', ramp: ['#d73027', '#fee08b', '#1a9850'], label: tr("Demand Met (%)") });
     },
   },
   // Chart PNGs — one entry per chart in the RESULT_CHARTS catalogue
   ...RESULT_CHARTS.map(c => ({
     id: `chart_${c.id}`,
     group: 'charts',
-    label: `Chart — ${c.label}`,
+    label: tr("Chart — {0}", { 0: c.label }),
     filename: `chart_${c.id}.png`,
     hasData: (r) => !!r,
     build: async (r) => {
@@ -324,10 +326,10 @@ const RESULT_OUTPUT_DEFS = [
 ];
 
 const OUTPUT_GROUPS = [
-  { id: 'data',   label: 'Data Files', icon: FiDatabase },
-  { id: 'raw',    label: 'Raw',        icon: FiFile },
-  { id: 'charts', label: 'Chart PNGs', icon: FiBarChart2 },
-  { id: 'svg',    label: 'Map SVGs',   icon: FiMap },
+  { id: 'data',   label: tr("Data Files"), icon: FiDatabase },
+  { id: 'raw',    label: tr("Raw"),        icon: FiFile },
+  { id: 'charts', label: tr("Chart PNGs"), icon: FiBarChart2 },
+  { id: 'svg',    label: tr("Map SVGs"),   icon: FiMap },
 ];
 
 function ResultsExportPanel({ completedJobs }) {
@@ -371,17 +373,17 @@ function ResultsExportPanel({ completedJobs }) {
     if (mp?.hasCoords) {
       const rmProps = { locations: mp.locations, capacitiesByLoc: mp.capByLoc, dominantTechByLoc: mp.domTech, techMixByLoc: mp.techMixByLoc, generationByLoc: mp.genByLoc, colorFn: techColor, transmissionLinks: mp.rmLinks };
       if (mp.locations.length && Object.keys(mp.capByLoc).length) {
-        views.push({ id: 'svg_node_capacity', label: 'Capacity', node: <ResultsMap key={selJobId + '-cap'} {...rmProps} viewMode="capacity" /> });
-        views.push({ id: 'svg_techpie', label: 'Tech mix', node: <ResultsMap key={selJobId + '-mix'} {...rmProps} viewMode="mix" /> });
+        views.push({ id: 'svg_node_capacity', label: tr("Capacity"), node: <ResultsMap key={selJobId + '-cap'} {...rmProps} viewMode="capacity" /> });
+        views.push({ id: 'svg_techpie', label: tr("Tech mix"), node: <ResultsMap key={selJobId + '-mix'} {...rmProps} viewMode="mix" /> });
       }
-      if (Object.keys(mp.genByLoc).length) views.push({ id: 'svg_node_generation', label: 'Generation', node: <ResultsMap key={selJobId + '-gen'} {...rmProps} viewMode="generation" /> });
-      if (mp.rmLinks.length) views.push({ id: 'svg_transmission', label: 'Transmission', node: <TransmissionFlowMap key={selJobId + '-tx'} locations={mp.locations} transmissionFlowData={mp.flow} capacitiesByLoc={mp.capByLoc} timestamps={mp.timestamps} /> });
+      if (Object.keys(mp.genByLoc).length) views.push({ id: 'svg_node_generation', label: tr("Generation"), node: <ResultsMap key={selJobId + '-gen'} {...rmProps} viewMode="generation" /> });
+      if (mp.rmLinks.length) views.push({ id: 'svg_transmission', label: tr("Transmission"), node: <TransmissionFlowMap key={selJobId + '-tx'} locations={mp.locations} transmissionFlowData={mp.flow} capacitiesByLoc={mp.capByLoc} timestamps={mp.timestamps} /> });
     }
     if (result?.demand_by_location && Object.keys(result.demand_by_location).length) {
       const choro = choroMetricsFromResult(result);
-      views.push({ id: 'svg_demand', label: 'Demand', node: <RegionChoropleth key={selJobId + '-demand'} metrics={choro} metric="demand" compact /> });
-      views.push({ id: 'svg_unmet', label: 'Unmet', node: <RegionChoropleth key={selJobId + '-unmet'} metrics={choro} metric="unmet" compact /> });
-      views.push({ id: 'svg_demand_met', label: 'Demand met', node: <RegionChoropleth key={selJobId + '-dm'} metrics={choro} metric="demandMet" compact /> });
+      views.push({ id: 'svg_demand', label: tr("Demand"), node: <RegionChoropleth key={selJobId + '-demand'} metrics={choro} metric="demand" compact /> });
+      views.push({ id: 'svg_unmet', label: tr("Unmet"), node: <RegionChoropleth key={selJobId + '-unmet'} metrics={choro} metric="unmet" compact /> });
+      views.push({ id: 'svg_demand_met', label: tr("Demand met"), node: <RegionChoropleth key={selJobId + '-dm'} metrics={choro} metric="demandMet" compact /> });
     }
     return views;
   }, [mp, result, selJobId]);
@@ -415,9 +417,9 @@ function ResultsExportPanel({ completedJobs }) {
       const blob = await zip.generateAsync({ type: 'blob' });
       const name = `results_${(job.modelName || 'run').replace(/[^a-z0-9]+/gi, '_').toLowerCase()}.zip`;
       saveAs(blob, name);
-      setStatus({ type: 'success', message: `Downloaded ${name}` });
+      setStatus({ type: 'success', message: tr("Downloaded {0}", { 0: name }) });
     } catch (e) {
-      setStatus({ type: 'error', message: `Export failed: ${e.message}` });
+      setStatus({ type: 'error', message: tr("Export failed: {0}", { 0: e.message }) });
     } finally {
       setBusy(false);
     }
@@ -427,8 +429,8 @@ function ResultsExportPanel({ completedJobs }) {
     return (
       <div className="bg-white rounded-xl border border-black/15 p-10 text-center">
         <FiActivity size={36} className="mx-auto text-gray-300 mb-3" />
-        <p className="font-semibold text-gray-700 mb-1">No completed runs</p>
-        <p className="text-sm text-gray-400">Run a model first to export its results.</p>
+        <p className="font-semibold text-gray-700 mb-1">{tr("No completed runs")}</p>
+        <p className="text-sm text-gray-400">{tr("Run a model first to export its results.")}</p>
       </div>
     );
   }
@@ -437,7 +439,7 @@ function ResultsExportPanel({ completedJobs }) {
     <div className="space-y-4">
       {/* Run selector */}
       <div className="bg-white rounded-xl shadow-lg p-5">
-        <h2 className="text-base font-semibold text-slate-800 mb-3">Select Run</h2>
+        <h2 className="text-base font-semibold text-slate-800 mb-3">{tr("Select Run")}</h2>
         <SelectField
           value={selJobId || ''}
           onChange={e => { setSelJobId(e.target.value); setStatus(null); }}
@@ -445,31 +447,31 @@ function ResultsExportPanel({ completedJobs }) {
         >
           {validJobs.map(j => (
             <option key={j.id} value={j.id}>
-              {j.modelName} — {new Date(j.completedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+              {j.modelName} — {new Date(j.completedAt).toLocaleDateString(locale(), { month: 'short', day: 'numeric', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
             </option>
           ))}
         </SelectField>
         {result && (
           <p className="text-xs text-slate-400 mt-2">
-            Objective: <span className="text-slate-600 font-medium">{result.objective != null ? Number(result.objective).toLocaleString(undefined, { maximumFractionDigits: 0 }) : '—'}</span>
+            {tr("Objective:")} <span className="text-slate-600 font-medium">{result.objective != null ? Number(result.objective).toLocaleString(undefined, { maximumFractionDigits: 0 }) : '—'}</span>
             {' · '}
-            Termination: <span className="text-slate-600 font-medium">{result.termination_condition ?? '—'}</span>
+            {tr("Termination:")} <span className="text-slate-600 font-medium">{result.termination_condition ?? '—'}</span>
           </p>
         )}
       </div>
 
       {/* Toolbar: select-all / export */}
       <div className="bg-white rounded-xl shadow-lg px-5 py-3 flex items-center gap-3 flex-wrap sticky top-0 z-10">
-        <span className="text-sm text-slate-600">Click any item to include or exclude it. <span className="text-slate-400">{readyCount} selected.</span></span>
+        <span className="text-sm text-slate-600">{tr("Click any item to include or exclude it.")} <span className="text-slate-400">{readyCount} {tr("selected.")}</span></span>
         <div className="ml-auto flex items-center gap-2">
           <button onClick={() => setChecked(new Set(outputs.filter(o => o.available).map(o => o.id)))}
-            className="text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition">All</button>
+            className="text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition">{tr("All")}</button>
           <button onClick={() => setChecked(new Set())}
-            className="text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition">None</button>
+            className="text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition">{tr("None")}</button>
           <button onClick={handleExport} disabled={busy || !result || readyCount === 0}
             className="px-4 py-2 bg-black text-white rounded-lg font-semibold text-sm hover:bg-black/80 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors">
             <FiDownload size={15} />
-            {busy ? 'Building ZIP…' : `Export ${readyCount} as ZIP`}
+            {busy ? tr("Building ZIP…") : tr("Export {0} as ZIP", { 0: readyCount })}
           </button>
         </div>
         {status && (
@@ -489,7 +491,7 @@ function ResultsExportPanel({ completedJobs }) {
         <div className="lg:col-span-4 bg-white rounded-xl shadow-lg p-4">
           <div className="flex items-center gap-1.5 mb-2">
             <FiDatabase size={12} className="text-slate-400" />
-            <h3 className="text-sm font-semibold text-slate-700">Data &amp; values</h3>
+            <h3 className="text-sm font-semibold text-slate-700">{tr("Data & values")}</h3>
           </div>
           <div className="space-y-2">
             {outputs.filter(o => o.group === 'data' || o.group === 'raw').map(o => {
@@ -504,7 +506,7 @@ function ResultsExportPanel({ completedJobs }) {
                       <FiCheckCircle size={11} />
                     </span>
                     <span className="text-xs font-medium text-slate-700 flex-1 truncate">{o.label}</span>
-                    <span className="text-[9px] font-mono text-slate-400">{o.filename.endsWith('.json') ? 'JSON' : 'CSV'}</span>
+                    <span className="text-[9px] font-mono text-slate-400">{o.filename.endsWith('.json') ? tr("JSON") : tr("CSV")}</span>
                     {!o.available && <span className="text-[9px] text-slate-300 border border-black/15 rounded px-1">n/a</span>}
                   </div>
                   {preview && (
@@ -523,7 +525,7 @@ function ResultsExportPanel({ completedJobs }) {
           <div>
             <div className="flex items-center gap-1.5 mb-2">
               <FiBarChart2 size={12} className="text-slate-400" />
-              <h3 className="text-sm font-semibold text-slate-700">Charts</h3>
+              <h3 className="text-sm font-semibold text-slate-700">{tr("Charts")}</h3>
             </div>
             <div className="grid grid-cols-1 2xl:grid-cols-2 gap-3">
               {outputs.filter(o => o.group === 'charts').map(o => {
@@ -540,7 +542,7 @@ function ResultsExportPanel({ completedJobs }) {
                         <FiCheckCircle size={11} />
                       </span>
                       <span className="text-xs font-medium text-slate-700 flex-1 truncate">{chartOpts[cid]?.label || o.label}</span>
-                      <span className="text-[9px] font-mono text-slate-400">PNG</span>
+                      <span className="text-[9px] font-mono text-slate-400">{tr("PNG")}</span>
                     </div>
                     <div className="p-2 pointer-events-none">
                       <ReactECharts option={option} style={{ height: 240 }} notMerge lazyUpdate />
@@ -556,7 +558,7 @@ function ResultsExportPanel({ completedJobs }) {
             <div>
               <div className="flex items-center gap-1.5 mb-2">
                 <FiMap size={12} className="text-slate-400" />
-                <h3 className="text-sm font-semibold text-slate-700">Maps</h3>
+                <h3 className="text-sm font-semibold text-slate-700">{tr("Maps")}</h3>
               </div>
               {/* view tabs */}
               <div className="flex gap-1 flex-wrap mb-2">
@@ -575,7 +577,7 @@ function ResultsExportPanel({ completedJobs }) {
               </div>
               {/* include-in-export chips */}
               <div className="mt-3">
-                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Include in export (SVG)</div>
+                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">{tr("Include in export (SVG)")}</div>
                 <div className="flex flex-wrap gap-2">
                   {spatialViews.map(v => {
                     const on = checked.has(v.id);
@@ -602,6 +604,7 @@ function ResultsExportPanel({ completedJobs }) {
 }
 
 const Export = () => {
+  const t = useT();
   const { getCurrentModel, technologies, timeSeries, overrides, scenarios, completedJobs } = useData();
   const currentModel = getCurrentModel();
   const [exporting, setExporting] = useState(false);
@@ -938,12 +941,12 @@ model:
 
   const exportToCalliope = async () => {
     if (!currentModel) {
-      setExportStatus({ type: 'error', message: 'No model selected' });
+      setExportStatus({ type: 'error', message: tr("No model selected") });
       return;
     }
 
     setExporting(true);
-    setExportStatus({ type: 'info', message: 'Generating Calliope model...' });
+    setExportStatus({ type: 'info', message: tr("Generating Calliope model...") });
 
     try {
       const zip = new JSZip();
@@ -1056,10 +1059,10 @@ calliope run model.yaml --scenario=Main
       const fileName = `${(currentModel.name || 'model').replace(/\s+/g, '_').toLowerCase()}_calliope_export.zip`;
       saveAs(content, fileName);
 
-      setExportStatus({ type: 'success', message: `Model exported successfully as ${fileName}` });
+      setExportStatus({ type: 'success', message: tr("Model exported successfully as {0}", { 0: fileName }) });
     } catch (error) {
       console.error('Export error:', error);
-      setExportStatus({ type: 'error', message: `Export failed: ${error.message}` });
+      setExportStatus({ type: 'error', message: tr("Export failed: {0}", { 0: error.message }) });
     } finally {
       setExporting(false);
     }
@@ -1067,11 +1070,11 @@ calliope run model.yaml --scenario=Main
 
   const exportToCalliope07 = async () => {
     if (!currentModel) {
-      setExportStatus({ type: 'error', message: 'No model selected' });
+      setExportStatus({ type: 'error', message: tr("No model selected") });
       return;
     }
     setExporting(true);
-    setExportStatus({ type: 'info', message: 'Generating Calliope 0.7 model...' });
+    setExportStatus({ type: 'info', message: tr("Generating Calliope 0.7 model...") });
     try {
       const modelTS = timeSeries.filter(ts => ts.modelId === currentModel.id);
       const modelForExport = {
@@ -1097,10 +1100,10 @@ calliope run model.yaml --scenario=Main
       const content = await zip.generateAsync({ type: 'blob' });
       const fileName = `${(currentModel.name || 'model').replace(/\s+/g, '_').toLowerCase()}_calliope07_export.zip`;
       saveAs(content, fileName);
-      setExportStatus({ type: 'success', message: `Calliope 0.7 model exported as ${fileName}` });
+      setExportStatus({ type: 'success', message: tr("Calliope 0.7 model exported as {0}", { 0: fileName }) });
     } catch (error) {
       console.error('Export error:', error);
-      setExportStatus({ type: 'error', message: `Export failed: ${error.message}` });
+      setExportStatus({ type: 'error', message: tr("Export failed: {0}", { 0: error.message }) });
     } finally {
       setExporting(false);
     }
@@ -1110,18 +1113,18 @@ calliope run model.yaml --scenario=Main
   // Python service (single source of mapping logic, shared with the runner).
   const exportViaEngine = async (engine, label) => {
     if (!currentModel) {
-      setExportStatus({ type: 'error', message: 'No model selected' });
+      setExportStatus({ type: 'error', message: tr("No model selected") });
       return;
     }
     setExporting(true);
     setExportReport([]);
-    setExportStatus({ type: 'info', message: `Translating model to ${label}…` });
+    setExportStatus({ type: 'info', message: tr("Translating model to {0}…", { 0: label }) });
     try {
       const up = await checkEngineRunService(engine);
       if (!up) {
         setExportStatus({
           type: 'error',
-          message: `The ${label} engine is not running. Install it from Settings → ${label} Engine.`,
+          message: tr("The {0} engine is not running. Install it from Settings → {1} Engine.", { 0: label, 1: label }),
         });
         return;
       }
@@ -1151,10 +1154,10 @@ calliope run model.yaml --scenario=Main
       const fileName = `${(currentModel.name || 'model').replace(/\s+/g, '_').toLowerCase()}_${engine}_export.zip`;
       saveAs(zipBlob, fileName);
       setExportReport([...resolverReports, ...report]);
-      setExportStatus({ type: 'success', message: `Model exported as ${fileName}` });
+      setExportStatus({ type: 'success', message: tr("Model exported as {0}", { 0: fileName }) });
     } catch (error) {
       console.error('Export error:', error);
-      setExportStatus({ type: 'error', message: `Export failed: ${error.message}` });
+      setExportStatus({ type: 'error', message: tr("Export failed: {0}", { 0: error.message }) });
     } finally {
       setExporting(false);
     }
@@ -1191,13 +1194,13 @@ calliope run model.yaml --scenario=Main
 
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Export</h1>
+            <h1 className="text-2xl font-bold text-slate-900">{t('page.export.title')}</h1>
             <p className="mt-1 text-sm text-slate-500">
-              {exportMode === 'model' ? 'Export your active model as a framework-ready ZIP archive' : 'Download results data from a completed run'}
+              {exportMode === 'model' ? tr("Export your active model as a framework-ready ZIP archive") : tr("Download results data from a completed run")}
             </p>
           </div>
           <div className="inline-flex gap-1 rounded-xl bg-slate-200/80 p-1 ring-1 ring-inset ring-slate-300/50">
-            {[{ id: 'model', label: 'Model', icon: FiPackage }, { id: 'results', label: 'Results', icon: FiLayers }].map(({ id, label, icon: Icon }) => (
+            {[{ id: 'model', label: tr("Model"), icon: FiPackage }, { id: 'results', label: tr("Results"), icon: FiLayers }].map(({ id, label, icon: Icon }) => (
               <button key={id} onClick={() => setExportMode(id)}
                 className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-all ${
                   exportMode === id ? 'bg-black text-white ' : 'text-slate-600 hover:bg-white/70 hover:text-slate-900'
@@ -1215,8 +1218,8 @@ calliope run model.yaml --scenario=Main
         {exportMode === 'model' && !currentModel && (
           <div className="flex flex-col items-center rounded-2xl border border-dashed border-black/15 bg-white px-6 py-16 text-center">
             <div className="mb-3 grid h-12 w-12 place-items-center rounded-full bg-slate-100 text-slate-500"><FiPackage size={20} /></div>
-            <p className="text-sm font-semibold text-slate-800">No model selected</p>
-            <p className="mt-1 text-sm text-slate-500">Select a model from Structure → Models to export it.</p>
+            <p className="text-sm font-semibold text-slate-800">{tr("No model selected")}</p>
+            <p className="mt-1 text-sm text-slate-500">{tr("Select a model from Structure → Models to export it.")}</p>
           </div>
         )}
 
@@ -1230,12 +1233,12 @@ calliope run model.yaml --scenario=Main
               <span className="truncate text-base font-semibold text-slate-900">{currentModel.name}</span>
               <span className="rounded-md border border-black/15 px-1.5 py-0.5 text-[11px] font-medium text-slate-500">{modelVersion}</span>
             </div>
-            <p className="text-xs text-slate-500">Active model</p>
+            <p className="text-xs text-slate-500">{tr("Active model")}</p>
           </div>
           <div className="ml-auto flex flex-wrap gap-1.5">
             {[
-              [locs.length, 'locations'], [lnks.length, 'links'], [techs.length, 'techs'],
-              [modelTs.length, 'time series'], [modelOverrides.length, 'overrides'], [modelScenarios.length, 'scenarios'],
+              [locs.length, tr("locations")], [lnks.length, tr("links")], [techs.length, tr("techs")],
+              [modelTs.length, tr("time series")], [modelOverrides.length, tr("overrides")], [modelScenarios.length, tr("scenarios")],
             ].map(([n, label]) => (
               <span key={label} className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs text-slate-600">
                 <span className="font-semibold tabular-nums text-slate-900">{n}</span> {label}
@@ -1249,9 +1252,9 @@ calliope run model.yaml --scenario=Main
 
             {/* Format */}
             <section className="rounded-2xl border border-black/15 bg-white p-6 ">
-              <h2 className="text-base font-semibold text-slate-900">Export format</h2>
-              <p className="mb-4 text-xs text-slate-500">The framework the archive is written for.</p>
-              <div role="radiogroup" aria-label="Export format" className="grid grid-cols-2 gap-1 rounded-xl bg-slate-200/80 p-1 ring-1 ring-inset ring-slate-300/50 sm:grid-cols-3 lg:grid-cols-5">
+              <h2 className="text-base font-semibold text-slate-900">{tr("Export format")}</h2>
+              <p className="mb-4 text-xs text-slate-500">{tr("The framework the archive is written for.")}</p>
+              <div role="radiogroup" aria-label={tr("Export format")} className="grid grid-cols-2 gap-1 rounded-xl bg-slate-200/80 p-1 ring-1 ring-inset ring-slate-300/50 sm:grid-cols-3 lg:grid-cols-5">
                 {EXPORT_FORMATS.map(fmt => {
                   const Icon = fmt.icon;
                   const sel = selectedFormat === fmt.id;
@@ -1280,49 +1283,49 @@ calliope run model.yaml --scenario=Main
             <section className="rounded-2xl border border-black/15 bg-white p-6 ">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-base font-semibold text-slate-900">Output structure</h2>
-                  <p className="text-xs text-slate-500">What the ZIP archive will contain.</p>
+                  <h2 className="text-base font-semibold text-slate-900">{tr("Output structure")}</h2>
+                  <p className="text-xs text-slate-500">{tr("What the ZIP archive will contain.")}</p>
                 </div>
-                <span className="rounded-lg bg-slate-100 px-2.5 py-1 font-mono text-xs text-slate-600">{currentModel.name || 'model'}.zip</span>
+                <span className="rounded-lg bg-slate-100 px-2.5 py-1 font-mono text-xs text-slate-600">{currentModel.name || tr("model")}{tr(".zip")}</span>
               </div>
               <div className="rounded-xl border border-black/15 bg-slate-50/70 px-4 py-3 leading-5">
               {selectedFormat === 'osemosys' ? (
                 <>
-                  <TreeRow icon={FiFolder} name={`${currentModel.name || 'model'}/`} isDir note="ZIP root" />
-                  <TreeRow indent={1} icon={FiFolder} name="base/" isDir note="one folder per dataset" />
+                  <TreeRow icon={FiFolder} name={`${currentModel.name || 'model'}/`} isDir note={tr("ZIP root")} />
+                  <TreeRow indent={1} icon={FiFolder} name="base/" isDir note={tr("one folder per dataset")} />
                   <TreeRow indent={2} icon={FiFile} name="REGION.csv" />
                   <TreeRow indent={2} icon={FiFile} name="TECHNOLOGY.csv" />
                   <TreeRow indent={2} icon={FiFile} name="FUEL.csv" />
-                  <TreeRow indent={2} icon={FiFile} name="CapitalCost.csv" note="+ 18 more parameter CSVs" dim />
+                  <TreeRow indent={2} icon={FiFile} name="CapitalCost.csv" note={tr("+ 18 more parameter CSVs")} dim />
                   <TreeRow indent={2} icon={FiFile} name="SpecifiedAnnualDemand.csv" />
                   <TreeRow indent={2} icon={FiFile} name="YearSplit.csv" />
-                  <TreeRow indent={1} icon={FiFile} name="report.txt" note="translation notes" />
+                  <TreeRow indent={1} icon={FiFile} name="report.txt" note={tr("translation notes")} />
                 </>
               ) : selectedFormat === 'adoptnet0' ? (
                 <>
-                  <TreeRow icon={FiFolder} name={`${currentModel.name || 'model'}/`} isDir note="ZIP root" />
-                  <TreeRow indent={1} icon={FiFolder} name="base/" isDir note="one folder per dataset" />
+                  <TreeRow icon={FiFolder} name={`${currentModel.name || 'model'}/`} isDir note={tr("ZIP root")} />
+                  <TreeRow indent={1} icon={FiFolder} name="base/" isDir note={tr("one folder per dataset")} />
                   <TreeRow indent={2} icon={FiFile} name="Topology.json" />
                   <TreeRow indent={2} icon={FiFile} name="ConfigModel.json" />
                   <TreeRow indent={2} icon={FiFile} name="NodeLocations.csv" />
                   <TreeRow indent={2} icon={FiFolder} name="period1/" isDir />
                   <TreeRow indent={3} icon={FiFolder} name="network_data/" isDir />
-                  <TreeRow indent={3} icon={FiFolder} name="node_data/" isDir note={`${locs.length} node${locs.length !== 1 ? 's' : ''}`} />
-                  <TreeRow indent={1} icon={FiFile} name="report.txt" note="translation notes" />
+                  <TreeRow indent={3} icon={FiFolder} name="node_data/" isDir note={tr("{0} node{1}", { 0: locs.length, 1: locs.length !== 1 ? 's' : '' })} />
+                  <TreeRow indent={1} icon={FiFile} name="report.txt" note={tr("translation notes")} />
                 </>
               ) : selectedFormat === 'pypsa' ? (
                 <>
-                  <TreeRow icon={FiFolder} name={`${currentModel.name || 'model'}/`} isDir note="ZIP root" />
-                  <TreeRow indent={1} icon={FiFolder} name="base/" isDir note="one folder per dataset" />
-                  <TreeRow indent={2} icon={FiFile} name="model.nc" note="pypsa.Network netCDF" />
-                  <TreeRow indent={2} icon={FiFolder} name="csv/" isDir note="CSV folder (buses, generators, …)" />
-                  <TreeRow indent={1} icon={FiFile} name="report.txt" note="translation notes" />
+                  <TreeRow icon={FiFolder} name={`${currentModel.name || 'model'}/`} isDir note={tr("ZIP root")} />
+                  <TreeRow indent={1} icon={FiFolder} name="base/" isDir note={tr("one folder per dataset")} />
+                  <TreeRow indent={2} icon={FiFile} name="model.nc" note={tr("pypsa.Network netCDF")} />
+                  <TreeRow indent={2} icon={FiFolder} name="csv/" isDir note={tr("CSV folder (buses, generators, …)")} />
+                  <TreeRow indent={1} icon={FiFile} name="report.txt" note={tr("translation notes")} />
                 </>
               ) : selectedFormat === 'calliope07' ? (
                 <>
-                  <TreeRow icon={FiFolder} name={`${currentModel.name || 'model'}/`} isDir note="ZIP root" />
-                  <TreeRow indent={1} icon={FiFile} name="model.yaml" note="config + techs + nodes + data_tables" />
-                  <TreeRow indent={1} icon={FiFile} name="demand_profiles.csv" note="positive values (0.7 convention)" />
+                  <TreeRow icon={FiFolder} name={`${currentModel.name || 'model'}/`} isDir note={tr("ZIP root")} />
+                  <TreeRow indent={1} icon={FiFile} name="model.yaml" note={tr("config + techs + nodes + data_tables")} />
+                  <TreeRow indent={1} icon={FiFile} name="demand_profiles.csv" note={tr("positive values (0.7 convention)")} />
                   {modelTs.map((ts, i) => (
                     <TreeRow key={i} indent={1} icon={FiFile} name={`${ts.name || `timeseries_${i+1}`}.csv`} dim />
                   ))}
@@ -1332,24 +1335,24 @@ calliope run model.yaml --scenario=Main
                 </>
               ) : (
                 <>
-                  <TreeRow icon={FiFolder} name={`${currentModel.name || 'model'}/`} isDir note="ZIP root" />
-                  <TreeRow indent={1} icon={FiFile} name="model.yaml" note="root import manifest" />
+                  <TreeRow icon={FiFolder} name={`${currentModel.name || 'model'}/`} isDir note={tr("ZIP root")} />
+                  <TreeRow indent={1} icon={FiFile} name="model.yaml" note={tr("root import manifest")} />
                   <TreeRow indent={1} icon={FiFile} name="README.md" />
                   <TreeRow indent={1} icon={FiFolder} name="model_config/" isDir />
                   <TreeRow indent={2} icon={FiFolder} name="locations/" isDir />
-                  <TreeRow indent={3} icon={FiFile} name="locations.yaml" note={`${locs.length} location${locs.length !== 1 ? 's' : ''}`} />
+                  <TreeRow indent={3} icon={FiFile} name="locations.yaml" note={tr("{0} location{1}", { 0: locs.length, 1: locs.length !== 1 ? 's' : '' })} />
                   <TreeRow indent={2} icon={FiFolder} name="links/" isDir />
-                  <TreeRow indent={3} icon={FiFile} name="transmission_links.yaml" note={`${lnks.length} link${lnks.length !== 1 ? 's' : ''}`} />
+                  <TreeRow indent={3} icon={FiFile} name="transmission_links.yaml" note={tr("{0} link{1}", { 0: lnks.length, 1: lnks.length !== 1 ? 's' : '' })} />
                   <TreeRow indent={3} icon={FiFile} name="power_links.yaml" />
                   <TreeRow indent={2} icon={FiFolder} name="techs/" isDir />
-                  <TreeRow indent={3} icon={FiFile} name="techs_supply.yaml" note={supplyTechs.length > 0 ? `${supplyTechs.length} techs` : undefined} />
-                  <TreeRow indent={3} icon={FiFile} name="techs_demand.yaml" note={demandTechs.length > 0 ? `${demandTechs.length} techs` : undefined} />
-                  <TreeRow indent={3} icon={FiFile} name="techs_storage.yaml" note={storageTechs.length > 0 ? `${storageTechs.length} techs` : undefined} />
-                  <TreeRow indent={3} icon={FiFile} name="techs_transmission.yaml" note={transmTechs.length > 0 ? `${transmTechs.length} techs` : undefined} />
+                  <TreeRow indent={3} icon={FiFile} name="techs_supply.yaml" note={supplyTechs.length > 0 ? tr("{0} techs", { 0: supplyTechs.length }) : undefined} />
+                  <TreeRow indent={3} icon={FiFile} name="techs_demand.yaml" note={demandTechs.length > 0 ? tr("{0} techs", { 0: demandTechs.length }) : undefined} />
+                  <TreeRow indent={3} icon={FiFile} name="techs_storage.yaml" note={storageTechs.length > 0 ? tr("{0} techs", { 0: storageTechs.length }) : undefined} />
+                  <TreeRow indent={3} icon={FiFile} name="techs_transmission.yaml" note={transmTechs.length > 0 ? tr("{0} techs", { 0: transmTechs.length }) : undefined} />
                   <TreeRow indent={3} icon={FiFile} name="techs_conversion.yaml" />
                   <TreeRow indent={1} icon={FiFolder} name="scenarios/" isDir />
-                  <TreeRow indent={2} icon={FiFile} name="overrides.yaml" note={`${modelOverrides.length} override${modelOverrides.length !== 1 ? 's' : ''}`} />
-                  <TreeRow indent={2} icon={FiFile} name="scenarios.yaml" note={`${modelScenarios.length} scenario${modelScenarios.length !== 1 ? 's' : ''}`} />
+                  <TreeRow indent={2} icon={FiFile} name="overrides.yaml" note={tr("{0} override{1}", { 0: modelOverrides.length, 1: modelOverrides.length !== 1 ? 's' : '' })} />
+                  <TreeRow indent={2} icon={FiFile} name="scenarios.yaml" note={tr("{0} scenario{1}", { 0: modelScenarios.length, 1: modelScenarios.length !== 1 ? 's' : '' })} />
                   <TreeRow indent={1} icon={FiFolder} name="timeseries_data/" isDir />
                   {modelTs.length > 0
                     ? modelTs.map((ts, i) => (
@@ -1366,13 +1369,13 @@ calliope run model.yaml --scenario=Main
           {/* Export summary */}
           <div className="xl:sticky xl:top-6 xl:self-start">
             <div className="rounded-2xl border border-black/15 bg-white p-5 ">
-              <h2 className="text-sm font-semibold text-slate-900">Export summary</h2>
+              <h2 className="text-sm font-semibold text-slate-900">{tr("Export summary")}</h2>
               <dl className="mt-3 divide-y divide-black/10 text-sm">
                 {[
-                  ['Model', currentModel.name],
-                  ['Format', selectedFmt.name],
-                  ['File', `${currentModel.name || 'model'}.zip`],
-                  ['Contents', `${locs.length} locations · ${lnks.length} links`],
+                  [tr("Model"), currentModel.name],
+                  [tr("Format"), selectedFmt.name],
+                  [tr("File"), `${currentModel.name || 'model'}.zip`],
+                  [tr("Contents"), tr("{0} locations · {1} links", { 0: locs.length, 1: lnks.length })],
                 ].map(([k, v]) => (
                   <div key={k} className="flex items-center justify-between gap-3 py-2">
                     <dt className="text-slate-500">{k}</dt>
@@ -1381,12 +1384,12 @@ calliope run model.yaml --scenario=Main
                 ))}
               </dl>
               <p className="mt-3 text-xs leading-relaxed text-slate-500">
-                Packaged as a ZIP archive ready to use with <span className="font-medium text-slate-700">{selectedFmt.name}</span>.
-              {selectedFormat === 'calliope07' && ' Uses single flat YAML + CSV layout (0.7 convention).'}
-              {selectedFormat === 'calliope' && ' Uses nested folder structure compatible with Calliope 0.6.8.'}
-              {selectedFormat === 'pypsa' && ' Contains both model.nc (netCDF) and a CSV folder — loadable with pypsa.Network(). Requires the PyPSA engine (Settings).'}
-              {selectedFormat === 'adoptnet0' && ' Generates the AdOpT-NET0 case-directory structure (Topology, ConfigModel, node_data). Requires the AdOpT-NET0 engine (Settings).'}
-              {selectedFormat === 'osemosys' && ' Self-contained OSeMOSYS dataset (otoole CSVs + model file + datafile) that reproduces the TEMPO result; run with glpsol.'}
+                {tr("Packaged as a ZIP archive ready to use with")} <span className="font-medium text-slate-700">{selectedFmt.name}</span>.
+              {selectedFormat === 'calliope07' && tr(" Uses single flat YAML + CSV layout (0.7 convention).")}
+              {selectedFormat === 'calliope' && tr(" Uses nested folder structure compatible with Calliope 0.6.8.")}
+              {selectedFormat === 'pypsa' && tr(" Contains both model.nc (netCDF) and a CSV folder — loadable with pypsa.Network(). Requires the PyPSA engine (Settings).")}
+              {selectedFormat === 'adoptnet0' && tr(" Generates the AdOpT-NET0 case-directory structure (Topology, ConfigModel, node_data). Requires the AdOpT-NET0 engine (Settings).")}
+              {selectedFormat === 'osemosys' && tr(" Self-contained OSeMOSYS dataset (otoole CSVs + model file + datafile) that reproduces the TEMPO result; run with glpsol.")}
               </p>
               <button
               onClick={() => {
@@ -1397,7 +1400,7 @@ calliope run model.yaml --scenario=Main
                 if (selectedFormat === 'adoptnet0') { exportViaEngine('adoptnet0', 'AdOpT-NET0'); return; }
                 const fmt = EXPORT_FORMATS.find(f => f.id === selectedFormat);
                 if (!fmt.supported) {
-                  setExportStatus({ type: 'error', message: `${fmt.name} export is not yet supported.` });
+                  setExportStatus({ type: 'error', message: tr("{0} export is not yet supported.", { 0: fmt.name }) });
                   return;
                 }
                 exportToCalliope();
@@ -1406,7 +1409,7 @@ calliope run model.yaml --scenario=Main
                 className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-black text-[15px] font-semibold text-white shadow-lg shadow-slate-900/20 transition-all hover:bg-black/80 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
               >
                 <FiDownload size={17} />
-                {exporting ? 'Exporting…' : `Export as ${selectedFmt.name} ZIP`}
+                {exporting ? tr("Exporting…") : tr("Export as {0} ZIP", { 0: selectedFmt.name })}
               </button>
 
               {exportStatus && (

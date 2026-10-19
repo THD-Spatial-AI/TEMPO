@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { LuCalendar, LuChevronLeft, LuChevronRight, LuChevronsLeft, LuChevronsRight } from './icons';
+import { tr, locale } from '../../i18n';
 
-const WEEKDAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+const WEEKDAYS = [tr("Mo"), tr("Tu"), tr("We"), tr("Th"), tr("Fr"), tr("Sa"), tr("Su")];
 const pad = (n) => String(n).padStart(2, '0');
 const toISO = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const parseISO = (s) => {
@@ -10,7 +11,7 @@ const parseISO = (s) => {
 };
 
 // Values are 'YYYY-MM-DD' strings.
-export default function DatePicker({ value, onChange, min, rangeStart, rangeEnd, placeholder = 'Pick a date' }) {
+export default function DatePicker({ value, onChange, min, rangeStart, rangeEnd, placeholder = tr("Pick a date") }) {
   const selected = parseISO(value);
   const [open, setOpen] = useState(false);
   const [view, setView] = useState(() => selected || new Date());
@@ -54,20 +55,20 @@ export default function DatePicker({ value, onChange, min, rangeStart, rangeEnd,
       >
         <LuCalendar size={15} className="shrink-0 text-slate-400" />
         <span className={selected ? 'text-slate-800' : 'text-slate-400'}>
-          {selected ? selected.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : placeholder}
+          {selected ? selected.toLocaleDateString(locale() || 'en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : placeholder}
         </span>
       </button>
 
       {open && (
         <div role="dialog" className="absolute left-0 z-30 mt-1.5 w-72 rounded-xl border border-black/15 bg-white p-3 shadow-xl shadow-slate-900/10">
           <div className="mb-2 flex items-center gap-0.5">
-            <NavButton onClick={() => shift(-12)} label="Previous year"><LuChevronsLeft size={15} /></NavButton>
-            <NavButton onClick={() => shift(-1)} label="Previous month"><LuChevronLeft size={15} /></NavButton>
+            <NavButton onClick={() => shift(-12)} label={tr("Previous year")}><LuChevronsLeft size={15} /></NavButton>
+            <NavButton onClick={() => shift(-1)} label={tr("Previous month")}><LuChevronLeft size={15} /></NavButton>
             <span className="flex-1 text-center text-sm font-semibold text-slate-900">
-              {view.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+              {view.toLocaleDateString(locale() || 'en-US', { month: 'long', year: 'numeric' })}
             </span>
-            <NavButton onClick={() => shift(1)} label="Next month"><LuChevronRight size={15} /></NavButton>
-            <NavButton onClick={() => shift(12)} label="Next year"><LuChevronsRight size={15} /></NavButton>
+            <NavButton onClick={() => shift(1)} label={tr("Next month")}><LuChevronRight size={15} /></NavButton>
+            <NavButton onClick={() => shift(12)} label={tr("Next year")}><LuChevronsRight size={15} /></NavButton>
           </div>
 
           <div className="grid grid-cols-7 text-center text-[11px] font-medium text-slate-400">
@@ -106,7 +107,7 @@ export default function DatePicker({ value, onChange, min, rangeStart, rangeEnd,
               onClick={() => setView(selected || new Date())}
               className="rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-900"
             >
-              Go to selected
+              {tr("Go to selected")}
             </button>
             <button
               type="button"
@@ -114,7 +115,7 @@ export default function DatePicker({ value, onChange, min, rangeStart, rangeEnd,
               onClick={() => pick(new Date())}
               className="rounded-md px-2 py-1 text-xs font-semibold text-slate-900 hover:bg-slate-100 disabled:opacity-30"
             >
-              Today
+              {tr("Today")}
             </button>
           </div>
         </div>

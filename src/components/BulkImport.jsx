@@ -3,6 +3,7 @@ import { FiUpload, FiFile, FiCheckCircle, FiAlertCircle, FiX, FiDownload, FiMapP
 import Papa from 'papaparse';
 import { ENTITY_TYPES, TRANSMISSION_TYPES, VALIDATION_RULES, ENTITY_TO_TECH_MAPPING } from '../config/domainModel';
 import { useData } from '../context/DataContext';
+import { tr } from '../i18n';
 
 const BulkImport = ({ onClose, onComplete }) => {
   const { createModel, showNotification } = useData();
@@ -55,28 +56,28 @@ const BulkImport = ({ onClose, onComplete }) => {
     
     // Check required fields
     if (!row.name || row.name.trim() === '') {
-      rowErrors.push(`Row ${index + 2}: Missing required field 'name'`);
+      rowErrors.push(tr("Row {0}: Missing required field 'name'", { 0: index + 2 }));
     }
     
     if (!row.type || !ENTITY_TYPES[row.type]) {
-      rowErrors.push(`Row ${index + 2}: Invalid or missing entity type '${row.type}'`);
+      rowErrors.push(tr("Row {0}: Invalid or missing entity type '{1}'", { 0: index + 2, 1: row.type }));
     }
     
     if (!row.latitude || isNaN(parseFloat(row.latitude))) {
-      rowErrors.push(`Row ${index + 2}: Invalid latitude '${row.latitude}'`);
+      rowErrors.push(tr("Row {0}: Invalid latitude '{1}'", { 0: index + 2, 1: row.latitude }));
     } else {
       const lat = parseFloat(row.latitude);
       if (lat < -90 || lat > 90) {
-        rowErrors.push(`Row ${index + 2}: Latitude out of range (${lat})`);
+        rowErrors.push(tr("Row {0}: Latitude out of range ({1})", { 0: index + 2, 1: lat }));
       }
     }
     
     if (!row.longitude || isNaN(parseFloat(row.longitude))) {
-      rowErrors.push(`Row ${index + 2}: Invalid longitude '${row.longitude}'`);
+      rowErrors.push(tr("Row {0}: Invalid longitude '{1}'", { 0: index + 2, 1: row.longitude }));
     } else {
       const lon = parseFloat(row.longitude);
       if (lon < -180 || lon > 180) {
-        rowErrors.push(`Row ${index + 2}: Longitude out of range (${lon})`);
+        rowErrors.push(tr("Row {0}: Longitude out of range ({1})", { 0: index + 2, 1: lon }));
       }
     }
     
@@ -86,7 +87,7 @@ const BulkImport = ({ onClose, onComplete }) => {
       entityType.requiredFields.forEach(field => {
         if (!row[field] || row[field].trim() === '') {
           if (field !== 'name' && field !== 'latitude' && field !== 'longitude' && field !== 'type') {
-            rowWarnings.push(`Row ${index + 2}: Missing recommended field '${field}' for ${entityType.name}`);
+            rowWarnings.push(tr("Row {0}: Missing recommended field '{1}' for {2}", { 0: index + 2, 1: field, 2: tr(entityType.name) }));
           }
         }
       });
@@ -99,23 +100,23 @@ const BulkImport = ({ onClose, onComplete }) => {
     const rowErrors = [];
     
     if (!row.from || row.from.trim() === '') {
-      rowErrors.push(`Row ${index + 2}: Missing 'from' location`);
+      rowErrors.push(tr("Row {0}: Missing 'from' location", { 0: index + 2 }));
     } else if (!locationNames.has(row.from)) {
-      rowErrors.push(`Row ${index + 2}: 'from' location '${row.from}' not found in locations file`);
+      rowErrors.push(tr("Row {0}: 'from' location '{1}' not found in locations file", { 0: index + 2, 1: row.from }));
     }
     
     if (!row.to || row.to.trim() === '') {
-      rowErrors.push(`Row ${index + 2}: Missing 'to' location`);
+      rowErrors.push(tr("Row {0}: Missing 'to' location", { 0: index + 2 }));
     } else if (!locationNames.has(row.to)) {
-      rowErrors.push(`Row ${index + 2}: 'to' location '${row.to}' not found in locations file`);
+      rowErrors.push(tr("Row {0}: 'to' location '{1}' not found in locations file", { 0: index + 2, 1: row.to }));
     }
     
     if (!row.type || !TRANSMISSION_TYPES[row.type]) {
-      rowErrors.push(`Row ${index + 2}: Invalid transmission type '${row.type}'`);
+      rowErrors.push(tr("Row {0}: Invalid transmission type '{1}'", { 0: index + 2, 1: row.type }));
     }
     
     if (!row.capacity_mw || isNaN(parseFloat(row.capacity_mw))) {
-      rowErrors.push(`Row ${index + 2}: Invalid capacity_mw '${row.capacity_mw}'`);
+      rowErrors.push(tr("Row {0}: Invalid capacity_mw '{1}'", { 0: index + 2, 1: row.capacity_mw }));
     }
     
     return rowErrors;
@@ -159,7 +160,7 @@ const BulkImport = ({ onClose, onComplete }) => {
           });
         });
       } else {
-        allErrors.push('Locations file is required');
+        allErrors.push(tr("Locations file is required"));
       }
 
       // Parse transmission lines
@@ -242,7 +243,7 @@ const BulkImport = ({ onClose, onComplete }) => {
       }
       
     } catch (error) {
-      allErrors.push(`Error parsing files: ${error.message}`);
+      allErrors.push(tr("Error parsing files: {0}", { 0: error.message }));
       setErrors(allErrors);
     } finally {
       setIsProcessing(false);
@@ -360,19 +361,19 @@ const BulkImport = ({ onClose, onComplete }) => {
         [],
         modelData.technologies,
         {
-          description: 'Model created via bulk import',
+          description: tr("Model created via bulk import"),
           importedAt: new Date().toISOString(),
           fileCount: Object.values(files).flat().length
         }
       );
 
-      showNotification('Model created successfully!', 'success');
+      showNotification(tr("Model created successfully!"), 'success');
       
       if (onComplete) {
         onComplete();
       }
     } catch (error) {
-      showNotification(`Error creating model: ${error.message}`, 'error');
+      showNotification(tr("Error creating model: {0}", { 0: error.message }), 'error');
     }
   };
 
@@ -383,9 +384,9 @@ const BulkImport = ({ onClose, onComplete }) => {
         <div className="p-6 border-b border-black/15">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-2xl font-bold text-slate-800">Bulk Import Model</h2>
+              <h2 className="text-2xl font-bold text-slate-800">{tr("Bulk Import Model")}</h2>
               <p className="text-sm text-slate-600 mt-1">
-                Step {step} of 3: {step === 1 ? 'Upload Files' : step === 2 ? 'Validate Data' : 'Preview & Create'}
+                {tr("Step")} {step} {tr("of 3:")} {step === 1 ? tr("Upload Files") : step === 2 ? tr("Validate Data") : tr("Preview & Create")}
               </p>
             </div>
             <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
@@ -408,13 +409,13 @@ const BulkImport = ({ onClose, onComplete }) => {
             <div className="space-y-6">
               <div>
                 <label className="block text-[0.6875rem] font-bold text-black/60 mb-2 uppercase tracking-widest">
-                  Model Name *
+                  {tr("Model Name *")}
                 </label>
                 <input
                   type="text"
                   value={modelName}
                   onChange={(e) => setModelName(e.target.value)}
-                  placeholder="Enter model name..."
+                  placeholder={tr("Enter model name...")}
                   className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
                 />
               </div>
@@ -426,9 +427,9 @@ const BulkImport = ({ onClose, onComplete }) => {
                     <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mb-3">
                       <FiMapPin className="text-gray-600" size={24} />
                     </div>
-                    <h3 className="font-semibold text-slate-800 mb-1">Locations *</h3>
+                    <h3 className="font-semibold text-slate-800 mb-1">{tr("Locations *")}</h3>
                     <p className="text-xs text-slate-600 text-center mb-3">
-                      CSV file with all geographic locations
+                      {tr("CSV file with all geographic locations")}
                     </p>
                     <label className="cursor-pointer">
                       <input
@@ -438,7 +439,7 @@ const BulkImport = ({ onClose, onComplete }) => {
                         className="hidden"
                       />
                       <span className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 inline-block">
-                        Select File
+                        {tr("Select File")}
                       </span>
                     </label>
                     {files.locations && (
@@ -456,9 +457,9 @@ const BulkImport = ({ onClose, onComplete }) => {
                     <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center mb-3">
                       <FiLink className="text-gray-900" size={24} />
                     </div>
-                    <h3 className="font-semibold text-slate-800 mb-1">Transmission Lines</h3>
+                    <h3 className="font-semibold text-slate-800 mb-1">{tr("Transmission Lines")}</h3>
                     <p className="text-xs text-slate-600 text-center mb-3">
-                      CSV file with connections between locations
+                      {tr("CSV file with connections between locations")}
                     </p>
                     <label className="cursor-pointer">
                       <input
@@ -468,7 +469,7 @@ const BulkImport = ({ onClose, onComplete }) => {
                         className="hidden"
                       />
                       <span className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 inline-block">
-                        Select File
+                        {tr("Select File")}
                       </span>
                     </label>
                     {files.transmissionLines && (
@@ -486,9 +487,9 @@ const BulkImport = ({ onClose, onComplete }) => {
                     <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mb-3">
                       <FiZap className="text-gray-600" size={24} />
                     </div>
-                    <h3 className="font-semibold text-slate-800 mb-1">Tech Parameters</h3>
+                    <h3 className="font-semibold text-slate-800 mb-1">{tr("Tech Parameters")}</h3>
                     <p className="text-xs text-slate-600 text-center mb-3">
-                      CSV file with technology constraints
+                      {tr("CSV file with technology constraints")}
                     </p>
                     <label className="cursor-pointer">
                       <input
@@ -498,7 +499,7 @@ const BulkImport = ({ onClose, onComplete }) => {
                         className="hidden"
                       />
                       <span className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 inline-block">
-                        Select File
+                        {tr("Select File")}
                       </span>
                     </label>
                     {files.techParameters && (
@@ -516,9 +517,9 @@ const BulkImport = ({ onClose, onComplete }) => {
                     <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center mb-3">
                       <FiDatabase className="text-gray-900" size={24} />
                     </div>
-                    <h3 className="font-semibold text-slate-800 mb-1">Cost Parameters</h3>
+                    <h3 className="font-semibold text-slate-800 mb-1">{tr("Cost Parameters")}</h3>
                     <p className="text-xs text-slate-600 text-center mb-3">
-                      CSV file with economic parameters
+                      {tr("CSV file with economic parameters")}
                     </p>
                     <label className="cursor-pointer">
                       <input
@@ -528,7 +529,7 @@ const BulkImport = ({ onClose, onComplete }) => {
                         className="hidden"
                       />
                       <span className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 inline-block">
-                        Select File
+                        {tr("Select File")}
                       </span>
                     </label>
                     {files.costParameters && (
@@ -543,9 +544,9 @@ const BulkImport = ({ onClose, onComplete }) => {
 
               {/* Time Series Files */}
               <div className="border-2 border-dashed border-slate-300 rounded-lg p-6">
-                <h3 className="font-semibold text-slate-800 mb-3">Time Series Data (Optional)</h3>
+                <h3 className="font-semibold text-slate-800 mb-3">{tr("Time Series Data (Optional)")}</h3>
                 <p className="text-sm text-slate-600 mb-4">
-                  Upload multiple CSV files with hourly data (demand, solar, wind, prices, etc.)
+                  {tr("Upload multiple CSV files with hourly data (demand, solar, wind, prices, etc.)")}
                 </p>
                 <label className="cursor-pointer inline-block">
                   <input
@@ -560,7 +561,7 @@ const BulkImport = ({ onClose, onComplete }) => {
                     className="hidden"
                   />
                   <span className="px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 inline-block">
-                    Add Time Series Files
+                    {tr("Add Time Series Files")}
                   </span>
                 </label>
                 
@@ -589,11 +590,11 @@ const BulkImport = ({ onClose, onComplete }) => {
           {step === 2 && (
             <div className="space-y-6">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-slate-800">Validation Results</h3>
+                <h3 className="text-lg font-semibold text-slate-800">{tr("Validation Results")}</h3>
                 {isProcessing && (
                   <div className="flex items-center gap-2 text-gray-600">
                     <div className="animate-spin rounded-full h-4 w-4 border-2 border-gray-600 border-t-transparent" />
-                    <span className="text-sm">Processing...</span>
+                    <span className="text-sm">{tr("Processing...")}</span>
                   </div>
                 )}
               </div>
@@ -602,7 +603,7 @@ const BulkImport = ({ onClose, onComplete }) => {
                 <div className="bg-gray-100 border border-gray-300 rounded-lg p-4">
                   <div className="flex items-center gap-2 text-gray-900 font-semibold mb-3">
                     <FiAlertCircle />
-                    {errors.length} Error{errors.length !== 1 ? 's' : ''} Found
+                    {errors.length} {tr("Error")}{errors.length !== 1 ? 's' : ''} {tr("Found")}
                   </div>
                   <div className="max-h-60 overflow-y-auto space-y-1">
                     {errors.map((error, index) => (
@@ -618,7 +619,7 @@ const BulkImport = ({ onClose, onComplete }) => {
                 <div className="bg-gray-50 border border-black/15 rounded-lg p-4">
                   <div className="flex items-center gap-2 text-gray-800 font-semibold mb-3">
                     <FiAlertCircle />
-                    {warnings.length} Warning{warnings.length !== 1 ? 's' : ''}
+                    {warnings.length} {tr("Warning")}{warnings.length !== 1 ? 's' : ''}
                   </div>
                   <div className="max-h-60 overflow-y-auto space-y-1">
                     {warnings.map((warning, index) => (
@@ -634,7 +635,7 @@ const BulkImport = ({ onClose, onComplete }) => {
                 <div className="bg-gray-100 border border-gray-300 rounded-lg p-4">
                   <div className="flex items-center gap-2 text-gray-900">
                     <FiCheckCircle />
-                    <span className="font-semibold">All validation checks passed!</span>
+                    <span className="font-semibold">{tr("All validation checks passed!")}</span>
                   </div>
                 </div>
               )}
@@ -643,32 +644,32 @@ const BulkImport = ({ onClose, onComplete }) => {
 
           {step === 3 && (
             <div className="space-y-6">
-              <h3 className="text-lg font-semibold text-slate-800">Model Preview</h3>
+              <h3 className="text-lg font-semibold text-slate-800">{tr("Model Preview")}</h3>
               
               <div className="grid grid-cols-3 gap-4">
                 <div className="bg-gray-50 border border-black/15 rounded-lg p-4">
                   <div className="text-2xl font-bold text-gray-600">{parsedData.locations.length}</div>
-                  <div className="text-sm text-gray-800">Locations</div>
+                  <div className="text-sm text-gray-800">{tr("Locations")}</div>
                 </div>
                 <div className="bg-gray-100 border border-gray-300 rounded-lg p-4">
                   <div className="text-2xl font-bold text-gray-900">{parsedData.transmissionLines.length}</div>
-                  <div className="text-sm text-gray-700">Transmission Lines</div>
+                  <div className="text-sm text-gray-700">{tr("Transmission Lines")}</div>
                 </div>
                 <div className="bg-gray-100 border border-gray-300 rounded-lg p-4">
                   <div className="text-2xl font-bold text-gray-900">{Object.keys(parsedData.timeSeries).length}</div>
-                  <div className="text-sm text-gray-700">Time Series Files</div>
+                  <div className="text-sm text-gray-700">{tr("Time Series Files")}</div>
                 </div>
               </div>
 
               <div className="bg-white border border-black/15 rounded-lg p-4">
-                <h4 className="font-semibold text-slate-800 mb-3">Sample Locations</h4>
+                <h4 className="font-semibold text-slate-800 mb-3">{tr("Sample Locations")}</h4>
                 <div className="max-h-60 overflow-y-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-black/15">
-                        <th className="text-left py-2 px-3 font-bold text-black/60 uppercase tracking-widest">Name</th>
-                        <th className="text-left py-2 px-3 font-bold text-black/60 uppercase tracking-widest">Type</th>
-                        <th className="text-left py-2 px-3 font-bold text-black/60 uppercase tracking-widest">Coordinates</th>
+                        <th className="text-left py-2 px-3 font-bold text-black/60 uppercase tracking-widest">{tr("Name")}</th>
+                        <th className="text-left py-2 px-3 font-bold text-black/60 uppercase tracking-widest">{tr("Type")}</th>
+                        <th className="text-left py-2 px-3 font-bold text-black/60 uppercase tracking-widest">{tr("Coordinates")}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -685,7 +686,7 @@ const BulkImport = ({ onClose, onComplete }) => {
                   </table>
                   {parsedData.locations.length > 10 && (
                     <div className="text-center py-2 text-sm text-slate-500">
-                      ... and {parsedData.locations.length - 10} more
+                      {tr("... and")} {parsedData.locations.length - 10} {tr("more")}
                     </div>
                   )}
                 </div>
@@ -700,7 +701,7 @@ const BulkImport = ({ onClose, onComplete }) => {
             onClick={onClose}
             className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50"
           >
-            Cancel
+            {tr("Cancel")}
           </button>
           
           <div className="flex gap-3">
@@ -709,7 +710,7 @@ const BulkImport = ({ onClose, onComplete }) => {
                 onClick={() => setStep(step - 1)}
                 className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50"
               >
-                Back
+                {tr("Back")}
               </button>
             )}
             
@@ -719,7 +720,7 @@ const BulkImport = ({ onClose, onComplete }) => {
                 disabled={!files.locations || !modelName}
                 className="uppercase tracking-wide font-bold px-6 py-2 bg-black text-white rounded-lg hover:bg-black/80 disabled:bg-slate-300 disabled:cursor-not-allowed"
               >
-                Validate Files
+                {tr("Validate Files")}
               </button>
             )}
             
@@ -728,7 +729,7 @@ const BulkImport = ({ onClose, onComplete }) => {
                 onClick={() => setStep(3)}
                 className="uppercase tracking-wide font-bold px-6 py-2 bg-black text-white rounded-lg hover:bg-black/80"
               >
-                Continue to Preview
+                {tr("Continue to Preview")}
               </button>
             )}
             
@@ -738,7 +739,7 @@ const BulkImport = ({ onClose, onComplete }) => {
                 className="uppercase tracking-wide font-bold px-6 py-2 bg-black text-white rounded-lg hover:bg-black/80 flex items-center gap-2"
               >
                 <FiCheckCircle />
-                Create Model
+                {tr("Create Model")}
               </button>
             )}
           </div>

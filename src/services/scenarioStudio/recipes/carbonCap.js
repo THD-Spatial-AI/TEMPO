@@ -22,14 +22,15 @@
  */
 
 import { resolveYears, progress } from '../utils.js';
+import { tr } from '../../../i18n';
 
 export const PARAM_SCHEMA = {
-  baseYear:      { type: 'number',  label: 'Base year',     default: 2025 },
-  targetYear:    { type: 'number',  label: 'Target year',   default: 2040 },
-  snapshotYears: { type: 'yearRange', label: 'Snapshot years', default: { from: 2025, to: 2040, step: 5 } },
-  startCap:      { type: 'number',  label: 'Start CO₂ cap', unit: 'Mt', default: 100 },
-  endCap:        { type: 'number',  label: 'End CO₂ cap',   unit: 'Mt', default: 0 },
-  interpolation: { type: 'select',  label: 'Interpolation', default: 'linear', options: ['linear', 'exponential'] },
+  baseYear:      { type: 'number',  label: tr("Base year"),     default: 2025 },
+  targetYear:    { type: 'number',  label: tr("Target year"),   default: 2040 },
+  snapshotYears: { type: 'yearRange', label: tr("Snapshot years"), default: { from: 2025, to: 2040, step: 5 } },
+  startCap:      { type: 'number',  label: tr("Start CO₂ cap"), unit: 'Mt', default: 100 },
+  endCap:        { type: 'number',  label: tr("End CO₂ cap"),   unit: 'Mt', default: 0 },
+  interpolation: { type: 'select',  label: tr("Interpolation"), default: 'linear', options: ['linear', 'exponential'] },
 };
 
 function interpolateCap(startCap, endCap, t, mode) {

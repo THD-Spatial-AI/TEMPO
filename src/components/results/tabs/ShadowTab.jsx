@@ -1,7 +1,8 @@
 // ShadowTab — extracted from Results.jsx (was an inline IIFE tab).
 // Owns its result-derived computation and renders the tab.
-import ReactECharts from 'echarts-for-react';
+import ReactECharts from '../../ui/Chart';
 import SelectField from '../../ui/SelectField';
+import { tr } from '../../../i18n';
 
 export default function ShadowTab({
   result,
@@ -39,20 +40,20 @@ export default function ShadowTab({
               return (
                 <div className="space-y-4">
                   <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-xs text-indigo-700">
-                    Shadow prices are the dual variables of the system energy balance constraints — they represent the marginal cost of supplying one additional unit of energy at each node and timestep. Only available for Calliope 0.7 (HiGHS solver).
+                    {tr("Shadow prices are the dual variables of the system energy balance constraints — they represent the marginal cost of supplying one additional unit of energy at each node and timestep. Only available for Calliope 0.7 (HiGHS solver).")}
                   </div>
                   <div className="bg-white rounded-2xl border border-black/15 shadow-sm p-5">
                     <div className="flex items-center gap-3 mb-4 flex-wrap">
-                      <span className="text-sm font-semibold text-slate-700">Carrier : Node</span>
+                      <span className="text-sm font-semibold text-slate-700">{tr("Carrier : Node")}</span>
                       <SelectField value={spKey} onChange={e => setShadowPriceKey(e.target.value)}
                         className="text-sm border border-black/15 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300">
                         {keys.map(k => <option key={k} value={k}>{k}</option>)}
                       </SelectField>
                       {avg != null && (
                         <div className="ml-auto flex gap-4 text-xs text-slate-500">
-                          <span>Avg: <strong className="text-slate-800">{avg.toFixed(4)}</strong></span>
-                          <span>Min: <strong className="text-slate-800">{mn?.toFixed(4)}</strong></span>
-                          <span>Max: <strong className="text-slate-800">{mx?.toFixed(4)}</strong></span>
+                          <span>{tr("Avg:")} <strong className="text-slate-800">{avg.toFixed(4)}</strong></span>
+                          <span>{tr("Min:")} <strong className="text-slate-800">{mn?.toFixed(4)}</strong></span>
+                          <span>{tr("Max:")} <strong className="text-slate-800">{mx?.toFixed(4)}</strong></span>
                         </div>
                       )}
                     </div>
@@ -60,15 +61,15 @@ export default function ShadowTab({
                   </div>
 
                   <div className="bg-white rounded-2xl border border-black/15 shadow-sm p-5 overflow-x-auto">
-                    <h3 className="text-sm font-semibold text-slate-700 mb-3">Summary — all carrier:node pairs</h3>
+                    <h3 className="text-sm font-semibold text-slate-700 mb-3">{tr("Summary — all carrier:node pairs")}</h3>
                     <table className="w-full text-xs text-left border-collapse">
                       <thead>
                         <tr className="border-b border-black/15">
-                          <th className="py-2 pr-4 text-black/60 font-bold uppercase tracking-widest">Carrier : Node</th>
-                          <th className="py-2 px-3 text-right text-black/60 font-bold uppercase tracking-widest">Mean (€/MWh)</th>
-                          <th className="py-2 px-3 text-right text-black/60 font-bold uppercase tracking-widest">Min</th>
-                          <th className="py-2 px-3 text-right text-black/60 font-bold uppercase tracking-widest">Max</th>
-                          <th className="py-2 pl-3 text-right text-black/60 font-bold uppercase tracking-widest">Non-zero %</th>
+                          <th className="py-2 pr-4 text-black/60 font-bold uppercase tracking-widest">{tr("Carrier : Node")}</th>
+                          <th className="py-2 px-3 text-right text-black/60 font-bold uppercase tracking-widest">{tr("Mean (€/MWh)")}</th>
+                          <th className="py-2 px-3 text-right text-black/60 font-bold uppercase tracking-widest">{tr("Min")}</th>
+                          <th className="py-2 px-3 text-right text-black/60 font-bold uppercase tracking-widest">{tr("Max")}</th>
+                          <th className="py-2 pl-3 text-right text-black/60 font-bold uppercase tracking-widest">{tr("Non-zero %")}</th>
                         </tr>
                       </thead>
                       <tbody>

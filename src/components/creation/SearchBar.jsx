@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { FiSearch, FiX, FiMapPin } from "../ui/icons";
+import { tr } from '../../i18n';
 
 const SearchBar = ({ locations, onLocationSelect }) => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -21,7 +22,7 @@ const SearchBar = ({ locations, onLocationSelect }) => {
         <FiSearch className="text-gray-400 mr-2" />
         <input
           type="text"
-          placeholder="Search locations..."
+          placeholder={tr("Search locations...")}
           value={searchQuery}
           onChange={(e) => {
             setSearchQuery(e.target.value);
@@ -57,14 +58,14 @@ const SearchBar = ({ locations, onLocationSelect }) => {
                   <div className="flex items-center gap-2">
                     <FiMapPin className="text-gray-600" size={16} />
                     <div>
-                      <p className="text-sm font-medium text-gray-900">{location.name || `Location ${index + 1}`}</p>
+                      <p className="text-sm font-medium text-gray-900">{location.name || tr("Location {0}", { 0: index + 1 })}</p>
                       <p className="text-xs text-gray-500">
                         {location.latitude?.toFixed(4)}, {location.longitude?.toFixed(4)}
                       </p>
                     </div>
                   </div>
                   <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1">
-                    {techCount} tech{techCount !== 1 ? 's' : ''}
+                    {techCount} {tr("tech")}{techCount !== 1 ? 's' : ''}
                   </span>
                 </div>
               </button>

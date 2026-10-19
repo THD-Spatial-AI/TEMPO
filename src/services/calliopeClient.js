@@ -29,6 +29,7 @@
  */
 
 import { streamRun } from './runService';
+import { tr } from '../i18n';
 
 // ---------------------------------------------------------------------------
 // Engine + service URL resolution
@@ -150,6 +151,6 @@ export async function runCalliopeModel({ modelData, onLog, onStats, onDone, onEr
     SERVICE_URL,
     modelData,
     { onLog, onStats, onDone, onError },
-    { label: 'Calliope', reachError: `Cannot reach Calliope ${engine} service at ${SERVICE_URL}` },
+    { label: tr("Calliope"), reachError: `Cannot reach Calliope ${engine} service at ${SERVICE_URL}` },
   );
 }

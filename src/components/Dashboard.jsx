@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useEffect, useCallback, useState } from "react";
 import ModelSelector from "./ModelSelector";
 import { useData } from "../context/DataContext";
-import ReactECharts from 'echarts-for-react';
+import ReactECharts from './ui/Chart';
 import Papa from 'papaparse';
 import { fetchTemplate } from '../utils/templateFetch';
 import { FiMapPin, FiLink, FiZap, FiBarChart2, FiPieChart, FiActivity, FiDollarSign, FiChevronDown, FiChevronUp, FiCpu, FiLayers, FiMap, FiClock, FiGrid, FiSun, FiFilter } from './ui/icons';
@@ -9,6 +9,8 @@ import { LuSummary, LuFactory, LuGauge, LuWaypoints, LuCoins, LuChartLine } from
 import 'leaflet/dist/leaflet.css';
 import { TsViewControls, Panel, KpiCard, InputMap } from './dashboard/DashboardWidgets';
 import TechCategoryBreakdown from './dashboard/TechCategoryBreakdown';
+import { useT } from '../i18n';
+import { tr } from '../i18n';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const fmtNum = (v, dec = 1) => {
@@ -58,7 +60,7 @@ const TEMPLATE_CSV = {
 };
 
 // Day-of-year labels helper
-const MONTH_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const MONTH_LABELS = [tr("Jan"),tr("Feb"),tr("Mar"),tr("Apr"),tr("May"),tr("Jun"),tr("Jul"),tr("Aug"),tr("Sep"),tr("Oct"),tr("Nov"),tr("Dec")];
 const DAY_MONTH_START = [0,31,59,90,120,151,181,212,243,273,304,334];
 
 // ── Build TS charts for any time-series object ────────────────────────────
@@ -93,7 +95,7 @@ function buildTsCharts(ts, lineColor = '#6b7280', heatColors = ['#f3f4f6','#d1d5
   });
   const heatOpt = {
     backgroundColor: 'transparent',
-    tooltip: { formatter: p => `Day ${p.data[0] + 1}, ${p.data[1]}:00h<br/><b>${p.data[2]} ${unit}</b>` },
+    tooltip: { formatter: p => `${tr("Day {0}", { 0: p.data[0] + 1 })}, ${p.data[1]}:00h<br/><b>${p.data[2]} ${unit}</b>` },
     grid: { left: 48, right: 80, top: 16, bottom: 30 },
     xAxis: { type: 'category', data: xLabels, splitArea: { show: false }, axisLabel: { fontSize: 9, color: '#64748b', interval: 0, formatter: v => v } },
     yAxis: { type: 'category', data: Array.from({ length: 24 }, (_, i) => `${i}:00`), splitArea: { show: false }, axisLabel: { fontSize: 9, color: '#64748b' } },
@@ -162,16 +164,17 @@ function buildFilteredChart(ts, opts, lineColor = '#6b7280') {
 
 // ── Tabs definition ───────────────────────────────────────────────────────────
 const TABS = [
-  { id: 'overview',    label: 'Overview',     icon: LuSummary },
-  { id: 'generation',  label: 'Generation',   icon: LuFactory },
-  { id: 'demand',      label: 'Demand',       icon: LuGauge },
-  { id: 'network',     label: 'Network',      icon: LuWaypoints },
-  { id: 'cost',        label: 'Cost',         icon: LuCoins },
-  { id: 'timeseries',  label: 'Time Series',  icon: LuChartLine },
+  { id: 'overview',    label: tr("Overview"),     icon: LuSummary },
+  { id: 'generation',  label: tr("Generation"),   icon: LuFactory },
+  { id: 'demand',      label: tr("Demand"),       icon: LuGauge },
+  { id: 'network',     label: tr("Network"),      icon: LuWaypoints },
+  { id: 'cost',        label: tr("Cost"),         icon: LuCoins },
+  { id: 'timeseries',  label: tr("Time Series"),  icon: LuChartLine },
 ];
 
 // ══════════════════════════════════════════════════════════════════════════════
 const Dashboard = () => {
+  const t = useT();
   const { locations, links, getCurrentModel, technologies, timeSeries, setTimeSeries } = useData();
   const currentModel = getCurrentModel();
   const [activeTab, setActiveTab] = useState('overview');
@@ -219,7 +222,7 @@ const Dashboard = () => {
 
   const getTechName = useCallback((id) => {
     const t = techMap.get(id);
-    return t?.essentials?.name || t?.name || id.replace(/_/g, ' ');
+    return tr(t?.essentials?.name || t?.name || id.replace(/_/g, ' '));
   }, [techMap]);
 
   const getTechParent = useCallback((id) => {
@@ -372,7 +375,7 @@ const Dashboard = () => {
     if (!data.length) return null;
     return {
       backgroundColor: 'transparent',
-      tooltip: { trigger: 'item', formatter: p => `${p.name}: <b>${p.value} techs</b> (${p.percent}%)` },
+      tooltip: { trigger: 'item', formatter: p => `${p.name}: <b>${tr("{0} techs", { 0: p.value })}</b> (${p.percent}%)` },
       legend: { bottom: 4, type: 'scroll', textStyle: { fontSize: 10, color: '#475569' } },
       series: [{ type: 'pie', radius: ['44%','72%'], center: ['50%','44%'], label: { show: false },
         emphasis: { label: { show: true, fontSize: 13, fontWeight: 'bold' } }, data }],
@@ -425,7 +428,7 @@ const Dashboard = () => {
       xAxis: { type: 'value', axisLabel: { fontSize: 10, color: '#64748b' }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
       yAxis: { type: 'category', data: entries.map(([k]) => k), axisLabel: { fontSize: 10, color: '#475569' }, inverse: true },
       series: [{ type: 'bar', barMaxWidth: 18, data: entries.map(([,v]) => ({ value: v.length, itemStyle: { color: '#6b7280', borderRadius: [0,4,4,0] } })), label: { show: true, position: 'right', fontSize: 9, color: '#64748b' } }],
-      tooltip: { trigger: 'axis', formatter: p => `${p[0].name}: <b>${p[0].value} techs</b>` },
+      tooltip: { trigger: 'axis', formatter: p => `${p[0].name}: <b>${tr("{0} techs", { 0: p[0].value })}</b>` },
     };
   }, [d.techsPerLoc]);
 
@@ -441,7 +444,7 @@ const Dashboard = () => {
       xAxis: { type: 'value', ...axisNameStyle(unit), axisLabel: { fontSize: 10, color: '#64748b', formatter: v => fmt(v) }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
       yAxis: { type: 'category', data: entries.map(([id]) => getTechName(id)), axisLabel: { fontSize: 10, color: '#475569' }, inverse: true },
       series: [{ type: 'bar', barMaxWidth: 22, data: entries.map(([id, v]) => ({ value: v, itemStyle: { color: getTechColor(id), borderRadius: [0,4,4,0] } })), label: { show: true, position: 'right', formatter: p => fmt(p.value) + ' ' + unit, fontSize: 9, color: '#64748b' } }],
-      tooltip: { trigger: 'axis', formatter: p => `${p[0].name}<br/><b>${fmt(p[0].value)} ${unit} CAPEX est.</b>` },
+      tooltip: { trigger: 'axis', formatter: p => `${p[0].name}<br/><b>${fmt(p[0].value)} ${unit} ${tr("CAPEX est.")}</b>` },
     };
   }, [d.costByTech, getTechColor, getTechName]);
 
@@ -475,9 +478,9 @@ const Dashboard = () => {
       {/* Header + tabs (the sidebar card switches models in the desktop app) */}
       <div className="flex flex-shrink-0 items-center justify-between bg-white px-6 pt-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Model Dashboard</h1>
+          <h1 className="text-xl font-bold text-slate-900">{t('page.dashboard.title')}</h1>
           <p className="mt-0.5 text-xs text-slate-500">
-            {sidebarSwitcher ? 'Input data of the active model' : `${currentModel ? currentModel.name : 'No model selected'} — input data`}
+            {sidebarSwitcher ? t('page.dashboard.subtitle') : tr("{0} — input data", { 0: currentModel ? currentModel.name : tr("No model selected") })}
           </p>
         </div>
         {!sidebarSwitcher && <ModelSelector />}
@@ -490,7 +493,7 @@ const Dashboard = () => {
             <button key={id} onClick={() => setActiveTab(id)}
               className={`flex items-center gap-1.5 px-4 py-3 border-b-2 text-sm font-medium transition-colors
                 ${activeTab === id ? 'border-gray-900 text-gray-900' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-black/15'}`}>
-              <Icon size={14} />{label}
+              <Icon size={14} />{t(`dash.tab.${id}`)}
               {id === 'timeseries' && tsCount > 0 && <span className="ml-1 px-1.5 py-0.5 text-[10px] bg-gray-100 text-gray-700">{tsCount}</span>}
             </button>
           ))}
@@ -504,21 +507,21 @@ const Dashboard = () => {
           {activeTab === 'overview' && (
             <div className="flex-1 min-h-0 flex flex-col gap-5 p-6 overflow-y-auto">
               <div className="grid grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8 gap-3 flex-shrink-0">
-                <KpiCard icon={FiMapPin}    label="Locations"       value={(locations||[]).length}               sub="nodes" />
-                <KpiCard icon={FiLink}      label="Links"           value={(links||[]).length}                   sub="connections" />
-                <KpiCard icon={FiZap}       label="Gen Technologies" value={genTechCount}                        sub="supply types" />
-                <KpiCard icon={FiActivity}  label="Max Capacity"    value={(d.totalCap/capDiv).toFixed(1)}       sub={`${capUnit} total`} accent="bg-black" />
-                <KpiCard icon={FiDollarSign} label="Est. CAPEX"     value={(d.totalCapex/costDiv).toFixed(1)}    sub={costUnit} />
-                <KpiCard icon={FiDollarSign} label="Est. OPEX/yr"   value={fmtNum(d.totalOpex)}                  sub="€/yr O&M" />
-                <KpiCard icon={FiCpu}       label="Tech Categories" value={Object.keys(d.byParent).length}       sub="parent groups" />
-                <KpiCard icon={FiClock}     label="Time Series"     value={tsCount || (timeSeries||[]).length}   sub="files" />
+                <KpiCard icon={FiMapPin}    label={tr("Locations")}       value={(locations||[]).length}               sub={tr("nodes")} />
+                <KpiCard icon={FiLink}      label={tr("Links")}           value={(links||[]).length}                   sub={tr("connections")} />
+                <KpiCard icon={FiZap}       label={tr("Gen Technologies")} value={genTechCount}                        sub={tr("supply types")} />
+                <KpiCard icon={FiActivity}  label={tr("Max Capacity")}    value={(d.totalCap/capDiv).toFixed(1)}       sub={tr("{0} total", { 0: capUnit })} accent="bg-black" />
+                <KpiCard icon={FiDollarSign} label={tr("Est. CAPEX")}     value={(d.totalCapex/costDiv).toFixed(1)}    sub={costUnit} />
+                <KpiCard icon={FiDollarSign} label={tr("Est. OPEX/yr")}   value={fmtNum(d.totalOpex)}                  sub={tr("€/yr O&M")} />
+                <KpiCard icon={FiCpu}       label={tr("Tech Categories")} value={Object.keys(d.byParent).length}       sub={tr("parent groups")} />
+                <KpiCard icon={FiClock}     label={tr("Time Series")}     value={tsCount || (timeSeries||[]).length}   sub={tr("files")} />
               </div>
 
               <div className="grid flex-1 min-h-0 grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
-                <Panel title="Location Map" icon={FiMap} fill className="min-h-[420px] min-w-0">
+                <Panel title={tr("Location Map")} icon={FiMap} fill className="min-h-[420px] min-w-0">
                   <InputMap key={currentModel?.id} locations={locations||[]} links={links||[]} getTechColor={getTechColor} getTechName={getTechName} capByLoc={d.capByLoc} capByLocTech={d.locByTech} />
                 </Panel>
-                <Panel title="Technology Categories" icon={FiPieChart} fill className="min-h-[420px] min-w-0">
+                <Panel title={tr("Technology Categories")} icon={FiPieChart} fill className="min-h-[420px] min-w-0">
                   <TechCategoryBreakdown byParent={d.byParent} capByTech={d.capByTech} techsPerLoc={d.techsPerLoc} getTechName={getTechName} getTechColor={getTechColor} />
                 </Panel>
               </div>
@@ -533,37 +536,37 @@ const Dashboard = () => {
           {/* ── GENERATION ────────────────────────────────────────────── */}
           {activeTab === 'generation' && (<>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <KpiCard icon={FiZap}      label="Supply Techs"    value={d.byParent.supply?.length || 0}       sub="generation types" accent="bg-black" />
-              <KpiCard icon={FiLayers}   label="Storage Techs"   value={d.byParent.storage?.length || 0}      sub="storage types" accent="bg-gray-500" />
-              <KpiCard icon={FiActivity} label="Total Max Cap"   value={(d.totalCap/capDiv).toFixed(1)}       sub={capUnit} />
-              <KpiCard icon={FiMapPin}   label="Locations"       value={Object.values(d.capByLoc).filter(v=>v>0).length} sub="with capacity" />
+              <KpiCard icon={FiZap}      label={tr("Supply Techs")}    value={d.byParent.supply?.length || 0}       sub={tr("generation types")} accent="bg-black" />
+              <KpiCard icon={FiLayers}   label={tr("Storage Techs")}   value={d.byParent.storage?.length || 0}      sub={tr("storage types")} accent="bg-gray-500" />
+              <KpiCard icon={FiActivity} label={tr("Total Max Cap")}   value={(d.totalCap/capDiv).toFixed(1)}       sub={capUnit} />
+              <KpiCard icon={FiMapPin}   label={tr("Locations")}       value={Object.values(d.capByLoc).filter(v=>v>0).length} sub={tr("with capacity")} />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-              <Panel title="Installed Capacity by Technology" icon={FiBarChart2}>
+              <Panel title={tr("Installed Capacity by Technology")} icon={FiBarChart2}>
                 {capByTechOpt
                   ? <ReactECharts option={capByTechOpt} style={{ height: Math.max(200, Object.keys(d.capByTech).filter(k=>d.capByTech[k]>0).slice(0,20).length * 26 + 24) }} notMerge lazyUpdate />
-                  : <div className="h-32 flex items-center justify-center text-slate-400 text-sm">No capacity data</div>}
+                  : <div className="h-32 flex items-center justify-center text-slate-400 text-sm">{tr("No capacity data")}</div>}
               </Panel>
-              <Panel title="Technology Types Distribution" icon={FiPieChart}>
+              <Panel title={tr("Technology Types Distribution")} icon={FiPieChart}>
                 {techGroupDonut
                   ? <ReactECharts option={techGroupDonut} style={{ height: 340 }} notMerge lazyUpdate />
-                  : <div className="h-32 flex items-center justify-center text-slate-400 text-sm">No data</div>}
+                  : <div className="h-32 flex items-center justify-center text-slate-400 text-sm">{tr("No data")}</div>}
               </Panel>
             </div>
 
-            <Panel title="Capacity Mix by Location (top 15)" icon={FiBarChart2}>
+            <Panel title={tr("Capacity Mix by Location (top 15)")} icon={FiBarChart2}>
               {capPerLocOpt
                 ? <ReactECharts option={capPerLocOpt} style={{ height: 340 }} notMerge lazyUpdate />
-                : <div className="h-32 flex items-center justify-center text-slate-400 text-sm">No data</div>}
+                : <div className="h-32 flex items-center justify-center text-slate-400 text-sm">{tr("No data")}</div>}
             </Panel>
 
             {/* Tech catalogue (supply/storage) */}
-            <Panel title="Generation & Storage Technologies" icon={FiLayers} defaultOpen={false}>
+            <Panel title={tr("Generation & Storage Technologies")} icon={FiLayers} defaultOpen={false}>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead><tr className="bg-slate-50 border-b border-black/15">
-                    {['','Name','ID','Type','Max Cap (MW)','CAPEX (€/MW)','Lifetime'].map(h => <th key={h} className="text-left px-3 py-2 text-slate-500 font-medium">{h}</th>)}
+                    {['','Name','ID','Type','Max Cap (MW)','CAPEX (€/MW)','Lifetime'].map(h => <th key={h} className="text-left px-3 py-2 text-slate-500 font-medium">{h && tr(h)}</th>)}
                   </tr></thead>
                   <tbody>
                     {d.allTechIds.filter(id => ['supply','storage','conversion'].includes(getTechParent(id))).map((id, i) => {
@@ -603,20 +606,20 @@ const Dashboard = () => {
                 <div className="border-t border-black/15 pt-4">
                   <h3 className="text-sm font-semibold text-slate-600 mb-3 flex items-center gap-2">
                     <FiSun size={14} className="text-gray-500" />
-                    Generation Resource Profiles
-                    {activeGenTs && <span className="font-normal text-[10px] text-slate-400">({activeGenTs.dataColumns.length} locations · {activeGenTs.rowCount} steps)</span>}
+                    {tr("Generation Resource Profiles")}
+                    {activeGenTs && <span className="font-normal text-[10px] text-slate-400">({activeGenTs.dataColumns.length} {tr("locations ·")} {activeGenTs.rowCount} {tr("steps)")}</span>}
                   </h3>
                   {tsLoading && !activeGenTs && (
                     <div className="bg-white rounded-xl border border-black/15 p-6 text-center">
                       <div className="animate-spin w-6 h-6 border-2 border-gray-500 border-t-transparent rounded-full mx-auto mb-2" />
-                      <p className="text-xs text-slate-400">Loading generation profiles…</p>
+                      <p className="text-xs text-slate-400">{tr("Loading generation profiles…")}</p>
                     </div>
                   )}
                   {!tsLoading && !activeGenTs && (
                     <div className="bg-white rounded-xl border border-black/15 p-6 text-center text-slate-400 text-sm">
-                      No generation resource files loaded. Visit the{' '}
-                      <button onClick={() => setActiveTab('timeseries')} className="text-gray-700 underline">Time Series tab</button>
-                      {' '}to load.
+                      {tr("No generation resource files loaded. Visit the")}{' '}
+                      <button onClick={() => setActiveTab('timeseries')} className="text-gray-700 underline">{tr("Time Series tab")}</button>
+                      {' '}{tr("to load.")}
                     </div>
                   )}
                   {activeGenTs && (<>
@@ -628,7 +631,7 @@ const Dashboard = () => {
                             style={genTsActiveIdx === idx
                               ? { background: '#374151', color: 'white', borderColor: '#374151' }
                               : { background: 'white', color: '#475569', borderColor: '#e2e8f0' }}>
-                            {ts.name} <span className="opacity-60 ml-1">{ts.dataColumns.length} locs</span>
+                            {ts.name} <span className="opacity-60 ml-1">{ts.dataColumns.length} {tr("locs")}</span>
                           </button>
                         ))}
                       </div>
@@ -638,18 +641,18 @@ const Dashboard = () => {
                       <div className="flex-1 min-w-0 space-y-4">
                         {filteredGenChart ? (
                           <>
-                            <Panel title={`Resource Profile — ${filteredGenChart.colCount} location${filteredGenChart.colCount !== 1 ? 's' : ''} · ${filteredGenChart.rowCount} points`} icon={FiZap}>
+                            <Panel title={tr("Resource Profile — {0} location{1} · {2} points", { 0: filteredGenChart.colCount, 1: filteredGenChart.colCount !== 1 ? 's' : '', 2: filteredGenChart.rowCount })} icon={FiZap}>
                               <ReactECharts option={filteredGenChart.opt} style={{ height: 240 }} notMerge lazyUpdate />
                             </Panel>
                             {genHeatCharts && (
-                              <Panel title="Annual Resource Heatmap — capacity factor by hour × day" icon={FiClock}>
+                              <Panel title={tr("Annual Resource Heatmap — capacity factor by hour × day")} icon={FiClock}>
                                 <ReactECharts option={genHeatCharts.heatOpt} style={{ height: 320 }} notMerge lazyUpdate />
                               </Panel>
                             )}
                           </>
                         ) : (
                           <div className="bg-white rounded-xl border border-black/15 p-6 text-center text-slate-400 text-sm">
-                            No data for the selected filter combination.
+                            {tr("No data for the selected filter combination.")}
                           </div>
                         )}
                       </div>
@@ -704,24 +707,24 @@ const Dashboard = () => {
               {tsLoading && (
                 <div className="bg-gray-50 border border-black/15 rounded-xl px-4 py-3 flex items-center gap-3 text-sm text-gray-700">
                   <div className="animate-spin w-4 h-4 border-2 border-gray-500 border-t-transparent rounded-full flex-shrink-0" />
-                  Loading demand time series… charts will appear shortly.
+                  {tr("Loading demand time series… charts will appear shortly.")}
                 </div>
               )}
 
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <KpiCard icon={FiActivity}  label="Demand Locations"  value={displayCount || '—'}
-                  sub={tsLocSet ? 'from demand file' : 'from locations CSV'} accent="bg-black" />
-                <KpiCard icon={FiClock}     label="Time Steps"
+                <KpiCard icon={FiActivity}  label={tr("Demand Locations")}  value={displayCount || '—'}
+                  sub={tsLocSet ? tr("from demand file") : tr("from locations CSV")} accent="bg-black" />
+                <KpiCard icon={FiClock}     label={tr("Time Steps")}
                   value={demandTs ? demandTs.rowCount : (tsLoading ? '…' : 'not loaded')}
-                  sub={demandTs?.name || (tsLoading ? 'loading…' : 'open Time Series tab')} />
-                <KpiCard icon={FiMapPin}    label="Total Nodes"       value={(locations||[]).length} sub="all locations" />
-                <KpiCard icon={FiBarChart2} label="Annual Demand"
+                  sub={demandTs?.name || (tsLoading ? tr("loading…") : tr("open Time Series tab"))} />
+                <KpiCard icon={FiMapPin}    label={tr("Total Nodes")}       value={(locations||[]).length} sub={tr("all locations")} />
+                <KpiCard icon={FiBarChart2} label={tr("Annual Demand")}
                   value={totalMWh ? (totalMWh / mwhDiv).toFixed(1) : '—'}
-                  sub={totalMWh ? `${mwhUnit}·h/yr total` : (tsLoading ? 'computing…' : 'TS needed')} />
+                  sub={totalMWh ? tr("{0}·h/yr total", { 0: mwhUnit }) : (tsLoading ? tr("computing…") : tr("TS needed"))} />
               </div>
 
               {/* Demand location grid — collapsed by default */}
-              <Panel title={`Demand Locations (${gridLocs.length})`} icon={FiActivity} defaultOpen={false}>
+              <Panel title={tr("Demand Locations ({0})", { 0: gridLocs.length })} icon={FiActivity} defaultOpen={false}>
                 {gridLocs.length > 0 ? (
                   <div className="p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1.5">
                     {gridLocs.slice(0, 150).map(loc => (
@@ -732,15 +735,15 @@ const Dashboard = () => {
                     ))}
                     {gridLocs.length > 150 && (
                       <div className="col-span-full text-[10px] text-slate-400 pl-1 pt-1">
-                        +{gridLocs.length - 150} more demand locations
+                        +{gridLocs.length - 150} {tr("more demand locations")}
                       </div>
                     )}
                   </div>
                 ) : (
                   <div className="p-6 text-center text-slate-400 text-sm">
                     {tsLoading
-                      ? 'Detecting demand locations…'
-                      : 'No demand locations found. Ensure locations CSV has a "demand_types" column.'}
+                      ? tr("Detecting demand locations…")
+                      : tr("No demand locations found. Ensure locations CSV has a \"demand_types\" column.")}
                   </div>
                 )}
               </Panel>
@@ -751,14 +754,14 @@ const Dashboard = () => {
                   {/* Left: charts stack */}
                   <div className="flex-1 min-w-0 space-y-4">
                     {filteredDemandChart ? (
-                      <Panel title={`Aggregate Demand — ${filteredDemandChart.colCount} location${filteredDemandChart.colCount !== 1 ? 's' : ''} · ${filteredDemandChart.rowCount} points`} icon={FiActivity}>
+                      <Panel title={tr("Aggregate Demand — {0} location{1} · {2} points", { 0: filteredDemandChart.colCount, 1: filteredDemandChart.colCount !== 1 ? 's' : '', 2: filteredDemandChart.rowCount })} icon={FiActivity}>
                         <ReactECharts option={filteredDemandChart.opt} style={{ height: 240 }} notMerge lazyUpdate />
                       </Panel>
                     ) : (
-                      <div className="bg-white rounded-xl border border-black/15 p-6 text-center text-slate-400 text-sm">No data for the selected filters.</div>
+                      <div className="bg-white rounded-xl border border-black/15 p-6 text-center text-slate-400 text-sm">{tr("No data for the selected filters.")}</div>
                     )}
                     {charts && (
-                      <Panel title="Annual Demand Heatmap — total demand by hour × day" icon={FiClock}>
+                      <Panel title={tr("Annual Demand Heatmap — total demand by hour × day")} icon={FiClock}>
                         <ReactECharts option={charts.heatOpt} style={{ height: 320 }} notMerge lazyUpdate />
                       </Panel>
                     )}
@@ -772,13 +775,13 @@ const Dashboard = () => {
               ) : !tsLoading && (
                 <div className="bg-white rounded-xl border border-black/15  p-8 text-center text-slate-400">
                   <FiClock size={28} className="mx-auto mb-2 opacity-40" />
-                  <p className="text-sm">Demand time series not yet loaded.</p>
+                  <p className="text-sm">{tr("Demand time series not yet loaded.")}</p>
                   <p className="text-[11px] mt-1">
-                    Visit the{' '}
+                    {tr("Visit the")}{' '}
                     <button onClick={() => setActiveTab('timeseries')} className="text-gray-700 underline text-[11px]">
-                      Time Series tab
+                      {tr("Time Series tab")}
                     </button>{' '}
-                    — data loads automatically for template models.
+                    {tr("— data loads automatically for template models.")}
                   </p>
                 </div>
               )}
@@ -788,31 +791,31 @@ const Dashboard = () => {
           {/* ── NETWORK ───────────────────────────────────────────────── */}
           {activeTab === 'network' && (<>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <KpiCard icon={FiLink}     label="Transmission Links" value={(links||[]).length}                  sub="connections" accent="bg-black" />
-              <KpiCard icon={FiMapPin}   label="Locations"         value={(locations||[]).length}               sub="nodes" />
-              <KpiCard icon={FiZap}      label="Transmission Techs" value={d.byParent.transmission?.length || 0} sub="link technologies" />
-              <KpiCard icon={FiActivity} label="Avg Techs / Node"  value={((d.allTechIds.length / Math.max(1,(locations||[]).length))).toFixed(1)} sub="technologies per node" />
+              <KpiCard icon={FiLink}     label={tr("Transmission Links")} value={(links||[]).length}                  sub={tr("connections")} accent="bg-black" />
+              <KpiCard icon={FiMapPin}   label={tr("Locations")}         value={(locations||[]).length}               sub={tr("nodes")} />
+              <KpiCard icon={FiZap}      label={tr("Transmission Techs")} value={d.byParent.transmission?.length || 0} sub={tr("link technologies")} />
+              <KpiCard icon={FiActivity} label={tr("Avg Techs / Node")}  value={((d.allTechIds.length / Math.max(1,(locations||[]).length))).toFixed(1)} sub={tr("technologies per node")} />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-              <Panel title="Location Map" icon={FiMap} className="lg:col-span-2">
+              <Panel title={tr("Location Map")} icon={FiMap} className="lg:col-span-2">
                 <div style={{ height: 380 }}>
                   <InputMap key={currentModel?.id} locations={locations||[]} links={links||[]} getTechColor={getTechColor} getTechName={getTechName} capByLoc={d.capByLoc} capByLocTech={d.locByTech} />
                 </div>
               </Panel>
-              <Panel title="Technologies per Location" icon={FiBarChart2}>
+              <Panel title={tr("Technologies per Location")} icon={FiBarChart2}>
                 {techsPerLocOpt
                   ? <ReactECharts option={techsPerLocOpt} style={{ height: 380 }} notMerge lazyUpdate />
-                  : <div className="h-40 flex items-center justify-center text-slate-400 text-sm">No data</div>}
+                  : <div className="h-40 flex items-center justify-center text-slate-400 text-sm">{tr("No data")}</div>}
               </Panel>
             </div>
 
             {(links||[]).length > 0 && (
-              <Panel title={`Transmission Links (${(links||[]).length})`} icon={FiLink} defaultOpen={false}>
+              <Panel title={tr("Transmission Links ({0})", { 0: (links||[]).length })} icon={FiLink} defaultOpen={false}>
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead><tr className="bg-slate-50 border-b border-black/15">
-                      {['From','To','Technology','Distance (km)','Max Cap (MW)'].map(h => <th key={h} className="text-left px-3 py-2 text-slate-500 font-medium">{h}</th>)}
+                      {['From','To','Technology','Distance (km)','Max Cap (MW)'].map(h => <th key={h} className="text-left px-3 py-2 text-slate-500 font-medium">{tr(h)}</th>)}
                     </tr></thead>
                     <tbody>
                       {(links||[]).map((link, i) => {
@@ -838,30 +841,30 @@ const Dashboard = () => {
           {/* ── COST ──────────────────────────────────────────────────── */}
           {activeTab === 'cost' && (<>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <KpiCard icon={FiDollarSign} label="Total CAPEX Est." value={(d.totalCapex/costDiv).toFixed(1)} sub={costUnit} accent="bg-black" />
-              <KpiCard icon={FiDollarSign} label="Total OPEX/yr"    value={fmtNum(d.totalOpex)}              sub="€/yr O&M" />
-              <KpiCard icon={FiZap}        label="Paid Capacity"    value={(d.totalCap/capDiv).toFixed(1)}    sub={`${capUnit} with cost >0`} />
-              <KpiCard icon={FiCpu}        label="Cost Tech Count"  value={Object.keys(d.costByTech).length}  sub="technologies" />
+              <KpiCard icon={FiDollarSign} label={tr("Total CAPEX Est.")} value={(d.totalCapex/costDiv).toFixed(1)} sub={costUnit} accent="bg-black" />
+              <KpiCard icon={FiDollarSign} label={tr("Total OPEX/yr")}    value={fmtNum(d.totalOpex)}              sub={tr("€/yr O&M")} />
+              <KpiCard icon={FiZap}        label={tr("Paid Capacity")}    value={(d.totalCap/capDiv).toFixed(1)}    sub={tr("{0} with cost >0", { 0: capUnit })} />
+              <KpiCard icon={FiCpu}        label={tr("Cost Tech Count")}  value={Object.keys(d.costByTech).length}  sub={tr("technologies")} />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-              <Panel title="Estimated CAPEX by Technology" icon={FiBarChart2}>
+              <Panel title={tr("Estimated CAPEX by Technology")} icon={FiBarChart2}>
                 {capexOpt
                   ? <ReactECharts option={capexOpt} style={{ height: Math.max(200, Object.keys(d.costByTech).filter(k=>d.costByTech[k]>0).slice(0,15).length*26+24) }} notMerge lazyUpdate />
-                  : <div className="h-32 flex items-center justify-center text-slate-400 text-sm">No cost data (capacities may be ∞)</div>}
+                  : <div className="h-32 flex items-center justify-center text-slate-400 text-sm">{tr("No cost data (capacities may be ∞)")}</div>}
               </Panel>
-              <Panel title="CAPEX vs OPEX Split" icon={FiPieChart}>
+              <Panel title={tr("CAPEX vs OPEX Split")} icon={FiPieChart}>
                 {costDonut
                   ? <ReactECharts option={costDonut} style={{ height: 320 }} notMerge lazyUpdate />
-                  : <div className="h-32 flex items-center justify-center text-slate-400 text-sm">No cost data</div>}
+                  : <div className="h-32 flex items-center justify-center text-slate-400 text-sm">{tr("No cost data")}</div>}
               </Panel>
             </div>
 
-            <Panel title="Full Technology Cost Table" icon={FiLayers} defaultOpen={false}>
+            <Panel title={tr("Full Technology Cost Table")} icon={FiLayers} defaultOpen={false}>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead><tr className="bg-slate-50 border-b border-black/15">
-                    {['','Name','Type','Max Cap (MW)','CAPEX rate (€/MW)','CAPEX est.','OPEX/yr (€)','Lifetime'].map(h=><th key={h} className="text-left px-3 py-2 text-slate-500 font-medium">{h}</th>)}
+                    {['','Name','Type','Max Cap (MW)','CAPEX rate (€/MW)','CAPEX est.','OPEX/yr (€)','Lifetime'].map(h=><th key={h} className="text-left px-3 py-2 text-slate-500 font-medium">{h && tr(h)}</th>)}
                   </tr></thead>
                   <tbody>
                     {d.allTechIds.map((id, i) => {
@@ -895,14 +898,14 @@ const Dashboard = () => {
               {tsLoading && (
                 <div className="bg-white rounded-xl border border-black/15  p-8 text-center">
                   <div className="animate-spin w-8 h-8 border-2 border-gray-500 border-t-transparent rounded-full mx-auto mb-3" />
-                  <p className="text-sm text-slate-500">Loading time series data…</p>
+                  <p className="text-sm text-slate-500">{tr("Loading time series data…")}</p>
                 </div>
               )}
               {!tsLoading && modelTimeSeries.length === 0 && (
                 <div className="bg-white rounded-xl border border-black/15  p-10 text-center text-slate-400">
                   <FiClock size={32} className="mx-auto mb-3 opacity-40" />
-                  <p className="text-sm font-medium">No time series data loaded for this model.</p>
-                  <p className="text-[11px] mt-1">Template models load data automatically when you first open this tab.</p>
+                  <p className="text-sm font-medium">{tr("No time series data loaded for this model.")}</p>
+                  <p className="text-[11px] mt-1">{tr("Template models load data automatically when you first open this tab.")}</p>
                 </div>
               )}
               {!tsLoading && modelTimeSeries.length > 0 && (() => {
@@ -918,10 +921,10 @@ const Dashboard = () => {
                 return (<>
                   {/* KPI summary */}
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    <KpiCard icon={FiClock}     label="Files Loaded"   value={modelTimeSeries.length}                                      sub="time series" accent="bg-black" />
-                    <KpiCard icon={FiActivity}  label="Demand Files"   value={modelTimeSeries.filter(ts => /demand/i.test(ts.name)).length}  sub="matched by name" />
-                    <KpiCard icon={FiSun}       label="Resource Files" value={modelTimeSeries.filter(ts => !/demand/i.test(ts.name)).length} sub="PV / wind" />
-                    <KpiCard icon={FiBarChart2} label="Total Rows"     value={fmtNum(modelTimeSeries.reduce((s, ts) => s + (ts.rowCount || 0), 0), 0)} sub="timesteps across files" />
+                    <KpiCard icon={FiClock}     label={tr("Files Loaded")}   value={modelTimeSeries.length}                                      sub={tr("time series")} accent="bg-black" />
+                    <KpiCard icon={FiActivity}  label={tr("Demand Files")}   value={modelTimeSeries.filter(ts => /demand/i.test(ts.name)).length}  sub={tr("matched by name")} />
+                    <KpiCard icon={FiSun}       label={tr("Resource Files")} value={modelTimeSeries.filter(ts => !/demand/i.test(ts.name)).length} sub={tr("PV / wind")} />
+                    <KpiCard icon={FiBarChart2} label={tr("Total Rows")}     value={fmtNum(modelTimeSeries.reduce((s, ts) => s + (ts.rowCount || 0), 0), 0)} sub={tr("timesteps across files")} />
                   </div>
 
                   {/* File selector tabs */}
@@ -938,7 +941,7 @@ const Dashboard = () => {
                               ? { background: '#374151', color: 'white', borderColor: '#374151' }
                               : { background: 'white', color: '#475569', borderColor: '#e2e8f0' }}>
                             {ts.name}
-                            <span className="ml-1.5 opacity-60">{ts.dataColumns?.length ?? 0} cols</span>
+                            <span className="ml-1.5 opacity-60">{ts.dataColumns?.length ?? 0} {tr("cols")}</span>
                           </button>
                         );
                       })}
@@ -952,17 +955,17 @@ const Dashboard = () => {
                       <div className="flex-1 min-w-0 space-y-4">
                         {filteredTsChart ? (
                           <Panel
-                            title={`${activeTsFile.name} — ${filteredTsChart.colCount} column${filteredTsChart.colCount !== 1 ? 's' : ''} · ${filteredTsChart.rowCount} points`}
+                            title={tr("{0} — {1} column{2} · {3} points", { 0: activeTsFile.name, 1: filteredTsChart.colCount, 2: filteredTsChart.colCount !== 1 ? 's' : '', 3: filteredTsChart.rowCount })}
                             icon={isDemandActive ? FiActivity : FiZap}>
                             <ReactECharts option={filteredTsChart.opt} style={{ height: 240 }} notMerge lazyUpdate />
                           </Panel>
                         ) : (
                           <div className="bg-white rounded-xl border border-black/15 p-6 text-center text-slate-400 text-sm">
-                            No data for the selected filter combination.
+                            {tr("No data for the selected filter combination.")}
                           </div>
                         )}
                         {tsHeatCharts && (
-                          <Panel title={`Annual Heatmap — ${activeTsFile.name}`} icon={FiClock}>
+                          <Panel title={tr("Annual Heatmap — {0}", { 0: activeTsFile.name })} icon={FiClock}>
                             <ReactECharts option={tsHeatCharts.heatOpt} style={{ height: 320 }} notMerge lazyUpdate />
                           </Panel>
                         )}

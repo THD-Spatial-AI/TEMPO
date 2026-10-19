@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { FiGlobe, FiMapPin, FiZap, FiLayers, FiSearch, FiFilter, FiDownload, FiX, FiChevronLeft, FiChevronRight } from './ui/icons';
 import Papa from 'papaparse';
 import SelectField from './ui/SelectField';
+import { tr } from '../i18n';
 
 const GlobalDataPanel = ({ 
   onDataLoaded, 
@@ -171,14 +172,14 @@ const GlobalDataPanel = ({
                   <div>
                     <label className="block text-lg font-bold text-slate-800">
                     <FiGlobe className="inline mr-1" />
-                    Worldwide Energy Data
+                    {tr("Worldwide Energy Data")}
                     </label>                    
                   </div>
                 )}
                 <button
                   onClick={onToggleCollapse}
                   className="p-2 hover:bg-slate-100 rounded-lg transition-colors ml-auto"
-                  title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+                  title={collapsed ? tr("Expand sidebar") : tr("Collapse sidebar")}
                 >
                   {collapsed ? <FiChevronRight size={20} /> : <FiChevronLeft size={20} />}
                 </button>
@@ -190,7 +191,7 @@ const GlobalDataPanel = ({
       <div className="p-4 border-b border-black/15 flex-shrink-0">
         <label className="block text-[0.6875rem] font-bold text-black/60 mb-2 uppercase tracking-widest">
           <FiMapPin className="inline mr-1" />
-          Select Country
+          {tr("Select Country")}
         </label>
         <SelectField
           value={selectedCountry}
@@ -198,7 +199,7 @@ const GlobalDataPanel = ({
           className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400"
           disabled={loading}
         >
-          <option value="">Choose a country...</option>
+          <option value="">{tr("Choose a country...")}</option>
           {countries.map(country => (
             <option key={country} value={country}>{country}</option>
           ))}
@@ -211,7 +212,7 @@ const GlobalDataPanel = ({
           <div className="p-4 border-b border-black/15 flex-shrink-0">
             <label className="block text-[0.6875rem] font-bold text-black/60 mb-2 uppercase tracking-widest">
               <FiLayers className="inline mr-1" />
-              Administrative Level
+              {tr("Administrative Level")}
             </label>
             <div className="grid grid-cols-3 gap-2">
               <button
@@ -222,7 +223,7 @@ const GlobalDataPanel = ({
                     : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                 }`}
               >
-                Country
+                {tr("Country")}
               </button>
               <button
                 onClick={() => handleAdminLevelChange('state')}
@@ -232,7 +233,7 @@ const GlobalDataPanel = ({
                     : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                 }`}
               >
-                State/Region
+                {tr("State/Region")}
               </button>
               <button
                 onClick={() => handleAdminLevelChange('commune')}
@@ -242,7 +243,7 @@ const GlobalDataPanel = ({
                     : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                 }`}
               >
-                Commune
+                {tr("Commune")}
               </button>
             </div>
             
@@ -254,7 +255,7 @@ const GlobalDataPanel = ({
                   onChange={loadBoundaryData}
                   className="w-4 h-4 text-gray-600 rounded focus:ring-gray-400"
                 />
-                <span className="text-sm text-slate-700">Show boundaries on map</span>
+                <span className="text-sm text-slate-700">{tr("Show boundaries on map")}</span>
               </label>
             </div>
           </div>
@@ -263,7 +264,7 @@ const GlobalDataPanel = ({
           <div className="p-4 border-b border-black/15 flex-shrink-0 max-h-64 overflow-y-auto">
             <label className="block text-[0.6875rem] font-bold text-black/60 mb-2 uppercase tracking-widest">
               <FiFilter className="inline mr-1" />
-              Filters
+              {tr("Filters")}
             </label>
             
             {/* Search */}
@@ -272,7 +273,7 @@ const GlobalDataPanel = ({
                 <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Search by name..."
+                  placeholder={tr("Search by name...")}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400"
@@ -282,14 +283,14 @@ const GlobalDataPanel = ({
 
             {/* Fuel Type */}
             <div className="mb-3">
-              <label className="block text-[0.6875rem] text-black/60 mb-1 font-bold uppercase tracking-widest">Fuel Type</label>
+              <label className="block text-[0.6875rem] text-black/60 mb-1 font-bold uppercase tracking-widest">{tr("Fuel Type")}</label>
               <SelectField
                 value={fuelTypeFilter}
                 onChange={(e) => setFuelTypeFilter(e.target.value)}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm"
               >
                 {fuelTypes.map(fuel => (
-                  <option key={fuel} value={fuel}>{fuel === 'all' ? 'All Types' : fuel}</option>
+                  <option key={fuel} value={fuel}>{fuel === 'all' ? tr("All Types") : tr(fuel)}</option>
                 ))}
               </SelectField>
             </div>
@@ -297,7 +298,7 @@ const GlobalDataPanel = ({
             {/* Minimum Capacity */}
             <div>
               <label className="block text-[0.6875rem] text-black/60 mb-1 font-bold uppercase tracking-widest">
-                Min Capacity (MW): {minCapacity}
+                {tr("Min Capacity (MW):")} {minCapacity}
               </label>
               <input
                 type="range"
@@ -315,22 +316,22 @@ const GlobalDataPanel = ({
           <div className="flex-1 overflow-y-auto min-h-0">
             {/* Statistics */}
             <div className="p-4 border-b border-black/15">
-              <h3 className="text-sm font-semibold text-slate-700 mb-3">Statistics</h3>
+              <h3 className="text-sm font-semibold text-slate-700 mb-3">{tr("Statistics")}</h3>
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
-                  <span className="text-xs text-slate-600">Total Plants:</span>
+                  <span className="text-xs text-slate-600">{tr("Total Plants:")}</span>
                   <span className="text-sm font-bold text-slate-900">{filteredPlants.length}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-xs text-slate-600">Total Capacity:</span>
-                  <span className="text-sm font-bold text-slate-900">{getTotalCapacity()} MW</span>
+                  <span className="text-xs text-slate-600">{tr("Total Capacity:")}</span>
+                  <span className="text-sm font-bold text-slate-900">{getTotalCapacity()} {tr("MW")}</span>
                 </div>
                 <div className="mt-4">
-                  <span className="text-xs text-slate-600 block mb-2 font-semibold">Plants by Technology:</span>
+                  <span className="text-xs text-slate-600 block mb-2 font-semibold">{tr("Plants by Technology:")}</span>
                   {getFuelDistribution().map(([fuel, count]) => (
                     <div key={fuel} className="flex justify-between items-center text-xs mb-1.5 py-1">
-                      <span className="text-slate-700">{fuel}</span>
-                      <span className="font-medium text-slate-900">{count} plants</span>
+                      <span className="text-slate-700">{tr(fuel)}</span>
+                      <span className="font-medium text-slate-900">{count} {tr("plants")}</span>
                     </div>
                   ))}
                 </div>
@@ -345,13 +346,13 @@ const GlobalDataPanel = ({
                 className="w-full px-4 py-2 bg-black text-white rounded-lg hover:bg-black/80 disabled:bg-slate-300 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-bold uppercase tracking-wide"
               >
                 <FiDownload />
-                Export Filtered Data ({filteredPlants.length})
+                {tr("Export Filtered Data (")}{filteredPlants.length})
               </button>
             </div>
 
             {/* Infrastructure Layers Section */}
             <div className="p-4 border-t border-black/15">
-              <h3 className="text-sm font-semibold text-slate-700 mb-3">Map Infrastructure</h3>
+              <h3 className="text-sm font-semibold text-slate-700 mb-3">{tr("Map Infrastructure")}</h3>
               
               {/* Layer Toggles */}
               <div className="space-y-2 mb-4">
@@ -362,7 +363,7 @@ const GlobalDataPanel = ({
                     onChange={(e) => onOsmLayersChange?.({ ...showOsmLayers, powerLines: e.target.checked })}
                     className="w-3.5 h-3.5"
                   />
-                  <span className="text-xs text-slate-700 font-medium">Power Lines</span>
+                  <span className="text-xs text-slate-700 font-medium">{tr("Power Lines")}</span>
                 </label>
                 <label className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 rounded cursor-pointer">
                   <input
@@ -371,7 +372,7 @@ const GlobalDataPanel = ({
                     onChange={(e) => onOsmLayersChange?.({ ...showOsmLayers, substations: e.target.checked })}
                     className="w-3.5 h-3.5"
                   />
-                  <span className="text-xs text-slate-700 font-medium">Substations</span>
+                  <span className="text-xs text-slate-700 font-medium">{tr("Substations")}</span>
                 </label>
                 <label className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 rounded cursor-pointer">
                   <input
@@ -380,7 +381,7 @@ const GlobalDataPanel = ({
                     onChange={(e) => onOsmLayersChange?.({ ...showOsmLayers, powerPlants: e.target.checked })}
                     className="w-3.5 h-3.5"
                   />
-                  <span className="text-xs text-slate-700 font-medium">Power Plants</span>
+                  <span className="text-xs text-slate-700 font-medium">{tr("Power Plants")}</span>
                 </label>
               </div>
 
@@ -388,7 +389,7 @@ const GlobalDataPanel = ({
               <div className="space-y-3 mt-4">
                 <div>
                   <label className="flex items-center justify-between text-xs text-slate-700 font-medium mb-1.5">
-                    <span>Power Plants Size</span>
+                    <span>{tr("Power Plants Size")}</span>
                     <span className="text-slate-500">{infrastructureSizes?.powerPlants.toFixed(1)}x</span>
                   </label>
                   <input
@@ -403,7 +404,7 @@ const GlobalDataPanel = ({
                 </div>
                 <div>
                   <label className="flex items-center justify-between text-xs text-slate-700 font-medium mb-1.5">
-                    <span>Substations Size</span>
+                    <span>{tr("Substations Size")}</span>
                     <span className="text-slate-500">{infrastructureSizes?.substations.toFixed(1)}x</span>
                   </label>
                   <input
@@ -426,7 +427,7 @@ const GlobalDataPanel = ({
         <div className="flex-1 flex items-center justify-center p-8">
           <div className="text-center text-slate-400">
             <FiGlobe size={48} className="mx-auto mb-4" />
-            <p className="text-sm">Select a country to view power plant data</p>
+            <p className="text-sm">{tr("Select a country to view power plant data")}</p>
           </div>
         </div>
       )}
@@ -435,7 +436,7 @@ const GlobalDataPanel = ({
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-500 mx-auto mb-4"></div>
-            <p className="text-sm text-slate-600">Loading power plant database...</p>
+            <p className="text-sm text-slate-600">{tr("Loading power plant database...")}</p>
           </div>
         </div>
       )}
@@ -444,14 +445,14 @@ const GlobalDataPanel = ({
         <div className="flex flex-col items-center py-4 gap-4">
           <button
             className="p-2 rounded-lg hover:bg-slate-100"
-            title="Global Database"
+            title={tr("Global Database")}
           >
             <FiGlobe size={20} />
           </button>
           <div className="border-t border-black/15 w-8 my-2"></div>
           <button
             className="p-2 rounded-lg hover:bg-slate-100"
-            title="Search & Filters"
+            title={tr("Search & Filters")}
           >
             <FiFilter size={20} />
           </button>
@@ -459,14 +460,14 @@ const GlobalDataPanel = ({
             onClick={exportFilteredData}
             disabled={filteredPlants.length === 0}
             className="p-2 rounded-lg hover:bg-slate-100 disabled:opacity-50"
-            title="Export Data"
+            title={tr("Export Data")}
           >
             <FiDownload size={20} />
           </button>
           <div className="border-t border-black/15 w-8 my-2"></div>
           <button
             className="p-2 rounded-lg hover:bg-slate-100"
-            title="Power Plants"
+            title={tr("Power Plants")}
           >
             <FiZap size={20} />
           </button>

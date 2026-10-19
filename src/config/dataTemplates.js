@@ -1,3 +1,4 @@
+import { tr } from '../i18n';
 /**
  * CSV/JSON Data Templates and Examples for Bulk Import
  * 
@@ -8,7 +9,7 @@ export const CSV_TEMPLATES = {
   // Locations template (substations, plants, demand centers, etc.)
   LOCATIONS: {
     filename: 'locations_template.csv',
-    description: 'Geographic locations with entity type classification',
+    description: tr("Geographic locations with entity type classification"),
     headers: [
       'name',
       'type',          // substation, power_plant, renewable_site, demand_center, storage_facility, network_node
@@ -39,7 +40,7 @@ Battery_Storage_1,storage_facility,52.4800,13.3800,50,,battery_li_ion,StorageCo,
   // Transmission lines template
   TRANSMISSION_LINES: {
     filename: 'transmission_lines_template.csv',
-    description: 'Connections between locations (power lines, pipelines, etc.)',
+    description: tr("Connections between locations (power lines, pipelines, etc.)"),
     headers: [
       'from',
       'to',
@@ -66,7 +67,7 @@ Gas_Plant_Berlin,Berlin_Main,ac_transmission,550,220,15,0.99,1,2015,`
   // Technology parameters template
   TECHNOLOGY_PARAMETERS: {
     filename: 'technology_parameters_template.csv',
-    description: 'Technical constraints and parameters for technologies at each location',
+    description: tr("Technical constraints and parameters for technologies at each location"),
     headers: [
       'location',
       'technology',
@@ -95,7 +96,7 @@ Berlin_City,power_demand,resource,file=berlin_demand.csv,,Link to time series`
   // Cost parameters template
   COST_PARAMETERS: {
     filename: 'cost_parameters_template.csv',
-    description: 'Economic parameters (CAPEX, OPEX, fuel costs)',
+    description: tr("Economic parameters (CAPEX, OPEX, fuel costs)"),
     headers: [
       'location',
       'technology',
@@ -126,7 +127,7 @@ Battery_Storage_1,battery_storage,storage_cap,200000,EUR,EUR/MWh,2023,Energy cos
   // Time series template (hourly data for a full year)
   TIMESERIES_DEMAND: {
     filename: 'timeseries_demand_template.csv',
-    description: 'Hourly electricity demand profile (8760 hours for a full year)',
+    description: tr("Hourly electricity demand profile (8760 hours for a full year)"),
     headers: ['timestamp', 'demand_mw'],
     example: [
       ['2023-01-01 00:00', '1250.5'],
@@ -146,7 +147,7 @@ Battery_Storage_1,battery_storage,storage_cap,200000,EUR,EUR/MWh,2023,Energy cos
 
   TIMESERIES_SOLAR: {
     filename: 'timeseries_solar_capacity_factor_template.csv',
-    description: 'Hourly solar capacity factor (0-1 range)',
+    description: tr("Hourly solar capacity factor (0-1 range)"),
     headers: ['timestamp', 'capacity_factor'],
     example: [
       ['2023-01-01 00:00', '0'],
@@ -166,7 +167,7 @@ Battery_Storage_1,battery_storage,storage_cap,200000,EUR,EUR/MWh,2023,Energy cos
 
   TIMESERIES_WIND: {
     filename: 'timeseries_wind_capacity_factor_template.csv',
-    description: 'Hourly wind capacity factor (0-1 range)',
+    description: tr("Hourly wind capacity factor (0-1 range)"),
     headers: ['timestamp', 'capacity_factor'],
     example: [
       ['2023-01-01 00:00', '0.65'],
@@ -186,7 +187,7 @@ Battery_Storage_1,battery_storage,storage_cap,200000,EUR,EUR/MWh,2023,Energy cos
 
   TIMESERIES_ELECTRICITY_PRICE: {
     filename: 'timeseries_electricity_price_template.csv',
-    description: 'Hourly electricity market price',
+    description: tr("Hourly electricity market price"),
     headers: ['timestamp', 'price_eur_mwh'],
     example: [
       ['2023-01-01 00:00', '45.5'],
@@ -208,11 +209,11 @@ Battery_Storage_1,battery_storage,storage_cap,200000,EUR,EUR/MWh,2023,Energy cos
 // JSON template for complete model configuration
 export const JSON_TEMPLATE = {
   filename: 'complete_model_template.json',
-  description: 'Complete Calliope model configuration in JSON format',
+  description: tr("Complete Calliope model configuration in JSON format"),
   structure: {
     model: {
       name: 'My Energy System Model',
-      description: 'Description of the energy system',
+      description: tr("Description of the energy system"),
       timeseries_data_path: './timeseries',
       subset_time: ['2023-01-01', '2023-12-31']
     },

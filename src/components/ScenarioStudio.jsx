@@ -16,6 +16,7 @@ import YearDetailPanel from './scenarioStudio/YearDetailPanel.jsx';
 import BoardDock from './scenarioStudio/BoardDock.jsx';
 import ResultsSheet from './scenarioStudio/ResultsSheet.jsx';
 import Select from './ui/Select';
+import { tr } from '../i18n';
 
 // ─── Board persistence (localStorage) ────────────────────────────────────────
 
@@ -216,7 +217,7 @@ export default function ScenarioStudio({ onNavigate }) {
 
   const onConnect = useCallback((conn) => {
     if (!canConnect(nodesRef.current, edgesRef.current, conn)) {
-      showNotification('Wire a Year card into a config card (Year → config).', 'error');
+      showNotification(tr("Wire a Year card into a config card (Year → config)."), 'error');
       return;
     }
     setEdges(eds => addEdge(conn, eds));
@@ -294,7 +295,7 @@ export default function ScenarioStudio({ onNavigate }) {
   const capabilityWarnings = useMemo(() => {
     if (!variants.length) return [];
     const w = getCapabilityWarnings(selectedEngine, variants.flatMap(v => v.ops));
-    return sporesBlocked ? [...w, 'SPORES runs need Calliope 0.6.8 locally, or Calliope 0.7 on MEME.'] : w;
+    return sporesBlocked ? [...w, tr("SPORES runs need Calliope 0.6.8 locally, or Calliope 0.7 on MEME.")] : w;
   }, [variants, selectedEngine, sporesBlocked]);
 
   const selectedNode = useMemo(() => nodes.find(n => n.id === selectedNodeId) || null, [nodes, selectedNodeId]);
@@ -306,7 +307,7 @@ export default function ScenarioStudio({ onNavigate }) {
   const selectedScopeLabel = useMemo(() => {
     if (!selectedNode || selectedNode.type !== 'config') return '';
     const parent = selectedNode.parentId ? nodes.find(n => n.id === selectedNode.parentId && n.type === 'year') : null;
-    return parent ? `Year ${parent.data.year}` : 'All years';
+    return parent ? tr("Year {0}", { 0: parent.data.year }) : tr("All years");
   }, [selectedNode, nodes]);
 
   const yearPanel = useMemo(() => {
@@ -340,7 +341,7 @@ export default function ScenarioStudio({ onNavigate }) {
           result: result || {}, logs: job.logs, batchId, variantLabel, modelLabel,
         });
         showNotification(
-          result?.success === false ? `Run failed: ${result.error}` : `Completed: ${job.displayName} (${duration})`,
+          result?.success === false ? tr("Run failed: {0}", { 0: result.error }) : tr("Completed: {0} ({1})", { 0: job.displayName, 1: duration }),
           result?.success === false ? 'error' : 'success'
         );
       }, 0);
@@ -362,7 +363,7 @@ export default function ScenarioStudio({ onNavigate }) {
           result: { success: false, error }, logs: [...job.logs, `[ERROR] ${error}`],
           batchId, variantLabel, modelLabel,
         });
-        showNotification(`Run failed: ${error}`, 'error');
+        showNotification(tr("Run failed: {0}", { 0: error }), 'error');
       }, 0);
     }
     delete cancelFnsRef.current[jobId];
@@ -419,28 +420,28 @@ export default function ScenarioStudio({ onNavigate }) {
       : (selectedEngine === 'calliope06' || selectedEngine === 'calliope07')
         ? runCalliopeModel(opts) : runEngineModel(selectedEngine, opts);
     start.then(({ cancel }) => { cancelFnsRef.current[jobId] = cancel; })
-      .catch(err => { removeRunningJob(jobId); showNotification(`Failed to start "${displayName}": ${err.message}`, 'error'); resolve({ success: false, error: err.message }); });
+      .catch(err => { removeRunningJob(jobId); showNotification(tr("Failed to start \"{0}\": {1}", { 0: displayName, 1: err.message }), 'error'); resolve({ success: false, error: err.message }); });
   });
 
   const handleRun = async () => {
-    if (!model) { showNotification('Select a model first.', 'error'); return; }
-    if (variants.length === 0) { showNotification('Add at least one Year card to the scenario.', 'error'); return; }
+    if (!model) { showNotification(tr("Select a model first."), 'error'); return; }
+    if (variants.length === 0) { showNotification(tr("Add at least one Year card to the scenario."), 'error'); return; }
 
     const engineLabel = (ENGINE_LABELS[selectedEngine] || selectedEngine) + (computeRemote ? ' (MEME)' : '');
-    if (!computeRemote && serviceStatus === false) { showNotification(`${engineLabel} service is offline. Start it from Settings.`, 'error'); return; }
+    if (!computeRemote && serviceStatus === false) { showNotification(tr("{0} service is offline. Start it from Settings.", { 0: engineLabel }), 'error'); return; }
     if (!computeRemote && serviceStatus === null) {
       const up = (selectedEngine === 'calliope06' || selectedEngine === 'calliope07')
         ? await checkCalliopeService(selectedEngine === 'calliope07' ? '0.7' : undefined)
         : await checkEngineRunService(selectedEngine);
       setServiceStatus(up);
-      if (!up) { showNotification(`Cannot reach ${engineLabel} service.`, 'error'); return; }
+      if (!up) { showNotification(tr("Cannot reach {0} service.", { 0: engineLabel }), 'error'); return; }
     }
 
     const batchId = `batch_${Date.now()}`;
     const modelsToRun = extraModels.length > 0 ? [model, ...extraModels] : [model];
 
     showNotification(
-      `Starting ${totalRuns} run${totalRuns > 1 ? 's' : ''}${modelsToRun.length > 1 ? ` (${modelsToRun.length} models × ${variants.length} years)` : ''} on ${engineLabel}${runSequential ? ' — sequential' : ''}…`,
+      tr("Starting {0} run{1}{2} on {3}{4}…", { 0: totalRuns, 1: totalRuns > 1 ? 's' : '', 2: modelsToRun.length > 1 ? tr(" ({0} models × {1} years)", { 0: modelsToRun.length, 1: variants.length }) : '', 3: engineLabel, 4: runSequential ? tr(" — sequential") : '' }),
       'info'
     );
     onNavigate?.('Run');
@@ -478,8 +479,8 @@ export default function ScenarioStudio({ onNavigate }) {
       {/* Top bar */}
       <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-black/15 bg-white px-5 py-3">
         <div className="mr-2">
-          <h1 className="text-lg font-bold tracking-tight text-slate-900">Scenario Studio</h1>
-          <p className="text-[11px] text-slate-500">Add years, drop config cards into them (or keep them global), then run</p>
+          <h1 className="text-lg font-bold tracking-tight text-slate-900">{tr("Scenario Studio")}</h1>
+          <p className="text-[11px] text-slate-500">{tr("Add years, drop config cards into them (or keep them global), then run")}</p>
         </div>
         <div className="w-56">
           <Select
@@ -489,11 +490,11 @@ export default function ScenarioStudio({ onNavigate }) {
               setSelectedModel(m);
               if (m) { setSelectedEngine(engineKeyFromModel(m)); loadBoardForModel(m.id); }
             }}
-            placeholder="Select a model"
+            placeholder={tr("Select a model")}
             options={models.map(m => ({
               value: m.id,
               label: m.name,
-              description: `${m.locations?.length || 0} locations · ${m.links?.length || 0} links`,
+              description: tr("{0} locations · {1} links", { 0: m.locations?.length || 0, 1: m.links?.length || 0 }),
             }))}
           />
         </div>
@@ -506,8 +507,8 @@ export default function ScenarioStudio({ onNavigate }) {
         </div>
         {remoteAvailable && (
           <div className="inline-flex gap-1 rounded-lg bg-slate-200/80 p-1 ring-1 ring-inset ring-slate-300/50"
-            title={`Remote runs go to MEME at ${remoteServer.url}`}>
-            {[['local', 'Local'], ['remote', 'MEME']].map(([id, label]) => (
+            title={tr("Remote runs go to MEME at {0}", { 0: remoteServer.url })}>
+            {[['local', tr("Local")], ['remote', 'MEME']].map(([id, label]) => (
               <button key={id} onClick={() => setComputeTarget(id)}
                 className={`rounded-md px-3 py-1 text-xs font-medium transition-all ${
                   computeTarget === id ? 'bg-black text-white ' : 'text-slate-600 hover:bg-white/70 hover:text-slate-900'
@@ -525,22 +526,22 @@ export default function ScenarioStudio({ onNavigate }) {
           <span className={`h-1.5 w-1.5 rounded-full ${
             serviceStatus === true ? 'bg-emerald-500' : serviceStatus === false ? 'bg-red-500' : 'animate-pulse bg-slate-400'
           }`} />
-          {serviceStatus === true ? 'Engine ready' : serviceStatus === false ? 'Engine offline' : 'Checking…'}
+          {serviceStatus === true ? tr("Engine ready") : serviceStatus === false ? tr("Engine offline") : tr("Checking…")}
         </span>
         <div className="relative ml-auto">
           <button onClick={() => setShowTemplates(v => !v)}
             className={`flex h-9 items-center gap-1.5 rounded-lg border px-3 text-[13px] font-medium  transition-colors ${
               showTemplates ? 'border-black/15 bg-slate-50 text-slate-900' : 'border-black/15 bg-white text-slate-700 hover:bg-slate-50'
             }`}
-            title="Start from a scenario template">
-            <FiGrid size={14} /> Templates <FiChevronDown size={13} className={`transition-transform ${showTemplates ? 'rotate-180' : ''}`} />
+            title={tr("Start from a scenario template")}>
+            <FiGrid size={14} /> {tr("Templates")} <FiChevronDown size={13} className={`transition-transform ${showTemplates ? 'rotate-180' : ''}`} />
           </button>
           {showTemplates && (
             <>
               <div className="fixed inset-0 z-[90]" onClick={() => setShowTemplates(false)} />
               <div className="absolute right-0 z-[91] mt-1.5 w-80 overflow-hidden rounded-xl border border-black/15 bg-white p-1 shadow-xl">
                 <p className="px-2.5 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                  Start from a template · replaces the board
+                  {tr("Start from a template · replaces the board")}
                 </p>
                 <div className="max-h-80 overflow-y-auto">
                   {SCENARIO_TEMPLATES.map(t => (
@@ -560,15 +561,15 @@ export default function ScenarioStudio({ onNavigate }) {
             showModelCompare || extraModels.length > 0
               ? 'border-slate-900 bg-black text-white'
               : 'border-black/15 bg-white text-slate-700 hover:bg-slate-50'
-          }`} title="Compare across multiple models">
-          <FiLayers size={14} /> Compare{extraModels.length > 0 ? ` (${extraModels.length + 1})` : ''}
+          }`} title={tr("Compare across multiple models")}>
+          <FiLayers size={14} /> {tr("Compare")}{extraModels.length > 0 ? ` (${extraModels.length + 1})` : ''}
         </button>
       </div>
 
       {showModelCompare && (
         <div className="shrink-0 border-b border-black/15 bg-white px-4 py-3">
           <p className="text-xs font-semibold text-slate-600 mb-2 flex items-center gap-1.5">
-            <FiLayers size={12} className="text-slate-500" /> Run this scenario against additional models
+            <FiLayers size={12} className="text-slate-500" /> {tr("Run this scenario against additional models")}
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 max-h-40 overflow-y-auto pr-1">
             {models.filter(m => m.id !== selectedModel?.id).map(m => {
@@ -585,7 +586,7 @@ export default function ScenarioStudio({ onNavigate }) {
               );
             })}
             {models.filter(m => m.id !== selectedModel?.id).length === 0 && (
-              <p className="text-xs text-slate-400 col-span-full italic">No other models available.</p>
+              <p className="text-xs text-slate-400 col-span-full italic">{tr("No other models available.")}</p>
             )}
           </div>
         </div>

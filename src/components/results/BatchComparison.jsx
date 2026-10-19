@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import ReactECharts from 'echarts-for-react';
+import ReactECharts from '../ui/Chart';
 import { FiDownload, FiLayers, FiTrendingUp, FiGrid, FiChevronDown, FiChevronUp } from '../ui/icons';
 import SelectField from '../ui/SelectField';
+import { tr } from '../../i18n';
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
 const PALETTE = [
@@ -73,13 +74,13 @@ function sortJobs(jobs) {
 
 // ─── Build trajectory ECharts option ─────────────────────────────────────────
 const TRAJECTORY_KPIS = [
-  { id: 'objective',     label: 'Objective (€/yr)', fn: (job, kpis) => job.objective ?? null },
-  { id: 'totalCap',      label: 'Total capacity (MW)', fn: (_, kpis) => kpis?.totalCap ?? null },
-  { id: 'renewableShare',label: 'Renewable share (%)', fn: (_, kpis) => kpis ? kpis.renewableShare * 100 : null },
-  { id: 'totalCost',     label: 'Total cost', fn: (_, kpis) => kpis?.totalCost ?? null },
-  { id: 'lcoe',          label: 'LCOE (€/MWh)', fn: (_, kpis) => kpis?.lcoe ?? null },
-  { id: 'totalUnmetMWh',  label: 'Unmet demand (MWh)', fn: (_, kpis) => kpis?.totalUnmetMWh ?? null },
-  { id: 'totalImportsMWh',label: 'Net imports (MWh)',   fn: (_, kpis) => kpis?.totalImportsMWh ?? null },
+  { id: 'objective',     label: tr("Objective (€/yr)"), fn: (job, kpis) => job.objective ?? null },
+  { id: 'totalCap',      label: tr("Total capacity (MW)"), fn: (_, kpis) => kpis?.totalCap ?? null },
+  { id: 'renewableShare',label: tr("Renewable share (%)"), fn: (_, kpis) => kpis ? kpis.renewableShare * 100 : null },
+  { id: 'totalCost',     label: tr("Total cost"), fn: (_, kpis) => kpis?.totalCost ?? null },
+  { id: 'lcoe',          label: tr("LCOE (€/MWh)"), fn: (_, kpis) => kpis?.lcoe ?? null },
+  { id: 'totalUnmetMWh',  label: tr("Unmet demand (MWh)"), fn: (_, kpis) => kpis?.totalUnmetMWh ?? null },
+  { id: 'totalImportsMWh',label: tr("Net imports (MWh)"),   fn: (_, kpis) => kpis?.totalImportsMWh ?? null },
 ];
 
 function buildTrajectoryOption(sortedJobs, kpisMap, kpiId) {
@@ -147,11 +148,11 @@ function buildCapacityOption(sortedJobs, kpisMap) {
 
 // ─── Matrix KPI definitions ───────────────────────────────────────────────────
 const MATRIX_KPIS = [
-  { id: 'objective',      label: 'Objective',   fn: (job)       => job?.objective ?? null,                        lowerBetter: true,  fmt: v => fmtNum(v) },
-  { id: 'totalCap',       label: 'Cap (MW)',     fn: (_, kpis)  => kpis?.totalCap ?? null,                        lowerBetter: false, fmt: v => fmtNum(v) },
-  { id: 'renewableShare', label: 'RE %',         fn: (_, kpis)  => kpis ? kpis.renewableShare * 100 : null,       lowerBetter: false, fmt: v => v != null ? v.toFixed(1) + '%' : '—' },
-  { id: 'lcoe',           label: 'LCOE',         fn: (_, kpis)  => kpis?.lcoe ?? null,                            lowerBetter: true,  fmt: v => fmtNum(v, 2) },
-  { id: 'totalUnmetMWh',  label: 'Unmet (MWh)',  fn: (_, kpis)  => kpis?.totalUnmetMWh ?? null,                   lowerBetter: true,  fmt: v => fmtNum(v) },
+  { id: 'objective',      label: tr("Objective"),   fn: (job)       => job?.objective ?? null,                        lowerBetter: true,  fmt: v => fmtNum(v) },
+  { id: 'totalCap',       label: tr("Cap (MW)"),     fn: (_, kpis)  => kpis?.totalCap ?? null,                        lowerBetter: false, fmt: v => fmtNum(v) },
+  { id: 'renewableShare', label: tr("RE %"),         fn: (_, kpis)  => kpis ? kpis.renewableShare * 100 : null,       lowerBetter: false, fmt: v => v != null ? v.toFixed(1) + '%' : '—' },
+  { id: 'lcoe',           label: tr("LCOE"),         fn: (_, kpis)  => kpis?.lcoe ?? null,                            lowerBetter: true,  fmt: v => fmtNum(v, 2) },
+  { id: 'totalUnmetMWh',  label: tr("Unmet (MWh)"),  fn: (_, kpis)  => kpis?.totalUnmetMWh ?? null,                   lowerBetter: true,  fmt: v => fmtNum(v) },
 ];
 
 function heatColor(t, lowerBetter) {
@@ -281,13 +282,13 @@ export default function BatchComparison({ completedJobs }) {
   return (
     <div>
       <h2 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
-        <FiLayers size={14} className="text-electric-500" /> Batch results
+        <FiLayers size={14} className="text-electric-500" /> {tr("Batch results")}
         {sortedJobs.length > 0 && (
           <button
             onClick={() => exportBatchCSV(sortedJobs, kpisMap, baseName)}
             className="ml-auto flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
           >
-            <FiDownload size={11} /> Export CSV
+            <FiDownload size={11} /> {tr("Export CSV")}
           </button>
         )}
       </h2>
@@ -306,7 +307,7 @@ export default function BatchComparison({ completedJobs }) {
                     ? 'bg-electric-600 text-white border-electric-600'
                     : 'bg-white text-slate-600 border-black/15 hover:border-electric-400'
                 }`}>
-                Batch {batches.length - i} — {label} ({n})
+                {tr("Batch")} {batches.length - i} — {label} ({n})
               </button>
             );
           })}
@@ -317,10 +318,10 @@ export default function BatchComparison({ completedJobs }) {
       {selectedBatch && (
         <div className="bg-slate-50 border border-black/15 rounded-xl p-3 mb-3 text-xs text-slate-600 flex gap-4 flex-wrap">
           <span><span className="font-semibold text-slate-800">{baseName}</span></span>
-          <span>{sortedJobs.length} variant{sortedJobs.length > 1 ? 's' : ''}</span>
-          {completedCount > 0 && <span className="text-green-600">{completedCount} completed</span>}
-          {failedCount > 0 && <span className="text-red-500">{failedCount} failed</span>}
-          {skippedCount > 0 && <span className="text-slate-400">{skippedCount} skipped</span>}
+          <span>{sortedJobs.length} {tr("variant")}{sortedJobs.length > 1 ? 's' : ''}</span>
+          {completedCount > 0 && <span className="text-green-600">{completedCount} {tr("completed")}</span>}
+          {failedCount > 0 && <span className="text-red-500">{failedCount} {tr("failed")}</span>}
+          {skippedCount > 0 && <span className="text-slate-400">{skippedCount} {tr("skipped")}</span>}
         </div>
       )}
 
@@ -359,10 +360,10 @@ export default function BatchComparison({ completedJobs }) {
           <div className="bg-white border border-black/15 rounded-xl overflow-hidden mb-3">
             <div className="px-3 py-2 border-b border-black/10 flex items-center gap-2 flex-wrap">
               <FiLayers size={13} className="text-electric-500" />
-              <span className="text-xs font-semibold text-slate-700">Model × Variant matrix</span>
-              <span className="text-xs text-slate-400">{modelLabels.length} models · {variantLabels.length} variants</span>
+              <span className="text-xs font-semibold text-slate-700">{tr("Model × Variant matrix")}</span>
+              <span className="text-xs text-slate-400">{modelLabels.length} {tr("models ·")} {variantLabels.length} {tr("variants")}</span>
               <div className="ml-auto flex items-center gap-1.5">
-                <span className="text-[10px] text-slate-400">KPI:</span>
+                <span className="text-[10px] text-slate-400">{tr("KPI:")}</span>
                 <SelectField
                   value={matrixKpi} onChange={e => setMatrixKpi(e.target.value)}
                   className="text-[11px] border border-black/15 rounded-md px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-electric-400"
@@ -375,7 +376,7 @@ export default function BatchComparison({ completedJobs }) {
               <table className="w-full text-xs">
                 <thead>
                   <tr className="bg-slate-50 border-b border-black/15">
-                    <th className="text-left px-3 py-1.5 font-bold text-black/60 whitespace-nowrap min-w-[140px] uppercase tracking-widest">Model</th>
+                    <th className="text-left px-3 py-1.5 font-bold text-black/60 whitespace-nowrap min-w-[140px] uppercase tracking-widest">{tr("Model")}</th>
                     {variantLabels.map(vl => (
                       <th key={vl} className="text-right px-3 py-1.5 font-bold text-black/60 whitespace-nowrap uppercase tracking-widest">{vl}</th>
                     ))}
@@ -390,7 +391,7 @@ export default function BatchComparison({ completedJobs }) {
                         if (!job) return <td key={vl} className="px-3 py-1.5 text-right text-slate-300 border-b border-black/10">—</td>;
                         if (job.status === 'failed') return (
                           <td key={vl} className="px-3 py-1.5 text-right border-b border-black/10">
-                            <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-600">failed</span>
+                            <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-600">{tr("failed")}</span>
                           </td>
                         );
                         const kpis = kpisMap[job.id];
@@ -418,7 +419,7 @@ export default function BatchComparison({ completedJobs }) {
               </table>
             </div>
             <p className="px-3 py-1.5 text-[10px] text-slate-400 border-t border-black/10">
-              Heat ramp is per-column (variant). ★ = best model for that variant. {kpiDef.lowerBetter ? 'Lower is better (green).' : 'Higher is better (green).'}
+              {tr("Heat ramp is per-column (variant). ★ = best model for that variant.")} {kpiDef.lowerBetter ? tr("Lower is better (green).") : tr("Higher is better (green).")}
             </p>
           </div>
         );
@@ -429,7 +430,7 @@ export default function BatchComparison({ completedJobs }) {
         <div className="bg-white border border-black/15 rounded-xl p-3 mb-3">
           <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
             <span className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-              <FiTrendingUp size={13} /> Trajectory
+              <FiTrendingUp size={13} /> {tr("Trajectory")}
             </span>
             <SelectField
               value={trajectoryKpi}
@@ -446,7 +447,7 @@ export default function BatchComparison({ completedJobs }) {
       {/* Capacity stacked bar — single-model batches only */}
       {!isMultiModel && capacityOption && (
         <div className="bg-white border border-black/15 rounded-xl p-3 mb-3">
-          <span className="text-xs font-semibold text-slate-700 mb-2 block">Capacity by technology (MW)</span>
+          <span className="text-xs font-semibold text-slate-700 mb-2 block">{tr("Capacity by technology (MW)")}</span>
           <ReactECharts option={capacityOption} style={{ height: 220 }} notMerge />
         </div>
       )}
@@ -458,7 +459,7 @@ export default function BatchComparison({ completedJobs }) {
             onClick={() => setShowTable(t => !t)}
             className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
           >
-            <span className="flex items-center gap-1.5"><FiGrid size={13} /> KPI table</span>
+            <span className="flex items-center gap-1.5"><FiGrid size={13} /> {tr("KPI table")}</span>
             {showTable ? <FiChevronUp size={13} /> : <FiChevronDown size={13} />}
           </button>
           {showTable && (
@@ -466,15 +467,15 @@ export default function BatchComparison({ completedJobs }) {
               <table className="w-full text-xs">
                 <thead>
                   <tr className="bg-slate-50 border-b border-black/15">
-                    <th className="text-left px-3 py-1.5 font-bold text-black/60 whitespace-nowrap uppercase tracking-widest">Variant</th>
-                    <th className="text-right px-3 py-1.5 font-bold text-black/60 whitespace-nowrap uppercase tracking-widest">Status</th>
-                    <th className="text-right px-3 py-1.5 font-bold text-black/60 whitespace-nowrap uppercase tracking-widest">Objective</th>
-                    <th className="text-right px-3 py-1.5 font-bold text-black/60 whitespace-nowrap uppercase tracking-widest">Cap (MW)</th>
-                    <th className="text-right px-3 py-1.5 font-bold text-black/60 whitespace-nowrap uppercase tracking-widest">Gen (MWh)</th>
-                    <th className="text-right px-3 py-1.5 font-bold text-black/60 whitespace-nowrap uppercase tracking-widest">RE %</th>
-                    <th className="text-right px-3 py-1.5 font-bold text-black/60 whitespace-nowrap uppercase tracking-widest">LCOE</th>
-                    {hasUnmet   && <th className="text-right px-3 py-1.5 font-bold text-amber-600 whitespace-nowrap uppercase tracking-widest">Unmet (MWh)</th>}
-                    {hasImports && <th className="text-right px-3 py-1.5 font-bold text-black/60 whitespace-nowrap uppercase tracking-widest">Imports (MWh)</th>}
+                    <th className="text-left px-3 py-1.5 font-bold text-black/60 whitespace-nowrap uppercase tracking-widest">{tr("Variant")}</th>
+                    <th className="text-right px-3 py-1.5 font-bold text-black/60 whitespace-nowrap uppercase tracking-widest">{tr("Status")}</th>
+                    <th className="text-right px-3 py-1.5 font-bold text-black/60 whitespace-nowrap uppercase tracking-widest">{tr("Objective")}</th>
+                    <th className="text-right px-3 py-1.5 font-bold text-black/60 whitespace-nowrap uppercase tracking-widest">{tr("Cap (MW)")}</th>
+                    <th className="text-right px-3 py-1.5 font-bold text-black/60 whitespace-nowrap uppercase tracking-widest">{tr("Gen (MWh)")}</th>
+                    <th className="text-right px-3 py-1.5 font-bold text-black/60 whitespace-nowrap uppercase tracking-widest">{tr("RE %")}</th>
+                    <th className="text-right px-3 py-1.5 font-bold text-black/60 whitespace-nowrap uppercase tracking-widest">{tr("LCOE")}</th>
+                    {hasUnmet   && <th className="text-right px-3 py-1.5 font-bold text-amber-600 whitespace-nowrap uppercase tracking-widest">{tr("Unmet (MWh)")}</th>}
+                    {hasImports && <th className="text-right px-3 py-1.5 font-bold text-black/60 whitespace-nowrap uppercase tracking-widest">{tr("Imports (MWh)")}</th>}
                   </tr>
                 </thead>
                 <tbody>

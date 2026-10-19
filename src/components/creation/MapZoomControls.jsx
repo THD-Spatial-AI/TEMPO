@@ -1,5 +1,6 @@
 import React from "react";
 import { FiPlus, FiMinus, FiMaximize } from '../ui/icons';
+import { tr } from '../../i18n';
 
 const ControlButton = ({ onClick, label, children }) => (
   <button
@@ -18,17 +19,17 @@ const MapZoomControls = ({ onZoomIn, onZoomOut, onFitBounds }) => {
     <div className="self-end flex flex-col gap-2">
       {/* Zoom */}
       <div className="flex flex-col overflow-hidden rounded-xl bg-white/90 backdrop-blur-md shadow-lg shadow-slate-900/10 ring-1 ring-slate-900/5 divide-y divide-black/15/80">
-        <ControlButton onClick={onZoomIn} label="Zoom in">
+        <ControlButton onClick={onZoomIn} label={tr("Zoom in")}>
           <FiPlus size={17} strokeWidth={2.25} />
         </ControlButton>
-        <ControlButton onClick={onZoomOut} label="Zoom out">
+        <ControlButton onClick={onZoomOut} label={tr("Zoom out")}>
           <FiMinus size={17} strokeWidth={2.25} />
         </ControlButton>
       </div>
 
       {/* Fit to data */}
       <div className="overflow-hidden rounded-xl bg-white/90 backdrop-blur-md shadow-lg shadow-slate-900/10 ring-1 ring-slate-900/5">
-        <ControlButton onClick={onFitBounds} label="Fit all locations">
+        <ControlButton onClick={onFitBounds} label={tr("Fit all locations")}>
           <FiMaximize size={15} strokeWidth={2.25} />
         </ControlButton>
       </div>

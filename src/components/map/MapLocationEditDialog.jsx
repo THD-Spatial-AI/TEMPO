@@ -6,6 +6,7 @@ import { CONSTRAINT_DEFINITIONS, COST_DEFINITIONS, PARENT_CONSTRAINTS } from '..
 import { FiArrowRight, FiCheck, FiChevronDown, FiChevronRight, FiHelpCircle, FiTrash2, FiX } from '../ui/icons';
 import { formatTechName } from '../../utils/mapVisuals';
 import { iconBtn, ICON_PX } from '../ui/iconButton';
+import { tr } from '../../i18n';
 
 export default function MapLocationEditDialog({
   addTechToDialog,
@@ -36,7 +37,8 @@ export default function MapLocationEditDialog({
   setSelectedCostGroup,
   setShowEditDialog,
   techCsvFiles,
-  techMap,
+  techMap,
+
   toggleTechConstraints,
   updateDialogConstraint,
   updateDialogCost,
@@ -47,7 +49,7 @@ export default function MapLocationEditDialog({
           <div className="bg-surface-container-lowest rounded-lg max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto border border-black/15 shadow-xl">
             <div className="p-6 border-b border-black/15 sticky top-0 bg-white z-10">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-bold text-slate-800">Edit Location</h3>
+                <h3 className="text-xl font-bold text-slate-800">{tr("Edit Location")}</h3>
                 <button
                   onClick={() => setShowEditDialog(false)}
                   className="text-slate-400 hover:text-slate-600"
@@ -58,13 +60,13 @@ export default function MapLocationEditDialog({
               
               {/* Editable Location Name */}
               <div className="mb-3">
-                <label className="block text-[0.6875rem] font-bold text-black/60 mb-2 uppercase tracking-widest">Location Name</label>
+                <label className="block text-[0.6875rem] font-bold text-black/60 mb-2 uppercase tracking-widest">{tr("Location Name")}</label>
                 <input
                   type="text"
                   value={editingLocation.name}
                   onChange={(e) => setEditingLocation({ ...editingLocation, name: e.target.value })}
                   className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500"
-                  placeholder="Enter location name"
+                  placeholder={tr("Enter location name")}
                 />
               </div>
               
@@ -77,7 +79,7 @@ export default function MapLocationEditDialog({
                   value={editingLocation.latitude}
                   onChange={(e) => setEditingLocation({ ...editingLocation, latitude: parseFloat(e.target.value) || 0 })}
                   className="w-32 px-2 py-1 text-xs border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-gray-500"
-                  placeholder="Latitude"
+                  placeholder={tr("Latitude")}
                 />
                 <span className="text-xs text-slate-400">,</span>
                 <input
@@ -86,7 +88,7 @@ export default function MapLocationEditDialog({
                   value={editingLocation.longitude}
                   onChange={(e) => setEditingLocation({ ...editingLocation, longitude: parseFloat(e.target.value) || 0 })}
                   className="w-32 px-2 py-1 text-xs border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-gray-500"
-                  placeholder="Longitude"
+                  placeholder={tr("Longitude")}
                 />
               </div>
             </div>
@@ -113,12 +115,12 @@ export default function MapLocationEditDialog({
                               className="text-slate-600 hover:text-slate-800 text-sm flex items-center gap-1 px-3 py-1 bg-white rounded-md hover:bg-slate-50"
                             >
                               {isExpanded ? <FiChevronDown size={16} /> : <FiChevronRight size={16} />}
-                              <span>{isExpanded ? 'Collapse' : 'Expand'}</span>
+                              <span>{isExpanded ? tr("Collapse") : tr("Expand")}</span>
                             </button>
                             <button
                               onClick={() => removeTechFromDialog(techName)}
                               className={`${iconBtn('delete', 'md')}`}
-                              title="Remove technology"
+                              title={tr("Remove technology")}
                             >
                               <FiTrash2 size={ICON_PX.md} />
                             </button>
@@ -133,40 +135,40 @@ export default function MapLocationEditDialog({
                                 <div className="flex items-center gap-2 mb-2">
                                   <FiCheck className="text-gray-600" size={16} />
                                   <label className="text-xs font-semibold text-gray-800">
-                                    Demand Timeseries Loaded
+                                    {tr("Demand Timeseries Loaded")}
                                   </label>
                                 </div>
                                 <div className="grid grid-cols-2 gap-2 text-xs">
                                   <div className="bg-white p-2 rounded">
-                                    <div className="text-slate-500">Total Energy</div>
-                                    <div className="font-bold text-gray-700">{editingLocation.demandProfile.totalGWh} GWh</div>
+                                    <div className="text-slate-500">{tr("Total Energy")}</div>
+                                    <div className="font-bold text-gray-700">{editingLocation.demandProfile.totalGWh} {tr("GWh")}</div>
                                   </div>
                                   <div className="bg-white p-2 rounded">
-                                    <div className="text-slate-500">Average Power</div>
-                                    <div className="font-bold text-gray-700">{editingLocation.demandProfile.avgMW} MW</div>
+                                    <div className="text-slate-500">{tr("Average Power")}</div>
+                                    <div className="font-bold text-gray-700">{editingLocation.demandProfile.avgMW} {tr("MW")}</div>
                                   </div>
                                   <div className="bg-white p-2 rounded">
-                                    <div className="text-slate-500">Peak Demand</div>
-                                    <div className="font-bold text-gray-700">{editingLocation.demandProfile.maxMW} MW</div>
+                                    <div className="text-slate-500">{tr("Peak Demand")}</div>
+                                    <div className="font-bold text-gray-700">{editingLocation.demandProfile.maxMW} {tr("MW")}</div>
                                   </div>
                                   <div className="bg-white p-2 rounded">
-                                    <div className="text-slate-500">Data Points</div>
+                                    <div className="text-slate-500">{tr("Data Points")}</div>
                                     <div className="font-bold text-gray-700">{editingLocation.demandProfile.hours}h</div>
                                   </div>
                                 </div>
                                 <div className="bg-gray-50 p-2 rounded border border-black/15 mt-2">
-                                  <div className="text-xs font-semibold text-gray-900 mb-1">Annual Demand: {editingLocation.totalDemandMWh} MWh</div>
+                                  <div className="text-xs font-semibold text-gray-900 mb-1">{tr("Annual Demand:")} {editingLocation.totalDemandMWh} {tr("MWh")}</div>
                                 </div>
                                 <div className="mt-2 text-xs text-slate-600">
-                                  <div><span className="font-medium">Source:</span> {editingLocation.demandProfile.file}</div>
-                                  <div><span className="font-medium">Column:</span> {editingLocation.demandProfile.column}</div>
+                                  <div><span className="font-medium">{tr("Source:")}</span> {editingLocation.demandProfile.file}</div>
+                                  <div><span className="font-medium">{tr("Column:")}</span> {editingLocation.demandProfile.column}</div>
                                   <div className="mt-1 p-2 bg-gray-50 border border-black/15 rounded">
-                                    <span className="font-medium text-gray-800">⚡ Linked to constraint:</span>
-                                    <span className="ml-1 font-mono text-gray-900">resource = file={editingLocation.demandProfile.file}:{editingLocation.demandProfile.column}</span>
+                                    <span className="font-medium text-gray-800">{tr("⚡ Linked to constraint:")}</span>
+                                    <span className="ml-1 font-mono text-gray-900">{tr("resource = file=")}{editingLocation.demandProfile.file}:{editingLocation.demandProfile.column}</span>
                                   </div>
                                 </div>
                                 <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer mt-2 pt-2 border-t border-black/15">
-                                  <span>Replace with different timeseries:</span>
+                                  <span>{tr("Replace with different timeseries:")}</span>
                                   <input
                                     type="file"
                                     accept=".csv"
@@ -179,21 +181,21 @@ export default function MapLocationEditDialog({
                               <div className="p-3 bg-gray-50 border border-black/15 rounded-lg">
                                 <div className="flex items-center gap-2 mb-2 p-2 bg-gray-100 border border-gray-300 rounded">
                                   <span className="text-xs text-gray-800">
-                                    ⚠️ <strong>No demand data found.</strong> If this is the Chile model, please delete it and reload from templates to get the demand timeseries.
+                                    ⚠️ <strong>{tr("No demand data found.")}</strong> {tr("If this is the Chile model, please delete it and reload from templates to get the demand timeseries.")}
                                   </span>
                                 </div>
                                 <label className="block text-[0.6875rem] font-bold text-black/60 mb-2 uppercase tracking-widest">
-                                  Energy Demand * (Required)
+                                  {tr("Energy Demand * (Required)")}
                                 </label>
                                 <input
                                   type="text"
                                   value={editingConstraints[techName]?.energy_cap || ''}
                                   onChange={(e) => updateDialogConstraint(techName, 'energy_cap', e.target.value)}
-                                  placeholder="Enter demand value (kW) or upload CSV below"
+                                  placeholder={tr("Enter demand value (kW) or upload CSV below")}
                                   className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-2 focus:ring-gray-500 mb-2"
                                 />
                                 <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
-                                  <span>Or upload timeseries CSV:</span>
+                                  <span>{tr("Or upload timeseries CSV:")}</span>
                                   <input
                                     type="file"
                                     accept=".csv"
@@ -212,7 +214,7 @@ export default function MapLocationEditDialog({
                         ) : (
                           <div className="mb-3">
                             <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
-                              <span className="font-medium">Production/Consumption CSV:</span>
+                              <span className="font-medium">{tr("Production/Consumption CSV:")}</span>
                               <input
                                 type="file"
                                 accept=".csv"
@@ -238,7 +240,7 @@ export default function MapLocationEditDialog({
                                 className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2 hover:text-gray-600"
                               >
                                 {expandedSections[`${techName}_essentials`] ? <FiChevronDown size={14} /> : <FiChevronRight size={14} />}
-                                <span>Essentials</span>
+                                <span>{tr("Essentials")}</span>
                               </button>
                               {expandedSections[`${techName}_essentials`] && (
                                 <div className="pl-4 space-y-2 bg-white p-3 rounded">
@@ -288,7 +290,7 @@ export default function MapLocationEditDialog({
                                 className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2 hover:text-gray-600"
                               >
                                 {expandedSections[`${techName}_constraints`] ? <FiChevronDown size={14} /> : <FiChevronRight size={14} />}
-                                <span>Constraints ({Object.keys(allConstraints).length})</span>
+                                <span>{tr("Constraints (")}{Object.keys(allConstraints).length})</span>
                               </button>
                               {expandedSections[`${techName}_constraints`] && (
                                 <div className="pl-4 space-y-3 bg-white p-3 rounded">
@@ -321,7 +323,7 @@ export default function MapLocationEditDialog({
                                                 value={typeof displayValue === 'object' ? JSON.stringify(displayValue) : displayValue}
                                                 onChange={(e) => updateDialogConstraint(techName, key, e.target.value)}
                                                 className="flex-1 px-2 py-1 text-xs border border-slate-300 rounded"
-                                                placeholder={isResourceConstraint ? "Value or upload CSV below" : "Value"}
+                                                placeholder={isResourceConstraint ? tr("Value or upload CSV below") : tr("Value")}
                                               />
                                             </div>
                                             
@@ -329,19 +331,19 @@ export default function MapLocationEditDialog({
                                               <div className="pl-4 p-2 bg-gray-50 border border-black/15 rounded">
                                                 <div className="flex items-center gap-1 text-xs text-gray-800 font-semibold mb-1">
                                                   <FiCheck size={12} />
-                                                  <span>Timeseries file linked to this constraint:</span>
+                                                  <span>{tr("Timeseries file linked to this constraint:")}</span>
                                                 </div>
                                                 <div className="text-xs text-slate-700">
-                                                  <div><span className="font-medium">File:</span> {editingLocation.demandProfile.file}</div>
-                                                  <div><span className="font-medium">Column:</span> {editingLocation.demandProfile.column}</div>
-                                                  <div><span className="font-medium">Resource value:</span> file={editingLocation.demandProfile.file}:{editingLocation.demandProfile.column}</div>
+                                                  <div><span className="font-medium">{tr("File:")}</span> {editingLocation.demandProfile.file}</div>
+                                                  <div><span className="font-medium">{tr("Column:")}</span> {editingLocation.demandProfile.column}</div>
+                                                  <div><span className="font-medium">{tr("Resource value:")}</span> {tr("file=")}{editingLocation.demandProfile.file}:{editingLocation.demandProfile.column}</div>
                                                 </div>
                                               </div>
                                             )}
                                             {isResourceConstraint && !(techTemplate?.parent === 'demand' && editingLocation.demandProfile) && (
                                               <div className="pl-4">
                                                 <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
-                                                  <span>Or upload timeseries CSV:</span>
+                                                  <span>{tr("Or upload timeseries CSV:")}</span>
                                                   <input
                                                     type="file"
                                                     accept=".csv"
@@ -371,7 +373,7 @@ export default function MapLocationEditDialog({
                                       <span className="rounded-full bg-gray-600 p-1 text-sm transition-colors duration-300 group-hover:bg-white">
                                         <FiArrowRight className="-translate-x-[200%] text-[0px] transition-all duration-300 group-hover:translate-x-0 group-hover:text-base group-hover:text-gray-600" />
                                       </span>
-                                      <span>Add Constraint</span>
+                                      <span>{tr("Add Constraint")}</span>
                                     </button>
                                   </div>
 
@@ -380,7 +382,7 @@ export default function MapLocationEditDialog({
                                     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10001]" onClick={() => setConstraintSearch({ ...constraintSearch, [techName]: '' })}>
                                       <div className="bg-surface-container-lowest rounded-lg max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden border border-black/15 shadow-xl" onClick={(e) => e.stopPropagation()}>
                                         <div className="p-4 border-b border-black/15 bg-gray-600 text-white">
-                                          <h3 className="text-lg font-bold">Available Constraints for {formatTechName(techTemplate.parent || '')}</h3>
+                                          <h3 className="text-lg font-bold">{tr("Available Constraints for")} {formatTechName(techTemplate.parent || '')}</h3>
                                         </div>
                                         <div className="overflow-y-auto max-h-[calc(80vh-120px)]">
                                           {(() => {
@@ -389,7 +391,7 @@ export default function MapLocationEditDialog({
                                             if (available.length === 0) {
                                               return (
                                                 <div className="p-8 text-center text-slate-500">
-                                                  <p className="text-sm">All available constraints have been added.</p>
+                                                  <p className="text-sm">{tr("All available constraints have been added.")}</p>
                                                 </div>
                                               );
                                             }
@@ -457,7 +459,7 @@ export default function MapLocationEditDialog({
                                             }}
                                             className="uppercase tracking-wide font-bold w-full px-4 py-2 bg-black text-white rounded hover:bg-black/80"
                                           >
-                                            Close
+                                            {tr("Close")}
                                           </button>
                                         </div>
                                       </div>
@@ -474,7 +476,7 @@ export default function MapLocationEditDialog({
                                 className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2 hover:text-gray-600"
                               >
                                 {expandedSections[`${techName}_costs`] ? <FiChevronDown size={14} /> : <FiChevronRight size={14} />}
-                                <span>Costs</span>
+                                <span>{tr("Costs")}</span>
                               </button>
                               {expandedSections[`${techName}_costs`] && (
                                 <div className="pl-4 space-y-3 bg-white p-3 rounded">
@@ -485,7 +487,7 @@ export default function MapLocationEditDialog({
                                     const allCosts = { ...monetaryCosts, ...currentCosts, ...customCosts };
                                     
                                     if (Object.keys(allCosts).length === 0) {
-                                      return <p className="text-slate-500 italic text-xs">No costs defined.</p>;
+                                      return <p className="text-slate-500 italic text-xs">{tr("No costs defined.")}</p>;
                                     }
                                     
                                     return (
@@ -531,7 +533,7 @@ export default function MapLocationEditDialog({
                                       <span className="rounded-full bg-gray-600 p-1 text-sm transition-colors duration-300 group-hover:bg-white">
                                         <FiArrowRight className="-translate-x-[200%] text-[0px] transition-all duration-300 group-hover:translate-x-0 group-hover:text-base group-hover:text-gray-600" />
                                       </span>
-                                      <span>Add Cost</span>
+                                      <span>{tr("Add Cost")}</span>
                                     </button>
                                   </div>
 
@@ -540,7 +542,7 @@ export default function MapLocationEditDialog({
                                     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10001]" onClick={() => setCostSearch({ ...costSearch, [techName]: '' })}>
                                       <div className="bg-surface-container-lowest rounded-lg max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden border border-black/15 shadow-xl" onClick={(e) => e.stopPropagation()}>
                                         <div className="p-4 border-b border-black/15 bg-gray-600 text-white">
-                                          <h3 className="text-lg font-bold">Available Costs</h3>
+                                          <h3 className="text-lg font-bold">{tr("Available Costs")}</h3>
                                         </div>
                                         <div className="overflow-y-auto max-h-[calc(80vh-120px)]">
                                           {(() => {
@@ -553,7 +555,7 @@ export default function MapLocationEditDialog({
                                             if (available.length === 0) {
                                               return (
                                                 <div className="p-8 text-center text-slate-500">
-                                                  <p className="text-sm">All available costs have been added.</p>
+                                                  <p className="text-sm">{tr("All available costs have been added.")}</p>
                                                 </div>
                                               );
                                             }
@@ -621,7 +623,7 @@ export default function MapLocationEditDialog({
                                             }}
                                             className="uppercase tracking-wide font-bold w-full px-4 py-2 bg-black text-white rounded hover:bg-black/80"
                                           >
-                                            Close
+                                            {tr("Close")}
                                           </button>
                                         </div>
                                       </div>
@@ -638,30 +640,30 @@ export default function MapLocationEditDialog({
                 </div>
               ) : (
                 <div className="text-center py-8 text-slate-500">
-                  <p>No technologies assigned to this location.</p>
+                  <p>{tr("No technologies assigned to this location.")}</p>
                 </div>
               )}
               
               {/* Available Technologies to Add */}
               <div className="border-t border-black/15 pt-6">
                 <label className="block text-[0.6875rem] font-bold text-black/60 mb-3 uppercase tracking-widest">
-                  Available Technologies ({Object.keys(techMap).length - dialogTechs.length} available)
+                  {tr("Available Technologies (")}{Object.keys(techMap).length - dialogTechs.length} {tr("available)")}
                 </label>
                 <div className="max-h-96 overflow-y-auto border border-black/15 rounded-lg p-3">
                   {Object.keys(techMap).length === 0 ? (
                     <div className="text-center py-8 text-slate-500 text-sm">
-                      <p>No technologies available.</p>
-                      <p className="text-xs mt-2">Load a model or add technologies in the Technologies section.</p>
+                      <p>{tr("No technologies available.")}</p>
+                      <p className="text-xs mt-2">{tr("Load a model or add technologies in the Technologies section.")}</p>
                     </div>
                   ) : (
                     <div className="space-y-1">
                       {([
-                        { key: 'supply_plus', label: 'Variable Renewables' },
-                        { key: 'supply',      label: 'Dispatchable Supply' },
-                        { key: 'storage',     label: 'Storage' },
-                        { key: 'conversion_plus', label: 'Conversion' },
-                        { key: 'transmission', label: 'Transmission' },
-                        { key: 'demand',      label: 'Demand' },
+                        { key: 'supply_plus', label: tr("Variable Renewables") },
+                        { key: 'supply',      label: tr("Dispatchable Supply") },
+                        { key: 'storage',     label: tr("Storage") },
+                        { key: 'conversion_plus', label: tr("Conversion") },
+                        { key: 'transmission', label: tr("Transmission") },
+                        { key: 'demand',      label: tr("Demand") },
                       ]).map(({ key: parentType, label: categoryLabel }) => {
                         const techsInCategory = Object.entries(techMap).filter(([, tech]) => tech.parent === parentType);
                         if (techsInCategory.length === 0) return null;
@@ -695,7 +697,7 @@ export default function MapLocationEditDialog({
                                       >
                                         <span className="text-xs font-semibold text-slate-700">{formatTechName(techName)}</span>
                                         <div className="flex items-center gap-1.5">
-                                          {instances.length > 0 && <span className="text-[10px] text-slate-400">{instances.length} variant{instances.length !== 1 ? 's' : ''}</span>}
+                                          {instances.length > 0 && <span className="text-[10px] text-slate-400">{instances.length === 1 ? tr("1 variant") : tr("{0} variants", { 0: instances.length })}</span>}
                                           {isSubExpanded ? <FiChevronDown size={12} className="text-slate-400" /> : <FiChevronRight size={12} className="text-slate-400" />}
                                         </div>
                                       </button>
@@ -703,7 +705,7 @@ export default function MapLocationEditDialog({
                                       {isSubExpanded && (
                                         <div className="pl-3 pr-2 pb-1 space-y-1">
                                           {(instances.length > 0 ? instances : [null]).map((inst, idx) => {
-                                            const rowLabel = inst?.displayLabel || inst?.label || inst?.raw?.label || `Variant ${idx + 1}`;
+                                            const rowLabel = inst?.displayLabel || inst?.label || inst?.raw?.label || tr("Variant {0}", { 0: idx + 1 });
                                             return (
                                               <div key={idx} className={`flex items-center justify-between gap-2 rounded px-2 py-1.5 ${
                                                 isAssigned ? 'bg-gray-100 opacity-60' : 'bg-white border border-black/15'
@@ -717,10 +719,10 @@ export default function MapLocationEditDialog({
                                                       </span>
                                                     )}
                                                     {inst?.constraints?.lifetime != null && (
-                                                      <span className="text-[9px] text-slate-400 bg-slate-100 px-1 py-0.5 rounded">{inst.constraints.lifetime} yr</span>
+                                                      <span className="text-[9px] text-slate-400 bg-slate-100 px-1 py-0.5 rounded">{inst.constraints.lifetime} {tr("yr")}</span>
                                                     )}
                                                     {inst?.monetary?.energy_cap != null && (
-                                                      <span className="text-[9px] text-slate-400 bg-slate-100 px-1 py-0.5 rounded">CAPEX {inst.monetary.energy_cap}</span>
+                                                      <span className="text-[9px] text-slate-400 bg-slate-100 px-1 py-0.5 rounded">{tr("CAPEX")} {inst.monetary.energy_cap}</span>
                                                     )}
                                                   </div>
                                                 </div>
@@ -757,7 +759,7 @@ export default function MapLocationEditDialog({
                 onClick={() => setShowEditDialog(false)}
                 className="px-4 py-2 border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50 transition-colors"
               >
-                Cancel
+                {tr("Cancel")}
               </button>
               <button
                 onClick={saveEditedLocation}
@@ -768,11 +770,11 @@ export default function MapLocationEditDialog({
                     : 'bg-slate-300 text-slate-500 cursor-not-allowed'
                 }`}
               >
-                Save Changes
+                {tr("Save Changes")}
               </button>
             </div>
           </div>
         </div>
   );
 }
-
+

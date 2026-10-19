@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { LuSparkles, LuPlus, LuRefreshCw, LuBug, LuShieldCheck, LuWrench, LuX, LuTag, LuExternalLink, LuWifiOff, LuDownload, LuInfo } from './ui/icons';
 import { RELEASES_URL } from '../services/releases';
 import Select from './ui/Select';
+import { tr, locale } from '../i18n';
 
 const SECTION_STYLE = [
   { match: /add|new|feature/i,      icon: LuPlus,        tone: 'bg-emerald-50 text-emerald-700' },
@@ -29,7 +30,7 @@ function Inline({ text }) {
 const fmtDate = (d) => {
   if (!d) return null;
   const date = new Date(`${d}T00:00:00`);
-  return isNaN(date) ? d : date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  return isNaN(date) ? d : date.toLocaleDateString(locale() || 'en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 };
 
 export default function WhatsNewDialog({ releases, latest, loading, error, onClose }) {
@@ -52,7 +53,7 @@ export default function WhatsNewDialog({ releases, latest, loading, error, onClo
       <motion.div
         role="dialog"
         aria-modal="true"
-        aria-label="What's new"
+        aria-label={tr("What's new")}
         initial={{ opacity: 0, y: 12, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.2, ease: 'easeOut' }}
@@ -64,7 +65,7 @@ export default function WhatsNewDialog({ releases, latest, loading, error, onClo
             <LuSparkles size={20} />
           </span>
           <div className="min-w-0 flex-1">
-            <h2 className="text-lg font-semibold text-slate-900">What's new in TEMPO</h2>
+            <h2 className="text-lg font-semibold text-slate-900">{tr("What's new in TEMPO")}</h2>
             <p className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-slate-500">
               {release && (
                 <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 font-medium text-slate-700">
@@ -72,9 +73,9 @@ export default function WhatsNewDialog({ releases, latest, loading, error, onClo
                 </span>
               )}
               {release && release.version === latest?.version && (
-                <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 font-medium text-emerald-700">Latest</span>
+                <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 font-medium text-emerald-700">{tr("Latest")}</span>
               )}
-              {release?.date && <span>Released {fmtDate(release.date)}</span>}
+              {release?.date && <span>{tr("Released")} {fmtDate(release.date)}</span>}
             </p>
           </div>
           {releases.length > 1 && (
@@ -86,7 +87,7 @@ export default function WhatsNewDialog({ releases, latest, loading, error, onClo
               />
             </div>
           )}
-          <button onClick={onClose} aria-label="Close" className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+          <button onClick={onClose} aria-label={tr("Close")} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700">
             <LuX size={18} />
           </button>
         </div>
@@ -94,14 +95,14 @@ export default function WhatsNewDialog({ releases, latest, loading, error, onClo
         <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
           {!release && loading && (
             <div className="flex items-center gap-2 py-10 text-sm text-slate-500">
-              <span className="h-4 w-4 animate-spin rounded-full border-2 border-black/15 border-t-slate-700" /> Loading release notes from GitHub…
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-black/15 border-t-slate-700" /> {tr("Loading release notes from GitHub…")}
             </div>
           )}
           {!release && !loading && (
             <div className="flex flex-col items-center py-10 text-center">
               <span className="mb-3 grid h-11 w-11 place-items-center rounded-full bg-slate-100 text-slate-500"><LuWifiOff size={18} /></span>
-              <p className="text-sm font-semibold text-slate-800">Release notes unavailable</p>
-              <p className="mt-1 text-sm text-slate-500">{error ? `Couldn't reach GitHub (${error}).` : 'No releases found.'} Check your connection and try again.</p>
+              <p className="text-sm font-semibold text-slate-800">{tr("Release notes unavailable")}</p>
+              <p className="mt-1 text-sm text-slate-500">{error ? tr("Couldn't reach GitHub ({0}).", { 0: error }) : tr("No releases found.")} {tr("Check your connection and try again.")}</p>
             </div>
           )}
           {release?.summary && (
@@ -136,10 +137,10 @@ export default function WhatsNewDialog({ releases, latest, loading, error, onClo
             rel="noopener noreferrer"
             className="flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-900"
           >
-            View on GitHub <LuExternalLink size={12} />
+            {tr("View on GitHub")} <LuExternalLink size={12} />
           </a>
           <button onClick={onClose} className="h-9 rounded-lg bg-black px-4 text-[13px] font-semibold text-white hover:bg-black/80">
-            Got it
+            {tr("Got it")}
           </button>
         </div>
       </motion.div>
