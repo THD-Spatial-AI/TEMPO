@@ -5,6 +5,43 @@ All notable changes to TEMPO are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.1] - 2026-10-19
+
+Updates from inside the app, model checks before you run, and a round of interface polish.
+
+### Added
+
+- **In-app updates** — TEMPO checks the latest GitHub release at startup and every
+  6 hours. It downloads the installer for your install type (Windows installer,
+  AppImage or `.deb`), checks its SHA-256 digest and installs it. You can skip a
+  version, or run a check from Settings → About.
+- **Model readiness checks** — the Save dialog and the Run view list problems in
+  a model before it runs, with a link to the view that fixes each one.
+- **Multi-carrier conversion** — conversion technologies with several output
+  carriers now work in Calliope 0.6.8 and 0.7, PyPSA, OSeMOSYS and AdOpT-NET0.
+- **Server templates** — the Italian, UK and Cambridge example models download
+  on demand and are cached.
+- **Custom title bar** with app menus, and guided tours with animated how-to
+  visuals.
+- **Grey map style** for a muted OpenStreetMap look.
+
+### Changed
+
+- Templates are no longer bundled, so the installers are smaller.
+- Resource scaling and demand handling now match across the engines.
+- Redesigned dashboard overview, result charts, solver log viewer, notifications,
+  dropdowns, map popups and the timeseries filter sidebar. Page headers and
+  edit/delete buttons look the same everywhere.
+- You can switch models from the active-model card in the sidebar. Models has a
+  compact bar for bulk actions.
+- Settings offers "Restart now" after you change the default view.
+- Tutorial screenshots show the current interface.
+
+### Fixed
+
+- Restarting the guided tour works every time.
+- The title bar shows the right title.
+
 ## [4.0.0] - 2026-10-14
 
 TEMPO 4 is a redesign and a wider reach. The whole app has a new look that matches
@@ -221,6 +258,7 @@ Initial public release.
 - Timeseries editor, override/scenario engine, and SPORES mode.
 - H₂ and CCS plant simulation services.
 
+[4.0.1]: https://github.com/THD-Spatial-AI/TEMPO/releases/tag/Release_V4.0.1
 [4.0.0]: https://github.com/THD-Spatial-AI/TEMPO/releases/tag/v4.0.0
 [3.1.0]: https://github.com/THD-Spatial-AI/TEMPO/releases/tag/v3.1.0
 [3.0.0]: https://github.com/THD-Spatial-AI/TEMPO/releases/tag/v3.0.0

@@ -55,7 +55,7 @@ export default function Features() {
               </p>
               <div className="flex flex-col border-l border-outline-variant/30 pl-8 space-y-2">
                 <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-outline">
-                  v4.0.0 Stable
+                  v4.0.1 Stable
                 </span>
                 <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-outline">
                   Architecture: x64 / ARM64
