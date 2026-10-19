@@ -100,7 +100,7 @@ export default function TitleBar() {
         ))}
       </nav>
 
-      <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 text-[12px] font-semibold text-slate-600">Energy System Modeling</div>
+      <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 text-[12px] font-semibold text-slate-600">Tool for Energy Model Planning and Optimization</div>
 
       <div className="ml-auto flex h-full" style={noDrag}>
         <button onClick={() => runAppCommand('minimize')} aria-label="Minimize" className="grid h-full w-12 place-items-center text-slate-600 hover:bg-slate-100">
