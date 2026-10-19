@@ -5,6 +5,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { FiChevronDown, FiChevronUp, FiFilter, FiMapPin } from '../ui/icons';
 import 'leaflet/dist/leaflet.css';
 import { popupCard } from '../../utils/mapPopup';
+import { ORG_CREDIT_HTML, OSM_CREDIT_HTML } from '../../config/attribution';
 
 
 // ── Time-range + location filter controls (vertical right-sidebar) ───────────
@@ -214,7 +215,7 @@ export const InputMap = ({ locations, links, getTechColor, getTechName = (t) => 
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           maxZoom: 19,
-          attribution: '© OpenStreetMap contributors',
+          attribution: `${ORG_CREDIT_HTML} | ${OSM_CREDIT_HTML}`,
         }).addTo(map);
         map.getPane('tilePane').style.filter = 'grayscale(0.9) brightness(1.05) contrast(0.85)';
 

@@ -3,6 +3,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { techColor, fmtPower, fmtEnergy, OSM_STYLE, osmTransformRequest } from '../../utils/resultFormat';
 import { loadCommunesGeo } from '../../utils/loadCommunesGeo';
 import { popupCard } from '../../utils/mapPopup';
+import { ORG_CREDIT_HTML } from '../../config/attribution';
 import SelectField from '../ui/SelectField';
 
 // Pan the map so an opened popup is fully visible inside the map frame
@@ -254,7 +255,7 @@ const ResultsMap = ({ locations, capacitiesByLoc, dominantTechByLoc, generationB
       const avgLon = locs.length ? locs.reduce((s, l) => s + l.longitude, 0) / locs.length : 10;
       const map = new mgl.Map({
         container: mapRef.current, style: OSM_STYLE, center: [avgLon, avgLat], zoom: 5,
-        attributionControl: { compact: true }, failIfMajorPerformanceCaveat: false,
+        attributionControl: { compact: true, customAttribution: ORG_CREDIT_HTML }, failIfMajorPerformanceCaveat: false,
         transformRequest: osmTransformRequest,
       });
       mapInstanceRef.current = map;
@@ -558,7 +559,7 @@ const TransmissionFlowMap = ({ locations, transmissionFlowData, capacitiesByLoc,
       const map = new mgl.Map({
         container: mapRef.current, style: OSM_STYLE,
         center: [avgLon, avgLat], zoom: 5,
-        attributionControl: { compact: true },
+        attributionControl: { compact: true, customAttribution: ORG_CREDIT_HTML },
         failIfMajorPerformanceCaveat: false,
         transformRequest: osmTransformRequest,
       });
@@ -1124,7 +1125,7 @@ const RegionChoropleth = ({ metric = {}, metricLabel = 'Value', colorRamp = 'blu
         transformRequest: osmTransformRequest,
         center: [-70.6, -33.5],
         zoom: 4,
-        attributionControl: false,
+        attributionControl: { compact: true, customAttribution: ORG_CREDIT_HTML },
       });
       mapInstRef.current = map;
 

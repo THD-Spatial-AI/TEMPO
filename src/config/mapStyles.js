@@ -23,7 +23,7 @@ export const MAP_STYLES = {
         type: 'raster',
         tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
         tileSize: 256,
-        attribution: '© Esri',
+        attribution: 'Powered by Esri | Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
         maxzoom: 19
       }
     },
@@ -36,7 +36,7 @@ export const MAP_STYLES = {
         type: 'raster',
         tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}'],
         tileSize: 256,
-        attribution: '© Esri, HERE, Garmin, OpenStreetMap contributors',
+        attribution: 'Powered by Esri | Esri, HERE, Garmin, USGS, FAO, NOAA, © OpenStreetMap contributors',
         maxzoom: 19
       }
     },

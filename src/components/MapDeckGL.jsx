@@ -3,6 +3,8 @@ import DeckGL from '@deck.gl/react';
 import { WebMercatorViewport } from '@deck.gl/core';
 import { ScatterplotLayer, IconLayer, LineLayer } from '@deck.gl/layers';
 import { Map as MapGL } from 'react-map-gl/maplibre';
+import MapAttribution from './map/MapAttribution';
+import { ORG_CREDIT_HTML, OSM_CREDIT_HTML } from '../config/attribution';
 import { useData } from '../context/DataContext';
 import { LuPanelLeftClose, LuPanelLeftOpen } from './ui/icons';
 import { FiLayers, FiLink, FiEye, FiEdit2, FiMapPin, FiTrash2, FiCpu, FiChevronDown, FiChevronRight, FiChevronLeft, FiZoomIn, FiZoomOut, FiMaximize2, FiX, FiCheck, FiHelpCircle, FiArrowRight, FiActivity, FiZap, FiCircle, FiNavigation, FiSave, FiFolder } from './ui/icons';
@@ -173,7 +175,7 @@ const MapDeckGL = () => {
 
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
-        attribution: '© OpenStreetMap contributors',
+        attribution: `${ORG_CREDIT_HTML} | ${OSM_CREDIT_HTML}`,
       }).addTo(map);
 
       const boundsPoints = [];
@@ -1072,6 +1074,7 @@ const MapDeckGL = () => {
               attributionControl={false}
               canvasContextAttributes={deckGlOptions}
             />
+            <MapAttribution styleKey={currentStyle} />
           </DeckGL>
         ) : (
           <div className="absolute inset-0 z-0">
@@ -1111,7 +1114,7 @@ const MapDeckGL = () => {
           const totalNodes = kindCounts.substation + kindCounts.plant + kindCounts.transmission_node;
 
           return (
-            <div className="absolute bottom-4 right-4 z-50 w-64 overflow-hidden rounded-2xl bg-white/90 shadow-xl shadow-slate-900/10 ring-1 ring-slate-900/5 backdrop-blur-md">
+            <div className="absolute bottom-8 right-4 z-50 w-64 overflow-hidden rounded-2xl bg-white/90 shadow-xl shadow-slate-900/10 ring-1 ring-slate-900/5 backdrop-blur-md">
               <button
                 onClick={() => setLegendOpen(o => !o)}
                 aria-expanded={legendOpen}

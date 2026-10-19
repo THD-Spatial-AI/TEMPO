@@ -43,6 +43,8 @@ import { normalizeFolderName } from '../utils/nameUtils';
 import { getTechColor, getTechIcon } from '../utils/techUtils';
 import { createLocationIcon, getSubstationIcon, substationIconCache } from '../utils/mapIcons';
 import { MAP_STYLES, MAP_STYLE_NAMES } from '../config/mapStyles';
+import MapAttribution from './map/MapAttribution';
+import { ORG_CREDIT_HTML, OSM_CREDIT_HTML } from '../config/attribution';
 import LayerSelector from './creation/LayerSelector';
 import SearchBar from './creation/SearchBar';
 import MapZoomControls from './creation/MapZoomControls';
@@ -545,7 +547,7 @@ const Creation = ({ onNavigate }) => {
 
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
-        attribution: '© OpenStreetMap contributors',
+        attribution: `${ORG_CREDIT_HTML} | ${OSM_CREDIT_HTML}`,
       }).addTo(map);
 
       const tempLocations = locationManager.tempLocations || [];
@@ -2495,6 +2497,7 @@ const Creation = ({ onNavigate }) => {
             />
           </DeckGL>
         )}
+        <MapAttribution styleKey={currentStyle} />
 
         {mapReady && webglAvailable === false && (
           <div className="absolute inset-0 z-10">
@@ -2591,7 +2594,7 @@ const Creation = ({ onNavigate }) => {
           <button
             onClick={() => setShowSaveDialog(true)}
             data-tour="save-model"
-            className="absolute bottom-4 right-4 z-[600] flex h-11 items-center gap-2.5 rounded-xl bg-black pl-4 pr-2.5 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 ring-1 ring-slate-900/10 transition-colors hover:bg-black/80"
+            className="absolute bottom-8 right-4 z-[600] flex h-11 items-center gap-2.5 rounded-xl bg-black pl-4 pr-2.5 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 ring-1 ring-slate-900/10 transition-colors hover:bg-black/80"
             title="Save this model and open it in the Map View"
           >
             <FiSave size={17} />
