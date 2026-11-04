@@ -22,4 +22,17 @@ async function ensureServiceLayer({ python, requirementsPath, run, log }) {
   }
 }
 
-module.exports = { SERVICE_LAYER_CHECK, ensureServiceLayer };
+// In-memory (per app session) memory of a failed repair, so an offline machine
+// does not re-run a failing pip install on every automatic start. A forced
+// attempt (user clicked Repair / Install) always goes through.
+function createRepairGate() {
+  let error = null;
+  return {
+    canAttempt: ({ force = false } = {}) => force || error === null,
+    recordFailure: (err) => { error = err || 'unknown error'; },
+    clear: () => { error = null; },
+    lastError: () => error,
+  };
+}
+
+module.exports = { SERVICE_LAYER_CHECK, ensureServiceLayer, createRepairGate };

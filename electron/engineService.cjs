@@ -14,7 +14,7 @@ const { app, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn, execFile, execFileSync } = require('child_process');
-const { ensureServiceLayer, SERVICE_LAYER_CHECK } = require('./serviceLayer.cjs');
+const { ensureServiceLayer, createRepairGate, SERVICE_LAYER_CHECK } = require('./serviceLayer.cjs');
 
 const IS_WIN = process.platform === 'win32';
 const MAX_RESTARTS = 5;
@@ -273,7 +273,26 @@ function createEngineService(spec) {
     throw new Error(pythonSpec.notFoundError);
   }
 
-  async function start() {
+  // start() (incl. service-layer repair) and install both mutate the venv, so
+  // they must never overlap: `busy` is the in-flight start, `installing` the install.
+  let busy = null;
+  let installing = false;
+  const repairGate = createRepairGate();
+
+  function start({ force = false } = {}) {
+    if (installing) {
+      console.log(`[${logTag}] Install in progress — not starting`);
+      return Promise.resolve();
+    }
+    if (busy) {
+      console.log(`[${logTag}] Start/repair already in progress`);
+      return busy;
+    }
+    busy = doStart(force).finally(() => { busy = null; });
+    return busy;
+  }
+
+  async function doStart(force) {
     intentionalStop = false;
     restartCount    = 0;
     if (await isPortOpen(getPort())) {
@@ -287,15 +306,23 @@ function createEngineService(spec) {
       return;
     }
 
+    if (!repairGate.canAttempt({ force })) {
+      console.warn(`[${logTag}] Service layer repair failed earlier this session — not retrying: ${repairGate.lastError()}`);
+      return;
+    }
+
     const { pythonDir } = getServicePaths();
     const layer = await ensureServiceLayer({
       python, requirementsPath: path.join(pythonDir, 'requirements.service.txt'),
       run: runQuiet, log: (l) => console.log(`[${logTag}] ${l}`),
     });
     if (!layer.ok) {
+      repairGate.recordFailure(layer.error);
       console.warn(`[${logTag}] Service layer unavailable — not starting: ${layer.error}`);
       return;
     }
+    repairGate.clear();
+    if (installing) return;
     const childEnv = buildEnv ? buildEnv() : undefined;
 
     console.log(`[${logTag}] Starting uvicorn on port ${getPort()}`);
@@ -377,9 +404,15 @@ function createEngineService(spec) {
       if (win && !win.isDestroyed()) win.webContents.send(`${id}:install-progress`, data);
     };
 
+    installing = true;
     try {
       sendProgress({ type: 'stage', label: `Locating Python ${pythonSpec.versionLabel}…` });
       const systemPython = await ensurePython(sendProgress);
+
+      if (busy) {
+        sendProgress({ type: 'log', line: `Waiting for an in-flight ${label} start/repair to finish…` });
+        await busy.catch(() => {});
+      }
 
       const venvDir    = path.join(app.getPath('userData'), venvName);
       const binDir     = IS_WIN ? 'Scripts' : 'bin';
@@ -457,7 +490,9 @@ function createEngineService(spec) {
       if (postInstall) await postInstall(sendProgress);
 
       sendProgress({ type: 'stage', label: `Starting ${label} service…` });
-      await start();
+      installing = false;
+      repairGate.clear();
+      await start({ force: true });
 
       sendProgress({ type: 'done' });
       return { success: true };
@@ -465,12 +500,14 @@ function createEngineService(spec) {
       const msg = err.message || String(err);
       sendProgress({ type: 'error', error: msg });
       return { success: false, error: msg };
+    } finally {
+      installing = false;
     }
   });
 
   ipcMain.handle(`${id}:restart-service`, async () => {
     stop();
-    await start();
+    await start({ force: true });
     return { running: await isPortOpen(getPort()) };
   });
 

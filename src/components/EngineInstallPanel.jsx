@@ -44,6 +44,18 @@ export default function EngineInstallPanel({ title, icon: Icon, description, che
 
   useEffect(() => { refreshStatus(); }, []);
 
+  // 'checkPypsaEnv' -> 'restartPypsaService' (matches the preload naming)
+  const restartFn = checkFn.replace(/^check(.+)Env$/, 'restart$1Service');
+  const [repairing, setRepairing] = useState(false);
+  const handleRepair = async () => {
+    setRepairing(true);
+    try { await window.electronAPI[restartFn](); } catch { /* status re-check below shows the outcome */ }
+    setRepairing(false);
+    refreshStatus();
+  };
+  const needsRepair = !statusLoading && envStatus?.envExists && envStatus?.serviceLayerOk === false
+    && !!window.electronAPI?.[restartFn];
+
   const appendLog = (line) =>
     setLogs(prev => [...prev, { text: line, ts: new Date().toLocaleTimeString('en', { hour12: false }) }]);
 
@@ -120,6 +132,22 @@ export default function EngineInstallPanel({ title, icon: Icon, description, che
           <FiRefreshCw className="w-4 h-4" />
         </button>
       </div>
+      )}
+
+      {needsRepair && (
+        <div className="flex items-center gap-3 p-3 rounded-xl border border-black/15 bg-gray-50 mb-4">
+          <FiAlertCircle className="w-5 h-5 text-slate-400 flex-shrink-0" />
+          <p className="flex-1 text-sm text-slate-700">
+            Service layer (FastAPI) missing — it will be repaired automatically when the service starts.
+          </p>
+          <button
+            onClick={handleRepair}
+            disabled={repairing || installing}
+            className="px-4 py-2 border-2 border-gray-300 text-gray-800 bg-gray-50 rounded-xl font-semibold hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm"
+          >
+            {repairing ? 'Repairing…' : 'Repair & start'}
+          </button>
+        </div>
       )}
 
       {/* Install button */}

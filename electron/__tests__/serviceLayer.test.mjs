@@ -1,6 +1,25 @@
 import { describe, it, expect } from 'vitest';
 import serviceLayer from '../serviceLayer.cjs';
-const { ensureServiceLayer, SERVICE_LAYER_CHECK } = serviceLayer;
+const { ensureServiceLayer, createRepairGate, SERVICE_LAYER_CHECK } = serviceLayer;
+
+describe('createRepairGate', () => {
+  it('allows attempts until a failure is recorded', () => {
+    const gate = createRepairGate();
+    expect(gate.canAttempt()).toBe(true);
+    gate.recordFailure('offline');
+    expect(gate.canAttempt()).toBe(false);
+    expect(gate.lastError()).toBe('offline');
+  });
+
+  it('lets a forced attempt through and clears on success', () => {
+    const gate = createRepairGate();
+    gate.recordFailure('offline');
+    expect(gate.canAttempt({ force: true })).toBe(true);
+    gate.clear();
+    expect(gate.canAttempt()).toBe(true);
+    expect(gate.lastError()).toBe(null);
+  });
+});
 
 const runner = (results) => {
   const calls = [];
