@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { FiCheckCircle, FiAlertCircle, FiLoader, FiTerminal, FiRefreshCw, FiClock, FiPlay, FiBox, FiDownload, FiZap, FiInfo, FiCpu } from './ui/icons';
+import { FiCheckCircle, FiAlertCircle, FiLoader, FiTerminal, FiRefreshCw, FiClock, FiPlay, FiBox, FiDownload } from './ui/icons';
+import ComponentInstaller from './ComponentInstaller';
 
 // ── Status icon ───────────────────────────────────────────────────────────────
 function ServiceIcon({ running, healthy }) {
@@ -23,10 +24,11 @@ function ServiceRow({ svc }) {
         <p className="text-xs text-slate-400 font-mono">
           localhost:{svc.port}
           {svc.required && <span className="ml-2 text-gray-400">required</span>}
+          {!svc.required && !svc.installed && !svc.running && <span className="ml-2 text-gray-400">not installed</span>}
           {svc.portConflict && <span className="ml-2 text-gray-500">port used by another application</span>}
         </p>
       </div>
-      <ServiceIcon running={svc.running} healthy={svc.healthy} />
+      {(svc.required || svc.installed || svc.running) && <ServiceIcon running={svc.running} healthy={svc.healthy} />}
     </div>
   );
 }
@@ -43,11 +45,7 @@ export default function SetupScreen({ onComplete, freshInstall = false }) {
   const [services, setServices] = useState([]);
   const [logs, setLogs] = useState([]);
   const [errorMsg, setErrorMsg] = useState('');
-  // No module selection needed — always install calliope only
-  const selectedModules = ['calliope'];
-  const [installDemandlib, setInstallDemandlib] = useState(false);
-  // Platform from calliope:check (set during initial status check)
-  const [platform, setPlatform] = useState('');
+  const [reinstall, setReinstall] = useState(false); // user chose Reinstall after a failed start
   const logEndRef = useRef(null);
   const unsubRef  = useRef(null);
 
@@ -99,11 +97,8 @@ export default function SetupScreen({ onComplete, freshInstall = false }) {
       // ── Fresh install: ALWAYS show the install UI, never auto-skip ──────────
       // Even if the old env is healthy and services are still running from a
       // previous installation, a fresh install must go through the full wizard
-      // so the user can choose modules and we create a brand-new environment.
+      // so the user can choose what to install.
       if (freshInstall) {
-        const calliopeEnv = await window.electronAPI.checkCalliopeEnv()
-          .catch(() => ({ envExists: false, serviceRunning: false, platform: '' }));
-        if (calliopeEnv.platform) setPlatform(calliopeEnv.platform);
         setPhase('native-needs-install');
         return;
       }
@@ -116,7 +111,6 @@ export default function SetupScreen({ onComplete, freshInstall = false }) {
 
       setDockerAvailable(dockerResult.dockerAvailable);
       setServices(dockerResult.services || []);
-      if (calliopeEnv.platform) setPlatform(calliopeEnv.platform);
 
       // Native mode: backend + calliope service are both up (no Docker needed).
       // envExists must also be true — the port being open from a PREVIOUS broken
@@ -150,32 +144,6 @@ export default function SetupScreen({ onComplete, freshInstall = false }) {
 
   useEffect(() => { checkStatus(); }, [checkStatus]);
 
-  // ── Native Calliope venv install ──────────────────────────────────────────
-  const installNative = async () => {
-    setPhase('native-installing');
-    setLogs([]);
-    setErrorMsg('');
-    const unsub = window.electronAPI.onCalliopeInstallProgress((data) => {
-      if (data.type === 'log')   appendLog(data.line);
-      if (data.type === 'stage') appendLog('▶ ' + data.label);
-      if (data.type === 'done') {
-        if (unsub) unsub();
-        unsubRef.current = null;
-        setPhase('done');
-        setTimeout(onComplete, 800);
-      }
-      if (data.type === 'error') {
-        appendLog('✗ ' + (data.error || data.label || 'Install error'));
-        setErrorMsg(data.error || 'Installation failed.');
-        setPhase('native-needs-install');
-        if (unsub) unsub();
-        unsubRef.current = null;
-      }
-    });
-    unsubRef.current = unsub;
-    window.electronAPI.installCalliopeEnv(selectedModules, false, installDemandlib);
-  };
-
   // ── Renders ───────────────────────────────────────────────────────────────
   if (phase === 'checking') {
     return (
@@ -188,124 +156,35 @@ export default function SetupScreen({ onComplete, freshInstall = false }) {
   }
 
   if (phase === 'native-needs-install') {
-    const installFailed = !!errorMsg;
-
     return (
       <FullScreenCard wide>
-        <div className="w-14 h-14 bg-white border-2 border-black flex items-center justify-center">
-          <FiDownload className="w-7 h-7 text-black" />
-        </div>
-        <h2 className="mt-5 text-2xl font-black tracking-tighter text-black">Setup TEMPO</h2>
-        <p className="mt-2 text-gray-500 text-sm text-center max-w-md">
-          An internet connection and Python 3.9–3.11 are required.
-          Installation takes a few minutes and only needs to run once.
+        <h2 className="text-2xl font-black tracking-tighter text-black">Set up TEMPO</h2>
+        <p className="mt-2 mb-6 text-gray-500 text-sm text-center max-w-md">
+          Choose what to install. Required components are always included.
+          An internet connection is needed, and TEMPO downloads Python if it is missing.
         </p>
-
-        {/* What gets installed */}
-        <div className="w-full mt-6 border border-black/15 divide-y divide-black/10">
-          <div className="flex items-center justify-between px-4 py-3">
-            <div>
-              <p className="text-sm font-semibold text-black">Calliope <span className="font-normal text-gray-400">0.6.8</span></p>
-              <p className="text-xs text-gray-400 mt-0.5">Energy system modelling &amp; optimisation</p>
-            </div>
-            <svg className="w-4 h-4 text-black flex-shrink-0" viewBox="0 0 12 12" fill="none">
-              <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </div>
-          <div className="flex items-center justify-between px-4 py-3">
-            <div>
-              <p className="text-sm font-semibold text-black">HiGHS solver</p>
-              <p className="text-xs text-gray-400 mt-0.5">LP/MIP solver — installed as Python package, no binary needed</p>
-            </div>
-            <svg className="w-4 h-4 text-black flex-shrink-0" viewBox="0 0 12 12" fill="none">
-              <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </div>
-          {/* Optional: BDEW load profiles (demandlib). Otherwise installed lazily
-              on first use in the OSM Study-Area demand step. */}
-          <label className="flex items-center justify-between px-4 py-3 cursor-pointer">
-            <div>
-              <p className="text-sm font-semibold text-black">Demand profiles <span className="font-normal text-gray-400">(optional)</span></p>
-              <p className="text-xs text-gray-400 mt-0.5">BDEW load profiles (demandlib) for Study-Area demand — else installed on first use</p>
-            </div>
-            <input
-              type="checkbox" checked={installDemandlib}
-              onChange={e => setInstallDemandlib(e.target.checked)}
-              className="w-4 h-4 accent-black flex-shrink-0"
-            />
-          </label>
-        </div>
-
-        {/* Error panel */}
-        {installFailed && (
-          <div className="mt-4 w-full border border-black rounded-lg p-4 text-xs text-black">
-            <p className="font-semibold mb-1">Installation failed:</p>
-            <pre className="whitespace-pre-wrap break-all max-h-32 overflow-y-auto bg-gray-100 rounded p-2 text-gray-800">{errorMsg}</pre>
-            <p className="mt-2 text-gray-500">
-              Requires <strong className="text-black">Python 3.9–3.11</strong>.{' '}
-              <a href="https://www.python.org/downloads/release/python-3119/"
-                 className="underline text-black" target="_blank" rel="noreferrer">Download Python 3.11</a>
-              {' '}— check "Add Python to PATH", then click Retry.
-            </p>
-          </div>
-        )}
-
-        {/* Buttons */}
-        <div className="flex gap-3 mt-6">
-          <button
-            onClick={installNative}
-            className="flex items-center gap-2 px-6 py-3 bg-primary text-white text-sm font-bold uppercase tracking-wide hover:opacity-80 transition-opacity"
-          >
-            <FiDownload className="w-4 h-4" />
-            {installFailed ? 'Retry' : 'Install'}
-          </button>
-          {dockerAvailable && (
-            <button
-              onClick={() => startServices()}
-              className="flex items-center gap-2 px-5 py-3 border border-black text-black text-sm font-bold uppercase tracking-wide hover:bg-black hover:text-white transition-colors"
-            >
-              <FiPlay className="w-4 h-4" /> Use Docker
-            </button>
+        <ComponentInstaller
+          forceIds={reinstall ? ['calliope'] : []}
+          onFinished={() => { setPhase('done'); setTimeout(onComplete, 800); }}
+          extraActions={(
+            <>
+              {dockerAvailable && (
+                <button
+                  onClick={() => startServices()}
+                  className="flex items-center gap-2 px-5 py-3 border border-black text-black text-sm font-bold uppercase tracking-wide hover:bg-black hover:text-white transition-colors"
+                >
+                  <FiPlay className="w-4 h-4" /> Use Docker
+                </button>
+              )}
+              <button
+                onClick={onComplete}
+                className="flex items-center gap-2 px-5 py-3 border border-black text-black text-sm font-bold uppercase tracking-wide hover:bg-black hover:text-white transition-colors"
+              >
+                Skip for now
+              </button>
+            </>
           )}
-          <button
-            onClick={onComplete}
-            className="flex items-center gap-2 px-5 py-3 border border-black text-black text-sm font-bold uppercase tracking-wide hover:bg-black hover:text-white transition-colors"
-          >
-            Skip
-          </button>
-        </div>
-      </FullScreenCard>
-    );
-  }
-
-  if (phase === 'native-installing') {
-    return (
-      <FullScreenCard wide>
-        <SpinnerIcon />
-        <h2 className="mt-4 text-2xl font-black tracking-tighter text-black">Installing TEMPO services…</h2>
-        <p className="mt-1 text-slate-500 text-sm">Creating Python environments and installing packages</p>
-        <div className="w-full max-w-2xl mt-6">
-          <div className="flex items-center gap-2 mb-2">
-            <FiTerminal className="w-4 h-4 text-slate-400" />
-            <span className="text-xs font-mono text-slate-400 uppercase tracking-wide">Install output</span>
-          </div>
-          <div className="bg-slate-950 rounded-xl p-4 h-64 overflow-y-auto font-mono text-xs leading-relaxed">
-            {logs.length === 0
-              ? <span className="text-slate-600">Starting…</span>
-              : logs.map((l, i) => (
-                  <div key={i} className="flex gap-2">
-                    <span className="text-slate-600 select-none flex-shrink-0">{l.ts}</span>
-                    <span className={
-                      l.text.startsWith('▶') ? 'text-gray-300' :
-                      l.text.startsWith('✗') ? 'text-gray-400' :
-                      'text-slate-300'
-                    }>{l.text}</span>
-                  </div>
-                ))
-            }
-            <div ref={logEndRef} />
-          </div>
-        </div>
+        />
       </FullScreenCard>
     );
   }
@@ -421,7 +300,7 @@ export default function SetupScreen({ onComplete, freshInstall = false }) {
               </button>
               {errorMsg && (
                 <button
-                  onClick={installNative}
+                  onClick={() => { setReinstall(true); setErrorMsg(''); setPhase('native-needs-install'); }}
                   className="flex items-center gap-2 px-6 py-3 border border-black text-black text-sm font-bold uppercase tracking-wide hover:bg-black hover:text-white transition-colors duration-200"
                 >
                   <FiDownload className="w-4 h-4" /> Reinstall

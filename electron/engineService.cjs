@@ -377,7 +377,7 @@ function createEngineService(spec) {
     running: await isPortOpen(getPort()),
   }));
 
-  ipcMain.handle(`${id}:check`, async () => {
+  async function check() {
     const { python, exists, venvDir } = resolveVenv();
     const serviceRunning = await isPortOpen(getPort());
 
@@ -406,14 +406,16 @@ function createEngineService(spec) {
       ...(extraCheck ? extraCheck() : {}),
       platform: process.platform,
     };
-  });
+  }
 
-  ipcMain.handle(`${id}:install`, async () => {
-    const sendProgress = (data) => {
-      const win = getMainWindow();
-      if (win && !win.isDestroyed()) win.webContents.send(`${id}:install-progress`, data);
-    };
+  ipcMain.handle(`${id}:check`, check);
 
+  ipcMain.handle(`${id}:install`, () => install((data) => {
+    const win = getMainWindow();
+    if (win && !win.isDestroyed()) win.webContents.send(`${id}:install-progress`, data);
+  }));
+
+  async function install(sendProgress) {
     installing = true;
     try {
       sendProgress({ type: 'stage', label: `Locating Python ${pythonSpec.versionLabel}…` });
@@ -513,16 +515,18 @@ function createEngineService(spec) {
     } finally {
       installing = false;
     }
-  });
+  }
 
-  ipcMain.handle(`${id}:uninstall`, async () => {
+  async function uninstall() {
     if (installing) return { success: false, error: `${label} is being installed — wait for it to finish.` };
     if (busy) await busy.catch(() => {});
     stop();
     await new Promise(r => setTimeout(r, 2000)); // give Windows time to release handles
     repairGate.clear();
     return removeVenvDir(path.join(app.getPath('userData'), venvName));
-  });
+  }
+
+  ipcMain.handle(`${id}:uninstall`, uninstall);
 
   ipcMain.handle(`${id}:restart-service`, async () => {
     stop();
@@ -530,7 +534,7 @@ function createEngineService(spec) {
     return { running: await isPortOpen(getPort()) };
   });
 
-  return { start, stop, isInstalled: () => resolveVenv().exists };
+  return { start, stop, check, install, uninstall, isInstalled: () => resolveVenv().exists };
 }
 
 module.exports = {

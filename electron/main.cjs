@@ -6,6 +6,7 @@ const net = require('net');
 const { createTemplateStore } = require('./templateStore.cjs');
 const { createEngineService,findSystemPython310Plus, findSystemPython312Plus } = require('./engineService.cjs');
 const { removeVenvDir } = require('./removeVenv.cjs');
+const { COMPONENTS, resolveSelection, buildPlan, diskNeededGb, runPlan } = require('./setupComponents.cjs');
 const { isPortFree, findFreePort, identifyService, choosePort, parseContainerStatus, CONTAINER_STATUS_FORMAT } = require('./servicePorts.cjs');
 
 // ─── Top-level process handles ───────────────────────────────────────────────
@@ -286,7 +287,10 @@ function getContainerStatus(name) {
 }
 
 async function getServiceStatus(svc, dockerAvailable) {
-  const base = { name: svc.name, label: svc.label, port: svc.port, required: svc.required };
+  const base = {
+    name: svc.name, label: svc.label, port: svc.port, required: svc.required,
+    installed: svc.isInstalled ? svc.isInstalled() : readSetupSelection().includes('geo'),
+  };
 
   if (svc.engine) {
     const state = await identifyService(svc.port, svc.engine);
@@ -317,7 +321,9 @@ async function getAllServiceStatus() {
 }
 
 const sendStartProgress = (data) => {
-  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('docker:start-progress', data);
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents.send('docker:start-progress', data);
+  mainWindow.webContents.send('setup:progress', data); // the component installer starts services too
 };
 
 function runDocker(args, cwd) {
@@ -382,9 +388,16 @@ async function startNative(svc) {
 
   await svc.start();
 
-  const up = svc.engine
-    ? await identifyService(svc.port, svc.engine) === 'match'
-    : !!backendProcess && await isPortOpen(BACKEND_PORT);
+  let up = false;
+  if (svc.engine) {
+    // Importing a framework can outlast start()'s own wait on a cold machine.
+    for (let attempt = 0; attempt < 15 && !up; attempt++) {
+      if (attempt > 0) await new Promise(r => setTimeout(r, 2000));
+      up = await identifyService(svc.port, svc.engine) === 'match';
+    }
+  } else {
+    up = !!backendProcess && await isPortOpen(BACKEND_PORT);
+  }
   return up ? { success: true } : { success: false, error: `Did not come up on port ${svc.port} — see the terminal log` };
 }
 
@@ -407,14 +420,15 @@ ipcMain.handle('docker:start', async (_event, serviceName) => {
   return svc ? startService(svc) : { success: false, error: `Unknown service: ${serviceName}` };
 });
 
-// nativeOnly never touches Docker: the automatic start on launch must not spin
-// up containers the user didn't ask for.
+// Only ever starts what the user has: an optional engine they never installed
+// must not trigger a multi-GB Docker build. nativeOnly never touches Docker, so
+// the automatic start on launch can't spin up containers nobody asked for.
 ipcMain.handle('docker:start-all', async (_event, { nativeOnly = false } = {}) => {
   const services = getServices();
   const results = {};
-  const native = services.filter(s => s.start && (!nativeOnly || s.isInstalled()));
+  const native = services.filter(s => s.start && (s.isInstalled() || (s.required && !nativeOnly)));
   await Promise.all(native.map(async svc => { results[svc.name] = await startService(svc); }));
-  if (!nativeOnly) {
+  if (!nativeOnly && readSetupSelection().includes('geo')) {
     // Sequential: GeoServer depends on PostGIS, which comes first in the registry.
     for (const svc of services.filter(s => !s.start)) results[svc.name] = await startService(svc);
   }
@@ -1075,12 +1089,25 @@ function getServicePaths() {
 // on first use, or eagerly via the setup wizard; the renderer falls back to a
 // synthetic JS shape when the venv is absent.
 
+// python.exe alone only proves the venv was created: a failed install leaves that behind.
+function venvHasPackage(venvDir, packagePrefix) {
+  const hasPackage = (dir) => {
+    try { return fs.readdirSync(dir).some(d => d.startsWith(packagePrefix)); } catch { return false; }
+  };
+  if (IS_WIN) return hasPackage(path.join(venvDir, 'Lib', 'site-packages'));
+  try {
+    return fs.readdirSync(path.join(venvDir, 'lib')).some(ver => hasPackage(path.join(venvDir, 'lib', ver, 'site-packages')));
+  } catch {
+    return false;
+  }
+}
+
 function resolveDemandlibVenv() {
   const binDir = IS_WIN ? 'Scripts' : 'bin';
   const pyExe  = IS_WIN ? 'python.exe' : 'python3';
   const venvDir = path.join(app.getPath('userData'), 'demandlib-venv');
   const python  = path.join(venvDir, binDir, pyExe);
-  return { venvDir, python, exists: fs.existsSync(python) };
+  return { venvDir, python, exists: fs.existsSync(python) && venvHasPackage(venvDir, 'demandlib') };
 }
 
 /**
@@ -1115,21 +1142,11 @@ function runDemandlibOneShot(args, stdinStr, timeoutMs = 60000) {
   });
 }
 
-/**
- * Create (or recreate) the demandlib venv and install requirements, streaming
- * progress via sendProgress({type,label|line}). Reuses an already-resolved
- * systemPython when given (setup-wizard path), else resolves one.
- */
-async function installDemandlibVenv(sendProgress, systemPython) {
-  const binDir = IS_WIN ? 'Scripts' : 'bin';
-  const pyExe  = IS_WIN ? 'python.exe' : 'python3';
-  const venvDir = path.join(app.getPath('userData'), 'demandlib-venv');
-  const venvPy  = path.join(venvDir, binDir, pyExe);
-  const { pythonDir } = getServicePaths();
-  const reqFile = path.join(pythonDir, 'requirements.demandlib.txt');
+/** Runs a child process, streaming its output as progress and rejecting with its tail on failure. */
+function makeChildRunner(sendProgress) {
   const pipEnv = { ...process.env, PIP_PREFER_BINARY: '1', PIP_NO_CACHE_DIR: '1' };
   const recent = [];
-  const runChild = (cmd, cargs, label) => new Promise((resolve, reject) => {
+  return (cmd, cargs, label) => new Promise((resolve, reject) => {
     const child = spawn(cmd, cargs, { shell: false, env: pipEnv });
     const onLine = l => { recent.push(l); if (recent.length > 30) recent.shift(); sendProgress({ type: 'log', line: l }); };
     child.stdout.on('data', d => { for (const l of d.toString().split('\n').filter(x => x.trim())) onLine(l); });
@@ -1137,8 +1154,60 @@ async function installDemandlibVenv(sendProgress, systemPython) {
     child.on('close', c => (c === 0 ? resolve() : reject(new Error(`${label} failed (exit ${c})\n${recent.slice(-8).join('\n')}`))));
     child.on('error', e => reject(new Error(`${label} could not start: ${e.message}`)));
   });
+}
 
-  const sysPy = systemPython || await ensureCompatiblePython(sendProgress);
+// Every dependency the download pipeline imports at startup (download_world_osm →
+// requests/tqdm, extract_osm_region → osmium, upload_to_postgis → psycopg2).
+const OSM_VERIFY = 'import psycopg2, requests, osmium, tqdm; print("osm-ok")';
+
+function osmVenvPython() {
+  return path.join(app.getPath('userData'), 'osm-venv', IS_WIN ? 'Scripts' : 'bin', IS_WIN ? 'python.exe' : 'python3');
+}
+
+/** The regions list works without the OSM tools, so it is seeded regardless of the selection. */
+function seedOsmRegions() {
+  const osmExtractsDir = path.join(app.getPath('userData'), 'osm_data', 'osm_extracts');
+  const dbDst = path.join(osmExtractsDir, 'regions_database.json');
+  const dbSrc = app.isPackaged
+    ? path.join(process.resourcesPath, 'osm_processing', 'geofabrik_regions_database.json')
+    : path.join(__dirname, '..', 'osm_processing', 'geofabrik_regions_database.json');
+  fs.mkdirSync(osmExtractsDir, { recursive: true });
+  if (!fs.existsSync(dbDst) && fs.existsSync(dbSrc)) fs.copyFileSync(dbSrc, dbDst);
+}
+
+// Separate venv because osm_processing needs numpy>=1.24 (conflicts with
+// calliope's pinned numpy==1.23.5) plus osmium, geopandas, psycopg2-binary.
+async function installOsmVenv(sendProgress) {
+  const runChild = makeChildRunner(sendProgress);
+  const osmVenvDir = path.join(app.getPath('userData'), 'osm-venv');
+  const osmVenvPy  = osmVenvPython();
+  const osmReqFile = path.join(getServicePaths().pythonDir, 'requirements.osm.txt');
+
+  const sysPy = await ensureCompatiblePython(sendProgress);
+  sendProgress({ type: 'stage', label: 'Installing OSM processing tools…' });
+  await runChild(sysPy, ['-m', 'venv', '--clear', osmVenvDir], 'osm-venv creation');
+  try { await runChild(osmVenvPy, ['-m', 'ensurepip', '--upgrade'], 'osm ensurepip'); } catch { /* non-fatal */ }
+  await runChild(osmVenvPy, ['-m', 'pip', 'install', '--upgrade', '--quiet', 'pip', 'setuptools', 'wheel'], 'osm pip upgrade');
+  if (fs.existsSync(osmReqFile)) {
+    await runChild(osmVenvPy, ['-m', 'pip', 'install', '--prefer-binary', '--no-cache-dir', '-r', osmReqFile], 'osm deps');
+  }
+  await runChild(osmVenvPy, ['-c', OSM_VERIFY], 'osm verify');
+}
+
+/**
+ * Create (or recreate) the demandlib venv and install requirements, streaming
+ * progress via sendProgress({type,label|line}).
+ */
+async function installDemandlibVenv(sendProgress) {
+  const binDir = IS_WIN ? 'Scripts' : 'bin';
+  const pyExe  = IS_WIN ? 'python.exe' : 'python3';
+  const venvDir = path.join(app.getPath('userData'), 'demandlib-venv');
+  const venvPy  = path.join(venvDir, binDir, pyExe);
+  const { pythonDir } = getServicePaths();
+  const reqFile = path.join(pythonDir, 'requirements.demandlib.txt');
+  const runChild = makeChildRunner(sendProgress);
+
+  const sysPy = await ensureCompatiblePython(sendProgress);
   sendProgress({ type: 'stage', label: 'Creating demand-profiles environment…' });
   await runChild(sysPy, ['-m', 'venv', '--clear', venvDir], 'demandlib venv creation');
   try { await runChild(venvPy, ['-m', 'ensurepip', '--upgrade'], 'demandlib ensurepip'); } catch { /* non-fatal */ }
@@ -1291,7 +1360,7 @@ ipcMain.handle('calliope:uninstall', async () => {
 });
 
 
-ipcMain.handle('calliope:check', async () => {
+async function checkCalliopeEnv() {
   const { python, exists, venvDir } = resolveVenv();
   const serviceRunning = await isPortOpen(CALLIOPE_PORT);
 
@@ -1315,13 +1384,21 @@ ipcMain.handle('calliope:check', async () => {
   }
 
   return { envExists: importOk, venvPath: importOk ? venvDir : null, serviceRunning, platform: process.platform };
-});
+}
 
-ipcMain.handle('calliope:install', async (_event, selectedModules = ['calliope'], downloadSolvers = false, installDemandlib = false) => {
-  const sendProgress = (data) => {
-    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('calliope:install-progress', data);
-  };
+ipcMain.handle('calliope:check', checkCalliopeEnv);
 
+const HIGHS_VERIFY = [
+  'import highspy',
+  'import pyomo.environ',
+  'from pyomo.opt import SolverFactory',
+  's = SolverFactory("appsi_highs")',
+  'ok = type(s).__name__ != "UnknownSolver" and getattr(s, "available", lambda **kwargs: False)(exception_flag=False) is True',
+  'assert ok, "appsi_highs registered but unavailable"',
+  'print("solver-ok", "appsi_highs", getattr(highspy, "__file__", "module"))',
+].join('; ');
+
+async function installCalliope(sendProgress, selectedModules = ['calliope'], downloadSolvers = false) {
   // Verify imports expected per module
   const MODULE_VERIFY = {
     calliope: 'import calliope; print("calliope", calliope.__version__)',
@@ -1569,17 +1646,8 @@ ipcMain.handle('calliope:install', async (_event, selectedModules = ['calliope']
     }
 
     if (selectedModules.includes('calliope')) {
-      const solverVerification = [
-        'import highspy',
-        'import pyomo.environ',
-        'from pyomo.opt import SolverFactory',
-        's = SolverFactory("appsi_highs")',
-        'ok = type(s).__name__ != "UnknownSolver" and getattr(s, "available", lambda **kwargs: False)(exception_flag=False) is True',
-        'assert ok, "appsi_highs registered but unavailable"',
-        'print("solver-ok", "appsi_highs", getattr(highspy, "__file__", "module"))',
-      ].join('; ');
       recentLines.length = 0;
-      await runChild(venvPython, ['-c', solverVerification], 'solver verification');
+      await runChild(venvPython, ['-c', HIGHS_VERIFY], 'solver verification');
     }
 
     // ── Start Calliope service ────────────────────────────────────────────
@@ -1587,68 +1655,23 @@ ipcMain.handle('calliope:install', async (_event, selectedModules = ['calliope']
       sendProgress({ type: 'stage', label: 'Starting Calliope service…' });
       await startCalliopeService();
     }
+  } finally {
+    _calliopeInstalling = false;
+  }
+}
 
-    // ── Install OSM processing venv ───────────────────────────────────────
-    // Separate venv because osm_processing needs numpy>=1.24 (conflicts with
-    // calliope's pinned numpy==1.23.5) plus osmium, geopandas, psycopg2-binary.
-    sendProgress({ type: 'stage', label: 'Installing OSM processing tools…' });
-    try {
-      const osmVenvDir = path.join(app.getPath('userData'), 'osm-venv');
-      const osmVenvPy  = path.join(osmVenvDir, IS_WIN ? 'Scripts' : 'bin', IS_WIN ? 'python.exe' : 'python3');
-      const osmReqFile = path.join(pythonDir, 'requirements.osm.txt');
-      const osmDataDir = path.join(app.getPath('userData'), 'osm_data');
-      const osmExtractsDir = path.join(osmDataDir, 'osm_extracts');
-      const dbDst = path.join(osmExtractsDir, 'regions_database.json');
-      const dbSrc = app.isPackaged
-        ? path.join(process.resourcesPath, 'osm_processing', 'geofabrik_regions_database.json')
-        : path.join(__dirname, '..', 'osm_processing', 'geofabrik_regions_database.json');
-
-      fs.mkdirSync(osmExtractsDir, { recursive: true });
-      if (!fs.existsSync(dbDst) && fs.existsSync(dbSrc)) {
-        fs.copyFileSync(dbSrc, dbDst);
-        sendProgress({ type: 'log', line: 'Seeded OSM regions database' });
-      }
-
-      await runChild(systemPython, ['-m', 'venv', '--clear', osmVenvDir], 'osm-venv creation');
-      try { await runChild(osmVenvPy, ['-m', 'ensurepip', '--upgrade'], 'osm ensurepip'); } catch { /* non-fatal */ }
-      await runChild(osmVenvPy, ['-m', 'pip', 'install', '--upgrade', '--quiet', 'pip', 'setuptools', 'wheel'], 'osm pip upgrade');
-
-      if (fs.existsSync(osmReqFile)) {
-        await runChild(osmVenvPy, ['-m', 'pip', 'install', '--prefer-binary', '--no-cache-dir', '-r', osmReqFile], 'osm deps');
-      }
-
-      // Verify every dependency the download pipeline imports at startup
-      // (download_world_osm → requests/tqdm, extract_osm_region → osmium,
-      // upload_to_postgis → psycopg2). Checking only psycopg2/requests let a
-      // broken osmium wheel pass here and then fail at extract time.
-      await runChild(osmVenvPy, ['-c', 'import psycopg2, requests, osmium, tqdm; print("osm-ok")'], 'osm verify');
-      sendProgress({ type: 'log', line: '✓ OSM processing tools installed' });
-    } catch (osmErr) {
-      sendProgress({ type: 'log', line: `⚠ OSM tools install failed: ${(osmErr.message || String(osmErr)).split('\n')[0]}` });
-      sendProgress({ type: 'log', line: '  Region download will be unavailable; the map still shows live OSM via Overpass. Re-run setup to retry.' });
-    }
-
-    // ── Install demandlib venv (optional: BDEW load profiles) ─────────────
-    // Opt-in from the setup wizard; otherwise installed lazily on first use.
-    if (installDemandlib) {
-      sendProgress({ type: 'stage', label: 'Installing demand profiles (demandlib)…' });
-      try {
-        await installDemandlibVenv(sendProgress, systemPython);
-        sendProgress({ type: 'log', line: '✓ Demand profiles (demandlib) installed' });
-      } catch (dlErr) {
-        sendProgress({ type: 'log', line: `⚠ demandlib install failed: ${(dlErr.message || String(dlErr)).split('\n')[0]}` });
-        sendProgress({ type: 'log', line: '  Study-Area demand will use the synthetic fallback — install later from the wizard.' });
-      }
-    }
-
+ipcMain.handle('calliope:install', async (_event, selectedModules, downloadSolvers) => {
+  const sendProgress = (data) => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('calliope:install-progress', data);
+  };
+  try {
+    await installCalliope(sendProgress, selectedModules, downloadSolvers);
     sendProgress({ type: 'done' });
     return { success: true };
   } catch (err) {
     const msg = err.message || String(err);
     sendProgress({ type: 'error', error: msg });
     return { success: false, error: msg };
-  } finally {
-    _calliopeInstalling = false;
   }
 });
 
@@ -1750,7 +1773,9 @@ const engines = {
     // The 0.7 engine solves with the CBC shell solver (calliope dev7's
     // pyomo-kernel models are incompatible with the HiGHS python interface).
     postInstall: async (sendProgress) => {
-      if (IS_WIN) {
+      if (await probeSolver('cbc')) {
+        sendProgress({ type: 'log', line: '✓ CBC solver found' });
+      } else if (IS_WIN) {
         sendProgress({ type: 'stage', label: 'Ensuring CBC solver…' });
         const userSolverDir = path.join(app.getPath('userData'), 'solvers', 'windows');
         try {
@@ -1869,6 +1894,197 @@ const engines = {
     deps: engineDeps,
   }),
 };
+
+// ─── Component setup (what gets installed, and proving it works) ─────────────
+const SOLVER_PROBES = { cbc: ['cbc', ['-quit']], glpk: ['glpsol', ['--version']] };
+
+/** True if the solver binary actually runs, which also catches missing runtime DLLs. */
+function probeSolver(id) {
+  const [name, args] = SOLVER_PROBES[id];
+  const exe = IS_WIN ? `${name}.exe` : name;
+  const dir = getGlpsolDirs().find(d => fs.existsSync(path.join(d, exe)));
+  return new Promise((resolve) => {
+    execFile(dir ? path.join(dir, exe) : name, args, { timeout: 10000, windowsHide: true }, err => resolve(!err));
+  });
+}
+
+function pythonSucceeds(python, code) {
+  return new Promise((resolve) => {
+    execFile(python, ['-c', code], { timeout: 60000, windowsHide: true }, err => resolve(!err));
+  });
+}
+
+const setupSelectionPath = () => path.join(app.getPath('userData'), 'setup-components.json');
+
+function readSetupSelection() {
+  try {
+    return JSON.parse(fs.readFileSync(setupSelectionPath(), 'utf-8')).selected || [];
+  } catch {
+    return [];
+  }
+}
+
+function writeSetupSelection(selected) {
+  fs.writeFileSync(setupSelectionPath(), JSON.stringify({ selected }, null, 2), 'utf-8');
+}
+
+async function geoContainersRunning() {
+  const statuses = await Promise.all(['calliope-postgis', 'calliope-geoserver'].map(getContainerStatus));
+  return statuses.every(s => s.running);
+}
+
+const serviceFor = (id) => getServices().find(s => s.name === `${id}-runner`);
+
+// A framework works only if it imports AND its service answers as that engine.
+async function serviceAnswers(id) {
+  const result = await startNative(serviceFor(id));
+  return result.success;
+}
+
+function engineSteps(id) {
+  const engine = engines[id];
+  return {
+    isInstalled: () => engine.isInstalled(),
+    install: async (log) => {
+      const result = await engine.install(log);
+      if (!result.success) throw new Error(result.error);
+    },
+    verify: async () => (await engine.check()).envExists && serviceAnswers(id),
+    uninstall: () => engine.uninstall(),
+  };
+}
+
+const COMPONENT_STEPS = {
+  backend: {
+    isInstalled: () => true,
+    install: () => startBackend(),
+    verify: async () => !!backendProcess && isPortOpen(BACKEND_PORT),
+  },
+  calliope: {
+    isInstalled: () => resolveVenv().exists,
+    install: (log) => installCalliope(log),
+    verify: async () => (await checkCalliopeEnv()).envExists && serviceAnswers('calliope'),
+  },
+  highs: {
+    isInstalled: () => resolveVenv().exists,
+    verify: () => pythonSucceeds(resolveVenv().python, HIGHS_VERIFY),
+  },
+  cbc: {
+    isInstalled: () => probeSolver('cbc'),
+    unavailable: () => (IS_WIN ? null : 'Install it with your package manager, e.g. sudo apt-get install coinor-cbc'),
+    install: (log) => downloadCbcWin(path.join(app.getPath('userData'), 'solvers', 'windows'), log),
+    verify: () => probeSolver('cbc'),
+  },
+  glpk: {
+    isInstalled: () => probeSolver('glpk'),
+    unavailable: () => (IS_WIN
+      ? 'glpsol.exe is missing from this TEMPO installation — reinstall TEMPO'
+      : 'Install it with your package manager, e.g. sudo apt-get install glpk-utils'),
+    verify: () => probeSolver('glpk'),
+  },
+  calliope07: engineSteps('calliope07'),
+  pypsa: engineSteps('pypsa'),
+  osemosys: engineSteps('osemosys'),
+  adoptnet0: engineSteps('adoptnet0'),
+  osm: {
+    isInstalled: () => fs.existsSync(osmVenvPython()) && venvHasPackage(path.join(app.getPath('userData'), 'osm-venv'), 'osmium'),
+    install: (log) => installOsmVenv(log),
+    verify: () => pythonSucceeds(osmVenvPython(), OSM_VERIFY),
+    uninstall: () => removeVenvDir(path.join(app.getPath('userData'), 'osm-venv')),
+  },
+  demand: {
+    isInstalled: () => resolveDemandlibVenv().exists,
+    install: (log) => installDemandlibVenv(log),
+    verify: () => pythonSucceeds(resolveDemandlibVenv().python, 'from demandlib import bdew'),
+    uninstall: () => removeVenvDir(path.join(app.getPath('userData'), 'demandlib-venv')),
+  },
+  geo: {
+    isInstalled: geoContainersRunning,
+    unavailable: async () => (await checkDocker() ? null : 'Start Docker Desktop first, then install this from Settings'),
+    install: async () => {
+      // Sequential: GeoServer depends on PostGIS, which comes first in the registry.
+      for (const svc of getServices().filter(s => !s.start)) {
+        const result = await startViaDocker(svc);
+        if (!result.success) throw new Error(result.error);
+      }
+    },
+    verify: geoContainersRunning,
+    // Stopped, not deleted: the containers hold the user's OSM database.
+    uninstall: async () => {
+      for (const svc of getServices().filter(s => !s.start)) await runDocker(['stop', svc.name], svc.composeDir);
+      return { success: true };
+    },
+  },
+};
+
+async function getComponentStates() {
+  const entries = await Promise.all(COMPONENTS.map(async ({ id }) => {
+    const steps = COMPONENT_STEPS[id];
+    const installed = await steps.isInstalled();
+    const unavailable = !installed && steps.unavailable ? await steps.unavailable() : null;
+    return [id, { installed, unavailable }];
+  }));
+  return Object.fromEntries(entries);
+}
+
+const sendSetupProgress = (data) => {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('setup:progress', data);
+};
+
+ipcMain.handle('setup:components', async () => {
+  const states = await getComponentStates();
+  const { bavail, bsize } = await fs.promises.statfs(app.getPath('userData'));
+  return {
+    components: COMPONENTS.map(c => ({ ...c, ...states[c.id], removable: !c.required && !!COMPONENT_STEPS[c.id].uninstall })),
+    selected: readSetupSelection(),
+    freeGb: (bavail * bsize) / 1e9,
+  };
+});
+
+let setupRunning = false;
+
+ipcMain.handle('setup:install', async (_event, { ids = [], force = [] } = {}) => {
+  if (setupRunning) return { ok: false, error: 'An installation is already running.' };
+  setupRunning = true;
+  try {
+    const plan = buildPlan(ids, await getComponentStates(), force);
+
+    // venvs need temporary space for downloads on top of their final size.
+    const neededGb = diskNeededGb(plan) * 1.5;
+    const { bavail, bsize } = await fs.promises.statfs(app.getPath('userData'));
+    const freeGb = (bavail * bsize) / 1e9;
+    if (freeGb < neededGb) {
+      return { ok: false, error: `Not enough disk space: this selection needs about ${neededGb.toFixed(1)} GB, and ${freeGb.toFixed(1)} GB is free.` };
+    }
+
+    seedOsmRegions();
+    writeSetupSelection([...new Set([...readSetupSelection(), ...resolveSelection(ids)])]);
+
+    // Component installers report their own done/error; runPlan decides the outcome.
+    const log = (data) => { if (data.type === 'log' || data.type === 'stage') sendSetupProgress(data); };
+    const { ok, results } = await runPlan({
+      plan,
+      install: (id) => COMPONENT_STEPS[id].install(log),
+      verify: (id) => COMPONENT_STEPS[id].verify(),
+      emit: (event) => sendSetupProgress({ type: 'component', ...event }),
+    });
+    return { ok, results };
+  } catch (err) {
+    return { ok: false, error: err.message || String(err) };
+  } finally {
+    setupRunning = false;
+  }
+});
+
+ipcMain.handle('setup:uninstall', async (_event, id) => {
+  const component = COMPONENTS.find(c => c.id === id);
+  const uninstall = COMPONENT_STEPS[id]?.uninstall;
+  if (!component || component.required || !uninstall) return { success: false, error: `${id} cannot be uninstalled.` };
+  if (setupRunning) return { success: false, error: 'An installation is running — wait for it to finish.' };
+  const result = await uninstall();
+  if (result.success) writeSetupSelection(readSetupSelection().filter(s => s !== id));
+  return result;
+});
 
 // ─── Window ────────────────────────────────────────────────────────────────
 async function createWindow() {

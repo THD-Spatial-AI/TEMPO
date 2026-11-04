@@ -29,6 +29,31 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('template-progress', handler);
   },
 
+  // ── Component setup ───────────────────────────────────────────────────────
+
+  /** @returns Promise<{ components: Array, selected: string[], freeGb: number }> */
+  getSetupComponents: () => ipcRenderer.invoke('setup:components'),
+
+  /**
+   * Install the required components plus `ids`, verifying each one. `force`
+   * reinstalls components even if they look healthy.
+   * @returns Promise<{ ok: bool, results?: object, error?: string }>
+   */
+  installComponents: (options) => ipcRenderer.invoke('setup:install', options),
+
+  /** @returns Promise<{ success: bool, error?: string }> */
+  uninstallComponent: (id) => ipcRenderer.invoke('setup:uninstall', id),
+
+  /**
+   * Callback receives { type: 'component', id, state, error? } | { type: 'log', line } | { type: 'stage', label }.
+   * @returns {Function} unsubscribe
+   */
+  onSetupProgress: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('setup:progress', handler);
+    return () => ipcRenderer.removeListener('setup:progress', handler);
+  },
+
   /**
    * Stop an engine's service and delete its Python environment.
    * @param {'calliope'|'calliope07'|'adoptnet0'|'pypsa'|'osemosys'} engineId
@@ -101,8 +126,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
    * @param {boolean}  [downloadSolvers=false] Download CBC binary for Windows
    * @returns Promise<{ success: bool, error?: string }>
    */
-  installCalliopeEnv: (modules = ['calliope'], downloadSolvers = false, installDemandlib = false) =>
-    ipcRenderer.invoke('calliope:install', modules, downloadSolvers, installDemandlib),
+  installCalliopeEnv: (modules = ['calliope'], downloadSolvers = false) =>
+    ipcRenderer.invoke('calliope:install', modules, downloadSolvers),
 
   /**
    * Subscribe to Calliope install progress events.

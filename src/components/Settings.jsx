@@ -6,6 +6,7 @@ import tempoLogo from '../assets/Logo_TEMPO.PNG';
 import Select from './ui/Select';
 import Calliope07EnginePanel from './Calliope07EnginePanel';
 import EngineUninstallButton from './EngineUninstallButton';
+import ComponentInstaller from './ComponentInstaller';
 import EngineInstallPanel from './EngineInstallPanel';
 import { getSettings, setSetting } from '../services/appSettings';
 import { useData } from '../context/DataContext';
@@ -928,6 +929,15 @@ const Settings = () => {
 
           {/* Optimization Engines */}
           <div className={activeSection === 'engines' ? '' : 'hidden'}>
+            {window.electronAPI?.getSetupComponents && (
+              <div className="mb-8">
+                <h3 className="text-lg font-semibold text-slate-800 mb-1">Components</h3>
+                <p className="text-sm text-slate-500 mb-4">
+                  Add or remove optional frameworks, solvers, services and tools.
+                </p>
+                <ComponentInstaller manage />
+              </div>
+            )}
             <p className="text-sm text-slate-500 mb-4">
               Install and manage the optimisation engines TEMPO can run models on. Expand a row for
               details, installation, and logs.
@@ -977,7 +987,7 @@ const Settings = () => {
                     embedded
                     title="AdOpT-NET0 Engine"
                     icon={FiBox}
-                    description="Advanced Optimization Tool for Energy Networks, in its own isolated Python environment. Any TEMPO model can run on it — the translation happens automatically at run time. Also enables AdOpT-NET0 model import/export. Requires Python 3.10+."
+                    description="Advanced Optimization Tool for Energy Networks, in its own isolated Python environment. Any TEMPO model can run on it — the translation happens automatically at run time. Also enables AdOpT-NET0 model import/export. Requires Python 3.12+."
                     checkFn="checkAdoptnet0Env"
                     installFn="installAdoptnet0Env"
                     onProgressFn="onAdoptnet0InstallProgress"
