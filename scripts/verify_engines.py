@@ -231,6 +231,16 @@ def compare_pair(tag_a, r_a, tag_b, r_b, obj_tol, cap_tol, non_tx_techs, failure
             failures.append(
                 f"[{tag_a} vs {tag_b}] total demand differs by {d:.3f}%")
 
+    # Unmet demand (ensure_feasibility slack) — reported apart from the objective
+    u_a = r_a.get('total_unmet_demand_mwh') or 0.0
+    u_b = r_b.get('total_unmet_demand_mwh') or 0.0
+    if u_a or u_b:
+        d = pct_diff(u_a, u_b)
+        print(f"unmet demand:  {tag_a}={u_a:.3f}  {tag_b}={u_b:.3f}  diff={d:.3f}%")
+        if d > cap_tol and abs(u_a - u_b) > 1e-3:
+            failures.append(
+                f"[{tag_a} vs {tag_b}] unmet demand differs: {u_a:.3f} vs {u_b:.3f}")
+
 
 # ─── Myopic residual check (mirrors src/services/scenarioStudio transform + pathway) ──
 #
@@ -244,6 +254,13 @@ def compare_pair(tag_a, r_a, tag_b, r_b, obj_tol, cap_tol, non_tx_techs, failure
 CARRY_FORWARD_PARENTS = {'supply', 'supply_plus', 'conversion', 'conversion_plus', 'storage'}
 INVESTMENT_COST_KEYS = ['energy_cap', 'storage_cap', 'resource_cap', 'resource_area', 'purchase']
 VINTAGE_SUFFIX = '_existing'
+
+
+def contract_tech_id(name):
+    """Tech id as the Calliope 0.6.8 runner (the reference contract) reports it."""
+    s = str(name).strip().replace('::', '__').replace(':', '_')
+    s = re.sub(r'[^A-Za-z0-9_\-]', '_', s)
+    return re.sub(r'_+', '_', s).strip('_') or 'unknown'
 
 
 def _norm_id(s):
@@ -498,7 +515,8 @@ def main():
             t['name']: (t.get('essentials') or {}).get('parent', t.get('parent', ''))
             for t in payload.get('technologies', [])
         }
-        non_tx_techs = {n for n, p in tech_parents.items() if p not in ('transmission', 'demand')}
+        non_tx_techs = {contract_tech_id(n) for n, p in tech_parents.items()
+                        if p not in ('transmission', 'demand')}
 
         results = {}
         for tag, (py_exe, module) in engines_to_run.items():

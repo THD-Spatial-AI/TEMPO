@@ -15,6 +15,10 @@ export default defineConfig(({ mode }) => {
       exclude: ['maplibre-gl'],
     },
     base: './',   // relative paths so Electron can load dist/index.html from file://
+    test: {
+      // release/ holds packaged builds (incl. a stale copy of the test files)
+      exclude: ['**/node_modules/**', '**/dist/**', 'release/**'],
+    },
     server: {
       proxy: {
         // ── Go backend (dev only — avoids CORS from localhost:5174) ──────────
