@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"calliope-backend/internal/calliope"
@@ -35,7 +36,14 @@ var allowedCORSOrigins = map[string]bool{
 // when the raw CSV strings are stored for reload persistence.
 const maxModelBodyBytes = 256 << 20 // 256 MB
 
-const geoServerURL = "http://localhost:8081/geoserver"
+// envOr returns an env var set by Electron (which chooses service ports at
+// startup), or the default port's URL when run standalone.
+func envOr(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
 
 type Server struct {
 	db          *storage.DB
@@ -76,11 +84,13 @@ func NewServer(db *storage.DB, port string) *Server {
 		c.Next()
 	})
 
+	geoServerURL := envOr("TEMPO_GEOSERVER_URL", "http://localhost:8081/geoserver")
+
 	server := &Server{
 		db:          db,
 		geoServer:   geoserver.NewClient(geoServerURL),
 		osm:         overpass.NewClient(),
-		calliopeAPI: calliope.NewClient("http://localhost:5000"),
+		calliopeAPI: calliope.NewClient(envOr("TEMPO_CALLIOPE_URL", "http://localhost:5000")),
 		router:      router,
 		port:        port,
 	}

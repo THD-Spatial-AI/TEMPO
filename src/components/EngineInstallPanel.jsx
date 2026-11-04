@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { FiCheckCircle, FiAlertCircle, FiDownload, FiTerminal, FiRefreshCw } from './ui/icons';
+import EngineUninstallButton from './EngineUninstallButton';
 
 /**
  * Generic install/status panel for an optional optimisation engine
@@ -165,6 +166,16 @@ export default function EngineInstallPanel({ title, icon: Icon, description, che
         </button>
       ) : (
         <p className="text-sm text-slate-400">Engine installation is available in the desktop app only.</p>
+      )}
+
+      {/* 'checkPypsaEnv' -> 'pypsa' (matches the main-process IPC prefix) */}
+      {envStatus?.envExists && (
+        <EngineUninstallButton
+          engineId={checkFn.replace(/^check(.+)Env$/, '$1').toLowerCase()}
+          title={title}
+          disabled={installing}
+          onDone={() => { setSuccess(false); setLogs([]); refreshStatus(); }}
+        />
       )}
 
       {/* Log output */}

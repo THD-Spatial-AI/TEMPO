@@ -3,6 +3,7 @@ site/
 
 # Local Calliope solver venv (created by scripts/setup_local_solver.*)
 solver-env/
+.venv-calliope/
 
 # Logs
 logs

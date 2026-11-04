@@ -5,10 +5,12 @@
 let _backendURLPromise = null;
 
 function getBackendURL() {
-  if (_backendURLPromise) return _backendURLPromise;
+  // Not cached in Electron: the backend can move to another port if it restarts.
   if (typeof window !== 'undefined' && window.electronAPI?.getBackendURL) {
-    _backendURLPromise = window.electronAPI.getBackendURL().catch(() => 'http://localhost:8082');
-  } else if (import.meta.env.DEV) {
+    return window.electronAPI.getBackendURL().catch(() => 'http://localhost:8082');
+  }
+  if (_backendURLPromise) return _backendURLPromise;
+  if (import.meta.env.DEV) {
     _backendURLPromise = Promise.resolve('');
   } else {
     _backendURLPromise = Promise.resolve('http://localhost:8082');

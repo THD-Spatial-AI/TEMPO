@@ -20,6 +20,10 @@ export default defineConfig(({ mode }) => {
       exclude: ['**/node_modules/**', '**/dist/**', 'release/**'],
     },
     server: {
+      // Electron and the backend's CORS list expect this exact port; fail loudly
+      // instead of silently moving to another one.
+      port: 5173,
+      strictPort: true,
       proxy: {
         // ── Go backend (dev only — avoids CORS from localhost:5174) ──────────
         '/api': {

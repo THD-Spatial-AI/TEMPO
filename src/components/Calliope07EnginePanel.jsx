@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { FiZap, FiCheckCircle, FiAlertCircle, FiDownload, FiTerminal, FiRefreshCw } from './ui/icons';
+import EngineUninstallButton from './EngineUninstallButton';
 
 /**
  * Reusable install/status panel for the Calliope 0.7 (experimental) engine.
@@ -172,6 +173,15 @@ export default function Calliope07EnginePanel({ onInstallSuccess, embedded = fal
             <p className="text-xs text-slate-400 mt-1">After install, launch TEMPO with <code className="bg-slate-200 px-1 rounded">npm run dev:electron</code>.</p>
           </div>
         </div>
+      )}
+
+      {envStatus?.envExists && (
+        <EngineUninstallButton
+          engineId="calliope07"
+          title="Calliope 0.7"
+          disabled={installing}
+          onDone={() => { setSuccess(false); setLogs([]); refreshStatus(); }}
+        />
       )}
 
       {/* Log output */}

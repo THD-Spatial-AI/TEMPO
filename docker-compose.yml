@@ -6,7 +6,7 @@ services:
     image: calliope-runner:latest
     container_name: calliope-runner
     ports:
-      - "5000:5000"
+      - "${TEMPO_CALLIOPE_PORT:-5000}:5000"
     restart: unless-stopped
     volumes:
       - ./python:/app/python:ro
@@ -34,7 +34,7 @@ services:
     image: calliope07-runner:latest
     container_name: calliope07-runner
     ports:
-      - "5002:5002"
+      - "${TEMPO_CALLIOPE07_PORT:-5002}:5002"
     restart: unless-stopped
     volumes:
       - ./python:/app/python:ro
@@ -56,7 +56,7 @@ services:
     image: pypsa-runner:latest
     container_name: pypsa-runner
     ports:
-      - "5003:5003"
+      - "${TEMPO_PYPSA_PORT:-5003}:5003"
     restart: unless-stopped
     volumes:
       - ./python:/app/python:ro
@@ -74,7 +74,7 @@ services:
     image: osemosys-runner:latest
     container_name: osemosys-runner
     ports:
-      - "5004:5004"
+      - "${TEMPO_OSEMOSYS_PORT:-5004}:5004"
     restart: unless-stopped
     volumes:
       - ./python:/app/python:ro

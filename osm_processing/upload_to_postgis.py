@@ -12,6 +12,7 @@ Example: python upload_to_postgis.py South_America Chile Metropolitana
 Example: python upload_to_postgis.py Europe Spain Andalucia
 """
 
+import os
 import sys
 import json
 import psycopg2
@@ -24,7 +25,7 @@ DB_CONFIG = {
     'user': 'postgres',
     'password': 'geoserver123',  # Change this to your password
     'host': 'localhost',
-    'port': 5432
+    'port': int(os.environ.get('TEMPO_POSTGIS_PORT', 5432))  # set by Electron if 5432 is taken
 }
 
 def create_tables(conn):

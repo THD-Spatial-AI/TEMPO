@@ -5,6 +5,7 @@ import { LuSlidersHorizontal, LuCpu, LuServer, LuMessageSquare, LuShield, LuInfo
 import tempoLogo from '../assets/Logo_TEMPO.PNG';
 import Select from './ui/Select';
 import Calliope07EnginePanel from './Calliope07EnginePanel';
+import EngineUninstallButton from './EngineUninstallButton';
 import EngineInstallPanel from './EngineInstallPanel';
 import { getSettings, setSetting } from '../services/appSettings';
 import { useData } from '../context/DataContext';
@@ -230,6 +231,15 @@ function PythonEnvironmentPanel({ embedded = false, onInstallSuccess }) {
           <><FiDownload className="w-4 h-4" /> {envStatus?.envExists ? 'Reinstall from scratch' : 'Install'}</>
         )}
       </button>
+
+      {envStatus?.envExists && (
+        <EngineUninstallButton
+          engineId="calliope"
+          title="Calliope 0.6.8"
+          disabled={installing}
+          onDone={() => { setSuccess(false); setLogs([]); refreshStatus(); }}
+        />
+      )}
 
       {/* Log output */}
       {logs.length > 0 && (

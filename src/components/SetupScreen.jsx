@@ -23,6 +23,7 @@ function ServiceRow({ svc }) {
         <p className="text-xs text-slate-400 font-mono">
           localhost:{svc.port}
           {svc.required && <span className="ml-2 text-gray-400">required</span>}
+          {svc.portConflict && <span className="ml-2 text-gray-500">port used by another application</span>}
         </p>
       </div>
       <ServiceIcon running={svc.running} healthy={svc.healthy} />
@@ -55,6 +56,39 @@ export default function SetupScreen({ onComplete, freshInstall = false }) {
 
   const appendLog = (line) =>
     setLogs(prev => [...prev, { text: line, ts: new Date().toLocaleTimeString('en', { hour12: false }) }]);
+
+  // ── Start services ────────────────────────────────────────────────────────
+  const startServices = useCallback((options) => {
+    setPhase('starting');
+    setLogs([]);
+    setErrorMsg('');
+
+    const unsub = window.electronAPI.onDockerStartProgress((data) => {
+      if (data.type === 'log')   appendLog(data.line);
+      if (data.type === 'stage') appendLog('▶ ' + data.label);
+      if (data.type === 'done') {
+        if (unsub) unsub();
+        unsubRef.current = null;
+        // Re-check status after services start
+        setTimeout(async () => {
+          try {
+            const result = await window.electronAPI.getDockerStatus();
+            setServices(result.services || []);
+            const ok = (result.services || []).filter(s => s.required).every(s => s.running);
+            if (ok) {
+              setPhase('done');
+              setTimeout(onComplete, 800);
+            } else {
+              setPhase('needs-start');
+              setErrorMsg(data.failures?.join(' · ') || 'Some required services are still not running.');
+            }
+          } catch { setPhase('error'); }
+        }, 500);
+      }
+    });
+    unsubRef.current = unsub;
+    window.electronAPI.startAllDockerServices(options);
+  }, [onComplete]);
 
   // ── Initial check ─────────────────────────────────────────────────────────
   const checkStatus = useCallback(async () => {
@@ -93,85 +127,28 @@ export default function SetupScreen({ onComplete, freshInstall = false }) {
         return;
       }
 
-      // Docker mode: all required containers running
-      if (dockerResult.dockerAvailable) {
-        const requiredAll = (dockerResult.services || []).filter(s => s.required).every(s => s.running);
-        if (requiredAll) {
-          setPhase('done');
-          setTimeout(onComplete, 600);
-        } else {
-          setPhase('needs-start');
-        }
+      // Docker mode: all required services running
+      if ((dockerResult.services || []).filter(s => s.required).every(s => s.running)) {
+        setPhase('done');
+        setTimeout(onComplete, 600);
         return;
       }
 
-      // No Docker available — offer native venv install as alternative
+      // Venv installed but the service isn't up (still booting, or it died): start it.
       if (calliopeEnv.envExists) {
-        // Venv is installed. Service should have been autostarted — wait a bit and recheck.
-        setPhase('native-starting');
-        setTimeout(async () => {
-          const urls2 = await window.electronAPI.getServiceURLs().catch(() => null);
-          if (urls2?.calliope?.running) {
-            setPhase('done');
-            setTimeout(onComplete, 600);
-          } else {
-            // Try restarting the service
-            await window.electronAPI.restartCalliopeService().catch(() => {});
-            const urls3 = await window.electronAPI.getServiceURLs().catch(() => null);
-            if (urls3?.calliope?.running) {
-              setPhase('done');
-              setTimeout(onComplete, 600);
-            } else {
-              setPhase('native-needs-install');
-            }
-          }
-        }, 3000);
-      } else {
-        setPhase('native-needs-install');
+        startServices({ nativeOnly: true });
+        return;
       }
+
+      // No working venv (new machine, uninstalled, or broken): offer the install.
+      setPhase('native-needs-install');
     } catch (err) {
       setPhase('error');
       setErrorMsg(err.message || 'Failed to check services.');
     }
-  }, [onComplete, freshInstall]);
+  }, [onComplete, freshInstall, startServices]);
 
   useEffect(() => { checkStatus(); }, [checkStatus]);
-
-  // ── Start services ────────────────────────────────────────────────────────
-  const startServices = async () => {
-    setPhase('starting');
-    setLogs([]);
-    setErrorMsg('');
-
-    const unsub = window.electronAPI.onDockerStartProgress((data) => {
-      if (data.type === 'log')   appendLog(data.line);
-      if (data.type === 'stage') appendLog('▶ ' + data.label);
-      if (data.type === 'done') {
-        if (unsub) unsub();
-        unsubRef.current = null;
-        // Re-check status after containers start
-        setTimeout(async () => {
-          try {
-            const result = await window.electronAPI.getDockerStatus();
-            setServices(result.services || []);
-            const ok = (result.services || []).filter(s => s.required).every(s => s.running);
-            if (ok) {
-              setPhase('done');
-              setTimeout(onComplete, 800);
-            } else {
-              setPhase('needs-start');
-              setErrorMsg('Some required services are still not running. Check Docker logs.');
-            }
-          } catch { setPhase('error'); }
-        }, 2000);
-      }
-      if (data.type === 'error') {
-        appendLog('✗ ' + data.label);
-      }
-    });
-    unsubRef.current = unsub;
-    window.electronAPI.startAllDockerServices();
-  };
 
   // ── Native Calliope venv install ──────────────────────────────────────────
   const installNative = async () => {
@@ -206,16 +183,6 @@ export default function SetupScreen({ onComplete, freshInstall = false }) {
         <SpinnerIcon />
         <h2 className="mt-6 text-2xl font-black tracking-tighter text-black">Checking services…</h2>
         <p className="mt-2 text-slate-500 text-sm">Verifying TEMPO services</p>
-      </FullScreenCard>
-    );
-  }
-
-  if (phase === 'native-starting') {
-    return (
-      <FullScreenCard>
-        <SpinnerIcon />
-        <h2 className="mt-6 text-2xl font-black tracking-tighter text-black">Starting Calliope…</h2>
-        <p className="mt-2 text-slate-500 text-sm">Launching the energy model service</p>
       </FullScreenCard>
     );
   }
@@ -292,6 +259,14 @@ export default function SetupScreen({ onComplete, freshInstall = false }) {
             <FiDownload className="w-4 h-4" />
             {installFailed ? 'Retry' : 'Install'}
           </button>
+          {dockerAvailable && (
+            <button
+              onClick={() => startServices()}
+              className="flex items-center gap-2 px-5 py-3 border border-black text-black text-sm font-bold uppercase tracking-wide hover:bg-black hover:text-white transition-colors"
+            >
+              <FiPlay className="w-4 h-4" /> Use Docker
+            </button>
+          )}
           <button
             onClick={onComplete}
             className="flex items-center gap-2 px-5 py-3 border border-black text-black text-sm font-bold uppercase tracking-wide hover:bg-black hover:text-white transition-colors"
@@ -388,7 +363,7 @@ export default function SetupScreen({ onComplete, freshInstall = false }) {
           </h2>
           <p className="mt-1 text-slate-500 text-sm">
             {phase === 'starting'
-              ? 'Starting Docker containers — please wait'
+              ? 'This can take a minute — please wait'
               : 'Some required TEMPO services need to be started'}
           </p>
           {errorMsg && (
@@ -401,12 +376,12 @@ export default function SetupScreen({ onComplete, freshInstall = false }) {
           {services.map(svc => <ServiceRow key={svc.name} svc={svc} />)}
         </div>
 
-        {/* Log panel (shown while starting) */}
-        {phase === 'starting' && (
+        {/* Log panel (kept after a failed start so the errors stay readable) */}
+        {(phase === 'starting' || logs.length > 0) && (
           <div className="w-full max-w-2xl mb-4">
             <div className="flex items-center gap-2 mb-2">
               <FiTerminal className="w-4 h-4 text-slate-400" />
-              <span className="text-xs font-mono text-slate-400 uppercase tracking-wide">Docker output</span>
+              <span className="text-xs font-mono text-slate-400 uppercase tracking-wide">Start-up output</span>
             </div>
             <div className="bg-slate-950 rounded-xl p-4 h-44 overflow-y-auto font-mono text-xs leading-relaxed">
               {logs.length === 0
@@ -433,7 +408,7 @@ export default function SetupScreen({ onComplete, freshInstall = false }) {
           {phase === 'needs-start' && (
             <>
               <button
-                onClick={startServices}
+                onClick={() => startServices()}
                 className="flex items-center gap-2 px-6 py-3 bg-primary text-white text-sm font-bold uppercase tracking-wide hover:opacity-80 transition-opacity duration-200"
               >
                 <FiPlay className="w-4 h-4" /> Start Services
@@ -444,6 +419,14 @@ export default function SetupScreen({ onComplete, freshInstall = false }) {
               >
                 Continue Anyway
               </button>
+              {errorMsg && (
+                <button
+                  onClick={installNative}
+                  className="flex items-center gap-2 px-6 py-3 border border-black text-black text-sm font-bold uppercase tracking-wide hover:bg-black hover:text-white transition-colors duration-200"
+                >
+                  <FiDownload className="w-4 h-4" /> Reinstall
+                </button>
+              )}
             </>
           )}
           {phase === 'needs-start' && (

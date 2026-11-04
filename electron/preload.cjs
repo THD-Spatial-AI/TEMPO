@@ -29,30 +29,41 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('template-progress', handler);
   },
 
+  /**
+   * Stop an engine's service and delete its Python environment.
+   * @param {'calliope'|'calliope07'|'adoptnet0'|'pypsa'|'osemosys'} engineId
+   * @returns Promise<{ success: bool, error?: string }>
+   */
+  uninstallEngine: (engineId) => (
+    ['calliope', 'calliope07', 'adoptnet0', 'pypsa', 'osemosys'].includes(engineId)
+      ? ipcRenderer.invoke(`${engineId}:uninstall`)
+      : Promise.resolve({ success: false, error: `Unknown engine: ${engineId}` })
+  ),
+
   // ── Docker service management ─────────────────────────────────────────────
 
   /**
-   * Get the running status of all TEMPO Docker services.
+   * Get the running status of all TEMPO services (native or Docker).
    * @returns Promise<{ dockerAvailable: bool, services: Array }>
    */
   getDockerStatus: () => ipcRenderer.invoke('docker:status'),
 
   /**
-   * Start a specific Docker service by container name.
-   * @param {string} serviceName  e.g. 'calliope-runner', 'opentech-db'
+   * Start one service: natively if its venv is installed, otherwise via Docker.
+   * @param {string} serviceName  e.g. 'calliope-runner', 'calliope-geoserver'
    * @returns Promise<{ success: bool, error?: string }>
    */
   startDockerService: (serviceName) => ipcRenderer.invoke('docker:start', serviceName),
 
   /**
-   * Start all Docker services that have a compose directory.
+   * Start every service, or only the natively installed ones with { nativeOnly: true }.
    * @returns Promise<Record<string, { success: bool, error?: string }>>
    */
-  startAllDockerServices: () => ipcRenderer.invoke('docker:start-all'),
+  startAllDockerServices: (options) => ipcRenderer.invoke('docker:start-all', options),
 
   /**
-   * Subscribe to Docker start-up progress events.
-   * Callback receives: { type: 'log'|'stage'|'done'|'error', line?: string, label?: string }
+   * Subscribe to service start-up progress events.
+   * Callback receives: { type: 'log'|'stage'|'done', line?: string, label?: string, failures?: string[] }
    * @returns {Function} unsubscribe
    */
   onDockerStartProgress: (callback) => {

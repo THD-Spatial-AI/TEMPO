@@ -5,6 +5,8 @@ const fs = require('fs');
 const net = require('net');
 const { createTemplateStore } = require('./templateStore.cjs');
 const { createEngineService,findSystemPython310Plus, findSystemPython312Plus } = require('./engineService.cjs');
+const { removeVenvDir } = require('./removeVenv.cjs');
+const { isPortFree, findFreePort, identifyService, choosePort, parseContainerStatus, CONTAINER_STATUS_FORMAT } = require('./servicePorts.cjs');
 
 // ─── Top-level process handles ───────────────────────────────────────────────
 // The optional engine services (Calliope 0.7, AdOpT-NET0, PyPSA, OSeMOSYS)
@@ -19,18 +21,49 @@ let ADOPTNET0_PORT  = 5001;   // may be reassigned at startup if port is taken
 let CALLIOPE07_PORT = 5002;   // may be reassigned at startup if port is taken
 let PYPSA_PORT      = 5003;   // may be reassigned at startup if port is taken
 let OSEMOSYS_PORT   = 5004;   // may be reassigned at startup if port is taken
+let GEOSERVER_PORT  = 8081;   // may be reassigned at startup if port is taken
+let POSTGIS_PORT    = 5432;   // may be reassigned at startup if port is taken
 const IS_WIN        = process.platform === 'win32';
 const IS_LINUX      = process.platform === 'linux';
 
-// ─── Docker service registry ────────────────────────────────────────────────
-function getDockerServices() {
+// Ports already spoken for, so a service moved off a taken port never lands on
+// another service's default.
+const claimedPorts = new Set([BACKEND_PORT, CALLIOPE_PORT, ADOPTNET0_PORT, CALLIOPE07_PORT, PYPSA_PORT, OSEMOSYS_PORT, GEOSERVER_PORT, POSTGIS_PORT]);
+
+async function claimPort(preferred, engine) {
+  try {
+    const port = await choosePort(preferred, engine, { exclude: claimedPorts });
+    claimedPorts.add(port);
+    return port;
+  } catch {
+    return preferred;
+  }
+}
+
+// A Docker-only service must keep the port its existing container publishes;
+// otherwise it takes the preferred port, or the next free one if that is taken.
+async function claimDockerPort(name, preferred) {
+  const st = await getContainerStatus(name);
+  if (st.running && st.publishedPort) return st.publishedPort;
+  const wanted = (!st.composeManaged && st.publishedPort) || preferred;
+  try {
+    if (await isPortFree(wanted)) return wanted;
+    const port = await findFreePort(wanted, claimedPorts);
+    claimedPorts.add(port);
+    return port;
+  } catch {
+    return wanted;
+  }
+}
+
+// ─── Service registry ───────────────────────────────────────────────────────
+// Engine services run natively from their venv (`start`), with their Docker
+// image as the fallback when the venv isn't installed. `engine` is what the
+// service's GET /health reports. Entries without `start` are Docker-only.
+function getServices() {
   const repoRoot = app.isPackaged
     ? path.join(process.resourcesPath, 'app.asar.unpacked')
     : path.join(__dirname, '..');
-
-  const tempoRoot = app.isPackaged
-    ? path.join(process.resourcesPath, 'docker')
-    : path.join(__dirname, '..', '..');
 
   const geoComposeDir = app.isPackaged
     ? path.join(process.resourcesPath, 'geoserver')
@@ -40,16 +73,46 @@ function getDockerServices() {
 
   return [
     {
+      name: 'tempo-backend',
+      label: 'TEMPO Backend',
+      port: BACKEND_PORT,
+      required: true,
+      start: startBackend,
+      isInstalled: () => true,
+    },
+    {
       name: 'calliope-runner',
       label: 'Calliope Energy Optimizer',
       port: CALLIOPE_PORT,
+      portEnv: 'TEMPO_CALLIOPE_PORT',
+      setPort: (p) => { CALLIOPE_PORT = p; },
+      engine: 'calliope-0.6.8',
+      start: startCalliopeService,
+      isInstalled: () => resolveVenv().exists,
       composeDir: repoRoot,
       required: true,
+    },
+    {
+      name: 'calliope07-runner',
+      label: 'Calliope 0.7 Optimizer',
+      port: CALLIOPE07_PORT,
+      portEnv: 'TEMPO_CALLIOPE07_PORT',
+      setPort: (p) => { CALLIOPE07_PORT = p; },
+      engine: 'calliope-0.7',
+      start: engines.calliope07.start,
+      isInstalled: engines.calliope07.isInstalled,
+      composeDir: repoRoot,
+      required: false,
     },
     {
       name: 'adoptnet0-runner',
       label: 'AdOpT-NET0 Energy Optimizer',
       port: ADOPTNET0_PORT,
+      portEnv: 'TEMPO_ADOPTNET0_PORT',
+      setPort: (p) => { ADOPTNET0_PORT = p; },
+      engine: 'adoptnet0',
+      start: engines.adoptnet0.start,
+      isInstalled: engines.adoptnet0.isInstalled,
       composeDir: repoRoot,
       composeFile: 'docker-compose.adoptnet0.yml',
       required: false,
@@ -58,6 +121,11 @@ function getDockerServices() {
       name: 'pypsa-runner',
       label: 'PyPSA Optimizer',
       port: PYPSA_PORT,
+      portEnv: 'TEMPO_PYPSA_PORT',
+      setPort: (p) => { PYPSA_PORT = p; },
+      engine: 'pypsa',
+      start: engines.pypsa.start,
+      isInstalled: engines.pypsa.isInstalled,
       composeDir: repoRoot,
       required: false,
     },
@@ -65,20 +133,19 @@ function getDockerServices() {
       name: 'osemosys-runner',
       label: 'OSeMOSYS Optimizer',
       port: OSEMOSYS_PORT,
+      portEnv: 'TEMPO_OSEMOSYS_PORT',
+      setPort: (p) => { OSEMOSYS_PORT = p; },
+      engine: 'osemosys',
+      start: engines.osemosys.start,
+      isInstalled: engines.osemosys.isInstalled,
       composeDir: repoRoot,
       required: false,
     },
     {
-      name: 'opentech-db',
-      label: 'Technology Database',
-      port: 8000,
-      composeDir: path.join(tempoRoot, 'opentech-db'),
-      required: true,
-    },
-    {
       name: 'calliope-postgis',
       label: 'PostGIS Database',
-      port: 5432,
+      port: POSTGIS_PORT,
+      portEnv: 'TEMPO_POSTGIS_PORT',
       composeDir: geoComposeDir,
       composeFile: geoComposeFile,
       required: false,
@@ -86,7 +153,8 @@ function getDockerServices() {
     {
       name: 'calliope-geoserver',
       label: 'GeoServer (OSM Layers)',
-      port: 8081,
+      port: GEOSERVER_PORT,
+      portEnv: 'TEMPO_GEOSERVER_PORT',
       composeDir: geoComposeDir,
       composeFile: geoComposeFile,
       required: false,
@@ -95,26 +163,6 @@ function getDockerServices() {
 }
 
 // ─── Port helper ───────────────────────────────────────────────────────────
-/**
- * Find a free TCP port starting at `preferred`, scanning upward up to +20.
- * Returns `preferred` if it is already free, otherwise the first free port found.
- */
-function findFreePort(preferred) {
-  return new Promise((resolve, reject) => {
-    let candidate = preferred;
-    const tryNext = () => {
-      if (candidate > preferred + 20) { reject(new Error(`No free port in range ${preferred}–${preferred + 20}`)); return; }
-      const server = net.createServer();
-      server.listen(candidate, '127.0.0.1', () => {
-        const port = server.address().port;
-        server.close(() => resolve(port));
-      });
-      server.on('error', () => { candidate++; tryNext(); });
-    };
-    tryNext();
-  });
-}
-
 function isPortOpen(port) {
   return new Promise(resolve => {
     const sock = new net.Socket();
@@ -141,7 +189,22 @@ function waitForPort(port, timeoutMs = 30000, intervalMs = 400) {
 }
 
 // ─── Go backend ────────────────────────────────────────────────────────────
-function startBackend() {
+const BACKEND_START_ATTEMPTS = 3;
+
+// The port can be taken between probing and binding (a Docker container with a
+// restart policy coming up), so a backend that dies on start retries elsewhere.
+async function startBackend() {
+  for (let attempt = 1; attempt <= BACKEND_START_ATTEMPTS; attempt++) {
+    try {
+      BACKEND_PORT = await findFreePort(attempt === 1 ? BACKEND_PORT : BACKEND_PORT + 1, claimedPorts);
+      claimedPorts.add(BACKEND_PORT);
+    } catch { return; }
+    if (await spawnBackend()) return;
+    console.warn(`[backend] Failed to start on port ${BACKEND_PORT} (attempt ${attempt}/${BACKEND_START_ATTEMPTS})`);
+  }
+}
+
+function spawnBackend() {
   const binName = IS_WIN ? 'backend.exe' : 'backend';
   const backendPath = app.isPackaged
     ? path.join(process.resourcesPath, 'backend-go', binName)
@@ -164,7 +227,7 @@ function startBackend() {
   console.log('[backend] Starting:', backendPath);
   if (!fs.existsSync(backendPath)) {
     console.warn('[backend] Not found at:', backendPath);
-    return Promise.resolve();
+    return Promise.resolve(true);
   }
 
   backendProcess = spawn(backendPath, ['--port', BACKEND_PORT.toString(), '--db', dbPath], {
@@ -175,12 +238,24 @@ function startBackend() {
       TEMPO_OSM_PYTHON: osmPython,
       TEMPO_DATA_DIR:   osmDataDir,
       TEMPO_OSM_SCRIPTS: osmScriptsRoot,
+      TEMPO_GEOSERVER_URL: `http://localhost:${GEOSERVER_PORT}/geoserver`,
+      TEMPO_POSTGIS_PORT: String(POSTGIS_PORT),
+      TEMPO_CALLIOPE_URL: `http://localhost:${CALLIOPE_PORT}`,
     },
   });
-  backendProcess.stdout.on('data', d => console.log(`[backend] ${d.toString().trim()}`));
-  backendProcess.stderr.on('data', d => console.error(`[backend] ${d.toString().trim()}`));
-  backendProcess.on('close', code => console.log(`[backend] Exited: ${code}`));
-  return new Promise(resolve => setTimeout(resolve, 1500));
+  const child = backendProcess;
+  child.stdout.on('data', d => console.log(`[backend] ${d.toString().trim()}`));
+  child.stderr.on('data', d => console.error(`[backend] ${d.toString().trim()}`));
+  child.on('error', err => console.warn(`[backend] Could not launch: ${err.message}`));
+  child.on('close', code => {
+    console.log(`[backend] Exited: ${code}`);
+    if (backendProcess === child) backendProcess = null;
+  });
+  // Bind errors only surface after the DB opens, which is slow on large files.
+  return Promise.race([
+    new Promise(resolve => child.once('close', () => resolve(false))),
+    waitForPort(BACKEND_PORT, 15000).then(() => true, () => true),
+  ]);
 }
 
 function stopBackend() {
@@ -200,83 +275,154 @@ function getContainerStatus(name) {
   return new Promise(resolve => {
     execFile(
       'docker',
-      ['inspect', '--format', '{{.State.Running}}|{{.State.Health.Status}}|{{.State.Status}}', name],
+      ['inspect', '--format', CONTAINER_STATUS_FORMAT, name],
       { timeout: 6000 },
       (err, stdout) => {
-        if (err) { resolve({ name, running: false, healthy: null, status: 'not found' }); return; }
-        const [running, health, status] = stdout.trim().split('|');
-        resolve({
-          name,
-          running: running === 'true',
-          healthy: health === 'healthy' ? true : health === 'unhealthy' ? false : null,
-          status:  status || 'unknown',
-        });
+        if (err) { resolve({ name, running: false, healthy: null, status: 'not found', composeManaged: false, publishedPort: null }); return; }
+        resolve(parseContainerStatus(name, stdout));
       },
     );
   });
 }
 
-async function getAllDockerStatus() {
-  const dockerAvailable = await checkDocker();
-  const services = getDockerServices();
+async function getServiceStatus(svc, dockerAvailable) {
+  const base = { name: svc.name, label: svc.label, port: svc.port, required: svc.required };
 
-  if (!dockerAvailable) {
+  if (svc.engine) {
+    const state = await identifyService(svc.port, svc.engine);
     return {
-      dockerAvailable: false,
-      services: services.map(s => ({ name: s.name, label: s.label, port: s.port, required: s.required, running: false, healthy: null, status: 'docker not running', portOpen: false })),
+      ...base,
+      running: state === 'match' || state === 'unresponsive',
+      healthy: state === 'match' ? true : null,
+      status: state,
+      portConflict: state === 'foreign',
     };
   }
 
-  const results = await Promise.all(services.map(async svc => {
-    const [st, portOpen] = await Promise.all([getContainerStatus(svc.name), isPortOpen(svc.port)]);
-    return { name: svc.name, label: svc.label, port: svc.port, required: svc.required, running: st.running, healthy: st.healthy, status: st.status, portOpen };
-  }));
-
-  return { dockerAvailable: true, services: results };
-}
-
-function startDockerService(serviceName, progressEvent = null) {
-  const svc = getDockerServices().find(s => s.name === serviceName);
-  if (!svc)            return Promise.resolve({ success: false, error: `Unknown service: ${serviceName}` });
-  if (!svc.composeDir) return Promise.resolve({ success: false, error: `${serviceName} has no compose dir — start it manually` });
-  if (!fs.existsSync(svc.composeDir)) {
-    return Promise.resolve({ success: false, error: `Compose directory not found: ${svc.composeDir}` });
+  const portOpen = await isPortOpen(svc.port);
+  if (svc.start) {
+    const running = !!backendProcess && portOpen;
+    return { ...base, running, healthy: null, status: running ? 'running' : 'stopped', portConflict: !backendProcess && portOpen };
   }
 
-  const emit = (type, payload) => {
-    if (progressEvent && mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send(progressEvent, { type, ...payload });
-    }
-  };
+  if (!dockerAvailable) return { ...base, running: false, healthy: null, status: 'docker not running', portConflict: portOpen };
+  const st = await getContainerStatus(svc.name);
+  return { ...base, running: st.running, healthy: st.healthy, status: st.status, portConflict: !st.running && portOpen };
+}
 
+async function getAllServiceStatus() {
+  const dockerAvailable = await checkDocker();
+  const services = await Promise.all(getServices().map(svc => getServiceStatus(svc, dockerAvailable)));
+  return { dockerAvailable, services };
+}
+
+const sendStartProgress = (data) => {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('docker:start-progress', data);
+};
+
+function runDocker(args, cwd) {
+  // Every compose file publishes its ports through these variables.
+  const portEnv = Object.fromEntries(getServices().filter(s => s.portEnv).map(s => [s.portEnv, String(s.port)]));
   return new Promise(resolve => {
-    emit('stage', { label: `Starting ${svc.label}…` });
-
-    const child = spawn('docker', ['compose', ...(svc.composeFile ? ['-f', svc.composeFile] : []), 'up', '-d', '--remove-orphans'], { cwd: svc.composeDir, shell: false });
+    const child = spawn('docker', args, { cwd, shell: false, env: { ...process.env, ...portEnv } });
     let stderr = '';
-    child.stdout.on('data', d => { for (const l of d.toString().split('\n').filter(x => x.trim())) emit('log', { line: l }); });
-    child.stderr.on('data', d => { stderr += d.toString(); for (const l of d.toString().split('\n').filter(x => x.trim())) emit('log', { line: l }); });
+    const logLines = d => { for (const line of d.toString().split('\n').filter(x => x.trim())) sendStartProgress({ type: 'log', line }); };
+    child.stdout.on('data', logLines);
+    child.stderr.on('data', d => { stderr += d.toString(); logLines(d); });
     child.on('close', code => { resolve(code === 0 ? { success: true } : { success: false, error: stderr.trim() || `Exit code ${code}` }); });
     child.on('error', err => resolve({ success: false, error: err.message }));
   });
 }
 
-// ─── IPC: Docker management ──────────────────────────────────────────────────
-ipcMain.handle('docker:status', async () => getAllDockerStatus());
+async function startViaDocker(svc) {
+  if (!await checkDocker()) return { success: false, error: 'Docker is not running' };
 
-ipcMain.handle('docker:start', async (_event, serviceName) =>
-  startDockerService(serviceName, 'docker:start-progress'),
-);
+  const st = await getContainerStatus(svc.name);
+  if (st.running) return { success: true };
 
-ipcMain.handle('docker:start-all', async () => {
+  if (!svc.composeDir) return { success: false, error: `${svc.label} has no Docker fallback` };
+  if (!fs.existsSync(svc.composeDir)) return { success: false, error: `Compose directory not found: ${svc.composeDir}` };
+
+  if (await isPortOpen(svc.port)) {
+    // The backend learns GeoServer/PostGIS ports when it spawns, so only engines can move now.
+    if (!svc.engine) return { success: false, error: `Port ${svc.port} was taken after TEMPO started — restart TEMPO to move ${svc.label}` };
+    const port = await findFreePort(svc.port, claimedPorts);
+    claimedPorts.add(port);
+    sendStartProgress({ type: 'log', line: `Port ${svc.port} is used by another application — ${svc.label} moves to ${port}` });
+    svc.setPort(port);
+    svc.port = port;
+  }
+
+  // A container made outside this compose project has a fixed port, and `compose up`
+  // would clash on its name. It holds the user's data, so it is never recreated.
+  if (st.status !== 'not found' && !st.composeManaged) {
+    if (st.publishedPort !== svc.port) {
+      return { success: false, error: `Existing container ${svc.name} is fixed to port ${st.publishedPort}, which is in use. Free that port, or remove the container to let TEMPO recreate it.` };
+    }
+    return runDocker(['start', svc.name], svc.composeDir);
+  }
+  // Compose recreates the container if its port changed; named volumes survive.
+  return runDocker(['compose', ...(svc.composeFile ? ['-f', svc.composeFile] : []), 'up', '-d', svc.name], svc.composeDir);
+}
+
+async function startNative(svc) {
+  if (svc.engine) {
+    const state = await identifyService(svc.port, svc.engine);
+    if (state === 'match' || state === 'unresponsive') return { success: true };
+    if (state === 'foreign') {
+      const port = await findFreePort(svc.port, claimedPorts);
+      claimedPorts.add(port);
+      sendStartProgress({ type: 'log', line: `Port ${svc.port} is used by another application — ${svc.label} moves to ${port}` });
+      svc.setPort(port);
+      svc.port = port;
+    }
+  } else if (backendProcess && await isPortOpen(svc.port)) {
+    return { success: true };
+  }
+
+  await svc.start();
+
+  const up = svc.engine
+    ? await identifyService(svc.port, svc.engine) === 'match'
+    : !!backendProcess && await isPortOpen(BACKEND_PORT);
+  return up ? { success: true } : { success: false, error: `Did not come up on port ${svc.port} — see the terminal log` };
+}
+
+async function startService(svc) {
+  sendStartProgress({ type: 'stage', label: `Starting ${svc.label}…` });
+  const result = await (svc.start && svc.isInstalled() ? startNative(svc) : startViaDocker(svc))
+    .catch(err => ({ success: false, error: err.message }));
+  sendStartProgress(result.success
+    ? { type: 'log', line: `✓ ${svc.label}` }
+    : { type: 'log', line: `✗ ${svc.label}: ${result.error}` });
+  return result;
+}
+
+// ─── IPC: service management ─────────────────────────────────────────────────
+// Channels keep their docker: prefix for the preload API, but cover every service.
+ipcMain.handle('docker:status', async () => getAllServiceStatus());
+
+ipcMain.handle('docker:start', async (_event, serviceName) => {
+  const svc = getServices().find(s => s.name === serviceName);
+  return svc ? startService(svc) : { success: false, error: `Unknown service: ${serviceName}` };
+});
+
+// nativeOnly never touches Docker: the automatic start on launch must not spin
+// up containers the user didn't ask for.
+ipcMain.handle('docker:start-all', async (_event, { nativeOnly = false } = {}) => {
+  const services = getServices();
   const results = {};
-  const composeServices = getDockerServices().filter(s => s.composeDir != null);
-  for (const svc of composeServices) {
-    results[svc.name] = await startDockerService(svc.name, 'docker:start-progress');
+  const native = services.filter(s => s.start && (!nativeOnly || s.isInstalled()));
+  await Promise.all(native.map(async svc => { results[svc.name] = await startService(svc); }));
+  if (!nativeOnly) {
+    // Sequential: GeoServer depends on PostGIS, which comes first in the registry.
+    for (const svc of services.filter(s => !s.start)) results[svc.name] = await startService(svc);
   }
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('docker:start-progress', { type: 'done' });
-  }
+
+  const failures = services
+    .filter(s => s.required && results[s.name] && !results[s.name].success)
+    .map(s => `${s.label}: ${results[s.name].error}`);
+  sendStartProgress({ type: 'done', failures });
   return results;
 });
 
@@ -284,7 +430,7 @@ ipcMain.handle('docker:start-all', async () => {
 ipcMain.handle('services:urls', async () => {
   const [c, c07, a, py, osm, o, gs, be] = await Promise.all([
     isPortOpen(CALLIOPE_PORT), isPortOpen(CALLIOPE07_PORT), isPortOpen(ADOPTNET0_PORT), isPortOpen(PYPSA_PORT), isPortOpen(OSEMOSYS_PORT), isPortOpen(8000),
-    isPortOpen(8081), isPortOpen(BACKEND_PORT),
+    isPortOpen(GEOSERVER_PORT), isPortOpen(BACKEND_PORT),
   ]);
   return {
     calliope:   { url: `http://localhost:${CALLIOPE_PORT}`,  running: c   },
@@ -293,8 +439,8 @@ ipcMain.handle('services:urls', async () => {
     pypsa:      { url: `http://localhost:${PYPSA_PORT}`,     running: py  },
     osemosys:   { url: `http://localhost:${OSEMOSYS_PORT}`,  running: osm },
     opentech:   { url: 'https://otdb.th-deg.de',             running: o   },
-    geoserver:  { url: 'http://localhost:8081',              running: gs  },
-    backend:    { url: `http://localhost:${BACKEND_PORT}`,   running: be  },
+    geoserver:  { url: `http://localhost:${GEOSERVER_PORT}`, running: gs  },
+    backend:    { url: `http://localhost:${BACKEND_PORT}`,   running: be && !!backendProcess },
   };
 });
 
@@ -578,7 +724,8 @@ function resolveVenv() {
   for (const venvDir of candidates) {
     const python = path.join(venvDir, binDir, pyExe);
     const pip    = path.join(venvDir, binDir, pipExe);
-    if (!fs.existsSync(python)) continue;
+    // A leftover Scripts/ dir without pyvenv.cfg has a python.exe that can't run.
+    if (!fs.existsSync(python) || !fs.existsSync(path.join(venvDir, 'pyvenv.cfg'))) continue;
 
     // Detect Calliope installation across Python version sub-dirs
     const siteWin   = path.join(venvDir, 'Lib', 'site-packages');
@@ -592,7 +739,7 @@ function resolveVenv() {
         try { return hasCalliope(path.join(siteUnix, ver, 'site-packages')); } catch { return false; }
       });
     }
-    return { venvDir, python, pip, exists };
+    if (exists) return { venvDir, python, pip, exists };
   }
 
   const managedDir = path.join(app.getPath('userData'), 'calliope-venv');
@@ -1030,16 +1177,30 @@ ipcMain.handle('demand:install', async () => {
 let _svcIntentionalStop = false;  // set true before deliberate kills so no restart happens
 let _svcRestartCount    = 0;
 const _SVC_MAX_RESTARTS = 5;
+let _svcStarting        = null;   // in-flight start, so concurrent callers don't spawn twice
 
 /**
  * Start the persistent Calliope FastAPI service.
  * Used only when NOT relying on Docker (i.e. direct venv mode).
  */
-async function startCalliopeService() {
+function startCalliopeService({ isRestart = false } = {}) {
+  if (!_svcStarting) {
+    _svcStarting = doStartCalliopeService(isRestart).finally(() => { _svcStarting = null; });
+  }
+  return _svcStarting;
+}
+
+async function doStartCalliopeService(isRestart) {
   _svcIntentionalStop = false;
-  _svcRestartCount    = 0;
+  if (!isRestart) _svcRestartCount = 0;
   if (await isPortOpen(CALLIOPE_PORT)) {
     console.log('[calliope-svc] Already running on port', CALLIOPE_PORT);
+    return;
+  }
+
+  // Spawned earlier but still importing (slow on a cold start): wait, don't respawn.
+  if (calliopeService) {
+    await waitForPort(CALLIOPE_PORT, 15000).catch(() => {});
     return;
   }
 
@@ -1091,6 +1252,7 @@ async function startCalliopeService() {
 
   calliopeService.stdout.on('data', d => { for (const l of d.toString().split('\n').filter(x => x.trim())) console.log(`[calliope-svc] ${l}`); });
   calliopeService.stderr.on('data', d => { for (const l of d.toString().split('\n').filter(x => x.trim())) console.log(`[calliope-svc] ${l}`); });
+  calliopeService.on('error', err => console.warn(`[calliope-svc] Could not launch: ${err.message}`));
   calliopeService.on('close', code => {
     console.log(`[calliope-svc] Exited: ${code}`);
     calliopeService = null;
@@ -1098,7 +1260,9 @@ async function startCalliopeService() {
       _svcRestartCount++;
       const delay = Math.min(2000 * _svcRestartCount, 10000);
       console.log(`[calliope-svc] Unexpected exit — restarting in ${delay}ms (attempt ${_svcRestartCount}/${_SVC_MAX_RESTARTS})`);
-      setTimeout(() => startCalliopeService().catch(e => console.warn('[calliope-svc] Restart failed:', e)), delay);
+      setTimeout(() => startCalliopeService({ isRestart: true }).catch(e => console.warn('[calliope-svc] Restart failed:', e)), delay);
+    } else if (!_svcIntentionalStop) {
+      console.warn(`[calliope-svc] Gave up after ${_SVC_MAX_RESTARTS} restarts`);
     }
   });
 
@@ -1116,6 +1280,16 @@ function stopCalliopeService() {
 }
 
 // ─── IPC: Calliope service management ───────────────────────────────────────
+
+let _calliopeInstalling = false;
+
+ipcMain.handle('calliope:uninstall', async () => {
+  if (_calliopeInstalling) return { success: false, error: 'Calliope is being installed — wait for it to finish.' };
+  stopCalliopeService();
+  await new Promise(r => setTimeout(r, 2000)); // give Windows time to release handles
+  return removeVenvDir(path.join(app.getPath('userData'), 'calliope-venv'));
+});
+
 
 ipcMain.handle('calliope:check', async () => {
   const { python, exists, venvDir } = resolveVenv();
@@ -1155,6 +1329,7 @@ ipcMain.handle('calliope:install', async (_event, selectedModules = ['calliope']
     adopt:    'import adopt;    print("adopt OK")',
   };
 
+  _calliopeInstalling = true;
   try {
     sendProgress({ type: 'stage', label: 'Locating Python 3.9–3.11…' });
 
@@ -1472,6 +1647,8 @@ ipcMain.handle('calliope:install', async (_event, selectedModules = ['calliope']
     const msg = err.message || String(err);
     sendProgress({ type: 'error', error: msg });
     return { success: false, error: msg };
+  } finally {
+    _calliopeInstalling = false;
   }
 });
 
@@ -1782,29 +1959,20 @@ app.whenReady().then(async () => {
     },
   );
 
-  // Allocate free ports before starting services so we don't collide with
-  // other applications that may already be using the default ports.
-  // For service ports: if the port is already open (Docker container is serving),
-  // keep it — only reassign when the port is genuinely free to grab.
-  try { BACKEND_PORT = await findFreePort(BACKEND_PORT); } catch { /* keep default */ }
-  if (!await isPortOpen(CALLIOPE_PORT)) {
-    try { CALLIOPE_PORT  = await findFreePort(CALLIOPE_PORT);  } catch { /* keep default */ }
-  }
-  if (!await isPortOpen(ADOPTNET0_PORT)) {
-    try { ADOPTNET0_PORT = await findFreePort(ADOPTNET0_PORT); } catch { /* keep default */ }
-  }
-  if (!await isPortOpen(CALLIOPE07_PORT)) {
-    try { CALLIOPE07_PORT = await findFreePort(CALLIOPE07_PORT); } catch { /* keep default */ }
-  }
-  if (!await isPortOpen(PYPSA_PORT)) {
-    try { PYPSA_PORT = await findFreePort(PYPSA_PORT); } catch { /* keep default */ }
-  }
-  if (!await isPortOpen(OSEMOSYS_PORT)) {
-    try { OSEMOSYS_PORT = await findFreePort(OSEMOSYS_PORT); } catch { /* keep default */ }
-  }
-  console.log(`[ports] backend=${BACKEND_PORT}  calliope=${CALLIOPE_PORT}  adoptnet0=${ADOPTNET0_PORT}  calliope07=${CALLIOPE07_PORT}  pypsa=${PYPSA_PORT}  osemosys=${OSEMOSYS_PORT}`);
-
+  // Allocate ports before starting services so we don't collide with other
+  // applications. A port is kept only if it is free or already serves the same
+  // engine (a leftover process or its Docker runner); anything else moves us.
+  // startBackend() picks the backend's port itself.
+  POSTGIS_PORT    = await claimDockerPort('calliope-postgis', POSTGIS_PORT);
+  GEOSERVER_PORT  = await claimDockerPort('calliope-geoserver', GEOSERVER_PORT);
+  CALLIOPE_PORT   = await claimPort(CALLIOPE_PORT, 'calliope-0.6.8');
+  ADOPTNET0_PORT  = await claimPort(ADOPTNET0_PORT, 'adoptnet0');
+  CALLIOPE07_PORT = await claimPort(CALLIOPE07_PORT, 'calliope-0.7');
+  PYPSA_PORT      = await claimPort(PYPSA_PORT, 'pypsa');
+  OSEMOSYS_PORT   = await claimPort(OSEMOSYS_PORT, 'osemosys');
   await startBackend();
+  console.log(`[ports] backend=${BACKEND_PORT}  calliope=${CALLIOPE_PORT}  adoptnet0=${ADOPTNET0_PORT}  calliope07=${CALLIOPE07_PORT}  pypsa=${PYPSA_PORT}  osemosys=${OSEMOSYS_PORT}  postgis=${POSTGIS_PORT}  geoserver=${GEOSERVER_PORT}`);
+
   // Start native calliope service (no-op if venv not installed yet)
   startCalliopeService().catch(err => console.warn('[calliope-svc] autostart error:', err.message));
   // Start optional engine services (each is a no-op if its venv is not installed yet)

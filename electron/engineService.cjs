@@ -15,6 +15,7 @@ const path = require('path');
 const fs = require('fs');
 const { spawn, execFile, execFileSync } = require('child_process');
 const { ensureServiceLayer, createRepairGate, SERVICE_LAYER_CHECK } = require('./serviceLayer.cjs');
+const { removeVenvDir } = require('./removeVenv.cjs');
 
 const IS_WIN = process.platform === 'win32';
 const MAX_RESTARTS = 5;
@@ -279,7 +280,7 @@ function createEngineService(spec) {
   let installing = false;
   const repairGate = createRepairGate();
 
-  function start({ force = false } = {}) {
+  function start({ force = false, isRestart = false } = {}) {
     if (installing) {
       console.log(`[${logTag}] Install in progress — not starting`);
       return Promise.resolve();
@@ -288,15 +289,21 @@ function createEngineService(spec) {
       console.log(`[${logTag}] Start/repair already in progress`);
       return busy;
     }
-    busy = doStart(force).finally(() => { busy = null; });
+    busy = doStart(force, isRestart).finally(() => { busy = null; });
     return busy;
   }
 
-  async function doStart(force) {
+  async function doStart(force, isRestart) {
     intentionalStop = false;
-    restartCount    = 0;
+    if (!isRestart) restartCount = 0;
     if (await isPortOpen(getPort())) {
       console.log(`[${logTag}] Already running on port`, getPort());
+      return;
+    }
+
+    // Spawned earlier but still importing (slow on a cold start): wait, don't respawn.
+    if (proc) {
+      await waitForPort(getPort(), 15000).catch(() => {});
       return;
     }
 
@@ -336,6 +343,7 @@ function createEngineService(spec) {
 
     proc.stdout.on('data', d => { for (const l of d.toString().split('\n').filter(x => x.trim())) console.log(`[${logTag}] ${l}`); });
     proc.stderr.on('data', d => { for (const l of d.toString().split('\n').filter(x => x.trim())) console.log(`[${logTag}] ${l}`); });
+    proc.on('error', err => console.warn(`[${logTag}] Could not launch: ${err.message}`));
     proc.on('close', code => {
       console.log(`[${logTag}] Exited: ${code}`);
       proc = null;
@@ -343,7 +351,9 @@ function createEngineService(spec) {
         restartCount++;
         const delay = Math.min(2000 * restartCount, 10000);
         console.log(`[${logTag}] Unexpected exit — restarting in ${delay}ms (attempt ${restartCount}/${MAX_RESTARTS})`);
-        setTimeout(() => start().catch(e => console.warn(`[${logTag}] Restart failed:`, e)), delay);
+        setTimeout(() => start({ isRestart: true }).catch(e => console.warn(`[${logTag}] Restart failed:`, e)), delay);
+      } else if (!intentionalStop) {
+        console.warn(`[${logTag}] Gave up after ${MAX_RESTARTS} restarts`);
       }
     });
 
@@ -505,13 +515,22 @@ function createEngineService(spec) {
     }
   });
 
+  ipcMain.handle(`${id}:uninstall`, async () => {
+    if (installing) return { success: false, error: `${label} is being installed — wait for it to finish.` };
+    if (busy) await busy.catch(() => {});
+    stop();
+    await new Promise(r => setTimeout(r, 2000)); // give Windows time to release handles
+    repairGate.clear();
+    return removeVenvDir(path.join(app.getPath('userData'), venvName));
+  });
+
   ipcMain.handle(`${id}:restart-service`, async () => {
     stop();
     await start({ force: true });
     return { running: await isPortOpen(getPort()) };
   });
 
-  return { start, stop };
+  return { start, stop, isInstalled: () => resolveVenv().exists };
 }
 
 module.exports = {

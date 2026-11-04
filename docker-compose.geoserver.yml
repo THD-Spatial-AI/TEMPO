@@ -12,7 +12,7 @@ services:
     image: kartoza/postgis:14-3.3
     container_name: calliope-postgis
     ports:
-      - "5432:5432"
+      - "${TEMPO_POSTGIS_PORT:-5432}:5432"
     environment:
       POSTGRES_DB: gis
       POSTGRES_USER: postgres
@@ -33,7 +33,7 @@ services:
     image: kartoza/geoserver:2.23.0
     container_name: calliope-geoserver
     ports:
-      - "8081:8080"
+      - "${TEMPO_GEOSERVER_PORT:-8081}:8080"
     depends_on:
       calliope-postgis:
         condition: service_healthy

@@ -8,13 +8,14 @@ Usage:
     python configure_geoserver.py --local      # Force local mode (use localhost)
 """
 
+import os
 import requests
 import json
 import sys
 from requests.auth import HTTPBasicAuth
 
-# GeoServer configuration
-GEOSERVER_URL = "http://localhost:8081/geoserver"
+# GeoServer configuration (Electron sets the env var if port 8081 is taken)
+GEOSERVER_URL = os.environ.get("TEMPO_GEOSERVER_URL", "http://localhost:8081/geoserver")
 GEOSERVER_USER = "admin"
 GEOSERVER_PASSWORD = "geoserver"  # Default GeoServer password
 
