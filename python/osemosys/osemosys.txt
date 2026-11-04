@@ -133,8 +133,11 @@ param StorageLossRate{r in REGION, s in STORAGE}, >= 0, < 1, default 0;
 # Set it so levels are O(1) — GLPK's absolute tolerances (~1e-7) are otherwise
 # exploited by tiny levels (TEMPO parity datasets: ~1e-6 PJ → 1e6).
 param TempoLevelScale, > 0, default 1;
+# Routes a storage through the TEMPO block even when neither cyclic nor lossy
+# (TEMPO's chronological parity datasets: non-cyclic storage starting at StorageLevelStart).
+param StorageTempoBlock{r in REGION, s in STORAGE}, binary, default 0;
 param TempoStorage{r in REGION, s in STORAGE} :=
-	if StorageCyclicYear[r,s] = 1 or StorageLossRate[r,s] > 0 then 1 else 0;
+	if StorageCyclicYear[r,s] = 1 or StorageLossRate[r,s] > 0 or StorageTempoBlock[r,s] = 1 then 1 else 0;
 # Fraction of the level kept over one bracket / one whole day / the brackets after lh.
 param BracketRetention{r in REGION, s in STORAGE, lh in DAILYTIMEBRACKET, y in YEAR} :=
 	(1 - StorageLossRate[r,s]) ^ (DaySplit[lh,y] * 8760);

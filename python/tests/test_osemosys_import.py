@@ -445,8 +445,10 @@ def test_import_parity_demand_and_cf_absolute(tmp_path):
     model, _ = imp.osemosys_to_internal(_parity_dir(md, tmp_path))
     locs = {l["name"]: l for l in model["locations"]}
     orig = {l["name"]: l for l in md["locations"]}
-    assert locs["North"]["demandProfile"]["timeseries"] == pytest.approx(
-        orig["north"]["demandProfile"]["timeseries"], rel=1e-6)
+    # chronological export (one season per window day) → calendar-year series; the rich
+    # model's days are identical, so it is the original daily profile tiled
+    got, day = locs["North"]["demandProfile"]["timeseries"], orig["north"]["demandProfile"]["timeseries"]
+    assert got == pytest.approx((day * 366)[:len(got)], rel=1e-6)
     north_solar = locs["North"]["techs"]["solar_pv"]
     assert north_solar["constraints"]["energy_cap_max"] == pytest.approx(1500)
     assert north_solar["constraints"]["resource_unit"] == "energy_per_cap"

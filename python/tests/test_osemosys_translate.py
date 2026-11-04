@@ -507,10 +507,10 @@ def _rows(d, name):
         return list(csv.DictReader(fh))
 
 
-def _parity(md):
+def _parity(md, chronological=None):
     import osemosys_timeslices as tsl
     d = tempfile.mkdtemp()
-    tr.translate_model(md, d, tsl.parity_scheme(168), parity=True)
+    tr.translate_model(md, d, tsl.parity_scheme(168, chronological), parity=True)
     return d
 
 
@@ -573,7 +573,7 @@ def test_parity_transmission_single_two_mode_tech():
 
 def test_parity_storage_and_time_structure():
     md = json.loads(RICH.read_text(encoding="utf-8"))
-    d = _parity(md)
+    d = _parity(md, chronological=False)
     assert [r["VALUE"] for r in _rows(d, "STORAGE.csv")] == ["NORTH_BATTERY_S"]
     techs = [r["VALUE"] for r in _rows(d, "TECHNOLOGY.csv")]
     assert "NORTH_BATTERY" in techs and "NORTH_BATTERY_CH" not in techs
@@ -600,7 +600,7 @@ def test_parity_storage_and_time_structure():
 def test_parity_datafile_has_time_structure_and_storage():
     import osemosys_runner as R
     md = json.loads(RICH.read_text(encoding="utf-8"))
-    d = _parity(md)
+    d = _parity(md, chronological=False)
     dat = Path(R._write_datafile(d, str(Path(d) / "results"), discount_rate=1e-9)).read_text(encoding="utf-8")
     assert "set SEASON := 1 ;" in dat
     assert "set DAILYTIMEBRACKET := 1 2 3" in dat
@@ -882,11 +882,48 @@ def test_parity_non_cyclic_storage_reported_approximate():
     import osemosys_timeslices as tsl
     md = json.loads(REF.read_text(encoding="utf-8"))
     md["modelConfig"]["cyclicStorage"] = False
-    _, report = tr.translate_model(md, tempfile.mkdtemp(), tsl.parity_scheme(168), parity=True)
+    rep_scheme = tsl.parity_scheme(168, chronological=False)
+    _, report = tr.translate_model(md, tempfile.mkdtemp(), rep_scheme, parity=True)
     assert any("non-cyclic" in r and "approximate" in r for r in report)
-    md["modelConfig"]["cyclicStorage"] = True
+    # chronological: the storage chain is the real window, so non-cyclic is exact
     _, report = tr.translate_model(md, tempfile.mkdtemp(), tsl.parity_scheme(168), parity=True)
     assert not any("approximate" in r for r in report)
+    md["modelConfig"]["cyclicStorage"] = True
+    _, report = tr.translate_model(md, tempfile.mkdtemp(), rep_scheme, parity=True)
+    assert not any("approximate" in r for r in report)
+
+
+def test_parity_chronological_time_structure():
+    import osemosys_runner as R
+    d = _parity(json.loads(RICH.read_text(encoding="utf-8")))        # 7-day window
+    assert [r["VALUE"] for r in _rows(d, "SEASON.csv")] == [str(s) for s in range(1, 8)]
+    assert len(_rows(d, "TIMESLICE.csv")) == 168
+    assert {float(r["VALUE"]) for r in _rows(d, "DaysInDayType.csv")} == {1.0}
+    assert len(_rows(d, "DaysInDayType.csv")) == 7
+    ds = [float(r["VALUE"]) for r in _rows(d, "DaySplit.csv")]
+    assert len(ds) == 24 and all(v == pytest.approx(1 / 8760) for v in ds)
+    ys = [float(r["VALUE"]) for r in _rows(d, "YearSplit.csv")]
+    assert len(ys) == 168 and sum(ys) == pytest.approx(1.0)
+    ls = {(r["TIMESLICE"], r["SEASON"]) for r in _rows(d, "Conversionls.csv") if r["VALUE"] == "1"}
+    assert ("s3d5", "3") in ls
+    # every parity storage goes through the TEMPO storage block (also when non-cyclic)
+    blk = {r["STORAGE"]: int(r["VALUE"]) for r in _rows(d, "StorageTempoBlock.csv")}
+    assert blk == {"NORTH_BATTERY_S": 1}
+    dat = Path(R._write_datafile(d, str(Path(d) / "results"), discount_rate=1e-9)).read_text(encoding="utf-8")
+    assert "param StorageTempoBlock :=" in dat         # default lives in the model file
+
+
+def test_parity_representative_scheme_leaves_tempo_block_flag_unset():
+    d = _parity(json.loads(RICH.read_text(encoding="utf-8")), chronological=False)
+    assert not (Path(d) / "StorageTempoBlock.csv").exists() or not _rows(d, "StorageTempoBlock.csv")
+
+
+@pytest.mark.parametrize("chrono,word", [(None, "chronological"), (False, "representative")])
+def test_parity_report_names_time_scheme(chrono, word):
+    import osemosys_timeslices as tsl
+    md = json.loads(RICH.read_text(encoding="utf-8"))
+    _, report = tr.translate_model(md, tempfile.mkdtemp(), tsl.parity_scheme(168, chrono), parity=True)
+    assert any(word in r and "scheme" in r for r in report)
 
 
 def test_parity_tiny_cost_report_mentions_mode_two():

@@ -191,8 +191,23 @@ def test_24_hours_1season_3blocks():
 
 
 def test_parity_scheme_short_window_single_season():
-    assert ts.parity_scheme(168) == {"seasons": 1, "dayBlocks": 24, "wholeDays": True}
+    assert ts.parity_scheme(168, chronological=False) == {"seasons": 1, "dayBlocks": 24, "wholeDays": True}
     assert ts.parity_scheme(8760) == {"seasons": 4, "dayBlocks": 24, "wholeDays": True}
+
+
+def test_parity_scheme_chronological_up_to_threshold():
+    assert ts.CHRONOLOGICAL_MAX_HOURS == 744
+    assert ts.parity_scheme(168) == {"seasons": 7, "dayBlocks": 24, "wholeDays": True, "chronological": True}
+    assert ts.parity_scheme(744)["seasons"] == 31 and ts.parity_scheme(744)["chronological"]
+    assert ts.parity_scheme(768) == {"seasons": 4, "dayBlocks": 24, "wholeDays": True}
+    assert ts.parity_scheme(8760, chronological=True)["seasons"] == 365
+
+
+def test_chronological_scheme_one_slice_per_hour():
+    sch = ts.parity_scheme(72)
+    assert _labels_by_hour(72, sch) == [f"s{h // 24 + 1}d{h % 24 + 1}" for h in range(72)]
+    ys = ts.year_split_for_n_hours(72, sch)
+    assert len(ys) == 72 and all(abs(v - 1 / 72) < 1e-12 for v in ys.values())
 
 
 def test_bracket_hours_sum_to_24():
@@ -202,7 +217,7 @@ def test_bracket_hours_sum_to_24():
 
 
 def test_parity_year_split_uniform_for_whole_days():
-    ys = ts.year_split_for_n_hours(168, ts.parity_scheme(168))
+    ys = ts.year_split_for_n_hours(168, ts.parity_scheme(168, chronological=False))
     assert all(abs(v - 1 / 24) < 1e-12 for v in ys.values())
 
 

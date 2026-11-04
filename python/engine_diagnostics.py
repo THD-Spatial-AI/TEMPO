@@ -388,14 +388,20 @@ def assess(model_data: dict, engine: str) -> dict:
                 where))
 
     days = _window_days(model_data)
-    if eng == "osemosys" and days > 1 and not (model_data.get("modelConfig") or {}).get("osemosysScheme"):
-        lost = True
-        warnings.append(_issue(
-            "time_aggregation",
-            f"Time resolution: OSeMOSYS folds the {days}-day window into one typical 24-hour day (hour-of-day "
-            "averages), so day-to-day peaks are averaged out and capacities can be under-sized. For an exact "
-            f"chronology on small models set modelConfig.osemosysScheme = {{seasons: {days}, dayBlocks: 24}} "
-            f"(the model grows {days}x)."))
+    raw_scheme = (model_data.get("modelConfig") or {}).get("osemosysScheme")
+    if eng == "osemosys" and days > 1 and not (raw_scheme and ("seasons" in raw_scheme or "dayBlocks" in raw_scheme)):
+        import osemosys_timeslices as _ts
+        scheme = _ts.select_parity_scheme(days * 24, raw_scheme)
+        if not scheme.get("chronological"):   # chronological (one season per day) is exact
+            lost = True
+            n_s = scheme["seasons"]
+            warnings.append(_issue(
+                "time_aggregation",
+                f"Time resolution: OSeMOSYS represents the {days}-day window by {n_s} season(s) of identical "
+                "24-hour days (hour-of-day averages), so day-to-day peaks are averaged out and capacities can "
+                f"be under-sized. Windows up to {_ts.CHRONOLOGICAL_MAX_HOURS // 24} days are solved "
+                "chronologically (exact); set modelConfig.osemosysScheme = {chronological: true} to force it "
+                f"({days * 24} hourly timeslices — a much larger model)."))
     return {"engine": eng, "ok": not errors, "errors": errors, "warnings": warnings,
             "features": summary, "fidelity": "reduced" if lost else "full"}
 

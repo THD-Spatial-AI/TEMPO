@@ -179,11 +179,37 @@ def year_split_for_n_hours(n_hours: int, scheme: dict) -> dict:
     return {lbl: counts[lbl] / n_hours for lbl in labels}
 
 
-def parity_scheme(n_hours: int) -> dict:
+# Parity windows up to this many hours use the chronological scheme (one season per day).
+CHRONOLOGICAL_MAX_HOURS = 744   # 31 days
+
+
+def parity_scheme(n_hours: int, chronological: bool | None = None) -> dict:
     """Hour-of-day scheme used by the runner's parity mode: 24 daily brackets so
-    OSeMOSYS STORAGE can cycle within the day; one season for windows shorter
-    than four weeks, four otherwise. Seasons are split on whole days."""
+    OSeMOSYS STORAGE can cycle within the day. Seasons are split on whole days.
+
+    chronological (default: n_hours <= CHRONOLOGICAL_MAX_HOURS): one season per real
+    day, so every hour of the window is its own timeslice (exact; the translator sets
+    DaysInDayType = 1). Otherwise representative: one season for windows shorter than
+    four weeks, four otherwise, each repeated as identical days."""
+    if chronological is None:
+        chronological = n_hours <= CHRONOLOGICAL_MAX_HOURS
+    if chronological:
+        return {"seasons": -(-n_hours // 24), "dayBlocks": 24, "wholeDays": True, "chronological": True}
     return {"seasons": 1 if n_hours < 28 * 24 else 4, "dayBlocks": 24, "wholeDays": True}
+
+
+def select_parity_scheme(n_hours: int, raw: dict | None = None) -> dict:
+    """The scheme the runner solves for modelConfig.osemosysScheme = raw:
+    {"chronological": true/false} forces either scheme; {seasons: <window days>, dayBlocks: 24}
+    is the chronological scheme; other explicit {seasons, dayBlocks} are used as given
+    (clock-hour labels, DaySplit x DaysInDayType == YearSplit); else parity_scheme(n_hours)."""
+    if raw and int(raw.get("dayBlocks", 0)) == 24 and int(raw.get("seasons", 0)) == -(-n_hours // 24):
+        return parity_scheme(n_hours, True)
+    if raw and ("seasons" in raw or "dayBlocks" in raw):
+        return {"seasons": int(raw.get("seasons", 4)), "dayBlocks": int(raw.get("dayBlocks", 3)),
+                "wholeDays": True}
+    chrono = raw.get("chronological") if raw else None
+    return parity_scheme(n_hours, None if chrono is None else bool(chrono))
 
 
 def bracket_hours(scheme: dict) -> list:

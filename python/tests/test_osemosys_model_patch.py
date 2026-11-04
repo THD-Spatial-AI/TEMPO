@@ -26,6 +26,8 @@ def test_model_declares_tempo_params():
     assert "param StorageCyclicYear{r in REGION, s in STORAGE}, binary, default 0;" in text
     assert "param StorageLossRate{r in REGION, s in STORAGE}, >= 0, < 1, default 0;" in text
     assert "param TempoLevelScale, > 0, default 1;" in text
+    assert "param StorageTempoBlock{r in REGION, s in STORAGE}, binary, default 0;" in text
+    assert "or StorageTempoBlock[r,s] = 1 then 1 else 0;" in text   # forces the TEMPO block
     assert "TempoStorage[r,s] = 0" in text            # upstream S/SC gated
     # last-instance equations only exist for day types that occur at least once
     for name in ("TS4_LastDayStart", "TS5_LastDayNext", "TS10_LowerLast", "TS11_UpperLast",
@@ -61,6 +63,93 @@ def test_lossy_storage_matches_calliope_rich_lossy():
     assert res["objective"] == pytest.approx(2796.1663, rel=2e-4)
     assert res["capacities"]["north::battery"] == pytest.approx(304.366, rel=1e-3)
     assert res["capacities"]["south::ccgt"] == pytest.approx(182.174, rel=1e-3)
+
+
+# ─── Chronological parity scheme (one season per day, DaysInDayType = 1) ──────
+
+
+@pytest.mark.parametrize("raw,n_seasons,chrono", [
+    (None, 7, True),                              # 1-week window: chronological by default
+    ({"chronological": False}, 1, False),         # forced representative
+    ({"seasons": 2, "dayBlocks": 24}, 2, False),  # explicit scheme unchanged
+    ({"seasons": 7, "dayBlocks": 24}, 7, True),   # one season per window day = chronological
+])
+def test_runner_scheme_selection(raw, n_seasons, chrono):
+    md = {"modelConfig": {"startDate": "2005-01-01", "endDate": "2005-01-07"}}
+    if raw is not None:
+        md["modelConfig"]["osemosysScheme"] = raw
+    sch = R._parity_scheme(md)
+    assert sch["seasons"] == n_seasons and bool(sch.get("chronological")) == chrono
+
+
+def test_runner_scheme_chronological_override_for_long_window():
+    md = {"modelConfig": {"startDate": "2005-01-01", "endDate": "2005-02-28",
+                          "osemosysScheme": {"chronological": True}}}
+    assert R._parity_scheme(md)["seasons"] == 59
+    md["modelConfig"].pop("osemosysScheme")
+    assert not R._parity_scheme(md).get("chronological")    # 59 days > threshold
+
+
+def _tempo_chain(net, loss, start, cyclic):
+    """TS1-TS7 of the TEMPO block for one day type per season, DaysInDayType = 1,
+    DaySplit = 1/8760 (net = per-hour net charge = rate x DaySplit). Returns the level
+    at the end of every hour; for cyclic, start is solved as year start = year end."""
+    ret = (1 - loss) ** ((1 / 8760) * 8760)                    # BracketRetention
+    days = [net[i:i + 24] for i in range(0, len(net), 24)]
+
+    def run(y0):
+        levels, day_start = [], y0
+        for day in days:
+            first = day_start                                   # TS2
+            for h, n in enumerate(day):
+                levels.append(ret * first + n)                  # end of bracket h
+                first = ret * first + n                         # TS3
+            day_net = sum(n * ret ** (23 - h) for h, n in enumerate(day))   # TS1 (RetentionAfter)
+            # TS6: DayTypeRetention(n=0) = ret^24, CarryDays(n=0) = 1 for one day
+            day_start = ret ** 24 * day_start + 1 * day_net
+        return levels, day_start
+
+    if cyclic:   # y0 = a*y0 + b  (TS7); lossless: any y0 works when the window nets to zero
+        _, b = run(0.0)
+        a = ret ** len(net)
+        start = b / (1 - a) if a < 1 else 1.0
+    return run(start)[0], start
+
+
+def _calliope_chain(net, loss, start):
+    """Calliope 0.6.8 storage_level: s[t] = (1 - loss)^1 * s[t-1] + charge*eff - discharge/eff."""
+    out, s = [], start
+    for n in net:
+        s = (1 - loss) * s + n
+        out.append(s)
+    return out
+
+
+@pytest.mark.parametrize("loss", [0.0, 0.01])
+@pytest.mark.parametrize("cyclic", [False, True])
+def test_chronological_tempo_chain_reproduces_calliope_hourly_levels(loss, cyclic):
+    import math
+    net = [math.sin(h / 5.0) - 0.02 * (h % 7) + 0.15 for h in range(72)]
+    if cyclic and loss == 0:
+        net = [n - sum(net) / len(net) for n in net]           # lossless cycle must net to zero
+    tempo, start = _tempo_chain(net, loss, 0.0, cyclic)
+    cal = _calliope_chain(net, loss, start)
+    assert tempo == pytest.approx(cal, abs=1e-12)
+    if cyclic:
+        assert cal[-1] == pytest.approx(start)                 # Calliope cyclic: end == start
+
+
+@needs_glpsol
+def test_non_cyclic_storage_chronological_matches_calliope_rich():
+    md = json.loads((ROOT / "scripts" / "reference_model_rich.json").read_text(encoding="utf-8"))
+    md["modelConfig"]["cyclicStorage"] = False
+    with tempfile.TemporaryDirectory() as tmp:
+        res = R.run_model(md, tmp, log_fn=lambda line: None)
+    # Calliope 0.6.8 on the same model: objective 2783.9922, battery 251.563 kW
+    assert res["objective"] == pytest.approx(2783.9922, rel=2e-5)
+    assert res["capacities"]["north::battery"] == pytest.approx(251.563, rel=1e-4)
+
+
 # ─── Free, unbounded capacity is reported at the peak it is used, not the sentinel ──
 
 
@@ -153,3 +242,23 @@ def test_no_unmet_keys_when_demand_met():
     assert "total_unmet_demand_mwh" not in res and "unmet_demand_timeseries" not in res
 
 
+# ─── HiGHS route: result CSVs written straight from the solution (no glpsol -r) ──
+
+
+def test_results_written_from_highs_columns(tmp_path):
+    names = ["TotalCapacityAnnual[R,IMP,2021]", "TotalCapacityAnnual[R,GAS,2021]",
+             "RateOfActivity[R,s1d1,IMP,1,2021]", "ProductionByTechnology[R,s1d1,IMP,F,2021]",
+             "TotalDiscountedCost[R,2021]", "NetChargeWithinDay[R,S,1,1,1,2021]"]
+    values = [2.5, 0.0, 31.5, 0.01, 12.0, -3.0]
+    out = tmp_path / "glpsol_output.txt"
+    assert R._write_results_from_columns(names, values, 12.0, str(tmp_path), str(out))
+    assert R._read_csv(str(tmp_path / "TotalCapacityAnnual.csv")) == [
+        {"REGION": "R", "TECHNOLOGY": "IMP", "YEAR": "2021", "VALUE": "2.5"}]       # > 0 only, like the tables
+    assert R._read_csv(str(tmp_path / "RateOfActivity.csv"))[0]["MODE_OF_OPERATION"] == "1"
+    assert R._read_csv(str(tmp_path / "ProductionByTechnology.csv"))[0]["FUEL"] == "F"
+    assert R._read_csv(str(tmp_path / "CapitalInvestment.csv")) == []                # header only
+    assert R._parse_glpsol_output(str(out)) == ("optimal", 12.0)
+
+
+def test_results_from_columns_refuses_when_a_result_variable_is_missing(tmp_path):
+    assert not R._write_results_from_columns(["Foo[1]"], [1.0], 0.0, str(tmp_path), str(tmp_path / "o.txt"))

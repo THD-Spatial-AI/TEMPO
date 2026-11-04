@@ -234,6 +234,9 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
 
     labels = timeslices.slice_labels(scheme)
     year_split = timeslices.year_split_for_n_hours(n_hours, scheme)
+    # Chronological parity scheme: one season per real day, DaysInDayType = 1, so the
+    # TEMPO storage block is an hourly chain through the window (see osemosys/README.md).
+    chrono = parity and bool(scheme.get("chronological"))
 
     # ── Lookups ───────────────────────────────────────────────────────────────
     technologies = model_data.get("technologies") or []
@@ -300,7 +303,8 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
     storage_params: dict = {k: [] for k in (
         "StorageLevelStart", "StorageMaxChargeRate", "StorageMaxDischargeRate",
         "OperationalLifeStorage", "DiscountRateStorage", "CapitalCostStorage",
-        "MinStorageCharge", "ResidualStorageCapacity", "StorageCyclicYear", "StorageLossRate")}
+        "MinStorageCharge", "ResidualStorageCapacity", "StorageCyclicYear", "StorageLossRate",
+        "StorageTempoBlock")}
     # Engine-specific overrides, applied to the tables below after the main loop:
     # each entry is (base_technology_id, {osemosys_table_name: value}).
     engine_overlays: list = []
@@ -505,7 +509,9 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
                     cyclic = model_config.get("cyclicStorage") is None or bool(model_config["cyclicStorage"])
                     storage_params["StorageCyclicYear"].append(
                         {"REGION": REGION, "STORAGE": stor_id, "VALUE": int(cyclic)})
-                    if not cyclic:
+                    if chrono:
+                        storage_params["StorageTempoBlock"].append({"REGION": REGION, "STORAGE": stor_id, "VALUE": 1})
+                    elif not cyclic:
                         report.append(f"{loc_name}/{tid}: non-cyclic storage is approximate — OSeMOSYS repeats "
                                       "each season as identical days chained from the year start, so every "
                                       "day starts like the first (Calliope: only the window start; ≈1% "
@@ -905,7 +911,8 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
         season_share = {s: sum(year_split[f"s{s}d{d}"] for d in range(1, len(bh) + 1))
                         for s in range(1, seasons + 1)}
         _write_csv(_p("DaysInDayType.csv"), ["SEASON", "DAYTYPE", "YEAR", "VALUE"],
-                   [{"SEASON": s, "DAYTYPE": 1, "YEAR": year, "VALUE": round(365.0 * season_share[s], 9)}
+                   [{"SEASON": s, "DAYTYPE": 1, "YEAR": year,
+                     "VALUE": 1 if chrono else round(365.0 * season_share[s], 9)}
                     for s in range(1, seasons + 1)])
         _write_csv(_p("STORAGE.csv"), ["VALUE"], [{"VALUE": s} for s in storages])
         _write_csv(_p("TechnologyToStorage.csv"),
@@ -913,11 +920,18 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
         _write_csv(_p("TechnologyFromStorage.csv"),
                    ["REGION", "TECHNOLOGY", "STORAGE", "MODE_OF_OPERATION", "VALUE"], tech_from_storage)
         for k, rows in storage_params.items():
+            if not rows and k == "StorageTempoBlock":
+                continue
             cols = ["REGION", "STORAGE", "YEAR", "VALUE"] if rows and "YEAR" in rows[0] else ["REGION", "STORAGE", "VALUE"]
             _write_csv(_p(f"{k}.csv"), cols, rows)
         if storages:
             _write_csv(_p("TempoLevelScale.csv"), ["VALUE"], [{"VALUE": _PARITY_LEVEL_SCALE}])
 
+    if parity:
+        report.append(f"Time: chronological scheme — {len(labels)} hourly timeslices, one season per day "
+                      "of the window (exact hourly storage chain)." if chrono else
+                      f"Time: representative scheme — {len(labels)} timeslices; each season is repeated "
+                      "as identical days (inexact when daily profiles vary).")
     report.append(
         f"Single REGION ({REGION}), year {year}, {len(labels)} timeslices ({scheme}). "
         f"{len(set(osem_techs))} technologies, {len(loc_fuels)} fuels. "

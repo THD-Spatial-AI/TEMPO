@@ -222,16 +222,33 @@ def test_link_by_location_id_not_flagged():
     assert 'link_unknown_location' not in {i['code'] for i in D.assess(m, 'calliope')['errors']}
 
 
-def test_osemosys_warns_that_a_multi_day_window_is_folded_into_a_typical_day():
+def _tagg(m):
+    return [x for x in D.assess(m, 'osemosys')['warnings'] if x['code'] == 'time_aggregation']
+
+
+def test_osemosys_warns_only_when_the_window_is_folded_into_representative_days():
     m = _model()
-    m['modelConfig'].update(startDate='2015-01-05', endDate='2015-01-11')
+    m['modelConfig'].update(startDate='2015-01-05', endDate='2015-02-13')        # 40 days > 31
     a = D.assess(m, 'osemosys')
     w = [x for x in a['warnings'] if x['code'] == 'time_aggregation']
-    assert w and '7-day' in w[0]['message'] and 'seasons: 7' in w[0]['message']
+    assert w and '40-day' in w[0]['message'] and 'chronological: true' in w[0]['message']
     assert a['fidelity'] == 'reduced'
-    # the other engines keep full hourly resolution; a chosen scheme or a single day needs no warning
+    # the other engines keep full hourly resolution
     assert not any(x['code'] == 'time_aggregation' for x in D.assess(m, 'pypsa')['warnings'])
-    m['modelConfig']['osemosysScheme'] = {'seasons': 7, 'dayBlocks': 24}
-    assert not any(x['code'] == 'time_aggregation' for x in D.assess(m, 'osemosys')['warnings'])
+    m['modelConfig']['osemosysScheme'] = {'chronological': True}
+    assert not _tagg(m)
+    m['modelConfig']['osemosysScheme'] = {'seasons': 40, 'dayBlocks': 24}       # one season per day
+    assert not _tagg(m)
+
+
+def test_osemosys_short_window_is_chronological_and_exact():
+    m = _model()
+    m['modelConfig'].update(startDate='2015-01-05', endDate='2015-01-11')        # 7 days
+    a = D.assess(m, 'osemosys')
+    assert not any(x['code'] == 'time_aggregation' for x in a['warnings'])
+    assert a['fidelity'] == 'full'
+    m['modelConfig']['osemosysScheme'] = {'chronological': False}               # forced representative
+    w = _tagg(m)
+    assert w and '7-day' in w[0]['message']
     m['modelConfig'].pop('osemosysScheme'); m['modelConfig']['endDate'] = '2015-01-05'
-    assert not any(x['code'] == 'time_aggregation' for x in D.assess(m, 'osemosys')['warnings'])
+    assert not _tagg(m)

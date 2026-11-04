@@ -41,7 +41,7 @@ _SOLVERS_DIR = os.path.join(os.path.dirname(_this_dir), "solvers")
 
 _thread_local = threading.local()
 # TEMPO storage extension params: declared with "default 0" in osemosys.txt.
-_MODEL_DEFAULT_PARAMS = {"StorageCyclicYear", "StorageLossRate", "TempoStrictBalance",
+_MODEL_DEFAULT_PARAMS = {"StorageCyclicYear", "StorageLossRate", "StorageTempoBlock", "TempoStrictBalance",
                          "TempoStorageCapMax", "TempoPowerPerStorage"}
 
 
@@ -183,6 +183,7 @@ def _write_datafile(csv_dir: str, results_dir: str, discount_rate: float = 0.05)
         ("ResidualStorageCapacity.csv",   "ResidualStorageCapacity",   ["REGION", "STORAGE", "YEAR"]),
         ("StorageCyclicYear.csv",         "StorageCyclicYear",         ["REGION", "STORAGE"]),
         ("StorageLossRate.csv",           "StorageLossRate",           ["REGION", "STORAGE"]),
+        ("StorageTempoBlock.csv",         "StorageTempoBlock",         ["REGION", "STORAGE"]),
         ("TempoStrictBalance.csv",        "TempoStrictBalance",        ["REGION", "FUEL", "YEAR"]),
         ("TempoStorageCapMax.csv",        "TempoStorageCapMax",        ["REGION", "STORAGE", "YEAR"]),
         ("TempoPowerPerStorage.csv",      "TempoPowerPerStorage",      ["REGION", "TECHNOLOGY", "STORAGE"]),
@@ -245,13 +246,16 @@ def _write_datafile(csv_dir: str, results_dir: str, discount_rate: float = 0.05)
 
 # ─── Run glpsol ──────────────────────────────────────────────────────────────
 
-def _solve_with_highs(glpsol: str, osemosys_txt: str, dat_path: str, output_path: str, log_fn) -> str | None:
+def _solve_with_highs(glpsol: str, osemosys_txt: str, dat_path: str, output_path: str, log_fn,
+                      results_dir: str | None = None) -> str | None:
     """Solve the OSeMOSYS LP with HiGHS instead of GLPK's simplex (seconds vs. hours on large,
-    degenerate models), keeping GLPK for what only it can do — building the MathProg model and
-    post-processing a solution into the result CSVs:
-        glpsol --check --wfreemps  →  HiGHS  →  GLPK-format solution file  →  glpsol -r (post-solve).
+    degenerate models), keeping GLPK for building the MathProg model:
+        glpsol --check --wfreemps  →  HiGHS  →  result CSVs from the named columns.
+    With results_dir the result CSVs are written directly (_write_results_from_columns); otherwise,
+    or if the columns lack the result variables, a GLPK-format solution file is post-processed
+    with `glpsol -r` (which re-generates the model — slow on large ones).
     Returns the verdict ('infeasible' / 'unbounded') when HiGHS finds no solution, "solved" when
-    glpsol has post-processed a HiGHS solution, and None when HiGHS is unavailable or failed
+    the result CSVs are written, and None when HiGHS is unavailable or failed
     (the caller then solves with GLPK)."""
     try:
         import highspy
@@ -265,6 +269,10 @@ def _solve_with_highs(glpsol: str, osemosys_txt: str, dat_path: str, output_path
         _run_glpsol(glpsol, osemosys_txt, dat_path, output_path, log_fn, extra=("--check", "--wfreemps", mps))
         h = highspy.Highs()
         h.setOptionValue("output_flag", False)
+        # Interior point + crossover (a basic, vertex solution as with simplex): about half the
+        # dual simplex time on the large chronological models (Arica month 55 s vs 102 s).
+        h.setOptionValue("solver", "ipm")
+        h.setOptionValue("run_crossover", "on")
         h.readModel(mps)
         lp = h.getLp()
         log(f"HiGHS: solving {lp.num_row_:,} rows x {lp.num_col_:,} columns…")
@@ -279,6 +287,8 @@ def _solve_with_highs(glpsol: str, osemosys_txt: str, dat_path: str, output_path
         if status != highspy.HighsModelStatus.kOptimal:
             return None
         s, obj = h.getSolution(), h.getInfo().objective_function_value
+        if results_dir and _write_results_from_columns(lp.col_names_, s.col_value, obj, results_dir, output_path):
+            return "solved"
         # GLPK solution text: row 1 is the objective, then the constraints; columns in MPS order
         with open(sol, "w", encoding="ascii") as f:
             f.write(f"s bas {lp.num_row_ + 1} {lp.num_col_} f f {obj!r}\n")
@@ -324,6 +334,43 @@ def _free_unbounded_peak_gw(csv_dir: str, results_dir: str) -> dict:
     for (r, t, y) in free:       # unused free techs get 0 (or their floor)
         peak[t] = max([peak.get(t, 0.0)] + [f.get((r, t, y), 0.0) for f in floors])
     return peak
+
+
+# Result variables the contract reads, with the index columns of osemosys.txt's result tables.
+_RESULT_COLUMNS = {
+    "TotalCapacityAnnual": ["REGION", "TECHNOLOGY", "YEAR"],
+    "ProductionByTechnology": ["REGION", "TIMESLICE", "TECHNOLOGY", "FUEL", "YEAR"],
+    "RateOfActivity": ["REGION", "TIMESLICE", "TECHNOLOGY", "MODE_OF_OPERATION", "YEAR"],
+    "TotalTechnologyAnnualActivity": ["REGION", "TECHNOLOGY", "YEAR"],
+    "CapitalInvestment": ["REGION", "TECHNOLOGY", "YEAR"],
+    "AnnualFixedOperatingCost": ["REGION", "TECHNOLOGY", "YEAR"],
+    "AnnualVariableOperatingCost": ["REGION", "TECHNOLOGY", "YEAR"],
+    "NewStorageCapacity": ["REGION", "STORAGE", "YEAR"],
+    "TotalDiscountedCost": ["REGION", "YEAR"],
+}
+_REQUIRED_RESULTS = ("TotalCapacityAnnual", "ProductionByTechnology", "RateOfActivity", "TotalDiscountedCost")
+
+
+def _write_results_from_columns(names, values, objective: float, results_dir: str, output_path: str) -> bool:
+    """Write the result CSVs _build_contract reads (rows with value > 0, as osemosys.txt's tables do)
+    and a glpsol-style status/objective file straight from a solved LP's named columns, instead of
+    re-generating the whole MathProg model with `glpsol -r` (the slowest step on large models).
+    Returns False, writing nothing, when the column names do not carry the result variables."""
+    rows: dict = {v: [] for v in _RESULT_COLUMNS}
+    for name, val in zip(names, values):
+        var, _, idx = name.partition("[")
+        if var in rows and val > 0:
+            rows[var].append(idx[:-1].split(",") + [repr(float(val))])
+    if not all(any(n.startswith(v + "[") for n in names) for v in _REQUIRED_RESULTS):
+        return False
+    for var, cols in _RESULT_COLUMNS.items():
+        with open(os.path.join(results_dir, f"{var}.csv"), "w", newline="", encoding="utf-8") as f:
+            w = csv.writer(f)
+            w.writerow(cols + ["VALUE"])
+            w.writerows(rows[var])
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(f"Status:     OPTIMAL\nObjective:  cost = {objective!r} (MINimum)\n")
+    return True
 
 
 def _min_capacity_violated(csv_dir: str, results_dir: str, rel_tol: float = 1e-6) -> bool:
@@ -871,12 +918,10 @@ def _n_hours(model_data: dict) -> int:
 
 
 def _parity_scheme(model_data: dict) -> dict:
-    """modelConfig.osemosysScheme (whole-day clock-hour labels) or the parity default."""
-    raw = (model_data.get("modelConfig") or {}).get("osemosysScheme")
-    if raw:   # clock-hour labels; DaySplit × DaysInDayType == YearSplit
-        return {"seasons": int(raw.get("seasons", 4)), "dayBlocks": int(raw.get("dayBlocks", 3)),
-                "wholeDays": True}
-    return timeslices.parity_scheme(_n_hours(model_data))
+    """The parity timeslice scheme for modelConfig.osemosysScheme (see
+    osemosys_timeslices.select_parity_scheme)."""
+    return timeslices.select_parity_scheme(_n_hours(model_data),
+                                           (model_data.get("modelConfig") or {}).get("osemosysScheme"))
 
 
 # ─── Export (otoole CSV datasets in a ZIP) ────────────────────────────────────
@@ -893,7 +938,7 @@ Run it with the bundled model file from this folder:
 Results are written to ./results. Costs are M EUR for the annualised year;
 TEMPO scales them back to the modelled window (x hours/8760).
 osemosys.txt is OSeMOSYS 2017 plus TEMPO's opt-in storage extension
-(StorageCyclicYear / StorageLossRate / TempoLevelScale) — upstream OSeMOSYS
+(StorageCyclicYear / StorageLossRate / StorageTempoBlock / TempoLevelScale) — upstream OSeMOSYS
 ignores those CSVs. tempo_model.json is the original TEMPO model, used for
 lossless re-import. Delete tempo_model.json to import edited CSVs (otherwise
 TEMPO restores the original model).
@@ -990,7 +1035,7 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
     # slower (92 s → 28+ min on the Italian week), so solve with presolve first and fall back
     # to --nopresol only when a minimum capacity is actually violated.
     has_min_cap = bool(_read_csv(os.path.join(csv_dir, "TotalAnnualMinCapacity.csv")))
-    verdict = _solve_with_highs(glpsol, _OSEMOSYS_TXT, dat_path, output_path, log_fn or log)
+    verdict = _solve_with_highs(glpsol, _OSEMOSYS_TXT, dat_path, output_path, log_fn or log, results_dir)
     if verdict == "solved":
         verdict = None
     elif verdict is None:
