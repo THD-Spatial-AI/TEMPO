@@ -558,3 +558,21 @@ def test_linkconfig_distance_used_for_per_distance_cost(ref_model):
     fwd = next(l for l in spec['links'] if l['name'] == 'north::grid_link:south')
     annuity = 0.05 / (1 - 1.05 ** -40)
     assert fwd['capital_cost'] == pytest.approx((0.5 * 200) * annuity * (168 / 8760) / 2)
+
+
+def test_supply_file_resource_resolved_from_csv_content_only_timeseries():
+    """Saved (non-loaded) models reach the runner with csvContent but no parsed data."""
+    model = {
+        'modelConfig': {'startDate': '2024-01-01', 'endDate': '2024-01-01'},
+        'timeSeries': [{'fileName': 'solar.csv', 'columns': ['time', 'cf'],
+                        'csvContent': 'time,cf\nx,0.1\nx,0.9\n'}],
+        'technologies': [{
+            'name': 'pv',
+            'essentials': {'parent': 'supply', 'carrier_out': 'electricity'},
+            'constraints': {'resource': 'file=solar.csv:cf', 'resource_unit': 'energy_per_cap'},
+        }],
+        'locations': [{'name': 'a', 'techs': {'pv': None}}],
+    }
+    spec, report = t.translate_model(model)
+    assert spec['generators'][0]['p_max_pu'][:4] == [0.1, 0.9, 0.1, 0.9]
+    assert not any('dropped' in r for r in report)

@@ -10,8 +10,11 @@ Calliope 0.6 semantics.
 from __future__ import annotations
 
 import copy
+import csv
+import io
 import math
 import re
+from functools import lru_cache
 from itertools import cycle, islice
 
 HOURS_PER_YEAR = 8760.0
@@ -58,6 +61,33 @@ def annuity(rate, lifetime):
     return 1.0 / life
 
 
+def contract_id(name, location=False) -> str:
+    """The id the Calliope 0.6.8 runner reports in the frozen result contract (its
+    _safe_id): '::'→'__', ':'→'_', other non [A-Za-z0-9_-] chars→'_', repeated '_'
+    collapsed and stripped. Techs keep case, hyphens and leading digits; locations
+    are lowercased. Every engine maps its own component ids back to these."""
+    s = str(name).strip().replace('::', '__').replace(':', '_')
+    s = re.sub(r'[^A-Za-z0-9_\-]', '_', s)
+    s = re.sub(r'_+', '_', s).strip('_') or 'unknown'
+    return s.lower() if location else s
+
+
+def contract_id_maps(locations, technologies, loc_id, tech_id) -> tuple[dict, dict]:
+    """({engine loc id: contract loc id}, {engine tech id: contract tech id}).
+    *loc_id* / *tech_id* are the engine's own sanitisers applied to the raw TEMPO
+    location / technology names."""
+    loc_map = {}
+    for i, loc in enumerate(locations or []):
+        raw = loc.get('name') or loc.get('id') or f'node_{i}'
+        loc_map[loc_id(raw)] = contract_id(raw, location=True)
+    tech_map = {}
+    for t in technologies or []:
+        raw = t.get('name') or t.get('id')
+        if raw:
+            tech_map[tech_id(raw)] = contract_id(raw)
+    return loc_map, tech_map
+
+
 # Intentionally mirrors pypsa_translate.safe_id normalisation (minus the digit prefix / 'unknown' fallback); applied to both sides of the comparison.
 def _col_id(name) -> str:
     s = re.sub(r'[^A-Za-z0-9_]', '_', str(name).strip().replace('::', '__').replace(':', '_'))
@@ -96,6 +126,44 @@ def qualify_file_ref(ref, loc, model_data):
     return ref
 
 
+def _csv_cell(v):
+    """Papaparse `dynamicTyping` semantics (how the JS import builds `data`):
+    '' → None, numeric text → int/float, anything else left as the string."""
+    if v is None or v == '':
+        return None
+    try:
+        return int(v)
+    except ValueError:
+        pass
+    try:
+        return float(v)
+    except ValueError:
+        return v
+
+
+@lru_cache(maxsize=8)
+def _parse_csv_content(content):
+    reader = csv.reader(io.StringIO(content))
+    header = next(reader, None) or []
+    rows = [{h: _csv_cell(v) for h, v in zip(header, rec)}
+            for rec in reader if any(c.strip() for c in rec)]
+    return header, rows
+
+
+def timeseries_rows(ts):
+    """(columns, rows) of a payload timeSeries entry. Uses the parsed `data`
+    when present; otherwise parses the raw `csvContent` (saved models lose
+    `data` on the backend save/reload cycle) into row dicts keyed by header,
+    matching the JS import (Papa.parse header + dynamicTyping + skipEmptyLines).
+    Parsed rows are cached and shared — callers must not mutate them."""
+    data = ts.get('data') or []
+    columns = ts.get('columns') or []
+    if data or not ts.get('csvContent'):
+        return columns, data
+    header, rows = _parse_csv_content(ts['csvContent'])
+    return (columns or header), rows
+
+
 def resolve_file_series(ref, model_data, n, report, ctx):
     """Resolve 'file=name.csv:column' against the payload's inline timeSeries.
     Returns a list of length n (cycled/truncated), or None."""
@@ -109,8 +177,7 @@ def resolve_file_series(ref, model_data, n, report, ctx):
         candidates |= {c[:-4] for c in list(candidates) if c.endswith('.csv')}
         if fname_l not in candidates and stem not in candidates:
             continue
-        columns = ts.get('columns') or []
-        data = ts.get('data') or []
+        columns, data = timeseries_rows(ts)
         date_col = ts.get('dateColumn') or (columns[0] if columns else None)
         data_cols = [c for c in columns if c and c != date_col]
         target = None

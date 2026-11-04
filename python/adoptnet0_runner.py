@@ -272,40 +272,66 @@ _KW_PER_MW = 1_000.0
 
 def _to_frozen_contract(extracted: dict, timestamps: list, model_data: dict, name: str = "",
                         solver: str = "highs") -> dict:
-    """AdOpT-NET0 extracted results (MW, MWh, €) → TEMPO frozen contract (kW, kWh, €)."""
+    """AdOpT-NET0 extracted results (MW, MWh, €) → TEMPO frozen contract (kW, kWh, €).
+    Node/tech ids are mapped back to the ids the Calliope 0.6.8 runner reports."""
     techs = {t.get("name"): t for t in model_data.get("technologies") or []}
     parents = {n: translate._get_parent(t) for n, t in techs.items()}
+    parents.update({translate.contract_id(n): p for n, p in parents.items() if n})
     link_tech = translate.network_names(model_data.get("links") or [], model_data.get("technologies") or [])
+    node_ids, tech_ids = translate.contract_id_maps(model_data)
+
+    def L(node):
+        return node_ids.get(node, node)
+
+    def T(tech):
+        return tech_ids.get(tech, tech)
 
     capacities, storage_capacities, generation, dispatch = {}, {}, {}, {}
     costs_by_tech, costs_by_location = {}, {}
     out_per_in = translate.conv3_output_per_input(model_data)
     for node, tmap in (extracted.get("capacity") or {}).items():
         for tech, mw in tmap.items():
-            capacities[f"{node}::{tech}"] = mw * _KW_PER_MW * out_per_in.get((node, tech), 1.0)
+            capacities[f"{L(node)}::{T(tech)}"] = mw * _KW_PER_MW * out_per_in.get((node, tech), 1.0)
     for node, tmap in (extracted.get("storage_capacity") or {}).items():
         for tech, mwh in tmap.items():
-            storage_capacities[f"{node}::{tech}"] = mwh * _KW_PER_MW
+            storage_capacities[f"{L(node)}::{T(tech)}"] = mwh * _KW_PER_MW
     for node, tmap in (extracted.get("tech_costs") or {}).items():
         for tech, eur in tmap.items():
-            costs_by_tech[tech] = costs_by_tech.get(tech, 0.0) + eur
-            costs_by_location.setdefault(node, {})[tech] = eur
+            costs_by_tech[T(tech)] = costs_by_tech.get(T(tech), 0.0) + eur
+            costs_by_location.setdefault(L(node), {})[T(tech)] = eur
+    peak_kw = {}   # (node, tech) -> peak output, for free capacity left at the sentinel
     for node, tmap in (extracted.get("dispatch") or {}).items():
         for tech, cmap in tmap.items():
             for carrier, series in cmap.items():
                 kw = [(v or 0.0) * _KW_PER_MW for v in series]
-                generation[f"{node}::{tech}::{carrier}"] = sum(kw)
-                prev = dispatch.get(tech)
-                dispatch[tech] = kw if prev is None else [p + q for p, q in zip(prev, kw)]
+                generation[f"{L(node)}::{T(tech)}::{carrier}"] = sum(kw)
+                peak_kw[(node, tech)] = max(peak_kw.get((node, tech), 0.0), max(kw, default=0.0))
+                prev = dispatch.get(T(tech))
+                dispatch[T(tech)] = kw if prev is None else [p + q for p, q in zip(prev, kw)]
+    # A capacity without cost (e.g. import with no energy_cap cost) is degenerate in the LP
+    # and AdOpT may leave it at the unbounded sentinel; Calliope 0.6.8 reports the peak
+    # actually used there, so report that.
+    for node, tmap in (extracted.get("capacity") or {}).items():
+        for tech, mw in tmap.items():
+            if mw * _KW_PER_MW >= 0.999 * translate._UNBOUNDED_KW:
+                capacities[f"{L(node)}::{T(tech)}"] = peak_kw.get((node, tech), 0.0)
+    # 0.6.8 lists only techs that produced something in `dispatch`
+    dispatch = {k: v for k, v in dispatch.items() if sum(v) > 0}
 
     # Several networks can join one node pair (duplicate links, or different techs):
     # capacities sum per (pair, tech) and the net signed flow sums per pair.
     transmission_flow = {}
     for net, arcs in (extracted.get("arcs") or {}).items():
-        tid = link_tech.get(net, net.split("__")[0])
+        raw_tid = link_tech.get(net, net.split("__")[0])
+        tid = translate.contract_id(raw_tid)
+        carrier = translate._get_carrier_out(techs.get(raw_tid) or {}) or "electricity"
+        arcs = {(L(a), L(b)): rec for (a, b), rec in arcs.items()}
         for (a, b), rec in arcs.items():
             key = f"{a}::{tid}:{b}"
             capacities[key] = capacities.get(key, 0.0) + rec.get("size", 0.0) * _KW_PER_MW
+            # 0.6.8 generation: energy arriving at b from a, keyed 'b::tech:a::carrier'
+            gkey = f"{b}::{tid}:{a}::{carrier}"
+            generation[gkey] = generation.get(gkey, 0.0) + sum(rec.get("delivered") or []) * _KW_PER_MW
         for (a, b) in sorted({tuple(sorted(p)) for p in arcs}):
             fwd = (arcs.get((a, b)) or {}).get("delivered") or []
             rev = (arcs.get((b, a)) or {}).get("delivered") or []
@@ -318,10 +344,35 @@ def _to_frozen_contract(extracted: dict, timestamps: list, model_data: dict, nam
             transmission_flow[f"{a}::{b}"] = {"from": a, "to": b, "timeseries": net_flow}
         costs_by_tech[tid] = costs_by_tech.get(tid, 0.0) + (extracted.get("network_costs") or {}).get(net, 0.0)
 
+    # 0.6.8 drops pairs that never carry flow
+    transmission_flow = {k: v for k, v in transmission_flow.items()
+                         if max((abs(x) for x in v["timeseries"]), default=0.0) >= 1e-6}
+
     demand = [0.0] * len(timestamps)
     for series in (extracted.get("demand") or {}).values():
         for i, v in enumerate(series[: len(demand)]):
             demand[i] += (v or 0.0) * _KW_PER_MW
+
+    # Unmet demand = AdOpT's energy-balance violation; like the Calliope runner, the
+    # contract objective is the system cost without the violation penalty.
+    objective = extracted.get("objective")
+    if objective is not None and extracted.get("violation_cost"):
+        objective -= extracted["violation_cost"]
+    unmet = {}
+    unmet_by_loc = {}
+    for node, series in (extracted.get("violation") or {}).items():
+        kw = [max(v or 0.0, 0.0) * _KW_PER_MW for v in series]
+        unmet_by_loc[L(node)] = [p + q for p, q in zip(unmet_by_loc[L(node)], kw)] \
+            if L(node) in unmet_by_loc else kw
+    total_unmet = sum(sum(v) for v in unmet_by_loc.values())
+    if total_unmet > 1e-6:
+        series = [sum(vals) for vals in zip(*unmet_by_loc.values())]
+        unmet = {
+            "unmet_demand_timeseries": [round(v, 3) for v in series],
+            "unmet_demand_by_location": {k: round(sum(v), 3) for k, v in unmet_by_loc.items()
+                                         if sum(v) > 1e-3},
+            "total_unmet_demand_mwh": round(total_unmet, 3),
+        }
 
     status = str(extracted.get("solver_status") or "unknown")
     return {
@@ -330,7 +381,7 @@ def _to_frozen_contract(extracted: dict, timestamps: list, model_data: dict, nam
         "model_name": name,
         "name": name,
         "solver": solver,
-        "objective": extracted.get("objective"),
+        "objective": objective,
         "termination_condition": "optimal" if status in ("ok", "optimal") else status,
         "capacities": capacities,
         "storage_capacities": storage_capacities,
@@ -339,19 +390,62 @@ def _to_frozen_contract(extracted: dict, timestamps: list, model_data: dict, nam
         "timestamps": timestamps,
         "transmission_flow": transmission_flow,
         "demand_timeseries": demand,
-        "costs_by_tech": costs_by_tech,
+        "costs_by_tech": {k: v for k, v in costs_by_tech.items() if v > 0},
         "costs_by_location": costs_by_location,
-        "tech_metadata": {n: {"name": (t.get("essentials") or {}).get("name", n),
+        "tech_metadata": {k: {"name": (t.get("essentials") or {}).get("name", n),
                               "carrier": translate._get_carrier_out(t),
                               "color": (t.get("essentials") or {}).get("color", "")}
-                          for n, t in techs.items()},
+                          for n, t in techs.items() if n
+                          for k in (n, translate.contract_id(n))},
         "tech_parents": parents,
+        **unmet,
     }
 
 
 # ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
+
+STORAGE_EPS_EUR_PER_MWH = 1e-3   # = 1e-6 €/kWh of storage charge
+
+
+def _add_storage_eps_cost(model_dir: str, report: list) -> int:
+    """Run path only: a tiny variable cost on storage charging. Like Calliope 0.6 (LP)
+    AdOpT lets storage charge and discharge at once; with free curtailment a lossy
+    battery can then cycle at zero cost and the solver may return such a wasteful,
+    equal-objective vertex. The epsilon makes cycling strictly costlier. Returns the
+    number of storage techs changed."""
+    import json
+    n = 0
+    for path in glob.glob(os.path.join(model_dir, "period1", "node_data", "*", "technology_data", "*.json")):
+        with open(path, encoding="utf-8") as fh:
+            tech = json.load(fh)
+        if tech.get("tec_type") != "STOR":
+            continue
+        econ = tech.setdefault("Economics", {})
+        econ["OPEX_variable"] = float(econ.get("OPEX_variable") or 0.0) + STORAGE_EPS_EUR_PER_MWH
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(tech, fh, indent=2)
+        n += 1
+    if n:
+        report.append(f"storage: +{STORAGE_EPS_EUR_PER_MWH / _KW_PER_MW:g} €/kWh variable cost on charging "
+                      f"({n} storage tech(s)) to rule out zero-cost charge/discharge cycling")
+    return n
+
+
+def _violation_by_node(model) -> dict:
+    """{node: [MW per timestep]} of AdOpT's energy-balance violation (its unmet-demand
+    slack), summed over carriers. The HDF5 results only hold its total cost."""
+    by_node = {}
+    for p in model.set_periods:
+        var = model.periods[p].find_component("var_violation")
+        if var is None:
+            continue
+        for (t, _car, node) in var:
+            by_node.setdefault(node, {})
+            by_node[node][t] = by_node[node].get(t, 0.0) + (var[t, _car, node].value or 0.0)
+    return {node: [ts[t] for t in sorted(ts)] for node, ts in by_node.items()}
+
 
 def _release_arc_flow_lower_bounds(model) -> None:
     """AdOpT bounds each arc's flow to [size_min, size_max] × rated capacity. A fixed
@@ -397,6 +491,7 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
     n_hours = len(translate.generate_timestamps(start_date, end_date))
     carriers, tr_report = translate.build_model_dir(model_data, model_dir,
                                                     capex_scale=n_hours / 8760.0)
+    _add_storage_eps_cost(model_dir, tr_report)
     _thread_local.capfactors = translate.compute_capfactors(model_data, tr_report)
     for line in tr_report:
         log(f"  [translate] {line}")
@@ -456,6 +551,10 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
 
     log("  Extracting results from HDF5…")
     extracted = _extract_results(results_dir)
+    try:
+        extracted["violation"] = _violation_by_node(hub.model[hub.info_solving_algorithms["aggregation_model"]])
+    except Exception as exc:
+        log(f"  Could not read unmet demand (violation) per timestep: {exc}")
 
     timestamps = []
     try:
@@ -474,9 +573,12 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
             "Demand cannot be met with the available supply, storage and transmission "
             f"(unmet-demand penalty {unmet:,.0f}).")
     if unmet and unmet > 1e-6:
+        log(f"  WARNING: unmet demand {frozen.get('total_unmet_demand_mwh', 0):.3f} across location(s): "
+            f"{frozen.get('unmet_demand_by_location')} — penalty {unmet:,.0f} excluded from the objective")
         frozen["limitations"].append({
             "code": "unmet_demand", "severity": "warning",
-            "message": f"Demand could not be fully met: {unmet:,.0f} of unmet-demand penalty is in the objective. "
+            "message": f"Demand could not be fully met ({frozen.get('total_unmet_demand_mwh', 0):,.3f} unmet; "
+                       f"unmet-demand penalty {unmet:,.0f}, excluded from the reported objective). "
                        "Check supply capacity, resource availability and transmission limits."})
     frozen["fidelity"] = assessment["fidelity"]
     log(f"  Done. Objective = {frozen['objective']}")

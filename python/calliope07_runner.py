@@ -28,6 +28,7 @@ from pathlib import Path
 
 import calliope07_translate as translate
 import engine_diagnostics as diag
+from engine_common import contract_id as _contract_id, contract_id_maps, timeseries_rows
 
 ENGINE_NAME = "calliope-0.7"
 
@@ -204,8 +205,7 @@ def _write_payload_csvs(model_data, config_dir):
 
     written = set()
     for ts in model_data.get('timeSeries') or []:
-        data = ts.get('data') or []
-        columns = ts.get('columns') or []
+        columns, data = timeseries_rows(ts)
         file_name = ts.get('fileName') or ts.get('file') or ts.get('name')
         if not file_name or not data or not columns:
             continue
@@ -244,8 +244,7 @@ def _build_user_data_tables(model_data, config_dir):
     for ts in model_data.get('timeSeries') or []:
         if ts.get('type') != 'data_table':
             continue
-        data = ts.get('data') or []
-        columns = ts.get('columns') or []
+        columns, data = timeseries_rows(ts)
         file_name = ts.get('fileName') or ts.get('name')
         cfg = ts.get('dataTableConfig') or {}
         rows_dim = cfg.get('rows') or ''
@@ -660,7 +659,50 @@ def _capacities_from_flow_cap(cap, out_carrier_by_tid: dict) -> dict:
     return caps
 
 
-def _extract_results(model, techs_07, technologies, model_name, solver):
+def _contract_id_maps(techs_07, technologies, locations):
+    """0.7 ids -> Calliope 0.6.8 contract ids: ({node: loc}, {tech: tech},
+    {per-link tech: (tech, loc_from, loc_to)})."""
+    node_map, tech_map = contract_id_maps(locations, technologies,
+                                          lambda raw: translate.safe_id(raw).lower(), translate.safe_id)
+    # per-link transmission techs are named from the lowercased base tech id
+    _, link_base = contract_id_maps(None, technologies, None, lambda raw: translate.safe_id(raw).lower())
+    link_map = {}
+    for tid, tdef in (techs_07 or {}).items():
+        a, b = tdef.get('link_from'), tdef.get('link_to')
+        if tdef.get('base_tech') == 'transmission' and a and b and tid.endswith(f'_{a}_{b}'):
+            base = tid[:-len(f'_{a}_{b}')]
+            link_map[tid] = (link_base.get(base, base), node_map.get(a, a), node_map.get(b, b))
+    return node_map, tech_map, link_map
+
+
+def _unmet_demand_results_07(ds, node_map):
+    """Frozen-contract unmet-demand keys (as the 0.6.8 runner): 0.7 results fold
+    unused_supply (<= 0) into `unmet_demand` (nodes, carriers, timesteps)."""
+    import numpy as np
+    if 'unmet_demand' not in ds.data_vars:
+        return {}
+    da = ds['unmet_demand']
+    other = [d for d in da.dims if d not in ('nodes', 'timesteps')]
+    da = da.clip(min=0).fillna(0.0)
+    if other:
+        da = da.sum(dim=other)
+    da = da.transpose('nodes', 'timesteps')
+    vals = np.asarray(da.values, dtype=float)
+    total = float(vals.sum())
+    if total <= 1e-6:
+        return {}
+    by_loc = {}
+    for nid, row in zip(da['nodes'].values, vals):
+        loc = node_map.get(str(nid), str(nid))
+        by_loc[loc] = by_loc.get(loc, 0.0) + float(row.sum())
+    return {
+        'unmet_demand_timeseries': [round(float(v), 3) for v in vals.sum(axis=0)],
+        'unmet_demand_by_location': {k: round(v, 3) for k, v in by_loc.items() if v > 1e-3},
+        'total_unmet_demand_mwh': round(total, 3),
+    }
+
+
+def _extract_results(model, techs_07, technologies, model_name, solver, locations=None):
     import numpy as np
 
     results = {
@@ -677,6 +719,25 @@ def _extract_results(model, techs_07, technologies, model_name, solver):
 
     tc = (getattr(ds, 'attrs', {}) or {}).get('termination_condition', 'optimal')
     results['termination_condition'] = str(tc)
+
+    # Contract ids are the Calliope 0.6.8 runner's: map 0.7 node/tech ids back, and
+    # per-link transmission techs to 0.6's 'tech:remote' naming.
+    node_map, tech_map, link_map = _contract_id_maps(techs_07, technologies, locations)
+
+    def L(nid):
+        return node_map.get(str(nid), str(nid))
+
+    def T(tid):
+        tid = str(tid)
+        return link_map[tid][0] if tid in link_map else tech_map.get(tid, tid)
+
+    def LT(nid, tid):
+        """'loc::tech' (or 'loc::tech:remote' for a link tech) contract key."""
+        tid = str(tid)
+        if tid in link_map:
+            base, a, b = link_map[tid]
+            return f"{L(nid)}::{base}:{b if L(nid) == a else a}"
+        return f"{L(nid)}::{T(tid)}"
 
     # Tech metadata: parent comes from the translated base_tech (0.7 has no
     # inheritance chains); carrier/name/color from the input definitions.
@@ -704,6 +765,11 @@ def _extract_results(model, techs_07, technologies, model_name, solver):
                 'display_name': tdef.get('name', tid),
                 'color':        tdef.get('color', ''),
             }
+    for tdef in (technologies or []):
+        tn = tdef.get('id') or tdef.get('name', '')
+        cid = _contract_id(tdef.get('name') or tn) if tn else ''
+        if tn in tech_meta and cid not in tech_meta:
+            tech_meta[cid] = tech_meta[tn]
     if tech_meta:
         results['tech_metadata'] = tech_meta
         results['tech_parents'] = {k: v['parent'] for k, v in tech_meta.items()}
@@ -734,7 +800,9 @@ def _extract_results(model, techs_07, technologies, model_name, solver):
                 if ((t.get('essentials') or {}).get('parent') or t.get('parent'))
                 in (translate.CARRIER_INDEXED.get('parents') or [])
             }
-            results['capacities'] = _capacities_from_flow_cap(ds['flow_cap'], out_carrier_by_tid)
+            results['capacities'] = {
+                LT(*k.split('::', 1)): v
+                for k, v in _capacities_from_flow_cap(ds['flow_cap'], out_carrier_by_tid).items()}
         except Exception as e:
             log(f"  Could not extract capacities: {e}")
 
@@ -745,7 +813,7 @@ def _extract_results(model, techs_07, technologies, model_name, solver):
             names = list(gen.index.names)
             i_n, i_t, i_c = names.index('nodes'), names.index('techs'), names.index('carriers')
             results['generation'] = {
-                f"{idx[i_n]}::{idx[i_t]}::{idx[i_c]}": _clean(v)
+                f"{LT(idx[i_n], idx[i_t])}::{idx[i_c]}": _clean(v)
                 for idx, v in gen.items()
             }
         except Exception as e:
@@ -766,7 +834,7 @@ def _extract_results(model, techs_07, technologies, model_name, solver):
                 vals = arr.sum(dim=sum_dims).values.astype(float)
                 vals = np.where(np.isnan(vals), 0.0, vals)
                 if vals.sum() > 0:
-                    dispatch[tid] = [round(float(v), 3) for v in vals.tolist()]
+                    dispatch[T(tid)] = [round(float(v), 3) for v in vals.tolist()]
             results['dispatch'] = dispatch
             results['timestamps'] = timestamps
         except Exception as e:
@@ -803,10 +871,10 @@ def _extract_results(model, techs_07, technologies, model_name, solver):
                 if delivered_to is None and delivered_from is None:
                     continue
                 n = len(delivered_to if delivered_to is not None else delivered_from)
-                a, b = sorted([n_from, n_to])
+                a, b = sorted([L(n_from), L(n_to)])
                 # net flow in a→b direction
-                to_b = delivered_to if b == n_to else delivered_from
-                to_a = delivered_from if b == n_to else delivered_to
+                to_b = delivered_to if b == L(n_to) else delivered_from
+                to_a = delivered_from if b == L(n_to) else delivered_to
                 net = (to_b if to_b is not None else np.zeros(n)) \
                     - (to_a if to_a is not None else np.zeros(n))
                 key = f"{a}::{b}"
@@ -861,7 +929,7 @@ def _extract_results(model, techs_07, technologies, model_name, solver):
             costs_by_tech = {}
             costs_by_location = {}
             for idx, v in ser.items():
-                node, tech = str(idx[i_n]), str(idx[i_t])
+                node, tech = L(idx[i_n]), T(idx[i_t])
                 v = _clean(v)
                 costs_by_tech[tech] = costs_by_tech.get(tech, 0.0) + v
                 costs_by_location.setdefault(node, {})[tech] = \
@@ -870,6 +938,15 @@ def _extract_results(model, techs_07, technologies, model_name, solver):
             results['costs_by_location'] = costs_by_location
         except Exception as e:
             log(f"  Could not extract cost breakdown: {e}")
+
+    try:
+        unmet = _unmet_demand_results_07(ds, node_map)
+        if unmet:
+            results.update(unmet)
+            log(f"  WARNING: unmet demand {unmet['total_unmet_demand_mwh']:.3f} across location(s): "
+                f"{unmet['unmet_demand_by_location']} — its bigM penalty is not in the objective")
+    except Exception as e:
+        log(f"  Could not extract unmet demand: {e}")
 
     shadow = _extract_shadow_prices(model, results.get('timestamps') or [])
     if shadow:
@@ -1184,7 +1261,8 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
         calliope_logger.setLevel(prev_level)
 
     log("Optimisation finished. Extracting results …")
-    results = _extract_results(model, techs_07, technologies, model_name, solver)
+    results = _extract_results(model, techs_07, technologies, model_name, solver,
+                               locations=model_data.get('locations') or [])
     results['limitations'] = assessment['warnings']
     results['fidelity'] = assessment['fidelity']
     results['translation_report'] = (results.get('translation_report') or []) + diag.assessment_lines(assessment)

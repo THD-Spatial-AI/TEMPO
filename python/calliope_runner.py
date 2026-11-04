@@ -759,10 +759,11 @@ def _write_calliope_yaml_csv_files(model_data, config_dir):
     if not ts_list:
         return
 
+    from engine_common import timeseries_rows
+
     written = []
     for ts in ts_list:
-        data      = ts.get('data') or []
-        columns   = ts.get('columns') or []
+        columns, data = timeseries_rows(ts)
         file_name = ts.get('fileName') or ts.get('file') or ts.get('name')
         if not file_name or not data or not columns:
             continue
@@ -1259,7 +1260,28 @@ def _ensure_missing_file_csvs(techs, locs, time_start, time_end, config_dir):
     log("  [FALLBACK] Placeholder CSVs use constant values — results are approximate.")
 
 
-def _data_time_range(config_dir):
+def _referenced_csv_files(*configs):
+    """Names of the CSV files that `file=name.csv[:col]` values anywhere in *configs* use."""
+    names = set()
+
+    def _walk(obj):
+        if isinstance(obj, dict):
+            for v in obj.values():
+                _walk(v)
+        elif isinstance(obj, list):
+            for v in obj:
+                _walk(v)
+        elif isinstance(obj, str) and obj.startswith('file='):
+            name = obj[5:].split(':', 1)[0].strip()
+            if name:
+                names.add(name)
+
+    for cfg in configs:
+        _walk(cfg)
+    return names
+
+
+def _data_time_range(config_dir, csv_names=None):
     """
     Scan the timeseries CSVs written into *config_dir* and return
     ``(min_ts, max_ts, freq)`` — the tightest common datetime window plus the
@@ -1269,11 +1291,15 @@ def _data_time_range(config_dir):
     index, so the valid window is the intersection across all CSVs:
     the latest first-timestamp and the earliest last-timestamp. ``freq`` is the
     median spacing of the longest series, used to align the subset to whole days.
+    *csv_names* limits the scan to the files the model references: Calliope only
+    loads those, and an unused CSV covering another year would empty the window.
     """
     import pandas as pd
     firsts, lasts = [], []
     best_ts = None  # longest parsed series — used to infer the timestep
     for csv_path in Path(config_dir).glob('*.csv'):
+        if csv_names is not None and csv_path.name not in csv_names:
+            continue
         try:
             col = pd.read_csv(csv_path, usecols=[0]).iloc[:, 0]
             ts = pd.to_datetime(col, errors='coerce').dropna()
@@ -1292,6 +1318,34 @@ def _data_time_range(config_dir):
         if len(diffs):
             freq = diffs.median()
     return max(firsts), min(lasts), freq
+
+
+def _unmet_demand_results(ds):
+    """Frozen-contract unmet-demand keys from Calliope's ensure_feasibility slack.
+
+    Calliope 0.6.8 adds `unmet_demand` as a variable over (loc_carriers, timesteps),
+    not as a tech, and postprocessing folds `unused_supply` (<= 0) into it, so only
+    the positive part is unmet demand. Returns {} when nothing is unmet."""
+    import numpy as np
+    if 'unmet_demand' not in getattr(ds, 'data_vars', {}):
+        return {}
+    da = ds['unmet_demand']
+    if 'loc_carriers' not in da.dims:
+        return {}
+    da = da.transpose('loc_carriers', 'timesteps')
+    vals = np.maximum(np.nan_to_num(da.values.astype(float)), 0.0)
+    total = float(vals.sum())
+    if total <= 1e-6:
+        return {}
+    by_loc = {}
+    for lc, row in zip(da['loc_carriers'].values, vals):
+        loc = str(lc).split('::')[0]
+        by_loc[loc] = by_loc.get(loc, 0.0) + float(row.sum())
+    return {
+        'unmet_demand_timeseries': [round(float(v), 3) for v in vals.sum(axis=0)],
+        'unmet_demand_by_location': {k: round(v, 3) for k, v in by_loc.items() if v > 1e-3},
+        'total_unmet_demand_mwh': round(total, 3),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -2132,7 +2186,8 @@ def _run_model_impl(model_data, work_dir):
     # Calliope raises a ModelError if subset_time extends beyond the data — e.g.
     # EnerPlanet series that end at 00:00 on the final day (not 23:00), or a stray
     # end date past the series. Clamping only ever shrinks a valid subset to fit.
-    _data_min, _data_max, _freq = _data_time_range(config_dir)
+    _data_min, _data_max, _freq = _data_time_range(
+        config_dir, csv_names=_referenced_csv_files(techs, locs, overrides))
     if _data_min is not None:
         _sub_start = max(_req_start, _data_min)
         _sub_end   = min(_req_end, _data_max)
@@ -2628,41 +2683,19 @@ def _run_model_impl(model_data, work_dir):
         except Exception as e:
             log(f"  Could not extract demand by location: {e}")
 
-    # Unmet demand (G1) — carrier_prod for unmet_demand slack techs.
-    # Calliope injects these automatically when ensure_feasibility=True.
-    # Without extracting them, an infeasible-but-slack-padded run looks healthy.
-    if 'carrier_prod' in ds:
-        try:
-            import numpy as np
-            prod = ds['carrier_prod']
-            lt_dim = next((d for d in prod.dims if 'loc_tech' in d), None)
-            if lt_dim:
-                timestamps = results.get('timestamps') or [str(t) for t in prod['timesteps'].values]
-                unmet_total = np.zeros(len(timestamps))
-                unmet_by_loc = {}
-                has_unmet = False
-                for coord_val in prod[lt_dim].values:
-                    parts = str(coord_val).split('::')
-                    loc       = parts[0] if len(parts) >= 2 else ''
-                    tech_base = (parts[1] if len(parts) >= 2 else parts[0]).split(':')[0]
-                    if 'unmet_demand' not in tech_base.lower():
-                        continue
-                    vals = prod.sel({lt_dim: coord_val}).values.astype(float)
-                    vals = np.maximum(np.where(np.isnan(vals), 0.0, vals), 0.0)
-                    unmet_total += vals
-                    if loc:
-                        unmet_by_loc[loc] = unmet_by_loc.get(loc, 0.0) + float(vals.sum())
-                    has_unmet = True
-                if has_unmet:
-                    total_unmet = float(unmet_total.sum())
-                    results['unmet_demand_timeseries'] = [round(float(v), 3) for v in unmet_total.tolist()]
-                    results['unmet_demand_by_location'] = {
-                        k: round(v, 3) for k, v in unmet_by_loc.items() if v > 1e-3
-                    }
-                    results['total_unmet_demand_mwh'] = round(total_unmet, 3)
-                    log(f"  Extracted unmet demand: {total_unmet:.1f} MWh across {len(unmet_by_loc)} location(s)")
-        except Exception as e:
-            log(f"  Could not extract unmet demand: {e}")
+    # Unmet demand (G1). Without it an infeasible-but-slack-padded run looks healthy.
+    # The contract objective stays the summed monetary cost: the unmet x bigM penalty
+    # is in the solver objective (attrs objective_function_value) but not in it.
+    try:
+        unmet = _unmet_demand_results(ds)
+        if unmet:
+            results.update(unmet)
+            log(f"  WARNING: unmet demand {unmet['total_unmet_demand_mwh']:.3f} across "
+                f"{len(unmet['unmet_demand_by_location'])} location(s): "
+                f"{unmet['unmet_demand_by_location']} — solver objective "
+                f"{ds.attrs.get('objective_function_value')} includes its bigM penalty")
+    except Exception as e:
+        log(f"  Could not extract unmet demand: {e}")
 
     # Location coordinates — makes results self-describing for map exports (pie map).
     try:

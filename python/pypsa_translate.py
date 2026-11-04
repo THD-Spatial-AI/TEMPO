@@ -42,6 +42,8 @@ from engine_overlay import engine_overlay, coerce_overlay
 from engine_common import (  # noqa: F401  (convert_value re-exported for callers)
     HOURS_PER_YEAR,
     annuity as _annuity,
+    contract_id,
+    contract_id_maps as _contract_id_maps,
     convert_value,
     finite as _finite,
     is_file_ref as _is_file_ref,
@@ -84,6 +86,11 @@ def safe_id(name) -> str:
     if s and s[0].isdigit():
         s = 't' + s
     return (s or 'unknown').lower()
+
+
+def contract_id_maps(locations, technologies) -> tuple[dict, dict]:
+    """({pypsa loc id: contract loc id}, {pypsa tech id: contract tech id})."""
+    return _contract_id_maps(locations, technologies, safe_id, safe_id)
 
 
 def _snapshots(model_config):

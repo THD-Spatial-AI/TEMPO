@@ -16,8 +16,8 @@ import os
 import re
 from pathlib import Path
 
-from engine_common import (annuity, finite, link_distance, lp_normalised, merged_link_def, merged_tech_def,
-                           qualify_file_ref, resource_scale, resource_to_cf)
+from engine_common import (annuity, contract_id, contract_id_maps as _contract_id_maps, finite, link_distance, lp_normalised, merged_link_def, merged_tech_def,
+                           qualify_file_ref, resource_scale, resource_to_cf, timeseries_rows)
 from engine_overlay import engine_overlay, coerce_overlay
 
 _KW_PER_MW = 1_000.0
@@ -82,6 +82,11 @@ def _safe_id(name: str) -> str:
     s = re.sub(r"[^A-Za-z0-9_]", "_", s)
     s = re.sub(r"_+", "_", s).strip("_")
     return s or "unknown"
+
+
+def contract_id_maps(model_data: dict) -> tuple:
+    """({AdOpT node id: contract loc id}, {AdOpT tech id: contract tech id})."""
+    return _contract_id_maps(model_data.get("locations"), model_data.get("technologies"), _safe_id, _safe_id)
 
 
 # ---------------------------------------------------------------------------
@@ -736,11 +741,15 @@ def _resolve_timeseries_values(ts_ref, time_series: list, column=None) -> list:
         if ref_str not in (fname, ts_id, fname.replace(".csv", ""), ts_id):
             continue
 
-        data = ts.get("data") or []
+        columns, data = timeseries_rows(ts)
         if not data:
             return []
 
-        columns = ts.get("columns") or []
+        if isinstance(data[0], dict):
+            date_col = ts.get("dateColumn") or (columns[0] if columns else None)
+            key = next((c for c in columns if column and str(c).lower() == str(column).lower()), None) \
+                or next((c for c in columns if c != date_col), None)
+            return [_to_float(row.get(key)) for row in data]
 
         if column and columns:
             col_lower = str(column).lower()
@@ -773,12 +782,11 @@ def _resolve_demand_ref(ref, time_series: list) -> list:
         tsf = str(ts.get("fileName") or ts.get("file") or ts.get("name") or "")
         if fname not in (tsf, tsf.replace(".csv", "")) and fbase not in (tsf, tsf.replace(".csv", "")):
             continue
-        data = ts.get("data") or []
+        columns, data = timeseries_rows(ts)
         if not data:
             return []
         if isinstance(data[0], dict):
             return [abs(_to_float(row.get(col))) for row in data]
-        columns = ts.get("columns") or []
         idx = columns.index(col) if col in columns else (1 if len(data[0]) > 1 else 0)
         return [abs(_to_float(row[idx])) for row in data]
     return []

@@ -204,3 +204,133 @@ def test_patch_highs_support_is_idempotent():
     first = FakeHub._call_solver
     R._patch_highs_support(FakeHub)
     assert FakeHub._call_solver is first
+
+
+# --- Calliope 0.6.8 contract ids + unmet demand ----------------------------------
+
+ID_MODEL = {
+    "locations": [{"name": "Zeta-1"}, {"name": "alpha"}],
+    "technologies": [
+        {"name": "hydro-ror", "essentials": {"parent": "supply", "carrier_out": "electricity"}},
+        {"name": "66_kv", "essentials": {"parent": "transmission", "carrier": "electricity"}},
+    ],
+    "links": [{"from": "Zeta-1", "to": "alpha", "tech": "66_kv"}],
+}
+NET = "66_kv__Zeta_1__alpha"   # adoptnet0_translate.network_name('66_kv', 'Zeta-1', 'alpha')
+ID_EXTRACTED = {
+    "objective": 302_001.0, "violation_cost": 302_000.0, "solver_status": "optimal",
+    "capacity": {"Zeta_1": {"hydro_ror": 0.5}}, "storage_capacity": {},
+    "tech_costs": {"Zeta_1": {"hydro_ror": 1.0}},
+    "dispatch": {"Zeta_1": {"hydro_ror": {"electricity": [0.1, 0.2, 0.3]}}},
+    "arcs": {NET: {("Zeta_1", "alpha"): {"size": 0.1, "delivered": [0.01, 0.02, 0.03]},
+                   ("alpha", "Zeta_1"): {"size": 0.1, "delivered": [0.0, 0.0, 0.0]}}},
+    "network_costs": {NET: 2.0}, "demand": {},
+    "violation": {"alpha": [0.0, 0.119, 0.183]},   # MW per timestep
+}
+
+
+def test_contract_ids_match_calliope06():
+    from adoptnet0_translate import network_name
+    assert network_name("66_kv", "Zeta-1", "alpha") == NET
+    r = _to_frozen_contract(ID_EXTRACTED, TIMESTAMPS, ID_MODEL)
+    assert r["capacities"] == {"zeta-1::hydro-ror": pytest.approx(500.0),
+                               "zeta-1::66_kv:alpha": pytest.approx(100.0),
+                               "alpha::66_kv:zeta-1": pytest.approx(100.0)}
+    assert set(r["generation"]) == {"zeta-1::hydro-ror::electricity", "alpha::66_kv:zeta-1::electricity",
+                                    "zeta-1::66_kv:alpha::electricity"}
+    assert set(r["dispatch"]) == {"hydro-ror"}
+    assert set(r["costs_by_tech"]) == {"hydro-ror", "66_kv"}
+    assert set(r["costs_by_location"]) == {"zeta-1"}
+    assert r["tech_parents"]["hydro-ror"] == "supply"
+    assert "hydro-ror" in r["tech_metadata"]
+
+
+def test_transmission_pair_resorted_on_contract_ids():
+    tf = _to_frozen_contract(ID_EXTRACTED, TIMESTAMPS, ID_MODEL)["transmission_flow"]
+    assert list(tf) == ["alpha::zeta-1"]
+    assert tf["alpha::zeta-1"]["from"] == "alpha" and tf["alpha::zeta-1"]["to"] == "zeta-1"
+    assert tf["alpha::zeta-1"]["timeseries"] == [pytest.approx(-10.0), pytest.approx(-20.0), pytest.approx(-30.0)]
+
+
+def test_unmet_demand_reported_and_penalty_excluded_from_objective():
+    r = _to_frozen_contract(ID_EXTRACTED, TIMESTAMPS, ID_MODEL)
+    assert r["objective"] == pytest.approx(1.0)
+    assert r["total_unmet_demand_mwh"] == pytest.approx(302.0)
+    assert r["unmet_demand_by_location"] == {"alpha": pytest.approx(302.0)}
+    assert r["unmet_demand_timeseries"] == [0.0, pytest.approx(119.0), pytest.approx(183.0)]
+
+
+def test_no_unmet_keys_without_violation():
+    r = _to_frozen_contract(dict(ID_EXTRACTED, violation_cost=0.0, violation={}), TIMESTAMPS, ID_MODEL)
+    assert "total_unmet_demand_mwh" not in r
+    assert r["objective"] == pytest.approx(302_001.0)
+
+
+def test_violation_by_node_sums_carriers_in_time_order():
+    pyo = pytest.importorskip("pyomo.environ")
+    from adoptnet0_runner import _violation_by_node
+
+    m = pyo.ConcreteModel()
+    m.set_periods = pyo.Set(initialize=["period1"])
+
+    def _period(b, p):
+        b.var_violation = pyo.Var([1, 2], ["electricity", "heat"], ["alpha"], initialize=0.0)
+
+    m.periods = pyo.Block(m.set_periods, rule=_period)
+    v = m.periods["period1"].var_violation
+    v[2, "electricity", "alpha"].value = 0.1
+    v[2, "heat", "alpha"].value = 0.05
+    assert _violation_by_node(m) == {"alpha": [0.0, pytest.approx(0.15)]}
+
+
+def test_storage_eps_cost_added_in_run_path(tmp_path):
+    import json
+    from adoptnet0_runner import STORAGE_EPS_EUR_PER_MWH, _add_storage_eps_cost
+    tdir = tmp_path / "period1" / "node_data" / "north" / "technology_data"
+    tdir.mkdir(parents=True)
+    (tdir / "battery.json").write_text(json.dumps({"tec_type": "STOR", "Economics": {"OPEX_variable": 2.0}}))
+    (tdir / "pv.json").write_text(json.dumps({"tec_type": "RES", "Economics": {"OPEX_variable": 0.0}}))
+    report = []
+    assert _add_storage_eps_cost(str(tmp_path), report) == 1
+    assert json.loads((tdir / "battery.json").read_text())["Economics"]["OPEX_variable"] == \
+        pytest.approx(2.0 + STORAGE_EPS_EUR_PER_MWH)
+    assert json.loads((tdir / "pv.json").read_text())["Economics"]["OPEX_variable"] == 0.0
+    assert STORAGE_EPS_EUR_PER_MWH == pytest.approx(1e-3)   # 1e-6 €/kWh
+    assert any("storage" in r and "1e-06" in r for r in report)
+
+
+def test_transmission_generation_keys_like_calliope06():
+    g = _to_frozen_contract(ID_EXTRACTED, TIMESTAMPS, ID_MODEL)["generation"]
+    # energy arriving at the first node from the second: 'loc::tech:remote::carrier'
+    assert g["alpha::66_kv:zeta-1::electricity"] == pytest.approx(60.0)
+    assert g["zeta-1::66_kv:alpha::electricity"] == pytest.approx(0.0)
+
+
+def test_free_unbounded_capacity_reported_as_peak_use_and_idle_entries_dropped():
+    from adoptnet0_translate import _UNBOUNDED_KW
+    ext = dict(ID_EXTRACTED)
+    ext["capacity"] = {"Zeta_1": {"hydro_ror": 0.5, "import": _UNBOUNDED_KW / 1000.0, "oil": 13.207}}
+    ext["dispatch"] = {"Zeta_1": {"hydro_ror": {"electricity": [0.1, 0.2, 0.3]},
+                                  "import": {"electricity": [0.01, 0.04, 0.02]},
+                                  "oil": {"electricity": [0.0, 0.0, 0.0]}}}
+    ext["arcs"] = dict(ID_EXTRACTED["arcs"])
+    idle = "66_kv__Zeta_1__alpha__2"
+    ext["arcs"][idle] = {("Zeta_1", "alpha"): {"size": 0.0, "delivered": [0.0] * 3},
+                         ("alpha", "Zeta_1"): {"size": 0.0, "delivered": [0.0] * 3}}
+    ext["network_costs"] = {**ID_EXTRACTED["network_costs"], idle: 0.0}
+    r = _to_frozen_contract(ext, TIMESTAMPS, ID_MODEL)
+    assert r["capacities"]["zeta-1::import"] == pytest.approx(40.0)    # peak used, not the 1e9 sentinel
+    assert r["capacities"]["zeta-1::oil"] == pytest.approx(13207.0)
+    assert set(r["dispatch"]) == {"hydro-ror", "import"}                # idle oil dropped (0.6.8 rule)
+    assert list(r["transmission_flow"]) == ["alpha::zeta-1"]
+
+
+def test_all_zero_flow_pair_dropped():
+    ext = dict(ID_EXTRACTED, arcs={NET: {("Zeta_1", "alpha"): {"size": 0.0, "delivered": [0.0] * 3},
+                                         ("alpha", "Zeta_1"): {"size": 0.0, "delivered": [0.0] * 3}}})
+    assert _to_frozen_contract(ext, TIMESTAMPS, ID_MODEL)["transmission_flow"] == {}
+
+
+def test_zero_cost_techs_dropped_from_costs_by_tech():
+    ext = dict(ID_EXTRACTED, tech_costs={"Zeta_1": {"hydro_ror": 1.0, "oil": 0.0}})
+    assert "oil" not in _to_frozen_contract(ext, TIMESTAMPS, ID_MODEL)["costs_by_tech"]   # as 0.6.8 / PyPSA

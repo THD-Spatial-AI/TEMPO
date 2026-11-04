@@ -230,9 +230,33 @@ def test_supply_plus_becomes_supply_with_storage():
     out = t.translate_tech({
         'name': 'csp',
         'essentials': {'parent': 'supply_plus', 'carrier_out': 'electricity'},
+        'constraints': {'storage_cap_max': 100},
     }, [])
     assert out['base_tech'] == 'supply'
     assert out['include_storage'] is True
+
+
+def test_supply_plus_without_storage_constraints_has_no_storage():
+    # Calliope 0.6.8 gives a supply_plus tech storage only when it sets a storage_*
+    # constraint (preprocess/sets.py loc_techs_store); otherwise 0.7 would get a free,
+    # unbounded source store that shifts e.g. PV output into the night (Arica model).
+    out = t.translate_tech({
+        'name': 'pv',
+        'essentials': {'parent': 'supply_plus', 'carrier_out': 'electricity'},
+        'constraints': {'resource_unit': 'energy_per_cap'},
+    }, [])
+    assert out['base_tech'] == 'supply'
+    assert 'include_storage' not in out
+
+
+def test_supply_plus_storage_set_per_node_enables_storage_there():
+    techs = [{'name': 'csp', 'essentials': {'parent': 'supply_plus', 'carrier_out': 'electricity'}}]
+    nodes = t.build_nodes_07(
+        [{'name': 'A', 'techs': {'csp': {'constraints': {'storage_cap_max': 50}}}},
+         {'name': 'B', 'techs': {'csp': {'constraints': {'energy_cap_max': 10}}}}],
+        {}, techs, [])
+    assert nodes['a']['techs']['csp']['include_storage'] is True
+    assert 'include_storage' not in (nodes['b']['techs']['csp'] or {})
 
 
 def test_storage_gets_both_carriers():

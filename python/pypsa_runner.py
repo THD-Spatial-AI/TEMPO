@@ -67,21 +67,29 @@ def _tech_metadata(technologies):
             'color':        str(ess.get('color') or tdef.get('color', '')),
         }
         tech_meta[tn] = meta
-        sid = translate.safe_id(tn)
-        if sid not in tech_meta:
-            tech_meta[sid] = meta
+        cid = translate.contract_id(tdef.get('name') or tn)
+        if cid not in tech_meta:
+            tech_meta[cid] = meta
     return tech_meta
 
 
-def _split_component_name(name):
-    """'loc::tech' or 'loc::tech:remote' → (loc, tech). None for other shapes."""
+def _split_component_name(name, loc_map=None, tech_map=None):
+    """'loc::tech' or 'loc::tech:remote' → (loc, tech), ids mapped to the Calliope
+    contract ids (tech suffixes '@export'/'@hub' kept). None for other shapes."""
     parts = str(name).split('::')
     if len(parts) != 2:
         return None
-    return parts[0], parts[1]
+    loc_map, tech_map = loc_map or {}, tech_map or {}
+    loc, tech = parts
+    tech, sep, remote = tech.partition(':')
+    base, at, suffix = tech.partition('@')
+    tech = tech_map.get(base, base) + at + suffix
+    if sep:
+        tech += ':' + loc_map.get(remote, remote)
+    return loc_map.get(loc, loc), tech
 
 
-def _extract_results(n, spec, technologies, model_name, solver, termination):
+def _extract_results(n, spec, technologies, model_name, solver, termination, locations=None):
     results = {
         'model_name': model_name,
         'solver': solver,
@@ -89,6 +97,7 @@ def _extract_results(n, spec, technologies, model_name, solver, termination):
         'termination_condition': termination,
     }
 
+    loc_map, tech_map = translate.contract_id_maps(locations, technologies)
     tech_meta = _tech_metadata(technologies)
     if tech_meta:
         results['tech_metadata'] = tech_meta
@@ -98,7 +107,7 @@ def _extract_results(n, spec, technologies, model_name, solver, termination):
     for tdef in technologies or []:
         tn = tdef.get('id') or tdef.get('name', '')
         if tn:
-            parent_by_tid[translate.safe_id(tn)] = \
+            parent_by_tid[translate.contract_id(tdef.get('name') or tn)] = \
                 str((tdef.get('essentials') or {}).get('parent') or '').lower()
 
     def _bus_carrier(bus):
@@ -112,11 +121,6 @@ def _extract_results(n, spec, technologies, model_name, solver, termination):
 
     timestamps = [str(t) for t in n.snapshots]
     results['timestamps'] = timestamps
-
-    try:
-        results['objective'] = float(n.objective)
-    except Exception as e:
-        log(f"  Could not extract objective: {e}")
 
     capacities = {}
     generation = {}
@@ -137,24 +141,32 @@ def _extract_results(n, spec, technologies, model_name, solver, termination):
         prev = dispatch.get(tid)
         dispatch[tid] = (vals if prev is None else prev + vals)
 
-    # ── Generators (supply + unmet slack) ────────────────────────────────────
+    # ── Generators (supply + ensure_feasibility slack) ───────────────────────
+    slack_cost = 0.0     # unmet_demand / unused_supply bigM cost — not system cost
+    unmet_by_loc = {}    # contract loc id -> unmet series
     for name in n.generators.index:
-        split = _split_component_name(name)
+        row = n.generators.loc[name]
+        p = n.generators_t.p[name] if name in n.generators_t.p.columns else None
+        if str(row.get('carrier', '')) in ('unmet_demand', 'unused_supply'):
+            if p is not None:
+                p = p.fillna(0.0).astype(float)
+                slack_cost += float((p * float(row.get('marginal_cost', 0.0))).sum())
+                if row['carrier'] == 'unmet_demand':
+                    loc = str(row['bus']).split('::')[0]
+                    loc = loc_map.get(loc, loc)
+                    prev = unmet_by_loc.get(loc)
+                    unmet_by_loc[loc] = p.clip(lower=0.0) if prev is None else prev + p.clip(lower=0.0)
+            continue
+        split = _split_component_name(name, loc_map, tech_map)
         if split is None:
             continue
         loc, tid = split
-        row = n.generators.loc[name]
-        p = n.generators_t.p[name] if name in n.generators_t.p.columns else None
         if tid.endswith('@export'):
             # export sale sink: its (negative) cost is the exporting tech's revenue
             if p is not None:
                 mc = (n.generators_t.marginal_cost[name] if name in n.generators_t.marginal_cost.columns
                       else float(row.get('marginal_cost', 0.0)))
                 _add_cost(loc, tid[:-len('@export')], float((p.fillna(0.0) * mc).sum()))
-            continue
-        if tid in ('unmet_demand', 'unused_supply'):
-            if p is not None and float(p.abs().max()) > 1e-6:
-                log(f"  WARNING: unmet demand at {loc}: peak {float(p.max()):.1f} kW")
             continue
         p_nom = float(row.get('p_nom_opt', row.get('p_nom', 0.0)))
         capacities[f"{loc}::{tid}"] = p_nom
@@ -169,7 +181,7 @@ def _extract_results(n, spec, technologies, model_name, solver, termination):
     # ── Stores + their charge/discharge links (storage techs) ───────────────
     storage_link_names = set()
     for name in n.stores.index:
-        split = _split_component_name(name)
+        split = _split_component_name(name, loc_map, tech_map)
         if split is None:
             continue
         loc, tid = split
@@ -199,7 +211,7 @@ def _extract_results(n, spec, technologies, model_name, solver, termination):
     for name in n.links.index:
         if name in storage_link_names:
             continue
-        split = _split_component_name(name)
+        split = _split_component_name(name, loc_map, tech_map)
         if split is None:
             continue
         loc, tid_full = split
@@ -262,6 +274,22 @@ def _extract_results(n, spec, technologies, model_name, solver, termination):
     if len(n.loads.index) > 0:
         p = n.loads_t.p if not n.loads_t.p.empty else n.loads_t.p_set
         results['demand_timeseries'] = _r3(p.abs().sum(axis=1))
+
+    # ── Objective + unmet demand, as the Calliope runner reports them ───────
+    # Contract objective = system cost; the unmet x bigM penalty is reported apart.
+    try:
+        results['objective'] = float(n.objective) - slack_cost
+    except Exception as e:
+        log(f"  Could not extract objective: {e}")
+    unmet_total = sum(float(s.sum()) for s in unmet_by_loc.values())
+    if unmet_total > 1e-6:
+        by_loc = {k: round(float(s.sum()), 3) for k, s in unmet_by_loc.items()}
+        results['unmet_demand_timeseries'] = _r3(sum(unmet_by_loc.values()))
+        results['unmet_demand_by_location'] = {k: v for k, v in by_loc.items() if v > 1e-3}
+        results['total_unmet_demand_mwh'] = round(unmet_total, 3)
+        log(f"  WARNING: unmet demand {unmet_total:.3f} across {len(results['unmet_demand_by_location'])} "
+            f"location(s): {results['unmet_demand_by_location']} — solver objective "
+            f"{float(n.objective)} includes its bigM penalty")
 
     results['capacities'] = {k: (0.0 if (v != v or v == 0) else v) for k, v in capacities.items()}
     results['generation'] = generation
@@ -357,7 +385,7 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
 
     results = _extract_results(
         n, spec, model_data.get('technologies') or [],
-        model_name, solver, termination)
+        model_name, solver, termination, locations=model_data.get('locations') or [])
     results['translation_report'] = report + diag.assessment_lines(assessment)
     results['limitations'] = assessment['warnings']
     results['fidelity'] = assessment['fidelity']

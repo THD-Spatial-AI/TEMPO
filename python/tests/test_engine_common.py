@@ -178,3 +178,37 @@ def test_lp_normalised_does_not_mutate_its_input():
     before = repr(m)
     ec.lp_normalised(m)
     assert repr(m) == before
+
+
+# ── timeseries_rows: saved models carry only raw csvContent (no parsed data) ──
+
+CSV_ONLY = {"fileName": "solar_cf.csv", "columns": ["datetime", "cf"], "dateColumn": "datetime",
+            "csvContent": "datetime,cf\n2005-01-01 00:00:00,0\n2005-01-01 01:00:00,0.5\n\n"
+                          "2005-01-01 02:00:00,\n2005-01-01 03:00:00,n/a\n"}
+
+
+def test_timeseries_rows_returns_data_unchanged_when_present():
+    ts = TS[0]
+    cols, rows = ec.timeseries_rows(ts)
+    assert cols == ts["columns"] and rows is ts["data"]
+
+
+def test_timeseries_rows_parses_csv_content_like_papaparse():
+    cols, rows = ec.timeseries_rows(CSV_ONLY)
+    assert cols == ["datetime", "cf"]
+    assert rows == [{"datetime": "2005-01-01 00:00:00", "cf": 0},
+                    {"datetime": "2005-01-01 01:00:00", "cf": 0.5},
+                    {"datetime": "2005-01-01 02:00:00", "cf": None},
+                    {"datetime": "2005-01-01 03:00:00", "cf": "n/a"}]  # blank line skipped
+
+
+def test_timeseries_rows_header_used_when_columns_missing():
+    cols, rows = ec.timeseries_rows({"csvContent": "time,a\nt0,1\n"})
+    assert cols == ["time", "a"] and rows == [{"time": "t0", "a": 1}]
+
+
+def test_resolve_file_series_reads_csv_content_only_entry():
+    md = {"timeSeries": [CSV_ONLY]}
+    report = []
+    assert ec.resolve_file_series("file=solar_cf.csv:cf", md, 4, report, "x") == [0.0, 0.5, 0.0, 0.0]
+    assert report == []

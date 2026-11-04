@@ -48,6 +48,7 @@ if _this_dir not in sys.path:
     sys.path.insert(0, _this_dir)
 
 import osemosys_timeslices as timeslices
+from engine_common import timeseries_rows
 from engine_overlay import engine_overlay, coerce_overlay
 
 # ─── Constants ───────────────────────────────────────────────────────────────
@@ -141,9 +142,13 @@ def _resolve_timeseries(ref: str, ts_list: list) -> list:
         fname = str(ts.get("fileName") or ts.get("file") or "")
         ts_id = str(ts.get("id") or ts.get("modelId") or "")
         if ref in (fname, ts_id, fname.removesuffix(".csv")):
-            data = ts.get("data") or []
+            columns, data = timeseries_rows(ts)
             if not data:
                 return []
+            if isinstance(data[0], dict):
+                date_col = ts.get("dateColumn") or (columns[0] if columns else None)
+                key = next((c for c in columns if c != date_col), None)
+                return [_float(row.get(key)) for row in data]
             if isinstance(data[0], (list, tuple)):
                 return [_float(row[1] if len(row) > 1 else row[0]) for row in data]
             return [_float(v) for v in data]
@@ -165,12 +170,11 @@ def _resolve_file_ref(ref, ts_list: list) -> list:
         tsf = str(ts.get("fileName") or ts.get("file") or ts.get("name") or "")
         if fname not in (tsf, tsf.removesuffix(".csv")) and fbase not in (tsf, tsf.removesuffix(".csv")):
             continue
-        data = ts.get("data") or []
+        cols, data = timeseries_rows(ts)
         if not data:
             return []
         if isinstance(data[0], dict):
             return [_float(row.get(col)) for row in data]
-        cols = ts.get("columns") or []
         idx = cols.index(col) if col in cols else (1 if len(data[0]) > 1 else 0)
         return [_float(row[idx]) for row in data]
     return []
@@ -601,7 +605,7 @@ def translate_model(model_data: dict, csv_dir: str, scheme: dict | None = None,
             constr, costs = _merged_link(tech, lnk)
             cap_min_kw_tx, cap_max_kw = _cap_bounds_kw(constr)
             cap_max_gw_tx = min(cap_max_kw / 1e6, _LARGE_CAP_GW)
-            eff_tx = min(1.0, max(0.01, _float(constr.get("energy_eff"), 0.97)))
+            eff_tx = min(1.0, max(0.01, _float(constr.get("energy_eff"), 1.0)))   # Calliope default
             carrier = _carrier_out(tech)
             dist = _link_distance(lnk) or 0.0
             capex_tx = (_float(costs.get("energy_cap")) + _float(costs.get("energy_cap_per_distance")) * dist) * _EUR_KW_TO_M_EUR_GW

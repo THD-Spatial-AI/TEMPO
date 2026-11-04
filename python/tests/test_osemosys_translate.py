@@ -946,3 +946,51 @@ def test_runner_keeps_presolve_with_existing_shadow(monkeypatch):
     md = _with_shadow(json.loads(REF.read_text(encoding="utf-8")), "solar_pv", 0, 349.485)
     R.run_model(md, tempfile.mkdtemp())
     assert calls == [True]
+
+
+# ─── csvContent-only timeSeries (saved models lose parsed `data`) ──────────────
+
+def _csv_only(model):
+    for ts in model["timeSeries"]:
+        cols = ts["columns"]
+        ts["csvContent"] = ",".join(cols) + "\n" + "".join(
+            ",".join(str(r[c]) for c in cols) + "\n" for r in ts.pop("data"))
+    return model
+
+
+def test_csv_content_only_file_ref_demand_produces_annual_demand():
+    with tempfile.TemporaryDirectory() as tmp:
+        tr.translate_model(_csv_only(_osm_demand_model()), tmp, SCHEME_4X3)
+        rows = {r["FUEL"]: float(r["VALUE"]) for r in _read_csv(tmp, "SpecifiedAnnualDemand.csv")}
+        assert abs(rows["ARICA_ELECTRICITY"] - 516 * 3.6e-9) / (516 * 3.6e-9) < 1e-6
+
+
+def test_csv_content_only_resource_capacity_factor():
+    md = _osm_demand_model()
+    md["technologies"][0]["constraints"]["resource"] = "file=solar.csv:cf"
+    md["technologies"][0]["constraints"]["resource_unit"] = "energy_per_cap"
+    md["timeSeries"].append({"fileName": "solar.csv", "columns": ["datetime", "cf"],
+                             "data": [{"datetime": f"h{h}", "cf": 0.5 if 6 <= h < 18 else 0.0} for h in range(24)]})
+    with tempfile.TemporaryDirectory() as tmp:
+        tr.translate_model(md, tmp, SCHEME_4X3)
+        with_data = sorted((r["TECHNOLOGY"], r["TIMESLICE"], r["VALUE"]) for r in _read_csv(tmp, "CapacityFactor.csv"))
+    with tempfile.TemporaryDirectory() as tmp:
+        tr.translate_model(_csv_only(md), tmp, SCHEME_4X3)
+        csv_only = sorted((r["TECHNOLOGY"], r["TIMESLICE"], r["VALUE"]) for r in _read_csv(tmp, "CapacityFactor.csv"))
+    assert any(float(v) not in (0.0, 1.0) for _, _, v in with_data)  # profile actually used
+    assert csv_only == with_data
+
+
+def test_resolve_timeseries_reads_csv_content_only_entry():
+    ts = [{"fileName": "d.csv", "columns": ["t", "kw"], "csvContent": "t,kw\nh0,5\nh1,7\n"}]
+    assert tr._resolve_timeseries("d.csv", ts) == [5.0, 7.0]
+
+
+def test_parity_transmission_without_energy_eff_is_lossless():
+    """Calliope 0.6.8's default energy_eff is 1.0 — a link tech that sets none is lossless."""
+    md = json.loads(REF.read_text(encoding="utf-8"))
+    next(t for t in md["technologies"] if t["name"] == "grid_link")["constraints"].pop("energy_eff")
+    d = _parity(md)
+    out = {(r["FUEL"], r["MODE_OF_OPERATION"]): float(r["VALUE"])
+           for r in _rows(d, "OutputActivityRatio.csv") if r["TECHNOLOGY"] == "TX_NORTH_SOUTH_GRID_LINK"}
+    assert out == {("SOUTH_ELECTRICITY", "1"): 1.0, ("NORTH_ELECTRICITY", "2"): 1.0}

@@ -337,6 +337,12 @@ def _apply_conversion_plus(out: dict, tech: dict, plus: dict, tid: str, warnings
                     f"({len(plus['out'])} secondary output(s), {len(plus['in'])} secondary input(s))")
 
 
+def _has_storage_constraint(constraints) -> bool:
+    """Calliope 0.6.8 (preprocess/sets.py loc_techs_store): a supply_plus tech has
+    storage only if one of its constraints is a storage_* one."""
+    return isinstance(constraints, dict) and any(str(k).startswith('storage_') for k in constraints)
+
+
 def translate_tech(tech: dict, warnings: list) -> dict | None:
     """One 0.6-style tech dict → flat 0.7 tech definition.
 
@@ -361,6 +367,9 @@ def translate_tech(tech: dict, warnings: list) -> dict | None:
     if ess.get('color') or tech.get('color'):
         out['color'] = ess.get('color') or tech.get('color')
     out.update(base_map.get('extra') or {})
+    if parent == 'supply_plus' and not _has_storage_constraint(tech.get('constraints')):
+        # Calliope 0.6.8 gives supply_plus storage only when a storage_* constraint is set
+        out.pop('include_storage', None)
     plus = _conversion_plus_tiers(tech) if parent == 'conversion_plus' else None
     if parent == 'conversion_plus' and not plus:
         warnings.append(f"{tid}: 'conversion_plus' without secondary carriers mapped to plain conversion")
@@ -492,6 +501,8 @@ def build_nodes_07(locations: list, location_tech_assignments: dict,
                     resolved[tkey] = translate_constraints(
                         per_constraints, parent, warnings, f"{loc_id}.{tkey}",
                         carrier_by_tid.get(tkey)) or None
+                    if parent == 'supply_plus' and _has_storage_constraint(per_constraints):
+                        resolved[tkey] = dict(resolved[tkey] or {}, include_storage=True)
                 else:
                     resolved[tkey] = None
             elif normalized in HUB_LABELS:

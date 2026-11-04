@@ -420,3 +420,24 @@ def test_linkconfig_distance_in_network_topology():
     name = tr._resolve_links(md['links'], md['technologies'])[0][2]
     dist = (Path(tmp) / "period1" / "network_topology" / "new" / name / "distance.csv").read_text().splitlines()
     assert dist[1].split(";")[2] in ("200", "200.0")
+
+
+CSV_ONLY_TS = [{"name": "osm_substation_demand", "fileName": "osm_substation_demand.csv",
+                "columns": ["datetime", "dem_1"], "dataColumns": ["dem_1"],
+                "csvContent": "datetime,dem_1\n" + "".join(f"{r['datetime']},{r['dem_1']}\n" for r in OSM_DATA)}]
+
+
+def test_csv_content_only_file_ref_demand_reaches_carrier_csv():
+    """Saved (non-loaded) models reach the runner with csvContent but no parsed data."""
+    tmp = tempfile.mkdtemp()
+    locations = [{"id": "arica", "name": "Arica",
+                  "techs": {"power_demand": {"constraints": {"resource": "file=osm_substation_demand.csv:dem_1"}}}}]
+    tr._write_node_data(tmp, locations, TECHS, {}, CSV_ONLY_TS, ["electricity"], "2005-01-01", "2005-01-01")
+    demands = [r.split(";")[1] for r in _read_carrier_csv(tmp)[1:]]
+    assert float(demands[0]) == pytest.approx(0.010)
+
+
+def test_resolve_timeseries_values_reads_csv_content_only_entry():
+    vals = tr._resolve_timeseries_values("osm_substation_demand.csv", CSV_ONLY_TS, "dem_1")
+    assert vals[:2] == [-10.0, -11.0] and len(vals) == 24
+    assert tr._resolve_timeseries_values("osm_substation_demand.csv", CSV_ONLY_TS)[:1] == [-10.0]

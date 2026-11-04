@@ -32,7 +32,7 @@ if _this_dir not in sys.path:
     sys.path.insert(0, _this_dir)
 
 import osemosys_translate as translate
-from engine_common import qualify_file_ref, resource_scale
+from engine_common import contract_id_maps, qualify_file_ref, resource_scale
 import engine_diagnostics as diag
 import osemosys_timeslices as timeslices
 
@@ -295,6 +295,37 @@ def _solve_with_highs(glpsol: str, osemosys_txt: str, dat_path: str, output_path
         return None
 
 
+def _free_unbounded_peak_gw(csv_dir: str, results_dir: str) -> dict:
+    """{tech: GW} for techs whose capacity costs nothing (zero CapitalCost and FixedCost) and is
+    unbounded (TotalAnnualMaxCapacity at the translator's sentinel or unset). Any capacity
+    between the peak use and the sentinel is optimal for them, and the LP happens to return
+    the sentinel; Calliope's (vertex) solution reports the smallest feasible capacity, so this
+    gives that: max over timeslices of RateOfTotalActivity / (CapacityFactor x CapacityToActivity),
+    no less than TotalAnnualMinCapacity / ResidualCapacity."""
+    def _vals(name, n_idx):
+        return {tuple(r[c] for c in list(r)[:n_idx]): float(r["VALUE"])
+                for r in _read_csv(os.path.join(csv_dir, name))}
+    capex, fixed = _vals("CapitalCost.csv", 3), _vals("FixedCost.csv", 3)
+    cap_max = _vals("TotalAnnualMaxCapacity.csv", 3)
+    floors = [_vals("TotalAnnualMinCapacity.csv", 3), _vals("ResidualCapacity.csv", 3)]
+    c2a = _vals("CapacityToActivityUnit.csv", 2)
+    cf = _vals("CapacityFactor.csv", 4)                     # (r, t, l, y)
+    unbounded = lambda k: cap_max.get(k, -1) == -1 or cap_max[k] >= translate._LARGE_CAP_GW
+    free = {k for k, v in capex.items() if v == 0 and fixed.get(k, 0.0) == 0 and unbounded(k)}
+    rate: dict = {}                                         # (r, t, l, y) -> RateOfTotalActivity
+    for row in _read_csv(os.path.join(results_dir, "RateOfActivity.csv")):
+        key = (row["REGION"], row["TECHNOLOGY"], row["TIMESLICE"], row["YEAR"])
+        if (key[0], key[1], key[3]) in free:
+            rate[key] = rate.get(key, 0.0) + float(row["VALUE"])
+    peak: dict = {}
+    for (r, t, l, y), v in rate.items():
+        need = v / (cf.get((r, t, l, y), 1.0) or 1e-12) / c2a.get((r, t), 1.0)
+        peak[t] = max(peak.get(t, 0.0), need)
+    for (r, t, y) in free:       # unused free techs get 0 (or their floor)
+        peak[t] = max([peak.get(t, 0.0)] + [f.get((r, t, y), 0.0) for f in floors])
+    return peak
+
+
 def _min_capacity_violated(csv_dir: str, results_dir: str, rel_tol: float = 1e-6) -> bool:
     """True if any TotalAnnualMinCapacity is not met by the solved TotalCapacityAnnual."""
     total = {}
@@ -466,9 +497,10 @@ def _build_contract(results_dir: str, model_data: dict, model_name: str,
 
     # ── capacities ────────────────────────────────────────────────────────────
     capacities: dict = {}
+    free_peak = _free_unbounded_peak_gw(csv_dir, results_dir) if csv_dir else {}
     for row in _r("TotalCapacityAnnual.csv"):
         tech = row.get("TECHNOLOGY", "")
-        cap_gw = float(row.get("VALUE", 0))
+        cap_gw = free_peak.get(tech, float(row.get("VALUE", 0)))
         if cap_gw <= 0:
             continue
         if tech in reverse:
@@ -716,11 +748,31 @@ def _build_contract(results_dir: str, model_data: dict, model_name: str,
     except Exception:
         timestamps = [str(i) for i in range(n_hours)]
 
+    # ── Unmet demand (G1): the ensure_feasibility slack techs "{fuel}_UNMET" ──
+    loc_by_sid = {translate._sid(l.get("name") or l.get("id", "loc")): (l.get("name") or l.get("id", "loc"))
+                  for l in (model_data.get("locations") or [])}
+    unmet_ts = [0.0] * n_hours
+    unmet_by_loc: dict = {}
+    for tech, slices_prod in prod_by_slice.items():
+        if not tech.endswith("_UNMET"):
+            continue
+        fuel = tech[:-len("_UNMET")]
+        loc_s = max((ls for ls in loc_by_sid if fuel.startswith(ls + "_")), key=len, default=None)
+        hourly = timeslices.broadcast(_slice_mean_kw(slices_prod), year_split, scheme, n_hours)
+        unmet_ts = [a + b for a, b in zip(unmet_ts, hourly)]
+        loc_name = loc_by_sid.get(loc_s, fuel)
+        unmet_by_loc[loc_name] = unmet_by_loc.get(loc_name, 0.0) + sum(hourly)
+    unmet_total = sum(unmet_ts)
+
     # ── Objective ─────────────────────────────────────────────────────────────
     if objective is None:
         # Fall back to sum of TotalDiscountedCost.csv
         total_cost = sum(float(r.get("VALUE", 0)) for r in _r("TotalDiscountedCost.csv"))
         objective = total_cost if total_cost > 0 else None
+    if objective is not None:
+        # Contract objective = system cost: drop the unmet / dump slack penalties (M€)
+        objective -= sum(float(r.get("VALUE", 0)) for r in _r("AnnualVariableOperatingCost.csv")
+                         if r.get("TECHNOLOGY", "").endswith(("_UNMET", "_DUMP")))
     if parity and objective is not None:
         objective = objective * 1e6 * wf  # M€ for the annualised year → € for the window
 
@@ -743,7 +795,59 @@ def _build_contract(results_dir: str, model_data: dict, model_name: str,
         contract["transmission_flow"] = transmission_flow
     if objective is not None:
         contract["objective"] = objective
+    if unmet_total > 1e-6:
+        contract["unmet_demand_timeseries"] = [round(v, 3) for v in unmet_ts]
+        contract["unmet_demand_by_location"] = {k: round(v, 3) for k, v in unmet_by_loc.items() if v > 1e-3}
+        contract["total_unmet_demand_mwh"] = round(unmet_total, 3)
+    contract = _to_contract_ids(contract, model_data)
+    if unmet_total > 1e-6:
+        log(f"  WARNING: unmet demand {unmet_total:.3f} across {len(contract['unmet_demand_by_location'])} "
+            f"location(s): {contract['unmet_demand_by_location']} — excluded from the objective "
+            f"(penalised at {translate._UNMET_COST_EUR_KWH:g} EUR/kWh in the solve)")
     return contract
+
+
+def _to_contract_ids(contract: dict, model_data: dict) -> dict:
+    """Rename TEMPO location / technology names in every contract key to the ids the
+    Calliope 0.6.8 runner reports (engine_common.contract_id)."""
+    _same = lambda x: x
+    loc_map, tech_map = contract_id_maps(model_data.get("locations"), model_data.get("technologies"),
+                                         _same, _same)
+    lid = lambda x: loc_map.get(x, x)
+    tid = lambda x: tech_map.get(x, x)
+
+    def _key(k):    # "loc::tech[:remote][::carrier]"
+        parts = k.split("::")
+        if len(parts) < 2:
+            return k
+        tech, sep, remote = parts[1].partition(":")
+        parts[0], parts[1] = lid(parts[0]), tid(tech) + (sep + lid(remote) if sep else "")
+        return "::".join(parts)
+
+    out = dict(contract)
+    for name in ("capacities", "generation"):
+        if name in out:
+            out[name] = {_key(k): v for k, v in out[name].items()}
+    for name in ("dispatch", "costs_by_tech"):
+        if name in out:
+            out[name] = {tid(k): v for k, v in out[name].items()}
+    if "costs_by_location" in out:
+        out["costs_by_location"] = {lid(l): {tid(k): v for k, v in d.items()}
+                                    for l, d in out["costs_by_location"].items()}
+    if "unmet_demand_by_location" in out:
+        out["unmet_demand_by_location"] = {lid(k): v for k, v in out["unmet_demand_by_location"].items()}
+    for name in ("tech_metadata", "tech_parents"):    # contract ids added beside the TEMPO names
+        if name in out:
+            out[name] = {**out[name], **{tid(k): v for k, v in out[name].items()}}
+    if "transmission_flow" in out:
+        flows = {}
+        for f in out["transmission_flow"].values():
+            a, b, ts = lid(f["from"]), lid(f["to"]), f["timeseries"]
+            if a > b:
+                a, b, ts = b, a, [-v for v in ts]
+            flows.setdefault(f"{a}::{b}", {"from": a, "to": b, "timeseries": ts})
+        out["transmission_flow"] = flows
+    return out
 
 
 def _find_link_tech(lnk: dict, model_data: dict):
