@@ -319,7 +319,7 @@ export default function SetupScreen({ onComplete, freshInstall = false }) {
         </div>
 
         <p className="mt-4 text-xs text-slate-400">
-          Powered by Docker Desktop · OpenModelica · Calliope · GeoServer
+          Powered by Docker Desktop · Calliope · GeoServer
         </p>
       </div>
     </FullScreenCard>

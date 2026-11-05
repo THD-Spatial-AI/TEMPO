@@ -142,6 +142,7 @@ func (s *Server) setupRoutes() {
 		api.GET("/osm/:layer", s.getOSMLayer)
 		// Per-zone, transmission-filtered Overpass fetch for the zonal builder
 		api.GET("/overpass/power", s.getOverpassPower)
+		api.POST("/overpass/query", s.postOverpassQuery)
 		api.GET("/geocode", s.geocode)
 
 		// Health check

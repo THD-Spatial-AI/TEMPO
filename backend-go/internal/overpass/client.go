@@ -4,6 +4,7 @@
 package overpass
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -28,7 +29,7 @@ type BBox struct {
 
 // Client queries Overpass API and Nominatim with a simple in-memory cache.
 type Client struct {
-	overpassURL string
+	overpassURLs []string
 	nominatimURL string
 	http        *http.Client
 	mu          sync.Mutex
@@ -47,7 +48,12 @@ type cacheEntry struct {
 // NewClient creates a client using the public Overpass / Nominatim endpoints.
 func NewClient() *Client {
 	return &Client{
-		overpassURL:  "https://overpass-api.de/api/interpreter",
+		overpassURLs: []string{
+			"https://overpass.openstreetmap.fr/api/interpreter",
+			"https://overpass-api.de/api/interpreter",
+			"https://overpass.private.coffee/api/interpreter",
+			"https://overpass.kumi.systems/api/interpreter",
+		},
 		nominatimURL: "https://nominatim.openstreetmap.org",
 		http: &http.Client{
 			Timeout: 60 * time.Second,
@@ -306,28 +312,58 @@ func buildQuery(layer string, bbox *BBox) string {
 	}
 }
 
+// RunQuery posts a raw Overpass QL query, failing over across mirrors, and
+// returns the raw JSON body. Used by the renderer when direct (CORS-bound)
+// mirror access fails.
+func (c *Client) RunQuery(query string) ([]byte, error) {
+	return c.runOverpassQuery(query)
+}
+
+// runOverpassQuery tries each mirror in turn; 429/5xx, network errors and
+// HTTP-200 responses carrying a server-side `remark` (timeout) fail over.
 func (c *Client) runOverpassQuery(query string) ([]byte, error) {
-	req, err := http.NewRequest("POST", c.overpassURL,
+	lastErr := fmt.Errorf("no overpass mirrors configured")
+	for _, endpoint := range c.overpassURLs {
+		body, err := c.postOverpass(endpoint, query)
+		if err == nil {
+			return body, nil
+		}
+		lastErr = fmt.Errorf("%s: %w", endpoint, err)
+	}
+	return nil, lastErr
+}
+
+func (c *Client) postOverpass(endpoint, query string) ([]byte, error) {
+	req, err := http.NewRequest("POST", endpoint,
 		strings.NewReader(url.Values{"data": {query}}.Encode()))
 	if err != nil {
-		return nil, fmt.Errorf("overpass request failed: %w", err)
+		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("User-Agent", "TEMPO/1.0 (energy-system-modelling)")
 
-	resp, err := c.http.Do(req)
+	// Bound each mirror so a hung one doesn't eat the whole failover budget.
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+	defer cancel()
+	resp, err := c.http.Do(req.WithContext(ctx))
 	if err != nil {
-		return nil, fmt.Errorf("overpass request failed: %w", err)
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("overpass returned %d", resp.StatusCode)
+		return nil, fmt.Errorf("returned %d", resp.StatusCode)
 	}
-
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
+	}
+	var probe struct {
+		Elements []json.RawMessage `json:"elements"`
+		Remark   string            `json:"remark"`
+	}
+	if json.Unmarshal(body, &probe) == nil && len(probe.Elements) == 0 && probe.Remark != "" {
+		return nil, fmt.Errorf("remark: %s", probe.Remark)
 	}
 	return body, nil
 }

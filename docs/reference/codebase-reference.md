@@ -17,11 +17,9 @@ Use this document as a single source of truth when onboarding, debugging, or ext
    - 4.4 [Components — model editing](#44-components--model-editing)
    - 4.5 [Components — map](#45-components--map)
    - 4.6 [Components — OSM & GeoServer](#46-components--osm--geoserver)
-   - 4.7 [Components — Hydrogen plant](#47-components--hydrogen-plant)
-   - 4.8 [Components — CCS chain](#48-components--ccs-chain)
-   - 4.9 [Components — UI primitives](#49-components--ui-primitives)
-   - 4.10 [Services](#410-services)
-   - 4.11 [Hooks](#411-hooks)
+   - 4.7 [Components — UI primitives](#47-components--ui-primitives)
+   - 4.8 [Services](#48-services)
+   - 4.9 [Hooks](#49-hooks)
 5. [Go backend](#5-go-backend)
    - 5.1 [Entry point](#51-entry-point)
    - 5.2 [API routes](#52-api-routes)
@@ -67,7 +65,7 @@ TEMPO is a multi-process desktop application:
  │                             │ port 5000  │  │ port 8081 │  │
  │                             └────────────┘  └───────────┘  │
  └─────────────────────────────────────────────────────────────┘
-          optional external services (H₂, CCS, OEO)
+          optional external service (OEO)
 ```
 
 The three primary processes are:
@@ -584,8 +582,8 @@ The library can be enriched at runtime by the OEO Technology Database API via `t
 
 | Package | Purpose |
 |---|---|
-| `echarts` + `echarts-for-react` | Rich interactive charts (bar, line, scatter, heatmap, Sankey) used in Results and H₂ views. |
-| `apexcharts` + `react-apexcharts` | Responsive time-series and donut charts used in CCS views. |
+| `echarts` + `echarts-for-react` | Rich interactive charts (bar, line, scatter, heatmap, Sankey) used in Results views. |
+| `apexcharts` + `react-apexcharts` | Responsive time-series and donut charts used in chart views. |
 | `recharts` | Composable chart library used in some result panels. |
 
 ### Data & Utilities

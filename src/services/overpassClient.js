@@ -10,6 +10,7 @@
  *   { powerLines, substations, powerPlants }
  */
 
+import { overpassQueryViaBackend } from './api';
 import {
   parseVoltageKv, geometryTouchesPolygons, parseSource, parseCapacityMW, classifySubstation,
 } from './zonalInfraExtract';
@@ -20,12 +21,13 @@ const OVERPASS_ENDPOINTS = [
   'https://overpass.kumi.systems/api/interpreter',
   'https://overpass.private.coffee/api/interpreter',
   'https://overpass-api.de/api/interpreter',
-  'https://overpass.openstreetmap.fr/api/interpreter',
 ];
+// NB: overpass.openstreetmap.fr sends no Access-Control-Allow-Origin header, so
+// browsers block it outright — it is only reachable via the Go backend proxy.
 
 // Fail over reasonably fast — a working mirror answers this (bounded, index-
 // friendly) query within a few seconds; don't wait a minute on a dead one.
-const OVERPASS_TIMEOUT_MS = 30000;
+const OVERPASS_TIMEOUT_MS = 12000;
 
 // POST a query to each mirror in turn; return parsed JSON from the first that
 // succeeds. Aborts a slow mirror after OVERPASS_TIMEOUT_MS and moves on.
@@ -72,6 +74,17 @@ async function runOverpass(query, signal) {
       clearTimeout(timer);
       if (signal) signal.removeEventListener('abort', onAbort);
     }
+  }
+  // Every direct mirror failed (5xx / CORS / offline): retry through the Go
+  // backend, which has no CORS limits and fails over across more mirrors.
+  try {
+    console.info('[Overpass] → backend proxy …');
+    const data = await overpassQueryViaBackend(query, signal);
+    console.info(`[Overpass] ✓ backend proxy → ${data?.elements?.length ?? 0} elements`);
+    return data;
+  } catch (e) {
+    if (signal?.aborted) throw e;
+    console.warn(`[Overpass] backend proxy failed: ${e.message}`);
   }
   throw lastErr;
 }

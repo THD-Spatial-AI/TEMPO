@@ -207,10 +207,10 @@ export const OSM_STYLE = {
   sources: {
     osm: {
       type: 'raster',
-      tiles: ['https://a.tile.openstreetmap.org/{z}/{x}/{y}.png'],
+      tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}'],
       tileSize: 256,
       maxzoom: 19,
-      attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>',
+      attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a> Esri',
     },
   },
   // Muted basemap, matching the Dashboard map, so result markers stand out

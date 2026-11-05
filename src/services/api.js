@@ -23,6 +23,18 @@ async function apiFetch(path, opts) {
   return fetch(`${base}${path}`, opts);
 }
 
+// Raw Overpass QL via the Go backend (multi-mirror, no browser CORS limits).
+export async function overpassQueryViaBackend(query, signal) {
+  const response = await apiFetch('/api/overpass/query', {
+    method: 'POST',
+    signal,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query }),
+  });
+  if (!response.ok) throw new Error(`Backend Overpass proxy ${response.status}`);
+  return response.json();
+}
+
 export const api = {
   // Model Management
   async saveModel(modelData) {

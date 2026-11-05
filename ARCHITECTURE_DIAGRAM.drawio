@@ -112,7 +112,7 @@
         <mxCell id="creation-component" parent="frontend-container" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#000000;" value="&lt;font style=&quot;&quot;&gt;src/components/Creation.jsx (4824 lines)&lt;br&gt;• Main model creation interface&lt;br&gt;• MapLibre map integration&lt;br&gt;• Location management (add, edit, delete)&lt;br&gt;• Technology assignment&lt;br&gt;• Link creation between locations&lt;br&gt;• Run Model functionality (handleRunModel)&lt;br&gt;• Job polling with progress updates&lt;br&gt;• State: locations, links, technologies, isRunningModel, jobProgress&lt;/font&gt;" vertex="1">
           <mxGeometry height="120" width="660" x="20" y="40" as="geometry" />
         </mxCell>
-        <mxCell id="other-components" parent="frontend-container" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#000000;" value="Other Components&#xa;• BulkImport.jsx / CSVUploader.jsx — CSV import (locations, links)&#xa;• Export.jsx — YAML/ZIP export (via calliope_adapter)&#xa;• Locations.jsx / LocationEditDialog.jsx — Location editor&#xa;• Models.jsx / ModelSelector.jsx — Saved models browser&#xa;• Configuration.jsx — App settings (GeoServer, ports)&#xa;• GlobalDataPanel.jsx — Global parameters &amp;amp; time-series&#xa;• TimeSeries.jsx — Time series data editor&#xa;• Results.jsx — Results viewer (ECharts, Recharts)&#xa;• CCSCreationPanel.jsx / CCSConfiguration.jsx / CCSGlobalPanel.jsx&#xa;• H2CreationPanel.jsx / H2Configuration.jsx / H2GlobalPanel.jsx&#xa;• TechnologiesData.js — Built-in JS technology library&#xa;• src/services/api.js — Go backend client (port 8082)" vertex="1">
+        <mxCell id="other-components" parent="frontend-container" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#000000;" value="Other Components&#xa;• BulkImport.jsx / CSVUploader.jsx — CSV import (locations, links)&#xa;• Export.jsx — YAML/ZIP export (via calliope_adapter)&#xa;• Locations.jsx / LocationEditDialog.jsx — Location editor&#xa;• Models.jsx / ModelSelector.jsx — Saved models browser&#xa;• Configuration.jsx — App settings (GeoServer, ports)&#xa;• GlobalDataPanel.jsx — Global parameters &amp;amp; time-series&#xa;• TimeSeries.jsx — Time series data editor&#xa;• Results.jsx — Results viewer (ECharts, Recharts)&#xa;• TechnologiesData.js — Built-in JS technology library&#xa;• src/services/api.js — Go backend client (port 8082)" vertex="1">
           <mxGeometry height="110" width="660" x="20" y="170" as="geometry" />
         </mxCell>
         <mxCell id="backend-container" parent="electron-container" style="swimlane;whiteSpace=wrap;html=1;fontSize=14;fontStyle=1;fillColor=#f8cecc;strokeColor=#b85450;strokeWidth=2;fontColor=#000000;" value="GO BACKEND (REST API)" vertex="1">
@@ -176,18 +176,6 @@
           <mxGeometry height="280" width="540" x="1860" y="40" as="geometry" />
         </mxCell>
         <mxCell id="oeo-tech-info" parent="oeo-tech-service" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#000000;" value="Technology Parameter Service (optional)&#xa;&#xa;Technology:&#xa;• Python REST service on port 8000&#xa;• Open Energy Ontology (OEO) aligned data&#xa;• Techno-economic parameters&#xa;&#xa;Go backend proxies at:&#xa;• GET /tech/health&#xa;• ANY /tech/api/v1/* → http://localhost:8000&#xa;&#xa;Frontend can call via proxy:&#xa;• Technology costs, efficiencies, lifetimes&#xa;• Enriches TechnologiesData.js at runtime&#xa;&#xa;Note: Optional — app uses bundled&#xa;TechnologiesData.js when unavailable" vertex="1">
-          <mxGeometry height="230" width="520" x="10" y="30" as="geometry" />
-        </mxCell>
-        <mxCell id="h2-service" parent="external-services" style="swimlane;whiteSpace=wrap;html=1;fontSize=12;fontStyle=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;" value="H₂ PLANT SIM SERVICE (Port 8765)" vertex="1">
-          <mxGeometry height="280" width="540" x="2460" y="40" as="geometry" />
-        </mxCell>
-        <mxCell id="h2-service-info" parent="h2-service" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#000000;" value="Hydrogen Plant Simulation (optional)&#xa;&#xa;Technology:&#xa;• FastAPI + OpenModelica on port 8765&#xa;• VITE_H2_SERVICE_URL env var override&#xa;• Vite dev proxy: /h2-proxy → 8765&#xa;&#xa;Frontend client: src/services/hydrogenService.js&#xa;• WebSocket-first connection&#xa;• HTTP polling fallback after 3s timeout&#xa;&#xa;Endpoints:&#xa;• POST /simulate — submit plant parameters&#xa;• GET  /jobs/{id} — poll status&#xa;• WS / — real-time telemetry stream&#xa;&#xa;Offline fallback:&#xa;• src/services/h2Physics.js&#xa;&#xa;Models: PEM/Alkaline electrolyser, H₂ storage,&#xa;compression, fuel cell (~85-90% accuracy)" vertex="1">
-          <mxGeometry height="230" width="520" x="10" y="30" as="geometry" />
-        </mxCell>
-        <mxCell id="ccs-service" parent="external-services" style="swimlane;whiteSpace=wrap;html=1;fontSize=12;fontStyle=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;" value="CCS SIM SERVICE (Port 8766)" vertex="1">
-          <mxGeometry height="280" width="540" x="3060" y="40" as="geometry" />
-        </mxCell>
-        <mxCell id="ccs-service-info" parent="ccs-service" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#000000;" value="CCS Chain Simulation (optional)&#xa;&#xa;Technology:&#xa;• FastAPI + OpenModelica on port 8766&#xa;• VITE_CCS_SERVICE_URL env var override&#xa;• Vite dev proxy: /ccs-proxy → 8766&#xa;&#xa;Frontend client: src/services/ccsService.js&#xa;• WebSocket-first connection&#xa;• HTTP polling fallback after 3s timeout&#xa;&#xa;Endpoints:&#xa;• POST /simulate — submit chain parameters&#xa;• GET  /jobs/{id} — poll status&#xa;• WS / — real-time telemetry stream&#xa;&#xa;Offline fallback:&#xa;• src/services/ccsPhysics.js&#xa;&#xa;Models: Amine absorption, stripper reboiler,&#xa;multi-stage compression, CO₂ injection&#xa;(~85-90% accuracy vs Simulink)" vertex="1">
           <mxGeometry height="230" width="520" x="10" y="30" as="geometry" />
         </mxCell>
         <mxCell id="arrow1" edge="1" parent="electron-container" source="electron-main" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=3;strokeColor=#6c8ebf;endArrow=classic;endFill=1;fontColor=#000000;" target="frontend-container">
@@ -289,22 +277,6 @@
             <mxPoint as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="arrow-h2" edge="1" parent="electron-container" source="frontend-container" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#82b366;endArrow=classic;endFill=1;dashed=1;fontColor=#000000;" target="h2-service" vertex="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="arrow-h2-label" connectable="0" parent="arrow-h2" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fontStyle=1;fontColor=#FFFFFF;" value="WS + HTTP&#xa;/h2-proxy" vertex="1">
-          <mxGeometry relative="1" x="-0.1" y="2" as="geometry">
-            <mxPoint as="offset" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="arrow-ccs" edge="1" parent="electron-container" source="frontend-container" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#82b366;endArrow=classic;endFill=1;dashed=1;fontColor=#000000;" target="ccs-service" vertex="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="arrow-ccs-label" connectable="0" parent="arrow-ccs" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fontStyle=1;fontColor=#FFFFFF;" value="WS + HTTP&#xa;/ccs-proxy" vertex="1">
-          <mxGeometry relative="1" x="-0.1" y="2" as="geometry">
-            <mxPoint as="offset" />
-          </mxGeometry>
-        </mxCell>
         <mxCell id="arrow-calliope-direct" edge="1" parent="electron-container" source="frontend-container" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#6c8ebf;endArrow=classic;endFill=1;dashed=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;fontColor=#000000;" target="calliope-service" vertex="1">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
@@ -351,7 +323,7 @@
             <mxRectangle height="30" width="180" x="2670" y="950" as="alternateBounds" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="ports-detail" parent="ports-info" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#000000;" value="Port Allocation:&#xa;&#xa;• 5173 — Vite Dev Server (development only)&#xa;• 8082 — Go Backend REST API&#xa;• 5000 — Calliope Runner Service (FastAPI)&#xa;• 8080 — GeoServer (Docker, user-facing)&#xa;• 8081 — GeoServer (Go backend config.yaml)&#xa;• 8000 — OEO Tech Database API (optional)&#xa;• 8765 — H₂ Plant Simulation Service (optional)&#xa;• 8766 — CCS Simulation Service (optional)&#xa;&#xa;Protocols:&#xa;• HTTP/REST (JSON) — all services&#xa;• SSE — calliope log streaming&#xa;• WebSocket — H₂/CCS real-time telemetry" vertex="1">
+        <mxCell id="ports-detail" parent="ports-info" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;align=left;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#000000;" value="Port Allocation:&#xa;&#xa;• 5173 — Vite Dev Server (development only)&#xa;• 8082 — Go Backend REST API&#xa;• 5000 — Calliope Runner Service (FastAPI)&#xa;• 8080 — GeoServer (Docker, user-facing)&#xa;• 8081 — GeoServer (Go backend config.yaml)&#xa;• 8000 — OEO Tech Database API (optional)&#xa;&#xa;Protocols:&#xa;• HTTP/REST (JSON) — all services&#xa;• SSE — calliope log streaming" vertex="1">
           <mxGeometry height="135" width="380" x="10" y="30" as="geometry" />
         </mxCell>
       </root>

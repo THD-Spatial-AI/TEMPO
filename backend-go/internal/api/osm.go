@@ -207,6 +207,25 @@ func (s *Server) getOverpassPower(c *gin.Context) {
 	c.Data(http.StatusOK, "application/json", data)
 }
 
+// postOverpassQuery proxies a raw Overpass QL query (body: {"query": "..."})
+// through the backend's multi-mirror client. The renderer uses this when the
+// public mirrors are unreachable from the browser (CORS / 5xx).
+func (s *Server) postOverpassQuery(c *gin.Context) {
+	var req struct {
+		Query string `json:"query"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || req.Query == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "body must be {\"query\": \"<overpass ql>\"}"})
+		return
+	}
+	data, err := s.osm.RunQuery(req.Query)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		return
+	}
+	c.Data(http.StatusOK, "application/json", data)
+}
+
 // getLoadedRegions returns the distinct region_paths stored in PostGIS.
 // Falls back to an empty list if GeoServer is unavailable (frontend then uses
 // the static regions_database.json for the selector UI).

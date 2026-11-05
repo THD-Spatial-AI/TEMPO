@@ -2159,9 +2159,6 @@ app.whenReady().then(async () => {
         'https://*.tile.openstreetmap.org/*',
         'https://tile.openstreetmap.org/*',
         'https://nominatim.openstreetmap.org/*',
-        'https://*.basemaps.cartocdn.com/*',
-        'https://*.tile.opentopomap.org/*',
-        'https://server.arcgisonline.com/*',
       ],
     },
     (details, callback) => {

@@ -269,8 +269,6 @@ test: ## Run the JS format module tests (vitest)
 #   PyPSA          → Python 3.10+
 #   OSeMOSYS       → Python 3.10+
 #   AdOpT-NET0     → Python 3.12+
-#   CCS sim        → Python 3.10+
-#   Hydrogen sim   → Python 3.10+
 #   OSM            → Python 3.10+
 #
 # Each venv is created in .venv-<name>/ at the repo root.
