@@ -117,7 +117,8 @@ export function sporesCount(plan) {
 export const METRICS = {
   zones: ['NORD', 'CNOR', 'CSUD', 'SUD', 'SARD', 'SICI'],
   foreign: ['FR', 'AT', 'CH', 'SI', 'GR'],
-  windTechs: ['wind', 'wind_new'],                       // national onshore wind
+  // Paper's Fig 4 text says "onshore", but only this total gives its 19.5 % Sardinia share
+  windTechs: ['wind', 'wind_new', 'wind_offshore'],
   lineTechs: ['inter_zonal', 'inter_zonal_new'],          // inter-zonal lines
   expansionLineTechs: ['inter_zonal_new'],
   // "renewable and storage discharge capacity" incl. synthetic-methane turbines (Table 1 note)
@@ -135,6 +136,6 @@ export const METRICS = {
     { label: 'Bioenergy', techs: ['biogas_new'], potential: 4e6 }, // energy_cap_max_systemwide
     { label: 'International transmission', techs: ['inter_zonal_new'], ends: 'international' },
     { label: 'Inter-zone transmission', techs: ['inter_zonal_new'], ends: 'zonal' },
-    { label: 'Gas turbines', techs: ['ccgt_syngas'] },
+    { label: 'Gas turbines', techs: ['ccgt_syngas'], potential: 44e6 }, // existing fleet (Supplement Table S3)
   ],
 };

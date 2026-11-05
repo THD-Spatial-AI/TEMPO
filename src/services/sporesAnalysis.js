@@ -57,10 +57,13 @@ function groupTotals(spore, meta, metrics) {
     const pot = (g.storage ? meta?.potentials?.storage_cap_max : meta?.potentials?.energy_cap_max) || {};
     const caps = (g.storage ? spore.storage_capacities : spore.capacities) || {};
     let used = 0, max = 0;
-    for (const [lt, p] of Object.entries(pot)) {
+    // A system-wide potential doesn't need per-node ones, which MEME results may not list
+    const keys = g.potential > 0 ? Object.keys(caps) : Object.keys(pot);
+    for (const lt of keys) {
       const pt = parseLocTech(lt);
-      if (!techs.has(pt.tech) || !endsMatch(pt, g.ends, metrics) || !(p > 0)) continue;
-      max += p;
+      if (!techs.has(pt.tech) || !endsMatch(pt, g.ends, metrics)) continue;
+      if (!(g.potential > 0) && !(pot[lt] > 0)) continue;
+      max += pot[lt] || 0;
       used += Number(caps[lt]) || 0;
     }
     if (g.potential > 0) max = g.potential; // system-wide cap (energy_cap_max_systemwide)
@@ -119,7 +122,7 @@ export function sporeMetrics(spore, meta, metrics, optimal = null) {
   const overTechs = new Set(metrics.overcapTechs || []);
   const zones = new Set((metrics.zones || []).map(lc));
 
-  // Regional concentration of national onshore wind
+  // Regional concentration of national wind (techs from metrics.windTechs)
   const windByLoc = {};
   let windTotal = 0;
   for (const [lt, c] of Object.entries(caps)) {
@@ -135,25 +138,26 @@ export function sporeMetrics(spore, meta, metrics, optimal = null) {
     }
   }
 
-  // Inter-zonal lines: capacity (one direction per tech) and flows (both directions)
+  // Inter-zonal lines: capacity (one direction per tech) and energy delivered per receiving
+  // end. CF uses the dominant direction: that reproduces the paper's 26.1 % on SICI–SUD.
   const lines = {};
   const pairKey = (a, b) => [a, b].sort().join('–');
   for (const [lt, c] of Object.entries(caps)) {
     const pt = parseLocTech(lt);
     if (!lineTechs.has(pt.tech) || !zones.has(pt.loc) || !zones.has(pt.remote) || pt.loc > pt.remote) continue;
     const k = pairKey(pt.loc, pt.remote);
-    lines[k] = lines[k] || { cap: 0, flow: 0 };
+    lines[k] = lines[k] || { cap: 0, delivered: {} };
     lines[k].cap += c;
   }
   for (const [ltc, f] of Object.entries(spore.generation || {})) {
     const pt = parseLocTech(ltc);
     if (!lineTechs.has(pt.tech) || !zones.has(pt.loc) || !zones.has(pt.remote)) continue;
-    const k = pairKey(pt.loc, pt.remote);
-    if (lines[k]) lines[k].flow += Math.abs(f);
+    const l = lines[pairKey(pt.loc, pt.remote)];
+    if (l) l.delivered[pt.loc] = (l.delivered[pt.loc] || 0) + Math.abs(f);
   }
   const lineCF = Object.fromEntries(Object.entries(lines)
     .filter(([, l]) => l.cap > 0 && meta?.hours)
-    .map(([k, l]) => [k, l.flow / (l.cap * meta.hours)]));
+    .map(([k, l]) => [k, Math.max(0, ...Object.values(l.delivered)) / (l.cap * meta.hours)]));
   const cfs = Object.values(lineCF);
 
   let transmissionExpansion = 0;
@@ -179,14 +183,14 @@ export function sporeMetrics(spore, meta, metrics, optimal = null) {
 }
 
 /**
- * Paper Table 1: among SPORES with lower wind concentration than the cost-optimal
- * one (spore 0) and every inter-zonal line at ≥ 30 % capacity factor, the best
- * SPORE on each metric.
+ * Paper Table 1: among SPORES with wind concentration at least 20 % below the
+ * cost-optimal one (spore 0; "markedly lower", Supplement Table S1) and every
+ * inter-zonal line at ≥ 30 % capacity factor, the best SPORE on each metric.
  */
-export function bestRanking(rows, { minCF = 0.3 } = {}) {
+export function bestRanking(rows, { minCF = 0.3, minWindReduction = 0.2 } = {}) {
   const opt = rows.find(r => r.spore_id === 0);
   const subset = rows.filter(r => r.spore_id !== 0
-    && r.maxWindShare != null && opt?.maxWindShare != null && r.maxWindShare < opt.maxWindShare
+    && r.maxWindShare != null && opt?.maxWindShare != null && r.maxWindShare <= opt.maxWindShare * (1 - minWindReduction)
     && r.minLineCF != null && r.minLineCF >= minCF);
   const best = (key, dir) => subset.reduce((b, r) => (b == null || dir * (r[key] - b[key]) > 0 ? r : b), null);
   return {

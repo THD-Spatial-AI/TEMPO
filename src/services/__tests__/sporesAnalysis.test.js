@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   groupUtilisation, classifyTechs, sporeMetrics, bestRanking,
 } from '../sporesAnalysis.js';
+import { METRICS as ITALY_METRICS } from '../scenarioStudio/presets/lombardi2020Italy.js';
 
 // Two zones (NORD, SARD), one foreign node (FR), kW / kWh like Calliope-Italy.
 const METRICS = {
@@ -79,15 +80,29 @@ describe('sporeMetrics — Lombardi 2020 Table 1', () => {
   const m0 = sporeMetrics(opt, meta, METRICS);
   const m1 = sporeMetrics(alt, meta, METRICS, opt);
 
-  it('max regional share of national onshore wind', () => {
+  it('max regional share of national wind', () => {
     expect(m0.maxWindShare).toBeCloseTo(0.7);
     expect(m0.maxWindRegion).toBe('sard');
     expect(m1.maxWindShare).toBeCloseTo(0.5);
   });
 
-  it('minimum inter-zonal line capacity factor (both directions, all line techs)', () => {
-    // NORD–SARD: cap 10 + 25 = 35, flow 100 + 100 + 100 = 300 over 10 h → 300 / 350
-    expect(m0.minLineCF).toBeCloseTo(300 / 350);
+  it('the Italy preset counts offshore wind in the national total (paper: 19.5 % Sardinia)', () => {
+    expect(ITALY_METRICS.windTechs).toEqual(expect.arrayContaining(['wind', 'wind_new', 'wind_offshore']));
+  });
+
+  it('minimum inter-zonal line capacity factor (dominant direction, all line techs)', () => {
+    // NORD–SARD: cap 10 + 25 = 35 over 10 h; delivered at NORD 100 + 100 = 200, at SARD 100 + 0 = 100
+    expect(m0.minLineCF).toBeCloseTo(200 / 350);
+  });
+
+  it('reproduces the paper\'s 26.1 % on SICI–SUD from the hourly cost-optimal flows', () => {
+    // Capacity 1.299 GW; SICI→SUD 2.972 TWh delivered at SUD, SUD→SICI 1.159 TWh delivered at SICI (kW / kWh)
+    const lines = { zones: ['SUD', 'SICI'], lineTechs: ['inter_zonal', 'inter_zonal_new'] };
+    const s = {
+      capacities: { 'sici::inter_zonal:sud': 1.299e6, 'sud::inter_zonal:sici': 1.299e6 },
+      generation: { 'sud::inter_zonal:sici::electricity': 2.972e9, 'sici::inter_zonal:sud::electricity': 1.159e9 },
+    };
+    expect(sporeMetrics(s, { hours: 8760 }, lines).minLineCF).toBeCloseTo(0.2612, 3);
   });
 
   it('transmission expansion, overcapacity vs cost-optimal, curtailment', () => {
@@ -100,12 +115,13 @@ describe('sporeMetrics — Lombardi 2020 Table 1', () => {
 });
 
 describe('bestRanking — Table 1 subset + best per metric', () => {
-  it('keeps SPORES with lower wind concentration than optimal and all lines ≥ 30 % CF', () => {
+  it('keeps SPORES with wind concentration at least 20 % below optimal and all lines ≥ 30 % CF', () => {
     const rows = [
       { spore_id: 0, maxWindShare: 0.2, minLineCF: 0.26, overcapacity: 0 },
       { spore_id: 1, maxWindShare: 0.15, minLineCF: 0.35, overcapacity: 5 },
       { spore_id: 2, maxWindShare: 0.10, minLineCF: 0.31, overcapacity: 1 },
       { spore_id: 3, maxWindShare: 0.09, minLineCF: 0.20, overcapacity: 9 },
+      { spore_id: 4, maxWindShare: 0.17, minLineCF: 0.50, overcapacity: 20 }, // lower, but not by 20 %
     ];
     const r = bestRanking(rows);
     expect(r.subset.map(x => x.spore_id)).toEqual([1, 2]);
@@ -120,6 +136,16 @@ describe('groupUtilisation — system-wide potential', () => {
     const s = { capacities: { 'nord::biogas_new': 1, 'sard::biogas_new': 1 } };
     const m = { potentials: { energy_cap_max: { 'nord::biogas_new': 4, 'sard::biogas_new': 4 } } };
     expect(groupUtilisation(s, m, { groups: [{ label: 'Bio', techs: ['biogas_new'], potential: 4 }] }).Bio).toBeCloseTo(0.5);
+  });
+
+  it('counts capacity even when the result lists no per-node potential for the tech', () => {
+    const s = { capacities: { 'nord::ccgt_syngas': 11, 'sard::ccgt_syngas': 11, 'nord::battery': 5 } };
+    const m = { potentials: { energy_cap_max: { 'nord::battery': 50 } } };
+    expect(groupUtilisation(s, m, { groups: [{ label: 'Gas', techs: ['ccgt_syngas'], potential: 44 }] }).Gas).toBeCloseTo(0.5);
+  });
+
+  it('the Italy preset uses the 44 GW gas turbine potential of the paper (Table S3)', () => {
+    expect(ITALY_METRICS.groups.find(g => g.label === 'Gas turbines').potential).toBe(44e6);
   });
 });
 

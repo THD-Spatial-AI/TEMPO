@@ -106,7 +106,7 @@ export default function SporesPaperPanel({ result }) {
         <div>
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold text-slate-600">
-              Best-ranking SPORES (Table 1) — {ranking.subset.length} with lower wind concentration than optimal and all inter-zonal lines ≥ 30% CF
+              Best-ranking SPORES (Table 1) — {ranking.subset.length} with wind concentration at least 20% below optimal and all inter-zonal lines ≥ 30% CF
             </p>
             <button onClick={metricsCsv} className="flex items-center gap-1 text-xs text-electric-600 hover:underline"><FiDownload size={12} /> CSV (all SPORES)</button>
           </div>
