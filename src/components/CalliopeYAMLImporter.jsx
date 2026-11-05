@@ -32,6 +32,7 @@ import { translateCalliopeModel, readText, parseFilesMap, getFilesFromDataTransf
 // ─── component ────────────────────────────────────────────────────────────────
 
 export default function CalliopeYAMLImporter({ onImport, onClose, initialTemplate = null }) {
+  const templatePowerUnit = useRef(undefined);
   const [uploadMode, setUploadMode] = useState('server');
   const [dragOver,   setDragOver]   = useState(false);
   const [status,     setStatus]     = useState('idle');
@@ -81,7 +82,7 @@ export default function CalliopeYAMLImporter({ onImport, onClose, initialTemplat
 
   const reset = () => {
     setStatus('idle'); setErrorMsg(''); setParseLog([]);
-    setPreview(null);  setShowLog(false); setModelName(''); setLoadingTpl(null);
+    setPreview(null);  setShowLog(false); setModelName(''); setLoadingTpl(null); templatePowerUnit.current = undefined;
     setRootCandidates([]); setPendingFilesMap(null);
     extraCsvRef.current = [];
   };
@@ -181,6 +182,7 @@ export default function CalliopeYAMLImporter({ onImport, onClose, initialTemplat
 
   // ── server template mode ──────────────────────────────────────────────────
   const loadServerTemplate = useCallback(async (tpl) => {
+    templatePowerUnit.current = tpl.powerUnit;
     setLoadingTpl(tpl.id);
     setTplProgress(null);
     setTplStatus(`Loading ${tpl.name}…`);
@@ -336,7 +338,10 @@ export default function CalliopeYAMLImporter({ onImport, onClose, initialTemplat
         subsetTime: preview.subsetTime,
         description: 'Imported: ' + name,
         // 0.7 archives run on the 0.7 engine; absent for 0.6 imports
-        ...(preview.calliopeVersion ? { modelConfig: { calliopeVersion: preview.calliopeVersion } } : {}),
+        ...(preview.calliopeVersion || templatePowerUnit.current ? { modelConfig: {
+          ...(preview.calliopeVersion ? { calliopeVersion: preview.calliopeVersion } : {}),
+          ...(templatePowerUnit.current ? { powerUnit: templatePowerUnit.current } : {}),
+        } } : {}),
         // 0.7-specific carry-through: named math modules, top-level parameters,
         // and a flag telling the runner the overrides are already in 0.7 vocabulary.
         ...(preview.mathModules?.length ? { mathModules: preview.mathModules } : {}),

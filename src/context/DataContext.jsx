@@ -1,10 +1,11 @@
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import Papa from 'papaparse';
 import Notification from '../components/Notification';
 import { TECH_TEMPLATES } from '../components/TechnologiesData';
 import { api } from '../services/api';
 import { getSetting, SETTINGS_EVENT } from '../services/appSettings';
+import { jobInMW } from '../utils/modelUnits';
 
 // Convert TECH_TEMPLATES to flat array of technologies
 const getDefaultTechnologies = () => {
@@ -681,6 +682,24 @@ export const DataProvider = ({ children }) => {
     } catch {}
   }, [completedJobs]);
 
+  // Views get every run in MW / MWh, whatever unit its model is in; saved runs stay as reported.
+  const completedJobsInMW = useMemo(() => completedJobs.map(j => jobInMW(j, models)), [completedJobs, models]);
+
+  // The unit a model's numbers are in (metadata.modelConfig.powerUnit).
+  const setModelPowerUnit = useCallback((modelId, powerUnit) => {
+    setModels(prev => {
+      const updated = prev.map(m => (m.id === modelId
+        ? { ...m, metadata: { ...m.metadata, modelConfig: { ...m.metadata?.modelConfig, powerUnit } } }
+        : m));
+      const model = updated.find(m => m.id === modelId);
+      if (model && stateRef.current.backendAvailable && confirmedBackendIds.current.has(modelId)) {
+        api.updateModel(modelId, prepareModelForBackend(model))
+          .catch(e => console.error('Failed to save the model unit:', e));
+      }
+      return updated;
+    });
+  }, []);
+
   const addCompletedJob = (job) => {
     setCompletedJobs(prev => {
       // Deduplicate by id — prevents double entries from StrictMode or duplicate events
@@ -732,8 +751,9 @@ export const DataProvider = ({ children }) => {
     navigationWarning,
     setNavigationWarning,
     runningJobs, addRunningJob, removeRunningJob, appendRunningJobLog, updateRunningJobStats, getRunningJob,
-    completedJobs,
+    completedJobs: completedJobsInMW,
     addCompletedJob,
+    setModelPowerUnit,
     removeCompletedJob,
     activeResultJobId,
     setActiveResultJobId,

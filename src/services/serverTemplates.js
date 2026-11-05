@@ -7,6 +7,7 @@
 export const SERVER_TEMPLATES = [
   {
     id:          'italian_model',
+    powerUnit:   'kW', // for the Results views; see utils/modelUnits.js
     name:        'Italian Energy System',
     description: 'Multi-region Italian power system (6–20 nodes) with VRE, thermal, hydro, storage and import/export technologies. Includes 2015 timeseries data.',
     flag:        '🇮🇹',
@@ -39,6 +40,7 @@ export const SERVER_TEMPLATES = [
   },
   {
     id:          'uk_model',
+    powerUnit:   'kW', // for the Results views; see utils/modelUnits.js
     name:        'UK Energy System',
     description: 'Multi-zone UK power system (17 zones) with wind, solar, hydro, fossil, nuclear, storage and HVAC/HVDC transmission. Based on UK-Calliope 0.6.3.',
     flag:        '🇬🇧',
@@ -56,6 +58,7 @@ export const SERVER_TEMPLATES = [
   },
   {
     id:          'cambridge_model',
+    powerUnit:   'kW', // for the Results views; see utils/modelUnits.js
     name:        'Cambridge District Energy',
     description: 'West Cambridge district-scale multi-carrier model (~50 building nodes) with CHP, GSHP, PV, solar thermal, storage and district heat/gas/electricity networks.',
     flag:        '🎓',

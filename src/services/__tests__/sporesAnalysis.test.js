@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  groupUtilisation, classifyTechs, sporeMetrics, bestRanking, powerScale, formatPower,
+  groupUtilisation, classifyTechs, sporeMetrics, bestRanking,
 } from '../sporesAnalysis.js';
 import { METRICS as ITALY_METRICS } from '../scenarioStudio/presets/lombardi2020Italy.js';
 
@@ -145,7 +145,7 @@ describe('groupUtilisation — system-wide potential', () => {
   });
 
   it('the Italy preset uses the 44 GW gas turbine potential of the paper (Table S3)', () => {
-    expect(ITALY_METRICS.groups.find(g => g.label === 'Gas turbines').potential).toBe(44e6);
+    expect(ITALY_METRICS.groups.find(g => g.label === 'Gas turbines').potential).toBe(44e3);
   });
 });
 
@@ -168,29 +168,5 @@ describe('aggregate utilisation (paper Fig 6 axes) and run labels', () => {
     expect(resolveMetrics({ plan: { metrics: 'lombardi2020Italy' } }).zones).toContain('SARD');
     const generic = resolveMetrics({ plan: {}, potentials: { energy_cap_max: { 'a::pv': 1, 'b::pv': 2, 'a::wind': 3 } } });
     expect(generic.groups.map(g => g.label)).toEqual(['pv', 'wind']);
-  });
-});
-
-describe('power display in model units', () => {
-  const kW = { units: { toMW: 1e-3 } }; // Calliope-Italy is in kW
-
-  it('formats a kW model at its real size', () => {
-    expect(formatPower(768000, kW)).toBe('768.0 MW');
-    expect(formatPower(9162000, kW)).toBe('9.2 GW');
-  });
-
-  it('scales so that value / div is in the returned unit', () => {
-    const { div, unit } = powerScale(67470000, kW);
-    expect(unit).toBe('GW');
-    expect(67470000 / div).toBeCloseTo(67.47);
-  });
-
-  it('treats results without declared units as MW, as before', () => {
-    expect(formatPower(1500, { groups: [] })).toBe('1.5 GW');
-    expect(powerScale(1500, null)).toEqual({ div: 1e3, unit: 'GW' });
-  });
-
-  it('the Italy preset declares its model unit', () => {
-    expect(ITALY_METRICS.units.toMW).toBe(1e-3);
   });
 });

@@ -9,6 +9,7 @@ import { runMemeModel, getMemeServerConfig } from '../services/memeClient';
 import { SETTINGS_EVENT } from '../services/appSettings';
 import { resolveScenario } from '../services/scenarioResolver';
 import { checkModel } from '../services/modelReadiness';
+import { modelPowerUnit, stampPowerUnit } from '../utils/modelUnits';
 import ReadinessPanel from './shared/ReadinessPanel';
 import { FiPlay, FiStopCircle, FiCheckCircle, FiAlertCircle, FiClock, FiCpu, FiZap, FiActivity, FiSettings, FiTerminal, FiTrash2, FiAlertTriangle, FiBox, FiBarChart2, FiDownload, FiEye, FiList, FiCalendar, FiChevronDown, FiChevronRight } from './ui/icons';
 import { MODELING_FRAMEWORKS, SOLVER_OPTIONS } from '../config/modelingFrameworks';
@@ -23,7 +24,7 @@ import { LuInfo } from './ui/icons';
 
 const Run = ({ onNavigate }) => {
   const {
-    models, getCurrentModel, showNotification, addCompletedJob, removeCompletedJob, completedJobs,
+    models, getCurrentModel, showNotification, addCompletedJob, removeCompletedJob, completedJobs, setModelPowerUnit,
     setActiveResultJobId, timeSeries, technologies, overrides, scenarios,
     runningJobs, addRunningJob, removeRunningJob, appendRunningJobLog, updateRunningJobStats, getRunningJob,
   } = useData();
@@ -334,7 +335,7 @@ const Run = ({ onNavigate }) => {
           id: jobId, modelName: labeledName, framework: job.framework, solver: job.solver,
           mode: job.mode || 'plan', status: result?.success === false ? 'failed' : 'completed',
           completedAt: new Date().toISOString(), duration, objective: result?.objective || null,
-          terminationCondition: result?.termination_condition || 'optimal', result: result || {}, logs: job.logs,
+          terminationCondition: result?.termination_condition || 'optimal', result: stampPowerUnit(result, job.powerUnit) || {}, logs: job.logs,
         });
         showNotification(
           result?.success === false ? `Model run failed: ${result.error}` : `Model run completed in ${duration}`,
@@ -486,6 +487,7 @@ const Run = ({ onNavigate }) => {
         framework: selectedFramework,
         solver: selectedSolver,
         mode: modelConfig.mode || 'plan',
+        powerUnit: modelPowerUnit(models.find(m => m.id === selectedModel.id) || selectedModel),
         startTime: new Date().toISOString(),
         logs: [computeBanner],
         stats: null,
@@ -822,6 +824,19 @@ const Run = ({ onNavigate }) => {
                     }))}
                   />
                 </Field>
+                {selectedModel && (
+                  <Field label="Model unit" hint="The unit this model's numbers are in. Results are always shown in MW.">
+                    <Select
+                      value={modelPowerUnit(models.find(m => m.id === selectedModel.id) || selectedModel)}
+                      onChange={v => setModelPowerUnit(selectedModel.id, v)}
+                      options={[
+                        { value: 'kW', label: 'kW', description: 'Calliope templates (Italy, UK, Cambridge)' },
+                        { value: 'MW', label: 'MW', description: 'Models built in TEMPO' },
+                        { value: 'GW', label: 'GW' },
+                      ]}
+                    />
+                  </Field>
+                )}
                 {selectedFramework === 'calliope' ? (
                   <Field label="Engine" hint={'Solver: HiGHS'}>
                     <Select

@@ -6,8 +6,7 @@ import { useMemo, useState } from 'react';
 import { FiActivity, FiBarChart2, FiDollarSign, FiFilter, FiGitMerge, FiGrid, FiLayers, FiMap, FiShare2 } from '../../ui/icons';
 import ReactECharts from 'echarts-for-react';
 import { GroupedCorrMatrixSVG, ResultsMap } from '../ResultMaps';
-import { autoScale, axisNameStyle, fmtCost, makeIsGenTech, techColor } from '../../../utils/resultFormat';
-import { formatPower, powerScale, resolveMetrics } from '../../../services/sporesAnalysis';
+import { autoScale, axisNameStyle, fmtCost, fmtPower, makeIsGenTech, techColor } from '../../../utils/resultFormat';
 import SporesPaperPanel from '../SporesPaperPanel';
 import SelectField from '../../ui/SelectField';
 
@@ -16,7 +15,6 @@ export default function SporesTab({
   modelLocations,
 }) {
               const isGenTech = useMemo(() => makeIsGenTech(result), [result]);
-              const metrics = useMemo(() => resolveMetrics(result?.spores_meta), [result]);
               const [selectedSpore, setSelectedSpore] = useState(0);
               const [sporeScatterA, setSporeScatterA] = useState(null);
               const [sporeScatterB, setSporeScatterB] = useState(null);
@@ -66,7 +64,7 @@ export default function SporesTab({
               const allTotals = sporesData.map((_, i) =>
                 activeTechs.reduce((sum, t) => sum + sporeCapByTech[i][t], 0)
               );
-              const { div: capDiv, unit: capUnit } = powerScale(Math.max(...allTotals, 1), metrics);
+              const { div: capDiv, unit: capUnit } = autoScale(Math.max(...allTotals, 1), 'MW');
               const costs = sporesData.map(s => s.cost);
               const { div: costDiv, unit: costUnit } = autoScale(Math.max(...costs.map(Math.abs), 1), '€');
 
@@ -106,7 +104,7 @@ export default function SporesTab({
               // ── Fig 2: Variability strip/dot chart (Lombardi Fig 2) ──
               // Each tech = one horizontal row; each SPORE = one dot at its capacity value.
               const allStripVals = activeTechs.flatMap(t => techTotals[t]);
-              const { div: stripDiv, unit: stripUnit } = powerScale(Math.max(...allStripVals, 1), metrics);
+              const { div: stripDiv, unit: stripUnit } = autoScale(Math.max(...allStripVals, 1), 'MW');
               // Scatter data: [x=capacity, y=tech-index, label=spore_id]
               const stripScatterData = [];
               activeTechs.forEach((tech, row) => {
@@ -144,8 +142,8 @@ export default function SporesTab({
               const scatterTechB = (sporeScatterB && activeTechs.includes(sporeScatterB) && sporeScatterB !== scatterTechA)
                 ? sporeScatterB
                 : activeTechs.find(t => t !== scatterTechA) || activeTechs[0];
-              const { div: scaDivA, unit: scaUnitA } = powerScale(Math.max(...(techTotals[scatterTechA] || [0]), 1), metrics);
-              const { div: scaDivB, unit: scaUnitB } = powerScale(Math.max(...(techTotals[scatterTechB] || [0]), 1), metrics);
+              const { div: scaDivA, unit: scaUnitA } = autoScale(Math.max(...(techTotals[scatterTechA] || [0]), 1), 'MW');
+              const { div: scaDivB, unit: scaUnitB } = autoScale(Math.max(...(techTotals[scatterTechB] || [0]), 1), 'MW');
               const pairScatterData = sporesData.map((spore, i) => ({
                 value: [
                   +((sporeCapByTech[i][scatterTechA] || 0) / scaDivA).toFixed(3),
@@ -180,7 +178,7 @@ export default function SporesTab({
                 .slice(0, 12);
               const parallelDims = parallelTechs.map((tech, i) => {
                 const vals = techTotals[tech];
-                const { div: pd, unit: pu } = powerScale(Math.max(...vals, 1), metrics);
+                const { div: pd, unit: pu } = autoScale(Math.max(...vals, 1), 'MW');
                 return { dim: i, name: tech.replace(/_/g, ' ') + ` (${pu})`, min: 0, max: +(Math.max(...vals) / pd * 1.05).toFixed(2), _div: pd };
               });
               const parallelData = sporesData.map((spore, sIdx) =>
@@ -570,8 +568,8 @@ export default function SporesTab({
                                   <span className="text-slate-700">{tech.replace(/_/g, ' ')}</span>
                                 </div>
                               </td>
-                              <td className="py-2 pr-4 text-right tabular-nums text-slate-500">{formatPower(min, metrics)}</td>
-                              <td className="py-2 pr-4 text-right tabular-nums text-slate-500">{formatPower(max, metrics)}</td>
+                              <td className="py-2 pr-4 text-right tabular-nums text-slate-500">{fmtPower(min)}</td>
+                              <td className="py-2 pr-4 text-right tabular-nums text-slate-500">{fmtPower(max)}</td>
                               <td className="py-2 pr-4 text-right tabular-nums text-slate-400 text-xs">{nonZero}/{total}</td>
                               <td className="py-2">
                                 <span className={`px-2 py-0.5 rounded text-xs font-medium ${roleChip(role)}`}>{role}</span>

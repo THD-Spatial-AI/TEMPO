@@ -6,6 +6,7 @@ import { checkCalliopeService, runCalliopeModel } from '../services/calliopeClie
 import { checkEngineRunService, runEngineModel } from '../services/engineClient';
 import { runMemeModel, getMemeServerConfig } from '../services/memeClient';
 import { engineSupportedByMeme } from '../services/memeFormat';
+import { modelPowerUnit, stampPowerUnit } from '../utils/modelUnits';
 import { applyOps } from '../services/scenarioStudio/transform.js';
 import { buildCalliope06GroupConstraintsOverride, resolveTechGroup } from '../services/scenarioStudio/utils.js';
 import { getCapabilityWarnings, engineKeyFromModel, ENGINE_LABELS, ENGINE_FRAMEWORK } from '../services/scenarioStudio/capabilities.js';
@@ -337,7 +338,7 @@ export default function ScenarioStudio({ onNavigate }) {
           solver: 'highs', mode: result?.spores_data ? 'spores' : 'plan', status: result?.success === false ? 'failed' : 'completed',
           completedAt: new Date().toISOString(), duration, objective: result?.objective || null,
           terminationCondition: result?.termination_condition || 'optimal',
-          result: result || {}, logs: job.logs, batchId, variantLabel, modelLabel,
+          result: stampPowerUnit(result, job.powerUnit) || {}, logs: job.logs, batchId, variantLabel, modelLabel,
         });
         showNotification(
           result?.success === false ? `Run failed: ${result.error}` : `Completed: ${job.displayName} (${duration})`,
@@ -404,7 +405,7 @@ export default function ScenarioStudio({ onNavigate }) {
     const displayName = `${m.name} — ${variant.label}`;
     const concreteModel = buildConcrete(m, variant, techsForRun, tsForRun);
     addRunningJob({
-      id: jobId, displayName, startTime: new Date().toISOString(), engine: selectedEngine,
+      id: jobId, displayName, startTime: new Date().toISOString(), engine: selectedEngine, powerUnit: modelPowerUnit(m),
       source: 'scenario_studio', logs: [`[TEMPO] Scenario Studio — ${displayName} [${engineLabel}]`],
     });
     const opts = {

@@ -115,6 +115,7 @@ export function sporesCount(plan) {
 // ─── Result metrics (paper Fig 2, Table 1) — config for services/sporesAnalysis.js ──
 
 export const METRICS = {
+  modelPowerUnit: 'kW', // for runs saved before results carried their unit
   zones: ['NORD', 'CNOR', 'CSUD', 'SUD', 'SARD', 'SICI'],
   foreign: ['FR', 'AT', 'CH', 'SI', 'GR'],
   // Paper's Fig 4 text says "onshore", but only this total gives its 19.5 % Sardinia share
@@ -125,7 +126,7 @@ export const METRICS = {
   overcapTechs: ['pv_farm', 'pv_farm_new', 'pv_rooftop', 'pv_rooftop_new', 'wind', 'wind_new',
                  'wind_offshore', 'phs', 'phs_new', 'battery', 'ccgt_syngas'],
   curtailmentTech: 'el_curtailment',
-  units: { power: 1e6, powerLabel: 'GW', energy: 1e6, energyLabel: 'GWh', toMW: 1e-3 }, // model is in kW / kWh
+  units: { power: 1e3, powerLabel: 'GW', energy: 1e3, energyLabel: 'GWh' }, // views get results in MW / MWh
   // Fig 2 rows; "Gas turbines" stands for the whole power-to-gas chain in the paper.
   groups: [
     { label: 'Onshore wind', techs: ['wind_new'] },
@@ -133,9 +134,9 @@ export const METRICS = {
     { label: 'PV', techs: ['pv_farm_new', 'pv_rooftop_new'] },
     { label: 'Battery', techs: ['battery'] },
     { label: 'Pumped hydro', techs: ['phs_new'] },
-    { label: 'Bioenergy', techs: ['biogas_new'], potential: 4e6 }, // energy_cap_max_systemwide
+    { label: 'Bioenergy', techs: ['biogas_new'], potential: 4e3 }, // MW; energy_cap_max_systemwide
     { label: 'International transmission', techs: ['inter_zonal_new'], ends: 'international' },
     { label: 'Inter-zone transmission', techs: ['inter_zonal_new'], ends: 'zonal' },
-    { label: 'Gas turbines', techs: ['ccgt_syngas'], potential: 44e6 }, // existing fleet (Supplement Table S3)
+    { label: 'Gas turbines', techs: ['ccgt_syngas'], potential: 44e3 }, // MW; existing fleet (Supplement Table S3)
   ],
 };

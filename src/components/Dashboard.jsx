@@ -11,6 +11,7 @@ import { TsViewControls, Panel, KpiCard, InputMap } from './dashboard/DashboardW
 import TechCategoryBreakdown from './dashboard/TechCategoryBreakdown';
 import useModelReadiness from '../hooks/useModelReadiness';
 import ReadinessPanel from './shared/ReadinessPanel';
+import { POWER_UNITS, modelPowerUnit } from '../utils/modelUnits';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const fmtNum = (v, dec = 1) => {
@@ -64,14 +65,14 @@ const MONTH_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct
 const DAY_MONTH_START = [0,31,59,90,120,151,181,212,243,273,304,334];
 
 // ── Build TS charts for any time-series object ────────────────────────────
-function buildTsCharts(ts, lineColor = '#6b7280', heatColors = ['#f3f4f6','#d1d5db','#6b7280','#374151','#111827'], locs = null) {
+function buildTsCharts(ts, lineColor = '#6b7280', heatColors = ['#f3f4f6','#d1d5db','#6b7280','#374151','#111827'], locs = null, toMW = 1) {
   if (!ts?.data?.length || !ts.dataColumns?.length) return null;
   const activeCols = locs?.length > 0 ? ts.dataColumns.filter(c => locs.includes(c)) : ts.dataColumns;
   if (!activeCols.length) return null;
   const agg = ts.data.map(row => {
     let s = 0, n = 0;
     activeCols.forEach(c => { const v = parseFloat(row[c]); if (!isNaN(v)) { s += v; n++; } });
-    return n ? Math.abs(s) : 0;
+    return n ? Math.abs(s) * toMW : 0;
   });
   const maxAll = Math.max(...agg);
   if (!maxAll) return null;
@@ -106,7 +107,7 @@ function buildTsCharts(ts, lineColor = '#6b7280', heatColors = ['#f3f4f6','#d1d5
 }
 
 // ── Interactive filtered chart builder ───────────────────────────────────────
-function buildFilteredChart(ts, opts, lineColor = '#6b7280') {
+function buildFilteredChart(ts, opts, lineColor = '#6b7280', toMW = 1) {
   if (!ts?.data?.length || !ts.dataColumns?.length) return null;
   const cols = opts?.locs?.length > 0 ? ts.dataColumns.filter(c => opts.locs.includes(c)) : ts.dataColumns;
   if (!cols.length) return null;
@@ -131,7 +132,7 @@ function buildFilteredChart(ts, opts, lineColor = '#6b7280') {
     rows = ts.data.slice(0, 336);
   }
   if (!rows.length) return null;
-  let agg = rows.map(row => { let s = 0; cols.forEach(c => { const v = parseFloat(row[c]); if (!isNaN(v)) s += v; }); return Math.abs(s); });
+  let agg = rows.map(row => { let s = 0; cols.forEach(c => { const v = parseFloat(row[c]); if (!isNaN(v)) s += v; }); return Math.abs(s) * toMW; });
   let labels = rows.map(r => (r[ts.dateColumn] || '').toString().slice(0, 16));
   if (opts?.resolution === 'daily') {
     const out = [], outL = [];
@@ -179,6 +180,7 @@ const Dashboard = ({ onNavigate }) => {
   const readiness = useModelReadiness();
   const issueCount = readiness ? readiness.errors.length + readiness.warnings.length : 0;
   const currentModel = getCurrentModel();
+  const toMW = POWER_UNITS[modelPowerUnit(currentModel)] ?? 1;
   const [activeTab, setActiveTab] = useState('overview');
   const [tsLoading, setTsLoading] = useState(false);
   const [genTsActiveIdx, setGenTsActiveIdx] = useState(0);
@@ -267,9 +269,9 @@ const Dashboard = ({ onNavigate }) => {
 
         if (parent === 'demand') { hasDemand = true; }
         else {
-          capByTech[id] = (capByTech[id] || 0) + cap;
-          capByLoc[loc.name] = (capByLoc[loc.name] || 0) + cap;
-          locByTech[loc.name][id] = (locByTech[loc.name][id] || 0) + cap;
+          capByTech[id] = (capByTech[id] || 0) + cap * toMW;
+          capByLoc[loc.name] = (capByLoc[loc.name] || 0) + cap * toMW;
+          locByTech[loc.name][id] = (locByTech[loc.name][id] || 0) + cap * toMW;
           costByTech[id] = (costByTech[id] || 0) + capex * cap;
           omByTech[id] = (omByTech[id] || 0) + om;
         }
@@ -284,7 +286,7 @@ const Dashboard = ({ onNavigate }) => {
 
     return { capByTech, capByLoc, locByTech, costByTech, omByTech, techsPerLoc,
       byParent, allTechIds, totalCap, totalCapex, totalOpex, demandLocations };
-  }, [locations, links, techMap, getTechParent]); // eslint-disable-line
+  }, [locations, links, techMap, getTechParent, toMW]); // eslint-disable-line
 
   // ── Time-series helpers ──────────────────────────────────────────────────
   // Include both template-fetched and calliope_yaml-imported TS files.
@@ -701,12 +703,12 @@ const Dashboard = ({ onNavigate }) => {
 
             const charts = demandTs
               ? buildTsCharts(demandTs, '#6b7280', ['#f3f4f6','#d1d5db','#9ca3af','#4b5563','#1f2937'],
-                  demandViewOpts.locs?.length > 0 ? demandViewOpts.locs : null)
+                  demandViewOpts.locs?.length > 0 ? demandViewOpts.locs : null, toMW)
               : null;
-            const filteredDemandChart = demandTs ? buildFilteredChart(demandTs, demandViewOpts, '#6b7280') : null;
+            const filteredDemandChart = demandTs ? buildFilteredChart(demandTs, demandViewOpts, '#6b7280', toMW) : null;
 
             const totalMWh = demandTs
-              ? Object.values(demandTs.statistics || {}).reduce((s, st) => s + Math.abs(st?.sum || 0), 0)
+              ? Object.values(demandTs.statistics || {}).reduce((s, st) => s + Math.abs(st?.sum || 0), 0) * toMW
               : 0;
             const { div: mwhDiv, unit: mwhUnit } = autoScale(totalMWh || 1, 'MW');
 
