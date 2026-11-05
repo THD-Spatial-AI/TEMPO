@@ -30,6 +30,7 @@ function endsMatch(pt, ends, metrics) {
 }
 
 import { METRICS as ITALY_METRICS } from './scenarioStudio/presets/lombardi2020Italy.js';
+import { autoScale, fmtPower } from '../utils/resultFormat.js';
 
 const METRICS_PRESETS = { lombardi2020Italy: ITALY_METRICS };
 
@@ -40,6 +41,19 @@ export function resolveMetrics(meta) {
   if (preset) return preset;
   const techs = [...new Set(Object.keys(meta?.potentials?.energy_cap_max || {}).map(k => parseLocTech(k).tech))].sort();
   return { groups: techs.map(t => ({ label: t, techs: [t] })) };
+}
+
+// Models declare their unit in metrics.units.toMW; without it, values are taken as MW.
+const toMW = (metrics) => metrics?.units?.toMW ?? 1;
+
+/** Power in model units → text at its real size. */
+export const formatPower = (value, metrics) => fmtPower(value * toMW(metrics));
+
+/** Display scale for powers in model units: value / div is in `unit`. */
+export function powerScale(maxValue, metrics) {
+  const k = toMW(metrics);
+  const { div, unit } = autoScale(maxValue * k, 'MW');
+  return { div: div / k, unit };
 }
 
 /** '2050 · High P2G costs · SPORES 10%' → { year, case, slack } (Scenario Studio run labels). */

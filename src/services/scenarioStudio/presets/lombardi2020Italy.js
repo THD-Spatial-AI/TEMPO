@@ -125,7 +125,7 @@ export const METRICS = {
   overcapTechs: ['pv_farm', 'pv_farm_new', 'pv_rooftop', 'pv_rooftop_new', 'wind', 'wind_new',
                  'wind_offshore', 'phs', 'phs_new', 'battery', 'ccgt_syngas'],
   curtailmentTech: 'el_curtailment',
-  units: { power: 1e6, powerLabel: 'GW', energy: 1e6, energyLabel: 'GWh' }, // model is in kW / kWh
+  units: { power: 1e6, powerLabel: 'GW', energy: 1e6, energyLabel: 'GWh', toMW: 1e-3 }, // model is in kW / kWh
   // Fig 2 rows; "Gas turbines" stands for the whole power-to-gas chain in the paper.
   groups: [
     { label: 'Onshore wind', techs: ['wind_new'] },
