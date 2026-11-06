@@ -255,6 +255,14 @@ export function defaultPvOrientation(lat) {
   return { tilt: Math.round(Math.min(60, Math.abs(lat) * 0.76 + 3.1)), azimuth: lat < 0 ? 0 : 180 };
 }
 
+/**
+ * Recipe key of one PV point (R8): a result or stored stat is current only while
+ * this key is unchanged. `settings` must be built the same way on both sides.
+ */
+export function pvPointKey(settings, lat, lon, tilt, azimuth) {
+  return JSON.stringify([settings, lat, lon, tilt, azimuth]);
+}
+
 /** One unique, CSV-safe column id per location name (D4: one column per point). */
 export function pointColumnIds(names) {
   const used = new Set(['datetime']); // the CSV's date column

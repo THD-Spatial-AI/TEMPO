@@ -5,8 +5,9 @@
  * Open-Meteo ERA5 + pvlib). URL from Electron (`getServiceURLs().renewables`),
  * never hard-coded. Every call degrades to `{ ok:false, error }` / null.
  *
- *   POST /pv          → { job_id }
- *   GET  /jobs/{id}   → { state, done, total, message, error, result }
+ *   POST /pv                    → { job_id }
+ *   POST /optimise-orientation  → { job_id }
+ *   GET  /jobs/{id}             → { state, done, total, message, error, result }
  */
 const bridge = () => (typeof window !== 'undefined' ? window.electronAPI : null);
 
@@ -63,16 +64,17 @@ async function errorText(res) {
 }
 
 /**
- * Run a PV job and poll it to the end. `onProgress` gets each job status.
+ * Start a service job (`POST <path>`) and poll it to the end. `onProgress` gets each job status.
+ * `what` names the job in the failure / timeout texts.
  * Aborting `signal` stops polling (the service job itself runs on) → `{ok:false, error:'cancelled'}`.
  * @returns {Promise<{ok:true, result:object}|{ok:false, error:string}>}
  */
-export async function computePv(payload, onProgress, { intervalMs = 1000, timeoutMs = 3_600_000, signal } = {}) {
+async function runJob(path, payload, onProgress, { intervalMs = 1000, timeoutMs = 3_600_000, signal } = {}, what) {
   const cancelled = { ok: false, error: 'cancelled' };
   const base = await getRenewablesURL();
   if (!base) return { ok: false, error: 'renewables service not running' };
   try {
-    const res = await fetch(`${base}/pv`, {
+    const res = await fetch(`${base}${path}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload ?? {}),
     });
     if (!res.ok) return { ok: false, error: await errorText(res) };
@@ -85,8 +87,8 @@ export async function computePv(payload, onProgress, { intervalMs = 1000, timeou
       const body = await st.json();
       onProgress?.(body);
       if (body.state === 'done') return { ok: true, result: body.result };
-      if (body.state === 'error') return { ok: false, error: body.error || 'PV calculation failed' };
-      if (Date.now() >= deadline) return { ok: false, error: 'timed out waiting for the PV calculation' };
+      if (body.state === 'error') return { ok: false, error: body.error || `${what} failed` };
+      if (Date.now() >= deadline) return { ok: false, error: `timed out waiting for the ${what}` };
       if (signal?.aborted) return cancelled;
       await new Promise(r => {
         const done = () => { clearTimeout(t); signal?.removeEventListener('abort', done); r(); };
@@ -98,3 +100,11 @@ export async function computePv(payload, onProgress, { intervalMs = 1000, timeou
     return { ok: false, error: err?.message || String(err) };
   }
 }
+
+/** Run a PV profile job (POST /pv) and poll it to the end. */
+export const computePv = (payload, onProgress, opts = {}) =>
+  runJob('/pv', payload, onProgress, opts, 'PV calculation');
+
+/** Optimise tilt/azimuth per point (POST /optimise-orientation) and poll it to the end. */
+export const optimiseOrientation = (payload, onProgress, opts = {}) =>
+  runJob('/optimise-orientation', payload, onProgress, opts, 'orientation optimisation');

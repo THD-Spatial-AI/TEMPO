@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { getRenewablesURL, checkRenewables, computePv } from '../renewablesClient';
+import { getRenewablesURL, checkRenewables, computePv, optimiseOrientation } from '../renewablesClient';
 
 const json = (body, status = 200) => ({ ok: status < 400, status, json: async () => body });
 
@@ -68,6 +68,16 @@ describe('renewablesClient', () => {
     setTimeout(() => mid.abort(), 20);
     expect(await computePv({}, null, { intervalMs: 60_000, signal: mid.signal })).toEqual({ ok: false, error: 'cancelled' });
     expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('optimiseOrientation posts to /optimise-orientation and polls the job', async () => {
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce(json({ job_id: 'o1' }))
+      .mockResolvedValueOnce(json({ state: 'done', result: { a: { tilt: 30, azimuth: 0, gain_pct: 12 } } }));
+    const res = await optimiseOrientation({ points: [], year: 2023, period: 'year' }, null, { intervalMs: 0 });
+    expect(res).toEqual({ ok: true, result: { a: { tilt: 30, azimuth: 0, gain_pct: 12 } } });
+    expect(fetch.mock.calls[0][0]).toBe('http://localhost:5005/optimise-orientation');
+    expect(fetch.mock.calls[1][0]).toBe('http://localhost:5005/jobs/o1');
   });
 
   it('fails cleanly when the service is not running', async () => {

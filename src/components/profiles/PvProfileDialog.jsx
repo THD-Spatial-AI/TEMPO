@@ -2,33 +2,25 @@
 // profile per location point from Open-Meteo ERA5 weather with pvlib (local
 // renewables service) and applies it as one CSV column per point. The recipe
 // lives only in the applied entry's profileSource (R1); only points whose
-// key changed are recalculated (R8).
+// key changed are recalculated (R8). Optimise only sets tilt/azimuth (O5).
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useData } from '../../context/DataContext';
 import {
-  PROFILE_KIND_LABEL,
-  applyProfileToLocations,
-  buildProfileTimeSeries,
-  canApplyProfile,
-  defaultPvOrientation,
-  modelCalendar,
-  pointColumnIds,
-  profileFileName,
-  restampToModelCalendar,
+  PROFILE_KIND_LABEL, applyProfileToLocations, buildProfileTimeSeries, canApplyProfile, defaultPvOrientation,
+  modelCalendar, pointColumnIds, profileFileName, pvPointKey, restampToModelCalendar,
 } from '../../services/techProfiles';
 import {
-  checkRenewables, computePv, installRenewables, onRenewablesInstallProgress, startRenewables,
+  checkRenewables, computePv, installRenewables, onRenewablesInstallProgress, optimiseOrientation, startRenewables,
 } from '../../services/renewablesClient';
 import ProfileDialogFrame from './ProfileDialogFrame';
 import ProfileChart from './ProfileChart';
 import PointsMap from './PointsMap';
-import PvPointsTable, { NumberField } from './PvPointsTable';
+import PvPointsTable from './PvPointsTable';
+import PvSettingsRow, { LAST_FULL_YEAR } from './PvSettingsRow';
+import OptimisePanel from './OptimisePanel';
 
 const PROVIDER = 'open-meteo+pvlib';
-const LAST_FULL_YEAR = new Date().getFullYear() - 1;
-const YEARS = Array.from({ length: LAST_FULL_YEAR - 2000 + 1 }, (_, i) => LAST_FULL_YEAR - i);
 const BTN = 'px-3 py-1.5 text-xs font-medium bg-black text-white hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed';
-const SELECT_CLS = 'border border-slate-300 bg-white px-1.5 py-0.5 text-xs disabled:bg-slate-100 disabled:text-slate-400';
 
 const defaultSettings = (techName) => ({
   weatherYear: LAST_FULL_YEAR,
@@ -40,7 +32,8 @@ const defaultSettings = (techName) => ({
 
 const coord = (v) => (v === '' || v == null ? NaN : Number(v));
 const svcState = (s) => (s.running ? 'running' : s.installed ? 'stopped' : 'missing');
-const pct = (x) => Number((x * 100).toFixed(4));
+const periodLabel = (period, months) => ({ year: 'the whole year', summer: 'summer', winter: 'winter' }[period]
+  || `months ${months.join(', ')}`);
 
 export default function PvProfileDialog({ onClose, techName, parent, focusLocation, onApplied }) {
   const { locations, timeSeries, setLocations, setTimeSeries, currentModelId, getCurrentModel, showNotification } = useData();
@@ -50,7 +43,9 @@ export default function PvProfileDialog({ onClose, techName, parent, focusLocati
   );
   const stored = entry?.profileSource?.provider === PROVIDER ? entry.profileSource : null;
 
-  const [settings, setSettings] = useState(() => ({ ...defaultSettings(techName), ...(stored?.settings || {}) }));
+  // The stored recipe's settings, merged exactly as the initial dialog settings are.
+  const storedSettings = useMemo(() => ({ ...defaultSettings(techName), ...(stored?.settings || {}) }), [techName, stored]);
+  const [settings, setSettings] = useState(storedSettings);
   const [orient, setOrient] = useState({}); // user edits only; else stored, else default
   const [results, setResults] = useState({}); // name → { key, cf, mean_cf, annual_kwh_per_kwp }
   const [selected, setSelected] = useState(focusLocation || null);
@@ -58,7 +53,8 @@ export default function PvProfileDialog({ onClose, techName, parent, focusLocati
   const [busy, setBusy] = useState(null); // install | start
   const [svcMsg, setSvcMsg] = useState('');
   const [job, setJob] = useState(null); // { message, done, total } while a calculation runs
-  const [jobError, setJobError] = useState(null);
+  const [jobError, setJobError] = useState(null); // full message (calculation or optimisation)
+  const [optInfo, setOptInfo] = useState(null); // last optimisation summary, cleared on Calculate
   const [applyError, setApplyError] = useState(null);
   const alive = useRef(true);
   const jobAbort = useRef(null); // AbortController of the running calculation
@@ -99,7 +95,7 @@ export default function PvProfileDialog({ onClose, techName, parent, focusLocati
   };
   const pointKey = (p) => {
     const o = orientOf(p);
-    return JSON.stringify([settings, p.lat, p.lon, o.tilt, o.azimuth]);
+    return pvPointKey(settings, p.lat, p.lon, o.tilt, o.azimuth);
   };
   const isCurrent = (p) => results[p.name]?.key === pointKey(p);
   const changed = points.filter(p => !isCurrent(p));
@@ -147,24 +143,33 @@ export default function PvProfileDialog({ onClose, techName, parent, focusLocati
     await recheck();
   };
 
-  const handleCalculate = async () => {
-    const todo = changed.map(p => ({ p, o: orientOf(p), key: pointKey(p) }));
+  // One service job at a time: progress into `job`, aborted on unmount. Resolves
+  // null when cancelled or unmounted (the caller then does nothing).
+  const track = async (run, payload) => {
     setJobError(null);
     setJob({ message: 'Starting…', done: 0, total: 0 });
     const ac = new AbortController();
     jobAbort.current = ac;
-    const res = await computePv({
+    const res = await run(payload, st => { if (alive.current) setJob({ message: st.message, done: st.done, total: st.total }); }, { signal: ac.signal });
+    if (jobAbort.current === ac) jobAbort.current = null;
+    if (!alive.current || res.error === 'cancelled') return null;
+    setJob(null);
+    return res;
+  };
+
+  const handleCalculate = async () => {
+    const todo = changed.map(p => ({ p, o: orientOf(p), key: pointKey(p) }));
+    setOptInfo(null);
+    const res = await track(computePv, {
       points: todo.map(({ p, o }) => ({ id: p.name, lat: p.lat, lon: p.lon, tilt: o.tilt, azimuth: o.azimuth })),
       year: settings.weatherYear,
       tracking: settings.tracking,
       losses: settings.losses,
       dc_ac: settings.dcAc,
       temp_coeff: settings.tempCoeff,
-    }, st => { if (alive.current) setJob({ message: st.message, done: st.done, total: st.total }); }, { signal: ac.signal });
-    if (jobAbort.current === ac) jobAbort.current = null;
-    if (!alive.current || res.error === 'cancelled') return;
-    setJob(null);
-    if (!res.ok) { setJobError(res.error); return; }
+    });
+    if (!res) return;
+    if (!res.ok) { setJobError(`PV calculation failed: ${res.error}`); return; }
     setResults(prev => {
       const next = { ...prev };
       todo.forEach(({ p, key }) => {
@@ -173,6 +178,25 @@ export default function PvProfileDialog({ onClose, techName, parent, focusLocati
       });
       return next;
     });
+  };
+
+  const handleOptimise = async (period, months) => {
+    setOptInfo(null);
+    const names = new Set(points.map(p => p.name));
+    const res = await track(optimiseOrientation, {
+      points: points.map(p => ({ id: p.name, lat: p.lat, lon: p.lon, ...orientOf(p) })),
+      year: settings.weatherYear,
+      period,
+      months,
+    });
+    if (!res) return;
+    if (!res.ok) { setJobError(`Orientation optimisation failed: ${res.error}`); return; }
+    const found = Object.entries(res.result || {})
+      .filter(([n, r]) => names.has(n) && Number.isFinite(r?.tilt) && Number.isFinite(r?.azimuth));
+    setOrient(prev => ({ ...prev, ...Object.fromEntries(found.map(([n, r]) => [n, { tilt: r.tilt, azimuth: r.azimuth }])) }));
+    const gain = found.length ? found.reduce((a, [, r]) => a + (Number(r.gain_pct) || 0), 0) / found.length : 0;
+    setOptInfo(`Optimised ${found.length} point${found.length === 1 ? '' : 's'} for ${periodLabel(period, months)} · mean gain `
+      + `${gain >= 0 ? '+' : ''}${gain.toFixed(1)}% (plane-of-array). Recalculate to update the profiles.`);
   };
 
   const handleApply = () => {
@@ -224,16 +248,18 @@ export default function PvProfileDialog({ onClose, techName, parent, focusLocati
   const statsOf = (p) => {
     if (isCurrent(p)) return { status: 'current', stats: { meanCf: results[p.name].mean_cf, annualKwhPerKwp: results[p.name].annual_kwh_per_kwp } };
     const sp = stored?.points?.[p.name];
-    if (sp?.meanCf != null || sp?.annualKwhPerKwp != null) return { status: 'stored', stats: { meanCf: sp.meanCf, annualKwhPerKwp: sp.annualKwhPerKwp } };
+    // Stored stats only while they belong to the current recipe (O5).
+    if ((sp?.meanCf != null || sp?.annualKwhPerKwp != null)
+      && pvPointKey(storedSettings, sp.lat, sp.lon, sp.tilt, sp.azimuth) === pointKey(p)) return { status: 'stored', stats: { meanCf: sp.meanCf, annualKwhPerKwp: sp.annualKwhPerKwp } };
     return { status: null, stats: null };
   };
   const rows = points.map(p => ({ name: p.name, ...orientOf(p), ...statsOf(p) }));
   const selStats = selPoint ? statsOf(selPoint) : null;
   const running = !!job;
-  const setSetting = (patch) => setSettings(s => ({ ...s, ...patch }));
-  const field = (label, control) => (
-    <label className="flex flex-col gap-1 text-[11px] text-slate-500">{label}{control}</label>
-  );
+  const optimiseBlock = settings.tracking === 'single_axis' ? 'Single-axis trackers follow the sun; orientation is not optimised'
+    : running ? 'A calculation is running'
+      : svc !== 'running' ? 'Start the renewables service first'
+        : points.length === 0 ? 'No point has coordinates' : null;
 
   return (
     <ProfileDialogFrame title={PROFILE_KIND_LABEL.pv} subtitle={techName} onClose={onClose} onApply={handleApply} canApply={canApply}>
@@ -272,6 +298,8 @@ export default function PvProfileDialog({ onClose, techName, parent, focusLocati
         )}
         {svcMsg && <p className="text-[11px] text-slate-500 truncate" title={svcMsg}>{svcMsg}</p>}
 
+        {points.length > 0 && <OptimisePanel disabled={!!optimiseBlock} disabledReason={optimiseBlock} onOptimise={handleOptimise} />}
+        {optInfo && notice(optInfo)}
         {points.length > 0 && (
           <div className="flex items-center gap-3">
             <button type="button" onClick={handleCalculate} disabled={running || svc !== 'running' || changed.length === 0} className={BTN}>
@@ -285,38 +313,12 @@ export default function PvProfileDialog({ onClose, techName, parent, focusLocati
             )}
           </div>
         )}
-        {jobError && notice(`PV calculation failed: ${jobError}`, 'amber')}
+        {jobError && notice(jobError, 'amber')}
       </div>
 
       {/* Settings + summary + chart */}
       <div className="flex-1 min-w-0 overflow-y-auto p-6 space-y-4">
-        <div className="flex flex-wrap gap-4">
-          {field('Weather year', (
-            <select value={settings.weatherYear} disabled={running} className={SELECT_CLS}
-              onChange={e => setSetting({ weatherYear: Number(e.target.value) })}>
-              {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-            </select>
-          ))}
-          {field('Tracking', (
-            <select value={settings.tracking} disabled={running} className={SELECT_CLS}
-              onChange={e => setSetting({ tracking: e.target.value })}>
-              <option value="fixed">Fixed</option>
-              <option value="single_axis">Single-axis</option>
-            </select>
-          ))}
-          {field('System losses % (excl. inverter)', (
-            <NumberField value={pct(settings.losses)} min={0} max={50} step={0.5} disabled={running}
-              onChange={v => setSetting({ losses: v / 100 })} />
-          ))}
-          {field('DC/AC ratio', (
-            <NumberField value={settings.dcAc} min={0.5} max={2} step={0.05} disabled={running}
-              onChange={v => setSetting({ dcAc: v })} />
-          ))}
-          {field('Temp. coefficient %/K', (
-            <NumberField value={pct(settings.tempCoeff)} min={-1} max={0} step={0.01} disabled={running}
-              onChange={v => setSetting({ tempCoeff: v / 100 })} />
-          ))}
-        </div>
+        <PvSettingsRow settings={settings} onChange={patch => setSettings(st => ({ ...st, ...patch }))} disabled={running} />
 
         {!applicable && notice(
           `Profiles can only be applied to supply / supply_plus technologies (this one: ${parent || 'unknown'}). Shown for reference.`,

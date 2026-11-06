@@ -4,7 +4,7 @@ import {
   classifyProfileKind, pickProfile, restampToModelCalendar,
   buildProfileTimeSeries, applyProfileToLocations, profileStaleness, canApplyProfile,
   modelCalendar, profileFileName, profileColumnId, PROFILE_KIND_LABEL,
-  defaultPvOrientation, pointColumnIds,
+  defaultPvOrientation, pointColumnIds, pvPointKey,
 } from '../techProfiles';
 
 describe('classifyProfileKind', () => {
@@ -312,6 +312,17 @@ describe('defaultPvOrientation', () => {
     expect(defaultPvOrientation(48.8)).toEqual({ tilt: 40, azimuth: 180 });
     expect(defaultPvOrientation(0)).toEqual({ tilt: 3, azimuth: 180 });
     expect(defaultPvOrientation(80).tilt).toBe(60);
+  });
+});
+
+describe('pvPointKey', () => {
+  const s = { weatherYear: 2023, tracking: 'fixed', losses: 0.1, dcAc: 1.2, tempCoeff: -0.004 };
+  it('is equal for the same recipe and differs when any part changes', () => {
+    expect(pvPointKey({ ...s }, -33.4, -70.6, 28, 0)).toBe(pvPointKey(s, -33.4, -70.6, 28, 0));
+    expect(pvPointKey(s, -33.4, -70.6, 29, 0)).not.toBe(pvPointKey(s, -33.4, -70.6, 28, 0));
+    expect(pvPointKey(s, -33.4, -70.6, 28, 10)).not.toBe(pvPointKey(s, -33.4, -70.6, 28, 0));
+    expect(pvPointKey(s, -30, -70.6, 28, 0)).not.toBe(pvPointKey(s, -33.4, -70.6, 28, 0));
+    expect(pvPointKey({ ...s, weatherYear: 2022 }, -33.4, -70.6, 28, 0)).not.toBe(pvPointKey(s, -33.4, -70.6, 28, 0));
   });
 });
 

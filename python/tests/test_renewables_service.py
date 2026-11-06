@@ -97,3 +97,43 @@ def test_old_finished_jobs_are_evicted(client):
     assert len(mod._jobs) <= mod.MAX_JOBS
     assert "old0" not in mod._jobs and job["job_id"] in mod._jobs
     wait_job(client, job["job_id"])
+
+
+def test_optimise_job_returns_orientation_per_point(client):
+    north = {**POINT, "id": "north", "lat": 48.85, "lon": 2.35, "azimuth": 180}
+    job = client.post("/optimise-orientation", json={"points": [POINT, north], "year": 2023, "period": "year"}).json()
+    body = wait_job(client, job["job_id"])
+    assert body["state"] == "done", body
+    for pid in ("santiago", "north"):
+        r = body["result"][pid]
+        assert set(r) == {"tilt", "azimuth", "gain_pct"}
+        assert 0 <= r["tilt"] <= 90 and 0 <= r["azimuth"] < 360
+
+
+def test_optimise_rejects_bad_custom_months(client):
+    for months in ([], [13], [0]):
+        r = client.post("/optimise-orientation",
+                        json={"points": [POINT], "year": 2023, "period": "custom", "months": months})
+        assert r.status_code == 422, months
+
+
+def test_optimise_rejects_unknown_period(client):
+    r = client.post("/optimise-orientation", json={"points": [POINT], "year": 2023, "period": "spring"})
+    assert r.status_code == 422
+
+
+def test_run_cells_reports_point_progress(client):
+    import renewables_service as mod
+    from renewables_service import PvPoint
+    seen = []
+    mod._jobs["j"] = {"state": "running", "done": 0, "total": 0, "message": None, "error": None, "result": None}
+
+    def per_point(weather, p):
+        seen.append(mod._jobs["j"]["message"])
+        return {}
+
+    pts = [PvPoint(**POINT), PvPoint(**{**POINT, "id": "b", "lat": -33.40})]
+    mod._run_cells("j", pts, 2023, per_point)
+    assert mod._jobs["j"]["state"] == "done"
+    assert seen == ["Weather 1/1", "Point 1/2"]
+    assert mod._jobs["j"]["message"] is None
