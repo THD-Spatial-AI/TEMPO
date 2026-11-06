@@ -1,5 +1,6 @@
 // Compact "Resource profile" status block for a technology: kind badge, whether
-// a profile is applied / stale, and a button that opens the ProfileDialog.
+// a profile is applied / stale, and a button that opens the ProfileDialog
+// (PvProfileDialog for PV).
 import React, { Suspense, lazy, useMemo, useState } from 'react';
 import { useData } from '../../context/DataContext';
 import {
@@ -7,6 +8,7 @@ import {
 } from '../../services/techProfiles';
 
 const ProfileDialog = lazy(() => import('./ProfileDialog'));
+const PvProfileDialog = lazy(() => import('./PvProfileDialog'));
 
 export default function ResourceProfileSection({ techName, techUuid, parent, focusLocation, onProfileApplied }) {
   const { timeSeries, locations, getCurrentModel } = useData();
@@ -24,6 +26,7 @@ export default function ResourceProfileSection({ techName, techUuid, parent, foc
   );
   if (!kind) return null;
   const status = !entry ? 'Not set' : stale ? 'Out of date' : 'Applied';
+  const Dialog = kind === 'pv' ? PvProfileDialog : ProfileDialog;
   const statusCls = !entry ? 'text-slate-500' : stale ? 'text-amber-600' : 'text-emerald-700';
 
   return (
@@ -44,7 +47,7 @@ export default function ResourceProfileSection({ techName, techUuid, parent, foc
       </button>
       {open && (
         <Suspense fallback={null}>
-          <ProfileDialog
+          <Dialog
             onClose={() => setOpen(false)}
             techName={techName}
             techUuid={techUuid}

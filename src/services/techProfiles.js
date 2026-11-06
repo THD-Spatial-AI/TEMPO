@@ -226,7 +226,7 @@ export function applyProfileToLocations(locations, { techName, fileName, colByLo
  */
 export function profileStaleness(entry, { modelConfig, locations, techName }) {
   const src = entry?.profileSource;
-  if (!src) return { stale: false, reasons: [], missing: [], removed: [] };
+  if (!src) return { stale: false, reasons: [], missing: [], removed: [], moved: [] };
   const reasons = [];
   const cal = src.calendar || {};
   const mc = modelConfig || {};
@@ -239,5 +239,30 @@ export function profileStaleness(entry, { modelConfig, locations, techName }) {
   const removed = Object.keys(pts).filter(n => !hosting.includes(n));
   if (missing.length) reasons.push('missing');
   if (removed.length) reasons.push('removed');
-  return { stale: reasons.length > 0, reasons, missing, removed };
+  // ~10 m: a point whose location moved needs recalculating (weather-based profiles).
+  const moved = hosting.filter(n => {
+    const p = pts[n];
+    const loc = locations.find(l => l.name === n);
+    return p && p.lat != null && p.lon != null
+      && (Math.abs(p.lat - loc.latitude) > 1e-4 || Math.abs(p.lon - loc.longitude) > 1e-4);
+  });
+  if (moved.length) reasons.push('moved');
+  return { stale: reasons.length > 0, reasons, missing, removed, moved };
+}
+
+/** Equator-facing default orientation (compass azimuth: 0 = N, 180 = S). */
+export function defaultPvOrientation(lat) {
+  return { tilt: Math.round(Math.min(60, Math.abs(lat) * 0.76 + 3.1)), azimuth: lat < 0 ? 0 : 180 };
+}
+
+/** One unique, CSV-safe column id per location name (D4: one column per point). */
+export function pointColumnIds(names) {
+  const used = new Set(['datetime']); // the CSV's date column
+  return Object.fromEntries(names.map(n => {
+    const base = profileColumnId(n) || 'point';
+    let col = base;
+    for (let i = 2; used.has(col); i++) col = `${base}_${i}`;
+    used.add(col);
+    return [n, col];
+  }));
 }

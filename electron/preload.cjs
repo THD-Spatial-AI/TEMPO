@@ -394,6 +394,36 @@ contextBridge.exposeInMainWorld('electronAPI', {
    * @returns Promise<{ running: bool }>
    */
   restartDemandService: () => ipcRenderer.invoke('demand:restart-service'),
+
+  // ── Renewables profiles (PV from Open-Meteo + pvlib) ───────────────────────
+
+  /**
+   * Engine-service check for the renewables venv.
+   * @returns Promise<{ envExists: bool, venvPath: string|null, serviceRunning: bool, serviceLayerOk: bool, platform: string }>
+   */
+  checkRenewables: () => ipcRenderer.invoke('renewables:check'),
+
+  /**
+   * Install the renewables venv. Streams via onRenewablesInstallProgress.
+   * @returns Promise<{ success: bool, error?: string }>
+   */
+  installRenewables: () => ipcRenderer.invoke('renewables:install'),
+
+  /**
+   * Subscribe to renewables install progress events.
+   * @returns {Function} unsubscribe
+   */
+  onRenewablesInstallProgress: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('renewables:install-progress', handler);
+    return () => ipcRenderer.removeListener('renewables:install-progress', handler);
+  },
+
+  /**
+   * (Re)start the local renewables service.
+   * @returns Promise<{ running: bool }>
+   */
+  restartRenewablesService: () => ipcRenderer.invoke('renewables:restart-service'),
 });
 
 

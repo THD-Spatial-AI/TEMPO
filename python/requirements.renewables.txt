@@ -1,0 +1,6 @@
+# renewables-venv — PV (and later wind) resource profiles from Open-Meteo ERA5.
+-r requirements.service.txt
+pvlib>=0.11
+pandas>=2.0
+numpy
+requests

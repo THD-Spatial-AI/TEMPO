@@ -23,6 +23,7 @@ let CALLIOPE07_PORT = 5002;   // may be reassigned at startup if port is taken
 let PYPSA_PORT      = 5003;   // may be reassigned at startup if port is taken
 let OSEMOSYS_PORT   = 5004;   // may be reassigned at startup if port is taken
 let DEMAND_PORT     = 5006;   // may be reassigned at startup if port is taken
+let RENEWABLES_PORT = 5005;   // may be reassigned at startup if port is taken
 let GEOSERVER_PORT  = 8081;   // may be reassigned at startup if port is taken
 let POSTGIS_PORT    = 5432;   // may be reassigned at startup if port is taken
 const IS_WIN        = process.platform === 'win32';
@@ -30,7 +31,7 @@ const IS_LINUX      = process.platform === 'linux';
 
 // Ports already spoken for, so a service moved off a taken port never lands on
 // another service's default.
-const claimedPorts = new Set([BACKEND_PORT, CALLIOPE_PORT, ADOPTNET0_PORT, CALLIOPE07_PORT, PYPSA_PORT, OSEMOSYS_PORT, DEMAND_PORT, GEOSERVER_PORT, POSTGIS_PORT]);
+const claimedPorts = new Set([BACKEND_PORT, CALLIOPE_PORT, ADOPTNET0_PORT, CALLIOPE07_PORT, PYPSA_PORT, OSEMOSYS_PORT, DEMAND_PORT, RENEWABLES_PORT, GEOSERVER_PORT, POSTGIS_PORT]);
 
 async function claimPort(preferred, engine) {
   try {
@@ -154,6 +155,17 @@ function getServices() {
       engine: 'demand',
       start: engines.demand.start,
       isInstalled: engines.demand.isInstalled,
+      required: false,
+    },
+    {
+      name: 'renewables-runner',
+      label: 'Renewables Profiles',
+      port: RENEWABLES_PORT,
+      portEnv: 'TEMPO_RENEWABLES_PORT',
+      setPort: (p) => { RENEWABLES_PORT = p; },
+      engine: 'renewables',
+      start: engines.renewables.start,
+      isInstalled: engines.renewables.isInstalled,
       required: false,
     },
     {
@@ -456,8 +468,8 @@ ipcMain.handle('docker:start-all', async (_event, { nativeOnly = false } = {}) =
 
 // ─── IPC: Service URL registry ───────────────────────────────────────────────
 ipcMain.handle('services:urls', async () => {
-  const [c, c07, a, py, osm, dm, o, gs, be] = await Promise.all([
-    isPortOpen(CALLIOPE_PORT), isPortOpen(CALLIOPE07_PORT), isPortOpen(ADOPTNET0_PORT), isPortOpen(PYPSA_PORT), isPortOpen(OSEMOSYS_PORT), isPortOpen(DEMAND_PORT), isPortOpen(8000),
+  const [c, c07, a, py, osm, dm, rn, o, gs, be] = await Promise.all([
+    isPortOpen(CALLIOPE_PORT), isPortOpen(CALLIOPE07_PORT), isPortOpen(ADOPTNET0_PORT), isPortOpen(PYPSA_PORT), isPortOpen(OSEMOSYS_PORT), isPortOpen(DEMAND_PORT), isPortOpen(RENEWABLES_PORT), isPortOpen(8000),
     isPortOpen(GEOSERVER_PORT), isPortOpen(BACKEND_PORT),
   ]);
   return {
@@ -467,6 +479,7 @@ ipcMain.handle('services:urls', async () => {
     pypsa:      { url: `http://localhost:${PYPSA_PORT}`,     running: py  },
     osemosys:   { url: `http://localhost:${OSEMOSYS_PORT}`,  running: osm },
     demand:     { url: `http://localhost:${DEMAND_PORT}`,    running: dm  },
+    renewables: { url: `http://localhost:${RENEWABLES_PORT}`, running: rn },
     opentech:   { url: 'https://otdb.th-deg.de',             running: o   },
     geoserver:  { url: `http://localhost:${GEOSERVER_PORT}`, running: gs  },
     backend:    { url: `http://localhost:${BACKEND_PORT}`,   running: be && !!backendProcess },
@@ -1710,6 +1723,10 @@ function buildDemandEnv() {
   return { ...process.env, TEMPO_DEMAND_DATA: path.join(app.getPath('userData'), 'demand-data') };
 }
 
+function buildRenewablesEnv() {
+  return { ...process.env, TEMPO_WEATHER_CACHE: path.join(app.getPath('userData'), 'weather-cache') };
+}
+
 const engineDeps = { isPortOpen, waitForPort, getServicePaths, getMainWindow: () => mainWindow };
 
 const engines = {
@@ -1901,6 +1918,35 @@ const engines = {
     buildEnv: buildDemandEnv,
     deps: engineDeps,
   }),
+
+  // Weather-based PV (later wind) resource profiles: Open-Meteo ERA5 + pvlib.
+  renewables: createEngineService({
+    id: 'renewables',
+    label: 'Renewables profiles',
+    logTag: 'renewables-svc',
+    venvName: 'renewables-venv',
+    packagePrefix: 'pvlib',
+    serviceApp: 'renewables_service:app',
+    getPort: () => RENEWABLES_PORT,
+    python: {
+      versionLabel: '3.10+',
+      find: findSystemPython310Plus,
+      notFoundError:
+        'Python 3.10+ not found (required by renewables profiles).\n' +
+        'Install it, then relaunch TEMPO:\n' +
+        '  Ubuntu/Debian: sudo apt-get install python3.11 python3.11-venv\n' +
+        '  macOS:         brew install python@3.11\n' +
+        '  Other:         https://www.python.org/downloads/',
+    },
+    install: {
+      stageLabel: 'Installing renewables profiles (pvlib)…',
+      requirements: 'requirements.renewables.txt',
+    },
+    verifySnippet: 'import pvlib, pandas, requests; print("renewables-ok", pvlib.__version__)',
+    checkSnippet: 'import pvlib; print("ok")',
+    buildEnv: buildRenewablesEnv,
+    deps: engineDeps,
+  }),
 };
 
 // ─── Component setup (what gets installed, and proving it works) ─────────────
@@ -2008,6 +2054,7 @@ const COMPONENT_STEPS = {
       return result?.success === false ? result : legacy;
     },
   },
+  renewables: engineSteps('renewables'),
   geo: {
     isInstalled: geoContainersRunning,
     unavailable: async () => (await checkDocker() ? null : 'Start Docker Desktop first, then install this from Settings'),
@@ -2194,8 +2241,9 @@ app.whenReady().then(async () => {
   PYPSA_PORT      = await claimPort(PYPSA_PORT, 'pypsa');
   OSEMOSYS_PORT   = await claimPort(OSEMOSYS_PORT, 'osemosys');
   DEMAND_PORT     = await claimPort(DEMAND_PORT, 'demand');
+  RENEWABLES_PORT = await claimPort(RENEWABLES_PORT, 'renewables');
   await startBackend();
-  console.log(`[ports] backend=${BACKEND_PORT}  calliope=${CALLIOPE_PORT}  adoptnet0=${ADOPTNET0_PORT}  calliope07=${CALLIOPE07_PORT}  pypsa=${PYPSA_PORT}  osemosys=${OSEMOSYS_PORT}  demand=${DEMAND_PORT}  postgis=${POSTGIS_PORT}  geoserver=${GEOSERVER_PORT}`);
+  console.log(`[ports] backend=${BACKEND_PORT}  calliope=${CALLIOPE_PORT}  adoptnet0=${ADOPTNET0_PORT}  calliope07=${CALLIOPE07_PORT}  pypsa=${PYPSA_PORT}  osemosys=${OSEMOSYS_PORT}  demand=${DEMAND_PORT}  renewables=${RENEWABLES_PORT}  postgis=${POSTGIS_PORT}  geoserver=${GEOSERVER_PORT}`);
 
   // Start native calliope service (no-op if venv not installed yet)
   startCalliopeService().catch(err => console.warn('[calliope-svc] autostart error:', err.message));

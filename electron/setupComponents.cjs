@@ -28,6 +28,8 @@ const COMPONENTS = [
     description: 'Download and process OpenStreetMap regions. The map still works without them, using live data.' },
   { id: 'demand', group: 'tool', label: 'Demand estimation', sizeGb: 0.6,
     description: 'Per-substation demand for Study Areas: gridded consumption data, land use and BDEW load profiles.' },
+  { id: 'renewables', group: 'tool', label: 'Renewables profiles', sizeGb: 0.3,
+    description: 'Hourly solar PV profiles per location from ERA5 weather (Open-Meteo + pvlib).' },
   { id: 'geo', group: 'service', label: 'PostGIS + GeoServer', sizeGb: 0, dockerGb: 4.6,
     description: 'Local database for curated OSM layers. Needs Docker Desktop.' },
 ];

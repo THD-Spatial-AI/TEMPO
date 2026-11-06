@@ -1,11 +1,8 @@
 // Resource-profile dialog (Increment 1): shows the opentech-db availability /
 // capacity-factor profile for a technology and applies it to every location
-// hosting the tech as one shared CSV column (D8). PV / wind arrive with the
-// weather-based calculation in the next increment.
-import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from 'recharts';
-import { FiX } from '../ui/icons';
+// hosting the tech as one shared CSV column (D8). PV uses PvProfileDialog;
+// wind arrives with the weather-based calculation in a later increment.
+import React, { useEffect, useMemo, useState } from 'react';
 import { useData } from '../../context/DataContext';
 import { fetchTechProfiles, fetchTechProfileValues } from '../../services/techDatabaseApi';
 import {
@@ -18,24 +15,8 @@ import {
   profileColumnId,
   restampToModelCalendar,
 } from '../../services/techProfiles';
-
-/** Daily means of an hourly series (365 / 366 points). */
-function dailyMeans(values) {
-  const out = [];
-  for (let d = 0; d * 24 < values.length; d++) {
-    const day = values.slice(d * 24, d * 24 + 24);
-    out.push({ x: d + 1, value: day.reduce((a, b) => a + b, 0) / day.length });
-  }
-  return out;
-}
-
-/** Mean value per hour of day (24 points, UTC). */
-function typicalDay(values) {
-  const sums = new Array(24).fill(0);
-  const counts = new Array(24).fill(0);
-  values.forEach((v, i) => { sums[i % 24] += v; counts[i % 24] += 1; });
-  return sums.map((s, h) => ({ x: h, value: counts[h] ? s / counts[h] : 0 }));
-}
+import ProfileDialogFrame from './ProfileDialogFrame';
+import ProfileChart from './ProfileChart';
 
 const METHOD_CLS = {
   measured: 'bg-emerald-100 text-emerald-800',
@@ -47,7 +28,7 @@ const NONE = { status: 'none', profile: null, values: null, error: null };
 
 export default function ProfileDialog({ onClose, techName, techUuid, parent, kind, focusLocation, onApplied }) {
   const { locations, setLocations, setTimeSeries, currentModelId, getCurrentModel, showNotification } = useData();
-  const weatherBased = kind === 'pv' || kind === 'wind';
+  const weatherBased = kind === 'wind';
   // status: loading | ready | offline | none | unlinked
   const [state, setState] = useState(() => ({
     status: weatherBased ? 'ready' : techUuid ? 'loading' : 'unlinked',
@@ -56,24 +37,7 @@ export default function ProfileDialog({ onClose, techName, techUuid, parent, kin
     error: null,
   }));
   const [reloadKey, setReloadKey] = useState(0);
-  const [view, setView] = useState('year');
   const [applyError, setApplyError] = useState(null);
-  const closeRef = useRef(null);
-  const titleId = useId();
-
-  // Esc closes this dialog only (window capture phase, so a dialog underneath never sees it).
-  useEffect(() => {
-    const onKey = (e) => {
-      if (e.key !== 'Escape') return;
-      e.stopPropagation();
-      e.preventDefault();
-      onClose();
-    };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, [onClose]);
-
-  useEffect(() => { closeRef.current?.focus(); }, []);
 
   useEffect(() => {
     if (weatherBased || !techUuid) return undefined;
@@ -104,10 +68,6 @@ export default function ProfileDialog({ onClose, techName, techUuid, parent, kin
   }, [locations, techName, onApplied, focusLocation]);
   const calendar = modelCalendar(getCurrentModel());
   const { profile, values } = state;
-  const chartData = useMemo(
-    () => (values ? (view === 'year' ? dailyMeans(values) : typicalDay(values)) : []),
-    [values, view],
-  );
   const mean = values ? values.reduce((a, b) => a + b, 0) / values.length : null;
   const applicable = canApplyProfile(parent);
   const canApply = !weatherBased && state.status === 'ready' && !!values && applicable
@@ -164,26 +124,14 @@ export default function ProfileDialog({ onClose, techName, techUuid, parent, kin
     </div>
   );
 
-  return createPortal(
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10001]">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        className="bg-surface-container-lowest w-[min(1100px,95vw)] h-[min(760px,90vh)] flex flex-col border border-black/15 shadow-xl"
-      >
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-black/15 bg-white flex items-center justify-between">
-          <div>
-            <h3 id={titleId} className="text-xl font-bold text-slate-800">{PROFILE_KIND_LABEL[kind] || 'Resource profile'}</h3>
-            <p className="text-xs text-slate-500 mt-0.5 font-mono">{techName}</p>
-          </div>
-          <button ref={closeRef} type="button" onClick={onClose} className="text-slate-400 hover:text-gray-700" aria-label="Close">
-            <FiX size={18} />
-          </button>
-        </div>
-
-        <div className="flex-1 min-h-0 flex">
+  return (
+    <ProfileDialogFrame
+      title={PROFILE_KIND_LABEL[kind] || 'Resource profile'}
+      subtitle={techName}
+      onClose={onClose}
+      onApply={handleApply}
+      canApply={canApply}
+    >
           {/* Points */}
           <div className="w-64 flex-shrink-0 border-r border-black/15 overflow-y-auto p-4">
             <p className="text-[0.6875rem] font-bold text-black/60 mb-2 uppercase tracking-widest">
@@ -255,34 +203,7 @@ export default function ProfileDialog({ onClose, techName, techUuid, parent, kin
                   )}
                 </div>
 
-                <div>
-                  <div className="flex items-center gap-1 mb-2">
-                    {[['year', 'Year'], ['day', 'Typical day']].map(([id, label]) => (
-                      <button
-                        key={id}
-                        type="button"
-                        onClick={() => setView(id)}
-                        className={`px-3 py-1 text-xs font-medium border ${view === id ? 'bg-black text-white border-black' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}`}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                    <span className="ml-3 text-[11px] text-slate-500">
-                      {view === 'year' ? 'Daily mean' : 'Hourly mean (UTC)'}
-                    </span>
-                  </div>
-                  <div className="h-64 border border-slate-200 bg-white">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={chartData} margin={{ top: 12, right: 16, bottom: 8, left: 0 }}>
-                        <CartesianGrid stroke="#e2e8f0" vertical={false} />
-                        <XAxis dataKey="x" tick={{ fontSize: 11 }} stroke="#94a3b8" />
-                        <YAxis domain={[0, (dataMax) => Math.max(1, dataMax)]} tick={{ fontSize: 11 }} stroke="#94a3b8" width={40} />
-                        <Tooltip formatter={(v) => Number(v).toFixed(3)} labelFormatter={(x) => (view === 'year' ? `Day ${x}` : `${x}:00`)} />
-                        <Line type="monotone" dataKey="value" stroke="#000000" strokeWidth={1.5} dot={false} isAnimationActive={false} />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
+                <ProfileChart values={values} />
 
                 {profile.citations?.length > 0 && (
                   <div>
@@ -304,24 +225,6 @@ export default function ProfileDialog({ onClose, techName, techUuid, parent, kin
 
             {applyError && notice(`Could not apply profile: ${applyError}`, 'amber')}
           </div>
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-black/15 bg-slate-50">
-          <button type="button" onClick={onClose} className="px-4 py-2 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200">
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleApply}
-            disabled={!canApply}
-            className="px-4 py-2 text-sm font-medium bg-black text-white hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed"
-          >
-            Apply to model
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body,
+    </ProfileDialogFrame>
   );
 }

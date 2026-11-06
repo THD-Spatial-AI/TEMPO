@@ -4,6 +4,7 @@ import {
   classifyProfileKind, pickProfile, restampToModelCalendar,
   buildProfileTimeSeries, applyProfileToLocations, profileStaleness, canApplyProfile,
   modelCalendar, profileFileName, profileColumnId, PROFILE_KIND_LABEL,
+  defaultPvOrientation, pointColumnIds,
 } from '../techProfiles';
 
 describe('classifyProfileKind', () => {
@@ -143,7 +144,7 @@ describe('profileStaleness', () => {
   const locs = [{ name: 'A', techs: { t: {} } }];
   it('is fresh when calendar and points match', () => {
     expect(profileStaleness(entry, { modelConfig: { startDate: '2030-01-01', endDate: '2030-12-31', resolution: '60min' }, locations: locs, techName: 't' }))
-      .toEqual({ stale: false, reasons: [], missing: [], removed: [] });
+      .toEqual({ stale: false, reasons: [], missing: [], removed: [], moved: [] });
   });
   it('flags a calendar change', () => {
     const r = profileStaleness(entry, { modelConfig: { startDate: '2030-01-01', endDate: '2030-06-30', resolution: '60min' }, locations: locs, techName: 't' });
@@ -302,5 +303,51 @@ describe('profile naming', () => {
   });
   it('labels every kind', () => {
     for (const k of ['pv', 'wind', 'availability', 'capacity_factor']) expect(typeof PROFILE_KIND_LABEL[k]).toBe('string');
+  });
+});
+
+describe('defaultPvOrientation', () => {
+  it('faces the equator with a latitude-based tilt', () => {
+    expect(defaultPvOrientation(-33.4)).toEqual({ tilt: 28, azimuth: 0 });
+    expect(defaultPvOrientation(48.8)).toEqual({ tilt: 40, azimuth: 180 });
+    expect(defaultPvOrientation(0)).toEqual({ tilt: 3, azimuth: 180 });
+    expect(defaultPvOrientation(80).tilt).toBe(60);
+  });
+});
+
+describe('pointColumnIds', () => {
+  it('gives each location a unique safe column', () => {
+    expect(pointColumnIds(['Santiago Centro', 'Santiago_Centro', 'Arica'])).toEqual({
+      'Santiago Centro': 'Santiago_Centro', Santiago_Centro: 'Santiago_Centro_2', Arica: 'Arica',
+    });
+    expect(pointColumnIds(['ñ'])).toEqual({ 'ñ': 'point' });
+  });
+
+  it('never reuses the datetime column name', () => {
+    expect(pointColumnIds(['datetime', 'A'])).toEqual({ datetime: 'datetime_2', A: 'A' });
+  });
+});
+
+describe('profileStaleness moved points', () => {
+  const entry = { profileSource: {
+    calendar: { startDate: '2023-01-01', endDate: '2023-12-31', resolution: '60min' },
+    points: { A: { column: 'A', lat: -33.4, lon: -70.6 }, B: { column: 'B' } },
+  } };
+  const mc = { startDate: '2023-01-01', endDate: '2023-12-31', resolution: '60min' };
+  const locs = (latA) => [
+    { name: 'A', latitude: latA, longitude: -70.6, techs: { pv: {} } },
+    { name: 'B', latitude: 1, longitude: 1, techs: { pv: {} } },
+  ];
+
+  it('flags a point whose coordinates changed', () => {
+    const s = profileStaleness(entry, { modelConfig: mc, locations: locs(-30), techName: 'pv' });
+    expect(s.moved).toEqual(['A']);
+    expect(s.reasons).toContain('moved');
+    expect(s.stale).toBe(true);
+  });
+
+  it('ignores sub-metre jitter and points stored without coordinates', () => {
+    const s = profileStaleness(entry, { modelConfig: mc, locations: locs(-33.40001), techName: 'pv' });
+    expect(s).toEqual({ stale: false, reasons: [], missing: [], removed: [], moved: [] });
   });
 });
