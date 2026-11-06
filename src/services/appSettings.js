@@ -12,6 +12,8 @@ const DEFAULTS = {
   defaultView: 'Dashboard', // matches the view keys in App.jsx's switch
   autoSave: true,           // 1.5s debounced auto-save in DataContext
   autoUpdateCheck: true,    // UpdateNotifier checks GitHub on start and every 6 h
+  demandCellsVisible: true,     // Creation + Map View demand-cells overlay
+  demandCellsColorBy: 'density', // 'density' (GWh/km²) | 'total' (GWh/yr)
 };
 
 export function getSettings() {

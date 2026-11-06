@@ -314,6 +314,7 @@ export default function ZonalStudyAreaPanel({
     return {
       byId: demandByOsmId(applyDemandEdits(est.result, demandEstimate.edits)),
       family: est.family, country: demandCountry, latitude: est.result.latitude,
+      cells: est.result.cells, rasterYear: est.result.chain?.rasterYear,
     };
   }, [demandEstimate.est, demandEstimate.edits, demandCountry]);
 

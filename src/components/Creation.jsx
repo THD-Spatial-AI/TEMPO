@@ -51,6 +51,10 @@ import SearchBar from './creation/SearchBar';
 import MapZoomControls from './creation/MapZoomControls';
 import TechLibraryPanel from './creation/TechLibraryPanel';
 import { confirmAction } from './ui/confirm';
+import { cellsForModel } from '../services/demandCells';
+import { makeDemandCellsLayer, demandCellHover } from './map/demandCellsLayer';
+import { useDemandCellsView } from './map/useDemandCellsView';
+import DemandCellsLegend from './map/DemandCellsLegend';
 
 // Colour of each Study Area wizard preview element, keyed by metadata.kind.
 // The transmission mesh is amber (matches the OSM lines); each wiring type gets a
@@ -119,6 +123,7 @@ const Creation = ({ onNavigate }) => {
     selectedRegionInfo, setSelectedRegionInfo,
     currentBbox, setCurrentBbox,
     studyArea, setStudyArea,
+    demandCells, setDemandCells,
     studyBuildConfig, setStudyBuildConfig, setPlanSummary,
     // Mesh generation (from context - persisted)
     generatedMesh, setGeneratedMesh,
@@ -133,6 +138,17 @@ const Creation = ({ onNavigate }) => {
   // Initialize custom hooks
   const locationManager = useLocationManager();
   const techManager = useTechnologyManager(technologies);
+  // Imports land in the unsaved draft (tempLocations) until Save, so cells are
+  // checked against draft + model locations. Cells are deck.gl only (no Leaflet fallback).
+  const cellsLocations = useMemo(
+    () => [...(locationManager.tempLocations || []), ...(locations || [])],
+    [locationManager.tempLocations, locations],
+  );
+  // Cells from a Study Area import belong to the unsaved draft until Save hands
+  // them to createModel; the draft wins over the open model's cells while it exists.
+  const [draftDemandCells, setDraftDemandCells] = useState(null);
+  const shownDemandCells = draftDemandCells ?? demandCells;
+  const cellsView = useDemandCellsView(shownDemandCells, cellsLocations);
   const polylineMode = usePolylineMode(locationManager, showNotification);
   
   // OSM Filters (local state - not persisted)
@@ -183,7 +199,7 @@ const Creation = ({ onNavigate }) => {
   const handleMapClickWithModal = useCallback((info, event) => {
     // If clicking on an existing object (except the region boundary), let the layer handle it
     // Allow clicks through the region boundary so users can place locations inside it
-    if (info.object && info.layer?.id !== 'selected-region-overlay') {
+    if (info.object && info.layer?.id !== 'selected-region-overlay' && info.layer?.id !== 'demand-cells') {
       return;
     }
     
@@ -379,6 +395,12 @@ const Creation = ({ onNavigate }) => {
   const [currentStyle, setCurrentStyle] = useState('grey');
   const [showLayerSelector, setShowLayerSelector] = useState(false);
   const [hoveredInfo, setHoveredInfo] = useState(null);
+  const demandCellsLayer = useMemo(
+    () => (cellsView.visible && cellsView.drawn.length
+      ? makeDemandCellsLayer({ features: cellsView.drawn, colorBy: cellsView.colorBy, scale: cellsView.scale, onHover: info => setHoveredInfo(demandCellHover(info)) })
+      : null),
+    [cellsView.visible, cellsView.drawn, cellsView.colorBy, cellsView.scale],
+  );
   const [mapReady, setMapReady] = useState(false);
   const [webglAvailable, setWebglAvailable] = useState(null);
   const [webglErrorMsg, setWebglErrorMsg] = useState('');
@@ -1108,6 +1130,7 @@ const Creation = ({ onNavigate }) => {
   const clearAll = useCallback(async () => {
     if (await confirmAction({ title: 'Clear the map?', message: 'All unsaved locations and links on the map will be removed.', confirmLabel: 'Clear all' })) {
       locationManager.clearAll();
+      setDraftDemandCells(null);
     }
   }, [locationManager]);
   
@@ -1143,19 +1166,23 @@ const Creation = ({ onNavigate }) => {
           objectiveCostClass: modelConfig.objectiveCostClass,
           solverOptions: modelConfig.solverOptions
         }
-      }
+      },
+      {},
+      {},
+      draftDemandCells
     );
     
     showNotification(`Model "${modelConfig.name || modelName}" created successfully!`, 'success');
 
     // Reset creation state
     locationManager.clearAll();
+    setDraftDemandCells(null);
     setModelName('');
     setShowSaveDialog(false);
 
     // Take the user straight to the Map View to inspect the saved model.
     onNavigate?.('Map View');
-  }, [modelName, locationManager, modelConfig, techMap, createModel, showNotification, timeSeries, currentModelId, onNavigate]);
+  }, [modelName, locationManager, modelConfig, techMap, createModel, showNotification, timeSeries, currentModelId, onNavigate, draftDemandCells]);
   
   // Generate power mesh from OSM power lines
   const generateMeshFromLines = useCallback(() => {
@@ -1555,8 +1582,14 @@ const Creation = ({ onNavigate }) => {
         });
         if (modelConfig.resolution !== estResolution) setModelConfig(prev => ({ ...prev, resolution: estResolution }));
         demandNote = ` · generated a ${shaped.source} demand timeseries (${data.length} steps, ${dataColumns.length} columns) on ${estSubs.length} substations`;
+        setDraftDemandCells(cellsForModel({
+          cells: est.cells, byId: est.byId,
+          locations: estSubs.map(l => ({ osmId: l.metadata.osmId, name: l.name })),
+          meta: { rasterYear: est.rasterYear, family: est.family, country: est.country },
+        }));
       }
     } else if (sectors && demandSubs.length) {
+      setDraftDemandCells(null);
       const latitude = demandSubs.reduce((s, l) => s + (l.latitude || 0), 0) / demandSubs.length;
       const { datetimes, values, source } = await getDemandShape({
         start: modelConfig.startDate, end: modelConfig.endDate,
@@ -2071,8 +2104,10 @@ const Creation = ({ onNavigate }) => {
                   }
                 })
               ] : []),
-              
-              // OSM Power Lines Layer  
+              // Substation demand cells (over the territory fill, under infrastructure)
+              ...(demandCellsLayer ? [demandCellsLayer] : []),
+
+              // OSM Power Lines Layer
               ...(osmPowerLines && layerVisibility.powerLines && filteredPowerLines?.features?.length > 0 ? (() => {
                 // Flatten MultiLineString → multiple LineString entries so PathLayer renders correctly
                 const lineData = filteredPowerLines.features.flatMap(f => {
@@ -2553,8 +2588,26 @@ const Creation = ({ onNavigate }) => {
 
         {/* Map Controls */}
         <div className="absolute top-4 right-4 z-[600] flex flex-col gap-2" data-tour="map-layers">
-          <LayerSelector currentLayer={currentStyle} onLayerChange={setCurrentStyle} />
+          <LayerSelector
+            currentLayer={currentStyle}
+            onLayerChange={setCurrentStyle}
+            overlays={shownDemandCells?.features?.length ? [{ id: 'demand-cells', label: 'Demand cells', checked: cellsView.visible, onToggle: cellsView.setVisible }] : []}
+          />
         </div>
+
+        {/* Demand cells legend — bottom-left, above the mode indicator pill */}
+        {shownDemandCells?.features?.length > 0 && (cellsView.visible || cellsView.stale.stale) && (
+          <div className="absolute bottom-16 left-4 z-[500]">
+            <DemandCellsLegend
+              colorBy={cellsView.colorBy}
+              onColorByChange={cellsView.setColorBy}
+              scale={cellsView.scale}
+              stale={cellsView.stale}
+              hasDrawn={cellsView.drawn.length > 0}
+              onRemove={() => (draftDemandCells ? setDraftDemandCells(null) : setDemandCells(null))}
+            />
+          </div>
+        )}
 
         {/* Save action — shows once there's something to save */}
         {locationManager.tempLocations.length > 0 && (

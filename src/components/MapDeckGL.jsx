@@ -24,9 +24,13 @@ import HoverTooltip from './creation/HoverTooltip';
 import LayerSelector from './creation/LayerSelector';
 import MapZoomControls from './creation/MapZoomControls';
 import { confirmAction } from './ui/confirm';
+import { makeDemandCellsLayer, demandCellHover } from './map/demandCellsLayer';
+import { useDemandCellsView } from './map/useDemandCellsView';
+import DemandCellsLegend from './map/DemandCellsLegend';
 
 const MapDeckGL = () => {
-  const { locations, setLocations, links, setLinks, showNotification, technologies, models, currentModelId, loadModel, updateCurrentModel, createModel } = useData();
+  const { locations, setLocations, links, setLinks, showNotification, technologies, models, currentModelId, loadModel, updateCurrentModel, createModel, demandCells, setDemandCells } = useData();
+  const cellsView = useDemandCellsView(demandCells, locations);
   const { techTemplates: liveTechTemplates } = useLiveTechTemplates();
   const [viewState, setViewState] = useState({
     longitude: -70.6693,
@@ -675,8 +679,11 @@ const MapDeckGL = () => {
   // Flatten and order layers: links at bottom, circles in middle, triangles on top
   const layers = useMemo(() => {
     const locationLayers = Array.isArray(locationsLayer) ? locationsLayer : [locationsLayer];
-    return [linksLayer, ...locationLayers];
-  }, [linksLayer, locationsLayer]);
+    const cellsLayer = cellsView.visible && cellsView.drawn.length
+      ? [makeDemandCellsLayer({ features: cellsView.drawn, colorBy: cellsView.colorBy, scale: cellsView.scale, onHover: info => setHoveredInfo(demandCellHover(info)) })]
+      : [];
+    return [...cellsLayer, linksLayer, ...locationLayers];
+  }, [linksLayer, locationsLayer, cellsView.visible, cellsView.drawn, cellsView.colorBy, cellsView.scale]);
   
   // Handle location click for link creation
   const handleLocationClickForLink = (location) => {
@@ -1088,6 +1095,20 @@ const MapDeckGL = () => {
           </div>
         )}
         
+        {/* Demand cells legend — bottom-left (the model Legend card is bottom-right) */}
+        {demandCells?.features?.length > 0 && (cellsView.visible || cellsView.stale.stale) && (
+          <div className="absolute bottom-4 left-4 z-50">
+            <DemandCellsLegend
+              colorBy={cellsView.colorBy}
+              onColorByChange={cellsView.setColorBy}
+              scale={cellsView.scale}
+              stale={cellsView.stale}
+              hasDrawn={cellsView.drawn.length > 0}
+              onRemove={() => setDemandCells(null)}
+            />
+          </div>
+        )}
+
         {/* Map Legend - Dynamic based on model technologies */}
         {(locations.length > 0 || links.length > 0) && (() => {
           // Node types by kind (matches the on-map palette) + per-technology colors.
@@ -1269,7 +1290,11 @@ const MapDeckGL = () => {
         
         {/* Map Controls — shared components, same as the Creation view */}
         <div className="absolute top-4 right-4 flex flex-col gap-2 z-10">
-          <LayerSelector currentLayer={currentStyle} onLayerChange={setCurrentStyle} />
+          <LayerSelector
+            currentLayer={currentStyle}
+            onLayerChange={setCurrentStyle}
+            overlays={demandCells?.features?.length ? [{ id: 'demand-cells', label: 'Demand cells', checked: cellsView.visible, onToggle: cellsView.setVisible }] : []}
+          />
           <MapZoomControls onZoomIn={handleZoomIn} onZoomOut={handleZoomOut} onFitBounds={fitBounds} />
         </div>
       </div>

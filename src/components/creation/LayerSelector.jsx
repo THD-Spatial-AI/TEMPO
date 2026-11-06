@@ -24,7 +24,7 @@ const STYLE_PREVIEWS = {
     "radial-gradient(circle at 25% 30%, #1e293b 0 22%, transparent 23%), #0f172a",
 };
 
-const LayerSelector = ({ currentLayer, onLayerChange }) => {
+const LayerSelector = ({ currentLayer, onLayerChange, overlays = [] }) => {
   const [isOpen, setIsOpen] = useState(false);
   const rootRef = useRef(null);
 
@@ -111,6 +111,28 @@ const LayerSelector = ({ currentLayer, onLayerChange }) => {
               );
             })}
           </div>
+          {overlays.length > 0 && (
+            <>
+              <div className="flex items-center gap-1.5 px-1.5 pt-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                <FiLayers size={11} />
+                Overlays
+              </div>
+              {overlays.map((o) => (
+                <label
+                  key={o.id}
+                  className="flex items-center gap-2 px-1.5 py-1 rounded-lg text-xs text-slate-600 hover:bg-slate-50 cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={!!o.checked}
+                    onChange={() => o.onToggle(!o.checked)}
+                    className="accent-black"
+                  />
+                  {o.label}
+                </label>
+              ))}
+            </>
+          )}
         </div>
       )}
     </div>

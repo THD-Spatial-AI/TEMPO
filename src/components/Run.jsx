@@ -499,6 +499,7 @@ const Run = ({ onNavigate }) => {
 
       let modelData = {
         ...selectedModel,
+        demandCells: undefined, // map-only geometry; engines never read it
         solver: selectedSolver,
         modelConfig,
         technologies: techsForRun,
@@ -643,7 +644,7 @@ const Run = ({ onNavigate }) => {
   const runEngineCheck = async () => {
     const seq = ++checkSeq.current;
     setEngineCheck({ loading: true });
-    const modelData = { ...selectedModel, solver: selectedSolver, modelConfig, technologies: techsForRun, timeSeries: timeSeriesForRun };
+    const modelData = { ...selectedModel, demandCells: undefined, solver: selectedSolver, modelConfig, technologies: techsForRun, timeSeries: timeSeriesForRun };
     const result = selectedFramework === 'calliope'
       ? await assessCalliopeModel(calliopeEngine === '0.7' ? '0.7' : '0.6', modelData)
       : await assessEngineModel(selectedFramework, modelData);

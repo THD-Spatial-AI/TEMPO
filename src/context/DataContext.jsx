@@ -71,6 +71,7 @@ function prepareModelForLocalStorage(model) {
   return {
     ...model,
     timeSeries: [],
+    demandCells: null,
     locations: (model.locations || []).map(stripHeavyLocationFields),
   };
 }
@@ -170,6 +171,8 @@ export const DataProvider = ({ children }) => {
   // Zonal Study Area (boundary-driven selection, persisted with the model)
   // Shape: { units: [{ id, name, level }], voltageThreshold } | null
   const [studyArea, setStudyArea] = useState(null);
+  // Substation demand cells (FeatureCollection saved with the model) | null
+  const [demandCells, setDemandCells] = useState(null);
   // Study Area network-builder wizard (transient, NOT persisted): the current
   // build config drives a live map preview; planSummary holds per-layer counts.
   const [studyBuildConfig, setStudyBuildConfig] = useState(null);
@@ -226,7 +229,7 @@ export const DataProvider = ({ children }) => {
   stateRef.current = {
     models, currentModelId,
     locations, links, parameters, technologies, timeSeries, overrides, scenarios,
-    studyArea, backendAvailable,
+    studyArea, demandCells, backendAvailable,
   };
 
   // optional toast button
@@ -258,6 +261,7 @@ export const DataProvider = ({ children }) => {
     setOverrides(model.overrides || {});
     setScenarios(model.scenarios || {});
     setStudyArea(model.studyArea || null);
+    setDemandCells(model.demandCells || null);
     setIsDirty(false);
   };
 
@@ -273,6 +277,7 @@ export const DataProvider = ({ children }) => {
     scenarios: m.scenarios || {},
     locationTechAssignments: m.locationTechAssignments || {},
     studyArea: m.studyArea || null,
+    demandCells: m.demandCells || null,
     metadata: m.metadata || {},
   });
 
@@ -398,7 +403,8 @@ export const DataProvider = ({ children }) => {
     timeSeriesData = [],
     templateMetadata = {},
     overridesData = {},
-    scenariosData = {}
+    scenariosData = {},
+    demandCellsData = null
   ) => {
     import.meta.env.DEV && console.log('DataContext.createModel called with:', {
       name,
@@ -436,6 +442,7 @@ export const DataProvider = ({ children }) => {
         ...templateMetadata,
       },
       locationTechAssignments: {},
+      demandCells: demandCellsData || null,
     };
 
     // ── Optimistic state update ──────────────────────────────────────────────
@@ -448,6 +455,7 @@ export const DataProvider = ({ children }) => {
     setTimeSeries(newModel.timeSeries);
     setOverrides(newModel.overrides);
     setScenarios(newModel.scenarios);
+    setDemandCells(newModel.demandCells);
 
     import.meta.env.DEV && console.log('[TEMPO] createModel: timeSeries count=', newModel.timeSeries.length, newModel.timeSeries.map(ts => ({id: ts.id, hasCsvContent: !!ts.csvContent, csvLen: ts.csvContent?.length})));
 
@@ -508,7 +516,7 @@ export const DataProvider = ({ children }) => {
   const updateCurrentModel = useCallback(() => {
     const {
       currentModelId, locations, links, parameters,
-      technologies, timeSeries, overrides, scenarios, studyArea, backendAvailable,
+      technologies, timeSeries, overrides, scenarios, studyArea, demandCells, backendAvailable,
     } = stateRef.current;
     if (!currentModelId) return;
 
@@ -517,7 +525,7 @@ export const DataProvider = ({ children }) => {
         model.id === currentModelId
           ? {
               ...model, locations, links, parameters, technologies,
-              timeSeries, overrides, scenarios, studyArea,
+              timeSeries, overrides, scenarios, studyArea, demandCells,
               updatedAt: new Date().toISOString(),
             }
           : model
@@ -562,6 +570,7 @@ export const DataProvider = ({ children }) => {
       setTimeSeries([]);
       setOverrides({});
       setScenarios({});
+      setDemandCells(null);
     }
 
     // Fire-and-forget backend delete
@@ -610,6 +619,7 @@ export const DataProvider = ({ children }) => {
     setTimeSeries([]);
     setOverrides({});
     setScenarios({});
+    setDemandCells(null);
     // Clear OSM data and region selection
     setOsmSubstations(null);
     setOsmPowerPlants(null);
@@ -643,7 +653,7 @@ export const DataProvider = ({ children }) => {
     }
     setIsDirty(true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [locations, links, parameters, technologies, timeSeries, overrides, scenarios, studyArea]);
+  }, [locations, links, parameters, technologies, timeSeries, overrides, scenarios, studyArea, demandCells]);
 
   // ── Auto-save preference (Settings › General) ─────────────────────────────
   // When off, the debounced save below is skipped; isDirty stays true so the
@@ -663,7 +673,8 @@ export const DataProvider = ({ children }) => {
       locations.length > 0 || links.length > 0 || parameters.length > 0 ||
       technologies.length > 0 || timeSeries.length > 0 ||
       Object.keys(overrides).length > 0 || Object.keys(scenarios).length > 0 ||
-      (studyArea && studyArea.units?.length > 0);
+      (studyArea && studyArea.units?.length > 0) ||
+      !!demandCells?.features?.length;
     if (!hasData) return;
 
     const timeout = setTimeout(() => {
@@ -671,7 +682,7 @@ export const DataProvider = ({ children }) => {
       setIsDirty(false);   // optimistically clear; data is already in local state
     }, 1500);
     return () => clearTimeout(timeout);
-  }, [locations, links, parameters, technologies, timeSeries, overrides, scenarios, studyArea, currentModelId, updateCurrentModel, autoSaveEnabled]);
+  }, [locations, links, parameters, technologies, timeSeries, overrides, scenarios, studyArea, demandCells, currentModelId, updateCurrentModel, autoSaveEnabled]);
 
   // ── Context value ─────────────────────────────────────────────────────────
 
@@ -778,6 +789,7 @@ export const DataProvider = ({ children }) => {
     selectedCommune, setSelectedCommune,
     // Zonal study area (boundary-driven)
     studyArea, setStudyArea,
+    demandCells, setDemandCells,
     studyBuildConfig, setStudyBuildConfig,
     planSummary, setPlanSummary,
     // Mesh generation
