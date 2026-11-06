@@ -33,6 +33,7 @@ import { parseSource, parseCapacityMW, parseVoltageKv } from '../services/zonalI
 import { OSM_SOURCE_TO_TECH } from '../services/zonalModelBuilder';
 import { getDemandShape } from '../services/demandlibClient';
 import { buildDemandColumns } from '../services/demandProfiles';
+import { substationKey, shapeWithFallback, seriesColumns } from '../services/substationDemand';
 
 // Import new custom hooks
 import { useLocationManager } from '../hooks/useLocationManager';
@@ -1347,7 +1348,7 @@ const Creation = ({ onNavigate }) => {
       const target = su.target || 'transmission';
       let subCounter = 0;
       const subLocs = [];
-      (filteredSubstations?.features || []).forEach(f => {
+      (filteredSubstations?.features || []).forEach((f, i) => {
         const pt = repPoint(f.geometry); if (!pt) return;
         const grid = f.properties?.substation || 'substation';
         const id = nextId();
@@ -1365,7 +1366,7 @@ const Creation = ({ onNavigate }) => {
         };
         const loc = {
           id, name, latitude: pt[1], longitude: pt[0], techs, isNode: true,
-          metadata: { fromOSM: true, kind: 'substation', grid, voltageKv: f.properties?.voltage_kv ?? null },
+          metadata: { fromOSM: true, kind: 'substation', grid, voltageKv: f.properties?.voltage_kv ?? null, osmId: substationKey(f, i) },
         };
         locations.push(loc);
         subLocs.push(loc);
@@ -1384,7 +1385,18 @@ const Creation = ({ onNavigate }) => {
       // proxy). They're the withdrawal points. A flat scalar is set here; a shaped
       // timeseries replaces it on commit (commitStudyAreaPlan).
       const dm = su.demand || {};
-      if (dm.enabled && subLocs.length) {
+      if (dm.enabled && dm.mode === 'estimate' && dm.estimate?.byId && subLocs.length) {
+        subLocs.forEach(loc => {
+          const est = dm.estimate.byId[loc.metadata.osmId];
+          if (!est || !(est.avgMW > 0)) return;
+          loc.techs.power_demand = {
+            constraints: { resource: -Number(est.avgMW.toFixed(4)), force_resource: true },
+            essentials: { carrier: 'electricity' },
+            metadata: { estimatedFromSubstationEstimate: true, avgMW: Number(est.avgMW.toFixed(4)),
+              annualGWh: est.annualGWh, mix: est.mix },
+          };
+        });
+      } else if (dm.enabled && dm.mode !== 'estimate' && subLocs.length) {
         const population = (studyArea?.units || []).reduce((s, u) => s + (Number(u.population) || 0), 0);
         const perCapita = Number(dm.perCapitaKWh) || 0;
         if (population > 0 && perCapita > 0) {
@@ -1468,8 +1480,16 @@ const Creation = ({ onNavigate }) => {
       else if (k.metadata.kind === 'substation_to_transmission') c.subLinks++;
       else c.plantLinks++;
     }
+    c.demandInputs = {
+      substations: plan.locations.filter(l => l.metadata.kind === 'substation').map(l => ({
+        id: l.metadata.osmId, lon: l.longitude, lat: l.latitude, name: l.name,
+        substation: l.metadata.grid, voltage_kv: l.metadata.voltageKv,
+      })),
+      modelYear: Number(String(modelConfig.startDate || '').slice(0, 4)) || new Date().getFullYear(),
+      startDate: modelConfig.startDate, endDate: modelConfig.endDate, resolution: modelConfig.resolution || '60min',
+    };
     setPlanSummary(c);
-  }, [studyBuildConfig, buildStudyAreaPlan, setPlanSummary]);
+  }, [studyBuildConfig, buildStudyAreaPlan, setPlanSummary, modelConfig.startDate, modelConfig.endDate, modelConfig.resolution]);
 
   // Wizard: commit the previewed plan into the model (final step) and reset.
   const commitStudyAreaPlan = useCallback(async () => {
@@ -1503,7 +1523,40 @@ const Creation = ({ onNavigate }) => {
     const resolution = demandCfg.resolution || modelConfig.resolution || '60min';
     const demandSubs = plan.locations.filter(l => l.techs?.power_demand?.metadata?.estimatedFromPopulation);
     let demandNote = '';
-    if (sectors && demandSubs.length) {
+    const estSubs = plan.locations.filter(l => l.techs?.power_demand?.metadata?.estimatedFromSubstationEstimate);
+    const est = demandCfg.mode === 'estimate' ? demandCfg.estimate : null;
+    if (est && estSubs.length) {
+      const estResolution = est.resolution || modelConfig.resolution || '60min';
+      const shaped = await shapeWithFallback({
+        substations: estSubs.map(l => ({ id: l.metadata.osmId, avg_mw: l.techs.power_demand.metadata.avgMW,
+          mix: l.techs.power_demand.metadata.mix })),
+        start: modelConfig.startDate, end: modelConfig.endDate, resolution: estResolution,
+        country: est.country, family: est.family, latitude: est.latitude || 0,
+      });
+      if (shaped.datetimes?.length) {
+        const fileName = 'osm_substation_demand.csv';
+        const { columns, dataColumns, data, colBySub } = seriesColumns({
+          datetimes: shaped.datetimes, series: shaped.series,
+          subs: estSubs.map(l => ({ key: l.metadata.osmId, name: l.name })),
+        });
+        const csvContent = [columns.join(','), ...data.map(r => columns.map(c => r[c]).join(','))].join('\n');
+        const groups = estSubs.map((l, i) => ({ col: colBySub[i], key: l.metadata.osmId,
+          mw: l.techs.power_demand.metadata.avgMW, mix: l.techs.power_demand.metadata.mix }));
+        setTimeSeries(prev => [...(prev || []).filter(t => (t.fileName || t.name) !== fileName), {
+          id: `${currentModelId || 'model'}_osm_substation_demand`, modelId: currentModelId || null,
+          source: 'osm-demand', name: 'osm_substation_demand', fileName, columns, dateColumn: 'datetime',
+          dataColumns, data, csvContent, rowCount: data.length,
+          demandConfig: { mode: 'estimate', family: est.family, country: est.country, latitude: est.latitude,
+            resolution: estResolution, source: shaped.source, groups },
+        }]);
+        estSubs.forEach((l, i) => {
+          l.techs.power_demand.constraints = { resource: `file=${fileName}:${colBySub[i]}`, force_resource: true };
+          l.techs.power_demand.metadata = { ...l.techs.power_demand.metadata, source: shaped.source, resolution: estResolution, timeseriesFile: fileName };
+        });
+        if (modelConfig.resolution !== estResolution) setModelConfig(prev => ({ ...prev, resolution: estResolution }));
+        demandNote = ` · generated a ${shaped.source} demand timeseries (${data.length} steps, ${dataColumns.length} columns) on ${estSubs.length} substations`;
+      }
+    } else if (sectors && demandSubs.length) {
       const latitude = demandSubs.reduce((s, l) => s + (l.latitude || 0), 0) / demandSubs.length;
       const { datetimes, values, source } = await getDemandShape({
         start: modelConfig.startDate, end: modelConfig.endDate,

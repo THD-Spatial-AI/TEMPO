@@ -188,7 +188,7 @@ export function generateDemandShape({
 
 // Sanitise a substation name into a CSV column id, mirroring the Python
 // runner's _safe_id (strip calliope separators + illegal chars, collapse '_').
-function safeColId(name) {
+export function safeColId(name) {
   const s = String(name || '')
     .replace(/::/g, '__').replace(/:/g, '_')
     .replace(/[^A-Za-z0-9_-]/g, '_')

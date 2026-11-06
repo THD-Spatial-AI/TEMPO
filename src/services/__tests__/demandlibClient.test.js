@@ -101,3 +101,28 @@ describe('regenerateDemandSeries', () => {
     expect(updated.demandConfig.resolution).toBe('15min');
   });
 });
+
+describe('regenerateDemandSeries — estimate mode', () => {
+  beforeEach(() => { globalThis.window = undefined; });
+
+  it('re-shapes each column by its own mix and keeps the full-year mean at its MW', async () => {
+    const entry = {
+      id: 'm_osm_substation_demand', fileName: 'osm_substation_demand.csv',
+      demandConfig: {
+        mode: 'estimate', family: 'classic', country: 'CL', latitude: -18.5, resolution: '60min',
+        groups: [{ col: 'A', key: 'node/1', mw: 10, mix: { h0_dyn: 60, g0: 40 } },
+                 { col: 'B', key: 'node/2', mw: 2, mix: { g0: 100 } }],
+      },
+    };
+    const out = await regenerateDemandSeries(entry, { startDate: '2024-01-01', endDate: '2024-12-31', resolution: '60min' });
+    expect(out.columns).toEqual(['datetime', 'A', 'B']);
+    expect(out.rowCount).toBe(8784);
+    expect(mean(out.data.map(r => -r.A))).toBeCloseTo(10, 1);
+    expect(mean(out.data.map(r => -r.B))).toBeCloseTo(2, 2);
+    // Each column follows its own mix, so A/B is not a constant ratio (one shared shape would make it 5).
+    const ratios = out.data.slice(0, 168).map(r => r.A / r.B);
+    expect(Math.max(...ratios) - Math.min(...ratios)).toBeGreaterThan(0.1);
+    expect(out.csvContent.split('\n')[0]).toBe('datetime,A,B');
+    expect(out.demandConfig).toMatchObject({ mode: 'estimate', source: 'synthetic', resolution: '60min' });
+  });
+});

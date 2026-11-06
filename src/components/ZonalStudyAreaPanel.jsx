@@ -10,6 +10,9 @@ import {
   fetchDemandlibShape, syntheticShape,
 } from '../services/demandlibClient';
 import SelectField from './ui/SelectField';
+import SubstationDemandEstimate from './demand/SubstationDemandEstimate';
+import { getDemandServiceURL } from '../services/demandServiceClient';
+import { applyDemandEdits, demandByOsmId } from '../services/substationDemand';
 
 // Tiny dependency-free SVG sparkline for the demand-shape preview.
 function Sparkline({ values, color = '#0369a1', height = 40 }) {
@@ -48,6 +51,10 @@ const MIX_SECTORS = [
 
 // Curated holiday-calendar countries (BDEW curves are German → DE default).
 const DEMAND_COUNTRIES = ['DE', 'CL', 'US', 'GB', 'FR', 'ES', 'IT', 'PL', 'NL', 'SE', 'NO', 'DK', 'BR', 'AR', 'MX', 'ZA', 'IN', 'CN', 'AU'];
+// Initial persistent state of SubstationDemandEstimate (lifted here; see demandEstimate).
+const EMPTY_DEMAND_ESTIMATE = {
+  family: 'classic', landuse: true, override: '', est: null, edits: {}, peakRatio: {},
+};
 const DEMAND_RESOLUTIONS = [['60min', 'Hourly (60 min)'], ['30min', '30 min'], ['15min', '15 min']];
 
 // Compact multi-select dropdown: a button ("Label · 2/3 ▾") that opens a checklist.
@@ -177,7 +184,7 @@ export default function ZonalStudyAreaPanel({
   const {
     studyArea, setStudyArea,
     osmLoading, osmLoadingStage, osmPowerLines, osmSubstations, osmPowerPlants,
-    setStudyBuildConfig, planSummary,
+    setStudyBuildConfig, planSummary, selectedRegionBoundary,
   } = useData();
   const plantCount = osmPowerPlants?.features?.length ?? 0;
 
@@ -263,6 +270,10 @@ export default function ZonalStudyAreaPanel({
   const [demandCountry, setDemandCountry] = useState('DE');     // holidays calendar
   const [demandResolution, setDemandResolution] = useState('60min');
   const [demandWeight, setDemandWeight] = useState('even');     // 'even' | 'voltage'
+  const [demandMode, setDemandMode] = useState(null);           // 'estimate' | 'population' (null until probed)
+  // Persistent estimate state, lifted here so it survives the wizard step
+  // remounting SubstationDemandEstimate. Changes only on user action / results.
+  const [demandEstimate, setDemandEstimate] = useState(EMPTY_DEMAND_ESTIMATE);
   // demandlib availability + SLP list (renderer falls back to synthetic when absent).
   const [dlInstalled, setDlInstalled] = useState(false);
   const [slpCodes, setSlpCodes] = useState(null);
@@ -287,6 +298,25 @@ export default function ZonalStudyAreaPanel({
   // The mix sliders are classic sectors; a single pick may be a BDEW25 code.
   const demandFamily = useMix ? 'classic' : familyForSlp(demandProfile);
 
+  // Default to the data-driven estimate when the demand service is running (set once).
+  useEffect(() => {
+    let alive = true;
+    getDemandServiceURL().then(url => {
+      if (alive) setDemandMode(m => m ?? (url ? 'estimate' : 'population'));
+    });
+    return () => { alive = false; };
+  }, []);
+  const effectiveDemandMode = demandMode ?? 'population';
+  // Published estimate {byId, family (the estimate's), country, latitude}, derived from the lifted state.
+  const estimatePublish = useMemo(() => {
+    const est = demandEstimate.est;
+    if (!est?.result) return null;
+    return {
+      byId: demandByOsmId(applyDemandEdits(est.result, demandEstimate.edits)),
+      family: est.family, country: demandCountry, latitude: est.result.latitude,
+    };
+  }, [demandEstimate.est, demandEstimate.edits, demandCountry]);
+
   // Only the connection choices live here; the categories (voltages / sub types /
   // plant sources) flow through the dropdown filters, which Creation reads live.
   const wizardConfig = useMemo(() => ({
@@ -297,10 +327,12 @@ export default function ZonalStudyAreaPanel({
         enabled: subDemand, perCapitaKWh: Number(perCapitaKWh) || 0, weightBy: demandWeight,
         profile: demandProfile, sectors: demandSectors, family: demandFamily,
         country: demandCountry, resolution: demandResolution,
+        mode: effectiveDemandMode,
+        estimate: effectiveDemandMode === 'estimate' && estimatePublish ? { ...estimatePublish, resolution: demandResolution } : null,
       },
     },
     plants: { include: plantInclude, target: plantTarget, maxKm: plantMaxKm ? Number(plantMaxKm) : 0 },
-  }), [txInclude, subInclude, subTarget, subMaxKm, subDemand, perCapitaKWh, demandWeight, demandProfile, demandSectors, demandFamily, demandCountry, demandResolution, plantInclude, plantTarget, plantMaxKm]);
+  }), [txInclude, subInclude, subTarget, subMaxKm, subDemand, perCapitaKWh, demandWeight, demandProfile, demandSectors, demandFamily, demandCountry, demandResolution, effectiveDemandMode, estimatePublish, plantInclude, plantTarget, plantMaxKm]);
 
   // Study-area population (from Nominatim extratags) drives the demand estimate.
   const areaPopulation = useMemo(
@@ -476,7 +508,7 @@ export default function ZonalStudyAreaPanel({
       const features = unitList
         .map(u => {
           const g = geoms[`${u.osmType}/${u.osmId}`];
-          return g ? { type: 'Feature', properties: { name: u.name }, geometry: g } : null;
+          return g ? { type: 'Feature', properties: { name: u.name, countryCode: u.countryCode || null }, geometry: g } : null;
         })
         .filter(Boolean);
       if (features.length) boundary = { type: 'FeatureCollection', features };
@@ -710,6 +742,48 @@ export default function ZonalStudyAreaPanel({
                       </div>
                       {subDemand && (
                         <div className="mt-1.5 space-y-1.5">
+                          {/* Demand source: service estimate vs population split */}
+                          <div className="grid grid-cols-2 rounded-lg border border-black/15 overflow-hidden text-[11px]">
+                            {[['estimate', 'Estimate from data'], ['population', 'Population split']].map(([v, l]) => (
+                              <button
+                                key={v} type="button" onClick={() => setDemandMode(v)}
+                                className={`px-2 py-1 ${effectiveDemandMode === v ? 'bg-electric-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+                              >{l}</button>
+                            ))}
+                          </div>
+                          {/* Holiday calendar + timeseries resolution */}
+                          <div className="grid grid-cols-2 gap-1.5">
+                            <label className="block">
+                              <span className="block text-[10px] font-medium text-slate-500 mb-0.5">Calendar</span>
+                              <SelectField
+                                value={demandCountry}
+                                onChange={e => { countryTouchedRef.current = true; setDemandCountry(e.target.value); }}
+                                className="w-full px-2 py-1 text-xs border border-black/15 rounded-lg bg-white focus:ring-2 focus:ring-electric-400"
+                              >
+                                {countryOptions.map(c => <option key={c} value={c}>{c}</option>)}
+                              </SelectField>
+                            </label>
+                            <label className="block">
+                              <span className="block text-[10px] font-medium text-slate-500 mb-0.5">Resolution</span>
+                              <SelectField
+                                value={demandResolution} onChange={e => setDemandResolution(e.target.value)}
+                                className="w-full px-2 py-1 text-xs border border-black/15 rounded-lg bg-white focus:ring-2 focus:ring-electric-400"
+                              >
+                                {DEMAND_RESOLUTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                              </SelectField>
+                            </label>
+                          </div>
+
+                          {effectiveDemandMode === 'estimate' ? (
+                            <SubstationDemandEstimate
+                              boundary={selectedRegionBoundary}
+                              inputs={planSummary?.demandInputs}
+                              country={studyAreaCountry || demandCountry}
+                              value={demandEstimate}
+                              onChange={setDemandEstimate}
+                            />
+                          ) : (
+                          <>
                           <label className="block">
                             <span className="block text-[11px] font-medium text-slate-600 mb-1">Per-capita demand (kWh/person·year)</span>
                             <input
@@ -772,29 +846,6 @@ export default function ZonalStudyAreaPanel({
                             </SelectField>
                           )}
 
-                          {/* Holiday calendar + timeseries resolution */}
-                          <div className="grid grid-cols-2 gap-1.5">
-                            <label className="block">
-                              <span className="block text-[10px] font-medium text-slate-500 mb-0.5">Calendar</span>
-                              <SelectField
-                                value={demandCountry}
-                                onChange={e => { countryTouchedRef.current = true; setDemandCountry(e.target.value); }}
-                                className="w-full px-2 py-1 text-xs border border-black/15 rounded-lg bg-white focus:ring-2 focus:ring-electric-400"
-                              >
-                                {countryOptions.map(c => <option key={c} value={c}>{c}</option>)}
-                              </SelectField>
-                            </label>
-                            <label className="block">
-                              <span className="block text-[10px] font-medium text-slate-500 mb-0.5">Resolution</span>
-                              <SelectField
-                                value={demandResolution} onChange={e => setDemandResolution(e.target.value)}
-                                className="w-full px-2 py-1 text-xs border border-black/15 rounded-lg bg-white focus:ring-2 focus:ring-electric-400"
-                              >
-                                {DEMAND_RESOLUTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                              </SelectField>
-                            </label>
-                          </div>
-
                           {previewCurve && (
                             <div className="rounded-md border border-black/15 bg-slate-50 px-2 py-1.5">
                               <div className="flex items-center justify-between text-[10px] text-slate-400 mb-0.5">
@@ -825,6 +876,8 @@ export default function ZonalStudyAreaPanel({
                             </p>
                           ) : (
                             <p className="text-[10px] text-amber-600">No population found for this area — demand can’t be estimated. Add a place that reports population, or set it later.</p>
+                          )}
+                          </>
                           )}
                         </div>
                       )}

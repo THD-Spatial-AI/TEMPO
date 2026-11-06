@@ -98,6 +98,8 @@ export async function getDemandShape({ start, end, resolution, sectors, country,
  * latitude, magnitude groups). The per-substation `resource` file refs are
  * unchanged (same columns), so only the CSV data is refreshed.
  *
+ * Entries with `demandConfig.mode === 'estimate'` re-shape each column by its own mix and avg MW.
+ *
  * @param {object} entry  a timeSeries entry carrying `demandConfig`
  * @param {{ startDate:string, endDate:string, resolution?:string }} modelConfig
  * @returns {Promise<object>} the updated entry
@@ -105,6 +107,22 @@ export async function getDemandShape({ start, end, resolution, sectors, country,
 export async function regenerateDemandSeries(entry, modelConfig) {
   const dc = entry?.demandConfig || {};
   const resolution = modelConfig?.resolution || dc.resolution || '60min';
+  if (dc.mode === 'estimate') {
+    const { shapeWithFallback, seriesColumns } = await import('./substationDemand');
+    const groups = dc.groups || [];
+    const { datetimes, series, source } = await shapeWithFallback({
+      substations: groups.map(g => ({ id: g.key, avg_mw: g.mw, mix: g.mix })),
+      start: modelConfig.startDate, end: modelConfig.endDate, resolution,
+      country: dc.country, family: dc.family, latitude: dc.latitude || 0,
+    });
+    const series2 = Object.fromEntries(groups.map(g => [g.col, series[g.key]]));
+    const { columns, dataColumns, data } = seriesColumns({
+      datetimes, series: series2, subs: groups.map(g => ({ key: g.col, name: g.col })),
+    });
+    const csvContent = [columns.join(','), ...data.map(r => columns.map(c => r[c]).join(','))].join('\n');
+    return { ...entry, columns, dataColumns, data, csvContent, rowCount: data.length, modified: true,
+      demandConfig: { ...dc, resolution, source } };
+  }
   const { datetimes, values, source } = await getDemandShape({
     start: modelConfig.startDate, end: modelConfig.endDate, resolution,
     sectors: dc.sectors, country: dc.country, family: dc.family, latitude: dc.latitude || 0,
