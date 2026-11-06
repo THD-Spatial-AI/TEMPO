@@ -48,6 +48,13 @@ describe('syntheticShape', () => {
 });
 
 describe('demandlibClient — mocked bridge', () => {
+  it('checkDemandlib reads envExists', async () => {
+    globalThis.window = { electronAPI: { checkDemandlib: async () => ({ envExists: true }) } };
+    expect(await checkDemandlib()).toBe(true);
+    globalThis.window = { electronAPI: { checkDemandlib: async () => ({ envExists: false }) } };
+    expect(await checkDemandlib()).toBe(false);
+  });
+
   it('getDemandShape uses demandlib when the bridge succeeds', async () => {
     globalThis.window = {
       electronAPI: { generateDemandProfile: async () => ({ ok: true, data: { datetimes: ['2024-04-08 00:00:00'], values: [1, 2, 3] } }) },

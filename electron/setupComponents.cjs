@@ -26,8 +26,8 @@ const COMPONENTS = [
     description: 'Net-zero energy system optimisation. Downloads Python 3.12 if it is missing.' },
   { id: 'osm', group: 'tool', label: 'OSM region tools', default: true, sizeGb: 0.25,
     description: 'Download and process OpenStreetMap regions. The map still works without them, using live data.' },
-  { id: 'demand', group: 'tool', label: 'Demand profiles', sizeGb: 0.2,
-    description: 'BDEW load profiles (demandlib) for Study-Area demand.' },
+  { id: 'demand', group: 'tool', label: 'Demand estimation', sizeGb: 0.6,
+    description: 'Per-substation demand for Study Areas: gridded consumption data, land use and BDEW load profiles.' },
   { id: 'geo', group: 'service', label: 'PostGIS + GeoServer', sizeGb: 0, dockerGb: 4.6,
     description: 'Local database for curated OSM layers. Needs Docker Desktop.' },
 ];

@@ -354,8 +354,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ── Demandlib (BDEW load shapes for OSM Study-Area demand) ─────────────────
 
   /**
-   * Whether the demandlib venv is installed.
-   * @returns Promise<{ venvExists: bool }>
+   * Whether the demand venv (service + demandlib) is installed.
+   * @returns Promise<{ envExists: bool, venvPath: string|null, serviceRunning: bool, serviceLayerOk: bool, platform: string }>
    */
   checkDemandlib: () => ipcRenderer.invoke('demand:check'),
 
@@ -374,7 +374,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   generateDemandProfile: (payload) => ipcRenderer.invoke('demand:profile', payload),
 
   /**
-   * Install the demandlib venv on demand. Streams via onDemandInstallProgress.
+   * Install the demand venv on demand. Streams via onDemandInstallProgress.
    * @returns Promise<{ success: bool, error?: string }>
    */
   installDemandlib: () => ipcRenderer.invoke('demand:install'),
@@ -388,6 +388,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('demand:install-progress', handler);
     return () => ipcRenderer.removeListener('demand:install-progress', handler);
   },
+
+  /**
+   * Restart the local demand estimation service.
+   * @returns Promise<{ running: bool }>
+   */
+  restartDemandService: () => ipcRenderer.invoke('demand:restart-service'),
 });
 
 

@@ -14,11 +14,14 @@ import { generateDemandShape, syntheticKeyForSlp } from './demandProfiles';
 
 const bridge = () => (typeof window !== 'undefined' ? window.electronAPI : null);
 
-/** Whether the demandlib venv is installed (false outside Electron). */
+/**
+ * Whether the demand venv exists (false outside Electron). The IPC returns the
+ * engine-service shape `{ envExists, venvPath, serviceRunning, serviceLayerOk, platform }`.
+ */
 export async function checkDemandlib() {
   try {
     const res = await bridge()?.checkDemandlib?.();
-    return !!res?.venvExists;
+    return !!res?.envExists;
   } catch {
     return false;
   }

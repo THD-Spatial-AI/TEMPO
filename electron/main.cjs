@@ -22,6 +22,7 @@ let ADOPTNET0_PORT  = 5001;   // may be reassigned at startup if port is taken
 let CALLIOPE07_PORT = 5002;   // may be reassigned at startup if port is taken
 let PYPSA_PORT      = 5003;   // may be reassigned at startup if port is taken
 let OSEMOSYS_PORT   = 5004;   // may be reassigned at startup if port is taken
+let DEMAND_PORT     = 5006;   // may be reassigned at startup if port is taken
 let GEOSERVER_PORT  = 8081;   // may be reassigned at startup if port is taken
 let POSTGIS_PORT    = 5432;   // may be reassigned at startup if port is taken
 const IS_WIN        = process.platform === 'win32';
@@ -29,7 +30,7 @@ const IS_LINUX      = process.platform === 'linux';
 
 // Ports already spoken for, so a service moved off a taken port never lands on
 // another service's default.
-const claimedPorts = new Set([BACKEND_PORT, CALLIOPE_PORT, ADOPTNET0_PORT, CALLIOPE07_PORT, PYPSA_PORT, OSEMOSYS_PORT, GEOSERVER_PORT, POSTGIS_PORT]);
+const claimedPorts = new Set([BACKEND_PORT, CALLIOPE_PORT, ADOPTNET0_PORT, CALLIOPE07_PORT, PYPSA_PORT, OSEMOSYS_PORT, DEMAND_PORT, GEOSERVER_PORT, POSTGIS_PORT]);
 
 async function claimPort(preferred, engine) {
   try {
@@ -140,6 +141,19 @@ function getServices() {
       start: engines.osemosys.start,
       isInstalled: engines.osemosys.isInstalled,
       composeDir: repoRoot,
+      required: false,
+    },
+    {
+      // Named `-runner` so engineSteps()/serviceFor() find it. No composeDir:
+      // there is no Docker image, so startViaDocker() refuses instead of building.
+      name: 'demand-runner',
+      label: 'Demand Estimation',
+      port: DEMAND_PORT,
+      portEnv: 'TEMPO_DEMAND_PORT',
+      setPort: (p) => { DEMAND_PORT = p; },
+      engine: 'demand',
+      start: engines.demand.start,
+      isInstalled: engines.demand.isInstalled,
       required: false,
     },
     {
@@ -442,8 +456,8 @@ ipcMain.handle('docker:start-all', async (_event, { nativeOnly = false } = {}) =
 
 // ─── IPC: Service URL registry ───────────────────────────────────────────────
 ipcMain.handle('services:urls', async () => {
-  const [c, c07, a, py, osm, o, gs, be] = await Promise.all([
-    isPortOpen(CALLIOPE_PORT), isPortOpen(CALLIOPE07_PORT), isPortOpen(ADOPTNET0_PORT), isPortOpen(PYPSA_PORT), isPortOpen(OSEMOSYS_PORT), isPortOpen(8000),
+  const [c, c07, a, py, osm, dm, o, gs, be] = await Promise.all([
+    isPortOpen(CALLIOPE_PORT), isPortOpen(CALLIOPE07_PORT), isPortOpen(ADOPTNET0_PORT), isPortOpen(PYPSA_PORT), isPortOpen(OSEMOSYS_PORT), isPortOpen(DEMAND_PORT), isPortOpen(8000),
     isPortOpen(GEOSERVER_PORT), isPortOpen(BACKEND_PORT),
   ]);
   return {
@@ -452,6 +466,7 @@ ipcMain.handle('services:urls', async () => {
     adoptnet0:  { url: `http://localhost:${ADOPTNET0_PORT}`, running: a   },
     pypsa:      { url: `http://localhost:${PYPSA_PORT}`,     running: py  },
     osemosys:   { url: `http://localhost:${OSEMOSYS_PORT}`,  running: osm },
+    demand:     { url: `http://localhost:${DEMAND_PORT}`,    running: dm  },
     opentech:   { url: 'https://otdb.th-deg.de',             running: o   },
     geoserver:  { url: `http://localhost:${GEOSERVER_PORT}`, running: gs  },
     backend:    { url: `http://localhost:${BACKEND_PORT}`,   running: be && !!backendProcess },
@@ -1084,10 +1099,11 @@ function getServicePaths() {
 }
 
 // ─── Demandlib one-shot (BDEW load shapes for OSM Study-Area demand) ──────────
-// A dedicated venv holds oemof demandlib; it's invoked one-shot (no service, no
-// port) to generate a normalised demand shape at import time. Installed lazily
-// on first use, or eagerly via the setup wizard; the renderer falls back to a
-// synthetic JS shape when the venv is absent.
+// demandlib is invoked one-shot (no port) to generate a normalised demand shape
+// at import time, from the demand service's venv (engines.demand) only. The old
+// demandlib-venv is ignored (broken by pandas 3.1; it made the panel preview and
+// the import disagree) and removed on demand uninstall. The renderer falls back
+// to a synthetic JS shape when the venv is absent.
 
 // python.exe alone only proves the venv was created: a failed install leaves that behind.
 function venvHasPackage(venvDir, packagePrefix) {
@@ -1103,10 +1119,8 @@ function venvHasPackage(venvDir, packagePrefix) {
 }
 
 function resolveDemandlibVenv() {
-  const binDir = IS_WIN ? 'Scripts' : 'bin';
-  const pyExe  = IS_WIN ? 'python.exe' : 'python3';
-  const venvDir = path.join(app.getPath('userData'), 'demandlib-venv');
-  const python  = path.join(venvDir, binDir, pyExe);
+  const venvDir = path.join(app.getPath('userData'), 'demand-venv');
+  const python  = path.join(venvDir, IS_WIN ? 'Scripts' : 'bin', IS_WIN ? 'python.exe' : 'python3');
   return { venvDir, python, exists: fs.existsSync(python) && venvHasPackage(venvDir, 'demandlib') };
 }
 
@@ -1194,33 +1208,6 @@ async function installOsmVenv(sendProgress) {
   await runChild(osmVenvPy, ['-c', OSM_VERIFY], 'osm verify');
 }
 
-/**
- * Create (or recreate) the demandlib venv and install requirements, streaming
- * progress via sendProgress({type,label|line}).
- */
-async function installDemandlibVenv(sendProgress) {
-  const binDir = IS_WIN ? 'Scripts' : 'bin';
-  const pyExe  = IS_WIN ? 'python.exe' : 'python3';
-  const venvDir = path.join(app.getPath('userData'), 'demandlib-venv');
-  const venvPy  = path.join(venvDir, binDir, pyExe);
-  const { pythonDir } = getServicePaths();
-  const reqFile = path.join(pythonDir, 'requirements.demandlib.txt');
-  const runChild = makeChildRunner(sendProgress);
-
-  const sysPy = await ensureCompatiblePython(sendProgress);
-  sendProgress({ type: 'stage', label: 'Creating demand-profiles environment…' });
-  await runChild(sysPy, ['-m', 'venv', '--clear', venvDir], 'demandlib venv creation');
-  try { await runChild(venvPy, ['-m', 'ensurepip', '--upgrade'], 'demandlib ensurepip'); } catch { /* non-fatal */ }
-  await runChild(venvPy, ['-m', 'pip', 'install', '--upgrade', '--quiet', 'pip', 'setuptools', 'wheel'], 'demandlib pip upgrade');
-  sendProgress({ type: 'stage', label: 'Installing demandlib (BDEW load profiles)…' });
-  if (fs.existsSync(reqFile)) {
-    await runChild(venvPy, ['-m', 'pip', 'install', '--prefer-binary', '--no-cache-dir', '-r', reqFile], 'demandlib deps');
-  }
-  await runChild(venvPy, ['-c', 'from demandlib import bdew; print("demandlib-ok")'], 'demandlib verify');
-}
-
-ipcMain.handle('demand:check', async () => ({ venvExists: resolveDemandlibVenv().exists }));
-
 ipcMain.handle('demand:list-profiles', async (_event, year) => {
   const y = Number(year) || new Date().getFullYear();
   return runDemandlibOneShot(['--list-profiles', '--year', String(y)], '', 20000);
@@ -1228,19 +1215,6 @@ ipcMain.handle('demand:list-profiles', async (_event, year) => {
 
 ipcMain.handle('demand:profile', async (_event, payload) =>
   runDemandlibOneShot([], JSON.stringify(payload || {}), 90000));
-
-ipcMain.handle('demand:install', async () => {
-  const sendProgress = (data) => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('demand:install-progress', data); };
-  try {
-    await installDemandlibVenv(sendProgress);
-    sendProgress({ type: 'done' });
-    return { success: true };
-  } catch (err) {
-    const msg = err.message || String(err);
-    sendProgress({ type: 'error', error: msg });
-    return { success: false, error: msg };
-  }
-});
 
 // ─── Calliope service (FastAPI / uvicorn) ────────────────────────────────────
 let _svcIntentionalStop = false;  // set true before deliberate kills so no restart happens
@@ -1732,6 +1706,10 @@ function buildOsemosysEnv() {
   return childEnv;
 }
 
+function buildDemandEnv() {
+  return { ...process.env, TEMPO_DEMAND_DATA: path.join(app.getPath('userData'), 'demand-data') };
+}
+
 const engineDeps = { isPortOpen, waitForPort, getServicePaths, getMainWindow: () => mainWindow };
 
 const engines = {
@@ -1893,6 +1871,36 @@ const engines = {
     },
     deps: engineDeps,
   }),
+
+  // Local demand estimation service (EC raster + land use → per-substation
+  // demand). Its venv also serves the BDEW one-shot (resolveDemandlibVenv).
+  demand: createEngineService({
+    id: 'demand',
+    label: 'Demand estimation',
+    logTag: 'demand-svc',
+    venvName: 'demand-venv',
+    packagePrefix: 'demandlib',
+    serviceApp: 'demand_service:app',
+    getPort: () => DEMAND_PORT,
+    python: {
+      versionLabel: '3.10+',
+      find: findSystemPython310Plus,
+      notFoundError:
+        'Python 3.10+ not found (required by demand estimation).\n' +
+        'Install it, then relaunch TEMPO:\n' +
+        '  Ubuntu/Debian: sudo apt-get install python3.11 python3.11-venv\n' +
+        '  macOS:         brew install python@3.11\n' +
+        '  Other:         https://www.python.org/downloads/',
+    },
+    install: {
+      stageLabel: 'Installing demand estimation (demandlib + geo stack)…',
+      requirements: 'requirements.demand.txt',
+    },
+    verifySnippet: 'import demandlib, rasterio, shapely, pyproj; print("demand-ok")',
+    checkSnippet: 'import demandlib, rasterio, shapely; print("ok")',
+    buildEnv: buildDemandEnv,
+    deps: engineDeps,
+  }),
 };
 
 // ─── Component setup (what gets installed, and proving it works) ─────────────
@@ -1993,10 +2001,12 @@ const COMPONENT_STEPS = {
     uninstall: () => removeVenvDir(path.join(app.getPath('userData'), 'osm-venv')),
   },
   demand: {
-    isInstalled: () => resolveDemandlibVenv().exists,
-    install: (log) => installDemandlibVenv(log),
-    verify: () => pythonSucceeds(resolveDemandlibVenv().python, 'from demandlib import bdew'),
-    uninstall: () => removeVenvDir(path.join(app.getPath('userData'), 'demandlib-venv')),
+    ...engineSteps('demand'),
+    uninstall: async () => {
+      const result = await engineSteps('demand').uninstall();
+      const legacy = await removeVenvDir(path.join(app.getPath('userData'), 'demandlib-venv'));
+      return result?.success === false ? result : legacy;
+    },
   },
   geo: {
     isInstalled: geoContainersRunning,
@@ -2183,8 +2193,9 @@ app.whenReady().then(async () => {
   CALLIOPE07_PORT = await claimPort(CALLIOPE07_PORT, 'calliope-0.7');
   PYPSA_PORT      = await claimPort(PYPSA_PORT, 'pypsa');
   OSEMOSYS_PORT   = await claimPort(OSEMOSYS_PORT, 'osemosys');
+  DEMAND_PORT     = await claimPort(DEMAND_PORT, 'demand');
   await startBackend();
-  console.log(`[ports] backend=${BACKEND_PORT}  calliope=${CALLIOPE_PORT}  adoptnet0=${ADOPTNET0_PORT}  calliope07=${CALLIOPE07_PORT}  pypsa=${PYPSA_PORT}  osemosys=${OSEMOSYS_PORT}  postgis=${POSTGIS_PORT}  geoserver=${GEOSERVER_PORT}`);
+  console.log(`[ports] backend=${BACKEND_PORT}  calliope=${CALLIOPE_PORT}  adoptnet0=${ADOPTNET0_PORT}  calliope07=${CALLIOPE07_PORT}  pypsa=${PYPSA_PORT}  osemosys=${OSEMOSYS_PORT}  demand=${DEMAND_PORT}  postgis=${POSTGIS_PORT}  geoserver=${GEOSERVER_PORT}`);
 
   // Start native calliope service (no-op if venv not installed yet)
   startCalliopeService().catch(err => console.warn('[calliope-svc] autostart error:', err.message));
