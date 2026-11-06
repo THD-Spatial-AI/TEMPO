@@ -33,10 +33,12 @@ def get(url, data=None, timeout=200):
         return json.loads(r.read().decode("utf-8"))
 
 
-def fetch_area():
-    q = urllib.parse.urlencode({"q": "Arica, Chile", "format": "jsonv2", "polygon_geojson": 1, "limit": 1})
-    hit = get("https://nominatim.openstreetmap.org/search?" + q, timeout=60)[0]
-    geom = hit["geometry"] if "geometry" in hit else hit["geojson"]
+def fetch_area(name="Arica, Chile"):
+    q = urllib.parse.urlencode({"q": name, "format": "jsonv2", "polygon_geojson": 1, "limit": 5})
+    hits = get("https://nominatim.openstreetmap.org/search?" + q, timeout=60)
+    geom_of = lambda h: h["geometry"] if "geometry" in h else h["geojson"]  # noqa: E731
+    hit = next((h for h in hits if geom_of(h)["type"] in ("Polygon", "MultiPolygon")), hits[0])
+    geom = geom_of(hit)
     print(f"Nominatim: {hit.get('display_name')} ({geom['type']})")
     return {"type": "FeatureCollection",
             "features": [{"type": "Feature", "geometry": geom, "properties": {"countryCode": "CL"}}]}

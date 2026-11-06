@@ -76,8 +76,8 @@ empty for no limit.
 Each substation gets an `electricity_substation` conversion technology, so it is never an
 empty location. Connection links use the `hvac_overhead` link type.
 
-This step can also give every substation an electricity demand estimated from population.
-See [Substation Demand](demand-profiles.md).
+This step can also give the substations an electricity demand, estimated from gridded
+consumption data and land use, or from population. See [Substation Demand](demand-profiles.md).
 
 ### 3. Power plants
 

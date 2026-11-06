@@ -5,6 +5,29 @@ All notable changes to TEMPO are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Substation demand estimation** — the Study Area tool can estimate how much electricity
+  each distribution substation supplies, anywhere in the world. The default for this is
+  **Estimate from data**.
+  - It places the demand with a global 1 km electricity-consumption map (Chen & Gao, 2022).
+  - It scales the total to national demand statistics (Our World in Data).
+  - It gives each substation a BDEW sector mix from OpenStreetMap land use.
+  - It shifts the load shapes by six months in the southern hemisphere.
+  - You can edit each substation's GWh and mix, or the area total, before import.
+  - It runs as a local service in the new **Demand estimation** component.
+- **Demand cells layer** — each substation's service area is saved with the model. In
+  Creation and Map View it can be shown, coloured by density or total, under the new
+  **Overlays** section of the map-style menu.
+
+### Changed
+
+- The demand environment `demand-venv` replaces `demandlib-venv`. Uninstalling the
+  component also removes the old one.
+- The population split remains available as **Population split**.
+
 ## [4.0.1] - 2026-10-19
 
 Updates from inside the app, model checks before you run, and a round of interface polish.
