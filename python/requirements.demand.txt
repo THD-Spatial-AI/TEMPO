@@ -1,0 +1,10 @@
+# demand-venv — substation demand estimation (gridded EC raster + Voronoi cells)
+# plus BDEW shaping. Superset of requirements.demandlib.txt; demand-venv replaces
+# demandlib-venv once the demand service lands (Inc 3).
+demandlib
+pandas<3.1  # 3.1 turns demandlib 0.2.2's sort_index(inplace=True) into a Pandas4Warning error
+numpy
+holidays
+rasterio>=1.3
+shapely>=2.1  # voronoi_polygons(ordered=True)
+pyproj>=3.4

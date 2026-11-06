@@ -1,0 +1,161 @@
+"""Tests for demand_estimate — per-substation annual demand from the EC raster."""
+import sys
+from pathlib import Path
+
+import numpy as np
+import pytest
+
+rasterio = pytest.importorskip("rasterio")
+pytest.importorskip("shapely")
+from rasterio.transform import from_origin  # noqa: E402
+from shapely.geometry import MultiPolygon, box, mapping  # noqa: E402
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+import demand_estimate as de  # noqa: E402
+
+AREA = {"type": "FeatureCollection", "features": [
+    {"type": "Feature", "properties": {}, "geometry": mapping(box(-71.0, -34.0, -70.0, -33.0))}]}
+A = {"id": "a", "name": "A", "lon": -70.75, "lat": -33.5, "substation": "distribution"}
+B = {"id": "b", "name": "B", "lon": -70.25, "lat": -33.5, "substation": "distribution"}
+T = {"id": "t", "name": "T", "lon": -70.5, "lat": -33.5, "substation": "transmission"}
+
+
+def ec_tif(tmp_path, left_only=True):
+    data = np.zeros((100, 100)) if left_only else np.full((100, 100), 1000.0)
+    if left_only:
+        data[:, :50] = 1000.0                  # 5,000 pixels × 1,000 kWh = 5 GWh west of -70.5
+    path = tmp_path / "ec.tif"
+    with rasterio.open(path, "w", driver="GTiff", height=100, width=100, count=1, dtype="float32",
+                       crs="EPSG:4326", transform=from_origin(-71.0, -33.0, 0.01, 0.01), nodata=-1) as dst:
+        dst.write(data.astype("float32"), 1)
+    return path
+
+
+def run(tmp_path, subs, left_only=True, **kw):
+    opts = dict(raster_year=2019, model_year=2019, country="CL", national_table={})
+    opts.update(kw)
+    return de.estimate(AREA, subs, ec_path=ec_tif(tmp_path, left_only), **opts)
+
+
+def by_id(result):
+    return {s["id"]: s for s in result["substations"]}
+
+
+def test_energy_goes_to_the_cell_it_lies_in(tmp_path):
+    res = run(tmp_path, [A, B])
+    s = by_id(res)
+    assert res["chain"]["rasterSumGWh"] == pytest.approx(5.0)
+    assert s["a"]["annual_gwh"] == pytest.approx(5.0)
+    assert s["b"]["annual_gwh"] == pytest.approx(0.0)
+    assert s["a"]["avg_mw"] == pytest.approx(5.0 * 1000 / 8760, rel=1e-6)
+
+
+def test_transmission_substation_gets_no_demand(tmp_path):
+    s = by_id(run(tmp_path, [A, B, T]))
+    assert s["t"]["seed"] is False and s["t"]["annual_gwh"] == 0.0
+    assert s["a"]["annual_gwh"] == pytest.approx(5.0)
+
+
+def test_override_rescales_keeping_shares(tmp_path):
+    res = run(tmp_path, [A, B], override_gwh=20.0)
+    assert by_id(res)["a"]["annual_gwh"] == pytest.approx(20.0)
+    assert res["chain"]["totalGWh"] == pytest.approx(20.0)
+
+
+def test_growth_to_latest_national_year(tmp_path):
+    res = run(tmp_path, [A, B], model_year=2030, national_table={"CL": {2019: 80.0, 2023: 88.0}})
+    assert res["chain"]["growthFactor"] == pytest.approx(1.1)
+    assert res["chain"]["growthToYear"] == 2023
+    assert res["totalGWh"] == pytest.approx(5.5)
+
+
+def test_missing_growth_data_warns(tmp_path):
+    res = run(tmp_path, [A, B], model_year=2024)
+    assert any(w["code"] == "NO_GROWTH_DATA" for w in res["warnings"])
+
+
+def test_fallback_when_only_transmission(tmp_path):
+    res = run(tmp_path, [dict(A, substation="transmission"), dict(B, substation="transmission")])
+    assert any(w["code"] == "NO_SEEDS_FALLBACK" for w in res["warnings"])
+    assert by_id(res)["a"]["annual_gwh"] == pytest.approx(5.0)
+
+
+def test_conservation_and_shares_follow_cell_area(tmp_path):
+    subs = [A, B, {"id": "c", "name": "C", "lon": -70.4, "lat": -33.2, "substation": ""}]
+    res = run(tmp_path, subs, left_only=False)
+    total = sum(s["annual_gwh"] for s in res["substations"])
+    assert total == pytest.approx(res["totalGWh"], rel=1e-6)
+    area = sum(s["area_km2"] for s in res["substations"])
+    for s in res["substations"]:
+        assert s["share"] == pytest.approx(s["area_km2"] / area, abs=0.03)   # uniform raster
+
+
+def test_cells_feature_collection(tmp_path):
+    res = run(tmp_path, [A, B, T])
+    feats = res["cells"]["features"]
+    assert [f["properties"]["locationId"] for f in feats] == ["a", "b"]
+    assert all(f["geometry"]["type"] in ("Polygon", "MultiPolygon") for f in feats)
+    a = feats[0]["properties"]
+    assert a["densityGWhKm2"] == pytest.approx(a["annualGWh"] / a["areaKm2"], rel=1e-3)
+
+
+def test_far_from_seed_warning(tmp_path):
+    lone = {"id": "z", "name": "Z", "lon": -70.01, "lat": -33.01, "substation": "distribution"}
+    res = run(tmp_path, [lone], left_only=False)
+    assert any(w["code"] == "FAR_FROM_SEED" for w in res["warnings"])
+
+
+def test_area_without_pixels_warns(tmp_path):
+    far_area = {"type": "Feature", "properties": {}, "geometry": mapping(box(10, 10, 11, 11))}
+    res = de.estimate(far_area, [A], ec_path=ec_tif(tmp_path), raster_year=2019, model_year=2019,
+                      country="CL", national_table={})
+    assert res["totalGWh"] == 0.0
+    assert any(w["code"] == "NO_PIXELS" for w in res["warnings"])
+
+
+def test_override_without_pixels_follows_cell_area(tmp_path):
+    far_area = {"type": "Feature", "properties": {}, "geometry": mapping(box(10, 10, 11, 11))}
+    subs = [dict(A, lon=10.25, lat=10.5), dict(B, lon=10.75, lat=10.5)]
+    res = de.estimate(far_area, subs, ec_path=ec_tif(tmp_path), raster_year=2019, model_year=2019,
+                      country="CL", national_table={}, override_gwh=50.0)
+    assert sum(s["annual_gwh"] for s in res["substations"]) == pytest.approx(50.0)
+    assert by_id(res)["a"]["annual_gwh"] == pytest.approx(25.0, rel=1e-3)
+    assert any(w["code"] == "AREA_SHARES" for w in res["warnings"])
+
+
+def test_centre_of_area_across_antimeridian():
+    lon, lat = de.area_centre(MultiPolygon([box(179.0, -1.0, 180.0, 1.0), box(-180.0, -1.0, -179.0, 1.0)]))
+    assert abs(abs(lon) - 180.0) < 1e-6 and lat == pytest.approx(0.0, abs=1e-9)
+    assert de.area_centre(box(-71, -34, -70, -33)) == pytest.approx((-70.5, -33.5))
+
+
+def test_estimate_across_antimeridian(tmp_path):
+    path = tmp_path / "world.tif"
+    with rasterio.open(path, "w", driver="GTiff", height=360, width=720, count=1, dtype="float32",
+                       crs="EPSG:4326", transform=from_origin(-180.0, 90.0, 0.5, 0.5), nodata=-1) as dst:
+        dst.write(np.full((360, 720), 1e6, "float32"), 1)       # 1 GWh per pixel
+    area = {"type": "Feature", "properties": {},
+            "geometry": mapping(MultiPolygon([box(179.0, -1.0, 180.0, 1.0), box(-180.0, -1.0, -179.0, 1.0)]))}
+    east = {"id": "e", "name": "E", "lon": 179.5, "lat": 0.0, "substation": "distribution"}
+    west = {"id": "w", "name": "W", "lon": -179.5, "lat": 0.0, "substation": "distribution"}
+    res = de.estimate(area, [east, west], ec_path=path, raster_year=2019, model_year=2019,
+                      country="FJ", national_table={})
+    s = by_id(res)
+    assert res["chain"]["rasterSumGWh"] == pytest.approx(16.0)
+    assert s["e"]["annual_gwh"] == pytest.approx(8.0) and s["w"]["annual_gwh"] == pytest.approx(8.0)
+    # cells drawn in a plane centred near 180°, not on the far side of the globe
+    assert s["e"]["area_km2"] == pytest.approx(s["w"]["area_km2"], rel=1e-3)
+    assert 0.9 * 111.32 * 221.1 < s["e"]["area_km2"] < 1.1 * 111.32 * 221.1
+
+
+def test_invalid_area_is_repaired():
+    bowtie = {"type": "Polygon", "coordinates": [[(0, 0), (2, 2), (2, 0), (0, 2), (0, 0)]]}
+    geom = de.area_geometry(bowtie)
+    assert geom.is_valid and geom.area == pytest.approx(2.0)
+
+
+def test_duplicate_seed_location_warns(tmp_path):
+    res = run(tmp_path, [A, dict(A, id="a2"), B])
+    assert any(w["code"] == "DUPLICATE_SEED" for w in res["warnings"])
+    assert not any(w["code"] == "DUPLICATE_SEED" for w in run(tmp_path, [A, B])["warnings"])
