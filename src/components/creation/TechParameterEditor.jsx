@@ -22,6 +22,7 @@ import {
 import { PARENT_CONSTRAINTS, CONSTRAINT_DEFINITIONS, COST_DEFINITIONS } from '../../utils/constraintDefinitions';
 import { fetchTechFramework, frameworkParamNames } from '../../services/techDatabaseApi';
 import SelectField from '../ui/SelectField';
+import ResourceProfileSection from '../profiles/ResourceProfileSection';
 
 // Raw Calliope cost keys offered in the Calliope power-user panel.
 const RAW_COST_KEYS = ['energy_cap', 'storage_cap', 'resource_cap', 'purchase', 'om_annual', 'om_prod', 'om_con'];
@@ -136,6 +137,9 @@ function ParamRow({ name, value, onChange, onRemove }) {
 export default function TechParameterEditor({
   parent,
   techUuid,
+  techName,
+  focusLocation,
+  onProfileApplied,
   constraints = {},
   costs = {},
   engineParams = {},
@@ -182,6 +186,15 @@ export default function TechParameterEditor({
 
   return (
     <div className="space-y-4">
+      {techName && (
+        <ResourceProfileSection
+          techName={techName}
+          techUuid={techUuid}
+          parent={parent}
+          focusLocation={focusLocation}
+          onProfileApplied={onProfileApplied}
+        />
+      )}
       {/* ── Common (ontology) parameters ─────────────────────────────── */}
       <div>
         <p className="text-xs font-semibold text-slate-600 mb-2">Common parameters</p>

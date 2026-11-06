@@ -1525,6 +1525,7 @@ function Technologies() {
                   <TechParameterEditor
                     parent={editForm.essentials?.parent}
                     techUuid={editForm.uuid}
+                    techName={currentModelId && technologies.some(t => t.name === editingTech) ? editingTech : undefined}
                     constraints={editForm.constraints || {}}
                     costs={editForm.costs?.monetary || {}}
                     engineParams={editForm.engineParams || {}}

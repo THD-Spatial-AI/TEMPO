@@ -311,6 +311,32 @@ export async function fetchSingleTechCalliope(techId, { instance_index = 0, cost
 }
 
 /**
+ * Profile metadata for a technology (embedded + linked timeseries profiles).
+ *
+ * @param {string} techUuid
+ * @returns {Promise<Object>}
+ */
+export async function fetchTechProfiles(techUuid) {
+  return apiFetch(`/api/v1/technologies/${encodeURIComponent(techUuid)}/profiles`);
+}
+
+/**
+ * Hourly values of one profile. Tech-level `generation_profile` first, then the
+ * first instance carrying `profileId` (tidal profiles are instance-level).
+ *
+ * @param {string} techUuid
+ * @param {string} profileId
+ * @returns {Promise<number[]|null>}
+ */
+export async function fetchTechProfileValues(techUuid, profileId) {
+  const detail = await apiFetch(`/api/v1/technologies/${encodeURIComponent(techUuid)}?include_profile_values=true`, 30_000);
+  const techLevel = detail?.generation_profile;
+  if (techLevel?.values?.length && (!profileId || techLevel.profile_id === profileId)) return techLevel.values;
+  const inst = (detail?.instances || []).find(i => i?.generation_profile?.profile_id === profileId && i.generation_profile.values?.length);
+  return inst ? inst.generation_profile.values : null;
+}
+
+/**
  * Fetch the full technology catalog from the OEO API.
  *
  * @returns {Promise<Object[]>}  Array of OEO tech objects (raw API format).

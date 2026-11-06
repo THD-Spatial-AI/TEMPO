@@ -4,6 +4,7 @@ import { CARRIERS_BY_GROUP } from '../config/carriers';
 import TechParameterEditor from './creation/TechParameterEditor';
 import SelectField from './ui/SelectField';
 import { iconBtn, ICON_PX } from './ui/iconButton';
+import { useData } from '../context/DataContext';
 
 // Format technology name: capitalize first letter only and replace underscores and hyphens
 const formatTechName = (techName) => {
@@ -41,6 +42,11 @@ const LocationEditDialog = ({
   const [originalLocationData, setOriginalLocationData] = useState(null);
   // Instance selection state: key = techName, value = selected index
   const [selectedInstances, setSelectedInstances] = useState({});
+  // Resource profiles write to the loaded model, so only offer them for its
+  // locations (Creation mode edits its own temp locations through this dialog).
+  const { currentModelId, locations: modelLocations } = useData();
+  const inLoadedModel = !!currentModelId && !!location && (modelLocations || []).some(l =>
+    (location.id != null ? l.id === location.id : (l.id == null && l.name === location.name)));
 
   // Initialize dialog state when location changes
   useEffect(() => {
@@ -572,6 +578,9 @@ const LocationEditDialog = ({
                               <TechParameterEditor
                                 parent={techTemplate?.parent}
                                 techUuid={techTemplate?.uuid}
+                                techName={inLoadedModel ? techName : undefined}
+                                focusLocation={pendingLocation?.name || location?.name}
+                                onProfileApplied={(c) => setEditingConstraints(prev => ({ ...prev, [techName]: { ...(prev[techName] || {}), ...c } }))}
                                 constraints={editingConstraints[techName] || {}}
                                 costs={editingCosts[techName] || {}}
                                 engineParams={editingEngineParams[techName] || {}}
