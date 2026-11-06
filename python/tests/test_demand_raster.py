@@ -102,3 +102,15 @@ def test_overlapping_part_windows_not_double_counted(tmp_path):
     area = MultiPolygon([l_shape, box(3, 3, 6, 6)])
     _, _, kwh = dr.read_area_pixels(tif, area)
     assert kwh.sum() == pytest.approx(20.0 + 9.0)
+
+
+def test_geometry_to_raster_crs_accepts_sequence():
+    from pyproj import CRS
+    crs = CRS("ESRI:54009")
+    geoms = [box(-71, -34, -70, -33), Polygon([(10, 50), (11, 50), (10, 51)])]
+    many = dr.geometry_to_raster_crs(crs, geoms)
+    assert len(many) == 2
+    for g, m in zip(geoms, many):
+        assert m.equals_exact(dr.geometry_to_raster_crs(crs, g), 1e-6)
+    assert dr.geometry_to_raster_crs(crs, []).tolist() == []
+    assert list(dr.geometry_to_raster_crs(CRS("EPSG:4326"), geoms)) == geoms

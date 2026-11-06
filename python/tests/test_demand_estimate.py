@@ -203,3 +203,95 @@ def test_duplicate_seed_location_warns(tmp_path):
     res = run(tmp_path, [A, dict(A, id="a2"), B])
     assert any(w["code"] == "DUPLICATE_SEED" for w in res["warnings"])
     assert not any(w["code"] == "DUPLICATE_SEED" for w in run(tmp_path, [A, B])["warnings"])
+
+
+# --- Inc 2 Task 4: land-use mix per cell ---------------------------------------------------------
+import demand_mix as dm  # noqa: E402
+
+GLOBAL = {"h0_dyn": 50, "g0": 35, "g3": 10, "l0": 5}
+WEST, EAST = box(-71.0, -34.0, -70.5, -33.0), box(-70.5, -34.0, -70.0, -33.0)
+LANDUSE = {"residential": [WEST], "commercial": [EAST], "industrial": [], "farmland": []}
+
+
+def test_landuse_mix_follows_class_energy(tmp_path):
+    s = by_id(run(tmp_path, [A, B], landuse=LANDUSE))
+    assert s["a"]["mix"] == {"h0_dyn": 100} and s["a"]["landuseCoverage"] == 1.0
+    assert s["b"]["mix"] == dm.round_mix(GLOBAL) and s["b"]["landuseCoverage"] == 0.0
+
+
+def test_landuse_industrial_substation_is_g3(tmp_path):
+    s = by_id(run(tmp_path, [dict(A, substation="industrial"), B], landuse=LANDUSE))
+    assert s["a"]["mix"] == {"g3": 100} and s["a"]["landuseCoverage"] == 1.0
+
+
+def test_landuse_partial_coverage_blends_with_global(tmp_path):
+    # residential covers the western quarter = half of A's energy -> 50 % h0_dyn + 50 % global
+    quarter = {"residential": [box(-71.0, -34.0, -70.75, -33.0)]}
+    s = by_id(run(tmp_path, [A, B], landuse=quarter))
+    assert s["a"]["landuseCoverage"] == 0.5
+    assert s["a"]["mix"] == dm.round_mix({"h0_dyn": 0.5 + 0.25, "g0": 0.175, "g3": 0.05, "l0": 0.025})
+
+
+def test_no_landuse_uses_global_mix(tmp_path):
+    res = run(tmp_path, [A, B, T])
+    s = by_id(res)
+    for k in ("a", "b"):
+        assert s[k]["mix"] == dm.round_mix(GLOBAL) and s[k]["landuseCoverage"] == 0.0
+    assert s["t"]["mix"] is None and s["t"]["landuseCoverage"] == 0.0
+    assert not any("LANDUSE" in w["code"] for w in res["warnings"])
+    s = by_id(run(tmp_path, [A, B], family="bdew25", global_mix={"h25": 100}))
+    assert s["a"]["mix"] == {"h25": 100} and s["b"]["mix"] == {"h25": 100}
+
+
+def test_landuse_bdew25_family(tmp_path):
+    s = by_id(run(tmp_path, [A, B], landuse=LANDUSE, family="bdew25", global_mix={"h25": 100}))
+    assert s["a"]["mix"] == {"h25": 100} and s["b"]["mix"] == {"h25": 100}
+
+
+def test_cell_features_carry_mix(tmp_path):
+    feats = run(tmp_path, [A, B], landuse=LANDUSE)["cells"]["features"]
+    p = {f["properties"]["locationId"]: f["properties"] for f in feats}
+    assert p["a"]["mix"] == {"h0_dyn": 100} and p["a"]["landuseCoverage"] == 1.0
+    assert p["b"]["mix"] == dm.round_mix(GLOBAL) and p["b"]["landuseCoverage"] == 0.0
+
+
+def test_landuse_in_projected_raster(tmp_path):
+    # Mollweide raster: pixel centres and class polygons are projected into the raster CRS
+    from pyproj import Transformer
+    fwd = Transformer.from_crs("EPSG:4326", "ESRI:54009", always_xy=True)
+    x0, y0 = fwd.transform(-71.0, -33.0)
+    x1, y1 = fwd.transform(-70.0, -34.0)
+    size = 1000.0
+    ncols, nrows = int((x1 - x0) // size) + 2, int((y0 - y1) // size) + 2
+    data = np.full((nrows, ncols), 1000.0, "float32")
+    path = tmp_path / "moll.tif"
+    with rasterio.open(path, "w", driver="GTiff", height=nrows, width=ncols, count=1, dtype="float32",
+                       crs="ESRI:54009", transform=from_origin(x0 - size, y0 + size, size, size), nodata=-1) as dst:
+        dst.write(data, 1)
+    res = de.estimate(AREA, [A, B], ec_path=path, model_year=2019, country="CL", national_table={},
+                      raster_totals={}, landuse={"residential": [box(-72.0, -35.0, -70.5, -32.0)],
+                                                 "commercial": [box(-70.5, -35.0, -69.0, -32.0)]})
+    s = by_id(res)
+    assert s["a"]["mix"] == {"h0_dyn": 100} and s["b"]["mix"] == {"g0": 100}
+    assert s["a"]["landuseCoverage"] >= 0.99 and s["b"]["landuseCoverage"] >= 0.99
+
+
+def test_default_global_mix_follows_family(tmp_path):
+    s = by_id(run(tmp_path, [A, B], family="bdew25"))
+    assert s["a"]["mix"] == {"h25": 55, "g25": 40, "l25": 5}
+    s = by_id(run(tmp_path, [A, B]))
+    assert s["a"]["mix"] == GLOBAL
+
+
+@pytest.mark.parametrize("family,mix", [("bdew25", {"h0_dyn": 100}), ("classic", {"h25": 50, "g0": 50}),
+                                        ("classic", {"nope": 100})])
+def test_global_mix_from_other_family_rejected(tmp_path, family, mix):
+    with pytest.raises(ValueError):
+        run(tmp_path, [A, B], family=family, global_mix=mix)
+
+
+def test_flat_allowed_in_either_family(tmp_path):
+    s = by_id(run(tmp_path, [A, B], family="bdew25", global_mix={"flat": 50, "h25": 50}))
+    assert s["a"]["mix"] == {"flat": 50, "h25": 50}
+    s = by_id(run(tmp_path, [A, B], global_mix={"flat": 100}))
+    assert s["a"]["mix"] == {"flat": 100}

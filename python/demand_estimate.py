@@ -14,12 +14,16 @@ from shapely.ops import unary_union
 
 import demand_cells as dc
 import demand_growth as dg
+import demand_landuse as dl
+import demand_mix as dm
 import demand_raster as dr
 import demand_seeds as ds
 
 HOURS_PER_YEAR = 8760.0
 FAR_SHARE = 0.10
 RASTER_YEAR = 2019    # the raster is only a spatial key (D4); ec_country_totals.csv is summed from it
+DEFAULT_GLOBAL_MIX = {"classic": {"h0_dyn": 50, "g0": 35, "g3": 10, "l0": 5},
+                      "bdew25": {"h25": 55, "g25": 40, "l25": 5}}
 
 
 def _union(geoms):
@@ -59,7 +63,7 @@ def area_centre(area):
     return (c.x + 180) % 360 - 180, c.y
 
 
-def _record(sub, seed, gwh, share, km2):
+def _record(sub, seed, gwh, share, km2, mix=None, coverage=0.0):
     return {
         "id": sub["id"], "name": sub.get("name"), "seed": seed,
         "annual_gwh": round(gwh, 6),
@@ -67,6 +71,7 @@ def _record(sub, seed, gwh, share, km2):
         "share": float(share),
         "area_km2": round(km2, 3),
         "density_gwh_km2": round(gwh / km2, 6) if km2 > 0 else 0.0,
+        "mix": mix, "landuseCoverage": round(coverage, 3),
     }
 
 
@@ -91,11 +96,29 @@ def _calibrate(code, kwh, *, model_year, national_table, raster_totals, warnings
     }
 
 
+def _pixel_fractions(ec_path, lon, lat, landuse):
+    """Per-pixel land-use class coverage (D6a), computed in the raster CRS on its pixel grid."""
+    crs, pixel_size = dr.raster_grid(ec_path)
+    px, py = dr.to_raster_crs(crs, lon, lat)
+    lists = [list(landuse.get(cls) or []) for cls in dl.LANDUSE_CLASSES]
+    projected = dr.geometry_to_raster_crs(crs, [p for ps in lists for p in ps])   # one call for all classes
+    bounds = np.cumsum([0] + [len(ps) for ps in lists])
+    polys = {cls: projected[bounds[k]:bounds[k + 1]] for k, cls in enumerate(dl.LANDUSE_CLASSES)}
+    return dl.pixel_class_fractions(px, py, polys, pixel_size)
+
+
 def estimate(area_geojson, substations, *, ec_path, model_year, country, national_table, raster_totals,
-             max_kv=ds.DEFAULT_MAX_KV, override_gwh=None, far_km=30.0):
-    """Result dict: substations, cells (FeatureCollection), chain, totalGWh, warnings."""
+             max_kv=ds.DEFAULT_MAX_KV, override_gwh=None, far_km=30.0,
+             landuse=None, global_mix=None, family="classic"):
+    """Result dict: substations, cells (FeatureCollection), chain, totalGWh, warnings.
+    landuse: {class: [Polygon WGS84]} from demand_landuse.parse_overpass, or None (global mix everywhere)."""
     if not substations:
         raise ValueError("no substations given")
+    if global_mix is None:
+        global_mix = DEFAULT_GLOBAL_MIX[family]
+    foreign = sorted(set(global_mix) - dm.FAMILY_CODES[family])
+    if foreign:
+        raise ValueError(f"global mix code(s) {foreign} do not belong to the {family} family")
     warnings = []
     seeds, fallback = ds.select_seeds(substations, max_kv)
     if fallback:
@@ -114,6 +137,7 @@ def estimate(area_geojson, substations, *, ec_path, model_year, country, nationa
     sx, sy = fwd.transform(lons, lats)
 
     per_seed = np.zeros(len(seeds))
+    class_kwh = np.zeros((len(seeds), len(dl.LANDUSE_CLASSES)))
     parts, countries = [], []
     for code, geom in areas.items():
         c_lon, c_lat, c_kwh = dr.read_area_pixels(ec_path, geom)
@@ -126,6 +150,10 @@ def estimate(area_geojson, substations, *, ec_path, model_year, country, nationa
         px, py = fwd.transform(lon, lat)
         idx, dist = dc.nearest_seed(px, py, sx, sy)
         per_seed = np.bincount(idx, weights=kwh, minlength=len(seeds)).astype(float)
+        if landuse is not None:
+            frac = _pixel_fractions(ec_path, lon, lat, landuse)
+            for k in range(frac.shape[1]):
+                class_kwh[:, k] = np.bincount(idx, weights=kwh * frac[:, k], minlength=len(seeds))
         far = float(kwh[dist > far_km * 1000.0].sum())
         if far > FAR_SHARE * float(kwh.sum()):
             warnings.append({"code": "FAR_FROM_SEED",
@@ -145,13 +173,16 @@ def estimate(area_geojson, substations, *, ec_path, model_year, country, nationa
                          "message": "No raster consumption to split the total; shares follow cell area instead."})
     shares = weights / weights.sum() if weights.sum() > 0 else np.zeros(len(seeds))
     out, features = [], []
-    for sub, share, cell in zip(seeds, shares, cells):
-        rec = _record(sub, True, float(share) * total, share, cell.area / 1e6)
+    for i, (sub, share, cell) in enumerate(zip(seeds, shares, cells)):
+        mix, coverage = dm.cell_mix(dict(zip(dl.LANDUSE_CLASSES, class_kwh[i])), float(per_seed[i]), global_mix,
+                                    family=family, industrial=sub.get("substation") == "industrial")
+        rec = _record(sub, True, float(share) * total, share, cell.area / 1e6, mix, coverage)
         out.append(rec)
         features.append(dc.cell_feature(cell, inv, {
             "locationId": sub["id"], "name": sub.get("name"),
             "annualGWh": rec["annual_gwh"], "avgMW": rec["avg_mw"],
             "densityGWhKm2": rec["density_gwh_km2"], "areaKm2": rec["area_km2"],
+            "mix": rec["mix"], "landuseCoverage": rec["landuseCoverage"],
         }))
     seed_ids = {s["id"] for s in seeds}
     out.extend(_record(s, False, 0.0, 0.0, 0.0) for s in substations if s["id"] not in seed_ids)

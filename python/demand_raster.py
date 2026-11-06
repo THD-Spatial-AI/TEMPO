@@ -71,3 +71,28 @@ def read_area_pixels(tif_path, area):
         else:
             lon, lat = Transformer.from_crs(src.crs, "EPSG:4326", always_xy=True).transform(x, y)
     return np.asarray(lon, float), np.asarray(lat, float), vals * EC_UNIT_TO_KWH
+
+
+def raster_grid(tif_path):
+    """(crs, pixel_size) of the raster; pixel size in CRS units (square pixels assumed)."""
+    with rasterio.open(tif_path) as src:
+        return src.crs, abs(src.transform.a)
+
+
+def to_raster_crs(crs, lon, lat):
+    """WGS84 lon/lat arrays → raster CRS x/y."""
+    if crs.to_epsg() == 4326:
+        return np.asarray(lon, float), np.asarray(lat, float)
+    x, y = Transformer.from_crs("EPSG:4326", crs, always_xy=True).transform(lon, lat)
+    return np.asarray(x, float), np.asarray(y, float)
+
+
+def geometry_to_raster_crs(crs, geom):
+    """WGS84 geometry (or sequence of them → array) → raster CRS, edges densified first (straight in
+    lon/lat is curved in Mollweide). One Transformer and one vectorised call for the whole sequence."""
+    if crs.to_epsg() == 4326:
+        return geom
+    fwd = Transformer.from_crs("EPSG:4326", crs, always_xy=True)
+    if not isinstance(geom, shapely.Geometry):
+        geom = np.asarray(geom, dtype=object)
+    return shapely.transform(shapely.segmentize(geom, _SEGMENT_DEG), fwd.transform, interleaved=False)
