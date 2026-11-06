@@ -33,9 +33,10 @@ def ec_tif(tmp_path, left_only=True):
 
 
 def run(tmp_path, subs, left_only=True, **kw):
-    opts = dict(raster_year=2019, model_year=2019, country="CL", national_table={})
+    opts = dict(model_year=2019, country="CL", national_table={}, raster_totals={})
     opts.update(kw)
-    return de.estimate(AREA, subs, ec_path=ec_tif(tmp_path, left_only), **opts)
+    area = opts.pop("area", AREA)
+    return de.estimate(area, subs, ec_path=ec_tif(tmp_path, left_only), **opts)
 
 
 def by_id(result):
@@ -45,7 +46,7 @@ def by_id(result):
 def test_energy_goes_to_the_cell_it_lies_in(tmp_path):
     res = run(tmp_path, [A, B])
     s = by_id(res)
-    assert res["chain"]["rasterSumGWh"] == pytest.approx(5.0)
+    assert res["chain"]["countries"][0]["rasterAreaTWh"] == pytest.approx(0.005)
     assert s["a"]["annual_gwh"] == pytest.approx(5.0)
     assert s["b"]["annual_gwh"] == pytest.approx(0.0)
     assert s["a"]["avg_mw"] == pytest.approx(5.0 * 1000 / 8760, rel=1e-6)
@@ -63,16 +64,59 @@ def test_override_rescales_keeping_shares(tmp_path):
     assert res["chain"]["totalGWh"] == pytest.approx(20.0)
 
 
-def test_growth_to_latest_national_year(tmp_path):
-    res = run(tmp_path, [A, B], model_year=2030, national_table={"CL": {2019: 80.0, 2023: 88.0}})
-    assert res["chain"]["growthFactor"] == pytest.approx(1.1)
-    assert res["chain"]["growthToYear"] == 2023
-    assert res["totalGWh"] == pytest.approx(5.5)
+def test_calibrated_to_national_demand(tmp_path):
+    # country raster total 10 GWh, national 20 GWh (latest year <= model year) -> area energy doubles
+    res = run(tmp_path, [A, B], model_year=2024, raster_totals={"CL": 0.010},
+              national_table={"CL": {2019: 0.016, 2023: 0.020, 2030: 0.050}})
+    c = res["chain"]
+    assert c["rasterYear"] == 2019
+    assert c["countries"] == [pytest.approx({
+        "country": "CL", "rasterAreaTWh": 0.005, "rasterCountryTWh": 0.010, "nationalTWh": 0.020,
+        "nationalYear": 2023, "factor": 2.0, "areaTWh": 0.010})]
+    assert c["calibratedGWh"] == pytest.approx(10.0) and c["totalGWh"] == pytest.approx(10.0)
+    assert by_id(res)["a"]["annual_gwh"] == pytest.approx(10.0)
+    assert not any(w["code"] == "NO_CALIBRATION" for w in res["warnings"])
 
 
-def test_missing_growth_data_warns(tmp_path):
-    res = run(tmp_path, [A, B], model_year=2024)
-    assert any(w["code"] == "NO_GROWTH_DATA" for w in res["warnings"])
+TWO = {"type": "FeatureCollection", "features": [
+    {"type": "Feature", "properties": {"countryCode": "CL"}, "geometry": mapping(box(-71.0, -34.0, -70.5, -33.0))},
+    {"type": "Feature", "properties": {"countryCode": "ar"}, "geometry": mapping(box(-70.5, -34.0, -70.0, -33.0))}]}
+
+
+def test_two_countries_calibrated_separately(tmp_path):
+    # uniform raster: 5 GWh in each half; CL x2, AR x3
+    res = run(tmp_path, [A, B], left_only=False, area=TWO, country=None,
+              raster_totals={"CL": 1.0, "AR": 1.0}, national_table={"CL": {2019: 2.0}, "AR": {2019: 3.0}})
+    rows = {c["country"]: c for c in res["chain"]["countries"]}
+    assert set(rows) == {"CL", "AR"}
+    assert rows["CL"]["areaTWh"] == pytest.approx(0.010) and rows["AR"]["areaTWh"] == pytest.approx(0.015)
+    assert res["totalGWh"] == pytest.approx(25.0)
+    s = by_id(res)
+    assert s["a"]["annual_gwh"] == pytest.approx(10.0) and s["b"]["annual_gwh"] == pytest.approx(15.0)
+    assert s["a"]["share"] == pytest.approx(0.4)
+
+
+def test_missing_country_uses_raw_raster(tmp_path):
+    res = run(tmp_path, [A, B], raster_totals={"AR": 1.0}, national_table={"CL": {2019: 2.0}})
+    warn = [w for w in res["warnings"] if w["code"] == "NO_CALIBRATION"]
+    assert len(warn) == 1 and "CL" in warn[0]["message"]
+    assert res["chain"]["countries"][0]["factor"] == 1.0
+    assert res["totalGWh"] == pytest.approx(5.0)
+
+
+def test_feature_without_country_code_or_argument(tmp_path):
+    res = run(tmp_path, [A, B], country=None, raster_totals={"CL": 1.0}, national_table={"CL": {2019: 2.0}})
+    assert res["chain"]["countries"][0]["country"] == "?"
+    assert any(w["code"] == "NO_CALIBRATION" for w in res["warnings"])
+    assert res["totalGWh"] == pytest.approx(5.0)
+
+
+def test_override_rescales_calibrated_shares(tmp_path):
+    res = run(tmp_path, [A, B], left_only=False, area=TWO, country=None, override_gwh=50.0,
+              raster_totals={"CL": 1.0, "AR": 1.0}, national_table={"CL": {2019: 2.0}, "AR": {2019: 3.0}})
+    assert res["chain"]["calibratedGWh"] == pytest.approx(25.0) and res["chain"]["totalGWh"] == pytest.approx(50.0)
+    s = by_id(res)
+    assert s["a"]["annual_gwh"] == pytest.approx(20.0) and s["b"]["annual_gwh"] == pytest.approx(30.0)
 
 
 def test_fallback_when_only_transmission(tmp_path):
@@ -108,8 +152,8 @@ def test_far_from_seed_warning(tmp_path):
 
 def test_area_without_pixels_warns(tmp_path):
     far_area = {"type": "Feature", "properties": {}, "geometry": mapping(box(10, 10, 11, 11))}
-    res = de.estimate(far_area, [A], ec_path=ec_tif(tmp_path), raster_year=2019, model_year=2019,
-                      country="CL", national_table={})
+    res = de.estimate(far_area, [A], ec_path=ec_tif(tmp_path), model_year=2019,
+                      country="CL", national_table={}, raster_totals={})
     assert res["totalGWh"] == 0.0
     assert any(w["code"] == "NO_PIXELS" for w in res["warnings"])
 
@@ -117,8 +161,8 @@ def test_area_without_pixels_warns(tmp_path):
 def test_override_without_pixels_follows_cell_area(tmp_path):
     far_area = {"type": "Feature", "properties": {}, "geometry": mapping(box(10, 10, 11, 11))}
     subs = [dict(A, lon=10.25, lat=10.5), dict(B, lon=10.75, lat=10.5)]
-    res = de.estimate(far_area, subs, ec_path=ec_tif(tmp_path), raster_year=2019, model_year=2019,
-                      country="CL", national_table={}, override_gwh=50.0)
+    res = de.estimate(far_area, subs, ec_path=ec_tif(tmp_path), model_year=2019,
+                      country="CL", national_table={}, raster_totals={}, override_gwh=50.0)
     assert sum(s["annual_gwh"] for s in res["substations"]) == pytest.approx(50.0)
     assert by_id(res)["a"]["annual_gwh"] == pytest.approx(25.0, rel=1e-3)
     assert any(w["code"] == "AREA_SHARES" for w in res["warnings"])
@@ -139,10 +183,10 @@ def test_estimate_across_antimeridian(tmp_path):
             "geometry": mapping(MultiPolygon([box(179.0, -1.0, 180.0, 1.0), box(-180.0, -1.0, -179.0, 1.0)]))}
     east = {"id": "e", "name": "E", "lon": 179.5, "lat": 0.0, "substation": "distribution"}
     west = {"id": "w", "name": "W", "lon": -179.5, "lat": 0.0, "substation": "distribution"}
-    res = de.estimate(area, [east, west], ec_path=path, raster_year=2019, model_year=2019,
-                      country="FJ", national_table={})
+    res = de.estimate(area, [east, west], ec_path=path, model_year=2019,
+                      country="FJ", national_table={}, raster_totals={})
     s = by_id(res)
-    assert res["chain"]["rasterSumGWh"] == pytest.approx(16.0)
+    assert res["chain"]["calibratedGWh"] == pytest.approx(16.0)
     assert s["e"]["annual_gwh"] == pytest.approx(8.0) and s["w"]["annual_gwh"] == pytest.approx(8.0)
     # cells drawn in a plane centred near 180°, not on the far side of the globe
     assert s["e"]["area_km2"] == pytest.approx(s["w"]["area_km2"], rel=1e-3)

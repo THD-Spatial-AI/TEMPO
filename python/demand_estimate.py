@@ -1,9 +1,10 @@
 """
 demand_estimate.py — per-substation annual electricity demand for a study area.
 
-Pipeline (decisions D2–D5): seed substations → EC pixels inside the area →
-each pixel to its nearest seed → per-seed kWh shares → area total (raster sum ×
-national growth, or the user's override) → per-seed GWh + Voronoi cell features.
+Pipeline (decisions D2–D5): seed substations → EC pixels inside the area, per
+country, each scaled by national demand / raster country total → each pixel to
+its nearest seed → per-seed kWh → area total (or the user's override, keeping the
+shares) → per-seed GWh + Voronoi cell features.
 Shaping to hourly series is a separate step (Inc 2).
 """
 import numpy as np
@@ -18,6 +19,11 @@ import demand_seeds as ds
 
 HOURS_PER_YEAR = 8760.0
 FAR_SHARE = 0.10
+RASTER_YEAR = 2019    # the raster is only a spatial key (D4); ec_country_totals.csv is summed from it
+
+
+def _union(geoms):
+    return unary_union([shapely.make_valid(shape(g)) for g in geoms])
 
 
 def area_geometry(area_geojson):
@@ -28,7 +34,18 @@ def area_geometry(area_geojson):
         geoms = [area_geojson["geometry"]]
     else:
         geoms = [area_geojson]
-    return unary_union([shapely.make_valid(shape(g)) for g in geoms])
+    return _union(geoms)
+
+
+def country_areas(area_geojson, country):
+    """{ISO2 or "?": geometry}. Collection features group by properties.countryCode, else `country`."""
+    if area_geojson.get("type") != "FeatureCollection":
+        return {str(country or "?").upper(): area_geometry(area_geojson)}
+    groups = {}
+    for f in area_geojson["features"]:
+        code = (f.get("properties") or {}).get("countryCode") or country or "?"
+        groups.setdefault(str(code).upper(), []).append(f["geometry"])
+    return {code: _union(geoms) for code, geoms in groups.items()}
 
 
 def area_centre(area):
@@ -53,8 +70,29 @@ def _record(sub, seed, gwh, share, km2):
     }
 
 
-def estimate(area_geojson, substations, *, ec_path, raster_year, model_year, country,
-             national_table, max_kv=ds.DEFAULT_MAX_KV, override_gwh=None, far_km=30.0):
+def _calibrate(code, kwh, *, model_year, national_table, raster_totals, warnings):
+    """(factor, chain row) scaling one country's pixels to its national demand."""
+    nat = dg.national_demand(national_table, code, model_year) if code != "?" else {"twh": None, "year": None}
+    country_twh = raster_totals.get(code)
+    factor = 1.0
+    if nat["twh"] is not None and country_twh:
+        factor = nat["twh"] / country_twh
+    else:
+        reason = "the area has no country code" if code == "?" else (
+            f"no national demand data for {code} up to {model_year}" if nat["twh"] is None
+            else f"no raster country total for {code}")
+        warnings.append({"code": "NO_CALIBRATION",
+                         "message": f"Raw raster values used for {code}: {reason}."})
+    raw_twh = float(kwh.sum()) / 1e9
+    return factor, {
+        "country": code, "rasterAreaTWh": round(raw_twh, 9), "rasterCountryTWh": country_twh,
+        "nationalTWh": nat["twh"], "nationalYear": nat["year"], "factor": round(factor, 6),
+        "areaTWh": round(raw_twh * factor, 9),
+    }
+
+
+def estimate(area_geojson, substations, *, ec_path, model_year, country, national_table, raster_totals,
+             max_kv=ds.DEFAULT_MAX_KV, override_gwh=None, far_km=30.0):
     """Result dict: substations, cells (FeatureCollection), chain, totalGWh, warnings."""
     if not substations:
         raise ValueError("no substations given")
@@ -69,13 +107,21 @@ def estimate(area_geojson, substations, *, ec_path, raster_year, model_year, cou
         warnings.append({"code": "DUPLICATE_SEED",
                          "message": "Some withdrawal substations share a location; only one of each group receives demand."})
 
-    area = area_geometry(area_geojson)
+    areas = country_areas(area_geojson, country)
+    area = unary_union(list(areas.values()))
     fwd, inv = dc.local_projection(*area_centre(area))
     area_xy = shapely.transform(area, fwd.transform, interleaved=False)
     sx, sy = fwd.transform(lons, lats)
 
     per_seed = np.zeros(len(seeds))
-    lon, lat, kwh = dr.read_area_pixels(ec_path, area)
+    parts, countries = [], []
+    for code, geom in areas.items():
+        c_lon, c_lat, c_kwh = dr.read_area_pixels(ec_path, geom)
+        factor, row = _calibrate(code, c_kwh, model_year=model_year, national_table=national_table,
+                                 raster_totals=raster_totals, warnings=warnings)
+        parts.append((c_lon, c_lat, c_kwh * factor))
+        countries.append(row)
+    lon, lat, kwh = (np.concatenate(a) for a in zip(*parts))
     if len(kwh):
         px, py = fwd.transform(lon, lat)
         idx, dist = dc.nearest_seed(px, py, sx, sy)
@@ -88,12 +134,8 @@ def estimate(area_geojson, substations, *, ec_path, raster_year, model_year, cou
     else:
         warnings.append({"code": "NO_PIXELS", "message": "The raster has no consumption inside this area."})
 
-    raw_gwh = float(per_seed.sum()) / 1e6
-    growth = dg.growth_factor(national_table, country, raster_year, model_year)
-    if growth["note"]:
-        warnings.append({"code": "NO_GROWTH_DATA", "message": growth["note"]})
-    scaled_gwh = raw_gwh * growth["factor"]
-    total = float(override_gwh) if override_gwh is not None else scaled_gwh
+    calibrated_gwh = float(per_seed.sum()) / 1e6
+    total = float(override_gwh) if override_gwh is not None else calibrated_gwh
 
     cells = dc.voronoi_cells(sx, sy, area_xy)
     weights = per_seed
@@ -115,9 +157,8 @@ def estimate(area_geojson, substations, *, ec_path, raster_year, model_year, cou
     out.extend(_record(s, False, 0.0, 0.0, 0.0) for s in substations if s["id"] not in seed_ids)
 
     chain = {
-        "rasterYear": raster_year, "rasterSumGWh": round(raw_gwh, 6), "country": country,
-        "growthFactor": round(growth["factor"], 6), "growthToYear": growth["to_year"],
-        "scaledGWh": round(scaled_gwh, 6), "overrideGWh": override_gwh, "totalGWh": round(total, 6),
+        "rasterYear": RASTER_YEAR, "countries": countries, "calibratedGWh": round(calibrated_gwh, 6),
+        "overrideGWh": override_gwh, "totalGWh": round(total, 6),
     }
     return {"substations": out, "cells": {"type": "FeatureCollection", "features": features},
             "chain": chain, "totalGWh": total, "warnings": warnings}

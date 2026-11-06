@@ -1,4 +1,4 @@
-"""Tests for demand_growth — national growth factor from the bundled OWID table."""
+"""Tests for demand_growth — national demand and raster country totals (bundled tables)."""
 import sys
 from pathlib import Path
 
@@ -11,26 +11,21 @@ import demand_growth as dg  # noqa: E402
 TABLE = {"CL": {2019: 80.0, 2021: 84.0, 2023: 88.0}}
 
 
-def test_scales_to_latest_year_not_beyond_model_year():
-    g = dg.growth_factor(TABLE, "cl", 2019, 2030)
-    assert g["factor"] == pytest.approx(1.1)
-    assert g["to_year"] == 2023 and g["note"] is None
+def test_latest_year_not_after_model_year():
+    assert dg.national_demand(TABLE, "cl", 2030) == {"twh": 88.0, "year": 2023, "note": None}
+    assert dg.national_demand(TABLE, "CL", 2022) == {"twh": 84.0, "year": 2021, "note": None}
+    assert dg.national_demand(TABLE, "CL", 2019)["year"] == 2019
 
 
-def test_stops_at_model_year():
-    g = dg.growth_factor(TABLE, "CL", 2019, 2022)
-    assert g["factor"] == pytest.approx(84.0 / 80.0)
-    assert g["to_year"] == 2021
+def test_no_year_up_to_model_year_has_note():
+    n = dg.national_demand(TABLE, "CL", 2015)
+    assert n["twh"] is None and n["year"] is None and n["note"]
 
 
-def test_model_year_not_after_raster_year():
-    assert dg.growth_factor(TABLE, "CL", 2019, 2019)["factor"] == 1.0
-    assert dg.growth_factor(TABLE, "CL", 2015, 2015)["factor"] == 1.0
-
-
-def test_unknown_country_is_neutral_with_note():
-    g = dg.growth_factor(TABLE, "ZZ", 2019, 2024)
-    assert g["factor"] == 1.0 and g["note"]
+def test_unknown_country_has_note():
+    n = dg.national_demand(TABLE, "ZZ", 2024)
+    assert n["twh"] is None and "ZZ" in n["note"]
+    assert dg.national_demand(TABLE, None, 2024)["note"]
 
 
 def test_bundled_table_loads():
@@ -38,3 +33,16 @@ def test_bundled_table_loads():
     assert table["DE"][2019] > 400        # Germany ~ 500+ TWh
     assert table["CL"][2019] > 50
     assert min(min(s) for s in table.values()) >= 1992
+
+
+def test_raster_totals_parse_comments_and_case(tmp_path):
+    path = tmp_path / "totals.csv"
+    path.write_text("# Source: test\niso2,raster_year,twh\nde,2019,767.5\nCL,2019,47.4\n", encoding="utf-8")
+    assert dg.load_raster_totals(path) == {"DE": 767.5, "CL": 47.4}
+
+
+def test_bundled_raster_totals_load():
+    totals = dg.load_raster_totals()
+    assert totals["DE"] == pytest.approx(767.5, rel=0.02)
+    assert totals["CL"] == pytest.approx(47.4, rel=0.05)
+    assert len(totals) > 150
