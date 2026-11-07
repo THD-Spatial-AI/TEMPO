@@ -1,4 +1,5 @@
 """renewables_service — /health, POST /pv job, GET /jobs/{id} (weather faked)."""
+import datetime as dt
 import importlib
 import sys
 import time
@@ -251,3 +252,162 @@ def test_wind_endpoints_503_without_windpowerlib(client, monkeypatch):
     r = client.get("/turbines")
     assert r.status_code == 503 and "windpowerlib" in r.json()["detail"]
     assert client.get("/health").status_code == 200
+
+
+def _fake_png():
+    return b"\x89PNG\r\n\x1a\n" + b"0" * 16
+
+
+def test_atlas_countries(client, monkeypatch):
+    import renewables_atlas
+    monkeypatch.setattr(renewables_atlas, "countries", lambda *a, **k: ["Chile", "Germany"])
+    assert client.get("/atlas/countries").json() == {"countries": ["Chile", "Germany"]}
+
+
+def test_atlas_status_and_ensure_job(client, monkeypatch):
+    import renewables_atlas
+    import renewables_service as mod
+
+    def fake_ensure(layer, country, cache_dir, http_get=None, on_progress=None):
+        p = renewables_atlas.layer_path(layer, country, cache_dir)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        on_progress(50, 100)
+        p.write_bytes(b"x")
+        on_progress(100, 100)
+        return p
+
+    monkeypatch.setattr(renewables_atlas, "ensure", fake_ensure)
+    q = "/atlas/status?layer=pvout&country=Chile"
+    assert client.get(q).json() == {"ready": False}
+    job = client.post("/atlas/ensure", json={"layer": "pvout", "country": "Chile"}).json()
+    body = wait_job(client, job["job_id"])
+    assert body["state"] == "done", body
+    assert body["done"] == body["total"] == 100
+    assert client.get(q).json() == {"ready": True}
+    assert mod._jobs[job["job_id"]]["message"] is None
+
+
+def test_atlas_ensure_error_is_reported(client, monkeypatch):
+    import renewables_atlas
+
+    def boom(*a, **k):
+        raise ValueError("no ISO3 code for 'X'")
+
+    monkeypatch.setattr(renewables_atlas, "ensure", boom)
+    job = client.post("/atlas/ensure", json={"layer": "wind100", "country": "Chile"}).json()
+    body = wait_job(client, job["job_id"])
+    assert body["state"] == "error" and "ISO3" in body["error"]
+
+
+IMG = "/atlas/image?layer=pvout&country=Chile&west=-75&south=-40&east=-60&north=-25&width=200"
+
+
+def test_atlas_image_ok_with_bounds_and_cors_expose(client, monkeypatch):
+    import renewables_atlas
+    monkeypatch.setattr(renewables_atlas, "render", lambda *a, **k: (_fake_png(), (-72.0, -34.0, -68.0, -30.0)))
+    r = client.get(IMG, headers={"Origin": "http://localhost:5173"})
+    assert r.status_code == 200 and r.headers["content-type"] == "image/png"
+    assert [float(x) for x in r.headers["x-bounds"].split(",")] == [-72.0, -34.0, -68.0, -30.0]
+    assert "X-Bounds" in r.headers["access-control-expose-headers"]
+
+
+def test_atlas_image_errors(client, monkeypatch):
+    import renewables_atlas
+    assert client.get(IMG).status_code == 409                     # not downloaded
+    assert client.get(IMG.replace("layer=pvout", "layer=nope")).status_code == 422
+
+    def outside(*a, **k):
+        raise ValueError("bounds outside the raster")
+
+    monkeypatch.setattr(renewables_atlas, "render", outside)
+    assert client.get(IMG).status_code == 404
+
+
+def test_atlas_503_without_rasterio(client, monkeypatch):
+    monkeypatch.setitem(sys.modules, "rasterio", None)
+    r = client.get(IMG)
+    assert r.status_code == 503 and "Renewables" in r.json()["detail"]
+    assert client.get("/health").status_code == 200
+
+
+def test_wind_grid_endpoint(client, monkeypatch):
+    import renewables_grid
+    import renewables_service as mod
+
+    def fake_request_json(params, **kw):
+        lats = [float(x) for x in params["latitude"].split(",")]
+        return [{"hourly": {"wind_speed_100m": [10.0] * 24, "wind_direction_100m": [270.0] * 24}} for _ in lats]
+
+    monkeypatch.setattr(mod.renewables_weather, "request_json", fake_request_json)
+    day = (dt.date.today() - dt.timedelta(days=10)).isoformat()
+    q = f"/wind-grid?south=-37&west=-74&north=-30&east=-68&date={day}&n=6"
+    body = client.get(q).json()
+    assert len(body["u"]) == 24 and len(body["u"][0]) == 6 and len(body["u"][0][0]) == 6
+    assert client.get(q.replace(day, "2999-01-01")).status_code == 400
+    assert renewables_grid.N_MIN == 6
+
+
+@pytest.fixture(autouse=True)
+def _known_countries(request, monkeypatch):
+    if request.node.name.startswith("test_atlas") or "country" in request.node.name:
+        try:
+            import renewables_atlas
+        except ImportError:
+            return
+        monkeypatch.setattr(renewables_atlas, "countries", lambda *a, **k: ["Chile", "Germany"])
+
+
+def test_atlas_endpoints_reject_unknown_country(client):
+    assert client.post("/atlas/ensure", json={"layer": "pvout", "country": "Narnia"}).status_code == 400
+    assert client.post("/atlas/ensure", json={"layer": "pvout", "country": "../../etc"}).status_code == 400
+
+
+def test_atlas_image_and_wind_grid_validate_bounds(client):
+    assert client.get(IMG.replace("south=-40", "south=nan")).status_code == 422
+    assert client.get(IMG.replace("south=-40", "south=95")).status_code == 422
+    assert client.get(IMG.replace("south=-40&", "south=-20&").replace("north=-25", "north=-30")).status_code == 400
+    day = (dt.date.today() - dt.timedelta(days=10)).isoformat()
+    assert client.get(f"/wind-grid?south=-30&west=-74&north=-37&east=-68&date={day}&n=6").status_code == 400
+    assert client.get(f"/wind-grid?south=nan&west=-74&north=-30&east=-68&date={day}&n=6").status_code == 422
+
+
+def test_atlas_status_and_image_work_offline_for_cached_raster(client, monkeypatch):
+    import renewables_atlas
+    import renewables_service as mod
+
+    def down(*a, **k):
+        raise OSError("network down")
+
+    monkeypatch.setattr(renewables_atlas, "countries", down)
+    p = renewables_atlas.layer_path("pvout", "Chile", mod.CACHE_DIR)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_bytes(b"x")
+    def render(layer, country, cache_dir, **k):
+        if not renewables_atlas.layer_path(layer, country, cache_dir).exists():
+            raise FileNotFoundError(country)
+        return _fake_png(), (-72.0, -34.0, -68.0, -30.0)
+
+    monkeypatch.setattr(renewables_atlas, "render", render)
+    assert client.get("/atlas/status?layer=pvout&country=Chile").json() == {"ready": True}
+    assert client.get(IMG).status_code == 200
+    assert client.get("/atlas/status?layer=pvout&country=Germany").json() == {"ready": False}
+    assert client.get(IMG.replace("country=Chile", "country=Germany")).status_code == 409
+
+
+def test_atlas_dots_only_country_is_400_from_status_and_image(client, monkeypatch):
+    import renewables_atlas
+    monkeypatch.setattr(renewables_atlas, "countries", lambda *a, **k: [".."])
+    assert client.get("/atlas/status?layer=pvout&country=..").status_code == 400
+    assert client.get(IMG.replace("country=Chile", "country=..")).status_code == 400
+
+
+def test_wind_grid_upstream_http_error_is_502(client, monkeypatch):
+    import requests
+    import renewables_service as mod
+
+    def boom(params, **kw):
+        raise requests.HTTPError("414 URI Too Long")
+
+    monkeypatch.setattr(mod.renewables_weather, "request_json", boom)
+    day = (dt.date.today() - dt.timedelta(days=10)).isoformat()
+    assert client.get(f"/wind-grid?south=-37&west=-74&north=-30&east=-68&date={day}&n=6").status_code == 502

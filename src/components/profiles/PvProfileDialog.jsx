@@ -203,7 +203,7 @@ export default function PvProfileDialog({ onClose, techName, parent, focusLocati
         {points.length === 0 && noCoords.length === 0 && (
           <p className="text-xs text-slate-500">No location in this model uses this technology yet.</p>
         )}
-        <PointsMap points={points} selected={sel} onSelect={setSelected} />
+        <PointsMap points={points} selected={sel} onSelect={setSelected} overlays />
         {points.length > 0 && (
           <PvPointsTable rows={rows} selected={sel} onSelect={setSelected} orientDisabled={running || settings.tracking === 'single_axis'}
             onOrient={(name, patch) => setOrient(o => ({ ...o, [name]: { ...orientOf(points.find(p => p.name === name)), ...patch } }))} />

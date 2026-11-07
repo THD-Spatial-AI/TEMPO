@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   getRenewablesURL, checkRenewables, computePv, optimiseOrientation, computeWind, bestWindPoint, listTurbines,
+  atlasCountries, atlasStatus, ensureAtlas, fetchAtlasImage, fetchWindGrid,
 } from '../renewablesClient';
 
 const json = (body, status = 200) => ({ ok: status < 400, status, json: async () => body });
@@ -101,6 +102,70 @@ describe('renewablesClient', () => {
     expect(await listTurbines()).toEqual({ ok: false, error: 'windpowerlib missing — reinstall the Renewables component' });
     window.electronAPI.getServiceURLs = async () => ({});
     expect(await listTurbines()).toEqual({ ok: false, error: 'renewables service not running' });
+  });
+
+  it('atlasCountries and atlasStatus GET their paths', async () => {
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce(json({ countries: ['Chile', 'Germany'] }))
+      .mockResolvedValueOnce(json({ ready: true }))
+      .mockResolvedValueOnce(json({ detail: 'reinstall the Renewables component' }, 503));
+    expect(await atlasCountries()).toEqual({ ok: true, countries: ['Chile', 'Germany'] });
+    expect(await atlasStatus({ layer: 'pvout', country: 'Côte d’Ivoire' })).toEqual({ ok: true, ready: true });
+    expect(await atlasStatus({ layer: 'wind100', country: 'Chile' }))
+      .toEqual({ ok: false, status: 503, error: 'reinstall the Renewables component' });
+    expect(fetch.mock.calls[0][0]).toBe('http://localhost:5005/atlas/countries');
+    const q = new URL(fetch.mock.calls[1][0]);
+    expect(q.pathname).toBe('/atlas/status');
+    expect(Object.fromEntries(q.searchParams)).toEqual({ layer: 'pvout', country: 'Côte d’Ivoire' });
+  });
+
+  it('ensureAtlas runs the /atlas/ensure job', async () => {
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce(json({ job_id: 'a1' }))
+      .mockResolvedValueOnce(json({ state: 'done', result: { ready: true } }));
+    expect(await ensureAtlas({ layer: 'pvout', country: 'Chile' }, null, { intervalMs: 0 }))
+      .toEqual({ ok: true, result: { ready: true } });
+    expect(fetch.mock.calls[0][0]).toBe('http://localhost:5005/atlas/ensure');
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ layer: 'pvout', country: 'Chile' });
+  });
+
+  it('fetchAtlasImage returns an object URL and the X-Bounds, or the error status', async () => {
+    const blob = { size: 3 };
+    URL.createObjectURL = vi.fn(() => 'blob:atlas');
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce({ ok: true, status: 200, headers: { get: k => (k.toLowerCase() === 'x-bounds' ? '-71,-34,-70,-33' : null) }, blob: async () => blob })
+      .mockResolvedValueOnce(json({ detail: 'atlas not downloaded' }, 409));
+    const req = { layer: 'pvout', country: 'Chile', south: -34.5, west: -71.5, north: -33, east: -70, width: 800 };
+    expect(await fetchAtlasImage(req)).toEqual({ ok: true, url: 'blob:atlas', bounds: [-71, -34, -70, -33] });
+    expect(URL.createObjectURL).toHaveBeenCalledWith(blob);
+    const q = new URL(fetch.mock.calls[0][0]);
+    expect(q.pathname).toBe('/atlas/image');
+    expect(Object.fromEntries(q.searchParams)).toEqual({
+      layer: 'pvout', country: 'Chile', south: '-34.5', west: '-71.5', north: '-33', east: '-70', width: '800',
+    });
+    expect(await fetchAtlasImage(req)).toEqual({ ok: false, status: 409, error: 'atlas not downloaded' });
+  });
+
+  it('fetchWindGrid returns the grid or the error', async () => {
+    const grid = { lats: [0, 1], lons: [0, 1], date: '2026-10-31', u: [], v: [] };
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce(json(grid))
+      .mockResolvedValueOnce(json({ detail: 'bad date' }, 400));
+    const req = { south: 0, west: 0, north: 1, east: 1, date: '2026-10-31', n: 16 };
+    expect(await fetchWindGrid(req)).toEqual({ ok: true, grid });
+    const q = new URL(fetch.mock.calls[0][0]);
+    expect(q.pathname).toBe('/wind-grid');
+    expect(Object.fromEntries(q.searchParams)).toEqual({ south: '0', west: '0', north: '1', east: '1', date: '2026-10-31', n: '16' });
+    expect(await fetchWindGrid(req)).toEqual({ ok: false, status: 400, error: 'bad date' });
+  });
+
+  it('overlay calls fail cleanly when the service is not running', async () => {
+    window.electronAPI.getServiceURLs = async () => ({});
+    const off = { ok: false, error: 'renewables service not running' };
+    expect(await atlasCountries()).toEqual(off);
+    expect(await atlasStatus({ layer: 'pvout', country: 'Chile' })).toEqual(off);
+    expect(await fetchAtlasImage({ layer: 'pvout', country: 'Chile' })).toEqual(off);
+    expect(await fetchWindGrid({})).toEqual(off);
   });
 
   it('fails cleanly when the service is not running', async () => {

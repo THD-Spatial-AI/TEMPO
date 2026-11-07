@@ -10,6 +10,11 @@
  *   POST /wind                  → { job_id }
  *   POST /best-wind-point       → { job_id }
  *   GET  /turbines              → { turbines: [{ id, label, generic }] }  (503 { detail } without windpowerlib)
+ *   GET  /atlas/countries       → { countries: [names] }
+ *   GET  /atlas/status          → { ready }                 ?layer&country
+ *   POST /atlas/ensure          → { job_id }                (progress in bytes)
+ *   GET  /atlas/image           → PNG + X-Bounds: w,s,e,n   ?layer&country&south&west&north&east&width
+ *   GET  /wind-grid             → { lats, lons, date, u[24][n][n], v[24][n][n] }  ?south&west&north&east&date&n
  *   GET  /jobs/{id}             → { state, done, total, message, error, result }
  */
 const bridge = () => (typeof window !== 'undefined' ? window.electronAPI : null);
@@ -133,3 +138,59 @@ export const computeWind = (payload, onProgress, opts = {}) =>
 /** Windiest ERA5 cell near each point (POST /best-wind-point) and poll it to the end. */
 export const bestWindPoint = (payload, onProgress, opts = {}) =>
   runJob('/best-wind-point', payload, onProgress, opts, 'best-point search');
+
+const NOT_RUNNING = { ok: false, error: 'renewables service not running' };
+
+/** `GET <path>?<params>` (undefined / null params left out) → the Response, or null when the service is down. */
+async function getFrom(path, params) {
+  const base = await getRenewablesURL();
+  if (!base) return null;
+  const q = new URLSearchParams();
+  Object.entries(params || {}).forEach(([k, v]) => { if (v != null) q.set(k, String(v)); });
+  const qs = q.toString();
+  return fetch(`${base}${path}${qs ? `?${qs}` : ''}`);
+}
+
+/** GET a JSON endpoint → `{ ok:true, ...pick(body) }` or `{ ok:false, status, error }`. */
+async function getJson(path, params, pick) {
+  try {
+    const res = await getFrom(path, params);
+    if (!res) return NOT_RUNNING;
+    if (!res.ok) return { ok: false, status: res.status, error: await errorText(res) };
+    return { ok: true, ...pick(await res.json()) };
+  } catch (err) {
+    return { ok: false, error: err?.message || String(err) };
+  }
+}
+
+/** Global Solar Atlas country names (V2). */
+export const atlasCountries = () => getJson('/atlas/countries', null, b => ({ countries: b?.countries || [] }));
+
+/** Whether `layer` (pvout | ghi | wind100) is downloaded for `country`. */
+export const atlasStatus = ({ layer, country }) => getJson('/atlas/status', { layer, country }, b => ({ ready: !!b?.ready }));
+
+/** Download an atlas raster (V3) as a job; `onProgress` gets `{ done, total }` in bytes. */
+export const ensureAtlas = (payload, onProgress, opts = {}) =>
+  runJob('/atlas/ensure', payload, onProgress, opts, 'atlas download');
+
+/**
+ * Colour-mapped atlas PNG for a view (V4) → `{ ok:true, url, bounds:[w,s,e,n] }` with an object URL
+ * the caller must revoke, or `{ ok:false, status, error }` (409 not downloaded, 404 outside the raster).
+ * Bounds come from `X-Bounds` (clipped to the raster), else the requested box.
+ */
+export async function fetchAtlasImage({ layer, country, south, west, north, east, width }) {
+  try {
+    const res = await getFrom('/atlas/image', { layer, country, south, west, north, east, width });
+    if (!res) return NOT_RUNNING;
+    if (!res.ok) return { ok: false, status: res.status, error: await errorText(res) };
+    const hdr = (res.headers?.get?.('X-Bounds') || '').split(',').map(Number);
+    const bounds = hdr.length === 4 && hdr.every(Number.isFinite) ? hdr : [west, south, east, north];
+    return { ok: true, url: URL.createObjectURL(await res.blob()), bounds };
+  } catch (err) {
+    return { ok: false, error: err?.message || String(err) };
+  }
+}
+
+/** One day of hourly 100 m u/v on an n×n grid (V5) → `{ ok:true, grid }` or `{ ok:false, status, error }`. */
+export const fetchWindGrid = ({ south, west, north, east, date, n }) =>
+  getJson('/wind-grid', { south, west, north, east, date, n }, b => ({ grid: b }));

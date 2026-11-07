@@ -27,6 +27,8 @@ import { confirmAction } from './ui/confirm';
 import { makeDemandCellsLayer, demandCellHover } from './map/demandCellsLayer';
 import { useDemandCellsView } from './map/useDemandCellsView';
 import DemandCellsLegend from './map/DemandCellsLegend';
+import useResourceOverlays, { WithFlow } from './map/useResourceOverlays';
+import OverlayControls from './map/OverlayControls';
 
 const MapDeckGL = () => {
   const { locations, setLocations, links, setLinks, showNotification, technologies, models, currentModelId, loadModel, updateCurrentModel, createModel, demandCells, setDemandCells } = useData();
@@ -77,6 +79,7 @@ const MapDeckGL = () => {
   const [webglErrorMsg, setWebglErrorMsg] = useState('');
   const [webglCompatMode, setWebglCompatMode] = useState(false);
   const [webglRetryAttempted, setWebglRetryAttempted] = useState(false);
+  const resource = useResourceOverlays({ viewState, enabled: webglAvailable !== false }); // atlas + wind-flow overlays
   const deckRef = useRef(null);
   const leafletMapRef = useRef(null);
   const leafletContainerRef = useRef(null);
@@ -1035,15 +1038,16 @@ const MapDeckGL = () => {
       </div>
 
       {/* Right Panel - Map */}
-      <div className="flex-1 relative">
+      <div ref={resource.ref} className="flex-1 relative">
         {webglAvailable !== false ? (
+          <WithFlow store={resource.flowStore} under={resource.layers} rest={layers}>{allLayers => (
           <DeckGL
             key={webglCompatMode ? 'deck-compat' : 'deck-default'}
             ref={deckRef}
             viewState={viewState}
             onViewStateChange={handleViewStateChange}
             controller={!draggedLocation}
-            layers={layers}
+            layers={allLayers}
             onClick={handleMapClick}
             getCursor={getCursorStyle}
             getTooltip={null}
@@ -1080,6 +1084,7 @@ const MapDeckGL = () => {
               canvasContextAttributes={deckGlOptions}
             />
           </DeckGL>
+          )}</WithFlow>
         ) : (
           <div className="absolute inset-0 z-0">
             <div ref={leafletContainerRef} className="w-full h-full" />
@@ -1095,6 +1100,9 @@ const MapDeckGL = () => {
           </div>
         )}
         
+        {/* Resource overlay controls — top-left (bottom-left holds the demand-cells legend) */}
+        {resource.active && <OverlayControls {...resource.controlsProps} className="absolute top-4 left-4 z-20 w-72 shadow-lg" />}
+
         {/* Demand cells legend — bottom-left (the model Legend card is bottom-right) */}
         {demandCells?.features?.length > 0 && (cellsView.visible || cellsView.stale.stale) && (
           <div className="absolute bottom-4 left-4 z-50">
@@ -1293,7 +1301,12 @@ const MapDeckGL = () => {
           <LayerSelector
             currentLayer={currentStyle}
             onLayerChange={setCurrentStyle}
-            overlays={demandCells?.features?.length ? [{ id: 'demand-cells', label: 'Demand cells', checked: cellsView.visible, onToggle: cellsView.setVisible }] : []}
+            overlays={[
+              ...(demandCells?.features?.length ? [{ id: 'demand-cells', label: 'Demand cells', checked: cellsView.visible, onToggle: cellsView.setVisible }] : []),
+              { id: 'solar-potential', label: 'Solar potential', checked: resource.controlsProps.layer === 'pvout', onToggle: on => resource.controlsProps.setLayer(on ? 'pvout' : 'none') },
+              { id: 'wind-speed', label: 'Wind speed 100 m', checked: resource.controlsProps.layer === 'wind100', onToggle: on => resource.controlsProps.setLayer(on ? 'wind100' : 'none') },
+              { id: 'wind-flow', label: 'Wind flow', checked: resource.controlsProps.flow, onToggle: resource.controlsProps.setFlow },
+            ]}
           />
           <MapZoomControls onZoomIn={handleZoomIn} onZoomOut={handleZoomOut} onFitBounds={fitBounds} />
         </div>

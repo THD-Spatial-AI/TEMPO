@@ -93,18 +93,11 @@ def wind_weather_frame(payload, year):
     return pd.DataFrame(mid, columns=df.columns, index=df.index[:-1] + pd.Timedelta(minutes=30))
 
 
-def fetch_cell(lat, lon, year, kind, cache_dir, http_get=None, sleep=time.sleep, on_wait=None):
-    """Raw Open-Meteo payload for one cell and year (from cache when present)."""
-    cache = Path(cache_dir) / f"{kind}_{lat + 0.0:.2f}_{lon + 0.0:.2f}_{year}.json.gz"
-    if cache.exists():
-        try:
-            return json.loads(gzip.decompress(cache.read_bytes()))
-        except (OSError, EOFError, ValueError, zlib.error):
-            cache.unlink(missing_ok=True)   # corrupt or truncated: refetch
+def request_json(params, http_get=None, sleep=time.sleep, on_wait=None):
+    """GET the Open-Meteo archive API with the shared throttle, 429 back-off and error reasons."""
     if http_get is None:
         import requests
         http_get = requests.get
-    params = archive_params(lat, lon, year, VARS[kind])
     for attempt in range(MAX_RETRIES + 1):
         with _throttle_lock:
             wait = MIN_INTERVAL_S - (time.monotonic() - _last_request[0])
@@ -127,10 +120,22 @@ def fetch_cell(lat, lon, year, kind, cache_dir, http_get=None, sleep=time.sleep,
             if reason:
                 raise RuntimeError(f"Open-Meteo: {reason}")
         resp.raise_for_status()
-        payload = resp.json()
-        cache.parent.mkdir(parents=True, exist_ok=True)
-        tmp = cache.with_name(f"{cache.name}.{os.getpid()}.{threading.get_ident()}.tmp")
-        tmp.write_bytes(gzip.compress(json.dumps(payload).encode("utf-8")))
-        os.replace(tmp, cache)
-        return payload
+        return resp.json()
     raise RuntimeError("Open-Meteo rate limit: still refused after retries, try again later")
+
+
+def fetch_cell(lat, lon, year, kind, cache_dir, http_get=None, sleep=time.sleep, on_wait=None):
+    """Raw Open-Meteo payload for one cell and year (from cache when present)."""
+    cache = Path(cache_dir) / f"{kind}_{lat + 0.0:.2f}_{lon + 0.0:.2f}_{year}.json.gz"
+    if cache.exists():
+        try:
+            return json.loads(gzip.decompress(cache.read_bytes()))
+        except (OSError, EOFError, ValueError, zlib.error):
+            cache.unlink(missing_ok=True)   # corrupt or truncated: refetch
+    payload = request_json(archive_params(lat, lon, year, VARS[kind]), http_get=http_get, sleep=sleep,
+                           on_wait=on_wait)
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    tmp = cache.with_name(f"{cache.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+    tmp.write_bytes(gzip.compress(json.dumps(payload).encode("utf-8")))
+    os.replace(tmp, cache)
+    return payload

@@ -222,7 +222,7 @@ export default function WindProfileDialog({ onClose, techName, parent, focusLoca
         {points.length === 0 && noCoords.length === 0 && (
           <p className="text-xs text-slate-500">No location in this model uses this technology yet.</p>
         )}
-        <PointsMap points={points} selected={sel} onSelect={setSelected} pins={pins} />
+        <PointsMap points={points} selected={sel} onSelect={setSelected} pins={pins} overlays />
         {points.length > 0 && (
           <WindPointsTable rows={rows} selected={sel} onSelect={setSelected} onSite={setSite} onReset={resetSite} disabled={running} />
         )}
