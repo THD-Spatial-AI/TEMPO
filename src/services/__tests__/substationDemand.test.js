@@ -35,6 +35,11 @@ describe('estimatePayload', () => {
     expect(p.overrideGwh).toBe(120);
     expect(p.landuse).toBe(false);
   });
+  it('sends largeConsumers, default true', () => {
+    const base = { boundary: { features: [] }, substations: [], modelYear: 2024, country: 'CL', family: 'classic' };
+    expect(estimatePayload(base).largeConsumers).toBe(true);
+    expect(estimatePayload({ ...base, largeConsumers: false }).largeConsumers).toBe(false);
+  });
 });
 
 const EST = { substations: [

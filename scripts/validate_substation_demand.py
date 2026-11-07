@@ -1,8 +1,10 @@
 """Validate the substation-demand estimate against CEN 2024 metered withdrawals per barra (Chile).
 
 Per commune: area total (estimate vs CEN barras inside the area) and the spatial split (CEN barras
-mapped to their nearest seed; estimate rescaled to the CEN area total). Network responses are cached
-under --cache-dir so reruns are offline.
+mapped to their nearest substation with estimated energy; estimate rescaled to the CEN area total).
+Large consumers (Inc 7, mining split) are on by default, with mine sites built by the demand service's
+own helper; --no-large gives the pre-Inc 7 estimate. Network responses (incl. the Overpass mine query,
+under <cache-dir>/mines) are cached under --cache-dir so reruns are offline.
 
 Run: <demand-venv>\\python.exe scripts/validate_substation_demand.py --cache-dir <dir>
 """
@@ -15,6 +17,7 @@ import sys
 import time
 import urllib.request
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import shapely
@@ -28,6 +31,7 @@ import demand_cells as dc  # noqa: E402
 import demand_data as dd  # noqa: E402
 import demand_estimate as de  # noqa: E402
 import demand_growth as dg  # noqa: E402
+import demand_service as svc  # noqa: E402
 import smoke_demand_arica as smoke  # noqa: E402
 
 CEN_CSV = ROOT / "python" / "data" / "validation" / "cen_withdrawals_2024.csv"
@@ -47,6 +51,8 @@ AREAS = [
     ("Puerto Montt, Chile", ["MONTT", "PMONTT", "P.MONTT", "MELIPULLI", "CHINQUIHUE", "ALERCE"]),
 ]
 BUFFER_M, MATCH_M = 2000.0, 5000.0
+MINE_BARRA_KM = 30.0         # CEN 220/110 kV free-client barras listed near a mine-fed substation
+OVERPASS_TRIES, OVERPASS_PAUSE_S = 3, 30.0
 
 
 def make_cached_get(cache_dir):
@@ -83,6 +89,22 @@ def load_cen():
     return rows
 
 
+def mine_inputs(area, cache_dir):
+    """estimate() kwargs for the mining split, from the service's _mine_inputs (its Overpass reply cached
+    under cache_dir/mines). A failed Overpass query is retried; the last attempt's warnings are returned."""
+    svc.DATA_DIR = cache_dir
+    req = SimpleNamespace(largeConsumers=True, area=area, country="CL", modelYear=2024)
+    for attempt in range(1, OVERPASS_TRIES + 1):
+        warnings = []
+        kw, missing = svc._mine_inputs(req, False, warnings)
+        if not missing:
+            break
+        print(f"   mine sites unavailable (attempt {attempt}): {[w['message'] for w in warnings]}", file=sys.stderr)
+        if attempt < OVERPASS_TRIES:
+            time.sleep(OVERPASS_PAUSE_S)
+    return kw, warnings
+
+
 def pct(est, ref):
     return 100.0 * (est - ref) / ref if ref else float("nan")
 
@@ -114,13 +136,15 @@ def summary(per_seed):
             "wmae_pct": 100 * sum(abs(p["est_gwh_scaled"] - p["cen_gwh"]) for p in ok) / cen if cen > 0 else None}
 
 
-def validate_area(name, keywords, cen, tables, ec):
+def validate_area(name, keywords, cen, tables, ec, large, cache_dir):
     area = smoke.fetch_area(name)
     geom = de.area_geometry(area)
     subs = smoke.fetch_substations(geom.bounds)
+    mine_kw, mine_warn = mine_inputs(area, cache_dir) if large else ({}, [])
     res = de.estimate(area, subs, ec_path=ec, model_year=2024, country="CL",
-                      national_table=tables[0], raster_totals=tables[1], landuse=None)
-    seeds = [s for s in res["substations"] if s["seed"]]
+                      national_table=tables[0], raster_totals=tables[1], landuse=None, **mine_kw)
+    # targets: every substation carrying energy (mine-fed transmission substations included)
+    seeds = [s for s in res["substations"] if s["annual_gwh"] > 0]
     seed_by_id = {s["id"]: s for s in subs}
     est_total = res["totalGWh"]
 
@@ -151,6 +175,26 @@ def validate_area(name, keywords, cen, tables, ec):
             unmatched.append({**r, "dist_km": float(d[i]) / 1000})
     per_seed = split_metrics(seeds, groups, est_total, "gwh", cen_total)
     reg = split_metrics(seeds, groups, est_total, "reg", cen_reg)
+    mining = []
+    for s in seeds:
+        if s["mining_gwh"] <= 0:
+            continue
+        sub = seed_by_id[s["id"]]
+        mx, my = fwd.transform(sub["lon"], sub["lat"])
+        near = []
+        for r in cen:
+            if r["lat"] is None or r["kv"] not in ("220", "110") or r["free"] <= 0:
+                continue
+            bx, by = fwd.transform(r["lon"], r["lat"])
+            d = float(np.hypot(bx - mx, by - my)) / 1000
+            if d <= MINE_BARRA_KM:
+                near.append((d, r))
+        mining.append({"sub": s["name"], "sub_id": s["id"], "kv": sub.get("voltage_kv"),
+                       "substation": sub.get("substation"), "mining_gwh": s["mining_gwh"],
+                       "annual_gwh": s["annual_gwh"],
+                       "sites": [f"{x['name'] or '(unnamed)'} {x['km2']:.1f} km2 {x['gwh']:.0f} GWh" for x in s["sites"]],
+                       "cen_free_220_110_near": [f"{r['barra']} {r['free']:.0f} GWh @ {d:.1f} km"
+                                                 for d, r in sorted(near, key=lambda t: t[0])]})
     no_barra_share = (sum(s["annual_gwh"] for i, s in enumerate(seeds) if i not in groups) / est_total
                       if est_total else float("nan"))
     return {
@@ -163,7 +207,9 @@ def validate_area(name, keywords, cen, tables, ec):
         "unmatched_gwh": sum(r["gwh"] for r in unmatched),
         **summary(per_seed), **{f"reg_{k}": v for k, v in summary(reg).items()},
         "est_share_no_barra_pct": 100 * no_barra_share,
-        "warnings": [w["code"] for w in res["warnings"]],
+        "warnings": [w["code"] for w in res["warnings"] + mine_warn],
+        "mining_gwh": res["chain"].get("miningGWh", 0.0), "lit_gwh": res["chain"].get("litGWh", est_total),
+        "mining": sorted(mining, key=lambda m: -m["mining_gwh"]),
         "per_seed": sorted(per_seed, key=lambda p: -p["cen_gwh"]),
         "per_seed_regulated": sorted(reg, key=lambda p: -p["cen_gwh"]),
         "unmatched": [f"{r['barra']} ({r['gwh']:.1f}, {r['dist_km']:.1f} km)" for r in unmatched],
@@ -176,8 +222,8 @@ def fmt(v, d=1):
     return "–" if v is None or (isinstance(v, float) and np.isnan(v)) else f"{v:.{d}f}"
 
 
-def render(results, national):
-    L = ["# Substation demand vs CEN 2024 withdrawals", "",
+def render(results, national, large):
+    L = ["# Substation demand vs CEN 2024 withdrawals", "", f"Large consumers (mining split): {'on' if large else 'off'}.", "",
          f"National: OWID {national['year']} CL = {national['twh']:.1f} TWh (sum of all CL estimates by construction) "
          f"vs CEN SEN withdrawals {CEN_NATIONAL_TWH:.1f} TWh ({pct(national['twh'], CEN_NATIONAL_TWH):+.1f} %). "
          "OWID includes losses, self-generation and non-SEN systems.", "",
@@ -222,6 +268,10 @@ def render(results, national):
             L.append(f"\nUnmatched (> 5 km from a seed): {'; '.join(r['unmatched'])}")
         if r["nocoord"]:
             L.append(f"\nNo-coordinate barras matching area keywords: {'; '.join(r['nocoord'])}")
+        for m in r["mining"]:
+            L.append(f"\nMining {fmt(m['mining_gwh'])} GWh -> {m['sub']} ({m['substation']}, {m['kv']} kV; "
+                     f"sites: {'; '.join(m['sites'])}). CEN 220/110 kV free barras within {MINE_BARRA_KM:g} km: "
+                     f"{'; '.join(m['cen_free_220_110_near']) or 'none'}")
         L.append("")
     return "\n".join(L)
 
@@ -231,6 +281,7 @@ def main():
     ap.add_argument("--cache-dir", required=True, type=Path)
     ap.add_argument("--out", type=Path, default=DEFAULT_OUT)
     ap.add_argument("--areas", nargs="*", help="subset of Nominatim names")
+    ap.add_argument("--no-large", action="store_true", help="no large-consumer (mining) split (pre-Inc 7)")
     a = ap.parse_args()
     smoke.get = make_cached_get(a.cache_dir)
     cen = load_cen()
@@ -241,9 +292,9 @@ def main():
         if a.areas and name not in a.areas:
             continue
         print(f"== {name}", file=sys.stderr)
-        results.append(validate_area(name, kws, cen, tables, ec))
+        results.append(validate_area(name, kws, cen, tables, ec, not a.no_large, a.cache_dir))
     national = dg.national_demand(tables[0], "CL", 2024)
-    md = render(results, national)
+    md = render(results, national, not a.no_large)
     print(md)
     a.out.parent.mkdir(parents=True, exist_ok=True)
     a.out.write_text(md, encoding="utf-8")

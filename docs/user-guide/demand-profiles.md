@@ -46,6 +46,7 @@ missing, the panel shows a **Download consumption data** button with progress.
 |---|---|
 | **Profile family** | `classic` (BDEW 1999 profiles) or `bdew25` (the 2025 revision) |
 | **Use OSM land use** | Fetch residential, commercial, industrial and farmland areas from OpenStreetMap to set each substation's sector mix. Off, or for very large areas, every substation gets the default mix |
+| **Large consumers (mines)** | On by default. Takes the mining share of national demand out of the consumption map and places it on mine sites (see step 4 below) |
 | **Area total (GWh/yr)** | Optional. Leave empty to use the calibrated total; enter a figure to force the total and keep only the spatial split |
 
 Click **Estimate**. With land use on, the first run for an area can take up to a
@@ -65,19 +66,36 @@ couple of minutes; later runs use a cache.
    is. The *amount* is the country's national demand for the latest year up to your model
    year (Our World in Data), times the area's share of the country's map total. A study
    area that crosses a border is calibrated country by country.
-4. **Service areas.** Each map cell goes to its nearest withdrawal substation. The result
-   is one service area per substation (a Voronoi cell, clipped to the study area).
-5. **Sector mix.** Within each service area, the consumption on residential, commercial,
+4. **Mines.** Mines are dark at night but use a lot of electricity, so the map misses
+   them. TEMPO therefore splits the national demand in two:
+   - **Mining part.** The share that mining uses (UN energy statistics) is spread over the
+     country's mine sites in proportion to their area. A site's demand is withdrawn at the
+     highest-voltage substation (110 kV or more) inside it or within 15 km, else at the
+     nearest substation. That substation receives demand even if it is a transmission
+     substation.
+   - **Lit part.** Everything else follows the consumption map as in step 3, reduced by the
+     mining share. Map cells on mine sites are left out, so they are not counted twice.
+
+   Mine sites come from OpenStreetMap (`industrial=mine`, and large quarries that are not
+   sand, gravel or stone) in the 115 countries where it maps them well enough. Elsewhere
+   they come from satellite-mapped mining areas (Maus et al. 2022), each counted as at most
+   50 km², and downloaded once (about 25 MB). In countries without a mining figure the
+   split is skipped and a warning says so.
+5. **Service areas.** Each map cell goes to its nearest withdrawal substation. The result
+   is one service area per substation (a Voronoi cell, clipped to the study area). Mines
+   show as their own areas.
+6. **Sector mix.** Within each service area, the consumption on residential, commercial,
    industrial and farmland areas sets the mix of BDEW profiles (for example
    `h0_dyn 55 · g0 30 · g3 15`), rounded to 5 % steps. The part of the consumption that falls
    on no mapped land use gets the default mix. A substation tagged `industrial` gets the
-   industrial profile only.
-6. **Load shape.** demandlib builds the BDEW profile of each mix for your model dates. In
+   industrial profile only. Mining demand always uses the industrial profile.
+7. **Load shape.** demandlib builds the BDEW profile of each mix for your model dates. In
    the southern hemisphere the seasons are shifted by six months, while weekdays and
    holidays follow the real calendar.
 
-The panel shows the calculation chain: map year, the calibration of each country, the
-calibrated total, any override, and the final total.
+The panel shows the calculation chain: map year, the calibration and mining share of each
+country, the lit and mining totals, any override, and the final total. Substations that
+receive mine demand are marked ⛏; hover the mark to see the sites.
 
 ### Editing before import
 
@@ -104,6 +122,9 @@ asking you to estimate again. Nothing is recalculated until you click the button
 | `NO_CALIBRATION` | The country has no national figure or no data in the map. Without an **Area total**, the demand is zero |
 | `NO_PIXELS` / `AREA_SHARES` | The map shows no consumption in the area, so the total is split by service-area size |
 | `DUPLICATE_SEED` | Several substations share one location; only one of them gets demand |
+| `NO_MINING_SHARE` | No mining figure or mine data for the country, so there is no mining split there |
+| `MINES_UNAVAILABLE` / `MINES_SKIPPED` | Mine sites could not be fetched (OpenStreetMap did not answer, or the mine data is not downloaded) or the area is too large, so there is no mining split |
+| `MINE_FAR_FROM_SUBSTATION` | A mine site is more than 30 km from any substation; its demand still goes to the nearest one |
 | `LANDUSE_SKIPPED` / `LANDUSE_UNAVAILABLE` | Land use was not used (area too large, or OpenStreetMap did not answer), so every substation gets the default mix |
 
 ### Limits
@@ -124,40 +145,47 @@ asking you to estimate again. Nothing is recalculated until you click the button
 
 We compared the estimate with metered 2024 withdrawals per busbar from Chile's system
 operator (Coordinador Eléctrico Nacional, CEN), for eight communes from Arica to Puerto
-Montt. The script is `scripts/validate_substation_demand.py`.
+Montt. The script is `scripts/validate_substation_demand.py` (`--no-large` runs the method
+without the mining split).
 
-**Area totals** were off by −52 % to +359 % against CEN:
+**Area totals**, without and with the mining split:
 
-| Commune | Estimate (GWh) | CEN (GWh) | Difference |
+| Commune | CEN (GWh) | Without mines | With mines |
 |---|---:|---:|---:|
-| Arica | 739 | 401 | +84 % |
-| Iquique | 336 | 693 | −52 % |
-| Antofagasta | 3,572 | 7,479 | −52 % |
-| Calama | 2,746 | 3,957 | −31 % |
-| La Serena | 855 | 187 | +359 % (most of the city's CEN busbars could not be located; with them, about −17 %) |
-| Rancagua | 864 | 693 | +25 % |
-| Temuco | 977 | 651 | +50 % |
-| Puerto Montt | 777 | 953 | −18 % |
+| Arica | 401 | 739 (+84 %) | 473 (+18 %) |
+| Iquique | 693 | 336 (−51 %) | 435 (−37 %) |
+| Antofagasta | 7,479 | 3,572 (−52 %) | 8,069 (+8 %) |
+| Calama | 3,957 | 2,745 (−31 %) | 4,077 (+3 %) |
+| La Serena | 187 | 855 (+358 %) | 794 (+325 %)* |
+| Rancagua | 693 | 864 (+25 %) | 555 (−20 %) |
+| Temuco | 651 | 977 (+50 %) | 626 (−4 %) |
+| Puerto Montt | 953 | 777 (−18 %) | 498 (−48 %) |
 
-**The split between substations** was weaker still. Even after each area's estimate was
-scaled to the CEN total, the typical error per substation group was 69 % (median; the
-middle half lay between 39 % and 94 %, over 40 groups).
+\*Most of La Serena's CEN busbars could not be located, so its CEN figure is too low.
 
-What drives the errors:
+The median error on area totals fell from 51 % to 19 %.
 
-- **Mining and other large industry.** The consumption map comes from satellite
-  night-lights. Mines are dark at night but draw a lot of power, so mining areas (Antofagasta,
-  Calama) come out far too low. Because the national total is fixed, cities come out too high
-  (Arica, Temuco).
-- **Which substation actually supplies the load.** A city's demand is often metered at a
-  few busbars, while OpenStreetMap shows more substations; nearest-substation areas spread
-  the demand over all of them.
-- **Missing substations** in OpenStreetMap, and busbars with uncertain locations.
+**The split between substations** is still weak. After each area's estimate is scaled to
+the CEN total, the typical error per substation group is about 70 %. That is the median
+over 41 groups, with the middle half between 53 % and 100 %. It was 67 % without the
+mining split.
 
-So treat the estimate as an order-of-magnitude first guess, and replace it with measured
-data wherever you have it. **Area total** and the per-substation GWh fields are there for
-that. The estimate did best in Puerto Montt, a city without large industry and with few
-substations: −18 % on the total and under 15 % per substation.
+What still drives the errors:
+
+- **Which substation supplies the load.** A city's demand is often metered at a few
+  busbars, while OpenStreetMap shows more substations; nearest-substation areas spread the
+  demand over all of them. A large mine fed by several 220 kV busbars, such as Escondida,
+  is placed on just one of them.
+- **Mine type.** Sites are weighted by area alone, so low-energy mines such as gold,
+  iodine or iron get too much and underground mines too little.
+- **One national mining share for every city.** Cities with other large industry (ports,
+  smelters, desalination) come out too low, such as Puerto Montt and Iquique.
+- **Missing substations or voltage tags** in OpenStreetMap, and busbars with uncertain
+  locations.
+
+So treat the estimate as a first guess: area totals are usually within a few tens of
+percent, and the split between substations is rough. Replace it with measured data
+wherever you have it; **Area total** and the per-substation GWh fields are there for that.
 
 ---
 
@@ -256,4 +284,6 @@ mix, and its column names.
 | National electricity demand | [Our World in Data energy dataset](https://github.com/owid/energy-data) (`electricity_demand`) | CC BY 4.0 |
 | Country outlines for the calibration table | [Natural Earth](https://www.naturalearthdata.com/) admin-0 | Public domain |
 | Substations and land use | © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors | ODbL |
+| Mining share of national demand | UN Energy Statistics Database via [UNdata](https://data.un.org/Data.aspx?d=EDATA&f=cmID%3aEL) | Free to use, citing UNdata |
+| Mining areas (fallback) | Maus, V. et al. (2022), *An update on global mining land use*, Scientific Data, [doi:10.1038/s41597-022-01547-4](https://doi.org/10.1038/s41597-022-01547-4); data [doi:10.1594/PANGAEA.942325](https://doi.org/10.1594/PANGAEA.942325) | CC BY-SA 4.0 |
 | Load profiles | BDEW standard load profiles via [demandlib](https://github.com/oemof/demandlib) | MIT (demandlib) |

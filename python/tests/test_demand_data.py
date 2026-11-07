@@ -160,3 +160,67 @@ def test_year_out_of_range(tmp_path, year):
 @pytest.mark.parametrize("model_year,expected", [(1980, 1992), (2010, 2010), (2019, 2019), (2035, 2019)])
 def test_raster_year_for(model_year, expected):
     assert dd.raster_year_for(model_year) == expected
+
+
+def test_maus_to_footprints(tmp_path):
+    shapely = pytest.importorskip("shapely")
+    import json
+    import sqlite3
+    import struct
+    sq = shapely.box(-70.0, -24.0, -69.99, -23.99)        # ~1.02 x 1.11 km
+    bowtie = shapely.Polygon([(0, 0), (0.01, 0.01), (0.01, 0), (0, 0.01), (0, 0)])  # invalid
+    gpkg = tmp_path / "m.gpkg"
+    con = sqlite3.connect(gpkg)
+    con.execute("CREATE TABLE mining_polygons (fid INTEGER PRIMARY KEY, geom BLOB, ISO3_CODE TEXT)")
+    blob = lambda g, flags: b"GP\x00" + bytes([flags]) + struct.pack("<i", 4326) + (  # noqa: E731
+        struct.pack("<4d", *g.bounds) if flags & 2 else b"") + shapely.to_wkb(g)
+    con.execute("INSERT INTO mining_polygons VALUES (1, ?, 'CHL')", (blob(sq, 0b011),))   # with xy envelope
+    con.execute("INSERT INTO mining_polygons VALUES (2, ?, 'XXX')", (blob(bowtie, 0b001),))  # no envelope
+    con.commit()
+    con.close()
+
+    out = tmp_path / "fp.geojsonl"
+    assert dd.maus_to_footprints(gpkg, out, {"CHL": "CL"}) == 2
+    f1, f2 = [json.loads(line) for line in out.read_text().splitlines()]
+    assert f1["id"] == 1 and f1["properties"]["iso2"] == "CL"
+    assert f1["properties"]["km2"] == pytest.approx(1.13, abs=0.02)
+    assert f2["properties"]["iso2"] == "XXX" and shapely.geometry.shape(f2["geometry"]).is_valid
+    assert not (tmp_path / "fp.geojsonl.part").exists()
+
+
+def _tiny_gpkg(path):
+    import sqlite3
+    import struct
+    shapely = pytest.importorskip("shapely")
+    con = sqlite3.connect(path)
+    con.execute("CREATE TABLE mining_polygons (fid INTEGER PRIMARY KEY, geom BLOB, ISO3_CODE TEXT)")
+    g = shapely.box(-70.0, -24.0, -69.99, -23.99)
+    con.execute("INSERT INTO mining_polygons VALUES (1, ?, 'CHL')",
+                (b"GP\x00\x01" + struct.pack("<i", 4326) + shapely.to_wkb(g),))
+    con.commit()
+    con.close()
+    return path.read_bytes()
+
+
+def test_ensure_mine_footprints_downloads_converts_and_cleans_up(tmp_path, small_chunks):
+    import json
+    gpkg = _tiny_gpkg(tmp_path / "src.gpkg")
+    cache = tmp_path / "cache"
+    seen = []
+    src = FaultySource(gpkg, 0, 64, "flaky")             # first chunk fails once, then is retried
+    out = dd.ensure_mine_footprints(cache, src=src, progress=lambda d, t: seen.append((d, t)))
+    assert out == cache / dd.MINE_FOOTPRINTS
+    (feat,) = [json.loads(line) for line in out.read_text().splitlines()]
+    assert feat["properties"]["iso2"] == "CL"            # ISO3 -> ISO2 from the bundled table
+    assert seen[-1] == (len(gpkg), len(gpkg))
+    assert sorted(p.name for p in cache.iterdir()) == sorted([dd.MINE_FOOTPRINTS, out.with_suffix(".json").name])
+    assert json.loads(out.with_suffix(".json").read_text())["licence"] == "CC BY-SA 4.0"
+    assert dd.ensure_mine_footprints(cache, src=CountingSource(b"")) == out   # cached: no fetch
+
+
+def test_ensure_mine_footprints_failure_leaves_nothing(tmp_path, small_chunks):
+    gpkg = _tiny_gpkg(tmp_path / "src.gpkg")
+    cache = tmp_path / "cache"
+    with pytest.raises(IOError):
+        dd.ensure_mine_footprints(cache, src=FaultySource(gpkg, 64, 128, "fail"))
+    assert list(cache.iterdir()) == []

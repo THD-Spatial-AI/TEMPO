@@ -20,6 +20,8 @@ const CHAIN_LABELS = {
   factor: 'Calibration ×',
   areaTWh: 'Area, calibrated (TWh)',
 };
+// Rendered separately in the chain (mining share / mine source), not as generic rows.
+const CHAIN_CUSTOM_KEYS = new Set(['country', 'miningTWh', 'litFactor', 'mineKm2Country', 'mineKm2Area', 'miningGWhArea', 'mineSource']);
 
 const INPUT = 'px-1.5 py-0.5 text-[10px] border border-black/15 rounded-lg bg-white focus:ring-2 focus:ring-electric-400';
 
@@ -101,6 +103,7 @@ function MixEditor({ mix, family, onApply, onCancel }) {
  */
 export default function SubstationDemandEstimate({ boundary, inputs, country, value, onChange }) {
   const { family, landuse, override, est, edits, peakRatio } = value;
+  const largeConsumers = value.largeConsumers !== false;
   const [serviceUrl, setServiceUrl] = useState(undefined); // undefined = checking, null = not running
   const [dataReady, setDataReady] = useState(null);       // null = unknown
   const [download, setDownload] = useState({ active: false, pct: null, error: '' });
@@ -112,6 +115,7 @@ export default function SubstationDemandEstimate({ boundary, inputs, country, va
   const setField = (k, v) => onChange(prev => ({ ...prev, [k]: typeof v === 'function' ? v(prev[k]) : v }));
   const setFamily = v => setField('family', v);
   const setLanduse = v => setField('landuse', v);
+  const setLargeConsumers = v => setField('largeConsumers', v);
   const setOverride = v => setField('override', v);
   const setEdits = v => setField('edits', v);
 
@@ -142,7 +146,7 @@ export default function SubstationDemandEstimate({ boundary, inputs, country, va
     setRunning(true);
     setError('');
     const res = await estimateDemand(estimatePayload({
-      boundary, substations, modelYear: inputs?.modelYear, country, family, landuse, overrideGwh: override,
+      boundary, substations, modelYear: inputs?.modelYear, country, family, landuse, largeConsumers, overrideGwh: override,
     }));
     if (aliveRef.current) setRunning(false);
     if (!res || res.error) {
@@ -152,7 +156,7 @@ export default function SubstationDemandEstimate({ boundary, inputs, country, va
       return;
     }
     if (aliveRef.current) { setDataReady(true); setMixOpen(null); }
-    const nextEst = { result: res, inputsKey: JSON.stringify(substations.map(s => s.id)), family, landuse, override };
+    const nextEst = { result: res, inputsKey: JSON.stringify(substations.map(s => s.id)), family, landuse, largeConsumers, override };
     onChange(prev => ({ ...prev, est: nextEst, edits: {}, peakRatio: {} }));
     // Peak MW (best-effort): peak/avg ratio of each seed's shape over the model window.
     const seeds = (res.substations || []).filter(s => s.seed && s.avg_mw > 0 && s.mix);
@@ -168,7 +172,7 @@ export default function SubstationDemandEstimate({ boundary, inputs, country, va
       // Only attach to the estimate it was computed for.
       onChange(prev => (prev.est === nextEst ? { ...prev, peakRatio: ratio } : prev));
     } catch { /* no peaks */ }
-  }, [serviceUrl, boundary, substations, inputs, country, family, landuse, override, onChange]);
+  }, [serviceUrl, boundary, substations, inputs, country, family, landuse, largeConsumers, override, onChange]);
 
   const runRef = useRef(runEstimate);
   useEffect(() => { runRef.current = runEstimate; });
@@ -201,12 +205,13 @@ export default function SubstationDemandEstimate({ boundary, inputs, country, va
   const toggleSort = key => setSort(s => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: key === 'name' ? 'asc' : 'desc' }));
   const arrow = key => (sort.key === key ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : '');
 
-  const optionsStale = !!est && (est.family !== family || est.landuse !== landuse || est.override !== override);
+  const optionsStale = !!est && (est.family !== family || est.landuse !== landuse || (est.largeConsumers !== false) !== largeConsumers || est.override !== override);
   const selectionStale = !!est && est.inputsKey !== inputsKey;
   const currentTotal = rows.reduce((s, r) => s + r.annual_gwh, 0);
   const anyEdits = Object.keys(edits).length > 0;
   const nonSeeds = (result?.substations || []).filter(s => !s.seed).length;
   const chain = result?.chain || {};
+  const showLarge = chain.miningGWh > 0 || (chain.countries || []).some(c => c.litFactor < 1);
 
   const setGwh = (id, v) => setEdits(prev => ({ ...prev, [id]: { ...(prev[id] || {}), gwh: v } }));
   const setMix = (id, m) => { setEdits(prev => ({ ...prev, [id]: { ...(prev[id] || {}), mix: m } })); setMixOpen(null); };
@@ -257,6 +262,10 @@ export default function SubstationDemandEstimate({ boundary, inputs, country, va
         <input type="checkbox" checked={landuse} onChange={e => setLanduse(e.target.checked)} className="accent-electric-600" />
         Use OSM land use for the sector mix
       </label>
+      <label className="flex items-center gap-1 text-slate-500">
+        <input type="checkbox" checked={largeConsumers} onChange={e => setLargeConsumers(e.target.checked)} className="accent-electric-600" />
+        Large consumers (mines)
+      </label>
 
       <button
         type="button" disabled={!canEstimate} onClick={runEstimate}
@@ -279,14 +288,28 @@ export default function SubstationDemandEstimate({ boundary, inputs, country, va
             {(chain.countries || []).map(c => (
               <React.Fragment key={c.country}>
                 <dt className="col-span-2 font-semibold text-slate-600 pt-0.5">{c.country}</dt>
-                {Object.entries(c).filter(([k]) => k !== 'country').map(([k, v]) => (
+                {Object.entries(c).filter(([k]) => !CHAIN_CUSTOM_KEYS.has(k)).map(([k, v]) => (
                   <React.Fragment key={k}>
                     <dt className="text-slate-500 pl-1.5">{CHAIN_LABELS[k] || k}</dt>
                     <dd className="text-right">{k === 'nationalYear' ? (v ?? '—') : fmt(v, 4)}</dd>
                   </React.Fragment>
                 ))}
+                {showLarge && (
+                  <>
+                    <dt className="text-slate-500 pl-1.5">Mining share</dt>
+                    <dd className="text-right">{fmt((1 - (Number.isFinite(Number(c.litFactor)) ? Number(c.litFactor) : 1)) * 100, 1)} %</dd>
+                    <dt className="text-slate-500 pl-1.5">Mines ({c.mineSource || '—'}), area (km²)</dt>
+                    <dd className="text-right">{fmt(c.mineKm2Area, 2)}</dd>
+                  </>
+                )}
               </React.Fragment>
             ))}
+            {showLarge && (
+              <>
+                <dt className="text-slate-500">Lit (night-lights) GWh</dt><dd className="text-right">{fmt(chain.litGWh, 2)}</dd>
+                <dt className="text-slate-500">Mines GWh</dt><dd className="text-right">{fmt(chain.miningGWh, 2)}</dd>
+              </>
+            )}
             <dt className="text-slate-500">Calibrated (GWh)</dt><dd className="text-right">{fmt(chain.calibratedGWh, 2)}</dd>
             {chain.overrideGWh != null && (<><dt className="text-slate-500">Override (GWh)</dt><dd className="text-right">{fmt(chain.overrideGWh, 2)}</dd></>)}
             <dt className="font-semibold text-slate-700 self-center">Total (GWh)</dt>
@@ -319,6 +342,12 @@ export default function SubstationDemandEstimate({ boundary, inputs, country, va
                     <tr className="border-t border-black/5">
                       <td className="px-1 py-0.5 max-w-[80px] truncate" title={r.name || r.id}>
                         {r.edited && <span className="inline-block w-1.5 h-1.5 mr-1 rounded-full bg-electric-500 align-middle" title="Edited" />}
+                        {r.mining_gwh > 0 && (
+                          <span
+                            className="inline-block mr-1 px-1 rounded bg-amber-100 text-amber-700 align-middle"
+                            title={(r.sites || []).map(s => `${s.name || 'unnamed site'} (${fmt(s.km2, 2)} km², ${fmt(s.gwh, 2)} GWh)`).join('\n') || 'mine'}
+                          >⛏</span>
+                        )}
                         {r.name || r.id}
                       </td>
                       <td className="px-1 py-0.5 text-right">

@@ -178,3 +178,94 @@ def _download(src, start, total, path, progress):
             done = end + 1
             if progress:
                 progress(done, total)
+
+
+# ── Mine footprints (Inc 7, Maus fallback countries) ──────────────────────────
+MAUS_GPKG_URL = "https://download.pangaea.de/dataset/942325/files/global_mining_polygons_v2.gpkg"
+MAUS_SOURCE = {
+    "dataset": "Global-scale mining polygons (Version 2)",
+    "authors": "Maus, V. et al. (2022), Scientific Data 9, 433",
+    "doi": "10.1594/PANGAEA.942325",
+    "paper_doi": "10.1038/s41597-022-01547-4",
+    "licence": "CC BY-SA 4.0",
+    "url": MAUS_GPKG_URL,
+}
+
+
+def _gpkg_wkb(blob):
+    """WKB inside a GeoPackage geometry blob (magic 'GP', version, flags, srs_id, envelope)."""
+    if blob[:2] != b"GP":
+        raise ValueError("not a GeoPackage geometry blob")
+    env = (0, 32, 48, 48, 64)[(blob[3] >> 1) & 7]
+    return blob[8 + env:]
+
+
+def maus_to_footprints(gpkg_path, out_path, iso3_to_iso2, tol_m=50.0):
+    """Convert the Maus GeoPackage to a GeoJSON-seq footprint file; returns the feature count.
+
+    Stdlib sqlite3 reads the GPKG (no GDAL). Each polygon is simplified to ~tol_m,
+    rounded to 1e-5 deg and written as one Feature per line with id, bbox and
+    properties {iso2, km2} (geodesic km2 of the written geometry). Unknown ISO3
+    codes are written as-is.
+    """
+    import sqlite3
+    import shapely
+    from pyproj import Geod
+
+    geod = Geod(ellps="WGS84")
+    tol = tol_m / 111_320.0
+    out_path = Path(out_path)
+    tmp = out_path.with_name(out_path.name + ".part")
+    n = 0
+    con = sqlite3.connect(f"file:{Path(gpkg_path).as_posix()}?mode=ro", uri=True)
+    try:
+        rows = con.execute("SELECT fid, geom, ISO3_CODE FROM mining_polygons ORDER BY fid")
+        with open(tmp, "w", encoding="utf-8", newline="\n") as f:
+            for fid, blob, iso3 in rows:
+                g = shapely.from_wkb(_gpkg_wkb(blob))
+                if not g.is_valid:
+                    g = shapely.make_valid(g)
+                    g = shapely.union_all([p for p in getattr(g, "geoms", [g]) if p.geom_type.endswith("Polygon")])
+                s = shapely.set_precision(g.simplify(tol, preserve_topology=True), 1e-5)
+                if s.is_empty:
+                    s = shapely.set_precision(g, 1e-5)
+                if s.is_empty:
+                    continue
+                km2 = abs(geod.geometry_area_perimeter(s)[0]) / 1e6
+                feat = {"type": "Feature", "id": fid, "bbox": [round(v, 5) for v in s.bounds],
+                        "properties": {"iso2": iso3_to_iso2.get(iso3, iso3), "km2": round(km2, 4)},
+                        "geometry": json.loads(shapely.to_geojson(s))}
+                f.write(json.dumps(feat, separators=(",", ":")) + "\n")
+                n += 1
+        os.replace(tmp, out_path)
+    finally:
+        con.close()
+        tmp.unlink(missing_ok=True)
+    return n
+
+
+MINE_FOOTPRINTS = "mine_footprints_maus_v2.geojsonl"
+
+
+def ensure_mine_footprints(cache_dir, src=None, progress=None, iso3_to_iso2=None):
+    """Path to the compact Maus footprint file (GeoJSON-seq) in cache_dir, building it on first use:
+    the GPKG is downloaded in retried byte ranges, converted with maus_to_footprints (ISO3 -> ISO2
+    from python/data/mine_area_by_country.csv) and deleted; a .json attribution sidecar is written."""
+    cache_dir = Path(cache_dir)
+    out = cache_dir / MINE_FOOTPRINTS
+    if out.exists():
+        return out
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    src = src or HttpRange(MAUS_GPKG_URL)
+    if iso3_to_iso2 is None:
+        import demand_large   # lazy: the raster path needs none of it
+        iso3_to_iso2 = {row["iso3"]: iso2 for iso2, row in demand_large.load_mine_area().items()}
+    part = cache_dir / "global_mining_polygons_v2.gpkg.part"
+    try:
+        _download(src, 0, src.size(), part, progress)
+        n = maus_to_footprints(part, out, iso3_to_iso2)
+    finally:
+        part.unlink(missing_ok=True)
+    out.with_suffix(".json").write_text(json.dumps(
+        {**MAUS_SOURCE, "features": n, "downloaded": time.strftime("%Y-%m-%dT%H:%M:%S")}, indent=2))
+    return out

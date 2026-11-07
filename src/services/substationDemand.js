@@ -21,7 +21,7 @@ export function substationKey(f, i) {
 }
 
 /** /estimate body. Boundary features without a countryCode get `country`. */
-export function estimatePayload({ boundary, substations, modelYear, country, family, landuse = false, overrideGwh }) {
+export function estimatePayload({ boundary, substations, modelYear, country, family, landuse = false, largeConsumers = true, overrideGwh }) {
   const code = country ? String(country).toUpperCase() : null;
   const area = {
     type: 'FeatureCollection',
@@ -29,7 +29,7 @@ export function estimatePayload({ boundary, substations, modelYear, country, fam
       ...f, properties: { ...(f.properties || {}), countryCode: f.properties?.countryCode || code },
     })),
   };
-  const body = { area, substations, modelYear, country: code, family, landuse: !!landuse };
+  const body = { area, substations, modelYear, country: code, family, landuse: !!landuse, largeConsumers: !!largeConsumers };
   const o = Number(overrideGwh);
   if (overrideGwh !== null && overrideGwh !== undefined && overrideGwh !== '' && Number.isFinite(o)) body.overrideGwh = o;
   return body;

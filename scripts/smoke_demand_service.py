@@ -20,6 +20,9 @@ import numpy as np  # noqa: E402
 import smoke_demand_arica as sm  # noqa: E402
 
 MODEL_YEAR = 2024
+# /estimate defaults to largeConsumers=True: Chile's mining share (~36 %) leaves the lit part,
+# and Arica has no mine site, so its total drops from the plain-raster 739 GWh (smoke_demand_arica.py).
+GATE_GWH = 473.0
 
 
 def call(base, path, body=None, timeout=600):
@@ -102,8 +105,8 @@ def main():
     print("Timings (s):", {k: round(v, 1) for k, v in t.items()})
 
     print("\nGATE")
-    print(f" total {res['totalGWh']:.1f} GWh vs {sm.GATE_GWH} +-5%: "
-          f"{'PASS' if abs(res['totalGWh'] - sm.GATE_GWH) / sm.GATE_GWH <= sm.GATE_TOL else 'FAIL'}")
+    print(f" total {res['totalGWh']:.1f} GWh vs {GATE_GWH} +-5%: "
+          f"{'PASS' if abs(res['totalGWh'] - GATE_GWH) / GATE_GWH <= sm.GATE_TOL else 'FAIL'}")
     print(f" mixes sum to 100: {'PASS' if not bad_mix else 'FAIL ' + str(bad_mix)}")
     print(f" peak/avg {ratio:.3f} in [1.2, 2.5]: {'PASS' if 1.2 <= ratio <= 2.5 else 'FAIL'}")
     print(f" top months {top3} within Jun-Aug: {'PASS' if set(top3) <= {6, 7, 8} else 'CHECK'}"

@@ -1,0 +1,341 @@
+{
+ "left_override": {
+  "cells": {
+   "features": [
+    {
+     "geometry": {
+      "coordinates": [
+       [
+        [
+         -70.5,
+         -34.00101
+        ],
+        [
+         -71.0,
+         -34.0
+        ],
+        [
+         -71.0,
+         -33.0
+        ],
+        [
+         -70.5,
+         -33.00101
+        ],
+        [
+         -70.5,
+         -34.00101
+        ]
+       ]
+      ],
+      "type": "Polygon"
+     },
+     "properties": {
+      "annualGWh": 20.0,
+      "areaKm2": 5153.012,
+      "avgMW": 2.283105,
+      "densityGWhKm2": 0.003881,
+      "landuseCoverage": 0.0,
+      "locationId": "a",
+      "mix": {
+       "g0": 35,
+       "g3": 10,
+       "h0_dyn": 50,
+       "l0": 5
+      },
+      "name": "A"
+     },
+     "type": "Feature"
+    },
+    {
+     "geometry": {
+      "coordinates": [
+       [
+        [
+         -70.5,
+         -33.00101
+        ],
+        [
+         -70.0,
+         -33.0
+        ],
+        [
+         -70.0,
+         -34.0
+        ],
+        [
+         -70.5,
+         -34.00101
+        ],
+        [
+         -70.5,
+         -33.00101
+        ]
+       ]
+      ],
+      "type": "Polygon"
+     },
+     "properties": {
+      "annualGWh": 0.0,
+      "areaKm2": 5153.012,
+      "avgMW": 0.0,
+      "densityGWhKm2": 0.0,
+      "landuseCoverage": 0.0,
+      "locationId": "b",
+      "mix": {
+       "g0": 35,
+       "g3": 10,
+       "h0_dyn": 50,
+       "l0": 5
+      },
+      "name": "B"
+     },
+     "type": "Feature"
+    }
+   ],
+   "type": "FeatureCollection"
+  },
+  "chain": {
+   "calibratedGWh": 5.0,
+   "countries": [
+    {
+     "areaTWh": 0.005,
+     "country": "CL",
+     "factor": 1.0,
+     "nationalTWh": null,
+     "nationalYear": null,
+     "rasterAreaTWh": 0.005,
+     "rasterCountryTWh": null
+    }
+   ],
+   "overrideGWh": 20.0,
+   "rasterYear": 2019,
+   "totalGWh": 20.0
+  },
+  "substations": [
+   {
+    "annual_gwh": 20.0,
+    "area_km2": 5153.012,
+    "avg_mw": 2.283105,
+    "density_gwh_km2": 0.003881,
+    "id": "a",
+    "landuseCoverage": 0.0,
+    "mix": {
+     "g0": 35,
+     "g3": 10,
+     "h0_dyn": 50,
+     "l0": 5
+    },
+    "name": "A",
+    "seed": true,
+    "share": 1.0
+   },
+   {
+    "annual_gwh": 0.0,
+    "area_km2": 5153.012,
+    "avg_mw": 0.0,
+    "density_gwh_km2": 0.0,
+    "id": "b",
+    "landuseCoverage": 0.0,
+    "mix": {
+     "g0": 35,
+     "g3": 10,
+     "h0_dyn": 50,
+     "l0": 5
+    },
+    "name": "B",
+    "seed": true,
+    "share": 0.0
+   },
+   {
+    "annual_gwh": 0.0,
+    "area_km2": 0.0,
+    "avg_mw": 0.0,
+    "density_gwh_km2": 0.0,
+    "id": "t",
+    "landuseCoverage": 0.0,
+    "mix": null,
+    "name": "T",
+    "seed": false,
+    "share": 0.0
+   }
+  ],
+  "totalGWh": 20.0,
+  "warnings": [
+   {
+    "code": "NO_CALIBRATION",
+    "message": "Raw raster values used for CL: no national demand data for CL up to 2019."
+   },
+   {
+    "code": "FAR_FROM_SEED",
+    "message": "52% of the demand lies more than 30 km from any withdrawal substation; OSM may be missing substations there."
+   }
+  ]
+ },
+ "two_countries_landuse": {
+  "cells": {
+   "features": [
+    {
+     "geometry": {
+      "coordinates": [
+       [
+        [
+         -70.5,
+         -34.0
+        ],
+        [
+         -71.0,
+         -34.0
+        ],
+        [
+         -71.0,
+         -33.0
+        ],
+        [
+         -70.5,
+         -33.0
+        ],
+        [
+         -70.5,
+         -34.0
+        ]
+       ]
+      ],
+      "type": "Polygon"
+     },
+     "properties": {
+      "annualGWh": 10.0,
+      "areaKm2": 5153.049,
+      "avgMW": 1.141553,
+      "densityGWhKm2": 0.001941,
+      "landuseCoverage": 1.0,
+      "locationId": "a",
+      "mix": {
+       "h0_dyn": 100
+      },
+      "name": "A"
+     },
+     "type": "Feature"
+    },
+    {
+     "geometry": {
+      "coordinates": [
+       [
+        [
+         -70.5,
+         -33.0
+        ],
+        [
+         -70.0,
+         -33.0
+        ],
+        [
+         -70.0,
+         -34.0
+        ],
+        [
+         -70.5,
+         -34.0
+        ],
+        [
+         -70.5,
+         -33.0
+        ]
+       ]
+      ],
+      "type": "Polygon"
+     },
+     "properties": {
+      "annualGWh": 15.0,
+      "areaKm2": 5153.049,
+      "avgMW": 1.712329,
+      "densityGWhKm2": 0.002911,
+      "landuseCoverage": 1.0,
+      "locationId": "b",
+      "mix": {
+       "g0": 100
+      },
+      "name": "B"
+     },
+     "type": "Feature"
+    }
+   ],
+   "type": "FeatureCollection"
+  },
+  "chain": {
+   "calibratedGWh": 25.0,
+   "countries": [
+    {
+     "areaTWh": 0.01,
+     "country": "CL",
+     "factor": 2.0,
+     "nationalTWh": 2.0,
+     "nationalYear": 2019,
+     "rasterAreaTWh": 0.005,
+     "rasterCountryTWh": 1.0
+    },
+    {
+     "areaTWh": 0.015,
+     "country": "AR",
+     "factor": 3.0,
+     "nationalTWh": 3.0,
+     "nationalYear": 2019,
+     "rasterAreaTWh": 0.005,
+     "rasterCountryTWh": 1.0
+    }
+   ],
+   "overrideGWh": null,
+   "rasterYear": 2019,
+   "totalGWh": 25.0
+  },
+  "substations": [
+   {
+    "annual_gwh": 10.0,
+    "area_km2": 5153.049,
+    "avg_mw": 1.141553,
+    "density_gwh_km2": 0.001941,
+    "id": "a",
+    "landuseCoverage": 1.0,
+    "mix": {
+     "h0_dyn": 100
+    },
+    "name": "A",
+    "seed": true,
+    "share": 0.4
+   },
+   {
+    "annual_gwh": 15.0,
+    "area_km2": 5153.049,
+    "avg_mw": 1.712329,
+    "density_gwh_km2": 0.002911,
+    "id": "b",
+    "landuseCoverage": 1.0,
+    "mix": {
+     "g0": 100
+    },
+    "name": "B",
+    "seed": true,
+    "share": 0.6
+   },
+   {
+    "annual_gwh": 0.0,
+    "area_km2": 0.0,
+    "avg_mw": 0.0,
+    "density_gwh_km2": 0.0,
+    "id": "t",
+    "landuseCoverage": 0.0,
+    "mix": null,
+    "name": "T",
+    "seed": false,
+    "share": 0.0
+   }
+  ],
+  "totalGWh": 25.0,
+  "warnings": [
+   {
+    "code": "FAR_FROM_SEED",
+    "message": "52% of the demand lies more than 30 km from any withdrawal substation; OSM may be missing substations there."
+   }
+  ]
+ }
+}

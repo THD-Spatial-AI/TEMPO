@@ -53,7 +53,7 @@ const MIX_SECTORS = [
 const DEMAND_COUNTRIES = ['DE', 'CL', 'US', 'GB', 'FR', 'ES', 'IT', 'PL', 'NL', 'SE', 'NO', 'DK', 'BR', 'AR', 'MX', 'ZA', 'IN', 'CN', 'AU'];
 // Initial persistent state of SubstationDemandEstimate (lifted here; see demandEstimate).
 const EMPTY_DEMAND_ESTIMATE = {
-  family: 'classic', landuse: true, override: '', est: null, edits: {}, peakRatio: {},
+  family: 'classic', landuse: true, largeConsumers: true, override: '', est: null, edits: {}, peakRatio: {},
 };
 const DEMAND_RESOLUTIONS = [['60min', 'Hourly (60 min)'], ['30min', '30 min'], ['15min', '15 min']];
 

@@ -48,11 +48,15 @@ def _post(url, query, timeout):
 
 
 def fetch_landuse(bbox, cache_dir, fetch=None, clock=time.monotonic):
-    """Raw Overpass JSON for the bbox; cached by query. Mirrors are tried in turn (MIRROR_TIMEOUT_S each)
-    until FETCH_DEADLINE_S has passed; raises the last error if none succeeds."""
+    """Raw Overpass JSON of the land-use polygons in bbox (see fetch_overpass)."""
+    return fetch_overpass(overpass_query(bbox), Path(cache_dir) / "landuse", fetch=fetch, clock=clock)
+
+
+def fetch_overpass(query, cache_dir, fetch=None, clock=time.monotonic):
+    """Raw Overpass JSON for query, cached in cache_dir by query hash. Mirrors are tried in turn
+    (MIRROR_TIMEOUT_S each) until FETCH_DEADLINE_S has passed; raises the last error if none succeeds."""
     fetch = fetch or _post
-    query = overpass_query(bbox)
-    path = Path(cache_dir) / "landuse" / f"{hashlib.sha1(query.encode('utf-8')).hexdigest()}.json"
+    path = Path(cache_dir) / f"{hashlib.sha1(query.encode('utf-8')).hexdigest()}.json"
     if path.exists():
         try:
             return json.loads(path.read_text(encoding="utf-8"))

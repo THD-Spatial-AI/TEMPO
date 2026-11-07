@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   **Estimate from data**.
   - It places the demand with a global 1 km electricity-consumption map (Chen & Gao, 2022).
   - It scales the total to national demand statistics (Our World in Data).
+  - It places the mining share of national demand (UN energy statistics) on mine sites from
+    OpenStreetMap, or from Maus et al. (2022) satellite mining areas where OpenStreetMap is
+    thin. Mines are withdrawn at their high-voltage substation. Against Chile's metered 2024
+    withdrawals, this cut the median error on area totals from 51 % to 19 %.
   - It gives each substation a BDEW sector mix from OpenStreetMap land use.
   - It shifts the load shapes by six months in the southern hemisphere.
   - You can edit each substation's GWh and mix, or the area total, before import.
