@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { getRenewablesURL, checkRenewables, computePv, optimiseOrientation } from '../renewablesClient';
+import {
+  getRenewablesURL, checkRenewables, computePv, optimiseOrientation, computeWind, bestWindPoint, listTurbines,
+} from '../renewablesClient';
 
 const json = (body, status = 200) => ({ ok: status < 400, status, json: async () => body });
 
@@ -78,6 +80,27 @@ describe('renewablesClient', () => {
     expect(res).toEqual({ ok: true, result: { a: { tilt: 30, azimuth: 0, gain_pct: 12 } } });
     expect(fetch.mock.calls[0][0]).toBe('http://localhost:5005/optimise-orientation');
     expect(fetch.mock.calls[1][0]).toBe('http://localhost:5005/jobs/o1');
+  });
+
+  it('computeWind and bestWindPoint post to their paths', async () => {
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce(json({ job_id: 'w' })).mockResolvedValueOnce(json({ state: 'done', result: {} }))
+      .mockResolvedValueOnce(json({ job_id: 'b' })).mockResolvedValueOnce(json({ state: 'done', result: {} }));
+    await computeWind({}, null, { intervalMs: 0 });
+    await bestWindPoint({}, null, { intervalMs: 0 });
+    expect(fetch.mock.calls.map(c => c[0])).toEqual([
+      'http://localhost:5005/wind', 'http://localhost:5005/jobs/w',
+      'http://localhost:5005/best-wind-point', 'http://localhost:5005/jobs/b',
+    ]);
+  });
+
+  it('listTurbines returns the list or an error', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(json({ turbines: [{ id: 'generic_iec2' }] }));
+    expect(await listTurbines()).toEqual({ ok: true, turbines: [{ id: 'generic_iec2' }] });
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(json({ detail: 'windpowerlib missing — reinstall the Renewables component' }, 503));
+    expect(await listTurbines()).toEqual({ ok: false, error: 'windpowerlib missing — reinstall the Renewables component' });
+    window.electronAPI.getServiceURLs = async () => ({});
+    expect(await listTurbines()).toEqual({ ok: false, error: 'renewables service not running' });
   });
 
   it('fails cleanly when the service is not running', async () => {

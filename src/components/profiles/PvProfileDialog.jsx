@@ -3,15 +3,15 @@
 // renewables service) and applies it as one CSV column per point. The recipe
 // lives only in the applied entry's profileSource (R1); only points whose
 // key changed are recalculated (R8). Optimise only sets tilt/azimuth (O5).
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useData } from '../../context/DataContext';
 import {
   PROFILE_KIND_LABEL, applyProfileToLocations, buildProfileTimeSeries, canApplyProfile, defaultPvOrientation,
   modelCalendar, pointColumnIds, profileFileName, pvPointKey, restampToModelCalendar,
 } from '../../services/techProfiles';
-import {
-  checkRenewables, computePv, installRenewables, onRenewablesInstallProgress, optimiseOrientation, startRenewables,
-} from '../../services/renewablesClient';
+import { computePv, optimiseOrientation } from '../../services/renewablesClient';
+import useRenewablesJob from './useRenewablesJob';
+import ServiceStatus from './ServiceStatus';
 import ProfileDialogFrame from './ProfileDialogFrame';
 import ProfileChart from './ProfileChart';
 import PointsMap from './PointsMap';
@@ -31,7 +31,6 @@ const defaultSettings = (techName) => ({
 });
 
 const coord = (v) => (v === '' || v == null ? NaN : Number(v));
-const svcState = (s) => (s.running ? 'running' : s.installed ? 'stopped' : 'missing');
 const periodLabel = (period, months) => ({ year: 'the whole year', summer: 'summer', winter: 'winter' }[period]
   || `months ${months.join(', ')}`);
 
@@ -49,24 +48,9 @@ export default function PvProfileDialog({ onClose, techName, parent, focusLocati
   const [orient, setOrient] = useState({}); // user edits only; else stored, else default
   const [results, setResults] = useState({}); // name → { key, cf, mean_cf, annual_kwh_per_kwp }
   const [selected, setSelected] = useState(focusLocation || null);
-  const [svc, setSvc] = useState(() => (window.electronAPI?.checkRenewables ? 'checking' : 'web')); // checking | web | missing | stopped | running
-  const [busy, setBusy] = useState(null); // install | start
-  const [svcMsg, setSvcMsg] = useState('');
-  const [job, setJob] = useState(null); // { message, done, total } while a calculation runs
-  const [jobError, setJobError] = useState(null); // full message (calculation or optimisation)
+  const { svc, busy, svcMsg, install, start, job, jobError, setJobError, track } = useRenewablesJob();
   const [optInfo, setOptInfo] = useState(null); // last optimisation summary, cleared on Calculate
   const [applyError, setApplyError] = useState(null);
-  const alive = useRef(true);
-  const jobAbort = useRef(null); // AbortController of the running calculation
-  const installOff = useRef(null); // unsubscribe of the install-progress listener
-  useEffect(() => {
-    alive.current = true;
-    return () => {
-      alive.current = false;
-      jobAbort.current?.abort();
-      installOff.current?.();
-    };
-  }, []);
 
   // Points = locations hosting the tech, plus the location being edited in
   // LocationEditDialog when the tech was only just added there (as ProfileDialog).
@@ -106,56 +90,6 @@ export default function PvProfileDialog({ onClose, techName, parent, focusLocati
   const calendar = modelCalendar(getCurrentModel());
   const applicable = canApplyProfile(parent);
   const canApply = !!calendar && applicable && points.length > 0 && noCoords.length === 0 && changed.length === 0 && !job;
-
-  const recheck = async () => {
-    const s = await checkRenewables();
-    if (alive.current) setSvc(svcState(s));
-  };
-  useEffect(() => {
-    if (!window.electronAPI?.checkRenewables) return undefined;
-    let cancelled = false;
-    checkRenewables().then(s => { if (!cancelled) setSvc(svcState(s)); });
-    return () => { cancelled = true; };
-  }, []);
-
-  const handleInstall = async () => {
-    setBusy('install'); setSvcMsg('Starting…');
-    let failed = false;
-    installOff.current = onRenewablesInstallProgress(d => {
-      if (!alive.current) return;
-      if (d?.type === 'stage' || d?.type === 'log') setSvcMsg(d.label || d.line || '');
-      if (d?.type === 'error') { failed = true; setSvcMsg(`Failed: ${d.error}`); }
-    });
-    const res = await installRenewables();
-    installOff.current?.();
-    installOff.current = null;
-    if (!alive.current) return;
-    setBusy(null);
-    if (res?.success) { setSvcMsg('Installed ✓'); await recheck(); } else if (!failed) setSvcMsg(`Failed: ${res?.error || 'unknown error'}`);
-  };
-
-  const handleStart = async () => {
-    setBusy('start'); setSvcMsg('');
-    const res = await startRenewables();
-    if (!alive.current) return;
-    setBusy(null);
-    if (!res?.running) setSvcMsg(`Could not start the service${res?.error ? `: ${res.error}` : ''}.`);
-    await recheck();
-  };
-
-  // One service job at a time: progress into `job`, aborted on unmount. Resolves
-  // null when cancelled or unmounted (the caller then does nothing).
-  const track = async (run, payload) => {
-    setJobError(null);
-    setJob({ message: 'Starting…', done: 0, total: 0 });
-    const ac = new AbortController();
-    jobAbort.current = ac;
-    const res = await run(payload, st => { if (alive.current) setJob({ message: st.message, done: st.done, total: st.total }); }, { signal: ac.signal });
-    if (jobAbort.current === ac) jobAbort.current = null;
-    if (!alive.current || res.error === 'cancelled') return null;
-    setJob(null);
-    return res;
-  };
 
   const handleCalculate = async () => {
     const todo = changed.map(p => ({ p, o: orientOf(p), key: pointKey(p) }));
@@ -279,24 +213,8 @@ export default function PvProfileDialog({ onClose, techName, parent, focusLocati
           'amber',
         )}
 
-        {svc === 'web' && notice('Solar profiles need the TEMPO desktop app.')}
-        {svc === 'missing' && (
-          <div className="border border-amber-300 bg-amber-50 px-3 py-2 space-y-2">
-            <p className="text-xs text-amber-800">The renewables component (pvlib) is not installed.</p>
-            <button type="button" disabled={!!busy} onClick={handleInstall} className={BTN}>
-              {busy === 'install' ? 'Installing…' : 'Install renewables component'}
-            </button>
-          </div>
-        )}
-        {svc === 'stopped' && (
-          <div className="flex items-center gap-3">
-            {notice('The renewables service is not running.')}
-            <button type="button" disabled={!!busy} onClick={handleStart} className={BTN}>
-              {busy === 'start' ? 'Starting…' : 'Start service'}
-            </button>
-          </div>
-        )}
-        {svcMsg && <p className="text-[11px] text-slate-500 truncate" title={svcMsg}>{svcMsg}</p>}
+        <ServiceStatus svc={svc} busy={busy} svcMsg={svcMsg} install={install} start={start}
+          webMessage="Solar profiles need the TEMPO desktop app." />
 
         {points.length > 0 && <OptimisePanel disabled={!!optimiseBlock} disabledReason={optimiseBlock} onOptimise={handleOptimise} />}
         {optInfo && notice(optInfo)}

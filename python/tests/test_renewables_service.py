@@ -11,7 +11,7 @@ pytest.importorskip("pvlib")
 from fastapi.testclient import TestClient  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from test_renewables_weather import fake_payload  # noqa: E402
+from test_renewables_weather import fake_payload, fake_wind_payload  # noqa: E402
 
 
 @pytest.fixture
@@ -23,7 +23,7 @@ def client(tmp_path, monkeypatch):
 
     def fake_fetch(lat, lon, year, kind, cache_dir, on_wait=None):
         fetched.append((lat, lon))
-        return fake_payload(year)
+        return fake_wind_payload(year) if kind == "wind" else fake_payload(year)
 
     monkeypatch.setattr(mod.renewables_weather, "fetch_cell", fake_fetch)
     c = TestClient(mod.app)
@@ -137,3 +137,117 @@ def test_run_cells_reports_point_progress(client):
     assert mod._jobs["j"]["state"] == "done"
     assert seen == ["Weather 1/1", "Point 1/2"]
     assert mod._jobs["j"]["message"] is None
+
+
+WPOINT = {"id": "patagonia", "lat": -45.3, "lon": -72.1}
+
+
+def test_turbines_lists_generic_first(client):
+    ts = client.get("/turbines").json()["turbines"]
+    assert ts[0]["id"] == "generic_iec1" and ts[0]["generic"] is True
+
+
+def test_wind_job_returns_cf(client):
+    job = client.post("/wind", json={"points": [WPOINT], "year": 2023, "turbine": "generic_iec2",
+                                     "hub_height": 100, "loss": 0.12}).json()
+    body = wait_job(client, job["job_id"])
+    assert body["state"] == "done", body
+    r = body["result"]["patagonia"]
+    assert len(r["cf"]) == 8760 and 0 < r["mean_cf"] < 1
+    assert r["mean_speed_hub"] > 0 and r["full_load_hours"] == pytest.approx(sum(r["cf"]), rel=1e-3)
+
+
+def test_wind_rejects_unknown_turbine(client):
+    job = client.post("/wind", json={"points": [WPOINT], "year": 2023, "turbine": "nope"}).json()
+    body = wait_job(client, job["job_id"])
+    assert body["state"] == "error" and "unknown turbine" in body["error"]
+
+
+def test_best_point_returns_site_per_point(client):
+    job = client.post("/best-wind-point", json={"points": [WPOINT], "year": 2023, "turbine": "generic_iec2",
+                                                "hub_height": 100, "loss": 0.12, "radius_km": 25}).json()
+    body = wait_job(client, job["job_id"])
+    assert body["state"] == "done", body
+    r = body["result"]["patagonia"]
+    assert set(r) == {"lat", "lon", "mean_cf", "gain_pct", "distance_km", "moved"}
+    # fake weather is identical everywhere -> own cell wins -> no move, location coordinates kept
+    assert r["moved"] is False and (r["lat"], r["lon"]) == (-45.3, -72.1) and r["gain_pct"] == 0.0
+
+
+def test_best_point_moves_to_a_strictly_better_cell(client, monkeypatch):
+    import renewables_service as mod
+    own = mod.renewables_weather.cell_of(WPOINT["lat"], WPOINT["lon"])
+    base_fetch = mod.renewables_weather.fetch_cell
+
+    def windy_elsewhere(lat, lon, year, kind, cache_dir, on_wait=None):
+        return fake_wind_payload(year, v10=6.0, v100=8.0 if (lat, lon) == own else 10.0)
+
+    monkeypatch.setattr(mod.renewables_weather, "fetch_cell", windy_elsewhere)
+    job = client.post("/best-wind-point", json={"points": [WPOINT], "year": 2023, "radius_km": 25}).json()
+    r = wait_job(client, job["job_id"])["result"]["patagonia"]
+    assert r["moved"] is True and (r["lat"], r["lon"]) != own and r["gain_pct"] > 0 and 0 < r["distance_km"] <= 25
+    assert base_fetch is not None
+
+
+def test_best_point_radius_bounds(client):
+    r = client.post("/best-wind-point", json={"points": [WPOINT], "year": 2023, "radius_km": 500})
+    assert r.status_code == 422
+
+
+def _post_best(client, **extra):
+    job = client.post("/best-wind-point", json={"points": [WPOINT], "year": 2023, "radius_km": 25, **extra}).json()
+    return wait_job(client, job["job_id"])
+
+
+def test_best_point_gain_is_none_when_own_cell_scores_zero(client, monkeypatch):
+    import renewables_service as mod
+    own = mod.renewables_weather.cell_of(WPOINT["lat"], WPOINT["lon"])
+
+    def becalmed_own(lat, lon, year, kind, cache_dir, on_wait=None):
+        calm = (lat, lon) == own
+        return fake_wind_payload(year, v10=0.0 if calm else 6.0, v100=0.0 if calm else 10.0)
+
+    monkeypatch.setattr(mod.renewables_weather, "fetch_cell", becalmed_own)
+    r = _post_best(client)["result"]["patagonia"]
+    assert r["moved"] is True and r["gain_pct"] is None and r["mean_cf"] > 0
+
+
+def test_best_point_skips_failing_non_own_cell(client, monkeypatch):
+    import renewables_service as mod
+    own = mod.renewables_weather.cell_of(WPOINT["lat"], WPOINT["lon"])
+    import renewables_wind
+    cells = renewables_wind.candidate_cells(WPOINT["lat"], WPOINT["lon"], 25)
+    assert cells[0] == own and len(cells) >= 3
+    broken = cells[1]
+
+    def flaky(lat, lon, year, kind, cache_dir, on_wait=None):
+        if (lat, lon) == broken:
+            raise RuntimeError("Open-Meteo: boom")
+        return fake_wind_payload(year, v100=8.0 if (lat, lon) == own else 10.0)
+
+    monkeypatch.setattr(mod.renewables_weather, "fetch_cell", flaky)
+    body = _post_best(client)
+    assert body["state"] == "done", body
+    r = body["result"]["patagonia"]
+    assert r["moved"] is True and (r["lat"], r["lon"]) != broken
+
+
+def test_best_point_fails_when_own_cell_fails(client, monkeypatch):
+    import renewables_service as mod
+    own = mod.renewables_weather.cell_of(WPOINT["lat"], WPOINT["lon"])
+
+    def own_broken(lat, lon, year, kind, cache_dir, on_wait=None):
+        if (lat, lon) == own:
+            raise RuntimeError("Open-Meteo: boom")
+        return fake_wind_payload(year)
+
+    monkeypatch.setattr(mod.renewables_weather, "fetch_cell", own_broken)
+    body = _post_best(client)
+    assert body["state"] == "error" and "boom" in body["error"]
+
+
+def test_wind_endpoints_503_without_windpowerlib(client, monkeypatch):
+    monkeypatch.setitem(sys.modules, "windpowerlib", None)
+    r = client.get("/turbines")
+    assert r.status_code == 503 and "windpowerlib" in r.json()["detail"]
+    assert client.get("/health").status_code == 200

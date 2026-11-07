@@ -1,7 +1,7 @@
 // Resource-profile dialog (Increment 1): shows the opentech-db availability /
 // capacity-factor profile for a technology and applies it to every location
-// hosting the tech as one shared CSV column (D8). PV uses PvProfileDialog;
-// wind arrives with the weather-based calculation in a later increment.
+// hosting the tech as one shared CSV column (D8). PV and wind use their own
+// weather-based dialogs (PvProfileDialog, WindProfileDialog).
 import React, { useEffect, useMemo, useState } from 'react';
 import { useData } from '../../context/DataContext';
 import { fetchTechProfiles, fetchTechProfileValues } from '../../services/techDatabaseApi';
@@ -28,10 +28,9 @@ const NONE = { status: 'none', profile: null, values: null, error: null };
 
 export default function ProfileDialog({ onClose, techName, techUuid, parent, kind, focusLocation, onApplied }) {
   const { locations, setLocations, setTimeSeries, currentModelId, getCurrentModel, showNotification } = useData();
-  const weatherBased = kind === 'wind';
   // status: loading | ready | offline | none | unlinked
   const [state, setState] = useState(() => ({
-    status: weatherBased ? 'ready' : techUuid ? 'loading' : 'unlinked',
+    status: techUuid ? 'loading' : 'unlinked',
     profile: null,
     values: null,
     error: null,
@@ -40,7 +39,7 @@ export default function ProfileDialog({ onClose, techName, techUuid, parent, kin
   const [applyError, setApplyError] = useState(null);
 
   useEffect(() => {
-    if (weatherBased || !techUuid) return undefined;
+    if (!techUuid) return undefined;
     let cancelled = false;
     fetchTechProfiles(techUuid)
       .then(async (resp) => {
@@ -56,7 +55,7 @@ export default function ProfileDialog({ onClose, techName, techUuid, parent, kin
       .catch(err => ({ status: 'offline', profile: null, values: null, error: err?.message || String(err) }))
       .then(next => { if (!cancelled) setState(next); });
     return () => { cancelled = true; };
-  }, [techUuid, kind, weatherBased, reloadKey]);
+  }, [techUuid, kind, reloadKey]);
 
   // Points = model locations hosting the tech, plus the location being edited in
   // LocationEditDialog when the tech was only just added there (its resource ref
@@ -70,7 +69,7 @@ export default function ProfileDialog({ onClose, techName, techUuid, parent, kin
   const { profile, values } = state;
   const mean = values ? values.reduce((a, b) => a + b, 0) / values.length : null;
   const applicable = canApplyProfile(parent);
-  const canApply = !weatherBased && state.status === 'ready' && !!values && applicable
+  const canApply = state.status === 'ready' && !!values && applicable
     && hosting.length > 0 && !!calendar;
 
   const retry = () => {
@@ -151,25 +150,22 @@ export default function ProfileDialog({ onClose, techName, techUuid, parent, kin
                     </li>
                   ))}
                 </ul>
-                {!weatherBased && (
-                  <p className="text-[11px] text-slate-500 mt-3">All points share one profile column.</p>
-                )}
+                <p className="text-[11px] text-slate-500 mt-3">All points share one profile column.</p>
               </>
             )}
           </div>
 
           {/* Metadata + chart */}
           <div className="flex-1 min-w-0 overflow-y-auto p-6 space-y-4">
-            {weatherBased && notice('Weather-based calculation arrives in the next release.')}
-            {!weatherBased && !applicable && notice(
+            {!applicable && notice(
               `Profiles can only be applied to supply / supply_plus technologies (this one: ${parent || 'unknown'}). Shown for reference.`,
               'amber',
             )}
-            {!weatherBased && !calendar && notice(
+            {!calendar && notice(
               'Set the model time range (subset_time in Parameters, or the model dates in Creation) before applying a profile.',
               'amber',
             )}
-            {!weatherBased && calendar && (() => {
+            {calendar && (() => {
               const y0 = calendar.startDate.slice(0, 4);
               const y1 = calendar.endDate.slice(0, 4);
               return notice(`Profile covers ${y0}${y1 !== y0 ? `–${y1}` : ''} (full year, so any run window inside it works).`);

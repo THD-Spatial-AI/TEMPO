@@ -7,6 +7,9 @@
  *
  *   POST /pv                    → { job_id }
  *   POST /optimise-orientation  → { job_id }
+ *   POST /wind                  → { job_id }
+ *   POST /best-wind-point       → { job_id }
+ *   GET  /turbines              → { turbines: [{ id, label, generic }] }  (503 { detail } without windpowerlib)
  *   GET  /jobs/{id}             → { state, done, total, message, error, result }
  */
 const bridge = () => (typeof window !== 'undefined' ? window.electronAPI : null);
@@ -63,6 +66,20 @@ async function errorText(res) {
   }
 }
 
+/** Turbine catalogue: `{ ok:true, turbines }` or `{ ok:false, error }`. */
+export async function listTurbines() {
+  const base = await getRenewablesURL();
+  if (!base) return { ok: false, error: 'renewables service not running' };
+  try {
+    const res = await fetch(`${base}/turbines`);
+    if (!res.ok) return { ok: false, error: await errorText(res) };
+    const body = await res.json();
+    return { ok: true, turbines: body?.turbines || [] };
+  } catch (err) {
+    return { ok: false, error: err?.message || String(err) };
+  }
+}
+
 /**
  * Start a service job (`POST <path>`) and poll it to the end. `onProgress` gets each job status.
  * `what` names the job in the failure / timeout texts.
@@ -108,3 +125,11 @@ export const computePv = (payload, onProgress, opts = {}) =>
 /** Optimise tilt/azimuth per point (POST /optimise-orientation) and poll it to the end. */
 export const optimiseOrientation = (payload, onProgress, opts = {}) =>
   runJob('/optimise-orientation', payload, onProgress, opts, 'orientation optimisation');
+
+/** Wind capacity factor per point (POST /wind) and poll it to the end. */
+export const computeWind = (payload, onProgress, opts = {}) =>
+  runJob('/wind', payload, onProgress, opts, 'wind calculation');
+
+/** Windiest ERA5 cell near each point (POST /best-wind-point) and poll it to the end. */
+export const bestWindPoint = (payload, onProgress, opts = {}) =>
+  runJob('/best-wind-point', payload, onProgress, opts, 'best-point search');

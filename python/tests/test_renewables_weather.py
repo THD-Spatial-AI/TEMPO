@@ -179,3 +179,37 @@ def test_long_temperature_gap_is_not_zero_filled():
         payload["hourly"]["temperature_2m"][i] = None
     df = rw.pv_weather_frame(payload, 2023)
     assert (df["temp_air"] == 20.0).all()
+
+
+def fake_wind_payload(year, v10=6.0, v100=8.0):
+    t = pd.date_range(f"{year}-01-01T00:00", f"{year + 1}-01-01T23:00", freq="h")
+    n = len(t)
+    return {"hourly": {
+        "time": [x.strftime("%Y-%m-%dT%H:%M") for x in t],
+        "wind_speed_10m": [v10] * n,
+        "wind_speed_100m": [float(i) for i in range(n)] if v100 is None else [v100] * n,
+        "temperature_2m": [15.0] * n,
+        "surface_pressure": [1013.25] * n,
+    }}
+
+
+def test_wind_vars_registered():
+    assert rw.VARS["wind"] == rw.WIND_VARS
+    assert set(rw.WIND_VARS) == {"wind_speed_10m", "wind_speed_100m", "temperature_2m", "surface_pressure"}
+
+
+@pytest.mark.parametrize("year,n", [(2023, 8760), (2024, 8784)])
+def test_wind_frame_averages_consecutive_labels(year, n):
+    df = rw.wind_weather_frame(fake_wind_payload(year, v100=None), year)
+    assert len(df) == n
+    assert list(df.columns) == ["v10", "v100", "t2m", "sp"]
+    # interval 0 = mean of labels 00:00 (row 0) and 01:00 (row 1) -> 0.5
+    assert df["v100"].iloc[0] == pytest.approx(0.5)
+    assert df.index[0] == pd.Timestamp(f"{year}-01-01T00:30", tz="UTC")
+
+
+def test_wind_frame_rejects_long_gaps():
+    p = fake_wind_payload(2023)
+    p["hourly"]["wind_speed_100m"][100:200] = [None] * 100
+    with pytest.raises(ValueError, match="incomplete"):
+        rw.wind_weather_frame(p, 2023)

@@ -21,7 +21,8 @@ import pandas as pd
 ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
 PV_VARS = ["shortwave_radiation", "direct_normal_irradiance", "diffuse_radiation",
            "temperature_2m", "wind_speed_10m"]
-VARS = {"pv": PV_VARS}
+WIND_VARS = ["wind_speed_10m", "wind_speed_100m", "temperature_2m", "surface_pressure"]
+VARS = {"pv": PV_VARS, "wind": WIND_VARS}
 MIN_INTERVAL_S = 2.6      # one year ≈ 26 weighted calls; keeps < 600 calls/min
 RATE_LIMIT_WAIT_S = 60
 MAX_RETRIES = 5
@@ -69,6 +70,27 @@ def pv_weather_frame(payload, year):
     df = df.interpolate(limit=3, limit_direction="both")
     df[["temp_air", "wind_speed"]] = df[["temp_air", "wind_speed"]].ffill().bfill()
     return df.fillna(0.0)
+
+
+def wind_weather_frame(payload, year):
+    """Open-Meteo payload → hourly interval means (v10, v100 m/s; t2m °C; sp hPa),
+    one row per hour of `year` at interval midpoints (UTC). Wind is instantaneous
+    at the label, so interval i = mean of labels i and i+1 (W3)."""
+    h = payload["hourly"]
+    df = pd.DataFrame({
+        "v10": h["wind_speed_10m"], "v100": h["wind_speed_100m"],
+        "t2m": h["temperature_2m"], "sp": h["surface_pressure"],
+    }, index=pd.to_datetime(h["time"], utc=True), dtype=float)
+    df = df.loc[pd.Timestamp(f"{year}-01-01T00:00", tz="UTC"):pd.Timestamp(f"{year + 1}-01-01T00:00", tz="UTC")]
+    n = _hours(year)
+    if len(df) != n + 1:
+        raise ValueError(f"weather for {year} has {len(df) - 1} hours, expected {n} (8760/8784)")
+    missing = int(df[["v10", "v100"]].isna().sum().max())
+    if missing > MAX_MISSING_RADIATION_H:
+        raise ValueError(f"weather for {year} is incomplete ({missing} hours missing) — pick an earlier year")
+    df = df.interpolate(limit=3, limit_direction="both").ffill().bfill()
+    mid = (df.iloc[:-1].to_numpy() + df.iloc[1:].to_numpy()) / 2.0
+    return pd.DataFrame(mid, columns=df.columns, index=df.index[:-1] + pd.Timedelta(minutes=30))
 
 
 def fetch_cell(lat, lon, year, kind, cache_dir, http_get=None, sleep=time.sleep, on_wait=None):

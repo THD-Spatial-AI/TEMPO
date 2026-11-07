@@ -8,6 +8,12 @@ renewables_service.py — local FastAPI service for weather-based resource profi
                         job result = {point_id: {"tilt", "azimuth", "gain_pct"}}; 422 on a bad custom period
     GET  /jobs/{id}   → {"state":"running"|"waiting"|"done"|"error","done","total","message","error","result"}
 
+    GET  /turbines    → {"turbines":[{"id","label","generic"}]} (generic presets first, then OEDB); 503 without windpowerlib
+    POST /wind        → {"job_id"}; body WindRequest (points id/lat/lon, year, turbine, hub_height, loss);
+                        job result = {point_id: {"cf":[…], "mean_cf", "mean_speed_hub", "full_load_hours"}}
+    POST /best-wind-point → {"job_id"}; body WindRequest + radius_km (5–100); job result =
+                        {point_id: {"lat","lon","mean_cf","gain_pct","distance_km","moved"}}
+
 Weather is cached per ERA5 cell under TEMPO_WEATHER_CACHE (Electron sets
 <userData>/weather-cache). Weather data: Open-Meteo.com (ERA5, CC BY 4.0).
 Run: uvicorn renewables_service:app --host 127.0.0.1 --port 5005
@@ -94,13 +100,41 @@ class OrientRequest(BaseModel):
         return self
 
 
+class WindPoint(BaseModel):
+    id: str
+    lat: float = Field(ge=-90, le=90)
+    lon: float = Field(ge=-180, le=180)
+
+
+class WindRequest(BaseModel):
+    points: List[WindPoint] = Field(min_length=1, max_length=1000)
+    year: int
+    turbine: str = "generic_iec2"
+    hub_height: float = Field(100, ge=10, le=250)
+    loss: float = Field(0.12, ge=0, le=0.5)
+
+
+class BestPointRequest(WindRequest):
+    radius_km: float = Field(25, ge=5, le=100)
+
+
+def _wind():
+    """renewables_wind, imported lazily; 503 when windpowerlib is missing (W9)."""
+    try:
+        import windpowerlib  # noqa: F401
+        import renewables_wind
+    except ImportError:
+        raise HTTPException(503, "windpowerlib missing — reinstall the Renewables component")
+    return renewables_wind
+
+
 def _check_year(year):
     last = dt.date.today().year - 1
     if not FIRST_YEAR <= year <= last:
         raise HTTPException(400, f"weather year must be {FIRST_YEAR}–{last} (a complete archive year)")
 
 
-def _run_cells(job_id, points, year, per_point):
+def _run_cells(job_id, points, year, per_point, kind="pv", frame=renewables_weather.pv_weather_frame):
     """Fetch weather once per ERA5 cell, call per_point(weather, p) → result dict for each point."""
     try:
         by_cell = {}
@@ -113,11 +147,11 @@ def _run_cells(job_id, points, year, per_point):
             msg = f"Weather {i + 1}/{len(by_cell)}"
             _update(job_id, state="running", message=msg)
             payload = renewables_weather.fetch_cell(
-                clat, clon, year, "pv", CACHE_DIR,
+                clat, clon, year, kind, CACHE_DIR,
                 on_wait=lambda: _update(job_id, state="waiting",
                                         message="Open-Meteo rate limit — waiting 60 s"))
             _update(job_id, state="running", message=msg)
-            weather = renewables_weather.pv_weather_frame(payload, year)
+            weather = frame(payload, year)
             for p in pts:
                 result[p.id] = per_point(weather, p)
                 k += 1
@@ -128,7 +162,7 @@ def _run_cells(job_id, points, year, per_point):
         _update(job_id, state="error", error=f"{type(exc).__name__}: {exc}")
 
 
-def _start_job(points, year, per_point):
+def _new_job():
     job_id = uuid.uuid4().hex
     with _lock:
         for old in [k for k, v in _jobs.items() if v["state"] in ("done", "error")]:
@@ -137,7 +171,12 @@ def _start_job(points, year, per_point):
             del _jobs[old]
         _jobs[job_id] = {"state": "running", "done": 0, "total": 0, "message": None,
                          "error": None, "result": None}
-    threading.Thread(target=_run_cells, args=(job_id, points, year, per_point), daemon=True).start()
+    return job_id
+
+
+def _start_job(points, year, per_point, kind="pv", frame=renewables_weather.pv_weather_frame):
+    job_id = _new_job()
+    threading.Thread(target=_run_cells, args=(job_id, points, year, per_point, kind, frame), daemon=True).start()
     return {"job_id": job_id}
 
 
@@ -164,6 +203,78 @@ def optimise(req: OrientRequest):
         return renewables_pv.optimise_orientation(weather, p.lat, p.lon, months, p.tilt, p.azimuth)
 
     return _start_job(req.points, req.year, per_point)
+
+
+@app.get("/turbines")
+def turbines():
+    return {"turbines": _wind().list_turbines()}
+
+
+@app.post("/wind")
+def wind(req: WindRequest):
+    _check_year(req.year)
+    rwind = _wind()
+
+    def per_point(weather, p):
+        cf = rwind.wind_capacity_factor(weather, req.turbine, req.hub_height, req.loss)
+        v = rwind.hub_speed(weather["v10"].to_numpy(), weather["v100"].to_numpy(), req.hub_height)
+        return {"cf": [round(float(x), 4) for x in cf], "mean_cf": round(float(cf.mean()), 4),
+                "mean_speed_hub": round(float(v.mean()), 2), "full_load_hours": round(float(cf.sum()), 1)}
+
+    return _start_job(req.points, req.year, per_point, kind="wind", frame=renewables_weather.wind_weather_frame)
+
+
+def _run_best_points(job_id, req, rwind):
+    try:
+        n = len(req.points)
+        _update(job_id, total=n)
+        result = {}
+        for k, p in enumerate(req.points, 1):
+            cells = rwind.candidate_cells(p.lat, p.lon, req.radius_km)
+            cand = []                              # (cell, mean CF); a failing non-own cell is skipped
+            for j, (clat, clon) in enumerate(cells, 1):
+                msg = f"Point {k}/{n} · cell {j}/{len(cells)}"
+                _update(job_id, state="running", message=msg)
+                try:
+                    payload = renewables_weather.fetch_cell(
+                        clat, clon, req.year, "wind", CACHE_DIR,
+                        on_wait=lambda: _update(job_id, state="waiting",
+                                                message="Open-Meteo rate limit — waiting 60 s"))
+                    _update(job_id, state="running", message=msg)
+                    weather = renewables_weather.wind_weather_frame(payload, req.year)
+                    cf = rwind.wind_capacity_factor(weather, req.turbine, req.hub_height, req.loss)
+                except (RuntimeError, ValueError):
+                    if j == 1:
+                        raise
+                    continue
+                cand.append(((clat, clon), float(cf.mean())))
+            best = 0
+            for i in range(1, len(cand)):
+                if cand[i][1] > cand[best][1]:       # strictly better, so ties keep the own cell
+                    best = i
+            if best == 0:
+                result[p.id] = {"lat": p.lat, "lon": p.lon, "mean_cf": round(cand[0][1], 4),
+                                "gain_pct": 0.0, "distance_km": 0.0, "moved": False}
+            else:
+                (blat, blon), score = cand[best]
+                own_score = cand[0][1]
+                result[p.id] = {"lat": blat, "lon": blon, "mean_cf": round(score, 4),
+                                "gain_pct": round(100.0 * (score / own_score - 1.0), 1) if own_score > 0 else None,
+                                "distance_km": round(rwind.haversine_km(p.lat, p.lon, blat, blon), 1),
+                                "moved": True}
+            _update(job_id, done=k)
+        _update(job_id, state="done", message=None, result=result)
+    except Exception as exc:  # reported to the dialog, never raised into uvicorn
+        _update(job_id, state="error", error=f"{type(exc).__name__}: {exc}")
+
+
+@app.post("/best-wind-point")
+def best_wind_point(req: BestPointRequest):
+    _check_year(req.year)
+    rwind = _wind()
+    job_id = _new_job()
+    threading.Thread(target=_run_best_points, args=(job_id, req, rwind), daemon=True).start()
+    return {"job_id": job_id}
 
 
 @app.get("/jobs/{job_id}")

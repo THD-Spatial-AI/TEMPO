@@ -263,6 +263,22 @@ export function pvPointKey(settings, lat, lon, tilt, azimuth) {
   return JSON.stringify([settings, lat, lon, tilt, azimuth]);
 }
 
+/** Wind defaults (W5): offshore → generic 15 MW at 150 m, else generic IEC II at 100 m; 12 % loss. */
+export function defaultWindSettings(techName, weatherYear) {
+  const offshore = /offshore/i.test(String(techName));
+  return {
+    weatherYear,
+    turbine: offshore ? 'generic_offshore' : 'generic_iec2',
+    hubHeight: offshore ? 150 : 100,
+    loss: 0.12,
+  };
+}
+
+/** Recipe key of one wind point (W8): settings plus the weather site. */
+export function windPointKey(settings, siteLat, siteLon) {
+  return JSON.stringify([settings, siteLat, siteLon]);
+}
+
 /** One unique, CSV-safe column id per location name (D4: one column per point). */
 export function pointColumnIds(names) {
   const used = new Set(['datetime']); // the CSV's date column

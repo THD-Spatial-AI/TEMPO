@@ -4,7 +4,7 @@ import {
   classifyProfileKind, pickProfile, restampToModelCalendar,
   buildProfileTimeSeries, applyProfileToLocations, profileStaleness, canApplyProfile,
   modelCalendar, profileFileName, profileColumnId, PROFILE_KIND_LABEL,
-  defaultPvOrientation, pointColumnIds, pvPointKey,
+  defaultPvOrientation, pointColumnIds, pvPointKey, defaultWindSettings, windPointKey,
 } from '../techProfiles';
 
 describe('classifyProfileKind', () => {
@@ -323,6 +323,19 @@ describe('pvPointKey', () => {
     expect(pvPointKey(s, -33.4, -70.6, 28, 10)).not.toBe(pvPointKey(s, -33.4, -70.6, 28, 0));
     expect(pvPointKey(s, -30, -70.6, 28, 0)).not.toBe(pvPointKey(s, -33.4, -70.6, 28, 0));
     expect(pvPointKey({ ...s, weatherYear: 2022 }, -33.4, -70.6, 28, 0)).not.toBe(pvPointKey(s, -33.4, -70.6, 28, 0));
+  });
+});
+
+describe('defaultWindSettings / windPointKey', () => {
+  it('picks offshore defaults by name', () => {
+    expect(defaultWindSettings('wind_offshore', 2023)).toEqual({ weatherYear: 2023, turbine: 'generic_offshore', hubHeight: 150, loss: 0.12 });
+    expect(defaultWindSettings('wind_onshore', 2023)).toEqual({ weatherYear: 2023, turbine: 'generic_iec2', hubHeight: 100, loss: 0.12 });
+  });
+  it('keys on settings and site', () => {
+    const s = defaultWindSettings('w', 2023);
+    expect(windPointKey(s, 1, 2)).toBe(windPointKey({ ...s }, 1, 2));
+    expect(windPointKey(s, 1, 2)).not.toBe(windPointKey(s, 1.25, 2));
+    expect(windPointKey(s, 1, 2)).not.toBe(windPointKey({ ...s, hubHeight: 120 }, 1, 2));
   });
 });
 
