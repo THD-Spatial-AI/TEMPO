@@ -59,6 +59,8 @@ In the **Technologies** screen, parameters that support time series show a wave 
 
 The parameter value is replaced by a reference to the time series. In the exported YAML this becomes a `resource: file=...` directive.
 
+Weather-based and availability profiles can be generated per technology — see [Resource Profiles](tech-profiles.md).
+
 ---
 
 ## Removing a time series

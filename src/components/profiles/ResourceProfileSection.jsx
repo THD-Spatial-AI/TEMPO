@@ -11,9 +11,9 @@ const ProfileDialog = lazy(() => import('./ProfileDialog'));
 const PvProfileDialog = lazy(() => import('./PvProfileDialog'));
 const WindProfileDialog = lazy(() => import('./WindProfileDialog'));
 
-export default function ResourceProfileSection({ techName, techUuid, parent, focusLocation, onProfileApplied }) {
+export default function ResourceProfileSection({ techName, techUuid, parent, focusLocation, onProfileApplied, autoOpen }) {
   const { timeSeries, locations, getCurrentModel } = useData();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(() => !!autoOpen);
   const kind = classifyProfileKind({ id: techName, name: techName, parent });
   const fileName = profileFileName(techName);
   const entry = useMemo(
@@ -21,13 +21,19 @@ export default function ResourceProfileSection({ techName, techUuid, parent, foc
     [timeSeries, fileName],
   );
   const model = getCurrentModel();
-  const { stale } = useMemo(
-    () => profileStaleness(entry, { modelConfig: modelCalendar(model) || {}, locations, techName }),
+  const { stale, reasons, missing, removed, moved } = useMemo(
+    () => profileStaleness(entry, { modelConfig: modelCalendar(model) || entry?.profileSource?.calendar || {}, locations, techName }),
     [entry, model, locations, techName],
   );
   if (!kind) return null;
   const status = !entry ? 'Not set' : stale ? 'Out of date' : 'Applied';
   const Dialog = kind === 'pv' ? PvProfileDialog : kind === 'wind' ? WindProfileDialog : ProfileDialog;
+  const why = [
+    missing.length && `missing: ${missing.join(', ')}`,
+    removed.length && `removed: ${removed.join(', ')}`,
+    moved.length && `moved: ${moved.join(', ')}`,
+    reasons.includes('calendar') && 'calendar',
+  ].filter(Boolean).join(' · ');
   const statusCls = !entry ? 'text-slate-500' : stale ? 'text-amber-600' : 'text-emerald-700';
 
   return (
@@ -35,9 +41,10 @@ export default function ResourceProfileSection({ techName, techUuid, parent, foc
       <div>
         <p className="text-xs font-semibold text-slate-700">{PROFILE_KIND_LABEL[kind]}</p>
         <p className={`text-[11px] ${statusCls}`}>
-          {status}
+          <span title={stale ? why : undefined}>{status}</span>
           {entry?.profileSource?.method && <span className="ml-2 text-slate-500">· {entry.profileSource.method}</span>}
         </p>
+        {entry && stale && why && <p className="text-[11px] text-slate-500 truncate max-w-xs" title={why}>{why}</p>}
       </div>
       <button
         type="button"

@@ -3,6 +3,8 @@
 // Codes shared with python/engine_diagnostics.py keep the same meaning on both sides;
 // scripts/readiness_cases.json pins them.
 
+import { classifyProfileKind, modelCalendar, profileFileName, profileStaleness } from './techProfiles';
+
 const PRODUCER_PARENTS = new Set(['supply', 'supply_plus', 'conversion', 'conversion_plus']);
 // Weather-dependent output: without a resource these run flat out every hour.
 const VARIABLE_RESOURCE = /solar|pv|wind|hydro|ror|wave|tidal/i;
@@ -25,7 +27,8 @@ export const FIX_VIEW = {
   no_supply: 'Technologies',
   demand_no_profile: 'Locations',
   demand_unserved: 'Links',
-  supply_no_resource: 'TimeSeries',
+  supply_no_resource: 'Technologies',
+  profile_stale: 'Technologies',
   link_unknown_location: 'Links',
   link_self: 'Links',
   disconnected_network: 'Links',
@@ -149,8 +152,8 @@ function connectedComponents(names, links) {
   return groups;
 }
 
-function issue(code, severity, message, items) {
-  const out = { code, severity, message, view: FIX_VIEW[code] };
+function issue(code, severity, message, items, extra) {
+  const out = { code, severity, message, view: FIX_VIEW[code], ...extra };
   if (items?.length) {
     out.items = items.slice(0, 8);
     out.count = items.length;
@@ -248,6 +251,7 @@ function checkDemandAndSupply({ locations, links, technologies, techByName, reso
   const produced = new Set();
   const noProfile = [];
   const noResource = [];
+  let profileTech;
   const unserved = [];
 
   // Carriers reachable over links, per location, in one pass.
@@ -290,6 +294,7 @@ function checkDemandAndSupply({ locations, links, technologies, techByName, reso
         const unbounded = resource === undefined || resource === null || resource === '' || String(resource).toLowerCase() === 'inf';
         if (parent.startsWith('supply') && unbounded && VARIABLE_RESOURCE.test(`${ref} ${tech.essentials?.name || ''}`)) {
           noResource.push(`${lname}::${ref}`);
+          profileTech ||= classifyProfileKind({ id: ref, name: keyOf(tech), parent }) ? keyOf(tech) : undefined;
         }
       }
     }
@@ -310,7 +315,10 @@ function checkDemandAndSupply({ locations, links, technologies, techByName, reso
     // Python skips this check when a scenario or override is set.
     add('demand_no_profile', scenarioSelected ? 'warning' : 'error', 'These demand technologies have no demand profile or resource value. Engines would substitute a placeholder or drop the demand, so results would not reflect your system.', noProfile);
   }
-  if (noResource.length) add('supply_no_resource', 'warning', 'These weather-dependent technologies have no resource time series, so engines let them produce at full capacity every hour.', noResource);
+  if (noResource.length) {
+    const hint = profileTech ? ' Open the technology and use Calculate profile.' : '';
+    add('supply_no_resource', 'warning', `These weather-dependent technologies have no resource time series, so engines let them produce at full capacity every hour.${hint}`, noResource, profileTech ? { profileTech } : undefined);
+  }
   if (unserved.length) {
     const message = modelConfig.ensureFeasibility
       ? 'Nothing at these locations produces or imports the demanded carrier, so this demand will show up as unmet demand.'
@@ -347,6 +355,28 @@ function checkFileRefs({ locations, technologies, resolveTech, timeSeries }, add
   }
   if (missingDemand.size) add('missing_timeseries', 'error', 'These demand technologies point to a time-series file that is not in the model. Upload it in Time Series or re-import the model with its CSV files.', [...missingDemand]);
   if (missingOther.size) add('missing_timeseries', 'warning', 'These technologies point to a time-series file that is not in the model; engines fall back to a placeholder.', [...missingOther]);
+}
+
+// Resource profiles written by the profile dialogs, compared against the model they were built for.
+function checkProfiles({ locations, technologies, timeSeries, modelConfig, parameters, subsetTime }, add) {
+  const cal = modelCalendar({ parameters, metadata: { modelConfig, subsetTime } });
+  const stale = [];
+  let first = null;
+  for (const t of technologies) {
+    const name = keyOf(t);
+    const entry = timeSeries.find((ts) => ts.fileName === profileFileName(name) && ts.profileSource);
+    if (!entry) continue;
+    const s = profileStaleness(entry, { modelConfig: cal || entry.profileSource.calendar || {}, locations, techName: name });
+    const parts = [];
+    if (s.missing.length) parts.push(`missing ${s.missing.join(', ')}`);
+    if (s.removed.length) parts.push(`removed ${s.removed.join(', ')}`);
+    if (s.moved.length) parts.push(`moved ${s.moved.join(', ')}`);
+    if (cal && s.reasons.includes('calendar')) parts.push('calendar');
+    if (!parts.length) continue;
+    stale.push(`${name}: ${parts.join('; ')}`);
+    first ||= name;
+  }
+  if (stale.length) add('profile_stale', 'warning', 'These resource profiles no longer match the model (locations moved, added or removed, or the model years changed). Open the profile and recalculate the changed points.', stale, { profileTech: first });
 }
 
 function checkTime({ timeSeries, modelConfig }, add) {
@@ -393,17 +423,20 @@ export function checkModel(model, options = {}) {
     scenarioSelected: Boolean(options.scenarioSelected),
     timeSeries: model?.timeSeries || [],
     modelConfig: model?.modelConfig || {},
+    parameters: model?.parameters || [],
+    subsetTime: model?.subsetTime ?? model?.metadata?.subsetTime,
   };
   const errors = [];
   const warnings = [];
-  const add = (code, severity, message, items) =>
-    (severity === 'error' ? errors : warnings).push(issue(code, severity, message, items));
+  const add = (code, severity, message, items, extra) =>
+    (severity === 'error' ? errors : warnings).push(issue(code, severity, message, items, extra));
 
   checkLocations(ctx, add);
   checkTechnologies(ctx, add);
   checkLinks(ctx, add);
   checkDemandAndSupply(ctx, add);
   checkFileRefs(ctx, add);
+  checkProfiles(ctx, add);
   checkTime(ctx, add);
 
   return { ok: errors.length === 0, errors, warnings };

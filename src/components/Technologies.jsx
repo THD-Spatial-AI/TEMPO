@@ -14,6 +14,7 @@ import {
 } from '../utils/constraintDefinitions';
 import TechParameterEditor from './creation/TechParameterEditor';
 import { confirmAction } from './ui/confirm';
+import { PROFILE_EVENT, takeProfileRequest } from '../services/profileIntent';
 import SelectField from './ui/SelectField';
 
 // ── Carrier helpers ──────────────────────────────────────────────────────────
@@ -944,6 +945,8 @@ function Technologies() {
   const [editingTech, setEditingTech]           = useState(null);
   const [editForm, setEditForm]                 = useState(null);
   const [detailTech, setDetailTech]             = useState(null);
+  // Bumped by a readiness Fix link; keys the editor so its profile dialog opens even if already mounted.
+  const [profileOpenReq, setProfileOpenReq]     = useState(0);
 
   const { techTemplates: liveTechTemplates, isLive: isApiLive, isLoading: isApiLoading } = useLiveTechTemplates();
 
@@ -985,9 +988,24 @@ function Technologies() {
     setTechnologies(technologies.map(t => t.name === editingTech ? editForm : t));
     setEditingTech(null);
     setEditForm(null);
+    setProfileOpenReq(0);
   };
 
-  const handleCancelEdit = () => { setEditingTech(null); setEditForm(null); };
+  const handleCancelEdit = () => { setEditingTech(null); setEditForm(null); setProfileOpenReq(0); };
+
+  // A readiness Fix link asks for a tech's profile dialog: open its editor (on mount and on the event).
+  useEffect(() => {
+    const consume = () => {
+      const name = takeProfileRequest();
+      const tech = name && technologies.find(t => t.name === name);
+      if (!tech || editingTech) return;
+      handleEdit(tech.name, tech);
+      setProfileOpenReq(n => n + 1);
+    };
+    consume();
+    window.addEventListener(PROFILE_EVENT, consume);
+    return () => window.removeEventListener(PROFILE_EVENT, consume);
+  }, [technologies, editingTech]);
 
   const handleDeleteTech = async () => {
     if (!editingTech) return;
@@ -995,6 +1013,7 @@ function Technologies() {
       setTechnologies(technologies.filter(t => t.name !== editingTech));
       setEditingTech(null);
       setEditForm(null);
+      setProfileOpenReq(0);
     }
   };
 
@@ -1523,6 +1542,8 @@ function Technologies() {
                 {/* Parameters — common (ontology) + engine-specific */}
                 <section>
                   <TechParameterEditor
+                    key={profileOpenReq}
+                    autoOpenProfile={profileOpenReq > 0}
                     parent={editForm.essentials?.parent}
                     techUuid={editForm.uuid}
                     techName={currentModelId && technologies.some(t => t.name === editingTech) ? editingTech : undefined}

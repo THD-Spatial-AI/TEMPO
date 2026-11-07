@@ -71,6 +71,8 @@ The parameters shown depend on the technology type. Common ones:
 
 Parameters marked with a wave icon (`~`) can be driven by a time series instead of a fixed scalar. Click the icon to open the time series selector and pick an uploaded CSV column. See [Time Series](time-series.md) for upload instructions.
 
+Weather-based and availability profiles can be generated per technology — see [Resource Profiles](tech-profiles.md).
+
 ---
 
 ## Technology colours on the map

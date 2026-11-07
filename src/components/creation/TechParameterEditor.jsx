@@ -140,6 +140,7 @@ export default function TechParameterEditor({
   techName,
   focusLocation,
   onProfileApplied,
+  autoOpenProfile,
   constraints = {},
   costs = {},
   engineParams = {},
@@ -193,6 +194,7 @@ export default function TechParameterEditor({
           parent={parent}
           focusLocation={focusLocation}
           onProfileApplied={onProfileApplied}
+          autoOpen={autoOpenProfile}
         />
       )}
       {/* ── Common (ontology) parameters ─────────────────────────────── */}

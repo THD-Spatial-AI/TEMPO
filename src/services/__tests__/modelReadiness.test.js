@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { checkModel, FIX_VIEW } from '../modelReadiness';
 import shared from '../../../scripts/readiness_cases.json';
+import { profileFileName } from '../techProfiles';
 
 // One location with a supply and a demand that can run on every engine.
 function miniModel(extra = {}) {
@@ -412,4 +413,70 @@ describe('shared readiness cases', () => {
       expect([...new Set(got)].sort()).toEqual([...c.expect].sort());
     });
   }
+});
+
+describe('profile readiness', () => {
+  const cal = { startDate: '2023-01-01', endDate: '2023-12-31', resolution: '60min' };
+  const base = (pv) => ({
+    modelConfig: { startDate: '2023-01-01', endDate: '2023-12-31', resolution: '60min' },
+    technologies: [{ name: 'pv', essentials: { parent: 'supply', carrier_out: 'power' } }],
+    locations: [
+      { name: 'A', latitude: -33.4, longitude: -70.6, techs: { pv: { constraints: { resource: 'file=profile_pv.csv:A' } } } },
+      { name: 'B', latitude: -20.2, longitude: -70.1, techs: { pv: pv ?? { constraints: { resource: 'file=profile_pv.csv:B' } } } },
+    ],
+    timeSeries: [{ fileName: profileFileName('pv'), source: 'tech-profile', columns: ['datetime', 'A', 'B'], csvContent: 'datetime,A,B\n',
+      profileSource: { calendar: cal, points: { A: { column: 'A', lat: -33.4, lon: -70.6 }, B: { column: 'B', lat: -20.2, lon: -70.1 } } } }],
+  });
+  const allCodes = (r) => [...r.errors, ...r.warnings].map((i) => i.code);
+
+  it('is silent for a fresh profile', () => {
+    expect(allCodes(checkModel(base()))).not.toContain('profile_stale');
+  });
+
+  it('flags exactly the moved point and carries profileTech', () => {
+    const m = base();
+    m.locations[1] = { ...m.locations[1], latitude: -21 };
+    const i = checkModel(m).warnings.find((w) => w.code === 'profile_stale');
+    expect(i.items).toEqual(['pv: moved B']);
+    expect(i.profileTech).toBe('pv');
+    expect(i.view).toBe('Technologies');
+  });
+
+  it('reports missing, removed and calendar reasons', () => {
+    const m = base();
+    m.locations.push({ name: 'C', latitude: 1, longitude: 1, techs: { pv: {} } });
+    m.locations = m.locations.filter((l) => l.name !== 'B');
+    m.modelConfig = { ...m.modelConfig, startDate: '2024-01-01', endDate: '2024-12-31' };
+    const i = checkModel(m).warnings.find((w) => w.code === 'profile_stale');
+    expect(i.items[0]).toBe('pv: missing C; removed B; calendar');
+  });
+
+  it('resolves the calendar from subsetTime like the section does', () => {
+    const m = base();
+    m.parameters = [];
+    m.subsetTime = '2023';
+    m.modelConfig = { ...m.modelConfig, startDate: '2024-01-01', endDate: '2024-12-31' };
+    expect(allCodes(checkModel(m))).not.toContain('profile_stale');
+    m.subsetTime = '2024';
+    expect(checkModel(m).warnings.find((w) => w.code === 'profile_stale').items).toEqual(['pv: calendar']);
+  });
+
+  it('omits profileTech and the Calculate hint when no weather-dependent tech has a profile kind', () => {
+    const m = base({});
+    m.timeSeries = [];
+    m.technologies = [{ name: 'hydro_reservoir', essentials: { parent: 'supply', carrier_out: 'power' } }];
+    m.locations.forEach((l) => { l.techs = { hydro_reservoir: {} }; });
+    const i = checkModel(m).warnings.find((w) => w.code === 'supply_no_resource');
+    expect(i.profileTech).toBeUndefined();
+    expect(i.message).not.toMatch(/Calculate profile/);
+  });
+
+  it('points supply_no_resource at the profile dialog', () => {
+    const m = base({});
+    m.timeSeries = [];
+    const i = checkModel(m).warnings.find((w) => w.code === 'supply_no_resource');
+    expect(i.view).toBe('Technologies');
+    expect(i.profileTech).toBe('pv');
+    expect(i.message).toMatch(/Calculate profile/);
+  });
 });

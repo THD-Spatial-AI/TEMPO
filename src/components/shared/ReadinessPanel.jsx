@@ -1,5 +1,6 @@
 // Lists readiness issues from checkModel or an engine /assess, with a jump to the
 // page that fixes each one.
+import { requestProfileDialog } from '../../services/profileIntent';
 import { FiAlertCircle, FiAlertTriangle, FiArrowRight, FiCheckCircle } from '../ui/icons';
 
 function IssueRow({ issue, onNavigate }) {
@@ -19,7 +20,10 @@ function IssueRow({ issue, onNavigate }) {
       </div>
       {issue.view && onNavigate && (
         <button
-          onClick={() => onNavigate(issue.view)}
+          onClick={() => {
+            if (issue.profileTech) requestProfileDialog(issue.profileTech);
+            onNavigate(issue.view);
+          }}
           className="flex shrink-0 items-center gap-1 self-start text-xs font-semibold text-black hover:underline"
         >
           Fix <FiArrowRight size={12} />
