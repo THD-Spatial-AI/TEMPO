@@ -79,7 +79,7 @@ const MapDeckGL = () => {
   const [webglErrorMsg, setWebglErrorMsg] = useState('');
   const [webglCompatMode, setWebglCompatMode] = useState(false);
   const [webglRetryAttempted, setWebglRetryAttempted] = useState(false);
-  const resource = useResourceOverlays({ viewState, enabled: webglAvailable !== false }); // atlas + wind-flow overlays
+  const resource = useResourceOverlays({ viewState, enabled: webglAvailable !== false, storageKey: 'tempo.overlays' }); // atlas + wind-flow overlays, last choice kept
   const deckRef = useRef(null);
   const leafletMapRef = useRef(null);
   const leafletContainerRef = useRef(null);

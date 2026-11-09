@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   getRenewablesURL, checkRenewables, computePv, optimiseOrientation, computeWind, bestWindPoint, listTurbines,
-  atlasCountries, atlasStatus, ensureAtlas, fetchAtlasImage, fetchWindGrid,
+  fetchAtlasView, fetchWindGrid,
 } from '../renewablesClient';
 
 const json = (body, status = 200) => ({ ok: status < 400, status, json: async () => body });
@@ -104,46 +104,42 @@ describe('renewablesClient', () => {
     expect(await listTurbines()).toEqual({ ok: false, error: 'renewables service not running' });
   });
 
-  it('atlasCountries and atlasStatus GET their paths', async () => {
-    globalThis.fetch = vi.fn()
-      .mockResolvedValueOnce(json({ countries: ['Chile', 'Germany'] }))
-      .mockResolvedValueOnce(json({ ready: true }))
-      .mockResolvedValueOnce(json({ detail: 'reinstall the Renewables component' }, 503));
-    expect(await atlasCountries()).toEqual({ ok: true, countries: ['Chile', 'Germany'] });
-    expect(await atlasStatus({ layer: 'pvout', country: 'Côte d’Ivoire' })).toEqual({ ok: true, ready: true });
-    expect(await atlasStatus({ layer: 'wind100', country: 'Chile' }))
-      .toEqual({ ok: false, status: 503, error: 'reinstall the Renewables component' });
-    expect(fetch.mock.calls[0][0]).toBe('http://localhost:5005/atlas/countries');
-    const q = new URL(fetch.mock.calls[1][0]);
-    expect(q.pathname).toBe('/atlas/status');
-    expect(Object.fromEntries(q.searchParams)).toEqual({ layer: 'pvout', country: 'Côte d’Ivoire' });
-  });
-
-  it('ensureAtlas runs the /atlas/ensure job', async () => {
-    globalThis.fetch = vi.fn()
-      .mockResolvedValueOnce(json({ job_id: 'a1' }))
-      .mockResolvedValueOnce(json({ state: 'done', result: { ready: true } }));
-    expect(await ensureAtlas({ layer: 'pvout', country: 'Chile' }, null, { intervalMs: 0 }))
-      .toEqual({ ok: true, result: { ready: true } });
-    expect(fetch.mock.calls[0][0]).toBe('http://localhost:5005/atlas/ensure');
-    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ layer: 'pvout', country: 'Chile' });
-  });
-
-  it('fetchAtlasImage returns an object URL and the X-Bounds, or the error status', async () => {
+  it('fetchAtlasView returns an object URL, X-Bounds and X-Countries; 204 is empty; errors keep the status', async () => {
     const blob = { size: 3 };
+    const hdrs = { 'x-bounds': '-72,-34,-68,-32', 'x-countries': 'Chile, Argentina' };
     URL.createObjectURL = vi.fn(() => 'blob:atlas');
     globalThis.fetch = vi.fn()
-      .mockResolvedValueOnce({ ok: true, status: 200, headers: { get: k => (k.toLowerCase() === 'x-bounds' ? '-71,-34,-70,-33' : null) }, blob: async () => blob })
-      .mockResolvedValueOnce(json({ detail: 'atlas not downloaded' }, 409));
-    const req = { layer: 'pvout', country: 'Chile', south: -34.5, west: -71.5, north: -33, east: -70, width: 800 };
-    expect(await fetchAtlasImage(req)).toEqual({ ok: true, url: 'blob:atlas', bounds: [-71, -34, -70, -33] });
+      .mockResolvedValueOnce({ ok: true, status: 200, headers: { get: k => hdrs[k.toLowerCase()] ?? null }, blob: async () => blob })
+      .mockResolvedValueOnce({ ok: true, status: 204, headers: { get: () => null } })
+      .mockResolvedValueOnce(json({ detail: 'unknown layer' }, 422));
+    const req = { layer: 'pvout', south: -34, west: -72, north: -32, east: -68, width: 800 };
+    expect(await fetchAtlasView(req)).toEqual({
+      ok: true, url: 'blob:atlas', bounds: [-72, -34, -68, -32], countries: ['Chile', 'Argentina'],
+    });
     expect(URL.createObjectURL).toHaveBeenCalledWith(blob);
     const q = new URL(fetch.mock.calls[0][0]);
-    expect(q.pathname).toBe('/atlas/image');
+    expect(q.pathname).toBe('/atlas/view');
     expect(Object.fromEntries(q.searchParams)).toEqual({
-      layer: 'pvout', country: 'Chile', south: '-34.5', west: '-71.5', north: '-33', east: '-70', width: '800',
+      layer: 'pvout', south: '-34', west: '-72', north: '-32', east: '-68', width: '800',
     });
-    expect(await fetchAtlasImage(req)).toEqual({ ok: false, status: 409, error: 'atlas not downloaded' });
+    expect(await fetchAtlasView(req)).toEqual({ ok: true, empty: true });
+    expect(await fetchAtlasView({ ...req, layer: 'ghi' })).toEqual({ ok: false, status: 422, error: 'unknown layer' });
+    expect(URL.createObjectURL).toHaveBeenCalledTimes(1);
+  });
+
+  it('fetchAtlasView falls back to the requested box and no countries without headers', async () => {
+    URL.createObjectURL = vi.fn(() => 'blob:x');
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({ ok: true, status: 200, headers: { get: () => null }, blob: async () => ({}) });
+    expect(await fetchAtlasView({ layer: 'wind100', south: 1, west: 2, north: 3, east: 4, width: 10 }))
+      .toEqual({ ok: true, url: 'blob:x', bounds: [2, 1, 4, 3], countries: [] });
+  });
+
+  it('fetchAtlasView percent-decodes X-Countries names (commas inside a name survive)', async () => {
+    URL.createObjectURL = vi.fn(() => 'blob:x');
+    const hdrs = { 'x-countries': 'Chile,Saint%20Helena%2C%20Ascension%20and%20Tristan%20da%20Cunha' };
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({ ok: true, status: 200, headers: { get: k => hdrs[k.toLowerCase()] ?? null }, blob: async () => ({}) });
+    const res = await fetchAtlasView({ layer: 'pvout', south: 1, west: 2, north: 3, east: 4, width: 10 });
+    expect(res.countries).toEqual(['Chile', 'Saint Helena, Ascension and Tristan da Cunha']);
   });
 
   it('fetchWindGrid returns the grid or the error', async () => {
@@ -162,9 +158,7 @@ describe('renewablesClient', () => {
   it('overlay calls fail cleanly when the service is not running', async () => {
     window.electronAPI.getServiceURLs = async () => ({});
     const off = { ok: false, error: 'renewables service not running' };
-    expect(await atlasCountries()).toEqual(off);
-    expect(await atlasStatus({ layer: 'pvout', country: 'Chile' })).toEqual(off);
-    expect(await fetchAtlasImage({ layer: 'pvout', country: 'Chile' })).toEqual(off);
+    expect(await fetchAtlasView({ layer: 'pvout' })).toEqual(off);
     expect(await fetchWindGrid({})).toEqual(off);
   });
 

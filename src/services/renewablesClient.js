@@ -10,10 +10,7 @@
  *   POST /wind                  → { job_id }
  *   POST /best-wind-point       → { job_id }
  *   GET  /turbines              → { turbines: [{ id, label, generic }] }  (503 { detail } without windpowerlib)
- *   GET  /atlas/countries       → { countries: [names] }
- *   GET  /atlas/status          → { ready }                 ?layer&country
- *   POST /atlas/ensure          → { job_id }                (progress in bytes)
- *   GET  /atlas/image           → PNG + X-Bounds: w,s,e,n   ?layer&country&south&west&north&east&width
+ *   GET  /atlas/view            → PNG + X-Bounds: w,s,e,n, X-Countries: a,b (204 no data)  ?layer&south&west&north&east&width
  *   GET  /wind-grid             → { lats, lons, date, u[24][n][n], v[24][n][n] }  ?south&west&north&east&date&n
  *   GET  /jobs/{id}             → { state, done, total, message, error, result }
  */
@@ -163,29 +160,25 @@ async function getJson(path, params, pick) {
   }
 }
 
-/** Global Solar Atlas country names (V2). */
-export const atlasCountries = () => getJson('/atlas/countries', null, b => ({ countries: b?.countries || [] }));
-
-/** Whether `layer` (pvout | ghi | wind100) is downloaded for `country`. */
-export const atlasStatus = ({ layer, country }) => getJson('/atlas/status', { layer, country }, b => ({ ready: !!b?.ready }));
-
-/** Download an atlas raster (V3) as a job; `onProgress` gets `{ done, total }` in bytes. */
-export const ensureAtlas = (payload, onProgress, opts = {}) =>
-  runJob('/atlas/ensure', payload, onProgress, opts, 'atlas download');
-
 /**
- * Colour-mapped atlas PNG for a view (V4) → `{ ok:true, url, bounds:[w,s,e,n] }` with an object URL
- * the caller must revoke, or `{ ok:false, status, error }` (409 not downloaded, 404 outside the raster).
- * Bounds come from `X-Bounds` (clipped to the raster), else the requested box.
+ * Colour-mapped atlas PNG (`layer`: pvout | wind100) for a view, stitched from the countries in it →
+ * `{ ok:true, url, bounds:[w,s,e,n], countries:[names] }` with an object URL the caller must revoke,
+ * `{ ok:true, empty:true }` when no country in view has data (204), or `{ ok:false, status, error }`.
+ * Bounds come from `X-Bounds`, else the requested box.
  */
-export async function fetchAtlasImage({ layer, country, south, west, north, east, width }) {
+export async function fetchAtlasView({ layer, south, west, north, east, width }) {
   try {
-    const res = await getFrom('/atlas/image', { layer, country, south, west, north, east, width });
+    const res = await getFrom('/atlas/view', { layer, south, west, north, east, width });
     if (!res) return NOT_RUNNING;
+    if (res.status === 204) return { ok: true, empty: true };
     if (!res.ok) return { ok: false, status: res.status, error: await errorText(res) };
     const hdr = (res.headers?.get?.('X-Bounds') || '').split(',').map(Number);
     const bounds = hdr.length === 4 && hdr.every(Number.isFinite) ? hdr : [west, south, east, north];
-    return { ok: true, url: URL.createObjectURL(await res.blob()), bounds };
+    // Names are percent-encoded by the service (they may contain commas), joined with ','.
+    const countries = (res.headers?.get?.('X-Countries') || '').split(',').map((c) => {
+      try { return decodeURIComponent(c).trim(); } catch { return c.trim(); }
+    }).filter(Boolean);
+    return { ok: true, url: URL.createObjectURL(await res.blob()), bounds, countries };
   } catch (err) {
     return { ok: false, error: err?.message || String(err) };
   }

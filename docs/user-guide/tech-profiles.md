@@ -245,28 +245,33 @@ cache.
 The atlas and wind-flow overlays help you choose sites. They appear in the **Map** view
 (controls at the top left) and on the point map inside the PV and wind dialogs.
 
+The PV dialog's map opens with **Solar potential (PVOUT)** on, and the wind dialog's map opens
+with **Wind speed 100 m** and **Wind flow** on. The **Map** view starts with the overlays you
+used last (none the first time). You can switch them there with the controls or with the
+overlay toggles in the layer selector.
+
 ### Atlas layers
 
 | Layer | Unit | Colour range | Source |
 |---|---|---|---|
 | **Solar potential (PVOUT)** | kWh/kWp/yr | 700 to 2300 | Global Solar Atlas |
-| **Solar irradiation (GHI)** | kWh/m²/yr | 800 to 2800 | Global Solar Atlas |
 | **Wind speed 100 m** | m/s | 2 to 12 | Global Wind Atlas |
 
 Values outside the range take the end colours. A legend with the range and unit appears
 below the controls.
 
-Atlas layers are per country. Pick a layer, then type or choose a **Country**. The first
-time you use a country, a **Download <layer> for <country>** button appears, with a progress
-counter in MB. The download is cached on your computer, so it happens once per country and
-layer source.
+There is no download step. When a layer is on, TEMPO reads only the part of the official atlas
+files that covers the visible map, and it picks the countries in view by itself. A
+**Countries:** line under the controls lists them. A border view shows both countries in one
+image.
 
-| Download | Size |
-|---|---|
-| Chile wind (Global Wind Atlas) | about 166 MB |
-| Chile solar (Global Solar Atlas zip, with both PVOUT and GHI) | about 145 MB |
+While the image is loading, the controls show **Loading solar atlas…** or **Loading wind
+atlas…**. The first view of a country can take a few seconds, because the service has to open
+that country's atlas file remotely. Later views of the same country are faster. Where no
+country in view has atlas data (for example over the open sea), the controls say **No solar
+atlas data in this area** or **No wind atlas data in this area**.
 
-For Chile, the Global Solar Atlas coverage stops at 46°S, so the solar layers show nothing
+For Chile, the Global Solar Atlas coverage stops at 46°S, so the solar layer shows nothing
 south of −46°. Other countries may have similar edges.
 
 ### Wind flow
@@ -363,7 +368,7 @@ For project-grade numbers, use measured wind data or a site assessment.
 | Data | Source | Licence and terms |
 |---|---|---|
 | Hourly weather (irradiance, temperature, wind, pressure) | Open-Meteo Historical Weather API (ERA5), `archive-api.open-meteo.com` | CC BY 4.0. The free tier is for non-commercial use and has rate limits; TEMPO throttles and retries when limited |
-| Solar atlas layers | Global Solar Atlas 2.0 (Solargis / World Bank-ESMAP), `api.globalsolaratlas.info` | CC BY 4.0 |
+| Solar atlas layer (PVOUT) | Global Solar Atlas 2.0 (Solargis / World Bank-ESMAP), `api.globalsolaratlas.info` | CC BY 4.0 |
 | Wind atlas layer | Global Wind Atlas (DTU / World Bank-ESMAP), `globalwindatlas.info` | CC BY 4.0 |
 | Turbine power curves | Open Energy Database (OEDB), through windpowerlib; bundled, works offline | See windpowerlib |
 | PV model | pvlib (PVWatts-style losses, SAPM cell temperature, open-rack glass-polymer) | BSD licence |

@@ -1,6 +1,7 @@
 // Small map of a tech's profile points for the resource-profile dialogs.
 // Optional `pins` ({ name: {lat, lon} }) draw each point's weather site (W6).
-// Optional `overlays` adds the resource overlays (atlas raster, wind flow) + controls.
+// Optional `overlays` adds the resource overlays (atlas raster, wind flow) + controls;
+// pass `{ layer, flow }` instead of `true` to open with that overlay on.
 import React, { useMemo, useState } from 'react';
 import DeckGL from '@deck.gl/react';
 import { WebMercatorViewport } from '@deck.gl/core';
@@ -42,7 +43,11 @@ export default function PointsMap({ points, selected, onSelect, pins, overlays =
   // user's view is tracked for the bounds and dropped as soon as the fitted view changes.
   const viewKey = view ? `${view.longitude},${view.latitude},${view.zoom}` : '';
   const [tracked, setTracked] = useState(null); // { key, viewState }
-  const ov = useResourceOverlays({ viewState: tracked?.key === viewKey ? tracked.viewState : view, enabled: overlays && webgl && !!view });
+  const ov = useResourceOverlays({
+    viewState: tracked?.key === viewKey ? tracked.viewState : view,
+    enabled: !!overlays && webgl && !!view,
+    defaults: typeof overlays === 'object' ? overlays : undefined,
+  });
   if (!view) return null;
   if (!webgl) return <p className="text-xs text-slate-500">{webglUnavailableMessage()}</p>;
   const layer = new ScatterplotLayer({

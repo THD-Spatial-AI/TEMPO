@@ -8,7 +8,6 @@ const WIND_STOPS = ['#f7fbff', '#c6dbef', '#6baed6', '#2171b5', '#08306b', '#3f0
 /** Atlas layers by id; `source` keys into ATTRIBUTION. */
 export const OVERLAY_LAYERS = {
   pvout: { label: 'Solar potential (PVOUT)', unit: 'kWh/kWp/yr', min: 700, max: 2300, stops: SOLAR_STOPS, source: 'gsa' },
-  ghi: { label: 'Solar irradiation (GHI)', unit: 'kWh/m²/yr', min: 800, max: 2800, stops: SOLAR_STOPS, source: 'gsa' },
   wind100: { label: 'Wind speed 100 m', unit: 'm/s', min: 2, max: 12, stops: WIND_STOPS, source: 'gwa' },
 };
 

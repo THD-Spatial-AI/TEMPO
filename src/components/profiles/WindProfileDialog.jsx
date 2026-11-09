@@ -22,6 +22,7 @@ import BestPointPanel from './BestPointPanel';
 import { LAST_FULL_YEAR } from './PvSettingsRow';
 
 const PROVIDER = 'open-meteo+windpowerlib';
+const WIND_OVERLAYS = { layer: 'wind100', flow: true };
 const BTN = 'px-3 py-1.5 text-xs font-medium bg-black text-white hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed';
 
 const coord = (v) => (v === '' || v == null ? NaN : Number(v));
@@ -225,7 +226,7 @@ export default function WindProfileDialog({ onClose, techName, parent, focusLoca
         {points.length === 0 && noCoords.length === 0 && (
           <p className="text-xs text-slate-500">No location in this model uses this technology yet.</p>
         )}
-        <PointsMap points={points} selected={sel} onSelect={setSelected} pins={pins} overlays />
+        <PointsMap points={points} selected={sel} onSelect={setSelected} pins={pins} overlays={WIND_OVERLAYS} />
         {points.length > 0 && (
           <WindPointsTable rows={rows} selected={sel} onSelect={setSelected} onSite={setSite} onReset={resetSite} disabled={running} />
         )}

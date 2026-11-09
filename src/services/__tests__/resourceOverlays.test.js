@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { padded, gridServes } from '../../components/map/useResourceOverlays';
+import { describe, it, expect, afterEach } from 'vitest';
+import { padded, gridServes, readPrefs } from '../../components/map/useResourceOverlays';
 
 const view = { south: -33.1, west: -71.3, north: -32.1, east: -70.3 };
 const DATE = '2026-10-31';
@@ -25,5 +25,29 @@ describe('resource overlay wind-grid reuse', () => {
     expect(gridServes(grid, { ...view, south: -33.0, north: -32.2 }, DATE)).toBe(true); // small zoom-in reuses
     expect(gridServes(grid, view, '2026-10-30')).toBe(false);
     expect(gridServes(null, view, DATE)).toBe(false);
+  });
+});
+
+describe('resource overlay initial layer / flow', () => {
+  afterEach(() => { delete globalThis.localStorage; });
+  const store = (v) => { globalThis.localStorage = { getItem: () => v }; };
+
+  it('uses the defaults (off without any) when nothing is stored', () => {
+    expect(readPrefs(undefined, undefined)).toEqual({ layer: 'none', flow: false });
+    expect(readPrefs(undefined, { layer: 'pvout' })).toEqual({ layer: 'pvout', flow: false });
+    expect(readPrefs(undefined, { layer: 'wind100', flow: true })).toEqual({ layer: 'wind100', flow: true });
+    store(null);
+    expect(readPrefs('tempo.overlays', undefined)).toEqual({ layer: 'none', flow: false });
+  });
+
+  it('restores the stored choice and ignores removed or invalid values', () => {
+    store('{"layer":"wind100","flow":true}');
+    expect(readPrefs('tempo.overlays')).toEqual({ layer: 'wind100', flow: true });
+    store('{"layer":"ghi","flow":"yes"}');
+    expect(readPrefs('tempo.overlays')).toEqual({ layer: 'none', flow: false });
+    store('not json');
+    expect(readPrefs('tempo.overlays', { layer: 'pvout' })).toEqual({ layer: 'pvout', flow: false });
+    globalThis.localStorage = { getItem: () => { throw new Error('blocked'); } };
+    expect(readPrefs('tempo.overlays')).toEqual({ layer: 'none', flow: false });
   });
 });

@@ -14,10 +14,11 @@ renewables_service.py — local FastAPI service for weather-based resource profi
     POST /best-wind-point → {"job_id"}; body WindRequest + radius_km (5–100); job result =
                         {point_id: {"lat","lon","mean_cf","gain_pct","distance_km","moved"}}
 
-    GET  /atlas/countries → {"countries":[…]} (Global Solar Atlas names)
-    GET  /atlas/status?layer&country → {"ready":bool}; POST /atlas/ensure {layer,country} → {"job_id"} (bytes progress)
-    GET  /atlas/image?layer&country&west&south&east&north&width → image/png + X-Bounds "w,s,e,n";
-                        409 not downloaded, 404 bounds outside, 503 rasterio/pycountry missing
+    GET  /atlas/view?layer&south&west&north&east&width → image/png over the requested bounds (lat
+                        clipped to ±85°), stitched from the countries in view, read remotely;
+                        headers X-Bounds "w,s,e,n", X-Countries / X-Skipped (each name percent-encoded,
+                        joined by ","); 204 when no country in view has data, 422/400 bad bounds,
+                        503 rasterio/pycountry missing
     GET  /wind-grid?south&west&north&east&date&n → {lats,lons,date,u[24][n][n],v[24][n][n]}; 400 bad date/n, 502 upstream
 
 Weather is cached per ERA5 cell under TEMPO_WEATHER_CACHE (Electron sets
@@ -29,6 +30,7 @@ import os
 import sys
 import threading
 import uuid
+from urllib.parse import quote
 from importlib import metadata
 from pathlib import Path
 from typing import List, Literal
@@ -53,7 +55,7 @@ MAX_JOBS = 20
 
 app = FastAPI(title="TEMPO renewables service")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
-                   expose_headers=["X-Bounds"])
+                   expose_headers=["X-Bounds", "X-Countries", "X-Skipped"])
 
 _jobs = {}
 _lock = threading.Lock()
@@ -303,82 +305,26 @@ def _grid():
     return renewables_grid
 
 
-class AtlasEnsureRequest(BaseModel):
-    layer: Literal["pvout", "ghi", "wind100"]
-    country: str
+def _names_header(names):
+    """Names percent-encoded one by one, then joined by ',' (one GSA name contains a comma)."""
+    return ",".join(quote(n, safe="") for n in names)
 
 
-@app.get("/atlas/countries")
-def atlas_countries():
+@app.get("/atlas/view")
+def atlas_view(layer: Literal["pvout", "wind100"],
+               south: float = Query(ge=-90, le=90), west: float = Query(ge=-180, le=180),
+               north: float = Query(ge=-90, le=90), east: float = Query(ge=-180, le=180),
+               width: int = Query(800, ge=16, le=1024)):
     ra = _atlas()
-    try:
-        return {"countries": ra.countries()}
-    except Exception as exc:
-        raise HTTPException(502, f"Global Solar Atlas unavailable: {exc}")
-
-
-def _checked_country(ra, country):
-    """400 unless `country` is one of the Global Solar Atlas names (also keeps paths safe)."""
-    try:
-        known = ra.countries()
-    except Exception as exc:
-        raise HTTPException(502, f"Global Solar Atlas unavailable: {exc}")
-    if country not in known:
-        raise HTTPException(400, f"unknown country {country!r}")
-    return country
-
-
-def _layer_path(ra, layer, country):
-    """Cached raster path; layer_path's sanitisation keeps it safe, an empty/dots-only name is a 400."""
-    try:
-        return ra.layer_path(layer, country, CACHE_DIR)
-    except ValueError as exc:
-        raise HTTPException(400, str(exc))
-
-
-@app.get("/atlas/status")
-def atlas_status(layer: Literal["pvout", "ghi", "wind100"], country: str):
-    ra = _atlas()
-    return {"ready": _layer_path(ra, layer, country).exists()}
-
-
-def _run_atlas_ensure(job_id, ra, layer, country):
-    try:
-        _update(job_id, message=f"Downloading {layer} for {country}")
-        ra.ensure(layer, country, CACHE_DIR,
-                  on_progress=lambda done, total: _update(job_id, done=int(done), total=int(total)))
-        _update(job_id, state="done", message=None, result={"ready": True})
-    except Exception as exc:  # reported to the panel, never raised into uvicorn
-        _update(job_id, state="error", error=f"{type(exc).__name__}: {exc}")
-
-
-@app.post("/atlas/ensure")
-def atlas_ensure(req: AtlasEnsureRequest):
-    ra = _atlas()
-    _checked_country(ra, req.country)
-    job_id = _new_job()
-    threading.Thread(target=_run_atlas_ensure, args=(job_id, ra, req.layer, req.country), daemon=True).start()
-    return {"job_id": job_id}
-
-
-@app.get("/atlas/image")
-def atlas_image(layer: Literal["pvout", "ghi", "wind100"], country: str,
-                west: float = Query(ge=-180, le=180), south: float = Query(ge=-90, le=90),
-                east: float = Query(ge=-180, le=180), north: float = Query(ge=-90, le=90),
-                width: int = Query(800, ge=16, le=1024)):
-    ra = _atlas()
-    _layer_path(ra, layer, country)
     if south >= north or west >= east:
         raise HTTPException(400, "bounds must satisfy south < north and west < east")
-    try:
-        png, (w, s, e, n) = ra.render(layer, country, CACHE_DIR, south=south, west=west, north=north,
-                                      east=east, width=width)
-    except FileNotFoundError:
-        raise HTTPException(409, f"{layer} for {country} is not downloaded")
-    except ValueError as exc:
-        raise HTTPException(404, str(exc))
-    return Response(content=png, media_type="image/png",
-                    headers={"X-Bounds": f"{w},{s},{e},{n}", "Cache-Control": "max-age=3600"})
+    png, (w, s, e, n), used, skipped = ra.render_view(layer, south=south, west=west, north=north,
+                                                       east=east, width=width)
+    headers = {"X-Bounds": f"{w},{s},{e},{n}", "X-Countries": _names_header(used),
+               "X-Skipped": _names_header(skipped)}
+    if png is None:
+        return Response(status_code=204, headers=headers)
+    return Response(content=png, media_type="image/png", headers={**headers, "Cache-Control": "max-age=3600"})
 
 
 @app.get("/wind-grid")

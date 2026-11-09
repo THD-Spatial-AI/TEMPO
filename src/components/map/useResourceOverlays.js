@@ -1,17 +1,14 @@
-// Resource map overlays (Inc 5): an atlas raster (Global Solar / Wind Atlas,
-// rendered by the renewables service for the current view) and animated wind-flow
+// Resource map overlays (Inc 5): an atlas raster (Global Solar / Wind Atlas, read
+// remotely by the renewables service for the countries in the current view) and animated wind-flow
 // particles from an Open-Meteo u/v grid. State is per map instance (V9); nothing
 // is fetched or animated while `enabled` is false or the overlays are off.
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { COORDINATE_SYSTEM } from '@deck.gl/core';
 import { BitmapLayer, PathLayer } from '@deck.gl/layers';
-import {
-  atlasCountries, atlasStatus, ensureAtlas, fetchAtlasImage, fetchWindGrid,
-} from '../../services/renewablesClient';
+import { fetchAtlasView, fetchWindGrid } from '../../services/renewablesClient';
 import { createParticles, stepParticles } from '../../services/windParticles';
 import useViewBounds from './useViewBounds';
 
-const COUNTRY_KEY = 'tempo.overlayCountry';
 const PARTICLES = 1500;
 const GRID_N = 16;
 const FRAME_MS = 33; // ~30 store updates (DeckGL re-renders) per second while the flow animates
@@ -19,11 +16,21 @@ const NONE = [];
 
 export const isoDaysAgo = d => new Date(Date.now() - d * 86_400_000).toISOString().slice(0, 10);
 
-function readCountry() {
-  try { return localStorage.getItem(COUNTRY_KEY) || ''; } catch { return ''; }
+const LAYERS = ['none', 'pvout', 'wind100'];
+
+/** Initial `{ layer, flow }`: the stored choice under `storageKey` (if any and valid), else `defaults`, else off. */
+export function readPrefs(storageKey, defaults) {
+  const d = { layer: LAYERS.includes(defaults?.layer) ? defaults.layer : 'none', flow: !!defaults?.flow };
+  if (!storageKey) return d;
+  try {
+    const p = JSON.parse(localStorage.getItem(storageKey) || 'null');
+    return { layer: LAYERS.includes(p?.layer) ? p.layer : d.layer, flow: typeof p?.flow === 'boolean' ? p.flow : d.flow };
+  } catch {
+    return d;
+  }
 }
-function saveCountry(c) {
-  try { localStorage.setItem(COUNTRY_KEY, c); } catch { /* per-viewer convenience only */ }
+function savePrefs(storageKey, prefs) {
+  try { localStorage.setItem(storageKey, JSON.stringify(prefs)); } catch { /* per-viewer convenience only */ }
 }
 
 // Wind-grid request box: the view padded by 25 % per side, so small pans reuse the grid,
@@ -84,36 +91,30 @@ export function WithFlow({ store, under, rest, children }) {
 }
 
 /**
- * @param {{ viewState: {longitude, latitude, zoom}, enabled: boolean }} args
+ * @param {{ viewState: {longitude, latitude, zoom}, enabled: boolean, defaults?: {layer?, flow?}, storageKey?: string }} args
+ *   `defaults` sets the initial layer / flow; with `storageKey` the last choice is kept in localStorage.
  * @returns {{ ref: Function, layers: object[], flowStore: object, active: boolean, controlsProps: object }}
  *   `ref` goes on the map container (measured for the view bounds); `layers` = [atlas] (or none);
  *   the flow layer comes from `<WithFlow store={flowStore} …>` around the DeckGL element.
  */
-export default function useResourceOverlays({ viewState, enabled }) {
+export default function useResourceOverlays({ viewState, enabled, defaults, storageKey }) {
   const view = useViewBounds(viewState, enabled);
   const { bounds, width } = view;
   const zoom = viewState?.zoom ?? 6;
-  const [layer, setLayer] = useState('none'); // none | pvout | ghi | wind100
-  const [country, setCountry] = useState(readCountry);
-  const [countries, setCountries] = useState(null); // null until loaded
-  const [countriesError, setCountriesError] = useState(null);
-  const [flow, setFlow] = useState(false);
+  const [initial] = useState(() => readPrefs(storageKey, defaults));
+  const [layer, setLayer] = useState(initial.layer); // none | pvout | wind100
+  const [flow, setFlow] = useState(initial.flow);
   const [hour, setHour] = useState(12);
   const [date, setDate] = useState(() => isoDaysAgo(7));
-  const [tick, setTick] = useState(0); // bumped to re-check the atlas status
-  const [status, setStatus] = useState({ key: '' }); // { key, ready, error }
-  const [image, setImage] = useState(null); // { key, url, bounds } or { key, note | error }
-  const [download, setDownload] = useState(null); // { done, total } bytes while downloading
-  const [downloadError, setDownloadError] = useState(null);
+  const [image, setImage] = useState(null); // { key, layer, url, bounds, countries } or { key, layer, note | error }
+  const [loadingKey, setLoadingKey] = useState(''); // view key of the atlas request in flight
   const [grid, setGrid] = useState(null);
   const [flowState, setFlowState] = useState({ loading: false, error: null });
   const [flowStore] = useState(createStore);
   const [hidden, setHidden] = useState(false);
   const alive = useRef(true);
-  const statusReq = useRef(0);
   const imageReq = useRef(0);
   const flowReq = useRef(0);
-  const dlAbort = useRef(null);
   const urlRef = useRef(null); // object URL currently in `image`
   const particles = useRef(null); // { grid, list }
   const live = useRef({ hour, zoom, bounds });
@@ -122,38 +123,16 @@ export default function useResourceOverlays({ viewState, enabled }) {
     alive.current = true;
     return () => {
       alive.current = false;
-      dlAbort.current?.abort();
       if (urlRef.current) URL.revokeObjectURL(urlRef.current);
       urlRef.current = null;
     };
   }, []);
   useEffect(() => { live.current = { hour, zoom, bounds }; }, [hour, zoom, bounds]);
+  useEffect(() => { if (storageKey) savePrefs(storageKey, { layer, flow }); }, [storageKey, layer, flow]);
 
-  const activeCountry = countries?.includes(country) ? country : '';
-  const atlasKey = enabled && layer !== 'none' && activeCountry ? `${layer}|${activeCountry}` : '';
-  const statusKey = atlasKey ? `${atlasKey}|${tick}` : '';
-  const atlas = !statusKey ? 'idle' : status.key !== statusKey ? 'checking'
-    : status.error ? 'error' : status.ready ? 'ready' : 'missing';
-
-  useEffect(() => { if (activeCountry) saveCountry(activeCountry); }, [activeCountry]);
-
-  // Country list, once a layer is chosen (retried on the next layer change after a failure).
-  useEffect(() => {
-    if (!enabled || layer === 'none' || countries) return;
-    atlasCountries().then(res => {
-      if (!alive.current) return;
-      if (res.ok) { setCountries(res.countries); setCountriesError(null); } else setCountriesError(res.error);
-    });
-  }, [enabled, layer, countries]);
-
-  useEffect(() => {
-    if (!statusKey) return;
-    const id = ++statusReq.current;
-    const [lyr, c] = statusKey.split('|');
-    atlasStatus({ layer: lyr, country: c }).then(res => {
-      if (alive.current && id === statusReq.current) setStatus({ key: statusKey, ready: !!res.ready, error: res.ok ? null : res.error });
-    });
-  }, [statusKey]);
+  const atlasLayer = enabled && layer !== 'none' ? layer : '';
+  const px = Math.min(1024, Math.round(width));
+  const viewKey = atlasLayer && bounds && px > 0 ? `${atlasLayer}|${view.key}|${px}` : '';
 
   const replaceImage = useCallback((next) => {
     if (urlRef.current && urlRef.current !== next?.url) URL.revokeObjectURL(urlRef.current);
@@ -161,40 +140,24 @@ export default function useResourceOverlays({ viewState, enabled }) {
     setImage(next);
   }, []);
 
-  // Viewport-sized atlas PNG, debounced while the view moves.
+  // Viewport-sized atlas PNG for the countries in view, debounced while the view moves.
   useEffect(() => {
-    if (atlas !== 'ready' || !bounds || width <= 0) return undefined;
+    if (!viewKey) return undefined;
     const id = ++imageReq.current;
-    const [lyr, c] = atlasKey.split('|');
     const t = setTimeout(async () => {
-      const res = await fetchAtlasImage({ layer: lyr, country: c, ...bounds, width: Math.min(1024, Math.round(width)) });
+      setLoadingKey(viewKey);
+      const res = await fetchAtlasView({ layer: atlasLayer, ...bounds, width: px });
       if (!alive.current || id !== imageReq.current) {
-        if (res.ok) URL.revokeObjectURL(res.url);
+        if (res.url) URL.revokeObjectURL(res.url);
         return;
       }
-      if (res.ok) replaceImage({ key: atlasKey, url: res.url, bounds: res.bounds });
-      else if (res.status === 409) setTick(n => n + 1);
-      else if (res.status === 404) replaceImage({ key: atlasKey, url: null, note: `No ${lyr === 'wind100' ? 'wind' : 'solar'} atlas data in this area.` });
-      else replaceImage({ key: atlasKey, url: null, error: res.error });
+      const base = { key: viewKey, layer: atlasLayer, url: null };
+      if (res.empty) replaceImage({ ...base, note: `No ${atlasLayer === 'wind100' ? 'wind' : 'solar'} atlas data in this area.` });
+      else if (res.ok) replaceImage({ ...base, url: res.url, bounds: res.bounds, countries: res.countries });
+      else replaceImage({ ...base, error: res.error });
     }, 400);
     return () => clearTimeout(t);
-  }, [atlas, atlasKey, bounds, width, replaceImage]);
-
-  const startDownload = useCallback(async () => {
-    if (!atlasKey || download) return;
-    const [lyr, c] = atlasKey.split('|');
-    const ac = new AbortController();
-    dlAbort.current = ac;
-    setDownload({ done: 0, total: 0 });
-    setDownloadError(null);
-    const res = await ensureAtlas({ layer: lyr, country: c }, st => {
-      if (alive.current) setDownload({ done: st.done || 0, total: st.total || 0 });
-    }, { signal: ac.signal });
-    if (dlAbort.current === ac) dlAbort.current = null;
-    if (!alive.current || res.error === 'cancelled') return;
-    setDownload(null);
-    if (res.ok) setTick(n => n + 1); else setDownloadError(res.error);
-  }, [atlasKey, download]);
+  }, [viewKey, atlasLayer, bounds, px, replaceImage]);
 
   // Wind grid for the (padded) view, refetched only when the view outgrows it.
   useEffect(() => {
@@ -243,15 +206,15 @@ export default function useResourceOverlays({ viewState, enabled }) {
     return () => cancelAnimationFrame(raf);
   }, [enabled, flow, grid, hidden, flowStore]);
 
-  const shownImage = image?.key === atlasKey && atlas === 'ready' ? image : null;
+  const shownImage = atlasLayer && image?.layer === atlasLayer ? image : null;
+  const atlasLoading = !!viewKey && loadingKey === viewKey && image?.key !== viewKey;
   // The PNG is equirectangular (EPSG:4326): interpolate it in lng/lat, not Web Mercator.
   const layers = useMemo(() => (enabled && shownImage?.url ? [new BitmapLayer({
     id: 'overlay-atlas', image: shownImage.url, bounds: shownImage.bounds, opacity: 0.7,
     _imageCoordinateSystem: COORDINATE_SYSTEM.LNGLAT,
   })] : NONE), [enabled, shownImage]);
 
-  const errors = [countriesError, status.key === statusKey ? status.error : null, downloadError, shownImage?.error, flow ? flowState.error : null]
-    .filter(Boolean);
+  const errors = [shownImage?.error, flow ? flowState.error : null].filter(Boolean);
 
   return {
     ref: view.ref,
@@ -259,8 +222,7 @@ export default function useResourceOverlays({ viewState, enabled }) {
     flowStore,
     active: enabled && (layer !== 'none' || flow),
     controlsProps: {
-      layer, setLayer, country, setCountry, countries: countries || [], activeCountry,
-      atlas, download, onDownload: startDownload,
+      layer, setLayer, atlasLoading, countries: shownImage?.countries || NONE, legend: !!shownImage?.url,
       flow, setFlow, hour, setHour, date, setDate, dateMax: isoDaysAgo(6),
       flowLoading: flow && flowState.loading, errors, note: shownImage?.note || null,
     },

@@ -20,6 +20,7 @@ import PvSettingsRow, { LAST_FULL_YEAR } from './PvSettingsRow';
 import OptimisePanel from './OptimisePanel';
 
 const PROVIDER = 'open-meteo+pvlib';
+const PV_OVERLAYS = { layer: 'pvout' };
 const BTN = 'px-3 py-1.5 text-xs font-medium bg-black text-white hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed';
 
 const defaultSettings = (techName) => ({
@@ -207,7 +208,7 @@ export default function PvProfileDialog({ onClose, techName, parent, focusLocati
         {points.length === 0 && noCoords.length === 0 && (
           <p className="text-xs text-slate-500">No location in this model uses this technology yet.</p>
         )}
-        <PointsMap points={points} selected={sel} onSelect={setSelected} overlays />
+        <PointsMap points={points} selected={sel} onSelect={setSelected} overlays={PV_OVERLAYS} />
         {points.length > 0 && (
           <PvPointsTable rows={rows} selected={sel} onSelect={setSelected} orientDisabled={running || settings.tracking === 'single_axis'}
             onOrient={(name, patch) => setOrient(o => ({ ...o, [name]: { ...orientOf(points.find(p => p.name === name)), ...patch } }))} />
