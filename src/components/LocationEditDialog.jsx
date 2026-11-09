@@ -20,7 +20,8 @@ const LocationEditDialog = ({
   onClose,
   location,
   techMap,
-  onSave
+  onSave,
+  takenNames = [],
 }) => {
   // Dialog-specific state
   const [pendingLocation, setPendingLocation] = useState(null);
@@ -360,6 +361,11 @@ const LocationEditDialog = ({
 
   if (!isOpen || !pendingLocation) return null;
 
+  // Names key links, engines and profiles, so a new or changed name must not
+  // repeat another location's.
+  const newName = String(pendingLocation.name || '').trim();
+  const nameTaken = newName !== '' && newName !== location?.name && takenNames.includes(newName);
+
   return (
     <>
       {/* Main Dialog */}
@@ -403,6 +409,9 @@ const LocationEditDialog = ({
                 className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500"
                 placeholder="Enter location name"
               />
+              {nameTaken && (
+                <p className="mt-1 text-xs text-red-600">Another location already has this name. Each location needs a unique name.</p>
+              )}
             </div>
 
             {/* Technologies Selection */}
@@ -763,7 +772,7 @@ const LocationEditDialog = ({
             </button>
             <button
               onClick={confirmLocationCreation}
-              disabled={originalLocationData && !hasLocationChanged()}
+              disabled={nameTaken || (originalLocationData && !hasLocationChanged())}
               className="uppercase tracking-wide font-bold px-4 py-2 bg-black text-white rounded-md hover:bg-black/80 transition-colors flex items-center gap-2 disabled:bg-slate-300 disabled:cursor-not-allowed"
             >
               <FiCheck size={16} />

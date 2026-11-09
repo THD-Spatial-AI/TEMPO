@@ -20,6 +20,20 @@ describe('buildDraftModel', () => {
     expect(draft.technologies[0]).toMatchObject({ name: 'solar_pv', constraints: { energy_cap_max: 50 } });
   });
 
+  it('makes repeated location names unique and keeps each link on its own node', () => {
+    const draft = buildDraftModel({
+      tempLocations: [
+        { id: 1, name: 'Line 220kV', techs: {} },
+        { id: 2, name: 'Line 220kV', techs: {} },
+        { id: 3, name: 'Hub', techs: {} },
+      ],
+      tempLinks: [{ id: 8, from: 1, to: 2 }, { id: 9, from: 3, to: 2 }],
+    }, {}, { timeSeries: [] });
+    expect(draft.locations.map((l) => l.name)).toEqual(['Line 220kV', 'Line 220kV (2)', 'Hub']);
+    expect(draft.links[0]).toMatchObject({ from: 'Line 220kV', to: 'Line 220kV (2)' });
+    expect(draft.links[1]).toMatchObject({ from: 'Hub', to: 'Line 220kV (2)' });
+  });
+
   it('keeps the raw id of a link end that no longer exists', () => {
     const draft = buildDraftModel({ tempLocations: [{ id: 1, name: 'a', techs: {} }], tempLinks: [{ id: 9, from: 1, to: 7 }] }, {}, { timeSeries: [] });
     expect(draft.links[0]).toMatchObject({ from: 'a', to: '7' });

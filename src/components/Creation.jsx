@@ -2668,6 +2668,7 @@ const Creation = ({ onNavigate }) => {
         }}
         location={pendingLocation}
         techMap={techMap}
+        takenNames={(locationManager.tempLocations || []).map(l => l.name)}
         onSave={(savedLocation) => {
           if (savedLocation.id && locationManager.tempLocations.find(l => l.id === savedLocation.id)) {
             // Update existing location

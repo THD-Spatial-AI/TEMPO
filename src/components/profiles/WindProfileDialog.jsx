@@ -57,22 +57,25 @@ export default function WindProfileDialog({ onClose, techName, parent, focusLoca
 
   // Points = locations hosting the tech, plus the location being edited in
   // LocationEditDialog when the tech was only just added there (as ProfileDialog).
-  const { points, noCoords } = useMemo(() => {
+  const { points, noCoords, dupNames } = useMemo(() => {
     const locs = locations || [];
-    const names = locs.filter(l => l.techs?.[techName]).map(l => l.name);
+    const names = [...new Set(locs.filter(l => l.techs?.[techName]).map(l => l.name))];
     if (onApplied && focusLocation && !names.includes(focusLocation) && locs.some(l => l.name === focusLocation)) {
       names.push(focusLocation);
     }
+    // Profile columns and resource refs are keyed by location name, so a name
+    // shared by two locations cannot get its own profile.
+    const dups = names.filter(n => locs.filter(x => x.name === n).length > 1);
     const pts = [];
     const bad = [];
-    names.forEach(n => {
+    names.filter(n => !dups.includes(n)).forEach(n => {
       const l = locs.find(x => x.name === n);
       const lat = coord(l.latitude);
       const lon = coord(l.longitude);
       if (Number.isFinite(lat) && Number.isFinite(lon)) pts.push({ name: n, lat, lon });
       else bad.push(n);
     });
-    return { points: pts, noCoords: bad };
+    return { points: pts, noCoords: bad, dupNames: dups };
   }, [locations, techName, onApplied, focusLocation]);
 
   // Effective weather site per point: override, else the stored pin, else the location.
@@ -98,7 +101,7 @@ export default function WindProfileDialog({ onClose, techName, parent, focusLoca
   const calendar = modelCalendar(getCurrentModel());
   const applicable = canApplyProfile(parent);
   const canApply = !!calendar && applicable && points.length > 0 && noCoords.length === 0 && badSites.length === 0
-    && changed.length === 0 && !job;
+    && dupNames.length === 0 && changed.length === 0 && !job;
   const windBody = () => ({ year: settings.weatherYear, turbine: settings.turbine, hub_height: settings.hubHeight, loss: settings.loss });
 
   const handleCalculate = async () => {
@@ -228,6 +231,10 @@ export default function WindProfileDialog({ onClose, techName, parent, focusLoca
         )}
         {noCoords.length > 0 && notice(
           `No coordinates: ${noCoords.join(', ')}. Apply is blocked until ${plural(noCoords, 'this location has', 'these locations have')} coordinates.`,
+          'amber',
+        )}
+        {dupNames.length > 0 && notice(
+          `Several locations are named ${dupNames.join(', ')}. Each location needs a unique name for its own profile (and for Calliope). Rename them in Locations; Apply is blocked until then.`,
           'amber',
         )}
         {badSites.length > 0 && notice(

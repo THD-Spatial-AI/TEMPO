@@ -1,10 +1,14 @@
 // Converts the Creation draft (temp locations/links keyed by id) into the internal
 // model shape that createModel stores and the readiness checker reads.
 import { LINK_TYPES } from '../../config/linkTypes';
+import { uniqueNames } from '../../utils/uniqueLocationNames';
 
 export function buildDraftModel({ tempLocations, tempLinks }, techMap, { timeSeries, currentModelId }) {
-  const locations = tempLocations.map(loc => ({
-    name: loc.name,
+  // Names key the saved model (links, engines, profiles); links are still by id
+  // here, so repeated OSM names can be made unique without losing any link.
+  const names = uniqueNames(tempLocations.map(loc => loc.name));
+  const locations = tempLocations.map((loc, i) => ({
+    name: names[i],
     latitude: loc.latitude,
     longitude: loc.longitude,
     type: loc.isNode ? 'node' : 'site',
@@ -21,7 +25,7 @@ export function buildDraftModel({ tempLocations, tempLinks }, techMap, { timeSer
   }));
 
   // A link end whose location was deleted keeps its raw id so the checker can report it.
-  const nameById = new Map(tempLocations.map(l => [l.id, l.name]));
+  const nameById = new Map(tempLocations.map((l, i) => [l.id, names[i]]));
   const nameOf = (id) => nameById.get(id) ?? String(id);
   const links = tempLinks.map(link => {
     const lt = link.linkType ? LINK_TYPES[link.linkType] : null;

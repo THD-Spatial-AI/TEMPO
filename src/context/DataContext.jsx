@@ -6,6 +6,7 @@ import { TECH_TEMPLATES } from '../components/TechnologiesData';
 import { api } from '../services/api';
 import { getSetting, SETTINGS_EVENT } from '../services/appSettings';
 import { jobInMW } from '../utils/modelUnits';
+import { repairDuplicateLocationNames } from '../utils/uniqueLocationNames';
 
 // Convert TECH_TEMPLATES to flat array of technologies
 const getDefaultTechnologies = () => {
@@ -245,10 +246,21 @@ export const DataProvider = ({ children }) => {
     // Open a 200 ms window during which the dirty-tracking effect will not fire.
     // This absorbs both React StrictMode double-invocations and any normal first
     // flush that would otherwise falsely mark a freshly-loaded model as dirty.
-    suppressDirtyUntilRef.current = Date.now() + 200;
+    // Older models (OSM imports) can repeat a location name; names key links,
+    // engines and profiles, so make them unique on load and let autosave keep it.
+    const repaired = repairDuplicateLocationNames(model.locations || [], model.links || []);
+    suppressDirtyUntilRef.current = repaired ? 0 : Date.now() + 200;
     setCurrentModelId(model.id);
-    setLocations(model.locations || []);
-    setLinks(model.links || []);
+    setLocations(repaired ? repaired.locations : model.locations || []);
+    setLinks(repaired ? repaired.links : model.links || []);
+    if (repaired) {
+      const shown = repaired.renamed.slice(0, 3).join(', ');
+      const more = repaired.renamed.length > 3 ? ` and ${repaired.renamed.length - 3} more` : '';
+      showNotification(
+        `Renamed ${repaired.renamed.length} location${repaired.renamed.length === 1 ? '' : 's'} that shared a name with another (${shown}${more}); links were re-matched by distance.`,
+        'info',
+      );
+    }
     setParameters(model.parameters || []);
     setTechnologies(model.technologies?.length ? model.technologies : getDefaultTechnologies());
     // Restore csvContent → data for the active model only (normaliseModel skips this
