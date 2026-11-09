@@ -7,6 +7,7 @@ import { api } from '../services/api';
 import { getSetting, SETTINGS_EVENT } from '../services/appSettings';
 import { jobInMW } from '../utils/modelUnits';
 import { repairDuplicateLocationNames } from '../utils/uniqueLocationNames';
+import { repairTechDefinitions } from '../utils/repairTechDefinitions';
 
 // Convert TECH_TEMPLATES to flat array of technologies
 const getDefaultTechnologies = () => {
@@ -249,20 +250,24 @@ export const DataProvider = ({ children }) => {
     // Older models (OSM imports) can repeat a location name; names key links,
     // engines and profiles, so make them unique on load and let autosave keep it.
     const repaired = repairDuplicateLocationNames(model.locations || [], model.links || []);
-    suppressDirtyUntilRef.current = repaired ? 0 : Date.now() + 200;
+    const locs = repaired ? repaired.locations : model.locations || [];
+    // Techs placed on locations by id (OSM plants) may lack a definition under
+    // that name, which leaves them without a parent; fill those in too.
+    const baseTechs = model.technologies?.length ? model.technologies : getDefaultTechnologies();
+    const techFix = repairTechDefinitions(locs, baseTechs, getDefaultTechnologies());
+    suppressDirtyUntilRef.current = repaired || techFix ? 0 : Date.now() + 200;
     setCurrentModelId(model.id);
-    setLocations(repaired ? repaired.locations : model.locations || []);
+    setLocations(locs);
     setLinks(repaired ? repaired.links : model.links || []);
+    const list = (xs) => `${xs.slice(0, 3).join(', ')}${xs.length > 3 ? ` and ${xs.length - 3} more` : ''}`;
+    const notes = [];
     if (repaired) {
-      const shown = repaired.renamed.slice(0, 3).join(', ');
-      const more = repaired.renamed.length > 3 ? ` and ${repaired.renamed.length - 3} more` : '';
-      showNotification(
-        `Renamed ${repaired.renamed.length} location${repaired.renamed.length === 1 ? '' : 's'} that shared a name with another (${shown}${more}); links were re-matched by distance.`,
-        'info',
-      );
+      notes.push(`Renamed ${repaired.renamed.length} location${repaired.renamed.length === 1 ? '' : 's'} that shared a name with another (${list(repaired.renamed)}); links were re-matched by distance.`);
     }
+    if (techFix) notes.push(`Added missing technology definitions: ${list(techFix.added)}.`);
+    if (notes.length) showNotification(notes.join(' '), 'info');
     setParameters(model.parameters || []);
-    setTechnologies(model.technologies?.length ? model.technologies : getDefaultTechnologies());
+    setTechnologies(techFix ? techFix.technologies : baseTechs);
     // Restore csvContent → data for the active model only (normaliseModel skips this
     // to avoid blocking the renderer while processing the full model list).
     // Also backfill modelId for legacy entries that were saved without it.

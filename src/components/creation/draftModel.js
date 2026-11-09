@@ -2,6 +2,16 @@
 // model shape that createModel stores and the readiness checker reads.
 import { LINK_TYPES } from '../../config/linkTypes';
 import { uniqueNames } from '../../utils/uniqueLocationNames';
+import { TECH_TEMPLATES } from '../TechnologiesData';
+
+// OSM imports place techs on locations by built-in template id
+// ("solar_pv_utility_scale"), while techMap is keyed by name and, when
+// opentech-db is online, holds its catalog (other slugs). Fall back by id so the
+// plant still gets its definition (parent, carriers, costs).
+const STATIC_TEMPLATES = Object.values(TECH_TEMPLATES).flat();
+const templateFor = (techMap, key) => techMap[key]
+  || Object.values(techMap).find(t => t?.id === key)
+  || STATIC_TEMPLATES.find(t => t.id === key || t.name === key);
 
 export function buildDraftModel({ tempLocations, tempLinks }, techMap, { timeSeries, currentModelId }) {
   // Names key the saved model (links, engines, profiles); links are still by id
@@ -48,7 +58,7 @@ export function buildDraftModel({ tempLocations, tempLinks }, techMap, { timeSer
     if (loc.techs) {
       Object.entries(loc.techs).forEach(([techName, techData]) => {
         if (!technologies.find(t => t.name === techName)) {
-          const template = techMap[techName];
+          const template = templateFor(techMap, techName);
           if (template) {
             technologies.push({
               ...template,

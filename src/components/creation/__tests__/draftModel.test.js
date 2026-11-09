@@ -34,6 +34,17 @@ describe('buildDraftModel', () => {
     expect(draft.links[1]).toMatchObject({ from: 'Hub', to: 'Line 220kV (2)' });
   });
 
+  it('defines an OSM plant tech placed by template id even when techMap is keyed by name', () => {
+    const draft = buildDraftModel({
+      tempLocations: [{ id: 1, name: 'PV park', techs: { solar_pv_utility_scale: { constraints: { energy_cap_equals: 50 } } } }],
+      tempLinks: [],
+    }, { 'Solar PV Utility': { id: 'solar_pv_utility', name: 'Solar PV Utility' } }, { timeSeries: [] });
+    expect(draft.technologies).toHaveLength(1);
+    expect(draft.technologies[0]).toMatchObject({
+      name: 'solar_pv_utility_scale', parent: 'supply_plus', constraints: { energy_cap_equals: 50 },
+    });
+  });
+
   it('keeps the raw id of a link end that no longer exists', () => {
     const draft = buildDraftModel({ tempLocations: [{ id: 1, name: 'a', techs: {} }], tempLinks: [{ id: 9, from: 1, to: 7 }] }, {}, { timeSeries: [] });
     expect(draft.links[0]).toMatchObject({ from: 'a', to: '7' });

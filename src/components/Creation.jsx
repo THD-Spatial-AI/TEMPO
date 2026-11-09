@@ -77,7 +77,7 @@ const GRID_LINK_TYPE = 'hvac_overhead';
 const SUBSTATION_TECH_ID = 'electricity_substation';
 const SUBSTATION_TECH_DEF = {
   id: SUBSTATION_TECH_ID,
-  name: 'Electricity Substation',
+  name: SUBSTATION_TECH_ID, // the key locations use; display name in essentials
   parent: 'conversion',
   description: 'Substation / transformer node (electricity in → electricity out, with losses).',
   essentials: { name: 'Electricity Substation', color: '#4A148C', parent: 'conversion', carrier_in: 'electricity', carrier_out: 'electricity' },
@@ -92,7 +92,7 @@ const SUBSTATION_TECH_DEF = {
 const POWER_DEMAND_TECH_ID = 'power_demand';
 const POWER_DEMAND_TECH_DEF = {
   id: POWER_DEMAND_TECH_ID,
-  name: 'Power demand',
+  name: POWER_DEMAND_TECH_ID, // the key locations use; display name in essentials
   parent: 'demand',
   description: 'Electricity withdrawal (demand) attached to substation nodes.',
   essentials: { name: 'Power demand', color: '#607D8B', parent: 'demand', carrier: 'electricity' },
