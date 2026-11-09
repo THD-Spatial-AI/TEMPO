@@ -107,3 +107,40 @@ def test_cache_temp_name_includes_thread_id(tmp_path, monkeypatch):
     monkeypatch.setattr(os, "replace", lambda a, b: (seen.append(Path(a).name), real(a, b)))
     rg.wind_grid(-40, -75, -30, -65, "2025-01-01", 6, tmp_path, request_json=_capture([]))
     assert f".{os.getpid()}.{threading.get_ident()}." in seen[0]
+
+
+def fake_solar(params, **kw):
+    lats = [float(x) for x in params["latitude"].split(",")]
+    ghi = [0.0] * 6 + [None] + [400.0] * 17
+    return [{"hourly": {"shortwave_radiation": ghi}} for _ in lats]
+
+
+def test_solar_grid_shape_one_request_and_cache(tmp_path):
+    calls = []
+
+    def rj(params, **kw):
+        calls.append(params)
+        return fake_solar(params)
+
+    g = rg.solar_grid(-40, -75, -30, -65, "2025-01-01", 6, tmp_path, request_json=rj)
+    assert calls[0]["hourly"] == "shortwave_radiation" and len(calls) == 1
+    assert np.array(g["ghi"]).shape == (24, 6, 6) and g["date"] == "2025-01-01"
+    assert g["ghi"][0][0][0] == 0.0 and g["ghi"][6][2][3] == 0.0 and g["ghi"][12][0][0] == 400.0
+    rg.solar_grid(-40, -75, -30, -65, "2025-01-01", 6, tmp_path, request_json=rj)
+    assert len(calls) == 1
+    rg.wind_grid(-40, -75, -30, -65, "2025-01-01", 6, tmp_path, request_json=_capture([]))  # separate cache key
+    assert len(list(tmp_path.glob("*.json.gz"))) == 2
+
+
+def test_solar_grid_validates_like_wind(tmp_path):
+    with pytest.raises(ValueError):
+        rg.solar_grid(-40, -75, -30, -65, "2025-01-01", 40, tmp_path, request_json=fake_solar)
+    with pytest.raises(ValueError, match="date"):
+        rg.solar_grid(-40, -75, -30, -65, "2999-01-01", 6, tmp_path, request_json=fake_solar)
+    with pytest.raises(ValueError):
+        rg.solar_grid(-30, -75, -40, -65, "2025-01-01", 6, tmp_path, request_json=fake_solar)
+
+
+def test_solar_grid_wrong_location_count_is_runtime_error(tmp_path):
+    with pytest.raises(RuntimeError):
+        rg.solar_grid(-40, -75, -30, -65, "2025-01-01", 6, tmp_path, request_json=lambda p, **k: [])

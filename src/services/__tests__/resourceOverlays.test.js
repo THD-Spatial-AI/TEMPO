@@ -28,26 +28,50 @@ describe('resource overlay wind-grid reuse', () => {
   });
 });
 
-describe('resource overlay initial layer / flow', () => {
+describe('resource overlay initial layer / streamlines / sun', () => {
   afterEach(() => { delete globalThis.localStorage; });
   const store = (v) => { globalThis.localStorage = { getItem: () => v }; };
+  const off = { layer: 'none', streamlines: false, sun: false };
 
   it('uses the defaults (off without any) when nothing is stored', () => {
-    expect(readPrefs(undefined, undefined)).toEqual({ layer: 'none', flow: false });
-    expect(readPrefs(undefined, { layer: 'pvout' })).toEqual({ layer: 'pvout', flow: false });
-    expect(readPrefs(undefined, { layer: 'wind100', flow: true })).toEqual({ layer: 'wind100', flow: true });
+    expect(readPrefs(undefined, undefined)).toEqual(off);
+    expect(readPrefs(undefined, { layer: 'pvout', sun: true })).toEqual({ layer: 'pvout', streamlines: false, sun: true });
+    expect(readPrefs(undefined, { layer: 'wind100', streamlines: true })).toEqual({ layer: 'wind100', streamlines: true, sun: false });
     store(null);
-    expect(readPrefs('tempo.overlays', undefined)).toEqual({ layer: 'none', flow: false });
+    expect(readPrefs('tempo.overlays', undefined)).toEqual(off);
   });
 
   it('restores the stored choice and ignores removed or invalid values', () => {
-    store('{"layer":"wind100","flow":true}');
-    expect(readPrefs('tempo.overlays')).toEqual({ layer: 'wind100', flow: true });
-    store('{"layer":"ghi","flow":"yes"}');
-    expect(readPrefs('tempo.overlays')).toEqual({ layer: 'none', flow: false });
+    store('{"layer":"wind100","streamlines":true,"sun":true}');
+    expect(readPrefs('tempo.overlays')).toEqual({ layer: 'wind100', streamlines: true, sun: true });
+    store('{"layer":"ghi","streamlines":"yes","sun":1}');
+    expect(readPrefs('tempo.overlays')).toEqual(off);
     store('not json');
-    expect(readPrefs('tempo.overlays', { layer: 'pvout' })).toEqual({ layer: 'pvout', flow: false });
+    expect(readPrefs('tempo.overlays', { layer: 'pvout' })).toEqual({ layer: 'pvout', streamlines: false, sun: false });
     globalThis.localStorage = { getItem: () => { throw new Error('blocked'); } };
-    expect(readPrefs('tempo.overlays')).toEqual({ layer: 'none', flow: false });
+    expect(readPrefs('tempo.overlays')).toEqual(off);
+  });
+
+  it('maps the old `flow` key to streamlines', () => {
+    store('{"layer":"wind100","flow":true}');
+    expect(readPrefs('tempo.overlays')).toEqual({ layer: 'wind100', streamlines: true, sun: false });
+    store('{"flow":true,"streamlines":false}');
+    expect(readPrefs('tempo.overlays')).toEqual(off);
+    expect(readPrefs(undefined, { flow: true })).toEqual({ layer: 'none', streamlines: true, sun: false });
+  });
+});
+
+describe('boundsKey (real deck.gl viewport)', () => {
+  it('gives south,west,north,east around the view centre', async () => {
+    const { boundsKey } = await import('../../components/map/useViewBounds');
+    const [s, w, n, e] = boundsKey({ longitude: -69.93, latitude: -19.26, zoom: 7.56 }, 1008, 770).split(',').map(Number);
+    expect(s).toBeLessThan(-19.26); expect(n).toBeGreaterThan(-19.26);
+    expect(w).toBeLessThan(-69.93); expect(e).toBeGreaterThan(-69.93);
+    expect(e - w).toBeGreaterThan(1); expect(e - w).toBeLessThan(5);
+  });
+  it('is empty without a size or across the antimeridian', async () => {
+    const { boundsKey } = await import('../../components/map/useViewBounds');
+    expect(boundsKey({ longitude: 0, latitude: 0, zoom: 5 }, 0, 500)).toBe('');
+    expect(boundsKey({ longitude: 179.9, latitude: 0, zoom: 4 }, 1000, 500)).toBe('');
   });
 });

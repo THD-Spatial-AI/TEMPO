@@ -12,6 +12,7 @@
  *   GET  /turbines              → { turbines: [{ id, label, generic }] }  (503 { detail } without windpowerlib)
  *   GET  /atlas/view            → PNG + X-Bounds: w,s,e,n, X-Countries: a,b (204 no data)  ?layer&south&west&north&east&width
  *   GET  /wind-grid             → { lats, lons, date, u[24][n][n], v[24][n][n] }  ?south&west&north&east&date&n
+ *   GET  /solar-grid            → { lats, lons, date, ghi[24][n][n] } (W/m²)  same params as /wind-grid
  *   GET  /jobs/{id}             → { state, done, total, message, error, result }
  */
 const bridge = () => (typeof window !== 'undefined' ? window.electronAPI : null);
@@ -187,3 +188,7 @@ export async function fetchAtlasView({ layer, south, west, north, east, width })
 /** One day of hourly 100 m u/v on an n×n grid (V5) → `{ ok:true, grid }` or `{ ok:false, status, error }`. */
 export const fetchWindGrid = ({ south, west, north, east, date, n }) =>
   getJson('/wind-grid', { south, west, north, east, date, n }, b => ({ grid: b }));
+
+/** One day of hourly GHI (W/m²) on an n×n grid (S3) → `{ ok:true, grid }` or `{ ok:false, status, error }`. */
+export const fetchSolarGrid = ({ south, west, north, east, date, n }) =>
+  getJson('/solar-grid', { south, west, north, east, date, n }, b => ({ grid: b }));

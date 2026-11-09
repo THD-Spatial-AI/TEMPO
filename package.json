@@ -136,6 +136,7 @@
     ]
   },
   "dependencies": {
+    "@anvaka/streamlines": "^1.6.0",
     "@deck.gl/core": "^9.2.5",
     "@deck.gl/layers": "^9.2.5",
     "@deck.gl/react": "^9.2.5",

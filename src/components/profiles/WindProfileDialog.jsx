@@ -22,7 +22,7 @@ import BestPointPanel from './BestPointPanel';
 import { LAST_FULL_YEAR } from './PvSettingsRow';
 
 const PROVIDER = 'open-meteo+windpowerlib';
-const WIND_OVERLAYS = { layer: 'wind100', flow: true };
+const WIND_OVERLAYS = { layer: 'wind100', streamlines: true };
 const BTN = 'px-3 py-1.5 text-xs font-medium bg-black text-white hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed';
 
 const coord = (v) => (v === '' || v == null ? NaN : Number(v));

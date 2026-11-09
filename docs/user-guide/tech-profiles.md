@@ -67,7 +67,8 @@ The method of the stored profile, when there is one, is shown after the status.
 
 ## Installing the Renewables component
 
-PV and wind profiles, the atlas overlays and the wind flow all run in a local service. Install
+PV and wind profiles, the atlas overlays, the wind streamlines and the sunshine layer all run
+in a local service. Install
 it under Settings → Components as **Renewables profiles**. The only data that leaves your
 computer is the weather and atlas requests listed under
 [Data sources and licences](#data-sources-and-licences).
@@ -242,13 +243,15 @@ cache.
 
 ## Map overlays
 
-The atlas and wind-flow overlays help you choose sites. They appear in the **Map** view
-(controls at the top left) and on the point map inside the PV and wind dialogs.
+The atlas, wind-streamline and sunshine overlays help you choose sites. They appear in the
+**Map** view (controls at the top left) and on the point map inside the PV and wind dialogs.
 
-The PV dialog's map opens with **Solar potential (PVOUT)** on, and the wind dialog's map opens
-with **Wind speed 100 m** and **Wind flow** on. The **Map** view starts with the overlays you
-used last (none the first time). You can switch them there with the controls or with the
-overlay toggles in the layer selector.
+The PV dialog's map opens with **Sunshine (hourly)** on over **Solar potential (PVOUT)**. The
+atlas is dimmed to half opacity under the sunshine glow. The wind dialog's map opens with
+**Wind speed 100 m** and **Wind streamlines** on. The **Map** view starts with the overlays you
+used last (none the first time; a stored **Wind flow** choice from an older version turns on
+the streamlines). You can switch them there with the controls or with the overlay toggles in
+the layer selector.
 
 ### Atlas layers
 
@@ -274,18 +277,41 @@ atlas data in this area** or **No wind atlas data in this area**.
 For Chile, the Global Solar Atlas coverage stops at 46°S, so the solar layer shows nothing
 south of −46°. Other countries may have similar edges.
 
-### Wind flow
+### Date, hour and play
 
-Tick **Wind flow** for an animated layer of the 100 m wind. Use the date field and the hour
-slider (shown as `HH:00 UTC`) to pick the moment. The default date is 7 days ago, and the
-latest selectable date is 6 days ago, because ERA5 lags real time.
+**Wind streamlines** and **Sunshine (hourly)** share one date field and one hour slider
+(shown as `HH:00 UTC`). The default date is 7 days ago, and the latest selectable date is 6
+days ago, because ERA5 lags real time.
 
-TEMPO makes one Open-Meteo request per map view and date, for a 16 × 16 grid of points. That
-is 256 locations in one request, which Open-Meteo counts as about that many calls (n² for an
-n × n grid; the service accepts n from 6 to 20, so at most 20 × 20). Results are cached.
-Open-Meteo's free tier has rate limits, so avoid panning continuously while wind flow is on.
+The **▶** button plays the day: the hour advances every 0.6 s and loops from 00:00 to 23:00
+UTC. Press **❚❚** or move the slider to stop. Playing also stops when the window is minimised
+or hidden, or when you close the map. Hours are UTC, so local noon in Chile is about 16:00 UTC.
 
-When an overlay is visible, its attribution is shown under the controls.
+### Wind streamlines
+
+Tick **Wind streamlines** for animated lines of the 100 m wind. The lines are evenly spaced
+and follow the wind direction. Bright segments flow along each line downwind. Faster wind
+gives brighter lines and faster movement (dim blue-white at about 2 m/s, bright white from
+about 14 m/s). The lines are recomputed when you change the hour or move the map.
+
+### Sunshine (hourly)
+
+Tick **Sunshine (hourly)** for a glow of the global horizontal irradiance (GHI, W/m², mean of
+the preceding hour) for the chosen hour. Night is transparent. Low sun shows as orange (about
+150 W/m²), then warm yellow (about 500 W/m²) and near white from about 900 W/m². While the day
+plays, the glow blends smoothly between hours.
+
+### Data requests
+
+For each overlay that is on, TEMPO makes one Open-Meteo request per map view and date, for a
+16 × 16 grid of points. That is 256 locations in one request, which Open-Meteo counts as about
+that many calls (n² for an n × n grid; the service accepts n from 6 to 20, so at most 20 × 20).
+Wind and sunshine are separate requests. The grid covers a margin around the view, so small
+pans reuse it. Results are cached, and playing the day makes no new requests. Open-Meteo's
+free tier has rate limits, so avoid panning continuously while these overlays are on.
+
+When an overlay is visible, its attribution is shown under the controls. The streamlines and
+the sunshine layer show "Open-Meteo.com (ERA5), CC BY 4.0".
 
 ---
 

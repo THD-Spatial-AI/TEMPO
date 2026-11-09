@@ -20,6 +20,7 @@ renewables_service.py — local FastAPI service for weather-based resource profi
                         joined by ","); 204 when no country in view has data, 422/400 bad bounds,
                         503 rasterio/pycountry missing
     GET  /wind-grid?south&west&north&east&date&n → {lats,lons,date,u[24][n][n],v[24][n][n]}; 400 bad date/n, 502 upstream
+    GET  /solar-grid  (same params/errors) → {lats,lons,date,ghi[24][n][n]} W/m2, UTC hours
 
 Weather is cached per ERA5 cell under TEMPO_WEATHER_CACHE (Electron sets
 <userData>/weather-cache). Weather data: Open-Meteo.com (ERA5, CC BY 4.0).
@@ -336,6 +337,23 @@ def wind_grid(south: float = Query(ge=-90, le=90), west: float = Query(ge=-180, 
     day = date or (dt.date.today() - dt.timedelta(days=7)).isoformat()
     try:
         return rg.wind_grid(south, west, north, east, day, n, CACHE_DIR)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(502, str(exc))
+    except requests.RequestException as exc:
+        raise HTTPException(502, f"Open-Meteo unavailable: {exc}")
+
+
+@app.get("/solar-grid")
+def solar_grid(south: float = Query(ge=-90, le=90), west: float = Query(ge=-180, le=180),
+              north: float = Query(ge=-90, le=90), east: float = Query(ge=-180, le=180),
+              date: str = "", n: int = 16):
+    import requests
+    rg = _grid()
+    day = date or (dt.date.today() - dt.timedelta(days=7)).isoformat()
+    try:
+        return rg.solar_grid(south, west, north, east, day, n, CACHE_DIR)
     except ValueError as exc:
         raise HTTPException(400, str(exc))
     except RuntimeError as exc:

@@ -380,3 +380,32 @@ def test_wind_grid_upstream_http_error_is_502(client, monkeypatch):
     monkeypatch.setattr(mod.renewables_weather, "request_json", boom)
     day = (dt.date.today() - dt.timedelta(days=10)).isoformat()
     assert client.get(f"/wind-grid?south=-37&west=-74&north=-30&east=-68&date={day}&n=6").status_code == 502
+
+
+def test_solar_grid_endpoint(client, monkeypatch):
+    import renewables_service as mod
+
+    def fake_request_json(params, **kw):
+        n = len(params["latitude"].split(","))
+        return [{"hourly": {"shortwave_radiation": [300.0] * 24}} for _ in range(n)]
+
+    monkeypatch.setattr(mod.renewables_weather, "request_json", fake_request_json)
+    day = (dt.date.today() - dt.timedelta(days=10)).isoformat()
+    q = f"/solar-grid?south=-37&west=-74&north=-30&east=-68&date={day}&n=6"
+    body = client.get(q).json()
+    assert len(body["ghi"]) == 24 and len(body["ghi"][0]) == 6 and len(body["ghi"][0][0]) == 6
+    assert client.get(q.replace(day, "2999-01-01")).status_code == 400
+    bad = f"/solar-grid?south=-30&west=-74&north=-37&east=-68&date={day}&n=6"
+    assert client.get(bad).status_code == 400
+
+
+def test_solar_grid_upstream_http_error_is_502(client, monkeypatch):
+    import requests
+    import renewables_service as mod
+
+    def boom(params, **kw):
+        raise requests.HTTPError("414 URI Too Long")
+
+    monkeypatch.setattr(mod.renewables_weather, "request_json", boom)
+    day = (dt.date.today() - dt.timedelta(days=10)).isoformat()
+    assert client.get(f"/solar-grid?south=-37&west=-74&north=-30&east=-68&date={day}&n=6").status_code == 502

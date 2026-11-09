@@ -79,7 +79,7 @@ const MapDeckGL = () => {
   const [webglErrorMsg, setWebglErrorMsg] = useState('');
   const [webglCompatMode, setWebglCompatMode] = useState(false);
   const [webglRetryAttempted, setWebglRetryAttempted] = useState(false);
-  const resource = useResourceOverlays({ viewState, enabled: webglAvailable !== false, storageKey: 'tempo.overlays' }); // atlas + wind-flow overlays, last choice kept
+  const resource = useResourceOverlays({ viewState, enabled: webglAvailable !== false, storageKey: 'tempo.overlays' }); // atlas + streamline + sunshine overlays, last choice kept
   const deckRef = useRef(null);
   const leafletMapRef = useRef(null);
   const leafletContainerRef = useRef(null);
@@ -1305,7 +1305,8 @@ const MapDeckGL = () => {
               ...(demandCells?.features?.length ? [{ id: 'demand-cells', label: 'Demand cells', checked: cellsView.visible, onToggle: cellsView.setVisible }] : []),
               { id: 'solar-potential', label: 'Solar potential', checked: resource.controlsProps.layer === 'pvout', onToggle: on => resource.controlsProps.setLayer(on ? 'pvout' : 'none') },
               { id: 'wind-speed', label: 'Wind speed 100 m', checked: resource.controlsProps.layer === 'wind100', onToggle: on => resource.controlsProps.setLayer(on ? 'wind100' : 'none') },
-              { id: 'wind-flow', label: 'Wind flow', checked: resource.controlsProps.flow, onToggle: resource.controlsProps.setFlow },
+              { id: 'wind-streamlines', label: 'Wind streamlines', checked: resource.controlsProps.streamlines, onToggle: resource.controlsProps.setStreamlines },
+              { id: 'sunshine', label: 'Sunshine (hourly)', checked: resource.controlsProps.sun, onToggle: resource.controlsProps.setSun },
             ]}
           />
           <MapZoomControls onZoomIn={handleZoomIn} onZoomOut={handleZoomOut} onFitBounds={fitBounds} />

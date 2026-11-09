@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   getRenewablesURL, checkRenewables, computePv, optimiseOrientation, computeWind, bestWindPoint, listTurbines,
-  fetchAtlasView, fetchWindGrid,
+  fetchAtlasView, fetchWindGrid, fetchSolarGrid,
 } from '../renewablesClient';
 
 const json = (body, status = 200) => ({ ok: status < 400, status, json: async () => body });
@@ -155,11 +155,25 @@ describe('renewablesClient', () => {
     expect(await fetchWindGrid(req)).toEqual({ ok: false, status: 400, error: 'bad date' });
   });
 
+  it('fetchSolarGrid requests /solar-grid with the wind-grid params', async () => {
+    const grid = { lats: [0, 1], lons: [0, 1], date: '2026-10-31', ghi: [] };
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce(json(grid))
+      .mockResolvedValueOnce(json({ detail: 'bad date' }, 400));
+    const req = { south: 0, west: 0, north: 1, east: 1, date: '2026-10-31', n: 16 };
+    expect(await fetchSolarGrid(req)).toEqual({ ok: true, grid });
+    const q = new URL(fetch.mock.calls[0][0]);
+    expect(q.pathname).toBe('/solar-grid');
+    expect(Object.fromEntries(q.searchParams)).toEqual({ south: '0', west: '0', north: '1', east: '1', date: '2026-10-31', n: '16' });
+    expect(await fetchSolarGrid(req)).toEqual({ ok: false, status: 400, error: 'bad date' });
+  });
+
   it('overlay calls fail cleanly when the service is not running', async () => {
     window.electronAPI.getServiceURLs = async () => ({});
     const off = { ok: false, error: 'renewables service not running' };
     expect(await fetchAtlasView({ layer: 'pvout' })).toEqual(off);
     expect(await fetchWindGrid({})).toEqual(off);
+    expect(await fetchSolarGrid({})).toEqual(off);
   });
 
   it('fails cleanly when the service is not running', async () => {

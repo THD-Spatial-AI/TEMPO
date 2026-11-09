@@ -15,5 +15,6 @@ export const OVERLAY_LAYERS = {
 export const ATTRIBUTION = {
   gsa: 'Global Solar Atlas 2.0 (Solargis / World Bank–ESMAP), CC BY 4.0',
   gwa: 'Global Wind Atlas (DTU / World Bank–ESMAP), CC BY 4.0',
-  flow: 'Wind flow: Open-Meteo.com (ERA5), CC BY 4.0',
+  flow: 'Wind streamlines: Open-Meteo.com (ERA5), CC BY 4.0',
+  sun: 'Sunshine: Open-Meteo.com (ERA5), CC BY 4.0',
 };

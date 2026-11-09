@@ -20,7 +20,7 @@ import PvSettingsRow, { LAST_FULL_YEAR } from './PvSettingsRow';
 import OptimisePanel from './OptimisePanel';
 
 const PROVIDER = 'open-meteo+pvlib';
-const PV_OVERLAYS = { layer: 'pvout' };
+const PV_OVERLAYS = { layer: 'pvout', sun: true };
 const BTN = 'px-3 py-1.5 text-xs font-medium bg-black text-white hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed';
 
 const defaultSettings = (techName) => ({

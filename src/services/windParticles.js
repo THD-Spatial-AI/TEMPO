@@ -1,8 +1,7 @@
 /**
- * windParticles.js — pure CPU particle advection for the wind-flow overlay (V6).
+ * windParticles.js — bilinear sampling of the wind grid (used by windStreamlines).
  * grid = { lats[n], lons[n], u[24][n][n], v[24][n][n] } (m/s, rows = lats).
  */
-const TRAIL = 8;
 
 function cellPos(axis, x) {
   const n = axis.length;
@@ -25,29 +24,4 @@ export function sampleUV(grid, h, lon, lat) {
     return a * (1 - fy) + b * fy;
   };
   return [lerp2(grid.u[h]), lerp2(grid.v[h])];
-}
-
-function spawn(bounds, rng) {
-  const lon = bounds.west + rng() * (bounds.east - bounds.west);
-  const lat = bounds.south + rng() * (bounds.north - bounds.south);
-  return { lon, lat, age: 0, maxAge: 60 + Math.floor(rng() * 60), trail: [[lon, lat]] };
-}
-
-export function createParticles(count, bounds, rng = Math.random) {
-  return Array.from({ length: count }, () => spawn(bounds, rng));
-}
-
-/** One animation step. `scale` = degrees moved per (m/s) per frame (zoom-dependent). */
-export function stepParticles(particles, grid, h, bounds, scale, rng = Math.random) {
-  return particles.map((p) => {
-    const uv = p.age >= p.maxAge ? null : sampleUV(grid, h, p.lon, p.lat);
-    if (!uv) return spawn(bounds, rng);
-    const [u, v] = uv;
-    const cos = Math.max(0.2, Math.cos((p.lat * Math.PI) / 180));
-    const lon = p.lon + (u * scale) / cos;
-    const lat = p.lat + v * scale;
-    if (!sampleUV(grid, h, lon, lat)) return spawn(bounds, rng);
-    const trail = [...p.trail, [lon, lat]].slice(-TRAIL);
-    return { ...p, lon, lat, age: p.age + 1, trail };
-  });
 }

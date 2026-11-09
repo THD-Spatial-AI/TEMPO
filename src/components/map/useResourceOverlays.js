@@ -1,30 +1,47 @@
 // Resource map overlays (Inc 5): an atlas raster (Global Solar / Wind Atlas, read
-// remotely by the renewables service for the countries in the current view) and animated wind-flow
-// particles from an Open-Meteo u/v grid. State is per map instance (V9); nothing
-// is fetched or animated while `enabled` is false or the overlays are off.
+// remotely by the renewables service for the countries in the current view), animated wind
+// streamlines (useWindStreamlines) and an hourly sunshine glow (useSunshine), with a shared
+// date / hour and a play button that sweeps the day. State is per map instance (V9); nothing
+// is fetched or animated while `enabled` is false, the overlays are off or the page is hidden.
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { COORDINATE_SYSTEM } from '@deck.gl/core';
-import { BitmapLayer, PathLayer } from '@deck.gl/layers';
-import { fetchAtlasView, fetchWindGrid } from '../../services/renewablesClient';
-import { createParticles, stepParticles } from '../../services/windParticles';
+import { BitmapLayer } from '@deck.gl/layers';
+import { TripsLayer } from '@deck.gl/geo-layers';
+import { fetchAtlasView } from '../../services/renewablesClient';
+import { TRAIL } from '../../services/windStreamlines';
 import useViewBounds from './useViewBounds';
+import useWindStreamlines from './useWindStreamlines';
+import useSunshine from './useSunshine';
 
-const PARTICLES = 1500;
-const GRID_N = 16;
-const FRAME_MS = 33; // ~30 store updates (DeckGL re-renders) per second while the flow animates
+export { padded, gridServes } from './overlayGrid';
+
+const HOUR_MS = 600; // play: one hour per 600 ms
+const PLAY_FRAME_MS = 83; // play: ~12 sunshine frames per second
 const NONE = [];
 
 export const isoDaysAgo = d => new Date(Date.now() - d * 86_400_000).toISOString().slice(0, 10);
 
 const LAYERS = ['none', 'pvout', 'wind100'];
+const bool = (v, d) => (typeof v === 'boolean' ? v : d);
 
-/** Initial `{ layer, flow }`: the stored choice under `storageKey` (if any and valid), else `defaults`, else off. */
+/**
+ * Initial `{ layer, streamlines, sun }`: the stored choice under `storageKey` (if any and valid),
+ * else `defaults`, else off. The old `flow` key (wind particles) maps to `streamlines`.
+ */
 export function readPrefs(storageKey, defaults) {
-  const d = { layer: LAYERS.includes(defaults?.layer) ? defaults.layer : 'none', flow: !!defaults?.flow };
+  const d = {
+    layer: LAYERS.includes(defaults?.layer) ? defaults.layer : 'none',
+    streamlines: !!(defaults?.streamlines ?? defaults?.flow),
+    sun: !!defaults?.sun,
+  };
   if (!storageKey) return d;
   try {
     const p = JSON.parse(localStorage.getItem(storageKey) || 'null');
-    return { layer: LAYERS.includes(p?.layer) ? p.layer : d.layer, flow: typeof p?.flow === 'boolean' ? p.flow : d.flow };
+    return {
+      layer: LAYERS.includes(p?.layer) ? p.layer : d.layer,
+      streamlines: bool(p?.streamlines, bool(p?.flow, d.streamlines)),
+      sun: bool(p?.sun, d.sun),
+    };
   } catch {
     return d;
   }
@@ -33,91 +50,76 @@ function savePrefs(storageKey, prefs) {
   try { localStorage.setItem(storageKey, JSON.stringify(prefs)); } catch { /* per-viewer convenience only */ }
 }
 
-// Wind-grid request box: the view padded by 25 % per side, so small pans reuse the grid,
-// and snapped outward to 0.25° so the service cache hits (each fetch costs ~n² API calls).
-const down = x => Math.floor(x * 4) / 4;
-const up = x => Math.ceil(x * 4) / 4;
-export function padded({ south, west, north, east }) {
-  const dy = (north - south) / 4;
-  const dx = (east - west) / 4;
-  return {
-    south: Math.max(-85, down(south - dy)), north: Math.min(85, up(north + dy)),
-    west: Math.max(-180, down(west - dx)), east: Math.min(180, up(east + dx)),
-  };
-}
-
-const extent = g => ({ south: g.lats[0], north: g.lats[g.lats.length - 1], west: g.lons[0], east: g.lons[g.lons.length - 1] });
-
-// A grid still serves the view when it covers it and is at most twice the size of the
-// request the view would make now (so a grid fetched for `padded(view)` always serves).
-export function gridServes(grid, b, date) {
-  if (!grid || grid.date !== date) return false;
-  const g = extent(grid);
-  const want = padded(b);
-  const covers = b.south >= g.south && b.north <= g.north && b.west >= g.west && b.east <= g.east;
-  return covers && g.north - g.south <= 2 * (want.north - want.south) && g.east - g.west <= 2 * (want.east - want.west);
-}
-
-function intersect(a, b) {
-  const r = { south: Math.max(a.south, b.south), north: Math.min(a.north, b.north), west: Math.max(a.west, b.west), east: Math.min(a.east, b.east) };
-  return r.south < r.north && r.west < r.east ? r : a;
-}
-
-// Particle trails outside React state: the animation writes here and only <WithFlow>
-// (wrapped around the DeckGL element) subscribes, so the host map does not re-render.
+// Animated overlay state outside React state: the animations patch `{ trips, time, sun }` here
+// and only <WithFlow> (wrapped around the DeckGL element) subscribes, so the host map does not
+// re-render per frame.
+const EMPTY = { trips: null, time: 0, sun: null };
 function createStore() {
-  let value = null;
+  let value = EMPTY;
   const subs = new Set();
   return {
     get: () => value,
-    set: (v) => { if (v !== value) { value = v; subs.forEach(f => f()); } },
+    patch: (p) => {
+      if (Object.keys(p).every(k => p[k] === value[k])) return;
+      value = { ...value, ...p };
+      subs.forEach(f => f());
+    },
     subscribe: (f) => { subs.add(f); return () => subs.delete(f); },
   };
 }
 
-const flowLayer = trails => new PathLayer({
-  id: 'overlay-flow',
-  data: trails,
-  getPath: p => p.trail,
-  getColor: [255, 255, 255, 180],
-  widthMinPixels: 1,
-  updateTriggers: { getPath: trails },
+const sunLayer = sun => new BitmapLayer({
+  id: 'overlay-sunshine', image: sun.image, bounds: sun.bounds,
+  _imageCoordinateSystem: COORDINATE_SYSTEM.LNGLAT,
 });
 
-/** Render prop: `children(layers)` with the flow layer between `under` and `rest`, re-rendered per frame. */
+const streamLayer = (trips, time) => new TripsLayer({
+  id: 'overlay-streamlines',
+  data: trips,
+  getPath: d => d.path,
+  getTimestamps: d => d.timestamps,
+  getColor: d => d.color,
+  currentTime: time,
+  trailLength: TRAIL,
+  fadeTrail: true,
+  widthMinPixels: 1.5,
+  capRounded: true,
+});
+
+/** Render prop: `children(layers)` with sunshine + streamlines between `under` and `rest`, re-rendered per frame. */
 export function WithFlow({ store, under, rest, children }) {
-  const trails = useSyncExternalStore(store.subscribe, store.get);
-  return children(trails ? [...under, flowLayer(trails), ...rest] : [...under, ...rest]);
+  const { trips, time, sun } = useSyncExternalStore(store.subscribe, store.get);
+  const mid = [];
+  if (sun) mid.push(sunLayer(sun));
+  if (trips?.length) mid.push(streamLayer(trips, time));
+  return children(mid.length ? [...under, ...mid, ...rest] : [...under, ...rest]);
 }
 
 /**
- * @param {{ viewState: {longitude, latitude, zoom}, enabled: boolean, defaults?: {layer?, flow?}, storageKey?: string }} args
- *   `defaults` sets the initial layer / flow; with `storageKey` the last choice is kept in localStorage.
+ * @param {{ viewState: {longitude, latitude, zoom}, enabled: boolean, defaults?: {layer?, streamlines?, sun?}, storageKey?: string }} args
+ *   `defaults` sets the initial overlays; with `storageKey` the last choice is kept in localStorage.
  * @returns {{ ref: Function, layers: object[], flowStore: object, active: boolean, controlsProps: object }}
  *   `ref` goes on the map container (measured for the view bounds); `layers` = [atlas] (or none);
- *   the flow layer comes from `<WithFlow store={flowStore} …>` around the DeckGL element.
+ *   sunshine and streamlines come from `<WithFlow store={flowStore} …>` around the DeckGL element.
  */
 export default function useResourceOverlays({ viewState, enabled, defaults, storageKey }) {
   const view = useViewBounds(viewState, enabled);
   const { bounds, width } = view;
-  const zoom = viewState?.zoom ?? 6;
   const [initial] = useState(() => readPrefs(storageKey, defaults));
   const [layer, setLayer] = useState(initial.layer); // none | pvout | wind100
-  const [flow, setFlow] = useState(initial.flow);
+  const [streamlines, setStreamlines] = useState(initial.streamlines);
+  const [sun, setSun] = useState(initial.sun);
   const [hour, setHour] = useState(12);
   const [date, setDate] = useState(() => isoDaysAgo(7));
+  const [playing, setPlaying] = useState(false);
   const [image, setImage] = useState(null); // { key, layer, url, bounds, countries } or { key, layer, note | error }
   const [loadingKey, setLoadingKey] = useState(''); // view key of the atlas request in flight
-  const [grid, setGrid] = useState(null);
-  const [flowState, setFlowState] = useState({ loading: false, error: null });
   const [flowStore] = useState(createStore);
   const [hidden, setHidden] = useState(false);
   const alive = useRef(true);
   const imageReq = useRef(0);
-  const flowReq = useRef(0);
   const urlRef = useRef(null); // object URL currently in `image`
-  const particles = useRef(null); // { grid, list }
-  const live = useRef({ hour, zoom, bounds });
+  const hourRef = useRef(hour);
 
   useEffect(() => {
     alive.current = true;
@@ -127,13 +129,46 @@ export default function useResourceOverlays({ viewState, enabled, defaults, stor
       urlRef.current = null;
     };
   }, []);
-  useEffect(() => { live.current = { hour, zoom, bounds }; }, [hour, zoom, bounds]);
-  useEffect(() => { if (storageKey) savePrefs(storageKey, { layer, flow }); }, [storageKey, layer, flow]);
+  useEffect(() => { hourRef.current = hour; }, [hour]);
+  useEffect(() => { if (storageKey) savePrefs(storageKey, { layer, streamlines, sun }); }, [storageKey, layer, streamlines, sun]);
+
+  const animated = enabled && (streamlines || sun);
+  if (!animated && playing) setPlaying(false); // no auto-resume when an overlay comes back on
+  useEffect(() => {
+    if (!animated) return undefined;
+    const sync = () => {
+      setHidden(document.hidden);
+      if (document.hidden) setPlaying(false);
+    };
+    sync();
+    document.addEventListener('visibilitychange', sync);
+    return () => document.removeEventListener('visibilitychange', sync);
+  }, [animated]);
+  const isPlaying = playing && animated && !hidden;
+
+  const wind = useWindStreamlines({ on: enabled && streamlines, bounds, date, hour, hidden, store: flowStore });
+  const sunshine = useSunshine({ on: enabled && sun, bounds, date, hour, playing: isPlaying, hidden, store: flowStore });
+  const renderSun = sunshine.render;
+
+  // Play: the hour advances every HOUR_MS (looping 0→23 UTC); sunshine frames in between
+  // are interpolated at ~12 fps. Stops on unmount, when hidden or when the overlays go off.
+  useEffect(() => {
+    if (!isPlaying) return undefined;
+    const t0 = performance.now();
+    const h0 = hourRef.current;
+    let last = h0;
+    const id = setInterval(() => {
+      const t = (h0 + (performance.now() - t0) / HOUR_MS) % 24;
+      renderSun(t);
+      const h = Math.floor(t);
+      if (h !== last) { last = h; setHour(h); }
+    }, PLAY_FRAME_MS);
+    return () => clearInterval(id);
+  }, [isPlaying, renderSun]);
 
   const atlasLayer = enabled && layer !== 'none' ? layer : '';
   const px = Math.min(1024, Math.round(width));
   const viewKey = atlasLayer && bounds && px > 0 ? `${atlasLayer}|${view.key}|${px}` : '';
-
   const replaceImage = useCallback((next) => {
     if (urlRef.current && urlRef.current !== next?.url) URL.revokeObjectURL(urlRef.current);
     urlRef.current = next?.url || null;
@@ -159,72 +194,29 @@ export default function useResourceOverlays({ viewState, enabled, defaults, stor
     return () => clearTimeout(t);
   }, [viewKey, atlasLayer, bounds, px, replaceImage]);
 
-  // Wind grid for the (padded) view, refetched only when the view outgrows it.
-  useEffect(() => {
-    if (!enabled || !flow || !bounds || gridServes(grid, bounds, date)) return undefined;
-    const id = ++flowReq.current;
-    const t = setTimeout(async () => {
-      setFlowState({ loading: true, error: null });
-      const res = await fetchWindGrid({ ...padded(bounds), date, n: GRID_N });
-      if (!alive.current || id !== flowReq.current) return;
-      setFlowState({ loading: false, error: res.ok ? null : res.error });
-      if (res.ok && res.grid?.lats?.length > 1) setGrid({ ...res.grid, date });
-    }, 600);
-    return () => clearTimeout(t);
-  }, [enabled, flow, bounds, date, grid]);
-
-  useEffect(() => {
-    if (!enabled || !flow) return undefined;
-    const sync = () => setHidden(document.hidden);
-    sync();
-    document.addEventListener('visibilitychange', sync);
-    return () => document.removeEventListener('visibilitychange', sync);
-  }, [enabled, flow]);
-
-  // Particle animation: steps every frame (speed independent of the refresh rate),
-  // publishes the trails to `flowStore` ~30×/s.
-  useEffect(() => {
-    if (!enabled || !flow) flowStore.set(null);
-    if (!enabled || !flow || !grid || hidden) return undefined;
-    const g = extent(grid);
-    if (particles.current?.grid !== grid) {
-      particles.current = { grid, list: createParticles(PARTICLES, live.current.bounds ? intersect(g, live.current.bounds) : g) };
-    }
-    let raf = 0;
-    let last = 0; // last publish
-    let prev = null; // previous frame timestamp
-    const step = (t) => {
-      const dt = prev == null ? 16.7 : Math.min(50, t - prev);
-      prev = t;
-      const { hour: h, zoom: z, bounds: b } = live.current;
-      const p = particles.current;
-      p.list = stepParticles(p.list, grid, Math.min(h, grid.u.length - 1), b ? intersect(g, b) : g, 0.004 * 2 ** (6 - z) * (dt / 16.7));
-      if (t - last >= FRAME_MS) { last = t; flowStore.set(p.list); }
-      raf = requestAnimationFrame(step);
-    };
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
-  }, [enabled, flow, grid, hidden, flowStore]);
-
   const shownImage = atlasLayer && image?.layer === atlasLayer ? image : null;
   const atlasLoading = !!viewKey && loadingKey === viewKey && image?.key !== viewKey;
+  const sunOn = enabled && sun;
   // The PNG is equirectangular (EPSG:4326): interpolate it in lng/lat, not Web Mercator.
+  // Under the sunshine glow it is dimmed to 0.5 (S6).
   const layers = useMemo(() => (enabled && shownImage?.url ? [new BitmapLayer({
-    id: 'overlay-atlas', image: shownImage.url, bounds: shownImage.bounds, opacity: 0.7,
+    id: 'overlay-atlas', image: shownImage.url, bounds: shownImage.bounds, opacity: sunOn ? 0.5 : 0.7,
     _imageCoordinateSystem: COORDINATE_SYSTEM.LNGLAT,
-  })] : NONE), [enabled, shownImage]);
+  })] : NONE), [enabled, shownImage, sunOn]);
 
-  const errors = [shownImage?.error, flow ? flowState.error : null].filter(Boolean);
+  const errors = [shownImage?.error, wind.error, sunshine.error].filter(Boolean);
+  const pickHour = useCallback((h) => { setPlaying(false); setHour(h); }, []);
 
   return {
     ref: view.ref,
     layers,
     flowStore,
-    active: enabled && (layer !== 'none' || flow),
+    active: enabled && (layer !== 'none' || streamlines || sun),
     controlsProps: {
       layer, setLayer, atlasLoading, countries: shownImage?.countries || NONE, legend: !!shownImage?.url,
-      flow, setFlow, hour, setHour, date, setDate, dateMax: isoDaysAgo(6),
-      flowLoading: flow && flowState.loading, errors, note: shownImage?.note || null,
+      streamlines, setStreamlines, sun, setSun, hour, setHour: pickHour, date, setDate, dateMax: isoDaysAgo(6),
+      playing: isPlaying, setPlaying,
+      windLoading: wind.loading, sunLoading: sunshine.loading, errors, note: shownImage?.note || null,
     },
   };
 }

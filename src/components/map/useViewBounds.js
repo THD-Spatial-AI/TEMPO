@@ -9,6 +9,24 @@ const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
 const r3 = x => Math.round(x * 1000) / 1000;
 
 /**
+ * "south,west,north,east" of a view `width`×`height` px, or '' when it cannot be
+ * computed or crosses the antimeridian. deck.gl 9's getBounds() is flat:
+ * [minLng, minLat, maxLng, maxLat].
+ */
+export function boundsKey(viewState, width, height) {
+  const { longitude, latitude, zoom, pitch = 0, bearing = 0 } = viewState || {};
+  if (!(width > 0 && height > 0 && Number.isFinite(longitude) && Number.isFinite(latitude) && Number.isFinite(zoom))) return '';
+  try {
+    const lon = ((((longitude + 180) % 360) + 360) % 360) - 180;
+    const [x0, y0, x1, y1] = new WebMercatorViewport({ width, height, longitude: lon, latitude, zoom, pitch, bearing }).getBounds();
+    if (![x0, y0, x1, y1].every(Number.isFinite) || x0 < -180 || x1 > 180) return '';
+    return [clamp(y0, -85, 85), x0, clamp(y1, -85, 85), x1].map(r3).join(',');
+  } catch {
+    return '';
+  }
+}
+
+/**
  * @returns {{ ref: Function, width: number, bounds: null|{south, west, north, east}, key: string }}
  *   `ref` is a callback ref for the map container; nothing is observed while `enabled` is false.
  */
@@ -25,19 +43,7 @@ export default function useViewBounds(viewState, enabled) {
   }, [el, enabled]);
 
   const [w, h] = size;
-  const { longitude, latitude, zoom, pitch = 0, bearing = 0 } = viewState || {};
-  const key = enabled && w > 0 && h > 0 && Number.isFinite(longitude) && Number.isFinite(latitude) && Number.isFinite(zoom)
-    ? (() => {
-      try {
-        const lon = ((((longitude + 180) % 360) + 360) % 360) - 180;
-        const [[x0, y0], [x1, y1]] = new WebMercatorViewport({ width: w, height: h, longitude: lon, latitude, zoom, pitch, bearing }).getBounds();
-        if (x0 < -180 || x1 > 180) return '';
-        return [clamp(y0, -85, 85), x0, clamp(y1, -85, 85), x1].map(r3).join(',');
-      } catch {
-        return '';
-      }
-    })()
-    : '';
+  const key = enabled ? boundsKey(viewState, w, h) : '';
   const bounds = useMemo(() => {
     if (!key) return null;
     const [south, west, north, east] = key.split(',').map(Number);

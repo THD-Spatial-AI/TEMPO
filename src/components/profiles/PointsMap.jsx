@@ -1,7 +1,7 @@
 // Small map of a tech's profile points for the resource-profile dialogs.
 // Optional `pins` ({ name: {lat, lon} }) draw each point's weather site (W6).
-// Optional `overlays` adds the resource overlays (atlas raster, wind flow) + controls;
-// pass `{ layer, flow }` instead of `true` to open with that overlay on.
+// Optional `overlays` adds the resource overlays (atlas raster, wind streamlines, sunshine)
+// + controls; pass `{ layer, streamlines, sun }` instead of `true` to open with those on.
 import React, { useMemo, useState } from 'react';
 import DeckGL from '@deck.gl/react';
 import { WebMercatorViewport } from '@deck.gl/core';
