@@ -5,7 +5,11 @@ All notable changes to TEMPO are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [4.1.0] - 2026-11-10
+
+TEMPO 4.1.0 estimates how much electricity each substation supplies, and calculates PV
+and wind profiles for your technologies, with weather overlays on the map. It also
+adds a Components installer and makes location names unique.
 
 ### Added
 
@@ -25,12 +29,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Demand cells layer** — each substation's service area is saved with the model. In
   Creation and Map View it can be shown, coloured by density or total, under the new
   **Overlays** section of the map-style menu.
+- **PV and wind profiles** — a technology can get an hourly capacity-factor profile
+  calculated from Open-Meteo ERA5 weather. PV uses `pvlib` and wind uses turbine
+  curves. Each dialog shows the points on a map, a daily and typical-day chart, and
+  a table with tilt, azimuth and yield per point. PV tilt and azimuth can be
+  optimised. Dispatchable plants and tidal or run-of-river techs get availability
+  profiles from the technology database. A profile is written into the model as
+  an ordinary time series (see the new Resource Profiles guide). It runs as a
+  local renewables service.
+- **Sunshine and wind overlays** — show solar irradiance as a raster and wind as
+  animated streamlines on the map to compare sites.
+- **Components installer** — Settings → Components installs and removes engines,
+  solvers, services and tools. Removing an engine stops its service and deletes
+  its Python environment. Engine panels have a repair button for a damaged
+  service layer.
+- **Chronological time scheme for OSeMOSYS** — windows of up to 31 days run with one
+  season per real day, so non-cyclic storage and non-repeating profiles are exact.
+  Longer windows keep the representative scheme.
 
 ### Changed
 
 - The demand environment `demand-venv` replaces `demandlib-venv`. Uninstalling the
   component also removes the old one.
 - The population split remains available as **Population split**.
+- Runs convert to MW and MWh when they leave the model, and results are always shown
+  in MW. A saved kW model needs its **Model unit** set on the Run page. SPORES
+  metrics follow the same unit.
+- Overpass queries go through the backend, and the map tile sources were updated.
+
+### Fixed
+
+- Location names are the keys of a model, so they are now unique. Duplicates are
+  blocked in the dialogs and repaired when a model loads.
+- Technologies used on a location but missing from the model's technology list
+  (for example OpenStreetMap imports that use template ids) are added when the
+  model loads, instead of leaving the plant with no parent, carriers or costs.
 
 ## [4.0.1] - 2026-10-19
 
@@ -285,6 +318,7 @@ Initial public release.
 - Timeseries editor, override/scenario engine, and SPORES mode.
 - H₂ and CCS plant simulation services.
 
+[4.1.0]: https://github.com/THD-Spatial-AI/TEMPO/releases/tag/Release_V4.1.0
 [4.0.1]: https://github.com/THD-Spatial-AI/TEMPO/releases/tag/Release_V4.0.1
 [4.0.0]: https://github.com/THD-Spatial-AI/TEMPO/releases/tag/v4.0.0
 [3.1.0]: https://github.com/THD-Spatial-AI/TEMPO/releases/tag/v3.1.0

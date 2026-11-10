@@ -122,6 +122,7 @@ nav:
       - Locations: user-guide/locations.md
       - Links: user-guide/links.md
       - Technologies: user-guide/technologies.md
+      - Resource Profiles: user-guide/tech-profiles.md
       - Time Series: user-guide/time-series.md
       - Parameters & Scenarios: user-guide/parameters-scenarios.md
       - Scenario Studio: user-guide/scenario-studio.md

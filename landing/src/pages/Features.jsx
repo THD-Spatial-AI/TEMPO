@@ -55,7 +55,7 @@ export default function Features() {
               </p>
               <div className="flex flex-col border-l border-outline-variant/30 pl-8 space-y-2">
                 <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-outline">
-                  v4.0.1 Stable
+                  v4.1.0 Stable
                 </span>
                 <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-outline">
                   Architecture: x64 / ARM64
@@ -68,63 +68,62 @@ export default function Features() {
           </div>
         </section>
 
-        {/* What's New in v4 */}
+        {/* What's New in v4.1.0 */}
         <section className="py-32 px-8 bg-black text-white">
           <div className="max-w-7xl mx-auto">
             <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-8">
               <div>
                 <span className="text-[0.6875rem] font-bold uppercase tracking-[0.3em] text-white/40 mb-4 block">
-                  Release 4.0.0
+                  Release 4.1.0
                 </span>
                 <h2 className="text-[2.75rem] md:text-[3.5rem] font-bold tracking-tighter leading-none">
-                  WHAT&rsquo;S NEW IN V4
+                  WHAT&rsquo;S NEW IN V4.1.0
                 </h2>
               </div>
               <p className="max-w-md text-white/60 font-medium">
-                Version 4 redesigns the app to match this site and makes the first model
-                faster to build: start from a place name, give every substation a load shape,
-                and trust that the engines agree with each other.
+                Version 4.1.0 fills in the inputs that are hard to find: how much each substation
+                uses, and how much a PV or wind plant produces hour by hour.
               </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {[
                 {
+                  icon: 'bolt',
+                  tag: 'Demand',
+                  title: 'Demand estimated for each substation',
+                  desc: 'The Study Area tool splits national demand over substations anywhere in the world, using a 1 km consumption map, mine sites and OpenStreetMap land use. Each substation gets a load shape, shifted by six months in the southern hemisphere. You can edit every value before import.',
+                },
+                {
+                  icon: 'wb_sunny',
+                  tag: 'Resources',
+                  title: 'PV and wind profiles',
+                  desc: 'Pick a technology and TEMPO calculates an hourly capacity factor from Open-Meteo ERA5 weather. A map, charts and a per-point table show the result, and PV tilt and azimuth can be optimised. The profile is saved in the model as a normal time series.',
+                },
+                {
+                  icon: 'air',
+                  tag: 'Map',
+                  title: 'Sunshine and wind overlays',
+                  desc: 'Show solar irradiance as a raster and wind as moving streamlines on the map to see where the resource is. Demand cells can be shown the same way, coloured by density or total.',
+                },
+                {
+                  icon: 'extension',
+                  tag: 'Setup',
+                  title: 'Install only what you use',
+                  desc: 'Settings now has a Components page. Install or remove engines, solvers, services and tools one at a time. Removing an engine deletes its Python environment.',
+                },
+                {
                   icon: 'travel_explore',
                   tag: 'Study Area',
                   title: 'Start from a place name',
-                  desc: 'Type a city, province or country. TEMPO finds the boundary, pulls substations and lines from OpenStreetMap and builds a zonal model. A short wizard lets you filter by voltage and classify substations before you import.',
-                },
-                {
-                  icon: 'show_chart',
-                  tag: 'Demand',
-                  title: 'Load shapes for every substation',
-                  desc: 'Regional demand is spread over the substations, evenly or by voltage, and each one gets an hourly profile. Use the built-in generator or the BDEW standard load profiles from demandlib, and preview the shape before you apply it.',
-                },
-                {
-                  icon: 'science',
-                  tag: 'Scenario Design',
-                  title: 'Scenario Studio, year by year',
-                  desc: 'Config cards now sit inside year cards on the board. Add emissions caps and renewable targets, switch technologies off, or change link capacity and vintage residuals. Boards are saved per model, and a sequential-run toggle runs the years one after another.',
+                  desc: 'Type a city, province or country. TEMPO finds the boundary, pulls substations and lines from OpenStreetMap and builds a zonal model.',
                 },
                 {
                   icon: 'sync_alt',
                   tag: 'Engines',
                   title: 'Five engines, one answer',
-                  desc: 'Calliope 0.6.8 and 0.7, PyPSA, OSeMOSYS and AdOpT-NET0 now share the same cost, capacity and storage conventions. A verification script runs reference models on each engine and compares the results.',
+                  desc: 'Calliope 0.6.8 and 0.7, PyPSA, OSeMOSYS and AdOpT-NET0 share the same cost, capacity and storage conventions. OSeMOSYS now runs windows of up to 31 days day by day, so storage and profiles stay exact.',
                   link: { to: '/interoperability', label: 'How the translation works' },
-                },
-                {
-                  icon: 'insights',
-                  tag: 'SPORES',
-                  title: 'SPORES on 0.7 and MEME',
-                  desc: 'SPORES alternatives now run on the Calliope 0.7 engine and on a MEME server. A paper panel reproduces the Lombardi et al. (2020) study so you can check TEMPO against the published numbers.',
-                },
-                {
-                  icon: 'auto_awesome',
-                  tag: 'Interface',
-                  title: 'A new look, and release notes in the app',
-                  desc: 'The dashboard, map editor, data pages, Run, Export, Results and Settings were redesigned to match this site. What’s new inside TEMPO now shows the notes for each release, with a version picker for older ones.',
                 },
               ].map((item) => (
                 <div key={item.title} className="bg-white/5 border border-white/10 p-10 flex flex-col justify-between min-h-[260px]">
