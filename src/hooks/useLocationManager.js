@@ -41,6 +41,22 @@ export const useLocationManager = () => {
     ));
   }, []);
   
+  // Move a location (drag & drop) and refresh the distance of its links
+  const moveLocation = useCallback((id, latitude, longitude) => {
+    const moved = tempLocations.map(loc =>
+      loc.id === id ? { ...loc, latitude, longitude } : loc
+    );
+    const byId = new Map(moved.map(l => [l.id, l]));
+    setTempLocations(moved);
+    setTempLinks(links => links.map(link => {
+      if (link.from !== id && link.to !== id) return link;
+      const a = byId.get(link.from);
+      const b = byId.get(link.to);
+      if (!a || !b) return link;
+      return { ...link, distance: calculateDistance(a.latitude, a.longitude, b.latitude, b.longitude) };
+    }));
+  }, [tempLocations, calculateDistance]);
+
   // Add a link between two locations
   // options: { linkType?: string, carrier?: string }
   const addLink = useCallback((fromLocation, toLocation, options = {}) => {
@@ -125,6 +141,7 @@ export const useLocationManager = () => {
     addLocation,
     removeLocation,
     updateLocation,
+    moveLocation,
     addLink,
     removeLink,
     handleLocationClickForLink,

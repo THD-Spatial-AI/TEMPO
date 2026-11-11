@@ -433,6 +433,9 @@ const Creation = ({ onNavigate }) => {
   const [currentStyle, setCurrentStyle] = useState('grey');
   const [showLayerSelector, setShowLayerSelector] = useState(false);
   const [hoveredInfo, setHoveredInfo] = useState(null);
+  // Location under the pointer / being dragged — disables map panning so the drag moves it
+  const [hoverLocationId, setHoverLocationId] = useState(null);
+  const [draggingLocationId, setDraggingLocationId] = useState(null);
   const demandCellsLayer = useMemo(
     () => (cellsView.visible && cellsView.drawn.length
       ? makeDemandCellsLayer({ features: cellsView.drawn, colorBy: cellsView.colorBy, scale: cellsView.scale, onHover: info => setHoveredInfo(demandCellHover(info)) })
@@ -2033,13 +2036,14 @@ const Creation = ({ onNavigate }) => {
             ref={deckRef}
             viewState={viewState}
             onViewStateChange={({ viewState }) => setViewState(viewState)}
-            controller={true}
+            controller={{ dragPan: hoverLocationId == null && draggingLocationId == null }}
             pickingRadius={8}
             onClick={handleMapClickWithModal}
             onHover={(info) => {
               // Clear hover info when mouse is not over any pickable object
               if (!info.object) {
                 setHoveredInfo(null);
+                setHoverLocationId(null);
               }
             }}
             onError={(error) => {
@@ -2491,6 +2495,15 @@ const Creation = ({ onNavigate }) => {
                   sizeUnits: 'pixels',
                   updateTriggers: { getSize: viewState.zoom },
                   pickable: true,
+                  // Drag & drop: the controller stops panning while the pointer
+                  // is over a location (see hoverLocationId), so the drag moves it.
+                  onDragStart: (info) => { if (info.object) setDraggingLocationId(info.object.id); },
+                  onDrag: (info) => {
+                    if (draggingLocationId != null && info.coordinate) {
+                      locationManager.moveLocation(draggingLocationId, info.coordinate[1], info.coordinate[0]);
+                    }
+                  },
+                  onDragEnd: () => setDraggingLocationId(null),
                   onClick: (info) => {
                     if (info.object) {
                       if (mode === 'link') {
@@ -2505,6 +2518,7 @@ const Creation = ({ onNavigate }) => {
                     }
                   },
                   onHover: (info) => {
+                    setHoverLocationId(info.object ? info.object.id : null);
                     if (info.object) {
                       const loc = info.object;
                       const techCount = Object.keys(loc.techs || {}).length;

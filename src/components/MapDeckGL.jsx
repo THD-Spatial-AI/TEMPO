@@ -74,7 +74,8 @@ const MapDeckGL = () => {
   const [showDragConfirmDialog, setShowDragConfirmDialog] = useState(false);
   const [showIconSelector, setShowIconSelector] = useState(false);
   const [selectedLocationForIcon, setSelectedLocationForIcon] = useState(null);
-  const [isDraggingEnabled, setIsDraggingEnabled] = useState(false);
+  // Location under the pointer — map panning is off while hovering one, so a drag moves it
+  const [hoverLocationName, setHoverLocationName] = useState(null);
   const [webglAvailable, setWebglAvailable] = useState(null);
   const [webglErrorMsg, setWebglErrorMsg] = useState('');
   const [webglCompatMode, setWebglCompatMode] = useState(false);
@@ -547,6 +548,7 @@ const MapDeckGL = () => {
         }
       },
       onHover: (info) => {
+        setHoverLocationName(info.object ? info.object.name : null);
         if (info.object) {
           const o = info.object;
           const kind = o.metadata?.kind;
@@ -570,7 +572,7 @@ const MapDeckGL = () => {
         }
       },
       onDragStart: (info, event) => {
-        if (mode === 'view' && info.object && isDraggingEnabled) {
+        if (mode === 'view' && info.object) {
           const locationIndex = locations.findIndex(loc => loc.name === info.object.name);
           if (locationIndex !== -1) {
             setDraggedLocation({ 
@@ -583,19 +585,18 @@ const MapDeckGL = () => {
         }
       },
       onDrag: (info, event) => {
-        if (mode === 'view' && draggedLocation && info.coordinate && isDraggingEnabled) {
+        if (mode === 'view' && draggedLocation && info.coordinate) {
           handleDragMove(info.coordinate, draggedLocation.index);
         }
       },
       onDragEnd: (info, event) => {
-        if (mode === 'view' && draggedLocation && info.coordinate && isDraggingEnabled) {
+        if (mode === 'view' && draggedLocation && info.coordinate) {
           handleLocationDrag(info.coordinate, draggedLocation.index, {
             latitude: draggedLocation.originalLatitude,
             longitude: draggedLocation.originalLongitude
           });
           setDraggedLocation(null);
           setDraggingPosition(null);
-          setIsDraggingEnabled(false);
         }
       },
       updateTriggers: {
@@ -606,7 +607,7 @@ const MapDeckGL = () => {
     
     return [circleLayer];
   // linkStart + links: the onClick link handler reads them; without them it kept a stale null start
-  }, [locations, links, linkStart, mode, draggedLocation, draggingPosition, isDraggingEnabled, handleLocationDrag, handleDragMove, viewState, techMap]);
+  }, [locations, links, linkStart, mode, draggedLocation, draggingPosition, handleLocationDrag, handleDragMove, viewState, techMap]);
   
   // Create line layer for transmission links
   const linksLayer = useMemo(() => {
@@ -1047,7 +1048,7 @@ const MapDeckGL = () => {
             ref={deckRef}
             viewState={viewState}
             onViewStateChange={handleViewStateChange}
-            controller={!draggedLocation}
+            controller={{ dragPan: hoverLocationName == null && !draggedLocation }}
             pickingRadius={8}
             layers={allLayers}
             onClick={handleMapClick}
