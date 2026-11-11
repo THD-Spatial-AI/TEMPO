@@ -14,7 +14,7 @@ import { CONSTRAINT_DEFINITIONS, COST_DEFINITIONS, PARENT_CONSTRAINTS } from '..
 
 import {
   getTechColor, ICON_TYPES, createLocationIcon, getDefaultIconType,
-  formatTechName, getVoltageColor, getVoltageWidth, MAP_STYLES,
+  formatTechName, getLinkColor, getVoltageWidth, MAP_STYLES,
 } from '../utils/mapVisuals';
 import DragConfirmDialog from './map/DragConfirmDialog';
 import IconSelectorDialog from './map/IconSelectorDialog';
@@ -638,7 +638,7 @@ const MapDeckGL = () => {
           techName = link.tech;
         }
         
-        const color = getVoltageColor(techName);
+        const color = getLinkColor(link);
         const width = getVoltageWidth(techName);
         
         return {

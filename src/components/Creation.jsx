@@ -25,8 +25,8 @@ import { generatePowerMesh, meshToCalliopeLocations, exportMeshToJson, validateM
 import { calculateDistance, calculateMeshStatistics } from '../meshGenerator/MeshUtils.js';
 import { CONSTRAINT_DEFINITIONS, COST_DEFINITIONS, ESSENTIAL_DEFINITIONS, PARENT_CONSTRAINTS } from '../utils/constraintDefinitions';
 import api from '../services/api';
-import { LINK_TYPES, getLinkTypeColorRgb } from '../config/linkTypes';
-import { CARRIERS, getCarrierColorRgb, getCarrierLabel } from '../config/carriers';
+import { LINK_TYPES } from '../config/linkTypes';
+import { CARRIERS, getCarrierLabel } from '../config/carriers';
 import { fetchPowerLayers, fetchNeighborCandidates } from '../services/overpassClient';
 import { fetchGeometries } from '../services/nominatim';
 import { parseSource, parseCapacityMW, parseVoltageKv } from '../services/zonalInfraExtract';
@@ -45,7 +45,8 @@ import { usePolylineMode } from '../hooks/usePolylineMode';
 import { normalizeFolderName } from '../utils/nameUtils';
 import { newId } from '../utils/newId';
 import { getTechColor, getTechIcon } from '../utils/techUtils';
-import { createLocationIcon, getSubstationIcon, substationIconCache } from '../utils/mapIcons';
+import { getSubstationIcon, substationIconCache } from '../utils/mapIcons';
+import { createLocationIcon, getLinkColor } from '../utils/mapVisuals';
 import { MAP_STYLES, MAP_STYLE_NAMES } from '../config/mapStyles';
 import LayerSelector from './creation/LayerSelector';
 import SearchBar from './creation/SearchBar';
@@ -2356,12 +2357,8 @@ const Creation = ({ onNavigate }) => {
                     const toLoc = locationManager.tempLocations.find(l => l.id === d.to);
                     return toLoc ? [toLoc.longitude, toLoc.latitude] : [0, 0];
                   },
-                  // Colour by carrier / link type
-                  getColor: d => {
-                    if (d.linkType) return getLinkTypeColorRgb(d.linkType, 220);
-                    if (d.carrier)  return getCarrierColorRgb(d.carrier, 220);
-                    return [99, 102, 241, 200];
-                  },
+                  // Same link colours as the Map view
+                  getColor: d => getLinkColor(d),
                   getWidth: lineSizes.links || 2,
                   widthUnits: 'pixels',
                   pickable: true,

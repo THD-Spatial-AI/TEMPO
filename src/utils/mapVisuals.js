@@ -2,7 +2,10 @@
 // location pie-chart icon generation, transmission voltage styling, and the
 // MapLibre base-map style presets. Extracted from MapDeckGL.jsx so the giant
 // component holds only interaction/state and these stay reusable + testable.
-// No React, no external deps — plain data + SVG/string builders.
+// No React — plain data + SVG/string builders.
+
+import { LINK_TYPES, getLinkTypeColorRgb } from '../config/linkTypes';
+import { getCarrierColorRgb, getCarrierLabel } from '../config/carriers';
 
 // Technology color mapping for power plants and other types
 const TECH_COLORS = {
@@ -65,7 +68,27 @@ export const getTechColor = (techNameOrObject, techMap = null) => {
   if (name.includes('battery') || name.includes('storage')) return TECH_COLORS.battery;
   if (name.includes('demand')) return TECH_COLORS.demand;
   
-  return TECH_COLORS.generic;
+  return hashedTechColor(name);
+};
+
+// Stable, distinct colour for a tech with no defined colour and no keyword
+// match: hue/saturation/lightness from a hash of the name, so the same tech is
+// the same colour in every view and different techs rarely look alike.
+const hashedTechColor = (name) => {
+  if (!name) return TECH_COLORS.generic;
+  let h = 2166136261;
+  for (let i = 0; i < name.length; i++) {
+    h ^= name.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  h >>>= 0;
+  const hue = h % 360;
+  const sat = 0.6 + ((h >>> 9) % 4) * 0.08;   // 60–84 %
+  const light = 0.4 + ((h >>> 13) % 4) * 0.06; // 40–58 %
+  const k = n => (n + hue / 30) % 12;
+  const a = sat * Math.min(light, 1 - light);
+  const f = n => Math.round(255 * (light - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1))));
+  return [f(0), f(8), f(4), 220];
 };
 
 // Icon type definitions with SVG path data for simple black and white icons
@@ -141,175 +164,87 @@ const getLocationColor = (location) => {
   return TECH_COLORS.generic;
 };
 
-// Function to create pie chart path for SVG
-const createPieChartPaths = (technologies, techMap) => {
-  if (!technologies || Object.keys(technologies).length === 0) {
-    return [];
-  }
-  
-  const techNames = Object.keys(technologies);
-  const count = techNames.length;
-  
-  if (count === 1) {
-    return null; // Single tech, use regular circle
-  }
-  
-  const paths = [];
-  const centerX = 16;
-  const centerY = 16;
-  const radius = 10;
-  const anglePerSlice = (2 * Math.PI) / count;
-  
-  techNames.forEach((techName, index) => {
-    const startAngle = index * anglePerSlice - Math.PI / 2;
-    const endAngle = (index + 1) * anglePerSlice - Math.PI / 2;
-    
-    const x1 = centerX + radius * Math.cos(startAngle);
-    const y1 = centerY + radius * Math.sin(startAngle);
-    const x2 = centerX + radius * Math.cos(endAngle);
-    const y2 = centerY + radius * Math.sin(endAngle);
-    
-    const largeArcFlag = anglePerSlice > Math.PI ? 1 : 0;
-    
-    const pathData = [
-      `M ${centerX} ${centerY}`,
-      `L ${x1} ${y1}`,
-      `A ${radius} ${radius} 0 ${largeArcFlag} 1 ${x2} ${y2}`,
-      'Z'
-    ].join(' ');
-    
-    const tech = technologies[techName];
-    const color = getTechColor(techName, techMap);
-    const colorHex = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
-    
-    paths.push({
-      path: pathData,
-      color: colorHex
-    });
-  });
-  
-  return paths;
+// Node-kind colours (OSM study-area imports). Used as the marker RING so the
+// fill stays free to show the location's technologies.
+export const NODE_KIND_COLORS = {
+  substation: 'rgb(239, 68, 68)',
+  plant: 'rgb(34, 197, 94)',
+  transmission_node: 'rgb(245, 158, 11)',
+};
+export const NODE_KIND_LABELS = {
+  substation: 'Substations',
+  plant: 'Power plants',
+  transmission_node: 'Transmission nodes',
 };
 
-// Function to create SVG icon for location with pie chart
-export const createLocationIcon = (location, techMap) => {
-  if (!location) {
-    // Fallback for undefined location
-    return {
-      url: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 32 32">
-          <circle cx="16" cy="16" r="10" fill="rgb(158, 158, 158)" stroke="#000000" stroke-width="1"/>
-        </svg>
-      `)}`,
-      width: 16,
-      height: 16,
-      anchorX: 8,
-      anchorY: 8
-    };
-  }
-  
-  // OSM study-area imports carry an explicit kind — draw them as filled circles
-  // in the same palette as the Creation OSM overlay (red substations, green
-  // plants, amber transmission nodes) so the model matches what was imported.
-  const OSM_KIND_COLOR = {
-    substation: 'rgb(239, 68, 68)',
-    plant: 'rgb(34, 197, 94)',
-    transmission_node: 'rgb(245, 158, 11)',
-  };
-  const osmColor = OSM_KIND_COLOR[location.metadata?.kind];
-  if (osmColor) {
-    return {
-      url: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 32 32">
-          <circle cx="16" cy="16" r="10" fill="${osmColor}" stroke="#ffffff" stroke-width="2"/>
-        </svg>
-      `)}`,
-      width: 16,
-      height: 16,
-      anchorX: 8,
-      anchorY: 8,
-    };
+const rgbStr = c => `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
+
+const svgIcon = body => ({
+  url: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">${body}</svg>`
+  )}`,
+  width: 32,
+  height: 32,
+  anchorX: 16,
+  anchorY: 16,
+});
+
+// Location marker shared by the Creation and Map views: fill = one colour per
+// technology (pie slices when there are several), ring = node kind.
+// `cache` (a Map) is optional.
+export const createLocationIcon = (location, techMap, cache) => {
+  const techNames = Object.keys(location?.techs || {});
+  const kind = location?.metadata?.kind;
+  const ring = NODE_KIND_COLORS[kind] || (location?.isNode ? 'rgb(33, 33, 33)' : 'rgb(0, 0, 0)');
+  const fills = techNames.map(t => rgbStr(getTechColor(t, techMap)));
+
+  const key = `${ring}|${fills.join(';')}`;
+  if (cache?.has(key)) return cache.get(key);
+
+  const r = 11;
+  let body;
+  if (fills.length === 0) {
+    // No techs yet: kind colour if known, else neutral grey
+    const fill = NODE_KIND_COLORS[kind] || (location?.isNode ? 'rgb(33, 33, 33)' : 'rgb(148, 163, 184)');
+    body = `<circle cx="16" cy="16" r="${r}" fill="${fill}" stroke="#ffffff" stroke-width="2.5"/>`;
+  } else if (fills.length === 1) {
+    body = `<circle cx="16" cy="16" r="${r}" fill="${fills[0]}" stroke="${ring}" stroke-width="2.5"/>`;
+  } else {
+    const step = (2 * Math.PI) / fills.length;
+    const slices = fills.map((fill, i) => {
+      const a0 = i * step - Math.PI / 2;
+      const a1 = (i + 1) * step - Math.PI / 2;
+      const large = step > Math.PI ? 1 : 0;
+      return `<path d="M 16 16 L ${16 + r * Math.cos(a0)} ${16 + r * Math.sin(a0)} A ${r} ${r} 0 ${large} 1 ${16 + r * Math.cos(a1)} ${16 + r * Math.sin(a1)} Z" fill="${fill}"/>`;
+    }).join('');
+    body = `<circle cx="16" cy="16" r="${r}" fill="white"/>${slices}<circle cx="16" cy="16" r="${r}" fill="none" stroke="${ring}" stroke-width="2.5"/>`;
   }
 
-  const techs = location.techs || {};
-  const techNames = Object.keys(techs);
+  const icon = svgIcon(body);
+  cache?.set(key, icon);
+  return icon;
+};
 
-  // Detect substations (simple check for performance)
-  const locationName = (location.name || '').toUpperCase();
-  const isSubstation = locationName.includes('S/E') || locationName.includes('SUBSTATION') || locationName.includes('TAP OFF');
-  
-  // For substations, use simple triangle icon
-  if (isSubstation) {
-    const hasDemand = techNames.some(t => t.toLowerCase().includes('demand'));
-    const color = hasDemand ? '#F44336' : '#212121';
-    
-    return {
-      url: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 32 32">
-          <path d="M16 4 L28 28 L4 28 Z" fill="${color}" stroke="#000" stroke-width="1"/>
-        </svg>
-      `)}`,
-      width: 24,
-      height: 24,
-      anchorX: 12,
-      anchorY: 12
-    };
-  }
-  
-  // Handle location with no technologies or single technology
-  if (techNames.length <= 1) {
-    const color = techNames.length > 0 ? getTechColor(techNames[0], techMap) : TECH_COLORS.generic;
-    const colorHex = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
-    
-    return {
-      url: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 32 32">
-          <circle cx="16" cy="16" r="10" fill="${colorHex}" stroke="#000000" stroke-width="1"/>
-        </svg>
-      `)}`,
-      width: 16,
-      height: 16,
-      anchorX: 8,
-      anchorY: 8
-    };
-  }
-  
-  // Multiple technologies - create pie chart
-  const piePaths = createPieChartPaths(techs, techMap);
-  
-  if (!piePaths || piePaths.length === 0) {
-    // Fallback if pie chart creation fails
-    const color = getTechColor(techNames[0], techMap);
-    const colorHex = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
-    
-    return {
-      url: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 32 32">
-          <circle cx="16" cy="16" r="10" fill="${colorHex}" stroke="#000000" stroke-width="1"/>
-        </svg>
-      `)}`,
-      width: 16,
-      height: 16,
-      anchorX: 8,
-      anchorY: 8
-    };
-  }
-  
-  const pathsStr = piePaths.map(p => `<path d="${p.path}" fill="${p.color}"/>`).join('');
-  
-  return {
-    url: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 32 32">
-        <circle cx="16" cy="16" r="11" fill="white"/>
-        ${pathsStr}
-        <circle cx="16" cy="16" r="10" fill="none" stroke="#000000" stroke-width="1"/>
-      </svg>
-    `)}`,
-    width: 16,
-    height: 16,
-    anchorX: 8,
-    anchorY: 8
-  };
+// Tech key of a link (saved links carry `techs` or `tech`; Creation drafts may carry neither).
+export const getLinkTechName = (link) =>
+  (link.techs && Object.keys(link.techs)[0]) || link.tech || '';
+
+// Link colour shared by the Creation and Map views: link type → carrier colour,
+// voltage-named techs (e.g. 66_kv, power_line) → voltage gradient, else carrier.
+export const getLinkColor = (link, alpha = 220) => {
+  if (link.linkType && LINK_TYPES[link.linkType]) return getLinkTypeColorRgb(link.linkType, alpha);
+  const tech = getLinkTechName(link);
+  if (/\d+_?kv/i.test(tech) || /power_line/i.test(tech)) return [...getVoltageColor(tech).slice(0, 3), alpha];
+  if (link.carrier) return getCarrierColorRgb(link.carrier, alpha);
+  return [99, 102, 241, alpha];
+};
+
+// Legend label for a link, matching getLinkColor's grouping.
+export const getLinkLabel = (link) => {
+  if (link.linkType && LINK_TYPES[link.linkType]) return LINK_TYPES[link.linkType].label;
+  const tech = getLinkTechName(link);
+  if (tech) return formatTechName(tech);
+  return link.carrier ? getCarrierLabel(link.carrier) : 'Link';
 };
 
 // Function to determine default icon type based on location characteristics
