@@ -53,4 +53,6 @@ Click **⋯** → **Delete** next to the link in the list. The map line is remov
 
 ## Link display on the map
 
+In link mode, click the first and then the second location. A click picks the nearest model location within a few pixels, so you can click an imported OpenStreetMap substation or plant directly.
+
 Links are drawn as straight lines between location markers. The colour indicates the carrier type. Clicking a line opens the link edit dialog.

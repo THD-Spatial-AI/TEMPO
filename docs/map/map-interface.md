@@ -25,6 +25,7 @@ The map is the central hub of TEMPO. It shows your model topology overlaid on a 
 | Scroll wheel | Zoom in / out |
 | Double-click | Zoom to point |
 | `Ctrl` + scroll | Rotate / tilt (3D) |
+| Drag a marker (Creation) | Move the location; its links update |
 | Click a marker | Open location edit dialog |
 | Click a link line | Open link edit dialog |
 | Hover a marker | Show tooltip with name and coordinates |

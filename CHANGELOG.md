@@ -5,6 +5,31 @@ All notable changes to TEMPO are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.1] - 2026-11-11
+
+Fixes for placing and linking locations on the map, and one set of colours and one legend for both map views.
+
+### Added
+
+- **Drag to move a location** in Creation. Drag a marker and the map stops panning so the
+  marker moves, and the distance of its links is updated.
+- **Shared legend** for Creation and Map View. It lists node kinds, technologies and
+  links with the same colours the map draws.
+
+### Changed
+
+- Technology colours, location markers and link colours are now computed in one place,
+  so Creation and Map View look the same.
+
+### Fixed
+
+- Locations and links created in the same millisecond, such as a mesh import followed by
+  a manual add, no longer get the same id.
+- In link mode, a click now picks the nearest model location within 24 px. Before, it
+  often hit the larger OpenStreetMap substation or plant marker underneath and no link
+  was made. It also says when you click twice on the same location or when two
+  locations are already linked.
+
 ## [4.1.0] - 2026-11-10
 
 TEMPO 4.1.0 estimates how much electricity each substation supplies, and calculates PV
@@ -318,6 +343,7 @@ Initial public release.
 - Timeseries editor, override/scenario engine, and SPORES mode.
 - H₂ and CCS plant simulation services.
 
+[4.1.1]: https://github.com/THD-Spatial-AI/TEMPO/releases/tag/Release_V4.1.1
 [4.1.0]: https://github.com/THD-Spatial-AI/TEMPO/releases/tag/Release_V4.1.0
 [4.0.1]: https://github.com/THD-Spatial-AI/TEMPO/releases/tag/Release_V4.0.1
 [4.0.0]: https://github.com/THD-Spatial-AI/TEMPO/releases/tag/v4.0.0
