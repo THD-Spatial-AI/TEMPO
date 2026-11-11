@@ -57,6 +57,7 @@ import { cellsForModel } from '../services/demandCells';
 import { makeDemandCellsLayer, demandCellHover } from './map/demandCellsLayer';
 import { useDemandCellsView } from './map/useDemandCellsView';
 import DemandCellsLegend from './map/DemandCellsLegend';
+import ModelLegend from './map/ModelLegend';
 
 // Colour of each Study Area wizard preview element, keyed by metadata.kind.
 // The transmission mesh is amber (matches the OSM lines); each wiring type gets a
@@ -2579,6 +2580,14 @@ const Creation = ({ onNavigate }) => {
             osmPowerPlants={osmPowerPlants}
           />
         )}
+
+        {/* Model legend — shared with the Map view (same colours) */}
+        <ModelLegend
+          locations={locationManager.tempLocations}
+          links={locationManager.tempLinks}
+          techMap={techMap}
+          className="absolute bottom-20 right-4 z-[500]"
+        />
 
         {/* Map Controls */}
         <div className="absolute top-4 right-4 z-[600] flex flex-col gap-2" data-tour="map-layers">
