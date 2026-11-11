@@ -605,7 +605,8 @@ const MapDeckGL = () => {
     });
     
     return [circleLayer];
-  }, [locations, mode, draggedLocation, draggingPosition, isDraggingEnabled, handleLocationDrag, handleDragMove, viewState, techMap]);
+  // linkStart + links: the onClick link handler reads them; without them it kept a stale null start
+  }, [locations, links, linkStart, mode, draggedLocation, draggingPosition, isDraggingEnabled, handleLocationDrag, handleDragMove, viewState, techMap]);
   
   // Create line layer for transmission links
   const linksLayer = useMemo(() => {
@@ -1047,6 +1048,7 @@ const MapDeckGL = () => {
             viewState={viewState}
             onViewStateChange={handleViewStateChange}
             controller={!draggedLocation}
+            pickingRadius={8}
             layers={allLayers}
             onClick={handleMapClick}
             getCursor={getCursorStyle}

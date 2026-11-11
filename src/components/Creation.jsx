@@ -38,7 +38,6 @@ import { substationKey, shapeWithFallback, seriesColumns } from '../services/sub
 // Import new custom hooks
 import { useLocationManager } from '../hooks/useLocationManager';
 import { useOSMLayerFilters } from '../hooks/useOSMLayerFilters';
-import { useMapInteractions } from '../hooks/useMapInteractions';
 import { useTechnologyManager } from '../hooks/useTechnologyManager';
 import { usePolylineMode } from '../hooks/usePolylineMode';
 
@@ -199,7 +198,50 @@ const Creation = ({ onNavigate }) => {
   
   // Use map interactions hook
   // Custom handleMapClick with modal
+  // Link mode: a click picks the model location under the pointer, or the nearest
+  // one within LINK_SNAP_PX. OSM substation/plant markers are drawn larger than
+  // the location icons sitting on them, so the click usually hits the OSM layer.
+  const LINK_SNAP_PX = 24;
+  const pickLinkLocation = useCallback((info) => {
+    if (info.layer?.id === 'user-locations' && info.object) return info.object;
+    if (!info.viewport) return null;
+    let best = null;
+    let bestD = LINK_SNAP_PX;
+    for (const loc of locationManager.tempLocations) {
+      const [x, y] = info.viewport.project([loc.longitude, loc.latitude]);
+      const d = Math.hypot(x - info.x, y - info.y);
+      if (d <= bestD) { bestD = d; best = loc; }
+    }
+    return best;
+  }, [locationManager.tempLocations]);
+
+  const handleLinkClick = useCallback((info) => {
+    const end = pickLinkLocation(info);
+    if (!end) {
+      showNotification('No model location here — click on an imported/added location', 'info');
+      return;
+    }
+    const start = locationManager.linkStart;
+    if (start && start.id === end.id) {
+      showNotification('Link cancelled — same location clicked twice', 'info');
+    } else if (start && locationManager.tempLinks.some(l =>
+      (l.from === start.id && l.to === end.id) || (l.from === end.id && l.to === start.id))) {
+      showNotification(`${start.name} and ${end.name} are already linked`, 'warning');
+      locationManager.setLinkStart(null);
+      return;
+    }
+    const link = locationManager.handleLocationClickForLink(end, {
+      linkType: currentLinkType,
+      carrier: LINK_TYPES[currentLinkType]?.carrier || 'electricity',
+    });
+    if (link) showNotification(`Link created: ${start.name} → ${end.name}`, 'success');
+  }, [pickLinkLocation, locationManager, currentLinkType, showNotification]);
+
   const handleMapClickWithModal = useCallback((info, event) => {
+    if (mode === 'link') {
+      if (event?.srcEvent?.button === 0 || event?.srcEvent?.button === undefined) handleLinkClick(info);
+      return;
+    }
     // If clicking on an existing object (except the region boundary), let the layer handle it
     // Allow clicks through the region boundary so users can place locations inside it
     if (info.object && info.layer?.id !== 'selected-region-overlay' && info.layer?.id !== 'demand-cells') {
@@ -236,14 +278,7 @@ const Creation = ({ onNavigate }) => {
         setShowLocationDialog(true);
       }
     }
-  }, [mode, locationManager.tempLocations, polylineMode]);
-  
-  const { handleLocationClick } = useMapInteractions(
-    mode,
-    locationManager.addLocation,
-    locationManager.handleLocationClickForLink,
-    locationManager.tempLocations
-  );
+  }, [mode, locationManager.tempLocations, polylineMode, handleLinkClick]);
   
   // Sidebar collapse states
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false);
@@ -1999,6 +2034,7 @@ const Creation = ({ onNavigate }) => {
             viewState={viewState}
             onViewStateChange={({ viewState }) => setViewState(viewState)}
             controller={true}
+            pickingRadius={8}
             onClick={handleMapClickWithModal}
             onHover={(info) => {
               // Clear hover info when mouse is not over any pickable object
@@ -2296,55 +2332,6 @@ const Creation = ({ onNavigate }) => {
                 })
               ] : []),
 
-              // User Locations Layer
-              ...(layerVisibility.locations && locationManager.tempLocations.length > 0 ? [
-                new IconLayer({
-                  id: 'user-locations',
-                  data: locationManager.tempLocations,
-                  getPosition: d => [d.longitude, d.latitude],
-                  getIcon: d => createLocationIcon(d, techMap, iconCache.current),
-                  // Zoom-adaptive in PIXELS: small & non-overlapping when zoomed out
-                  // (~6px), growing as you zoom in (~30px). Works for any region size
-                  // (a metres footprint would pin to max on small areas). updateTriggers
-                  // forces a recompute whenever the zoom changes.
-                  getSize: () => Math.max(6, Math.min(30, (viewState.zoom - 5) * 3)),
-                  sizeUnits: 'pixels',
-                  updateTriggers: { getSize: viewState.zoom },
-                  pickable: true,
-                  onClick: (info) => {
-                    if (info.object) {
-                      if (mode === 'link') {
-                        // Handle link creation — pass current link type & carrier
-                        handleLocationClick(info.object, {
-                          linkOptions: {
-                            linkType: currentLinkType,
-                            carrier: LINK_TYPES[currentLinkType]?.carrier || 'electricity',
-                          }
-                        });
-                      } else {
-                        // Open edit dialog for the location
-                        setPendingLocation(info.object);
-                        setShowLocationDialog(true);
-                      }
-                    }
-                  },
-                  onHover: (info) => {
-                    if (info.object) {
-                      const loc = info.object;
-                      const techCount = Object.keys(loc.techs || {}).length;
-                      setHoveredInfo({
-                        name: loc.name || 'Location',
-                        techs: `${techCount} technolog${techCount !== 1 ? 'ies' : 'y'}`,
-                        x: info.x,
-                        y: info.y
-                      });
-                    } else {
-                      setHoveredInfo(null);
-                    }
-                  }
-                })
-              ] : []),
-
               // User Links Layer
               ...(layerVisibility.links && locationManager.tempLinks.length > 0 ? [
                 new LineLayer({
@@ -2485,6 +2472,52 @@ const Creation = ({ onNavigate }) => {
                   stroked: true,
                   parameters: { depthTest: false },
                   updateTriggers: { data: planPreviewGeo },
+                })
+              ] : []),
+
+              // User Locations Layer — last, so links/mesh drawn under it never
+              // steal clicks on a location (that broke link creation on OSM nodes).
+              ...(layerVisibility.locations && locationManager.tempLocations.length > 0 ? [
+                new IconLayer({
+                  id: 'user-locations',
+                  data: locationManager.tempLocations,
+                  getPosition: d => [d.longitude, d.latitude],
+                  getIcon: d => createLocationIcon(d, techMap, iconCache.current),
+                  // Zoom-adaptive in PIXELS: small & non-overlapping when zoomed out
+                  // (~6px), growing as you zoom in (~30px). Works for any region size
+                  // (a metres footprint would pin to max on small areas). updateTriggers
+                  // forces a recompute whenever the zoom changes.
+                  getSize: () => Math.max(6, Math.min(30, (viewState.zoom - 5) * 3)),
+                  sizeUnits: 'pixels',
+                  updateTriggers: { getSize: viewState.zoom },
+                  pickable: true,
+                  onClick: (info) => {
+                    if (info.object) {
+                      if (mode === 'link') {
+                        // Handled by the map-level onClick (handleLinkClick) so it
+                        // also works when an OSM marker sits on top of the location.
+                        return;
+                      } else {
+                        // Open edit dialog for the location
+                        setPendingLocation(info.object);
+                        setShowLocationDialog(true);
+                      }
+                    }
+                  },
+                  onHover: (info) => {
+                    if (info.object) {
+                      const loc = info.object;
+                      const techCount = Object.keys(loc.techs || {}).length;
+                      setHoveredInfo({
+                        name: loc.name || 'Location',
+                        techs: `${techCount} technolog${techCount !== 1 ? 'ies' : 'y'}`,
+                        x: info.x,
+                        y: info.y
+                      });
+                    } else {
+                      setHoveredInfo(null);
+                    }
+                  }
                 })
               ] : [])
             ]}
