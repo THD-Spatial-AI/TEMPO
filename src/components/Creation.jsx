@@ -43,6 +43,7 @@ import { useTechnologyManager } from '../hooks/useTechnologyManager';
 import { usePolylineMode } from '../hooks/usePolylineMode';
 
 import { normalizeFolderName } from '../utils/nameUtils';
+import { newId } from '../utils/newId';
 import { getTechColor, getTechIcon } from '../utils/techUtils';
 import { createLocationIcon, getSubstationIcon, substationIconCache } from '../utils/mapIcons';
 import { MAP_STYLES, MAP_STYLE_NAMES } from '../config/mapStyles';
@@ -1230,9 +1231,12 @@ const Creation = ({ onNavigate }) => {
       return;
     }
 
-    const baseTimestamp = Date.now();
-    const meshLocations = mesh.nodes.map((node, index) => ({
-      id: baseTimestamp + index,
+    const nodeIdToLocationId = {};
+    mesh.nodes.forEach(node => {
+      nodeIdToLocationId[node.id] = newId();
+    });
+    const meshLocations = mesh.nodes.map(node => ({
+      id: nodeIdToLocationId[node.id],
       name: node.name,
       latitude: node.latitude,
       longitude: node.longitude,
@@ -1249,19 +1253,14 @@ const Creation = ({ onNavigate }) => {
     
     locationManager.importMultipleLocations(meshLocations);
     
-    const nodeIdToLocationId = {};
-    mesh.nodes.forEach((node, index) => {
-      nodeIdToLocationId[node.id] = baseTimestamp + index;
-    });
-
-    const meshLinks = mesh.edges.map((edge, index) => {
+    const meshLinks = mesh.edges.map(edge => {
       const fromLocationId = nodeIdToLocationId[edge.from];
       const toLocationId = nodeIdToLocationId[edge.to];
       const fromNode = mesh.nodes.find(n => n.id === edge.from);
       const toNode = mesh.nodes.find(n => n.id === edge.to);
       const linkDistance = edge.realDistance || edge.distance;
       return {
-        id: baseTimestamp + 100000 + index,
+        id: newId(),
         from: fromLocationId,
         to: toLocationId,
         fromName: fromNode.name,
@@ -1321,9 +1320,7 @@ const Creation = ({ onNavigate }) => {
     const su = config.substations || {};
     const pl = config.plants || {};
 
-    const base = Date.now();
-    let seq = 0;
-    const nextId = () => base + (seq++);
+    const nextId = newId;
     const locations = [];
     const links = [];
     const transNodes = [];  // { id, name, lat, lon }
@@ -2678,7 +2675,7 @@ const Creation = ({ onNavigate }) => {
             // Add new location with generated ID
             const newLocationWithId = {
               ...savedLocation,
-              id: Date.now()
+              id: newId()
             };
             locationManager.addLocation(newLocationWithId);
             showNotification(`Created location: ${savedLocation.name}`, 'success');

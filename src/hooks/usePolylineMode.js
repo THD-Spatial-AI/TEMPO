@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { newId } from '../utils/newId';
 
 /**
  * Custom hook for managing polyline mode
@@ -13,7 +14,7 @@ export const usePolylineMode = (locationManager, showNotification) => {
    */
   const handlePolylineClick = useCallback((coordinate) => {
     const newLocationWithId = {
-      id: Date.now(),
+      id: newId(),
       latitude: coordinate[1],
       longitude: coordinate[0],
       name: `Point ${(locationManager.tempLocations?.length || 0) + 1}`,

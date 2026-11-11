@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { newId } from '../utils/newId';
 
 /**
  * Custom hook for handling map click interactions
@@ -31,7 +32,7 @@ export const useMapInteractions = (mode, addLocation, handleLocationClickForLink
     const { coordinate } = info;
     if (coordinate) {
       const newLocation = {
-        id: Date.now(),
+        id: newId(),
         latitude: coordinate[1],
         longitude: coordinate[0],
         name: `Location ${(tempLocations?.length || 0) + 1}`,

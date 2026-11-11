@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { newId } from '../utils/newId';
 
 /**
  * Custom hook for managing locations and links in the energy system model
@@ -51,7 +52,7 @@ export const useLocationManager = () => {
     );
     
     const newLink = {
-      id: Date.now(),
+      id: newId(),
       from: fromLocation.id,
       to: toLocation.id,
       fromName: fromLocation.name,
