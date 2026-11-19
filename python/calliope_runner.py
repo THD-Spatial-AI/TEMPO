@@ -1415,6 +1415,9 @@ def run_model(model_data, work_dir, log_fn=None):
     """
     _thread_local.log_fn = log_fn
     try:
+        # Only critical issues (nothing to build, broken keys) stop the run; the rest is the user's call.
+        import engine_diagnostics
+        engine_diagnostics.raise_if_blocked(model_data, 'calliope')
         return _run_model_impl(model_data, work_dir)
     finally:
         _thread_local.log_fn = None
