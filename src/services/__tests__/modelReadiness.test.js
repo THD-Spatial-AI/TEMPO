@@ -274,6 +274,22 @@ describe('checkModel demand and supply', () => {
     expect(checkModel(m).warnings.find((i) => i.code === 'supply_no_resource').items).toEqual(['a::solar_pv']);
   });
 
+  it('warns about reservoirs and dams without an inflow apart from weather-driven supply', () => {
+    const m = miniModel();
+    m.technologies.push(
+      { name: 'hydroelectric_reservoir', essentials: { parent: 'supply', carrier_out: 'electricity', name: 'Hydroelectric Reservoir' }, constraints: { energy_cap_max: 10, resource: 'inf' }, costs: { monetary: {} } },
+      { name: 'hydro_dam', essentials: { parent: 'supply', carrier_out: 'electricity' }, constraints: { energy_cap_max: 10 }, costs: { monetary: {} } },
+      { name: 'run-of-river-hydro', essentials: { parent: 'supply', carrier_out: 'electricity' }, constraints: { energy_cap_max: 10 }, costs: { monetary: {} } },
+    );
+    m.locations[0].techs = { ...m.locations[0].techs, hydroelectric_reservoir: null, hydro_dam: null, 'run-of-river-hydro': null };
+    const r = checkModel(m);
+    const inflow = r.warnings.find((i) => i.code === 'hydro_no_inflow');
+    expect(inflow.items).toEqual(['a::hydroelectric_reservoir', 'a::hydro_dam']);
+    expect(inflow.targets[0]).toMatchObject({ view: 'Technologies', kind: 'tech', id: 'hydroelectric_reservoir', field: 'resource' });
+    expect(inflow.message).toMatch(/inflow/);
+    expect(r.warnings.find((i) => i.code === 'supply_no_resource').items).toEqual(['a::run-of-river-hydro']);
+  });
+
   it('treats an inf resource as unbounded but a set resource as fine', () => {
     const m = miniModel();
     m.technologies[0].name = 'solar_pv';
@@ -577,8 +593,8 @@ describe('profile readiness', () => {
   it('omits profileTech and the Calculate hint when no weather-dependent tech has a profile kind', () => {
     const m = base({});
     m.timeSeries = [];
-    m.technologies = [{ name: 'hydro_reservoir', essentials: { parent: 'supply', carrier_out: 'power' } }];
-    m.locations.forEach((l) => { l.techs = { hydro_reservoir: {} }; });
+    m.technologies = [{ name: 'wave_energy', essentials: { parent: 'supply', carrier_out: 'power' } }];
+    m.locations.forEach((l) => { l.techs = { wave_energy: {} }; });
     const i = checkModel(m).warnings.find((w) => w.code === 'supply_no_resource');
     expect(i.profileTech).toBeUndefined();
     expect(i.message).not.toMatch(/Calculate profile/);

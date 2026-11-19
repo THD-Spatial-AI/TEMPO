@@ -8,6 +8,8 @@ import { classifyProfileKind, modelCalendar, profileFileName, profileStaleness }
 const PRODUCER_PARENTS = new Set(['supply', 'supply_plus', 'conversion', 'conversion_plus']);
 // Weather-dependent output: without a resource these run flat out every hour.
 const VARIABLE_RESOURCE = /solar|pv|wind|hydro|ror|wave|tidal/i;
+// Storage hydro: dispatchable, but its yearly output is bounded by the water flowing in.
+const RESERVOIR = /reservoir|(^|[^a-z])dams?([^a-z]|$)/i;
 const IGNORED_COST_KEYS = new Set(['interest_rate', 'depreciation_rate']);
 // Topology markers the Calliope 0.6 runner skips silently; copy of _HUB_LABELS in python/calliope_runner.py.
 const HUB_LABELS = new Set(['substation', 'transformer', 'bus', 'hub', 'switching_station', 'transmission_hub', 'node']);
@@ -28,6 +30,7 @@ export const FIX_VIEW = {
   demand_no_profile: 'Locations',
   demand_unserved: 'Map View',
   supply_no_resource: 'Technologies',
+  hydro_no_inflow: 'Technologies',
   profile_stale: 'Technologies',
   link_unknown_location: 'Links',
   link_self: 'Links',
@@ -279,6 +282,7 @@ function checkDemandAndSupply({ locations, links, technologies, techByName, reso
   const produced = new Set();
   const noProfile = [];
   const noResource = [];
+  const noInflow = [];
   let profileTech;
   const unserved = [];
 
@@ -322,7 +326,10 @@ function checkDemandAndSupply({ locations, links, technologies, techByName, reso
           produced.add(c);
         }
         const unbounded = resource === undefined || resource === null || resource === '' || String(resource).toLowerCase() === 'inf';
-        if (parent.startsWith('supply') && unbounded && VARIABLE_RESOURCE.test(`${ref} ${tech.essentials?.name || ''}`)) {
+        const named = `${ref} ${tech.essentials?.name || ''}`;
+        if (parent.startsWith('supply') && unbounded && RESERVOIR.test(named)) {
+          noInflow.push({ label: `${lname}::${ref}`, kind: 'tech', id: keyOf(tech), location: lname, field: 'resource' });
+        } else if (parent.startsWith('supply') && unbounded && VARIABLE_RESOURCE.test(named)) {
           const canProfile = Boolean(classifyProfileKind({ id: ref, name: keyOf(tech), parent }));
           noResource.push({ label: `${lname}::${ref}`, kind: 'tech', id: keyOf(tech), location: lname, field: 'resource', profile: canProfile });
           profileTech ||= canProfile ? keyOf(tech) : undefined;
@@ -349,6 +356,9 @@ function checkDemandAndSupply({ locations, links, technologies, techByName, reso
   if (noResource.length) {
     const hint = profileTech ? ' Open the technology and use Calculate profile.' : '';
     add('supply_no_resource', 'warning', `These weather-dependent technologies have no resource time series, so engines let them produce at full capacity every hour.${hint}`, noResource, profileTech ? { profileTech } : undefined);
+  }
+  if (noInflow.length) {
+    add('hydro_no_inflow', 'warning', 'These hydro reservoirs have no water inflow limit, so the model may run them at full capacity every hour of the year. A real reservoir is limited by the water it receives. Set an inflow time series as the resource, or ignore this if treating it as a dispatchable plant is intended.', noInflow);
   }
   if (unserved.length) {
     const message = modelConfig.ensureFeasibility
