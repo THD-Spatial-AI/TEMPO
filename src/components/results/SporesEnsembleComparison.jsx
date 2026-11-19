@@ -86,7 +86,7 @@ export default function SporesEnsembleComparison({ completedJobs }) {
   const classCsv = () => download('spores_classification.csv', toCsv(
     classification.map(c => ({
       tech: c.tech, class: c.class,
-      ...Object.fromEntries(slacks.flatMap(s => [[`zero_share_${s}`, c.zeroShare[s / 100]], [`median_${s}`, c.median[s / 100]]])),
+      ...Object.fromEntries(slacks.flatMap(s => [[`zero_share_${s}`, c.zeroShare[s]], [`median_${s}`, c.median[s]]])),
     })),
     ['tech', 'class', ...slacks.flatMap(s => [`zero_share_${s}`, `median_${s}`])]));
 
@@ -126,7 +126,7 @@ export default function SporesEnsembleComparison({ completedJobs }) {
               <tr key={c.tech} className="border-t border-black/10">
                 <td className="py-1 font-medium text-slate-700">{c.tech}</td>
                 {slacks.map(s => {
-                  const z = c.zeroShare[s / 100], m = c.median[s / 100];
+                  const z = c.zeroShare[s], m = c.median[s];
                   return <td key={s}>{z == null ? '–' : `${(z * 100).toFixed(0)}%`} / {m == null ? '–' : `${(m * 100).toFixed(0)}%`}</td>;
                 })}
                 <td><span className={`px-2 py-0.5 rounded font-medium ${CLASS_CHIP[c.class]}`}>{c.class}</span></td>
