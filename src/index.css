@@ -164,6 +164,19 @@ code, pre {
   100% { background-position: 200% 0; }
 }
 
+/* Entity reached through a readiness Fix link (fixIntent.revealFix) */
+/* White gap first so the ring also shows on black elements */
+@keyframes fixPulse {
+  0%, 100% { box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgb(0 0 0 / 0.9); }
+  50% { box-shadow: 0 0 0 2px #fff, 0 0 0 7px rgb(0 0 0 / 0.25); }
+}
+.fix-highlight {
+  animation: fixPulse 0.9s ease-in-out 3;
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgb(0 0 0 / 0.9);
+  position: relative;
+  z-index: 1;
+}
+
 /* Enhanced Buttons */
 @layer components {
   .btn-primary {
