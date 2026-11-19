@@ -11,6 +11,8 @@ import { CARRIERS, getCarrierColor, getCarrierLabel } from "../config/carriers";
 import { confirmAction } from './ui/confirm';
 import SelectField from './ui/SelectField';
 import { iconBtn, ICON_PX } from './ui/iconButton';
+import useFixTarget from '../hooks/useFixTarget';
+import { fixKey, revealFix } from '../services/fixIntent';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -121,6 +123,16 @@ const Links = () => {
   // CRUD
   const startEdit  = (i) => { setEditingIndex(i); setEditData({ ...links[i] }); };
   const cancelEdit = ()  => { setEditingIndex(null); setEditData({}); };
+
+  // A readiness Fix link: clear the filters and open the link's row for editing.
+  useFixTarget('Links', (t) => {
+    const index = links.findIndex(l => String(l.from) === t.from && String(l.to) === t.to);
+    if (index < 0) return;
+    setSearchQuery('');
+    setFilterCarrier('all');
+    startEdit(index);
+    revealFix(fixKey('link', index));
+  });
 
   const saveEdit = () => {
     const fromLoc  = locations.find(l => l.name === editData.from);
@@ -269,7 +281,7 @@ const Links = () => {
                   const carrier = resolveLinkCarrier(link);
                   const lt      = LINK_TYPES[link.linkType];
                   return (
-                    <tr key={index} className={`group transition-colors ${editingIndex === index ? 'bg-slate-50' : 'hover:bg-slate-50/70'}`}>
+                    <tr key={index} data-fix={fixKey('link', index)} className={`group transition-colors ${editingIndex === index ? 'bg-slate-50' : 'hover:bg-slate-50/70'}`}>
                       {editingIndex === index ? (
                         <>
                           <td className="px-5 py-3">

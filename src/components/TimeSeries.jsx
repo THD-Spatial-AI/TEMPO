@@ -13,6 +13,8 @@ import { modelTimeWindow } from '../utils/modelTimeWindow';
 import SaveBar from './ui/SaveBar';
 import TimeSeriesGuide from './timeseries/TimeSeriesGuide';
 import { confirmAction } from './ui/confirm';
+import useFixTarget from '../hooks/useFixTarget';
+import { fixKey, revealFix } from '../services/fixIntent';
 
 const TimeSeries = () => {
   const { timeSeries, setTimeSeries, getCurrentModel } = useData();
@@ -335,6 +337,20 @@ const TimeSeries = () => {
   }, [timeSeries, currentModel]);
 
   // Handle file upload
+  // A readiness Fix link: select the series the issue names, or point at Upload when it is missing.
+  useFixTarget('TimeSeries', (t) => {
+    const want = String(t.id || '').toLowerCase().replace(/\.csv$/, '');
+    const ts = modelTimeSeries.find(x => [x.fileName, x.name]
+      .some(n => n && String(n).toLowerCase().replace(/\.csv$/, '') === want));
+    if (!ts) {
+      revealFix(fixKey('timeseries-upload'));
+      return;
+    }
+    setSelectedTimeSeries(ts);
+    setSelectedColumns(getDataColumns(ts).slice(0, 5));
+    revealFix(fixKey('timeseries', ts.id));
+  });
+
   const uploadFile = (file) => handleFileUpload({ target: { files: [file], value: null } });
 
   const handleFileUpload = (event) => {
@@ -694,7 +710,7 @@ const TimeSeries = () => {
           >
             <FiFileText size={14} /> File format
           </button>
-          <label className="flex h-9 cursor-pointer items-center gap-1.5 rounded-lg bg-black px-3 text-[13px] font-semibold text-white  transition-colors hover:bg-black/80">
+          <label data-fix={fixKey('timeseries-upload')} className="flex h-9 cursor-pointer items-center gap-1.5 rounded-lg bg-black px-3 text-[13px] font-semibold text-white  transition-colors hover:bg-black/80">
             <FiUpload size={14} />
             Upload CSV
             <input type="file" accept=".csv" onChange={handleFileUpload} className="hidden" />
@@ -711,6 +727,7 @@ const TimeSeries = () => {
                 return (
                   <div
                     key={ts.id}
+                    data-fix={fixKey('timeseries', ts.id)}
                     role="button"
                     tabIndex={0}
                     onClick={() => {
