@@ -249,24 +249,26 @@ describe('otdb profile fetchers', () => {
 });
 
 describe('modelCalendar', () => {
-  it('prefers subset_time params over metadata.subsetTime and modelConfig (Run.jsx order)', () => {
+  it('prefers the saved window (metadata.modelConfig) over subset_time params and the import window', () => {
     const model = {
       metadata: { modelConfig: { startDate: '2025-01-01', endDate: '2025-01-07', resolution: '30min' }, subsetTime: ['2020-01-01', '2020-12-31'] },
       parameters: [{ key: 'subset_time_start', value: '2019-02-01 00:00' }, { key: 'subset_time_end', value: '2019-02-28' }],
     };
     expect(modelCalendar(model)).toEqual({
-      startDate: '2019-01-01', endDate: '2019-12-31', resolution: '30min',
-      window: { start: '2019-02-01', end: '2019-02-28' },
+      startDate: '2025-01-01', endDate: '2025-12-31', resolution: '30min',
+      window: { start: '2025-01-01', end: '2025-01-07' },
     });
   });
-  it('then metadata.subsetTime (pair or bare year) over modelConfig', () => {
-    const mc = { modelConfig: { startDate: '2025-01-01', endDate: '2025-01-07' } };
-    expect(modelCalendar({ metadata: { ...mc, subsetTime: ['2020-03-01', '2020-03-31 23:00'] } }))
+  it('then subset_time params, then metadata.subsetTime (pair or bare year)', () => {
+    const params = [{ key: 'subset_time_start', value: '2019-02-01 00:00' }, { key: 'subset_time_end', value: '2019-02-28' }];
+    expect(modelCalendar({ parameters: params, metadata: { subsetTime: ['2020-03-01', '2020-03-31 23:00'] } }))
+      .toEqual({ startDate: '2019-01-01', endDate: '2019-12-31', resolution: '60min', window: { start: '2019-02-01', end: '2019-02-28' } });
+    expect(modelCalendar({ metadata: { subsetTime: ['2020-03-01', '2020-03-31 23:00'] } }))
       .toEqual({ startDate: '2020-01-01', endDate: '2020-12-31', resolution: '60min', window: { start: '2020-03-01', end: '2020-03-31' } });
     expect(modelCalendar({ metadata: { subsetTime: 2021 } }))
       .toEqual({ startDate: '2021-01-01', endDate: '2021-12-31', resolution: '60min', window: { start: '2021-01-01', end: '2021-12-31' } });
   });
-  it('falls back to metadata.modelConfig dates last, normalising them', () => {
+  it('normalises saved metadata.modelConfig dates', () => {
     const model = { metadata: { modelConfig: { startDate: '2025-01-01T00:00', endDate: '2025-01-07 23:00', resolution: '15min' } } };
     expect(modelCalendar(model)).toEqual({
       startDate: '2025-01-01', endDate: '2025-12-31', resolution: '15min',

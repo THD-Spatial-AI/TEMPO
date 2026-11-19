@@ -8,6 +8,7 @@
  */
 
 import { RESOLUTION_MINUTES } from './demandProfiles';
+import { modelTimeWindow } from '../utils/modelTimeWindow.js';
 
 const NO_PROFILE_PARENTS = new Set(['storage', 'transmission', 'distribution', 'demand']);
 
@@ -114,49 +115,21 @@ export function profileFileName(techName) {
 }
 
 /**
- * Calendar a profile is stamped onto (D3). The run window is resolved like
- * Run.jsx: subset_time_start/end parameters → metadata.subsetTime →
- * metadata.modelConfig dates, then widened to full calendar years so any run
- * window inside them works without re-fetching.
+ * Calendar a profile is stamped onto (D3): the model's run window (modelTimeWindow —
+ * the same one the Run page and Scenario Studio use), widened to full calendar years
+ * so any run window inside them works without re-fetching. Null when the model has
+ * no window of its own (no saved dates, subset_time or time series).
  * @returns {{startDate:string, endDate:string, resolution:string,
  *            window:{start:string, end:string}}|null} window = raw run window (display only)
  */
 export function modelCalendar(model) {
-  const meta = model?.metadata || {};
-  const mc = meta.modelConfig || {};
-  let start = null;
-  let end = null;
-  (model?.parameters || []).forEach(p => {
-    if (p.key === 'subset_time_start') start = p.value;
-    if (p.key === 'subset_time_end') end = p.value;
-  });
-  if (!start && !end && meta.subsetTime) {
-    const st = meta.subsetTime;
-    if (Array.isArray(st) && st.length === 2) {
-      start = String(st[0]);
-      end = String(st[1]);
-    } else {
-      const v = String(st).trim().slice(0, 10);
-      start = /^\d{4}$/.test(v) ? `${v}-01-01` : v;
-      end = /^\d{4}$/.test(v) ? `${v}-12-31` : v;
-    }
-  }
-  if (!start && !end) {
-    start = mc.startDate || null;
-    end = mc.endDate || null;
-  }
-  const toDate = (v) => {
-    const d = v ? String(v).slice(0, 10) : '';
-    return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null;
-  };
-  start = toDate(start);
-  end = toDate(end);
-  if (!start || !end) return null;
+  const w = modelTimeWindow(model);
+  if (w.source === 'default') return null;
   return {
-    startDate: `${start.slice(0, 4)}-01-01`,
-    endDate: `${end.slice(0, 4)}-12-31`,
-    resolution: mc.resolution || '60min',
-    window: { start, end },
+    startDate: `${w.startDate.slice(0, 4)}-01-01`,
+    endDate: `${w.endDate.slice(0, 4)}-12-31`,
+    resolution: model?.metadata?.modelConfig?.resolution || '60min',
+    window: { start: w.startDate, end: w.endDate },
   };
 }
 

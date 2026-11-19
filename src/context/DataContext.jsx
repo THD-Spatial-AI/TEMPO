@@ -713,20 +713,28 @@ export const DataProvider = ({ children }) => {
   // Views get every run in MW / MWh, whatever unit its model is in; saved runs stay as reported.
   const completedJobsInMW = useMemo(() => completedJobs.map(j => jobInMW(j, models)), [completedJobs, models]);
 
-  // The unit a model's numbers are in (metadata.modelConfig.powerUnit).
-  const setModelPowerUnit = useCallback((modelId, powerUnit) => {
+  // Merge settings into a model's metadata.modelConfig and save it.
+  const updateModelSettings = useCallback((modelId, patch, what) => {
     setModels(prev => {
       const updated = prev.map(m => (m.id === modelId
-        ? { ...m, metadata: { ...m.metadata, modelConfig: { ...m.metadata?.modelConfig, powerUnit } } }
+        ? { ...m, metadata: { ...m.metadata, modelConfig: { ...m.metadata?.modelConfig, ...patch } } }
         : m));
       const model = updated.find(m => m.id === modelId);
       if (model && stateRef.current.backendAvailable && confirmedBackendIds.current.has(modelId)) {
         api.updateModel(modelId, prepareModelForBackend(model))
-          .catch(e => console.error('Failed to save the model unit:', e));
+          .catch(e => console.error(`Failed to save the ${what}:`, e));
       }
       return updated;
     });
   }, []);
+
+  // The unit a model's numbers are in (metadata.modelConfig.powerUnit).
+  const setModelPowerUnit = useCallback((modelId, powerUnit) => updateModelSettings(modelId, { powerUnit }, 'model unit'), [updateModelSettings]);
+
+  // The window a model runs over (metadata.modelConfig.startDate/endDate); see utils/modelTimeWindow.js.
+  const setModelTimeWindow = useCallback((modelId, { startDate, endDate }) => (
+    updateModelSettings(modelId, { startDate, endDate }, 'time window')
+  ), [updateModelSettings]);
 
   const addCompletedJob = (job) => {
     setCompletedJobs(prev => {
@@ -781,7 +789,7 @@ export const DataProvider = ({ children }) => {
     runningJobs, addRunningJob, removeRunningJob, appendRunningJobLog, updateRunningJobStats, getRunningJob,
     completedJobs: completedJobsInMW,
     addCompletedJob,
-    setModelPowerUnit,
+    setModelPowerUnit, setModelTimeWindow,
     removeCompletedJob,
     activeResultJobId,
     setActiveResultJobId,

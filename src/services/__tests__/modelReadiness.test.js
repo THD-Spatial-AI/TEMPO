@@ -451,13 +451,16 @@ describe('profile readiness', () => {
     expect(i.items[0]).toBe('pv: missing C; removed B; calendar');
   });
 
-  it('resolves the calendar from subsetTime like the section does', () => {
+  it('resolves the calendar like the section does: saved window, else subsetTime', () => {
     const m = base();
     m.parameters = [];
     m.subsetTime = '2023';
-    m.modelConfig = { ...m.modelConfig, startDate: '2024-01-01', endDate: '2024-12-31' };
+    m.modelConfig = { ...m.modelConfig, startDate: undefined, endDate: undefined };
     expect(allCodes(checkModel(m))).not.toContain('profile_stale');
     m.subsetTime = '2024';
+    expect(checkModel(m).warnings.find((w) => w.code === 'profile_stale').items).toEqual(['pv: calendar']);
+    m.subsetTime = '2023';
+    m.modelConfig = { ...m.modelConfig, startDate: '2024-01-01', endDate: '2024-12-31' };
     expect(checkModel(m).warnings.find((w) => w.code === 'profile_stale').items).toEqual(['pv: calendar']);
   });
 
