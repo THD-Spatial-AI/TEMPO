@@ -178,7 +178,7 @@ const TABS = [
 const Dashboard = ({ onNavigate }) => {
   const { locations, links, getCurrentModel, technologies, timeSeries, setTimeSeries } = useData();
   const readiness = useModelReadiness();
-  const issueCount = readiness ? readiness.errors.length + readiness.warnings.length : 0;
+  const issueCount = readiness ? readiness.critical.length + readiness.errors.length + readiness.warnings.length : 0;
   const currentModel = getCurrentModel();
   const toMW = POWER_UNITS[modelPowerUnit(currentModel)] ?? 1;
   const [activeTab, setActiveTab] = useState('overview');
@@ -541,7 +541,7 @@ const Dashboard = ({ onNavigate }) => {
         <div className="p-6 space-y-5">
 
           {activeTab === 'readiness' && readiness && (
-            <Panel title={`Issues (${readiness.errors.length} blocking, ${readiness.warnings.length} ${readiness.warnings.length === 1 ? 'warning' : 'warnings'})`} icon={FiAlertTriangle}>
+            <Panel title={`Issues (${readiness.critical.length} blocking, ${readiness.errors.length} ${readiness.errors.length === 1 ? 'error' : 'errors'}, ${readiness.warnings.length} ${readiness.warnings.length === 1 ? 'warning' : 'warnings'})`} icon={FiAlertTriangle}>
               <div className="px-5 py-2">
                 <ReadinessPanel readiness={readiness} onNavigate={onNavigate} emptyText="The model is ready to run." />
               </div>

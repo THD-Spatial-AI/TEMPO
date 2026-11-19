@@ -55,12 +55,12 @@ export default function SaveModelDialog({
                 </div>
               </div>
 
-              {readiness && readiness.errors.length + readiness.warnings.length > 0 && (
+              {readiness && readiness.critical.length + readiness.errors.length + readiness.warnings.length > 0 && (
                 <div className="rounded-lg border border-black/15 p-4">
                   <p className="text-sm font-semibold text-slate-900">
-                    {readiness.errors.length} problem{readiness.errors.length === 1 ? '' : 's'} and {readiness.warnings.length} warning{readiness.warnings.length === 1 ? '' : 's'}
+                    {readiness.critical.length + readiness.errors.length} problem{readiness.critical.length + readiness.errors.length === 1 ? '' : 's'} and {readiness.warnings.length} warning{readiness.warnings.length === 1 ? '' : 's'}
                   </p>
-                  <p className="mt-0.5 text-xs text-slate-500">You can save now and finish the model later. Runs stay disabled until the problems are fixed.</p>
+                  <p className="mt-0.5 text-xs text-slate-500">You can save now and finish the model later. {readiness.critical.length ? 'Runs stay disabled until the critical problems are fixed.' : 'You can still run it; results may not reflect your system until the problems are fixed.'}</p>
                   <div className="mt-2 max-h-48 overflow-y-auto">
                     <ReadinessPanel readiness={readiness} />
                   </div>

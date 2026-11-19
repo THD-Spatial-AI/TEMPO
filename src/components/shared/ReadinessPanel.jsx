@@ -4,14 +4,18 @@ import { requestProfileDialog } from '../../services/profileIntent';
 import { FiAlertCircle, FiAlertTriangle, FiArrowRight, FiCheckCircle } from '../ui/icons';
 
 function IssueRow({ issue, onNavigate }) {
-  const isError = issue.severity === 'error';
+  const isCritical = issue.severity === 'critical';
+  const isError = isCritical || issue.severity === 'error';
   const Icon = isError ? FiAlertCircle : FiAlertTriangle;
   const more = (issue.count || 0) - (issue.items?.length || 0);
   return (
     <li className="flex gap-3 py-2.5">
-      <Icon size={15} className={`mt-0.5 shrink-0 ${isError ? 'text-black' : 'text-slate-400'}`} />
+      <Icon size={15} className={`mt-0.5 shrink-0 ${isCritical ? 'text-black' : isError ? 'text-slate-600' : 'text-slate-400'}`} />
       <div className="min-w-0 flex-1">
-        <p className="text-sm text-slate-800">{issue.message}</p>
+        <p className="text-sm text-slate-800">
+          {isCritical && <span className="mr-1.5 text-[11px] font-semibold uppercase tracking-wide text-black">Blocks run</span>}
+          {issue.message}
+        </p>
         {issue.items?.length > 0 && (
           <p className="mt-0.5 truncate text-xs text-slate-500" title={issue.items.join(', ')}>
             {issue.items.join(', ')}{more > 0 ? ` and ${more} more` : ''}
@@ -35,7 +39,8 @@ function IssueRow({ issue, onNavigate }) {
 
 export default function ReadinessPanel({ readiness, onNavigate, emptyText = 'No problems found.' }) {
   if (!readiness) return null;
-  const issues = [...readiness.errors, ...readiness.warnings];
+  // Engine /assess from an older service has no critical list.
+  const issues = [...(readiness.critical || []), ...readiness.errors, ...readiness.warnings];
   if (!issues.length) {
     return (
       <p className="flex items-center gap-2 text-sm text-slate-600">
