@@ -6,7 +6,7 @@
  *
  * The constraint is stored in modelConfig.groupConstraints.co2_cap and
  * converted to a Calliope-native group_constraints override at dispatch.
- * See utils.buildCalliope06GroupConstraintsOverride.
+ * See utils.buildCalliope06SystemOverride.
  *
  * Requires the model's technologies to have co2 costs defined
  * (costs.co2 or costs.monetary.co2). The constraint enforces that the

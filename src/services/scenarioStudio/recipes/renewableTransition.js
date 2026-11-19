@@ -6,9 +6,9 @@
  *      (graduated) or disables them at/after the target year (cliff).
  *   2. Optionally scales renewable tech energy_cap_max up (to allow expansion).
  *
- * System-level renewable_min constraint (carrier_prod_min_systemwide) is stored
+ * System-level renewable_min constraint (carrier_prod_share_min) is stored
  * in modelConfig.groupConstraints for conversion to a Calliope native override
- * at dispatch. See utils.buildCalliope06GroupConstraintsOverride.
+ * at dispatch. See utils.buildCalliope06SystemOverride.
  *
  * Knobs (params):
  *   baseYear        {number}   Year of baseline (no change). Default: 2025.
