@@ -73,7 +73,8 @@ describe('checkModel structure', () => {
     const m = miniModel();
     for (let i = 0; i < 12; i++) m.locations.push({ name: `x${i}`, latitude: 1, longitude: 1, techs: {} });
     const w = checkModel(m).warnings.find((i) => i.code === 'empty_location');
-    expect(w.view).toBe('Locations');
+    expect(w.view).toBe('Creation');
+    expect(w.targets).toHaveLength(8);
     expect(w.items).toHaveLength(8);
     expect(w.count).toBe(12);
   });
@@ -431,6 +432,97 @@ describe('shared readiness cases', () => {
       for (const i of got) expect(i.severity).toBe(shared.severity[i.code]);
     });
   }
+});
+
+describe('issue targets', () => {
+  const find = (r, code) => [...r.critical, ...r.errors, ...r.warnings].find((i) => i.code === code);
+  const twoLocs = () => {
+    const m = miniModel();
+    m.locations.push({ name: 'b', latitude: 1, longitude: 1, techs: { gen: null } });
+    return m;
+  };
+
+  it('gives one target per item, in item order', () => {
+    const m = miniModel();
+    m.locations.push({ name: 'x', latitude: 1, longitude: 1, techs: {} }, { name: 'y', latitude: 1, longitude: 1, techs: {} });
+    const i = find(checkModel(m), 'empty_location');
+    expect(i.items).toEqual(['x', 'y']);
+    expect(i.targets.map((t) => t.id)).toEqual(['x', 'y']);
+  });
+
+  it('flies the Creation map to an empty location', () => {
+    const m = miniModel();
+    m.locations.push({ name: 'x', latitude: 1, longitude: 1, techs: {} });
+    expect(find(checkModel(m), 'empty_location').targets[0]).toEqual({ view: 'Creation', kind: 'location', id: 'x', map: true });
+  });
+
+  it('opens the location field for duplicates and missing coordinates', () => {
+    const dup = miniModel();
+    dup.locations.push({ ...dup.locations[0] });
+    expect(find(checkModel(dup), 'duplicate_location').targets[0]).toEqual({ view: 'Locations', kind: 'location', id: 'a', field: 'name' });
+    const noc = miniModel();
+    noc.locations[0].latitude = null;
+    expect(find(checkModel(noc), 'missing_coordinates').targets[0]).toEqual({ view: 'Locations', kind: 'location', id: 'a', field: 'coordinates' });
+  });
+
+  it('points a demand with no profile at its location and tech', () => {
+    const m = miniModel();
+    delete m.locations[0].demandProfile;
+    expect(find(checkModel(m), 'demand_no_profile').targets[0]).toEqual({ view: 'Locations', kind: 'location', id: 'a', tech: 'dem', field: 'demandProfile' });
+  });
+
+  it('points an undefined location tech at the location row', () => {
+    const m = miniModel();
+    m.locations[0].techs.ghost = null;
+    expect(find(checkModel(m), 'undefined_tech').targets[0]).toEqual({ view: 'Locations', kind: 'location', id: 'a', tech: 'ghost' });
+  });
+
+  it('points link issues at the link by its ends', () => {
+    const m = twoLocs();
+    m.links = [{ from: 'a', to: 'b', tech: 'hvdc' }, { from: 'a', to: 'nowhere', tech: 'gen' }, { from: 'b', to: 'b', tech: 'gen' }];
+    const r = checkModel(m);
+    expect(find(r, 'undefined_link_tech').targets[0]).toEqual({ view: 'Links', kind: 'link', from: 'a', to: 'b', field: 'tech' });
+    expect(find(r, 'link_unknown_location').targets[0]).toEqual({ view: 'Links', kind: 'link', from: 'a', to: 'nowhere' });
+    expect(find(r, 'link_self').targets[0]).toEqual({ view: 'Links', kind: 'link', from: 'b', to: 'b' });
+  });
+
+  it('gives each island its member list on the map', () => {
+    const t = find(checkModel(twoLocs()), 'disconnected_network').targets;
+    expect(t).toHaveLength(2);
+    expect(t[1]).toEqual({ view: 'Creation', kind: 'island', members: ['b'], map: true });
+  });
+
+  it('flies to a location whose demand is unserved', () => {
+    const m = miniModel();
+    m.locations.push({ name: 'b', latitude: 1, longitude: 1, techs: { dem: null }, demandProfile: { timeseries: [5] } });
+    expect(find(checkModel(m), 'demand_unserved').targets[0]).toEqual({ view: 'Creation', kind: 'location', id: 'b', map: true });
+  });
+
+  it('points tech issues at the tech, with the profile dialog when one can be calculated', () => {
+    const m = miniModel();
+    m.technologies.push({ name: 'idle', essentials: { parent: 'supply' }, costs: { monetary: { energy_cap: 1 } } });
+    expect(find(checkModel(m), 'unused_tech').targets[0]).toEqual({ view: 'Technologies', kind: 'tech', id: 'idle' });
+    const pv = miniModel();
+    pv.technologies[0].name = 'solar_pv';
+    pv.locations[0].techs = { solar_pv: null, dem: null };
+    expect(find(checkModel(pv), 'supply_no_resource').targets[0])
+      .toEqual({ view: 'Technologies', kind: 'tech', id: 'solar_pv', location: 'a', field: 'resource', profile: true });
+  });
+
+  it('points file issues at the time series', () => {
+    const m = miniModel();
+    m.locations[0].techs.gen = { constraints: { resource: 'file=pv.csv:a' } };
+    expect(find(checkModel(m), 'missing_timeseries').targets[0]).toEqual({ view: 'TimeSeries', kind: 'timeseries', id: 'pv.csv' });
+    const ts = { fileName: 'wind.csv', dateColumn: 't', columns: ['t'], data: [{ t: '2015-01-01 00:00' }, { t: '2015-12-31 23:00' }] };
+    expect(find(checkModel(miniModel({ timeSeries: [ts] })), 'timeseries_out_of_range').targets[0])
+      .toEqual({ view: 'TimeSeries', kind: 'timeseries', id: 'wind.csv' });
+  });
+
+  it('leaves issue-level problems without item targets', () => {
+    const r = checkModel({ locations: [], links: [], technologies: [] });
+    expect(find(r, 'no_locations').targets).toBeUndefined();
+    expect(find(r, 'no_locations').view).toBe('Creation');
+  });
 });
 
 describe('profile readiness', () => {

@@ -12,26 +12,26 @@ const IGNORED_COST_KEYS = new Set(['interest_rate', 'depreciation_rate']);
 // Topology markers the Calliope 0.6 runner skips silently; copy of _HUB_LABELS in python/calliope_runner.py.
 const HUB_LABELS = new Set(['substation', 'transformer', 'bus', 'hub', 'switching_station', 'transmission_hub', 'node']);
 
-// Page (App.jsx view key) where each issue is fixed; drives the "Fix" link.
+// Page (App.jsx view key) where each issue is fixed; the default view of its item targets.
 export const FIX_VIEW = {
   no_locations: 'Creation',
   duplicate_location: 'Locations',
   missing_coordinates: 'Locations',
-  empty_location: 'Locations',
+  empty_location: 'Creation',
   no_technologies: 'Technologies',
-  undefined_tech: 'Technologies',
+  undefined_tech: 'Locations',
   undefined_link_tech: 'Links',
   unused_tech: 'Technologies',
   no_costs: 'Technologies',
   no_demand: 'Technologies',
   no_supply: 'Technologies',
   demand_no_profile: 'Locations',
-  demand_unserved: 'Links',
+  demand_unserved: 'Creation',
   supply_no_resource: 'Technologies',
   profile_stale: 'Technologies',
   link_unknown_location: 'Links',
   link_self: 'Links',
-  disconnected_network: 'Links',
+  disconnected_network: 'Creation',
   missing_timeseries: 'TimeSeries',
   timeseries_out_of_range: 'TimeSeries',
   invalid_time_horizon: 'Run',
@@ -152,10 +152,20 @@ function connectedComponents(names, links) {
   return groups;
 }
 
+// An item is a label, or { label, ...target } where the target says which entity (and field) fixes it.
+// Map targets open on the Creation map; the rest on the code's FIX_VIEW page.
 function issue(code, severity, message, items, extra) {
   const out = { code, severity, message, view: FIX_VIEW[code], ...extra };
   if (items?.length) {
-    out.items = items.slice(0, 8);
+    const shown = items.slice(0, 8);
+    out.items = shown.map((x) => (typeof x === 'string' ? x : x.label));
+    if (shown.some((x) => typeof x !== 'string')) {
+      out.targets = shown.map((x) => {
+        if (typeof x === 'string') return null;
+        const { label: _label, ...target } = x;
+        return { view: target.map ? 'Creation' : FIX_VIEW[code], ...target };
+      });
+    }
     out.count = items.length;
   }
   return out;
@@ -170,16 +180,18 @@ function checkLocations({ locations, links }, add) {
   const dupes = [];
   for (const loc of locations) {
     const name = keyOf(loc);
-    if (seen.has(name)) dupes.push(name);
+    if (seen.has(name)) dupes.push({ label: name, kind: 'location', id: name, field: 'name' });
     else seen.add(name);
   }
   if (dupes.length) add('duplicate_location', 'critical', 'Two or more locations share a name. Engines key locations by name, so one would overwrite the other.', dupes);
 
-  const noCoords = locations.filter((l) => !isFiniteNumber(l.latitude) || !isFiniteNumber(l.longitude)).map(keyOf);
+  const noCoords = locations.filter((l) => !isFiniteNumber(l.latitude) || !isFiniteNumber(l.longitude))
+    .map((l) => ({ label: keyOf(l), kind: 'location', id: keyOf(l), field: 'coordinates' }));
   if (noCoords.length) add('missing_coordinates', 'warning', 'These locations have no coordinates, so they do not show on the map and link distances cannot be computed.', noCoords);
 
   const linked = new Set(links.flatMap((l) => [String(l.from), String(l.to)]));
-  const empty = locations.filter((l) => !locationTechs(l).length && !linked.has(keyOf(l))).map(keyOf);
+  const empty = locations.filter((l) => !locationTechs(l).length && !linked.has(keyOf(l)))
+    .map((l) => ({ label: keyOf(l), kind: 'location', id: keyOf(l), map: true }));
   if (empty.length) add('empty_location', 'warning', 'These locations have no technologies and no links, so they do nothing in the model.', empty);
 }
 
@@ -200,7 +212,9 @@ function checkTechnologies({ locations, links, technologies, techByName, resolve
       used.add(ref);
       const tech = resolveTech(ref);
       if (tech) used.add(keyOf(tech));
-      else if (!HUB_LABELS.has(ref.replace(/ /g, '_').toLowerCase())) undefinedRefs.push(`${keyOf(loc)}::${ref}`);
+      else if (!HUB_LABELS.has(ref.replace(/ /g, '_').toLowerCase())) {
+        undefinedRefs.push({ label: `${keyOf(loc)}::${ref}`, kind: 'location', id: keyOf(loc), tech: ref });
+      }
     }
   }
   if (undefinedRefs.length) add('undefined_tech', 'warning', 'These locations list technologies that are not defined; engines skip them.', undefinedRefs);
@@ -208,11 +222,12 @@ function checkTechnologies({ locations, links, technologies, techByName, resolve
   const undefinedLinkRefs = [];
   for (const link of links) {
     const label = `${link.from}\u2192${link.to}`;
+    const target = { kind: 'link', from: String(link.from), to: String(link.to), field: 'tech' };
     for (const ref of linkTechs(link)) {
       used.add(ref);
-      if (!techByName.has(ref)) undefinedLinkRefs.push(`${label}::${ref}`);
+      if (!techByName.has(ref)) undefinedLinkRefs.push({ label: `${label}::${ref}`, ...target });
     }
-    if (!linkTechs(link).length) undefinedLinkRefs.push(`${label} (no tech)`);
+    if (!linkTechs(link).length) undefinedLinkRefs.push({ label: `${label} (no tech)`, ...target });
   }
   if (undefinedLinkRefs.length) add('undefined_link_tech', 'warning', 'These links use a transmission technology that is not defined. Calliope 0.6 creates a default line for them; PyPSA, OSeMOSYS and AdOpT-NET0 skip them.', undefinedLinkRefs);
 
@@ -221,7 +236,7 @@ function checkTechnologies({ locations, links, technologies, techByName, resolve
   const unused = technologies
     .filter((t) => parentOf(t) !== 'transmission' && !(implicitDemand && parentOf(t) === 'demand')
       && !used.has(t.name) && !used.has(t.id))
-    .map(keyOf);
+    .map((t) => ({ label: keyOf(t), kind: 'tech', id: keyOf(t) }));
   if (unused.length) add('unused_tech', 'warning', 'These technologies are defined but not assigned to any location.', unused);
 
   const hasCost = technologies.some((t) => hasUsableCost(t.costs?.monetary))
@@ -231,16 +246,23 @@ function checkTechnologies({ locations, links, technologies, techByName, resolve
 
 function checkLinks({ locations, links }, add) {
   const names = new Set(locations.flatMap((l) => [l.name, l.id]).filter(Boolean).map(String));
-  const unknown = links.filter((l) => !names.has(String(l.from)) || !names.has(String(l.to))).map((l) => `${l.from} \u2192 ${l.to}`);
+  const linkItem = (label, l) => ({ label, kind: 'link', from: String(l.from), to: String(l.to) });
+  const unknown = links.filter((l) => !names.has(String(l.from)) || !names.has(String(l.to)))
+    .map((l) => linkItem(`${l.from} \u2192 ${l.to}`, l));
   if (unknown.length) add('link_unknown_location', 'critical', 'These links connect to a location that does not exist.', unknown);
 
-  const self = links.filter((l) => String(l.from) === String(l.to)).map((l) => String(l.from));
+  const self = links.filter((l) => String(l.from) === String(l.to)).map((l) => linkItem(String(l.from), l));
   if (self.length) add('link_self', 'error', 'These links start and end at the same location.', self);
 
   if (locations.length > 1) {
     const islands = connectedComponents(locations.map(keyOf), links);
     if (islands.length > 1) {
-      const labels = islands.map((g) => g.slice(0, 3).join(', ') + (g.length > 3 ? ` (+${g.length - 3})` : ''));
+      const labels = islands.map((g) => ({
+        label: g.slice(0, 3).join(', ') + (g.length > 3 ? ` (+${g.length - 3})` : ''),
+        kind: 'island',
+        members: g,
+        map: true,
+      }));
       add('disconnected_network', 'warning', `The network splits into ${islands.length} disconnected groups. Each group must meet its own demand.`, labels);
     }
   }
@@ -285,7 +307,9 @@ function checkDemandAndSupply({ locations, links, technologies, techByName, reso
       if (parent === 'demand') {
         assignedDemand.add(tech);
         for (const c of inputCarriers(tech)) localIn.add(c);
-        if (!profile && !isFileRef(resource) && !isFiniteNumber(resource)) noProfile.push(`${lname}::${ref}`);
+        if (!profile && !isFileRef(resource) && !isFiniteNumber(resource)) {
+          noProfile.push({ label: `${lname}::${ref}`, kind: 'location', id: lname, tech: ref, field: 'demandProfile' });
+        }
       } else if (PRODUCER_PARENTS.has(parent)) {
         for (const c of outputCarriers(tech)) {
           localOut.add(c);
@@ -293,15 +317,16 @@ function checkDemandAndSupply({ locations, links, technologies, techByName, reso
         }
         const unbounded = resource === undefined || resource === null || resource === '' || String(resource).toLowerCase() === 'inf';
         if (parent.startsWith('supply') && unbounded && VARIABLE_RESOURCE.test(`${ref} ${tech.essentials?.name || ''}`)) {
-          noResource.push(`${lname}::${ref}`);
-          profileTech ||= classifyProfileKind({ id: ref, name: keyOf(tech), parent }) ? keyOf(tech) : undefined;
+          const canProfile = Boolean(classifyProfileKind({ id: ref, name: keyOf(tech), parent }));
+          noResource.push({ label: `${lname}::${ref}`, kind: 'tech', id: keyOf(tech), location: lname, field: 'resource', profile: canProfile });
+          profileTech ||= canProfile ? keyOf(tech) : undefined;
         }
       }
     }
     const imported = linked.get(lname) || new Set();
     for (const c of localIn) {
       demanded.add(c);
-      if (!localOut.has(c) && !imported.has(c)) unserved.push(`${lname} (${c})`);
+      if (!localOut.has(c) && !imported.has(c)) unserved.push({ label: `${lname} (${c})`, kind: 'location', id: lname, map: true });
     }
   }
 
@@ -329,12 +354,16 @@ function checkDemandAndSupply({ locations, links, technologies, techByName, reso
 
 function checkFileRefs({ locations, technologies, resolveTech, timeSeries }, add) {
   const tsNames = timeSeriesNames(timeSeries);
-  const missingDemand = new Set();
-  const missingOther = new Set();
+  // Keyed by label so a file referenced twice is reported once.
+  const missingDemand = new Map();
+  const missingOther = new Map();
   const scan = (label, tech, constraints, costs) => {
     const isDemand = parentOf(tech) === 'demand';
     for (const v of [...Object.values(constraints), ...Object.values(costs)]) {
-      if (isFileRef(v) && !fileRefResolves(v, tsNames)) (isDemand ? missingDemand : missingOther).add(`${label} \u2192 ${v}`);
+      if (!isFileRef(v) || fileRefResolves(v, tsNames)) continue;
+      const item = `${label} \u2192 ${v}`;
+      const file = v.slice('file='.length).split(':')[0].trim();
+      (isDemand ? missingDemand : missingOther).set(item, { label: item, kind: 'timeseries', id: file });
     }
   };
   const assigned = new Set();
@@ -353,8 +382,8 @@ function checkFileRefs({ locations, technologies, resolveTech, timeSeries }, add
   for (const tech of technologies) {
     if (!assigned.has(tech)) scan(keyOf(tech), tech, tech.constraints || {}, tech.costs?.monetary || {});
   }
-  if (missingDemand.size) add('missing_timeseries', 'error', 'These demand technologies point to a time-series file that is not in the model. Upload it in Time Series or re-import the model with its CSV files.', [...missingDemand]);
-  if (missingOther.size) add('missing_timeseries', 'warning', 'These technologies point to a time-series file that is not in the model; engines fall back to a placeholder.', [...missingOther]);
+  if (missingDemand.size) add('missing_timeseries', 'error', 'These demand technologies point to a time-series file that is not in the model. Upload it in Time Series or re-import the model with its CSV files.', [...missingDemand.values()]);
+  if (missingOther.size) add('missing_timeseries', 'warning', 'These technologies point to a time-series file that is not in the model; engines fall back to a placeholder.', [...missingOther.values()]);
 }
 
 // Resource profiles written by the profile dialogs, compared against the model they were built for.
@@ -373,7 +402,7 @@ function checkProfiles({ locations, technologies, timeSeries, modelConfig, param
     if (s.moved.length) parts.push(`moved ${s.moved.join(', ')}`);
     if (cal && s.reasons.includes('calendar')) parts.push('calendar');
     if (!parts.length) continue;
-    stale.push(`${name}: ${parts.join('; ')}`);
+    stale.push({ label: `${name}: ${parts.join('; ')}`, kind: 'tech', id: name, field: 'resource', profile: true });
     first ||= name;
   }
   if (stale.length) add('profile_stale', 'warning', 'These resource profiles no longer match the model (locations moved, added or removed, or the model years changed). Open the profile and recalculate the changed points.', stale, { profileTech: first });
@@ -403,7 +432,9 @@ function checkTime({ timeSeries, modelConfig }, add) {
     // The end day counts in full: the last row must be within one step of the day's end.
     const gap = parseUtc(rows[1]?.[col]) - first;
     const step = gap > 0 ? gap : HOUR;
-    if (first > start || last < end + 24 * HOUR - step) short.push(`${ts.fileName || ts.name}: ${firstRaw} to ${lastRaw}`);
+    if (first > start || last < end + 24 * HOUR - step) {
+      short.push({ label: `${ts.fileName || ts.name}: ${firstRaw} to ${lastRaw}`, kind: 'timeseries', id: ts.fileName || ts.name });
+    }
   }
   if (short.length) add('timeseries_out_of_range', 'warning', 'These time series do not cover the model period. Calliope fails on missing dates; the other engines cycle or pad the series.', short);
 }
