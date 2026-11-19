@@ -1,12 +1,13 @@
 ﻿import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useData } from '../context/DataContext';
 import ReactECharts from 'echarts-for-react';
-import { FiBarChart2, FiPieChart, FiTrendingUp, FiDownload, FiRefreshCw, FiAlertCircle, FiCheckCircle, FiTrash2, FiTerminal, FiAlertTriangle, FiMapPin, FiDollarSign, FiZap, FiActivity, FiClock, FiCpu, FiMap, FiLayers, FiShare2, FiGrid, FiChevronDown, FiFilter, FiGitMerge, FiSearch, FiX } from './ui/icons';
+import { FiUpload, FiBarChart2, FiPieChart, FiTrendingUp, FiDownload, FiRefreshCw, FiAlertCircle, FiCheckCircle, FiTrash2, FiTerminal, FiAlertTriangle, FiMapPin, FiDollarSign, FiZap, FiActivity, FiClock, FiCpu, FiMap, FiLayers, FiShare2, FiGrid, FiChevronDown, FiFilter, FiGitMerge, FiSearch, FiX } from './ui/icons';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import ScenarioComparison from './ScenarioComparison';
 import Select from './ui/Select';
+import { contractToCompletedJob } from '../utils/importResult';
 import DeleteButton from './ui/DeleteButton';
 import { LuSummary, LuConversionPath, LuAreaChart, LuEuro, LuPriceChange, LuQueryStats, LuAltRoute, LuSparkles, LuTerminal, LuSlidersHorizontal } from './ui/icons';
 
@@ -40,7 +41,7 @@ import AIAnalysisTab from './results/tabs/AIAnalysisTab';
 
 // ── Main component ───────────────────────────────────────────────────────────
 const Results = ({ onNavigate }) => {
-  const { completedJobs, removeCompletedJob, showNotification, models, activeResultJobId, setActiveResultJobId } = useData();
+  const { completedJobs, addCompletedJob, removeCompletedJob, showNotification, models, activeResultJobId, setActiveResultJobId } = useData();
   const [selectedJobId, setSelectedJobId] = useState(null);
   const [tab, setTab] = useState('overview');
   // Once the Model Advisor tab is opened, keep it mounted (hidden via CSS) so its
@@ -96,6 +97,20 @@ const Results = ({ onNavigate }) => {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  const importResult = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const job = contractToCompletedJob(JSON.parse(await file.text()), { name: file.name.replace(/\.json$/i, '') });
+      addCompletedJob(job);
+      setSelectedJobId(job.id);
+      showNotification(`Imported ${file.name}`, 'success');
+    } catch (err) {
+      showNotification(`Import failed: ${err.message}`, 'error');
+    }
+  };
 
   const selectedJob = completedJobs.find(j => j.id === selectedJobId) || null;
   const result = selectedJob?.result || null;
@@ -675,6 +690,11 @@ const Results = ({ onNavigate }) => {
                   </span>
                 ) : null;
               })()}
+              <label className="flex h-10 cursor-pointer items-center gap-2 whitespace-nowrap rounded-lg border border-black/15 bg-white px-3 text-sm text-slate-800 hover:bg-slate-50">
+                <FiUpload size={17} className="text-slate-400" />
+                Import result
+                <input type="file" accept=".json,application/json" className="hidden" onChange={importResult} />
+              </label>
               {selectedJobId && (
                 <DeleteButton
                   className="border border-black/15 bg-white"
