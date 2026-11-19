@@ -31,6 +31,16 @@ import DemandCellsLegend from './map/DemandCellsLegend';
 import useResourceOverlays, { WithFlow } from './map/useResourceOverlays';
 import OverlayControls from './map/OverlayControls';
 import useFixTarget from '../hooks/useFixTarget';
+import { useReadiness } from '../hooks/useReadiness';
+import { entityKey } from '../services/modelReadiness';
+
+// Readiness badges on map markers: black for errors/critical, grey for warnings.
+const issueBadge = (fill) => ({
+  url: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28"><circle cx="14" cy="14" r="12" fill="${fill}" stroke="#fff" stroke-width="3"/><rect x="12.5" y="7" width="3" height="9" rx="1.5" fill="#fff"/><circle cx="14" cy="20" r="1.8" fill="#fff"/></svg>`)}`,
+  width: 28, height: 28, anchorX: 14, anchorY: 14,
+});
+const ISSUE_BADGE = { problem: issueBadge('#000'), warning: issueBadge('#94a3b8') };
 
 const MapDeckGL = () => {
   const { locations, setLocations, links, setLinks, showNotification, technologies, models, currentModelId, loadModel, updateCurrentModel, createModel, demandCells, setDemandCells } = useData();
@@ -45,6 +55,7 @@ const MapDeckGL = () => {
   });
   
   const [selectedLocation, setSelectedLocation] = useState(null);
+  const { index: issueIndex } = useReadiness();
   // Locations a readiness Fix link points at; ringed on the map until the next click.
   const [fixFocus, setFixFocus] = useState(null);
   const [hoveredInfo, setHoveredInfo] = useState(null);
@@ -562,6 +573,9 @@ const MapDeckGL = () => {
           if (o.latitude != null && o.longitude != null) {
             details.push({ label: 'Lat, Lon', value: `${Number(o.latitude).toFixed(3)}, ${Number(o.longitude).toFixed(3)}` });
           }
+          for (const issue of issueIndex.get(entityKey('location', o.name || o.id)) || []) {
+            details.push({ label: issue.severity === 'warning' ? 'Warning' : 'Problem', value: issue.message });
+          }
           setHoveredInfo({
             name: o.name,
             layerType: kind ? kind.replace(/_/g, ' ') : (o.isNode ? 'node' : 'location'),
@@ -608,9 +622,24 @@ const MapDeckGL = () => {
       }
     });
     
-    return [circleLayer];
+    // Readiness badge at the marker's top-right; hovering the marker lists the issues.
+    const flagged = visibleLocations.filter(loc => loc && loc.longitude && loc.latitude
+      && issueIndex.has(entityKey('location', loc.name || loc.id)));
+    const badgeLayer = flagged.length ? new IconLayer({
+      id: 'location-issue-badges',
+      data: flagged,
+      getPosition: d => [d.longitude, d.latitude],
+      getIcon: d => (issueIndex.get(entityKey('location', d.name || d.id))[0].severity === 'warning' ? ISSUE_BADGE.warning : ISSUE_BADGE.problem),
+      getSize: 14,
+      sizeUnits: 'pixels',
+      getPixelOffset: [10, -10],
+      pickable: false,
+      updateTriggers: { getIcon: [issueIndex] },
+    }) : null;
+
+    return badgeLayer ? [circleLayer, badgeLayer] : [circleLayer];
   // linkStart + links: the onClick link handler reads them; without them it kept a stale null start
-  }, [locations, links, linkStart, mode, draggedLocation, draggingPosition, handleLocationDrag, handleDragMove, viewState, techMap]);
+  }, [locations, links, linkStart, mode, draggedLocation, draggingPosition, handleLocationDrag, handleDragMove, viewState, techMap, issueIndex]);
   
   // Create line layer for transmission links
   const linksLayer = useMemo(() => {
