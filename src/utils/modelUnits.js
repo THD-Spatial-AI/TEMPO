@@ -71,3 +71,26 @@ export function jobInMW(job, models) {
   converted.set(job, { unit, job: out });
   return out;
 }
+
+// Tech parameters holding power / energy capacity (scale with the unit) and costs per unit of
+// capacity or energy (scale inversely). Ratios, fractions, lifetimes and per-item costs stay.
+const CAPACITY_PARAMS = [
+  'energy_cap_max', 'energy_cap_min', 'energy_cap_equals', 'energy_cap_per_unit',
+  'storage_cap_max', 'storage_cap_min', 'storage_cap_equals', 'storage_cap_per_unit',
+  'resource_cap_max', 'resource_cap_min', 'resource_cap_equals',
+];
+const PER_UNIT_COSTS = ['energy_cap', 'storage_cap', 'resource_cap', 'om_annual', 'om_prod', 'om_con', 'energy_cap_per_distance', 'export'];
+
+/** A tech definition expressed in `from` units (kW for the tech catalog) converted to `to` units. */
+export function convertTechUnit(tech, from, to) {
+  const k = POWER_UNITS[from] / POWER_UNITS[to];
+  if (!tech || !Number.isFinite(k) || k === 1) return tech;
+  const constraints = { ...(tech.constraints || {}) };
+  for (const p of CAPACITY_PARAMS) if (typeof constraints[p] === 'number') constraints[p] *= k;
+  const costs = Object.fromEntries(Object.entries(tech.costs || {}).map(([cls, c]) => {
+    const out = { ...c };
+    for (const p of PER_UNIT_COSTS) if (typeof out[p] === 'number') out[p] /= k;
+    return [cls, out];
+  }));
+  return { ...tech, constraints, costs };
+}

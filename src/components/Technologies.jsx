@@ -7,6 +7,7 @@ import SaveBar from './ui/SaveBar';
 import Select from './ui/Select';
 import { TECH_TEMPLATES, PARENT_TYPES, useLiveTechTemplates } from './TechnologiesData';
 import { fetchTechFramework, oeoDetailToCalliope } from '../services/techDatabaseApi';
+import { convertTechUnit, modelPowerUnit } from '../utils/modelUnits';
 import { CARRIERS, CARRIERS_BY_GROUP, getCarrierColor, getCarrierLabel } from '../config/carriers';
 import {
   CONSTRAINT_DEFINITIONS,
@@ -234,7 +235,7 @@ function SkeletonGrid() {
 
 // ── Tech Card ────────────────────────────────────────────────────────────────
 const TechCard = ({ techName, tech, isCustom, onDuplicate, onEdit, onDelete, onOpenDetail }) => {
-  const { technologies, addTechToModel, removeTechFromModel, currentModelId } = useData();
+  const { technologies, addTechToModel, removeTechFromModel, currentModelId, getCurrentModel } = useData();
   const meta = CATEGORY_META[tech.parent] || { color: '#94a3b8' };
   const inModel = currentModelId && technologies.some(t => t.name === techName);
   const displayName = tech.essentials?.name || formatName(techName);
@@ -367,7 +368,7 @@ const TechCard = ({ techName, tech, isCustom, onDuplicate, onEdit, onDelete, onO
                 </button>
               ) : (
                 <button
-                  onClick={() => addTechToModel(oeoDetailToCalliope(tech))}
+                  onClick={() => addTechToModel(convertTechUnit(oeoDetailToCalliope(tech), 'kW', modelPowerUnit(getCurrentModel())))} // catalog is per kW
                   className="flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-2 text-[11px] font-medium transition-colors text-slate-500 hover:bg-slate-100 hover:text-slate-900"
                   title="Add to active model"
                 >

@@ -120,3 +120,18 @@ describe('jobInMW', () => {
     expect(jobInMW(kw, models)).toBe(a);
   });
 });
+
+describe('convertTechUnit', () => {
+  it('converts a kW catalog tech to an MW model: capacity /1000, per-unit costs ×1000', async () => {
+    const { convertTechUnit } = await import('../modelUnits.js');
+    const tech = { name: 'pv', constraints: { energy_cap_max: 5000, lifetime: 25, energy_eff: 0.9 },
+      costs: { monetary: { energy_cap: 800, om_prod: 0.002, interest_rate: 0.1, purchase: 50 } } };
+    const out = convertTechUnit(tech, 'kW', 'MW');
+    expect(out.constraints).toEqual({ energy_cap_max: 5, lifetime: 25, energy_eff: 0.9 });
+    expect(out.costs.monetary.energy_cap).toBeCloseTo(800000);
+    expect(out.costs.monetary.om_prod).toBeCloseTo(2);
+    expect(out.costs.monetary.interest_rate).toBe(0.1);
+    expect(out.costs.monetary.purchase).toBe(50);
+    expect(convertTechUnit(tech, 'kW', 'kW')).toBe(tech);
+  });
+});

@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { FiSearch, FiX, FiPlus, FiCheck, FiTrash2 } from '../ui/icons';
 import { useData } from '../../context/DataContext';
 import { oeoDetailToCalliope } from '../../services/techDatabaseApi';
+import { convertTechUnit } from '../../utils/modelUnits';
 import { iconBtn, ICON_PX } from '../ui/iconButton';
 
 const PARENT_META = {
@@ -82,7 +83,8 @@ export default function TechLibraryPanel({ onClose, liveTechTemplates, isApiLive
     .concat(Object.keys(libraryByParent).filter(p => !PARENT_ORDER.includes(p)));
 
   const handleAdd = (tech) => {
-    const converted = tech.uuid ? oeoDetailToCalliope(tech) : tech;
+    // Catalog techs are per kW; models built in Creation are in MW.
+    const converted = tech.uuid ? convertTechUnit(oeoDetailToCalliope(tech), 'kW', 'MW') : tech;
     addTechToModel(converted);
   };
 
