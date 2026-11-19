@@ -10,7 +10,10 @@
  *   locations.<loc>.techs.<name>.<path>            → setParam, level=location
  *
  * Anything else (model.subset_time, run.*, group_share.*, etc.) is skipped.
+ * Nested (imported YAML) overrides are flattened to dotted keys first.
  */
+
+import { flattenOverride } from '../modelScenarios.js';
 
 function parseOverrideKey(key, value) {
   // techs.<name>.<path>
@@ -34,7 +37,7 @@ function parseOverrideKey(key, value) {
 export function importLegacyOverride(overrideDict) {
   const ops = [];
   const skipped = [];
-  for (const [key, value] of Object.entries(overrideDict || {})) {
+  for (const [key, value] of Object.entries(flattenOverride(overrideDict))) {
     const op = parseOverrideKey(key, value);
     if (op) ops.push(op);
     else skipped.push(key);
