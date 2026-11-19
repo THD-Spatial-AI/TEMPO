@@ -48,6 +48,7 @@ function faceSummary(category, params = {}) {
       return `${params.location}: ${tgt} = ${params.value ?? 0}`;
     }
     case 'custom':     return summarizeOps(params.ops) || 'no ops yet';
+    case 'modelScenario': return params.name || 'pick a scenario';
     case 'timeseries': return params.fromFile && params.toFile ? `${params.fromFile} → ${params.toFile}` : 'pick files';
     case 'sensitivity': return `${(params.variants || []).length} cases`;
     case 'spores': return `${sporesCount(params.plan)} alt · ${(params.slacks || []).map(s => `${s}%`).join('/') || 'no slack'}`;

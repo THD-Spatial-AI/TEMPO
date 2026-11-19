@@ -1,6 +1,6 @@
-import { FiTrendingUp, FiCloud, FiZap, FiSliders, FiSun, FiMapPin, FiWind, FiActivity, FiLayers, FiGitMerge } from '../ui/icons';
+import { FiTrendingUp, FiCloud, FiZap, FiSliders, FiSun, FiMapPin, FiWind, FiActivity, FiLayers, FiGitMerge, FiBookOpen } from '../ui/icons';
 
-const ICONS = { FiTrendingUp, FiCloud, FiZap, FiSliders, FiSun, FiMapPin, FiWind, FiActivity, FiLayers, FiGitMerge };
+const ICONS = { FiTrendingUp, FiCloud, FiZap, FiSliders, FiSun, FiMapPin, FiWind, FiActivity, FiLayers, FiGitMerge, FiBookOpen };
 
 export default function CategoryTile({ meta, size = 'md' }) {
   const Icon = ICONS[meta?.icon] || FiSliders;
