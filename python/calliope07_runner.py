@@ -1263,7 +1263,8 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
     log("Optimisation finished. Extracting results …")
     results = _extract_results(model, techs_07, technologies, model_name, solver,
                                locations=model_data.get('locations') or [])
-    results['limitations'] = assessment['warnings']
+    results['limitations'] = diag.limitations(assessment)
+    results['issues'] = diag.run_issues(assessment)
     results['fidelity'] = assessment['fidelity']
     results['translation_report'] = (results.get('translation_report') or []) + diag.assessment_lines(assessment)
     return results

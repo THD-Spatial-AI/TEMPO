@@ -1415,10 +1415,17 @@ def run_model(model_data, work_dir, log_fn=None):
     """
     _thread_local.log_fn = log_fn
     try:
-        # Only critical issues (nothing to build, broken keys) stop the run; the rest is the user's call.
+        # Only critical issues (nothing to build, broken keys) stop the run; the rest is the user's call,
+        # logged as [issue:<code>] lines and returned as `issues` like every other engine.
         import engine_diagnostics
-        engine_diagnostics.raise_if_blocked(model_data, 'calliope')
-        return _run_model_impl(model_data, work_dir)
+        assessment = engine_diagnostics.raise_if_blocked(model_data, 'calliope')
+        for line in engine_diagnostics.assessment_lines(assessment):
+            if line.startswith('[issue:'):
+                log(f"  {line}")
+        result = _run_model_impl(model_data, work_dir)
+        if isinstance(result, dict):
+            result['issues'] = engine_diagnostics.run_issues(assessment)
+        return result
     finally:
         _thread_local.log_fn = None
 

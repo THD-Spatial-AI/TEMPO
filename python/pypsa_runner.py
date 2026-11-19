@@ -387,6 +387,7 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
         n, spec, model_data.get('technologies') or [],
         model_name, solver, termination, locations=model_data.get('locations') or [])
     results['translation_report'] = report + diag.assessment_lines(assessment)
-    results['limitations'] = assessment['warnings']
+    results['limitations'] = diag.limitations(assessment)
+    results['issues'] = diag.run_issues(assessment)
     results['fidelity'] = assessment['fidelity']
     return results

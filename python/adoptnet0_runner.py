@@ -565,7 +565,8 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
 
     frozen = _to_frozen_contract(extracted, timestamps, model_data, name, solver)
     frozen["translation_report"] = tr_report + (extracted.get("notes") or []) + diag.assessment_lines(assessment)
-    frozen["limitations"] = list(assessment["warnings"])
+    frozen["limitations"] = diag.limitations(assessment)
+    frozen["issues"] = diag.run_issues(assessment)
     unmet = extracted.get("violation_cost")
     if unmet and unmet > 1e-6 and model_config.get("ensureFeasibility") is False:
         return diag.failure_result(

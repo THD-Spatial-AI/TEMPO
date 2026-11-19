@@ -1057,7 +1057,8 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
         results_dir, model_data, model_name, year, scheme, n_hours,
         termination, objective, parity=True, csv_dir=csv_dir)
     result["translation_report"] = report + diag.assessment_lines(assessment)
-    result["limitations"] = assessment["warnings"]
+    result["limitations"] = diag.limitations(assessment)
+    result["issues"] = diag.run_issues(assessment)
     result["fidelity"] = assessment["fidelity"]
     log(f"Done. Capacities: {len(result.get('capacities', {}))}, "
         f"dispatch techs: {len(result.get('dispatch', {}))}")
