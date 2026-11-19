@@ -459,7 +459,29 @@ export function checkModel(model, options = {}) {
   };
   // Only critical issues block a run; errors ask for confirmation, warnings inform.
   const lists = { critical: [], error: [], warning: [] };
-  const add = (code, severity, message, items, extra) => lists[severity].push(issue(code, severity, message, items, extra));
+  // Warnings the user marked as intended ({ code, item }, item null for an item-less warning)
+  // are left out of the list and reported under `ignored` so they can be restored.
+  const ignoreKeys = new Set((options.ignored || []).map((i) => ignoreKey(i.code, i.item)));
+  const ignored = [];
+  const add = (code, severity, message, items, extra) => {
+    if (severity === 'warning' && ignoreKeys.size) {
+      if (!items?.length) {
+        if (ignoreKeys.has(ignoreKey(code, null))) {
+          ignored.push({ code, item: null, message });
+          return;
+        }
+      } else {
+        items = items.filter((x) => {
+          const label = typeof x === 'string' ? x : x.label;
+          if (!ignoreKeys.has(ignoreKey(code, label))) return true;
+          ignored.push({ code, item: label, message });
+          return false;
+        });
+        if (!items.length) return;
+      }
+    }
+    lists[severity].push(issue(code, severity, message, items, extra));
+  };
 
   checkLocations(ctx, add);
   checkTechnologies(ctx, add);
@@ -469,5 +491,33 @@ export function checkModel(model, options = {}) {
   checkProfiles(ctx, add);
   checkTime(ctx, add);
 
-  return { ok: lists.critical.length === 0, critical: lists.critical, errors: lists.error, warnings: lists.warning };
+  return { ok: lists.critical.length === 0, critical: lists.critical, errors: lists.error, warnings: lists.warning, ignored };
+}
+
+const ignoreKey = (code, item) => `${code}\u0000${item ?? ''}`;
+
+// The basics a new model still lacks, as a to-do list; null once it has locations and technologies.
+export function readinessChecklist(readiness) {
+  const has = (code) => [...readiness.critical, ...readiness.errors].some((i) => i.code === code);
+  if (!has('no_locations') && !has('no_technologies')) return null;
+  return [
+    { key: 'location', label: 'Add a location', done: !has('no_locations') },
+    { key: 'supply', label: 'Add a power plant', done: !has('no_technologies') && !has('no_supply') },
+    { key: 'demand', label: 'Add a demand', done: !has('no_technologies') && !has('no_demand') },
+  ];
+}
+
+// An unsaved Creation draft is only on the Creation map, so its issues point there: locations,
+// islands and link ends fly the map; targets on other pages (techs, files) are dropped.
+export function forDraft(readiness) {
+  const retarget = (t) => {
+    if (!t) return null;
+    if (t.kind === 'location') return { view: 'Creation', kind: 'location', id: t.id, map: true };
+    if (t.kind === 'island') return { view: 'Creation', kind: 'island', members: t.members, map: true };
+    if (t.kind === 'link') return { view: 'Creation', kind: 'location', id: t.from, map: true };
+    if (t.kind === 'tech' && t.location) return { view: 'Creation', kind: 'location', id: t.location, map: true };
+    return null;
+  };
+  const move = (i) => ({ ...i, view: 'Creation', ...(i.targets ? { targets: i.targets.map(retarget) } : {}) });
+  return { ...readiness, critical: readiness.critical.map(move), errors: readiness.errors.map(move), warnings: readiness.warnings.map(move) };
 }

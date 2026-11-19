@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { checkModel, FIX_VIEW } from '../modelReadiness';
+import { checkModel, FIX_VIEW, readinessChecklist, forDraft } from '../modelReadiness';
 import shared from '../../../scripts/readiness_cases.json';
 import { profileFileName } from '../techProfiles';
 
@@ -591,5 +591,74 @@ describe('profile readiness', () => {
     expect(i.view).toBe('Technologies');
     expect(i.profileTech).toBe('pv');
     expect(i.message).toMatch(/Calculate profile/);
+  });
+});
+
+describe('ignored warnings', () => {
+  const unusedModel = () => {
+    const m = miniModel();
+    m.technologies.push(
+      { name: 'idle', essentials: { parent: 'supply' }, costs: { monetary: { energy_cap: 1 } } },
+      { name: 'spare', essentials: { parent: 'supply' }, costs: { monetary: { energy_cap: 1 } } },
+    );
+    return m;
+  };
+
+  it('drops an ignored item and lists it under ignored', () => {
+    const r = checkModel(unusedModel(), { ignored: [{ code: 'unused_tech', item: 'idle' }] });
+    const w = r.warnings.find((i) => i.code === 'unused_tech');
+    expect(w.items).toEqual(['spare']);
+    expect(w.count).toBe(1);
+    expect(r.ignored).toEqual([{ code: 'unused_tech', item: 'idle', message: w.message }]);
+  });
+
+  it('drops the whole issue when every item is ignored', () => {
+    const r = checkModel(unusedModel(), { ignored: [{ code: 'unused_tech', item: 'idle' }, { code: 'unused_tech', item: 'spare' }] });
+    expect(codes(r.warnings)).not.toContain('unused_tech');
+    expect(r.ignored).toHaveLength(2);
+  });
+
+  it('ignores an item-less warning by code', () => {
+    const m = miniModel();
+    m.technologies[0].costs = { monetary: {} };
+    const r = checkModel(m, { ignored: [{ code: 'no_costs', item: null }] });
+    expect(codes(r.warnings)).not.toContain('no_costs');
+    expect(r.ignored.map((i) => i.code)).toEqual(['no_costs']);
+  });
+
+  it('never ignores errors or critical issues', () => {
+    const m = miniModel();
+    delete m.locations[0].demandProfile;
+    const r = checkModel(m, { ignored: [{ code: 'demand_no_profile', item: 'a::dem' }] });
+    expect(codes(r.errors)).toContain('demand_no_profile');
+    expect(r.ignored).toEqual([]);
+  });
+});
+
+describe('readinessChecklist', () => {
+  it('is null once the model has locations and technologies', () => {
+    expect(readinessChecklist(checkModel(miniModel()))).toBeNull();
+  });
+
+  it('lists the basics a new model is missing, with what is done', () => {
+    const empty = readinessChecklist(checkModel({ locations: [], links: [], technologies: [] }));
+    expect(empty.map((i) => [i.key, i.done])).toEqual([['location', false], ['supply', false], ['demand', false]]);
+    const located = readinessChecklist(checkModel({ locations: [{ name: 'a', latitude: 1, longitude: 1, techs: {} }], links: [], technologies: [] }));
+    expect(located.map((i) => i.done)).toEqual([true, false, false]);
+  });
+});
+
+describe('forDraft', () => {
+  it('sends location, island and link issues to the Creation map and drops page-only targets', () => {
+    const m = miniModel();
+    m.locations.push({ name: 'x', latitude: 1, longitude: 1, techs: {} });
+    m.technologies.push({ name: 'idle', essentials: { parent: 'supply' }, costs: { monetary: { energy_cap: 1 } } });
+    m.links = [{ from: 'a', to: 'nowhere', tech: 'gen' }];
+    const r = forDraft(checkModel(m));
+    const all = [...r.critical, ...r.errors, ...r.warnings];
+    expect(all.every((i) => i.view === 'Creation')).toBe(true);
+    expect(all.find((i) => i.code === 'empty_location').targets[0]).toEqual({ view: 'Creation', kind: 'location', id: 'x', map: true });
+    expect(all.find((i) => i.code === 'link_unknown_location').targets[0]).toEqual({ view: 'Creation', kind: 'location', id: 'a', map: true });
+    expect(all.find((i) => i.code === 'unused_tech').targets).toEqual([null]);
   });
 });
