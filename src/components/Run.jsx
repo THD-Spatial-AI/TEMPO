@@ -17,14 +17,15 @@ import CompletedRunsSection from './run/CompletedRunsSection';
 import ActiveJobsPanel from './run/ActiveJobsPanel';
 import SporesConfigPanel from './run/SporesConfigPanel';
 import Select from './ui/Select';
-import DatePicker from './ui/DatePicker';
+import TimeWindowFields from './shared/TimeWindowFields';
+import { modelTimeWindow } from '../utils/modelTimeWindow';
 import { LuInfo } from './ui/icons';
 
 
 
 const Run = ({ onNavigate }) => {
   const {
-    models, getCurrentModel, showNotification, addCompletedJob, removeCompletedJob, completedJobs, setModelPowerUnit,
+    models, getCurrentModel, showNotification, addCompletedJob, removeCompletedJob, completedJobs, setModelPowerUnit, setModelTimeWindow,
     setActiveResultJobId, timeSeries, technologies, overrides, scenarios,
     runningJobs, addRunningJob, removeRunningJob, appendRunningJobLog, updateRunningJobStats, getRunningJob,
   } = useData();
@@ -125,31 +126,10 @@ const Run = ({ onNavigate }) => {
     if (!selectedModel) return;
     const meta = selectedModel.metadata || {};
     const runCfg = meta.runConfig || {};
-    const params = selectedModel.parameters || [];
 
-    // Resolve dates: parameters list → metadata.subsetTime → keep current
-    let start = null;
-    let end   = null;
-    params.forEach(p => {
-      if (p.key === 'subset_time_start') start = p.value;
-      if (p.key === 'subset_time_end')   end   = p.value;
-    });
-    if (!start && !end && meta.subsetTime) {
-      const st = meta.subsetTime;
-      if (Array.isArray(st) && st.length === 2) {
-        start = String(st[0]);
-        end   = String(st[1]);
-      } else {
-        // bare year or single date string
-        const s = String(st).trim().slice(0, 10);
-        start = /^\d{4}$/.test(s) ? s + '-01-01' : s;
-        end   = /^\d{4}$/.test(s) ? s + '-12-31' : s;
-      }
-    }
-    // Normalise to YYYY-MM-DD (strip time component if present)
-    const toDateStr = (s) => (s ? String(s).slice(0, 10) : null);
-    start = toDateStr(start);
-    end   = toDateStr(end);
+    // The model's run window (saved → subset_time → import → its time series), shared app-wide.
+    const loadedTs = (timeSeries || []).filter(ts => ts.modelId === selectedModel.id);
+    const { startDate: start, endDate: end } = modelTimeWindow(selectedModel, loadedTs.length ? loadedTs : selectedModel.timeSeries);
 
     // Resolve solver
     const metaSolver = runCfg.solver;
@@ -608,7 +588,6 @@ const Run = ({ onNavigate }) => {
   const computeRemote = computeTarget === 'remote' && remoteAvailable && !hasSelections;
 
   const durationDays = calculateDuration();
-  const fmtDate = (d) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   const modeLabel = { plan: 'Plan', operate: 'Operate', spores: 'SPORES' }[modelConfig.mode] || modelConfig.mode;
   // Techs to send with the run: live (possibly unsaved) techs only for the
   // currently-loaded model; for any other selected model use its own saved
@@ -1031,59 +1010,15 @@ const Run = ({ onNavigate }) => {
             </RunSection>
 
             <RunSection step={3} title="Time horizon" description="The period the model is optimised over.">
-              <div className="mb-4 inline-flex gap-1 rounded-lg bg-slate-200/80 p-1 ring-1 ring-inset ring-slate-300/50">
-                {TIME_PRESETS.map(preset => {
-                  const active = presetEnd(modelConfig.startDate, preset) === modelConfig.endDate;
-                  return (
-                    <button
-                      key={preset.label}
-                      type="button"
-                      aria-pressed={active}
-                      onClick={() => {
-                        // Fall back to today if startDate is invalid so the preset can't produce an Invalid Date.
-                        const startStr = isNaN(new Date(modelConfig.startDate + 'T00:00:00'))
-                          ? new Date().toISOString().slice(0, 10) : modelConfig.startDate;
-                        setModelConfig(p => ({ ...p, startDate: startStr, endDate: presetEnd(startStr, preset) }));
-                      }}
-                      className={`rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
-                        active ? 'bg-black text-white ' : 'text-slate-600 hover:bg-white/70 hover:text-slate-900'
-                      }`}
-                    >
-                      {preset.label}
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Field label="Start date">
-                  <DatePicker
-                    value={modelConfig.startDate}
-                    onChange={v => setModelConfig(p => {
-                      if (!p.endDate || v <= p.endDate) return { ...p, startDate: v };
-                      const span = Math.max(0, Math.round((new Date(p.endDate) - new Date(p.startDate)) / 86400000));
-                      const end = new Date(v + 'T00:00:00');
-                      end.setDate(end.getDate() + span);
-                      const iso = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`;
-                      return { ...p, startDate: v, endDate: iso };
-                    })}
-                    rangeStart={modelConfig.startDate}
-                    rangeEnd={modelConfig.endDate}
-                  />
-                </Field>
-                <Field label="End date">
-                  <DatePicker
-                    value={modelConfig.endDate}
-                    min={modelConfig.startDate}
-                    onChange={v => setModelConfig(p => ({ ...p, endDate: v }))}
-                    rangeStart={modelConfig.startDate}
-                    rangeEnd={modelConfig.endDate}
-                  />
-                </Field>
-              </div>
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
-                <span><span className="font-semibold text-slate-800">{durationDays} days</span> · ≈ {Math.ceil(durationDays / 7)} weeks · ≈ {Math.ceil(durationDays / 30)} months</span>
-                <span>{fmtDate(modelConfig.startDate)} → {fmtDate(modelConfig.endDate)}</span>
-              </div>
+              <TimeWindowFields
+                startDate={modelConfig.startDate}
+                endDate={modelConfig.endDate}
+                source={selectedModel ? modelTimeWindow(selectedModel).source : undefined}
+                onChange={w => {
+                  setModelConfig(p => ({ ...p, ...w }));
+                  if (selectedModel) setModelTimeWindow(selectedModel.id, w);
+                }}
+              />
             </RunSection>
 
             <RunSection step={4} title="Solver options" description="Feasibility, storage and advanced solver parameters.">
@@ -1269,23 +1204,6 @@ const Run = ({ onNavigate }) => {
     </div>
   );
 };
-
-const TIME_PRESETS = [
-  { label: '1 Day',   days: 0 },
-  { label: '1 Week',  days: 6 },
-  { label: '1 Month', months: 1 },
-  { label: '1 Year',  years: 1 },
-];
-
-function presetEnd(startStr, preset) {
-  const s = new Date(startStr + 'T00:00:00');
-  if (isNaN(s)) return null;
-  const e = new Date(s);
-  if (preset.days != null) e.setDate(e.getDate() + preset.days);
-  if (preset.months)       e.setMonth(e.getMonth() + preset.months, e.getDate() - 1);
-  if (preset.years)        e.setFullYear(e.getFullYear() + preset.years, e.getMonth(), e.getDate() - 1);
-  return `${e.getFullYear()}-${String(e.getMonth() + 1).padStart(2, '0')}-${String(e.getDate()).padStart(2, '0')}`;
-}
 
 function RunSection({ step, title, description, children }) {
   return (
