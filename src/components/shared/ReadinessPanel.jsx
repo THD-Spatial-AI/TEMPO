@@ -31,6 +31,7 @@ function IssueRow({ issue, onNavigate, onIgnore }) {
         <p className="text-sm text-slate-800">
           {isCritical && <span className="mr-1.5 text-[11px] font-semibold uppercase tracking-wide text-black">Blocks run</span>}
           {issue.message}
+          {issue.setBy && <span className="ml-1.5 text-xs text-slate-500">Set by {issue.setBy}.</span>}
         </p>
         {issue.items?.length > 0 && !itemLinks && !canIgnore && (
           <p className="mt-0.5 truncate text-xs text-slate-500" title={issue.items.join(', ')}>
