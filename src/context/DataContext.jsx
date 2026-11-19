@@ -757,6 +757,11 @@ export const DataProvider = ({ children }) => {
     updateModelSettings(modelId, { startDate, endDate }, 'time window')
   ), [updateModelSettings]);
 
+  // Readiness warnings the user set aside for a model (metadata.modelConfig.readinessIgnored).
+  const setModelReadinessIgnored = useCallback((modelId, ignored) => (
+    updateModelSettings(modelId, { readinessIgnored: ignored }, 'ignored warnings')
+  ), [updateModelSettings]);
+
   const addCompletedJob = (job) => {
     setCompletedJobs(prev => {
       // Deduplicate by id — prevents double entries from StrictMode or duplicate events
@@ -810,7 +815,7 @@ export const DataProvider = ({ children }) => {
     runningJobs, addRunningJob, removeRunningJob, appendRunningJobLog, updateRunningJobStats, getRunningJob,
     completedJobs: completedJobsInMW,
     addCompletedJob,
-    setModelPowerUnit, setModelTimeWindow, setModelOverrides,
+    setModelPowerUnit, setModelTimeWindow, setModelReadinessIgnored, setModelOverrides,
     removeCompletedJob,
     activeResultJobId,
     setActiveResultJobId,

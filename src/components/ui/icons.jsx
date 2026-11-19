@@ -65,6 +65,7 @@ export const FiEdit2 = make('edit');
 export const FiEdit3 = make('edit_note');
 export const FiExternalLink = make('open_in_new');
 export const FiEye = make('visibility');
+export const FiEyeOff = make('visibility_off');
 export const FiFile = make('draft');
 export const FiFileText = make('description');
 export const FiFilter = make('filter_alt');
