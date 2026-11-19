@@ -62,3 +62,29 @@ def test_legacy_supply_share_dropped_not_renamed():
     gc = imported_model_run_extras(ITALY_META)['group_constraints']
     assert 'vres_min_prod_share' not in gc  # nothing left in the group
     assert gc['systemwide_max_slacked_cost'] == {'cost_max': {'monetary': 1e15}}
+
+
+# ── Overrides use the same ids as the generated model ────────────────────────
+
+from calliope_runner import normalize_override_ids  # noqa: E402
+
+
+def test_override_location_and_tech_ids_normalised():
+    ov = {'locations': {'CNOR': {'techs': {'demand_power': {'constraints': {'resource': 'file=demand_2050_eff.csv'}}}}},
+          'techs': {'oil_&_other': {'exists': False}},
+          'links': {'NORD,CNOR': {'techs': {'ac_transmission': {'constraints': {'energy_cap_max': 1}}}}},
+          'group_constraints': {'g': {'locs': ['NORD'], 'techs': ['oil_&_other']}},
+          'model': {'subset_time': ['2015-01-01', '2015-01-07']}}
+    out = normalize_override_ids(ov)
+    assert list(out['locations']) == ['cnor']
+    assert out['locations']['cnor']['techs']['demand_power']['constraints']['resource'] == 'file=demand_2050_eff.csv'
+    assert list(out['techs']) == ['oil_other']
+    assert list(out['links']) == ['nord,cnor']
+    assert out['group_constraints']['g'] == {'locs': ['nord'], 'techs': ['oil_other']}
+    assert out['model'] == ov['model']
+    assert list(ov['locations']) == ['CNOR']  # input not mutated
+
+
+def test_override_file_column_refs_lowercased():
+    ov = {'locations': {'R1': {'techs': {'pv_farm': {'constraints': {'resource': 'file=pv.csv:R1'}}}}}}
+    assert normalize_override_ids(ov)['locations']['r1']['techs']['pv_farm']['constraints']['resource'] == 'file=pv.csv:r1'

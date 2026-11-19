@@ -228,6 +228,45 @@ def imported_model_run_extras(meta_run):
     return extras
 
 
+def normalize_override_ids(override):
+    """Copy of an imported override with ids written the way the runner writes the
+    model: techs via _safe_id, locations via _safe_id().lower(), link keys 'a,b',
+    group-constraint techs/locs, and file=x.csv:COL columns lowercased (as the
+    CSV headers are). Without this, `locations: {CNOR: ...}` would define new
+    locations next to the generated `cnor`."""
+    def _techs(d):
+        return {_safe_id(t): _vals(v) for t, v in d.items()} if isinstance(d, dict) else d
+
+    def _vals(v):
+        if isinstance(v, dict):
+            return {k: (_techs(x) if k == 'techs' else _vals(x)) for k, x in v.items()}
+        if isinstance(v, str) and v.startswith('file=') and ':' in v[5:]:
+            fname, col = v[5:].split(':', 1)
+            return f'file={fname}:{_safe_id(col).lower()}'
+        return v
+
+    out = {}
+    for key, val in (override or {}).items():
+        if key == 'locations' and isinstance(val, dict):
+            out[key] = {_safe_id(l).lower(): _vals(v) for l, v in val.items()}
+        elif key == 'links' and isinstance(val, dict):
+            out[key] = {','.join(_safe_id(p).lower() for p in k.split(',')): _vals(v) for k, v in val.items()}
+        elif key == 'techs':
+            out[key] = _techs(val)
+        elif key == 'group_constraints' and isinstance(val, dict):
+            out[key] = {}
+            for name, gc in val.items():
+                gc = dict(gc) if isinstance(gc, dict) else gc
+                if isinstance(gc, dict) and isinstance(gc.get('techs'), list):
+                    gc['techs'] = [_safe_id(t) for t in gc['techs']]
+                if isinstance(gc, dict) and isinstance(gc.get('locs'), list):
+                    gc['locs'] = [_safe_id(l).lower() for l in gc['locs']]
+                out[key][name] = gc
+        else:
+            out[key] = val
+    return out
+
+
 def _spore_summary(results_ds):
     """Per-SPORE extract: capacities per loc::tech, storage capacities, and annual
     production / consumption per loc::tech::carrier (transmission flows included,
@@ -1094,7 +1133,7 @@ def _write_scalar_demand_timeseries(techs, locs_cfg, loc_tech_assign,
 # Missing file= CSV safety net
 # ---------------------------------------------------------------------------
 
-def _ensure_missing_file_csvs(techs, locs, time_start, time_end, config_dir):
+def _ensure_missing_file_csvs(techs, locs, time_start, time_end, config_dir, overrides=None):
     """
     Safety-net step: after all CSV-writing passes, scan techs and locs for any
     remaining 'file=xxx.csv' references that are still absent from config_dir
@@ -1107,6 +1146,10 @@ def _ensure_missing_file_csvs(techs, locs, time_start, time_end, config_dir):
 
     This handles the common case where the browser's timeSeries state was lost
     (page reload, model re-selection, backend sync) so the payload arrived empty.
+
+    Files referenced only by *overrides* (e.g. a scenario's demand_2050_eff.csv)
+    are copied from templates too, but never replaced by a placeholder — a missing
+    scenario file must fail loudly rather than run on constant data.
     """
     import pandas as pd
 
@@ -1149,6 +1192,9 @@ def _ensure_missing_file_csvs(techs, locs, time_start, time_end, config_dir):
     all_refs = dict(global_refs)
     for fname, cols in loc_col_hints.items():
         all_refs.setdefault(fname, set()).update(cols)
+    override_only = set(_extract_file_refs(overrides or {})) - set(all_refs)
+    for fname in override_only:
+        all_refs[fname] = set()
 
     if not all_refs:
         return
@@ -1209,6 +1255,9 @@ def _ensure_missing_file_csvs(techs, locs, time_start, time_end, config_dir):
     else:
         still_missing = missing
 
+    for fname in override_only & set(still_missing):
+        log(f"  Warning: {fname} (used by an override/scenario) was not found — runs using it will fail")
+        del still_missing[fname]
     if not still_missing:
         return
 
@@ -2004,7 +2053,7 @@ def _run_model_impl(model_data, work_dir):
     # local templates directory, or generate constant-value placeholders as a last
     # resort.  This handles YAML-imported models where timeSeries was not in the
     # payload (e.g. after page reload or model re-selection).
-    _ensure_missing_file_csvs(techs, locs, time_start, time_end, config_dir)
+    _ensure_missing_file_csvs(techs, locs, time_start, time_end, config_dir, overrides)
 
     with open(config_dir / 'techs.yaml', 'w') as f:
         f.write(dump_yaml({'techs': techs}))
@@ -2229,7 +2278,7 @@ def _run_model_impl(model_data, work_dir):
         'run': run_cfg,
     }
     if overrides:
-        model_yaml['overrides'] = overrides
+        model_yaml['overrides'] = {name: normalize_override_ids(ov) for name, ov in overrides.items()}
     if scenarios:
         model_yaml['scenarios'] = scenarios
     if _imported_extras.get('reserve_margin'):
