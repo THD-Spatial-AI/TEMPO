@@ -2144,12 +2144,6 @@ def _run_model_impl(model_data, work_dir):
         if mapped:
             run_cfg['solver_options'] = {**run_cfg.get('solver_options', {}), **mapped}
 
-    # Activate scenario/override at runtime via YAML run config
-    if scenario_to_run and not override_to_run:
-        run_cfg['scenario'] = scenario_to_run
-    elif override_to_run:
-        run_cfg['override'] = override_to_run
-
     # SPORES: build spores_options block for the run: config
     if run_cfg.get('mode') == 'spores':
         _spores_opts = model_config_payload.get('sporesOptions') or {}
@@ -2282,7 +2276,12 @@ def _run_model_impl(model_data, work_dir):
     _patch_calliope_get_var()
     log("Loading Calliope model …")
     try:
-        model = calliope.Model(str(model_yaml_path))
+        # Calliope 0.6.8 only applies scenarios passed here (it ignores run.scenario).
+        # A scenario may be a named scenario or comma-joined override names.
+        active = scenario_to_run or override_to_run
+        if active:
+            log(f"  Applying scenario/overrides: {active}")
+        model = calliope.Model(str(model_yaml_path), **({'scenario': active} if active else {}))
     except Exception as _load_exc:
         import traceback as _tb2
         log(f"Calliope load FAILED [{type(_load_exc).__name__}]: {_load_exc}")
