@@ -6,7 +6,7 @@ import { useMemo } from 'react';
 import ReactECharts from 'echarts-for-react';
 import { FiDownload, FiAward } from '../ui/icons';
 import {
-  resolveMetrics, groupUtilisation, sporeMetrics, bestRanking, toCsv,
+  resolveMetrics, groupUtilisation, sporeMetrics, bestRanking, toCsv, plannedCount,
 } from '../../services/sporesAnalysis';
 
 const ZERO = 1e-3;
@@ -73,7 +73,7 @@ export default function SporesPaperPanel({ result }) {
         <FiAward size={14} className="text-teal-600" />
         <h3 className="text-sm font-semibold text-slate-700">Paper analysis — Lombardi et al. (2020)</h3>
         <span className="text-xs text-slate-400">
-          {sd.length - 1}/{meta.planned} SPORES · {((meta.plan?.slack ?? 0) * 100).toFixed(0)}% cost relaxation
+          {sd.length - 1}/{plannedCount(meta)} SPORES · {((meta.plan?.slack ?? 0) * 100).toFixed(0)}% cost relaxation
         </span>
       </div>
 

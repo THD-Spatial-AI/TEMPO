@@ -11,7 +11,14 @@
  * runner, so all comparisons are case-insensitive.
  */
 
+import { sporesCount } from './scenarioStudio/presets/lombardi2020Italy.js';
+
 const lc = (s) => String(s).toLowerCase();
+
+/** SPOREs planned for a run. MEME's meta.planned is the number returned, so prefer the plan. */
+export function plannedCount(meta) {
+  return meta?.plan ? sporesCount(meta.plan) : meta?.planned;
+}
 
 /** 'r1::inter_zonal_new:fr::electricity' → { loc:'r1', tech:'inter_zonal_new', remote:'fr' } */
 export function parseLocTech(key) {

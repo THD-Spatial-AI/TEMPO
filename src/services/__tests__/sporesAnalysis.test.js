@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  groupUtilisation, classifyTechs, sporeMetrics, bestRanking,
+  plannedCount, groupUtilisation, classifyTechs, sporeMetrics, bestRanking,
 } from '../sporesAnalysis.js';
 import { METRICS as ITALY_METRICS } from '../scenarioStudio/presets/lombardi2020Italy.js';
 
@@ -71,6 +71,29 @@ describe('classifyTechs — paper rule across cost relaxations', () => {
     expect(c.B.class).toBe('costly to replace');
     expect(c.C.class).toBe('real choice');
     expect(c.C.zeroShare).toEqual({ 0.05: 0.5, 0.2: 0.5 });
+  });
+});
+
+describe('classifyTechs — percent slacks (as SporesEnsembleComparison feeds them)', () => {
+  it('per-slack cells are keyed by the integer percent', () => {
+    const ens = [
+      { slack: 5, utilisation: [{ C: 0 }, { C: 0.3 }] },
+      { slack: 20, utilisation: [{ C: 0.1 }, { C: 0.3 }] },
+    ];
+    const c = classifyTechs(ens)[0];
+    expect(c.zeroShare[5]).toBe(0.5);
+    expect(c.median[20]).toBeCloseTo(0.2);
+    expect(c.zeroShare[5 / 100]).toBeUndefined();
+  });
+});
+
+describe('plannedCount', () => {
+  const plan = { stages: [{ type: 'explore', count: 50 }, { type: 'minimise', targets: new Array(18).fill(0), countEach: 3 }] };
+  it('uses the plan when present (MEME meta.planned is the returned count)', () => {
+    expect(plannedCount({ planned: 120, plan })).toBe(50 + 54);
+  });
+  it('falls back to meta.planned without a plan', () => {
+    expect(plannedCount({ planned: 120 })).toBe(120);
   });
 });
 
