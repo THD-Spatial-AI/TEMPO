@@ -13,6 +13,9 @@ import SelectField from './ui/SelectField';
 import { iconBtn, ICON_PX } from './ui/iconButton';
 import useFixTarget from '../hooks/useFixTarget';
 import { fixKey, revealFix } from '../services/fixIntent';
+import IssueMarker from './shared/IssueMarker';
+import { useReadiness } from '../hooks/useReadiness';
+import { entityKey } from '../services/modelReadiness';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -59,6 +62,7 @@ function LinkTypeSelect({ value, onChange, className = '' }) {
 
 const Links = () => {
   const { links, setLinks, locations, getCurrentModel } = useData();
+  const { index: issueIndex } = useReadiness();
   const unit = modelPowerUnit(getCurrentModel()); // link capacities are in the model's unit
 
   const [editingIndex, setEditingIndex] = useState(null);
@@ -336,6 +340,7 @@ const Links = () => {
                               <span className="truncate">{link.from}</span>
                               <LuArrowRight size={13} className="shrink-0 text-slate-400" />
                               <span className="truncate">{link.to}</span>
+                              <IssueMarker issues={issueIndex.get(entityKey('link', String(link.from), String(link.to)))} />
                             </div>
                           </td>
                           <td className="px-5 py-3">

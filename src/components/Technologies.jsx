@@ -16,6 +16,8 @@ import {
 import TechParameterEditor from './creation/TechParameterEditor';
 import { confirmAction } from './ui/confirm';
 import useFixTarget from '../hooks/useFixTarget';
+import IssueMarker from './shared/IssueMarker';
+import { useEntityIssues } from '../hooks/useReadiness';
 import SelectField from './ui/SelectField';
 
 // ── Carrier helpers ──────────────────────────────────────────────────────────
@@ -239,6 +241,7 @@ const TechCard = ({ techName, tech, isCustom, onDuplicate, onEdit, onDelete, onO
   const meta = CATEGORY_META[tech.parent] || { color: '#94a3b8' };
   const inModel = currentModelId && technologies.some(t => t.name === techName);
   const displayName = tech.essentials?.name || formatName(techName);
+  const issues = useEntityIssues('tech', techName);
   const instances = tech.instances || [];
 
   // Always display first instance as default; user browses the rest in DetailPanel
@@ -305,7 +308,10 @@ const TechCard = ({ techName, tech, isCustom, onDuplicate, onEdit, onDelete, onO
             <CategoryIcon iconKey={meta.icon} size={14} color={meta.color} />
           </span>
           <div className="min-w-0 flex-1">
-            <h4 className="line-clamp-2 text-[13px] font-semibold leading-snug text-slate-900">{displayName}</h4>
+            <h4 className="flex items-start gap-1 text-[13px] font-semibold leading-snug text-slate-900">
+              <span className="line-clamp-2">{displayName}</span>
+              <IssueMarker issues={issues} size={13} />
+            </h4>
             {tech.oeo_class && (
               <p className="mt-0.5 truncate font-mono text-[10px] text-slate-400">{tech.oeo_class}</p>
             )}

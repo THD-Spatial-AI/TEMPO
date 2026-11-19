@@ -12,6 +12,9 @@ import SelectField from './ui/SelectField';
 import { iconBtn, ICON_PX } from './ui/iconButton';
 import useFixTarget from '../hooks/useFixTarget';
 import { fixKey, revealFix } from '../services/fixIntent';
+import IssueMarker from './shared/IssueMarker';
+import { useReadiness } from '../hooks/useReadiness';
+import { entityKey } from '../services/modelReadiness';
 
 
 
@@ -21,6 +24,7 @@ import { fixKey, revealFix } from '../services/fixIntent';
 
 const Locations = () => {
   const { locations, setLocations, getCurrentModel, technologies, links, showNotification, models, setModels, setNavigationWarning, timeSeries, setTimeSeries } = useData();
+  const { index: issueIndex } = useReadiness();
   const currentModel = getCurrentModel();
   // Live tech templates from OEO API (falls back to static TECH_TEMPLATES)
   const { techTemplates: liveTechTemplates, isLoading: techsLoading } = useLiveTechTemplates();
@@ -584,7 +588,10 @@ const Locations = () => {
                         className="h-8 w-full rounded-lg border border-black/15 bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 font-medium"
                       />
                     ) : (
-                      <span className="truncate text-sm font-semibold text-slate-900">{location.name}</span>
+                      <>
+                        <span className="truncate text-sm font-semibold text-slate-900">{location.name}</span>
+                        <IssueMarker issues={issueIndex.get(entityKey('location', location.name || location.id))} />
+                      </>
                     )}
                   </div>
 
