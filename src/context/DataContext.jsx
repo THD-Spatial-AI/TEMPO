@@ -8,6 +8,7 @@ import { getSetting, SETTINGS_EVENT } from '../services/appSettings';
 import { jobInMW } from '../utils/modelUnits';
 import { repairDuplicateLocationNames } from '../utils/uniqueLocationNames';
 import { repairTechDefinitions } from '../utils/repairTechDefinitions';
+import { GRID_TECHS } from '../config/gridTechs';
 
 // Convert TECH_TEMPLATES to flat array of technologies
 const getDefaultTechnologies = () => {
@@ -254,7 +255,7 @@ export const DataProvider = ({ children }) => {
     // Techs placed on locations by id (OSM plants) may lack a definition under
     // that name, which leaves them without a parent; fill those in too.
     const baseTechs = model.technologies?.length ? model.technologies : getDefaultTechnologies();
-    const techFix = repairTechDefinitions(locs, baseTechs, getDefaultTechnologies());
+    const techFix = repairTechDefinitions(locs, baseTechs, [...getDefaultTechnologies(), ...GRID_TECHS]);
     suppressDirtyUntilRef.current = repaired || techFix ? 0 : Date.now() + 200;
     setCurrentModelId(model.id);
     setLocations(locs);
