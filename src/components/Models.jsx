@@ -77,6 +77,8 @@ const Models = () => {
           modelConfig: model.modelConfig || {},
           description: `Imported from ${format} archive: ${file.name}`,
         },
+        model.overrides || {},
+        model.scenarios || {},
       );
       for (const extra of extraModels || []) {
         const extraName = extra.name || `${name} (extra)`;
@@ -92,6 +94,8 @@ const Models = () => {
             modelConfig: extra.modelConfig || {},
             description: `Imported from ${format} archive: ${file.name}`,
           },
+          extra.overrides || {},
+          extra.scenarios || {},
         );
       }
       setImportReport(report || []);
