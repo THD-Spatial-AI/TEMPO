@@ -11,7 +11,9 @@ export function contractToCompletedJob(contract, { name = 'Imported result', uni
   let result = contract;
   const meta = contract.spores_meta;
   // The plan names the analysis config (and the model unit); MEME doesn't know it.
-  if (meta && !meta.plan) result = { ...result, spores_meta: { ...meta, plan: { ...SPORES_PLAN, slack: meta.slack } } };
+  // MEME's extractor puts the slack on each SPORE, not on spores_meta.
+  const metaSlack = meta?.slack ?? contract.spores_data?.find(s => s?.slack != null)?.slack;
+  if (meta && !meta.plan) result = { ...result, spores_meta: { ...meta, plan: { ...SPORES_PLAN, slack: metaSlack } } };
   result = stampPowerUnit(result, unit ?? contract.model_power_unit);
 
   const slack = result.spores_meta?.plan?.slack;

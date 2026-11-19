@@ -28,6 +28,13 @@ describe('contractToCompletedJob', () => {
     expect(contractToCompletedJob({ ...c, spores_meta: { plan: own } }, { now }).result.spores_meta.plan).toBe(own);
   });
 
+  it('takes the slack from the SPOREs when spores_meta has none (MEME extractor)', () => {
+    const c = { spores_data: [{ slack: 0.2 }, { slack: 0.2 }], spores_meta: { planned: 1 } };
+    const j = contractToCompletedJob(c, { now });
+    expect(j.result.spores_meta.plan.slack).toBe(0.2);
+    expect(parseRunLabel(j.variantLabel).slack).toBe(20);
+  });
+
   it('puts SPORES imports in one batch whose label the comparison parses', () => {
     const j = contractToCompletedJob({ spores_data: [{}], spores_meta: { slack: 0.05 } }, { now });
     expect(j.batchId).toBe('imported');
