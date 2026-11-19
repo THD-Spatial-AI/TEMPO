@@ -4,7 +4,7 @@ import { getSetting } from "./services/appSettings";
 import Sidebar from "./components/Sidebar";
 import ErrorBoundary from "./components/ErrorBoundary";
 import PrivacyDialog from "./components/PrivacyDialog";
-import { takeProfileRequest } from "./services/profileIntent";
+import { requestFix } from "./services/fixIntent";
 // Dashboard is the initial view — load eagerly
 import Dashboard from "./components/Dashboard";
 // All other views are lazy-loaded to reduce initial bundle size (LCP/INP fix)
@@ -86,7 +86,7 @@ function AppContent() {
 
   const cancelNavigation = () => {
     setPendingNavigation(null);
-    takeProfileRequest();
+    requestFix(null);
   };
 
   const handleSaveAndNavigate = () => {

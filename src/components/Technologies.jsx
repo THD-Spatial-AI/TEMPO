@@ -15,7 +15,7 @@ import {
 } from '../utils/constraintDefinitions';
 import TechParameterEditor from './creation/TechParameterEditor';
 import { confirmAction } from './ui/confirm';
-import { PROFILE_EVENT, takeProfileRequest } from '../services/profileIntent';
+import useFixTarget from '../hooks/useFixTarget';
 import SelectField from './ui/SelectField';
 
 // ── Carrier helpers ──────────────────────────────────────────────────────────
@@ -994,19 +994,14 @@ function Technologies() {
 
   const handleCancelEdit = () => { setEditingTech(null); setEditForm(null); setProfileOpenReq(0); };
 
-  // A readiness Fix link asks for a tech's profile dialog: open its editor (on mount and on the event).
-  useEffect(() => {
-    const consume = () => {
-      const name = takeProfileRequest();
-      const tech = name && technologies.find(t => t.name === name);
-      if (!tech || editingTech) return;
-      handleEdit(tech.name, tech);
-      setProfileOpenReq(n => n + 1);
-    };
-    consume();
-    window.addEventListener(PROFILE_EVENT, consume);
-    return () => window.removeEventListener(PROFILE_EVENT, consume);
-  }, [technologies, editingTech]);
+  // A readiness Fix link opens the tech's editor, and its profile dialog when the issue asks for one.
+  // An editor already open is left alone so unsaved edits are not lost.
+  useFixTarget('Technologies', (t) => {
+    const tech = technologies.find(x => x.name === t.id || x.id === t.id);
+    if (!tech || editingTech) return;
+    handleEdit(tech.name, tech);
+    if (t.profile) setProfileOpenReq(n => n + 1);
+  });
 
   const handleDeleteTech = async () => {
     if (!editingTech) return;

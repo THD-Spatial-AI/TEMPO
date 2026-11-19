@@ -1,6 +1,5 @@
 // Lists readiness issues from checkModel or an engine /assess, with a jump to the
 // page (or, per item, the exact entity) that fixes each one.
-import { requestProfileDialog } from '../../services/profileIntent';
 import { requestFix } from '../../services/fixIntent';
 import { FiAlertCircle, FiAlertTriangle, FiArrowRight, FiCheckCircle } from '../ui/icons';
 
@@ -11,7 +10,6 @@ function IssueRow({ issue, onNavigate }) {
   const more = (issue.count || 0) - (issue.items?.length || 0);
   const itemLinks = Boolean(issue.targets && onNavigate);
   const go = (target) => {
-    if (target.profile) requestProfileDialog(target.id);
     requestFix(target);
     onNavigate(target.view);
   };
@@ -46,10 +44,9 @@ function IssueRow({ issue, onNavigate }) {
       </div>
       {issue.view && onNavigate && !itemLinks && (
         <button
-          onClick={() => {
-            if (issue.profileTech) requestProfileDialog(issue.profileTech);
-            onNavigate(issue.view);
-          }}
+          onClick={() => go(issue.profileTech
+            ? { view: issue.view, kind: 'tech', id: issue.profileTech, profile: true }
+            : { view: issue.view })}
           className="flex shrink-0 items-center gap-1 self-start text-xs font-semibold text-black hover:underline"
         >
           Fix <FiArrowRight size={12} />
