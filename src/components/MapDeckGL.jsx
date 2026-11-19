@@ -30,6 +30,7 @@ import { useDemandCellsView } from './map/useDemandCellsView';
 import DemandCellsLegend from './map/DemandCellsLegend';
 import useResourceOverlays, { WithFlow } from './map/useResourceOverlays';
 import OverlayControls from './map/OverlayControls';
+import useFixTarget from '../hooks/useFixTarget';
 
 const MapDeckGL = () => {
   const { locations, setLocations, links, setLinks, showNotification, technologies, models, currentModelId, loadModel, updateCurrentModel, createModel, demandCells, setDemandCells } = useData();
@@ -44,6 +45,8 @@ const MapDeckGL = () => {
   });
   
   const [selectedLocation, setSelectedLocation] = useState(null);
+  // Locations a readiness Fix link points at; ringed on the map until the next click.
+  const [fixFocus, setFixFocus] = useState(null);
   const [hoveredInfo, setHoveredInfo] = useState(null);
   const [currentStyle, setCurrentStyle] = useState('grey');
   const [mode, setMode] = useState('view');
@@ -687,8 +690,21 @@ const MapDeckGL = () => {
     const cellsLayer = cellsView.visible && cellsView.drawn.length
       ? [makeDemandCellsLayer({ features: cellsView.drawn, colorBy: cellsView.colorBy, scale: cellsView.scale, onHover: info => setHoveredInfo(demandCellHover(info)) })]
       : [];
-    return [...cellsLayer, linksLayer, ...locationLayers];
-  }, [linksLayer, locationsLayer, cellsView.visible, cellsView.drawn, cellsView.colorBy, cellsView.scale]);
+    // White halo under a black ring so the mark shows on any basemap and marker colour.
+    const fixLayers = fixFocus ? [
+      new ScatterplotLayer({
+        id: 'fix-focus-halo', data: fixFocus, getPosition: d => [d.longitude, d.latitude],
+        radiusUnits: 'pixels', getRadius: 17, stroked: true, filled: false,
+        lineWidthUnits: 'pixels', getLineWidth: 6, getLineColor: [255, 255, 255, 230],
+      }),
+      new ScatterplotLayer({
+        id: 'fix-focus-ring', data: fixFocus, getPosition: d => [d.longitude, d.latitude],
+        radiusUnits: 'pixels', getRadius: 17, stroked: true, filled: false,
+        lineWidthUnits: 'pixels', getLineWidth: 3, getLineColor: [0, 0, 0, 255],
+      }),
+    ] : [];
+    return [...cellsLayer, linksLayer, ...locationLayers, ...fixLayers];
+  }, [linksLayer, locationsLayer, cellsView.visible, cellsView.drawn, cellsView.colorBy, cellsView.scale, fixFocus]);
   
   // Handle location click for link creation
   const handleLocationClickForLink = (location) => {
@@ -846,6 +862,20 @@ const MapDeckGL = () => {
     fittedModelRef.current = currentModelId;
     setViewState(v => ({ ...v, ...fit, transitionDuration: 600 }));
   }, [locations, currentModelId, computeFitViewState]);
+
+  // A readiness Fix link: fly to the location (or fit an island's members) and ring them.
+  // Declared after the fit-on-load effect so this view wins when both run on mount.
+  useFixTarget('Map View', (t) => {
+    const names = t.kind === 'island' ? (t.members || []) : [t.id];
+    const focus = locations.filter(l => names.includes(l.name || l.id));
+    const fit = computeFitViewState(focus);
+    if (!fit) return;
+    const zoom = focus.length === 1 ? Math.max(fit.zoom, 10) : fit.zoom;
+    setViewState(v => ({ ...v, ...fit, zoom, transitionDuration: 900 }));
+    setFixFocus(focus);
+    document.addEventListener('pointerdown', () => setFixFocus(null), { once: true, capture: true });
+    if (focus.length === 1) showNotification(`Click ${focus[0].name} to edit it.`, 'info');
+  });
   
   // Zoom controls
   const handleZoomIn = useCallback(() => {
