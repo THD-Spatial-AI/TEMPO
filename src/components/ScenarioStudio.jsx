@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useNodesState, useEdgesState, addEdge } from '@xyflow/react';
-import { FiZap, FiLayers, FiGrid, FiChevronDown } from './ui/icons';
+import { FiZap, FiLayers, FiGrid, FiChevronDown, FiCalendar } from './ui/icons';
 import { useData } from '../context/DataContext';
 import { checkCalliopeService, runCalliopeModel } from '../services/calliopeClient';
 import { checkEngineRunService, runEngineModel } from '../services/engineClient';
@@ -18,6 +18,8 @@ import YearDetailPanel from './scenarioStudio/YearDetailPanel.jsx';
 import BoardDock from './scenarioStudio/BoardDock.jsx';
 import ResultsSheet from './scenarioStudio/ResultsSheet.jsx';
 import Select from './ui/Select';
+import TimeWindowFields from './shared/TimeWindowFields';
+import { modelTimeWindow, windowDays, fmtDate } from '../utils/modelTimeWindow';
 
 // ─── Board persistence (localStorage) ────────────────────────────────────────
 
@@ -125,12 +127,13 @@ function actuatorNoMatch(model, data) {
 export default function ScenarioStudio({ onNavigate }) {
   const {
     models, getCurrentModel, showNotification, addCompletedJob, completedJobs, timeSeries, technologies,
-    runningJobs, addRunningJob, removeRunningJob, appendRunningJobLog,
+    runningJobs, addRunningJob, removeRunningJob, appendRunningJobLog, getRunningJob, setModelTimeWindow,
   } = useData();
 
   const [selectedModel, setSelectedModel] = useState(null);
   const [extraModels, setExtraModels] = useState([]);
   const [showModelCompare, setShowModelCompare] = useState(false);
+  const [showTimeWindow, setShowTimeWindow] = useState(false);
   const [selectedEngine, setSelectedEngine] = useState('calliope06');
   const [serviceStatus, setServiceStatus] = useState(null);
 
@@ -162,8 +165,6 @@ export default function ScenarioStudio({ onNavigate }) {
     if (mid) saveBoard(mid, nodes, edges);
   }, [nodes, edges]);
 
-  const runningJobsRef = useRef([]);
-  useEffect(() => { runningJobsRef.current = runningJobs; }, [runningJobs]);
   const nodesRef = useRef(nodes); useEffect(() => { nodesRef.current = nodes; }, [nodes]);
   const edgesRef = useRef(edges); useEffect(() => { edgesRef.current = edges; }, [edges]);
   const cancelFnsRef = useRef({});
@@ -184,7 +185,15 @@ export default function ScenarioStudio({ onNavigate }) {
     }
   }, [selectedEngine]);
 
-  const model = selectedModel;
+  // Read the model from the list, so saved settings (e.g. the time window) show at once.
+  const model = useMemo(() => models.find(m => m.id === selectedModel?.id) || selectedModel, [models, selectedModel]);
+
+  // The loaded model's series live in context; any other model carries its own.
+  const seriesOf = useCallback((m) => {
+    const loaded = (timeSeries || []).filter(ts => ts.modelId === m.id);
+    return loaded.length ? loaded : (m.timeSeries || []);
+  }, [timeSeries]);
+  const timeWindow = useMemo(() => (model ? modelTimeWindow(model, seriesOf(model)) : null), [model, seriesOf]);
 
   // ── Board editing ───────────────────────────────────────────────────────────
 
@@ -328,7 +337,7 @@ export default function ScenarioStudio({ onNavigate }) {
   const _handleDone = (jobId, batchId, variantLabel, modelLabel, result) => {
     if (completedIdsRef.current.has(jobId)) return;
     completedIdsRef.current.add(jobId);
-    const job = runningJobsRef.current.find(j => j.id === jobId);
+    const job = getRunningJob(jobId); // context lookup: this view unmounts once runs start
     removeRunningJob(jobId);
     if (job) {
       const ms = Date.now() - new Date(job.startTime).getTime();
@@ -353,7 +362,7 @@ export default function ScenarioStudio({ onNavigate }) {
   const _handleError = (jobId, batchId, variantLabel, modelLabel, error) => {
     if (completedIdsRef.current.has(jobId)) return;
     completedIdsRef.current.add(jobId);
-    const job = runningJobsRef.current.find(j => j.id === jobId);
+    const job = getRunningJob(jobId); // context lookup: this view unmounts once runs start
     removeRunningJob(jobId);
     if (job) {
       setTimeout(() => {
@@ -376,8 +385,10 @@ export default function ScenarioStudio({ onNavigate }) {
     const isCalliope = selectedEngine === 'calliope06' || selectedEngine === 'calliope07';
     // Model scenario cards: Calliope applies the overrides natively; other engines get them resolved.
     const modelOverrides = [...new Set(variant.ops.filter(o => o.op === 'modelOverrides').flatMap(o => o.names))];
+    // Each model runs over its own saved window (shared with the Run page and Export).
+    const { startDate, endDate } = modelTimeWindow(models.find(x => x.id === m.id) || m, tsForRun);
     let baseModelData = {
-      ...m, solver: 'highs', modelConfig: m.modelConfig || {},
+      ...m, solver: 'highs', modelConfig: { ...(m.modelConfig || {}), startDate, endDate },
       technologies: techsForRun, timeSeries: tsForRun,
     };
     if (!isCalliope) {
@@ -460,7 +471,7 @@ export default function ScenarioStudio({ onNavigate }) {
     for (const m of modelsToRun) {
       const isCurrentModel = m.id === getCurrentModel()?.id;
       const techsForRun = isCurrentModel && technologies?.length ? technologies : (m.technologies || technologies || []);
-      const tsForRun = (timeSeries || []).filter(ts => ts.modelId === m.id);
+      const tsForRun = seriesOf(m);
 
       if (runSequential) {
         // Years run one at a time, in ascending order (awaits each to settle).
@@ -567,6 +578,14 @@ export default function ScenarioStudio({ onNavigate }) {
             </>
           )}
         </div>
+        {timeWindow && (
+          <button onClick={() => setShowTimeWindow(v => !v)}
+            className={`flex h-9 items-center gap-1.5 rounded-lg border px-3 text-[13px] font-medium transition-colors ${
+              showTimeWindow ? 'border-slate-900 bg-black text-white' : 'border-black/15 bg-white text-slate-700 hover:bg-slate-50'
+            }`} title="Period every run is optimised over (saved with the model)">
+            <FiCalendar size={14} /> {fmtDate(timeWindow.startDate)} → {fmtDate(timeWindow.endDate)} · {windowDays(timeWindow.startDate, timeWindow.endDate)} d
+          </button>
+        )}
         <button onClick={() => setShowModelCompare(v => !v)}
           className={`flex h-9 items-center gap-1.5 rounded-lg border px-3 text-[13px] font-medium  transition-colors ${
             showModelCompare || extraModels.length > 0
@@ -576,6 +595,20 @@ export default function ScenarioStudio({ onNavigate }) {
           <FiLayers size={14} /> Compare{extraModels.length > 0 ? ` (${extraModels.length + 1})` : ''}
         </button>
       </div>
+
+      {showTimeWindow && model && timeWindow && (
+        <div className="shrink-0 border-b border-black/15 bg-white px-4 py-3">
+          <p className="mb-2 text-xs font-semibold text-slate-600">Time window · {model.name}</p>
+          <div className="max-w-xl">
+            <TimeWindowFields
+              startDate={timeWindow.startDate}
+              endDate={timeWindow.endDate}
+              source={timeWindow.source}
+              onChange={w => setModelTimeWindow(model.id, w)}
+            />
+          </div>
+        </div>
+      )}
 
       {showModelCompare && (
         <div className="shrink-0 border-b border-black/15 bg-white px-4 py-3">
