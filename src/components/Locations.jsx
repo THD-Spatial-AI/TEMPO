@@ -10,6 +10,8 @@ import { CONSTRAINT_DEFINITIONS, COST_DEFINITIONS, PARENT_CONSTRAINTS } from '..
 import { confirmAction } from './ui/confirm';
 import SelectField from './ui/SelectField';
 import { iconBtn, ICON_PX } from './ui/iconButton';
+import useFixTarget from '../hooks/useFixTarget';
+import { fixKey, revealFix } from '../services/fixIntent';
 
 
 
@@ -253,6 +255,33 @@ const Locations = () => {
   const saveEditTech = () => {
     setEditingTech(null);
   };
+
+  // A readiness Fix link: show the location row and open what the issue is about —
+  // the name or coordinates in row edit, or the tech at that location.
+  useFixTarget('Locations', (t) => {
+    const named = (l) => (l.name || l.id) === t.id;
+    // A duplicate name points at the later copy.
+    const index = t.field === 'name' ? locations.findLastIndex(named) : locations.findIndex(named);
+    if (index < 0) return;
+    setSearchQuery('');
+    const hasTech = t.tech && locations[index].techs && t.tech in locations[index].techs;
+    if (t.field === 'name' || t.field === 'coordinates') {
+      startEdit(index);
+      revealFix(fixKey('location', index), t.field === 'name' ? 'name' : 'latitude');
+    } else if (hasTech) {
+      setExpandedLocation(index);
+      // Only a defined tech has an editor; an undefined one is just shown.
+      if (t.field) {
+        startEditTech(index, t.tech);
+        // A demand profile is the tech's resource constraint.
+        setExpandedSections(prev => ({ ...prev, [`${index}_${t.tech}_constraints`]: true }));
+      }
+      revealFix(fixKey('location-tech', index, t.tech));
+    } else {
+      setExpandedLocation(index);
+      revealFix(fixKey('location', index));
+    }
+  });
 
   const updateTechConstraint = (locationIndex, techName, key, value) => {
     const updatedLocations = [...locations];
@@ -532,7 +561,7 @@ const Locations = () => {
               const isExpanded = expandedLocation === originalIndex;
               const techCount = location.techs ? Object.keys(location.techs).length : 0;
               return (
-              <div key={originalIndex} className={`group transition-colors ${isExpanded || isEditing ? 'bg-slate-50/60' : 'hover:bg-slate-50/70'}`}>
+              <div key={originalIndex} data-fix={fixKey('location', originalIndex)} className={`group transition-colors ${isExpanded || isEditing ? 'bg-slate-50/60' : 'hover:bg-slate-50/70'}`}>
                 <div className="grid grid-cols-[28px_minmax(0,2fr)_130px_minmax(0,1.6fr)_104px_104px_68px] items-center gap-3 px-3 py-2">
                   <button
                     onClick={() => setExpandedLocation(isExpanded ? null : originalIndex)}
@@ -550,6 +579,7 @@ const Locations = () => {
                       <input
                         type="text"
                         value={editData.name}
+                        data-fix-field="name"
                         onChange={(e) => setEditData({ ...editData, name: e.target.value })}
                         className="h-8 w-full rounded-lg border border-black/15 bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 font-medium"
                       />
@@ -607,6 +637,7 @@ const Locations = () => {
                         type="number"
                         step="0.0001"
                         value={editData.latitude}
+                        data-fix-field="latitude"
                         onChange={(e) => setEditData({ ...editData, latitude: parseFloat(e.target.value) })}
                         className="h-8 w-full rounded-lg border border-black/15 bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 text-right font-mono text-xs"
                         aria-label="Latitude"
@@ -687,7 +718,7 @@ const Locations = () => {
                           const mergedTechData = getMergedTechData(techName, techData);
                           
                           return (
-                            <div key={techIdx} className="border border-black/15 rounded-lg bg-white">
+                            <div key={techIdx} data-fix={fixKey('location-tech', originalIndex, techName)} className="border border-black/15 rounded-lg bg-white">
                               {/* Tech Header */}
                               <div className="bg-slate-50 p-3 flex items-center justify-between">
                                 <div className="flex items-center gap-2">
