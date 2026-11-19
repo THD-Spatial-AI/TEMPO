@@ -454,8 +454,8 @@ def assess(model_data: dict, engine: str) -> dict:
         warnings.append(_issue("tech_no_capacity_bound", "These technologies have a negative cost and no maximum capacity, "
                                "so the optimiser can build them without limit and the run may be unbounded. Set energy_cap_max.", gaps["bound"]))
     if gaps["lifetime"]:
-        errors.append(_issue("capex_no_lifetime", "These technologies have a capacity cost but no lifetime, so engines charge "
-                             "the whole investment in one year and the cost comparison is wrong. Set lifetime.", gaps["lifetime"], severity="error"))
+        errors.append(_issue("capex_no_lifetime", "These technologies have a capacity cost but no lifetime. Calliope 0.6.8 refuses "
+                             "to run; the other engines charge the whole investment in one year. Set lifetime.", gaps["lifetime"], severity="error"))
     if gaps["eff"]:
         warnings.append(_issue("conversion_no_eff", "These conversion technologies have no efficiency, so they convert without "
                                "losses. Set energy_eff.", gaps["eff"]))
@@ -521,9 +521,33 @@ def raise_if_blocked(model_data: dict, engine: str) -> dict:
     return a
 
 
+def _is_limitation(w: dict) -> bool:
+    return w["code"].startswith("unsupported_") or w["code"] == "time_aggregation"
+
+
+def limitations(a: dict) -> List[dict]:
+    """What this engine's translation cannot carry over (not a problem in the model itself)."""
+    return [w for w in a.get("warnings", []) if _is_limitation(w)]
+
+
+def run_issues(a: dict) -> List[dict]:
+    """Problems in the model itself, worst first; returned with every run as `issues`."""
+    return (a.get("critical", []) + a.get("errors", [])
+            + [w for w in a.get("warnings", []) if not _is_limitation(w)])
+
+
+def _issue_line(i: dict) -> str:
+    items = i.get("items") or []
+    more = (i.get("count") or len(items)) - len(items)
+    where = f" ({', '.join(items)}{f' +{more} more' if more > 0 else ''})" if items else ""
+    return f"[issue:{i['code']}] {i['message']}{where}"
+
+
 def assessment_lines(a: dict) -> List[str]:
-    """Assessment warnings as plain report lines (for logs / translation_report)."""
-    return [f"[limitation] {w['message']}" for w in a.get("warnings", [])]
+    """Report lines for logs / translation_report. Model problems are tagged [issue:<code>] so
+    the app can link them to the place they are fixed; translation gaps are [limitation]."""
+    return ([_issue_line(i) for i in run_issues(a)]
+            + [f"[limitation] {w['message']}" for w in limitations(a)])
 
 
 # ─── failure diagnosis ──────────────────────────────────────────────────────────
@@ -600,7 +624,8 @@ def failure_result(engine: str, model_name: str, solver: str, termination: str,
     }
     if model_data is not None:
         a = assess(model_data, engine)
-        out["limitations"] = a["warnings"]
+        out["limitations"] = limitations(a)
+        out["issues"] = run_issues(a)
     return out
 
 

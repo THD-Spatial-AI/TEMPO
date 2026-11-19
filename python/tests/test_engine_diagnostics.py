@@ -282,3 +282,29 @@ def test_storage_tied_to_power_capacity_is_not_free():
     assert 'storage_no_cap' not in {i['code'] for i in D.assess(m, 'calliope')['warnings']}
     m['technologies'][-1]['constraints'] = {}
     assert 'storage_no_cap' in {i['code'] for i in D.assess(m, 'calliope')['warnings']}
+
+
+def _with_issue_and_limitation():
+    m = _model()
+    m['technologies'][0]['constraints'].pop('lifetime')            # capex_no_lifetime (error)
+    m['technologies'][0]['constraints']['energy_ramping'] = 0.5     # unsupported on pypsa (limitation)
+    return m
+
+
+def test_limitations_and_issues_are_split():
+    a = D.assess(_with_issue_and_limitation(), 'pypsa')
+    assert [w['code'] for w in D.limitations(a)] == ['unsupported_ramping']
+    assert [i['code'] for i in D.run_issues(a)] == ['capex_no_lifetime']
+
+
+def test_assessment_lines_tag_issues_for_the_app():
+    lines = D.assessment_lines(D.assess(_with_issue_and_limitation(), 'pypsa'))
+    issue = [l for l in lines if l.startswith('[issue:')]
+    assert issue == ['[issue:capex_no_lifetime] ' + D.run_issues(D.assess(_with_issue_and_limitation(), 'pypsa'))[0]['message'] + ' (gen)']
+    assert any(l.startswith('[limitation] ') and 'Ramping' in l for l in lines)
+
+
+def test_failure_result_carries_issues():
+    r = D.failure_result('pypsa', 'mini', 'highs', 'infeasible', _with_issue_and_limitation())
+    assert [i['code'] for i in r['issues']] == ['capex_no_lifetime']
+    assert [w['code'] for w in r['limitations']] == ['unsupported_ramping']
