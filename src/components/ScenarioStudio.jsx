@@ -171,6 +171,8 @@ export default function ScenarioStudio({ onNavigate }) {
   const completedIdsRef = useRef(new Set());
 
   useEffect(() => {
+    // Start on the loaded model once; later context changes (e.g. saving an override) keep the user's pick.
+    if (boardModelIdRef.current) return;
     const cur = getCurrentModel();
     if (cur) { setSelectedModel(cur); setSelectedEngine(engineKeyFromModel(cur)); loadBoardForModel(cur.id); }
   }, [getCurrentModel, loadBoardForModel]);
