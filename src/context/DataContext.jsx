@@ -728,6 +728,27 @@ export const DataProvider = ({ children }) => {
     });
   }, []);
 
+  // A model's own overrides / scenarios (Calliope vocabulary), edited from the Scenario Studio.
+  // The loaded model's copy lives in context state (autosaved); any other model is saved directly.
+  const setModelOverrides = useCallback((modelId, { overrides: ov, scenarios: sc }) => {
+    const isLoaded = modelId === stateRef.current.currentModelId;
+    if (isLoaded) {
+      if (ov) setOverrides(ov);
+      if (sc) setScenarios(sc);
+    }
+    setModels(prev => {
+      const updated = prev.map(m => (m.id === modelId
+        ? { ...m, ...(ov ? { overrides: ov } : {}), ...(sc ? { scenarios: sc } : {}) }
+        : m));
+      const model = updated.find(m => m.id === modelId);
+      if (!isLoaded && model && stateRef.current.backendAvailable && confirmedBackendIds.current.has(modelId)) {
+        api.updateModel(modelId, prepareModelForBackend(model))
+          .catch(e => console.error('Failed to save the overrides:', e));
+      }
+      return updated;
+    });
+  }, []);
+
   // The unit a model's numbers are in (metadata.modelConfig.powerUnit).
   const setModelPowerUnit = useCallback((modelId, powerUnit) => updateModelSettings(modelId, { powerUnit }, 'model unit'), [updateModelSettings]);
 
@@ -789,7 +810,7 @@ export const DataProvider = ({ children }) => {
     runningJobs, addRunningJob, removeRunningJob, appendRunningJobLog, updateRunningJobStats, getRunningJob,
     completedJobs: completedJobsInMW,
     addCompletedJob,
-    setModelPowerUnit, setModelTimeWindow,
+    setModelPowerUnit, setModelTimeWindow, setModelOverrides,
     removeCompletedJob,
     activeResultJobId,
     setActiveResultJobId,
