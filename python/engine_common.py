@@ -150,6 +150,18 @@ def _parse_csv_content(content):
     return header, rows
 
 
+@lru_cache(maxsize=8)
+def _parse_csv_as(content, columns):
+    """_parse_csv_content with rows keyed by the stored `columns` (by position)
+    when they differ from the CSV header — e.g. a blank index header stored as
+    "time" by the import."""
+    header, rows = _parse_csv_content(content)
+    if not columns or len(columns) != len(header) or list(columns) == header:
+        return header, rows
+    keys = dict(zip(header, columns))
+    return list(columns), [{keys.get(h, h): v for h, v in r.items()} for r in rows]
+
+
 def timeseries_rows(ts):
     """(columns, rows) of a payload timeSeries entry. Uses the parsed `data`
     when present; otherwise parses the raw `csvContent` (saved models lose
@@ -160,7 +172,7 @@ def timeseries_rows(ts):
     columns = ts.get('columns') or []
     if data or not ts.get('csvContent'):
         return columns, data
-    header, rows = _parse_csv_content(ts['csvContent'])
+    header, rows = _parse_csv_as(ts['csvContent'], tuple(columns))
     return (columns or header), rows
 
 

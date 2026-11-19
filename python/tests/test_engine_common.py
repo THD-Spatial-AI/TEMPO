@@ -207,6 +207,16 @@ def test_timeseries_rows_header_used_when_columns_missing():
     assert cols == ["time", "a"] and rows == [{"time": "t0", "a": 1}]
 
 
+def test_timeseries_rows_keys_rows_by_stored_columns_when_header_is_blank():
+    # Calliope CSVs (e.g. Italy regional_demand.csv) have an unnamed index column;
+    # the import stores it as "time", so rows must be keyed the same way.
+    ts = {"columns": ["time", "NORD"], "dateColumn": "time",
+          "csvContent": ",NORD\n2015-01-01 00:00:00,-5\n2015-01-01 01:00:00,-6\n"}
+    cols, rows = ec.timeseries_rows(ts)
+    assert cols == ["time", "NORD"]
+    assert rows == [{"time": "2015-01-01 00:00:00", "NORD": -5}, {"time": "2015-01-01 01:00:00", "NORD": -6}]
+
+
 def test_resolve_file_series_reads_csv_content_only_entry():
     md = {"timeSeries": [CSV_ONLY]}
     report = []
