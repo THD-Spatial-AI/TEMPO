@@ -1,10 +1,13 @@
 {
-  "_comment": "Shared by src/services/__tests__/modelReadiness.test.js and python/tests/test_engine_diagnostics.py. Each case lists the shared codes both checkers must report as critical or error; severity pins each code's level. Only critical blocks a run.",
-  "shared_codes": ["no_locations", "no_technologies", "missing_timeseries", "demand_no_profile", "link_unknown_location", "duplicate_location", "invalid_time_horizon"],
+  "_comment": "Shared by src/services/__tests__/modelReadiness.test.js and python/tests/test_engine_diagnostics.py. Each case lists the shared codes both checkers must report, at any severity; severity pins each code's level (a list when it depends on the item). Only critical blocks a run.",
+  "shared_codes": ["no_locations", "no_technologies", "missing_timeseries", "demand_no_profile", "link_unknown_location", "duplicate_location", "invalid_time_horizon",
+    "capex_no_lifetime", "tech_no_capacity_bound", "conversion_no_eff", "storage_no_cap", "tech_no_carrier"],
   "severity": {
     "no_locations": "critical", "no_technologies": "critical", "link_unknown_location": "critical",
     "duplicate_location": "critical", "invalid_time_horizon": "critical",
-    "missing_timeseries": "error", "demand_no_profile": "error"
+    "missing_timeseries": "error", "demand_no_profile": "error",
+    "capex_no_lifetime": "error", "tech_no_carrier": ["error", "warning"],
+    "tech_no_capacity_bound": "warning", "conversion_no_eff": "warning", "storage_no_cap": "warning"
   },
   "cases": [
     {
@@ -14,7 +17,7 @@
         "locations": [{ "name": "a", "latitude": 52, "longitude": 10, "techs": { "gen": null, "dem": null }, "demandProfile": { "timeseries": [10, 12] } }],
         "links": [],
         "technologies": [
-          { "name": "gen", "essentials": { "parent": "supply", "carrier_out": "electricity" }, "constraints": { "energy_cap_max": 1000 }, "costs": { "monetary": { "energy_cap": 900 } } },
+          { "name": "gen", "essentials": { "parent": "supply", "carrier_out": "electricity" }, "constraints": { "energy_cap_max": 1000, "lifetime": 25 }, "costs": { "monetary": { "energy_cap": 900 } } },
           { "name": "dem", "essentials": { "parent": "demand", "carrier_in": "electricity" }, "constraints": {}, "costs": { "monetary": {} } }
         ],
         "timeSeries": []
@@ -32,7 +35,7 @@
         "locations": [{ "name": "a", "latitude": 52, "longitude": 10, "techs": { "gen": null, "dem": null } }],
         "links": [],
         "technologies": [
-          { "name": "gen", "essentials": { "parent": "supply", "carrier_out": "electricity" }, "constraints": { "energy_cap_max": 1000 }, "costs": { "monetary": { "energy_cap": 900 } } },
+          { "name": "gen", "essentials": { "parent": "supply", "carrier_out": "electricity" }, "constraints": { "energy_cap_max": 1000, "lifetime": 25 }, "costs": { "monetary": { "energy_cap": 900 } } },
           { "name": "dem", "essentials": { "parent": "demand", "carrier_in": "electricity" }, "constraints": {}, "costs": { "monetary": {} } }
         ],
         "timeSeries": []
@@ -45,7 +48,7 @@
         "locations": [{ "name": "a", "latitude": 52, "longitude": 10, "techs": { "gen": null, "dem": { "constraints": { "resource": "file=demand.csv:a" } } } }],
         "links": [],
         "technologies": [
-          { "name": "gen", "essentials": { "parent": "supply", "carrier_out": "electricity" }, "constraints": { "energy_cap_max": 1000 }, "costs": { "monetary": { "energy_cap": 900 } } },
+          { "name": "gen", "essentials": { "parent": "supply", "carrier_out": "electricity" }, "constraints": { "energy_cap_max": 1000, "lifetime": 25 }, "costs": { "monetary": { "energy_cap": 900 } } },
           { "name": "dem", "essentials": { "parent": "demand", "carrier_in": "electricity" }, "constraints": {}, "costs": { "monetary": {} } }
         ],
         "timeSeries": []
@@ -58,7 +61,7 @@
         "locations": [{ "name": "a", "latitude": 52, "longitude": 10, "techs": { "gen": null, "dem": null }, "demandProfile": { "timeseries": [10] } }],
         "links": [{ "from": "a", "to": "ghost", "tech": "gen" }],
         "technologies": [
-          { "name": "gen", "essentials": { "parent": "supply", "carrier_out": "electricity" }, "constraints": { "energy_cap_max": 1000 }, "costs": { "monetary": { "energy_cap": 900 } } },
+          { "name": "gen", "essentials": { "parent": "supply", "carrier_out": "electricity" }, "constraints": { "energy_cap_max": 1000, "lifetime": 25 }, "costs": { "monetary": { "energy_cap": 900 } } },
           { "name": "dem", "essentials": { "parent": "demand", "carrier_in": "electricity" }, "constraints": {}, "costs": { "monetary": {} } }
         ],
         "timeSeries": []
@@ -71,7 +74,7 @@
         "locations": [{ "name": "a", "latitude": 52, "longitude": 10, "techs": { "gen": null, "dem": null }, "demandProfile": { "timeseries": [10, 12] } }],
         "links": [],
         "technologies": [
-          { "name": "gen", "essentials": { "parent": "supply", "carrier_out": "electricity" }, "constraints": { "energy_cap_max": 1000 }, "costs": { "monetary": { "energy_cap": 900 } } },
+          { "name": "gen", "essentials": { "parent": "supply", "carrier_out": "electricity" }, "constraints": { "energy_cap_max": 1000, "lifetime": 25 }, "costs": { "monetary": { "energy_cap": 900 } } },
           { "name": "dem", "essentials": { "parent": "demand", "carrier_in": "electricity" }, "constraints": {}, "costs": { "monetary": {} } },
           { "name": "idle_dem", "essentials": { "parent": "demand", "carrier_in": "electricity" }, "constraints": { "resource": "file=gone.csv:a" }, "costs": { "monetary": {} } }
         ],
@@ -85,7 +88,7 @@
         "locations": [{ "name": "a", "latitude": 52, "longitude": 10, "techs": { "gen": null, "dem": null }, "demandProfile": { "timeseries": [10, 12] } }, { "name": "a", "latitude": 52, "longitude": 10, "techs": { "gen": null, "dem": null }, "demandProfile": { "timeseries": [10, 12] } }],
         "links": [],
         "technologies": [
-          { "name": "gen", "essentials": { "parent": "supply", "carrier_out": "electricity" }, "constraints": { "energy_cap_max": 1000 }, "costs": { "monetary": { "energy_cap": 900 } } },
+          { "name": "gen", "essentials": { "parent": "supply", "carrier_out": "electricity" }, "constraints": { "energy_cap_max": 1000, "lifetime": 25 }, "costs": { "monetary": { "energy_cap": 900 } } },
           { "name": "dem", "essentials": { "parent": "demand", "carrier_in": "electricity" }, "constraints": {}, "costs": { "monetary": {} } }
         ],
         "timeSeries": []
@@ -98,11 +101,80 @@
         "locations": [{ "name": "a", "latitude": 52, "longitude": 10, "techs": { "gen": null, "dem": null }, "demandProfile": { "timeseries": [10, 12] } }],
         "links": [],
         "technologies": [
-          { "name": "gen", "essentials": { "parent": "supply", "carrier_out": "electricity" }, "constraints": { "energy_cap_max": 1000 }, "costs": { "monetary": { "energy_cap": 900 } } },
+          { "name": "gen", "essentials": { "parent": "supply", "carrier_out": "electricity" }, "constraints": { "energy_cap_max": 1000, "lifetime": 25 }, "costs": { "monetary": { "energy_cap": 900 } } },
           { "name": "dem", "essentials": { "parent": "demand", "carrier_in": "electricity" }, "constraints": {}, "costs": { "monetary": {} } }
         ],
         "timeSeries": [],
         "modelConfig": { "startDate": "2024-02-01", "endDate": "2024-01-01" }
+      }
+    },
+    {
+      "name": "capex without lifetime",
+      "expect": ["capex_no_lifetime"],
+      "model": {
+        "locations": [{ "name": "a", "latitude": 52, "longitude": 10, "techs": { "gen": null, "dem": null }, "demandProfile": { "timeseries": [10, 12] } }],
+        "links": [],
+        "technologies": [
+          { "name": "gen", "essentials": { "parent": "supply", "carrier_out": "electricity" }, "constraints": { "energy_cap_max": 1000 }, "costs": { "monetary": { "energy_cap": 900 } } },
+          { "name": "dem", "essentials": { "parent": "demand", "carrier_in": "electricity" }, "constraints": {}, "costs": { "monetary": {} } }
+        ],
+        "timeSeries": []
+      }
+    },
+    {
+      "name": "negative cost without capacity bound",
+      "expect": ["tech_no_capacity_bound"],
+      "model": {
+        "locations": [{ "name": "a", "latitude": 52, "longitude": 10, "techs": { "gen": null, "dem": null, "export": null }, "demandProfile": { "timeseries": [10, 12] } }],
+        "links": [],
+        "technologies": [
+          { "name": "gen", "essentials": { "parent": "supply", "carrier_out": "electricity" }, "constraints": { "energy_cap_max": 1000, "lifetime": 25 }, "costs": { "monetary": { "energy_cap": 900 } } },
+          { "name": "dem", "essentials": { "parent": "demand", "carrier_in": "electricity" }, "constraints": {}, "costs": { "monetary": {} } },
+          { "name": "export", "essentials": { "parent": "supply", "carrier_out": "electricity" }, "constraints": {}, "costs": { "monetary": { "om_prod": -5 } } }
+        ],
+        "timeSeries": []
+      }
+    },
+    {
+      "name": "conversion without efficiency",
+      "expect": ["conversion_no_eff"],
+      "model": {
+        "locations": [{ "name": "a", "latitude": 52, "longitude": 10, "techs": { "gen": null, "dem": null, "ccgt": null }, "demandProfile": { "timeseries": [10, 12] } }],
+        "links": [],
+        "technologies": [
+          { "name": "gen", "essentials": { "parent": "supply", "carrier_out": "electricity" }, "constraints": { "energy_cap_max": 1000, "lifetime": 25 }, "costs": { "monetary": { "energy_cap": 900 } } },
+          { "name": "dem", "essentials": { "parent": "demand", "carrier_in": "electricity" }, "constraints": {}, "costs": { "monetary": {} } },
+          { "name": "ccgt", "essentials": { "parent": "conversion", "carrier_in": "gas", "carrier_out": "electricity" }, "constraints": {}, "costs": { "monetary": {} } }
+        ],
+        "timeSeries": []
+      }
+    },
+    {
+      "name": "free unlimited storage",
+      "expect": ["storage_no_cap"],
+      "model": {
+        "locations": [{ "name": "a", "latitude": 52, "longitude": 10, "techs": { "gen": null, "dem": null, "batt": null }, "demandProfile": { "timeseries": [10, 12] } }],
+        "links": [],
+        "technologies": [
+          { "name": "gen", "essentials": { "parent": "supply", "carrier_out": "electricity" }, "constraints": { "energy_cap_max": 1000, "lifetime": 25 }, "costs": { "monetary": { "energy_cap": 900 } } },
+          { "name": "dem", "essentials": { "parent": "demand", "carrier_in": "electricity" }, "constraints": {}, "costs": { "monetary": {} } },
+          { "name": "batt", "essentials": { "parent": "storage", "carrier": "electricity" }, "constraints": {}, "costs": { "monetary": {} } }
+        ],
+        "timeSeries": []
+      }
+    },
+    {
+      "name": "supply without carrier",
+      "expect": ["tech_no_carrier"],
+      "model": {
+        "locations": [{ "name": "a", "latitude": 52, "longitude": 10, "techs": { "gen": null, "dem": null, "mystery": null }, "demandProfile": { "timeseries": [10, 12] } }],
+        "links": [],
+        "technologies": [
+          { "name": "gen", "essentials": { "parent": "supply", "carrier_out": "electricity" }, "constraints": { "energy_cap_max": 1000, "lifetime": 25 }, "costs": { "monetary": { "energy_cap": 900 } } },
+          { "name": "dem", "essentials": { "parent": "demand", "carrier_in": "electricity" }, "constraints": {}, "costs": { "monetary": {} } },
+          { "name": "mystery", "essentials": { "parent": "supply" }, "constraints": { "energy_cap_max": 1 }, "costs": { "monetary": {} } }
+        ],
+        "timeSeries": []
       }
     }
   ]

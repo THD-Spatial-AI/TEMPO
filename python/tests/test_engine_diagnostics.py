@@ -31,7 +31,7 @@ def _model(**extra):
         'links': [],
         'technologies': [
             {'name': 'gen', 'essentials': {'parent': 'supply', 'carrier_out': 'electricity'},
-             'constraints': {'energy_cap_max': 1000, 'resource': 'inf'}, 'costs': {'monetary': {'energy_cap': 1}}},
+             'constraints': {'energy_cap_max': 1000, 'resource': 'inf', 'lifetime': 25}, 'costs': {'monetary': {'energy_cap': 1}}},
             {'name': 'dem', 'essentials': {'parent': 'demand', 'carrier_in': 'electricity'},
              'constraints': {'resource': -10}, 'costs': {'monetary': {}}},
         ],
@@ -195,10 +195,11 @@ def test_shared_readiness_cases(case):
     shared = set(json.loads(READINESS_CASES.read_text(encoding='utf-8'))['shared_codes'])
     severity = json.loads(READINESS_CASES.read_text(encoding='utf-8'))['severity']
     a = D.assess(case['model'], 'pypsa')
-    got = [i for i in a['critical'] + a['errors'] if i['code'] in shared]
+    got = [i for i in a['critical'] + a['errors'] + a['warnings'] if i['code'] in shared]
     assert {i['code'] for i in got} == set(case['expect'])
     for i in got:
-        assert i['severity'] == severity[i['code']], i['code']
+        allowed = severity[i['code']]
+        assert i['severity'] in (allowed if isinstance(allowed, list) else [allowed]), i['code']
 
 
 def test_demand_without_profile_is_an_error_not_a_block():
@@ -271,3 +272,13 @@ def test_osemosys_short_window_is_chronological_and_exact():
     assert w and '7-day' in w[0]['message']
     m['modelConfig'].pop('osemosysScheme'); m['modelConfig']['endDate'] = '2015-01-05'
     assert not _tagg(m)
+
+
+def test_storage_tied_to_power_capacity_is_not_free():
+    m = _model()
+    m['technologies'].append({'name': 'phs', 'essentials': {'parent': 'storage', 'carrier': 'electricity'},
+                              'constraints': {'energy_cap_per_storage_cap_equals': 0.01}, 'costs': {'monetary': {}}})
+    m['locations'][0]['techs']['phs'] = {}
+    assert 'storage_no_cap' not in {i['code'] for i in D.assess(m, 'calliope')['warnings']}
+    m['technologies'][-1]['constraints'] = {}
+    assert 'storage_no_cap' in {i['code'] for i in D.assess(m, 'calliope')['warnings']}

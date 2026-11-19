@@ -313,6 +313,64 @@ def _invalid_time_horizon(model_data: dict) -> bool:
         return True
 
 
+_PRODUCERS = ("supply", "supply_plus", "conversion", "conversion_plus")
+# The 0.6 runner fills in electricity for these when no carrier is set; others fail without one.
+_CARRIER_DEFAULTED = ("storage", "transmission", "demand")
+
+
+def _carriers(v) -> List[str]:
+    return [str(x) for x in (v if isinstance(v, list) else [v]) if x]
+
+
+def _missing_carrier(tech: dict) -> bool:
+    e = tech.get("essentials") or {}
+    parent = _parent(tech)
+    out = _carriers(e.get("carrier_out")) or _carriers(e.get("carrier"))
+    if parent == "demand":
+        return not _carriers(e.get("carrier_in")) and not out
+    if parent.startswith("conversion"):
+        return not _carriers(e.get("carrier_in")) or not _carriers(e.get("carrier_out"))
+    return not out
+
+
+def _parameter_gaps(model_data: dict) -> Dict[str, List[str]]:
+    """Tech names per parameter gap, over the techs placed at locations (a location override
+    counts); mirrors checkParameters in src/services/modelReadiness.js."""
+    techs = _tech_index(model_data)
+    found: Dict[str, List[str]] = {k: [] for k in ("bound", "lifetime", "eff", "storage", "carrier_error", "carrier_warn")}
+
+    def flag(kind, name):
+        if name not in found[kind]:
+            found[kind].append(name)
+
+    for loc in model_data.get("locations") or []:
+        for ref, cfg in (loc.get("techs") or {}).items():
+            tech = techs.get(str(ref))
+            if tech is None:
+                continue
+            name = str(tech.get("name") or tech.get("id"))
+            parent = _parent(tech)
+            cfg = cfg if isinstance(cfg, dict) else {}
+            c = {**(tech.get("constraints") or {}), **(cfg.get("constraints") or {})}
+            costs = {**((tech.get("costs") or {}).get("monetary") or {}), **((cfg.get("costs") or {}).get("monetary") or {})}
+            if (parent in _PRODUCERS and _num(c.get("energy_cap_max")) is None and _num(c.get("energy_cap_equals")) is None
+                    and any(k not in ("interest_rate", "depreciation_rate") and (_num(v) or 0) < 0 for k, v in costs.items())):
+                flag("bound", name)
+            if parent != "demand" and (_num(costs.get("energy_cap")) or 0) > 0 and _num(c.get("lifetime")) is None:
+                flag("lifetime", name)
+            if parent.startswith("conversion") and _num(c.get("energy_eff")) is None:
+                flag("eff", name)
+            # A power-to-energy ratio sizes storage through energy_cap, which carries its own cost and bounds.
+            storage_bounds = ("storage_cap_max", "storage_cap_equals", "energy_cap_per_storage_cap_min",
+                              "energy_cap_per_storage_cap_max", "energy_cap_per_storage_cap_equals")
+            if (parent == "storage" and all(_num(c.get(k)) is None for k in storage_bounds)
+                    and not (_num(costs.get("storage_cap")) or 0) > 0):
+                flag("storage", name)
+            if _missing_carrier(tech):
+                flag("carrier_warn" if parent in _CARRIER_DEFAULTED else "carrier_error", name)
+    return found
+
+
 # ─── issues ─────────────────────────────────────────────────────────────────────
 
 def _issue(code: str, message: str, items: Optional[List[str]] = None, severity: str = "warning") -> dict:
@@ -391,6 +449,24 @@ def assess(model_data: dict, engine: str) -> dict:
     if bad_links:
         critical.append(_issue("link_unknown_location", "These links connect to a location that does not exist.",
                                bad_links, severity="critical"))
+    gaps = _parameter_gaps(model_data)
+    if gaps["bound"]:
+        warnings.append(_issue("tech_no_capacity_bound", "These technologies have a negative cost and no maximum capacity, "
+                               "so the optimiser can build them without limit and the run may be unbounded. Set energy_cap_max.", gaps["bound"]))
+    if gaps["lifetime"]:
+        errors.append(_issue("capex_no_lifetime", "These technologies have a capacity cost but no lifetime, so engines charge "
+                             "the whole investment in one year and the cost comparison is wrong. Set lifetime.", gaps["lifetime"], severity="error"))
+    if gaps["eff"]:
+        warnings.append(_issue("conversion_no_eff", "These conversion technologies have no efficiency, so they convert without "
+                               "losses. Set energy_eff.", gaps["eff"]))
+    if gaps["storage"]:
+        warnings.append(_issue("storage_no_cap", "These storage technologies have no maximum storage capacity and no storage "
+                               "cost, so storage is treated as free and unlimited. Set storage_cap_max or a storage_cap cost.", gaps["storage"]))
+    if gaps["carrier_error"]:
+        errors.append(_issue("tech_no_carrier", "These technologies have no output carrier (or, for conversion, no input "
+                             "carrier), so engines cannot connect them. Set the carriers.", gaps["carrier_error"], severity="error"))
+    if gaps["carrier_warn"]:
+        warnings.append(_issue("tech_no_carrier", "These technologies have no carrier, so electricity is assumed.", gaps["carrier_warn"]))
     dupes = _duplicate_locations(model_data)
     if dupes:
         critical.append(_issue("duplicate_location", "Two or more locations share a name. Engines key locations "
