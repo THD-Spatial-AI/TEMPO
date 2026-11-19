@@ -18,6 +18,7 @@ import {
   SPORES_PLAN as ITALY_SPORES_PLAN, sporesCount,
 } from '../../services/scenarioStudio/presets/lombardi2020Italy.js';
 import SelectField from '../ui/SelectField';
+import { ModelScenarioConfig } from './ModelScenarios.jsx';
 import { iconBtn, ICON_PX } from '../ui/iconButton';
 
 const COST_PARAM_OPTIONS = [
@@ -1010,6 +1011,7 @@ export function CardConfig({ category, params, setParam, model, timeSeries }) {
   if (category === 'renewables') return <RenewablesCardConfig params={params} setParam={setParam} model={model} />;
   if (category === 'location')   return <LocationCardConfig params={params} setParam={setParam} model={model} />;
   if (category === 'custom')     return <CustomConfigPanel params={params} setParam={setParam} model={model} />;
+  if (category === 'modelScenario') return <ModelScenarioConfig params={params} setParam={setParam} model={model} />;
   if (category === 'timeseries') return <TimeseriesCardConfig params={params} setParam={setParam} model={model} timeSeries={timeSeries} />;
   if (category === 'sensitivity') return <SensitivityCardConfig params={params} setParam={setParam} />;
   if (category === 'spores')     return <SporesCardConfig params={params} setParam={setParam} model={model} />;
