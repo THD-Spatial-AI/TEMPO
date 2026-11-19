@@ -1,6 +1,11 @@
 // LogsTab — searchable, filterable solver log viewer for the selected run.
 import { useMemo, useState } from 'react';
-import { FiTerminal, FiSearch, FiX, FiCopy, FiDownload, FiCheck } from '../../ui/icons';
+import { FiTerminal, FiSearch, FiX, FiCopy, FiDownload, FiCheck, FiArrowRight } from '../../ui/icons';
+import LogLineFixes from '../../shared/LogLineFixes';
+import useRunModel from '../../../hooks/useRunModel';
+import { makeEntityMatcher, unmetDemandTargets } from '../../../services/logFixLinks';
+import { requestFix } from '../../../services/fixIntent';
+import { useData } from '../../../context/DataContext';
 
 const LEVELS = [
   { id: 'all',     label: 'All' },
@@ -35,8 +40,17 @@ function Highlight({ text, query }) {
     : p));
 }
 
-export default function LogsTab({ selectedJob }) {
+export default function LogsTab({ selectedJob, onNavigate }) {
   const lines = useMemo(() => (selectedJob?.logs || []).map(parseLine), [selectedJob?.logs]);
+  const { currentModelId, loadModel } = useData();
+  const model = useRunModel(selectedJob);
+  const matcher = useMemo(() => makeEntityMatcher(model), [model]);
+  const unmet = useMemo(() => unmetDemandTargets(selectedJob?.result, model), [selectedJob?.result, model]);
+  const goUnmet = (target) => {
+    if (model.id !== currentModelId) loadModel(model.id);
+    requestFix(target);
+    onNavigate(target.view);
+  };
   const [query, setQuery] = useState('');
   const [level, setLevel] = useState('all');
   const [source, setSource] = useState(null);
@@ -134,6 +148,17 @@ export default function LogsTab({ selectedJob }) {
         </div>
       </div>
 
+      {unmet.length > 0 && onNavigate && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-black/10 bg-amber-50 px-4 py-2 text-xs text-slate-700">
+          <span className="font-semibold">Demand was not fully met at:</span>
+          {unmet.map(({ label, target }) => (
+            <button key={label} onClick={() => goUnmet(target)} className="inline-flex items-center gap-0.5 font-semibold text-black hover:underline">
+              {label} <FiArrowRight size={11} />
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Log body */}
       <div className="max-h-[640px] overflow-auto bg-slate-950 py-2 font-mono text-[12px] leading-[1.7]">
         {visible.map(l => (
@@ -148,6 +173,7 @@ export default function LogsTab({ selectedJob }) {
               <span className={l.level === 'error' ? 'text-red-300' : l.level === 'warning' ? 'text-amber-200' : l.level === 'success' ? 'text-emerald-300' : 'text-slate-200'}>
                 <Highlight text={l.text} query={query} />
               </span>
+              <LogLineFixes line={l.raw} model={model} matcher={matcher} onNavigate={onNavigate} dark />
             </span>
           </div>
         ))}

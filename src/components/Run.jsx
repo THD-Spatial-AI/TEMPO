@@ -313,7 +313,7 @@ const Run = ({ onNavigate }) => {
         }).length;
         const labeledName = prevRuns > 0 ? `${job.modelName} (version ${prevRuns + 1})` : job.modelName;
         addCompletedJob({
-          id: jobId, modelName: labeledName, framework: job.framework, solver: job.solver,
+          id: jobId, modelId: job.modelId, modelName: labeledName, framework: job.framework, solver: job.solver,
           mode: job.mode || 'plan', status: result?.success === false ? 'failed' : 'completed',
           completedAt: new Date().toISOString(), duration, objective: result?.objective || null,
           terminationCondition: result?.termination_condition || 'optimal', result: stampPowerUnit(result, job.powerUnit) || {}, logs: job.logs,
@@ -341,7 +341,7 @@ const Run = ({ onNavigate }) => {
         }).length;
         const labeledName = prevRuns > 0 ? `${job.modelName} (version ${prevRuns + 1})` : job.modelName;
         addCompletedJob({
-          id: jobId, modelName: labeledName, framework: job.framework, solver: job.solver,
+          id: jobId, modelId: job.modelId, modelName: labeledName, framework: job.framework, solver: job.solver,
           mode: job.mode || 'plan', status: 'failed', completedAt: new Date().toISOString(),
           duration: 'N/A', objective: null, terminationCondition: 'error',
           result: { success: false, error }, logs: [...job.logs, `[ERROR] ${error}`],
@@ -475,6 +475,7 @@ const Run = ({ onNavigate }) => {
 
       const newJob = {
         id: jobId,
+        modelId: selectedModel.id,
         modelName: displayName,
         framework: selectedFramework,
         solver: selectedSolver,
@@ -1198,6 +1199,7 @@ const Run = ({ onNavigate }) => {
               logEndRef={logEndRef}
               runningJobs={runningJobs}
               setExpandedLog={setExpandedLog}
+              onNavigate={onNavigate}
             />
           </div>
         </div>

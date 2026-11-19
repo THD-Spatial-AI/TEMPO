@@ -1024,6 +1024,7 @@ const Results = ({ onNavigate }) => {
             {activeTab === 'logs' && (
               <LogsTab
                 selectedJob={selectedJob}
+                onNavigate={onNavigate}
               />
             )}
 

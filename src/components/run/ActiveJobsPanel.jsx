@@ -1,6 +1,9 @@
 // ActiveJobsPanel — displays all active runs, including those launched from Scenario Studio.
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { FiActivity, FiClock, FiStopCircle, FiTerminal, FiLayers } from '../ui/icons';
+import LogLineFixes from '../shared/LogLineFixes';
+import useRunModel from '../../hooks/useRunModel';
+import { makeEntityMatcher } from '../../services/logFixLinks';
 
 function useElapsed(startTime) {
   const [elapsed, setElapsed] = useState('0s');
@@ -17,8 +20,10 @@ function useElapsed(startTime) {
   return elapsed;
 }
 
-function JobCard({ job, expandedLog, setExpandedLog, handleStopJob, logEndRef }) {
+function JobCard({ job, expandedLog, setExpandedLog, handleStopJob, logEndRef, onNavigate }) {
   const elapsed = useElapsed(job.startTime);
+  const model = useRunModel(job);
+  const matcher = useMemo(() => makeEntityMatcher(model), [model]);
   const s = job.stats;
   const isFromStudio = job.source === 'scenario_studio';
 
@@ -102,7 +107,7 @@ function JobCard({ job, expandedLog, setExpandedLog, handleStopJob, logEndRef })
                   : l.includes('WARNING') || l.includes('Skipping') ? 'text-yellow-400'
                   : l.includes('Optimisation finished') || l.includes('Extracted') ? 'text-cyan-300'
                   : ''
-                }>{l}</div>
+                }>{l}<LogLineFixes line={l} model={model} matcher={matcher} onNavigate={onNavigate} dark /></div>
               ))
           }
           <div ref={logEndRef} />
@@ -112,7 +117,7 @@ function JobCard({ job, expandedLog, setExpandedLog, handleStopJob, logEndRef })
   );
 }
 
-export default function ActiveJobsPanel({ expandedLog, handleStopJob, logEndRef, runningJobs, setExpandedLog }) {
+export default function ActiveJobsPanel({ expandedLog, handleStopJob, logEndRef, runningJobs, setExpandedLog, onNavigate }) {
   const studioCount = runningJobs.filter(j => j.source === 'scenario_studio').length;
   const directCount = runningJobs.length - studioCount;
 
@@ -150,6 +155,7 @@ export default function ActiveJobsPanel({ expandedLog, handleStopJob, logEndRef,
               <JobCard
                 key={job.id}
                 job={job}
+                onNavigate={onNavigate}
                 expandedLog={expandedLog}
                 setExpandedLog={setExpandedLog}
                 handleStopJob={handleStopJob}
