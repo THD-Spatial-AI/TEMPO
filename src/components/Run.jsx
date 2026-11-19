@@ -24,6 +24,8 @@ import { LuInfo } from './ui/icons';
 
 
 
+const NONE = {};
+
 const Run = ({ onNavigate }) => {
   const {
     models, getCurrentModel, showNotification, addCompletedJob, removeCompletedJob, completedJobs, setModelPowerUnit, setModelTimeWindow,
@@ -505,7 +507,7 @@ const Run = ({ onNavigate }) => {
           // Pre-resolve the scenario/override on the frontend — non-Calliope
           // runners receive a concrete model with the override already applied.
           const { model: resolved } = resolveScenario(
-            modelData, overrides || {}, scenarios || {}, config
+            modelData, runOverrides, runScenarios, config
           );
           modelData = resolved;
         } else {
@@ -620,6 +622,11 @@ const Run = ({ onNavigate }) => {
     const filtered = timeSeries.filter(ts => ts.modelId === selectedModel?.id);
     return filtered.length ? filtered : (selectedModel?.timeSeries || []);
   }, [timeSeries, selectedModel]);
+
+  // The selected model's own scenarios and overrides (the dropdown lists these); the loaded
+  // model's come from DataContext, which holds unsaved edits.
+  const runOverrides = (isCurrentModel ? overrides : selectedModel?.overrides) || NONE;
+  const runScenarios = (isCurrentModel ? scenarios : selectedModel?.scenarios) || NONE;
 
   const readiness = useMemo(() => (selectedModel
     ? checkModel({ ...selectedModel, technologies: techsForRun, timeSeries: timeSeriesForRun, modelConfig }, { scenarioSelected: hasSelections })
