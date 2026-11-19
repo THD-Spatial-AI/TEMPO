@@ -344,7 +344,7 @@ export const CLIMATE_TEMPLATES = [
     name: '70% Renewable Target',
     icon: '💚',
     description: 'Require ≥70% of electricity from renewables.',
-    detail: 'Uses a group_constraints carrier_prod_min_systemwide constraint. List your renewable technology names in the techs field.',
+    detail: 'Uses a group_constraints carrier_prod_share_min constraint. List your renewable technology names in the techs field.',
     tags: ['renewable', 'target', '70%'],
     params: [
       {
@@ -359,7 +359,7 @@ export const CLIMATE_TEMPLATES = [
       group_constraints: {
         renewables_min: {
           techs: p.techs.split(',').map((t) => t.trim()),
-          carrier_prod_min_systemwide: { electricity: Number(p.share) },
+          carrier_prod_share_min: { electricity: Number(p.share) },
         },
       },
     }),
@@ -383,7 +383,7 @@ export const CLIMATE_TEMPLATES = [
       group_constraints: {
         renewables_100pct: {
           techs: p.techs.split(',').map((t) => t.trim()),
-          carrier_prod_min_systemwide: { electricity: 1.0 },
+          carrier_prod_share_min: { electricity: 1.0 },
         },
       },
     }),
@@ -838,7 +838,7 @@ export const SWEEP_PRESETS = [
     id: 'renewable_share_sweep',
     name: 'Renewable Share Sweep',
     description: 'Sweep the minimum renewable share from 0% to 100%.',
-    configPath: 'group_constraints.renewables_min.carrier_prod_min_systemwide.electricity',
+    configPath: 'group_constraints.renewables_min.carrier_prod_share_min.electricity',
     defaultMin: 0.2,
     defaultMax: 1.0,
     defaultSteps: 5,
