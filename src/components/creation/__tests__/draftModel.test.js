@@ -55,4 +55,16 @@ describe('buildDraftModel', () => {
     const draft = buildDraftModel({ tempLocations: [], tempLinks: [] }, {}, { timeSeries: [ts], currentModelId: 'x' });
     expect(draft.timeSeries).toEqual([{ name: 'osm', columns: ['t'], data: [{}], source: 'osm-demand' }]);
   });
+
+  it('defines the substation and demand techs the study-area wizard places, whatever model is loaded', () => {
+    const draft = buildDraftModel({
+      tempLocations: [{ id: 1, name: 'Copiapó', latitude: -27, longitude: -70, techs: { electricity_substation: {}, power_demand: {} } }],
+      tempLinks: [],
+    }, {}, { timeSeries: [], currentModelId: null });
+
+    expect(draft.technologies.map((t) => [t.name, t.essentials.parent])).toEqual([
+      ['electricity_substation', 'conversion'],
+      ['power_demand', 'demand'],
+    ]);
+  });
 });

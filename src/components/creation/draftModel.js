@@ -3,12 +3,13 @@
 import { LINK_TYPES } from '../../config/linkTypes';
 import { uniqueNames } from '../../utils/uniqueLocationNames';
 import { TECH_TEMPLATES } from '../TechnologiesData';
+import { GRID_TECHS } from '../../config/gridTechs';
 
 // OSM imports place techs on locations by built-in template id
 // ("solar_pv_utility_scale"), while techMap is keyed by name and, when
 // opentech-db is online, holds its catalog (other slugs). Fall back by id so the
 // plant still gets its definition (parent, carriers, costs).
-const STATIC_TEMPLATES = Object.values(TECH_TEMPLATES).flat();
+const STATIC_TEMPLATES = [...Object.values(TECH_TEMPLATES).flat(), ...GRID_TECHS];
 const templateFor = (techMap, key) => techMap[key]
   || Object.values(techMap).find(t => t?.id === key)
   || STATIC_TEMPLATES.find(t => t.id === key || t.name === key);

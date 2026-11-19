@@ -16,6 +16,7 @@ import CreationSidebar from './creation/CreationSidebar';
 import MapLegends from './creation/MapLegends';
 import HoverTooltip from './creation/HoverTooltip';
 import { buildDraftModel } from './creation/draftModel';
+import { GRID_TECHS, SUBSTATION_TECH_ID } from '../config/gridTechs';
 import { checkModel } from '../services/modelReadiness';
 import MapToolbar from './MapToolbar';
 import LocationEditDialog from './LocationEditDialog';
@@ -76,39 +77,13 @@ const PLAN_COLORS = {
 // Links use the existing HVAC-overhead link type → `hvac_overhead_lines`
 // transmission tech (enriched from opentech-db on the Technologies page).
 const GRID_LINK_TYPE = 'hvac_overhead';
-// Substation nodes get a Calliope-valid conversion tech (electricity → electricity
-// with transformer losses) so they aren't empty. Registered in `technologies`
-// on commit if missing; enrichable from opentech-db later like the other techs.
-const SUBSTATION_TECH_ID = 'electricity_substation';
-const SUBSTATION_TECH_DEF = {
-  id: SUBSTATION_TECH_ID,
-  name: SUBSTATION_TECH_ID, // the key locations use; display name in essentials
-  parent: 'conversion',
-  description: 'Substation / transformer node (electricity in → electricity out, with losses).',
-  essentials: { name: 'Electricity Substation', color: '#4A148C', parent: 'conversion', carrier_in: 'electricity', carrier_out: 'electricity' },
-  constraints: { energy_cap_max: 'inf', energy_eff: 0.995, lifetime: 40 },
-  costs: { monetary: { interest_rate: 0.05, energy_cap: 50 } },
-};
-// Global demand tech for OSM substation demand. Registering it (parent: demand)
-// lets every engine's translator resolve the tech's parent — OSeMOSYS/AdOpT-NET0
-// look it up in the global technologies list, so an inline-only power_demand was
-// invisible to them. Per-location constraints (the `resource` file ref) stay on
-// the location; this only supplies the essentials/parent.
-const POWER_DEMAND_TECH_ID = 'power_demand';
-const POWER_DEMAND_TECH_DEF = {
-  id: POWER_DEMAND_TECH_ID,
-  name: POWER_DEMAND_TECH_ID, // the key locations use; display name in essentials
-  parent: 'demand',
-  description: 'Electricity withdrawal (demand) attached to substation nodes.',
-  essentials: { name: 'Power demand', color: '#607D8B', parent: 'demand', carrier: 'electricity' },
-};
 const HOURS_PER_YEAR = 8760;
 
 const Creation = ({ onNavigate }) => {
   const {
     locations, setLocations,
     links, setLinks,
-    technologies, setTechnologies,
+    technologies,
     showNotification,
     createModel, 
     timeSeries, setTimeSeries, 
@@ -413,6 +388,9 @@ const Creation = ({ onNavigate }) => {
         categoryTechs.forEach(tech => { map[tech.name] = tech; });
       }
     });
+
+    // Techs the study-area wizard places on substations (not in the catalog)
+    GRID_TECHS.forEach(tech => { map[tech.name] = tech; });
 
     // Override / extend with any model-specific technologies, but KEEP instances from live API
     if (Array.isArray(technologies) && technologies.length > 0) {
@@ -1598,17 +1576,6 @@ const Creation = ({ onNavigate }) => {
       showNotification('Nothing to import — every step was skipped or empty.', 'warning');
       return;
     }
-    // Register the substation conversion tech + the demand tech in the model if
-    // any node uses them (so every engine can resolve their parent).
-    const toRegister = [];
-    if (plan.locations.some(l => l.techs?.[SUBSTATION_TECH_ID]) && !technologies.some(t => t.id === SUBSTATION_TECH_ID)) {
-      toRegister.push(SUBSTATION_TECH_DEF);
-    }
-    if (plan.locations.some(l => l.techs?.[POWER_DEMAND_TECH_ID]) && !technologies.some(t => t.id === POWER_DEMAND_TECH_ID)) {
-      toRegister.push(POWER_DEMAND_TECH_DEF);
-    }
-    if (toRegister.length) setTechnologies(prev => [...prev, ...toRegister]);
-
     // Turn the substation demand into a generated timeseries when a non-flat load
     // shape (or sector mix) was chosen. The shape comes from demandlib (BDEW SLPs)
     // when installed, else a synthetic fallback — both NORMALISED (mean ≈ 1). We
@@ -1710,7 +1677,7 @@ const Creation = ({ onNavigate }) => {
     setPlanSummary(null);
     setStudyBuildConfig(null);
     showNotification(`Imported ${plan.locations.length} nodes and ${plan.links.length} links into the model${demandNote}.`, 'success');
-  }, [planPreview, locationManager, showNotification, setPlanSummary, setStudyBuildConfig, technologies, setTechnologies, studyBuildConfig, modelConfig, setModelConfig, setTimeSeries, currentModelId]);
+  }, [planPreview, locationManager, showNotification, setPlanSummary, setStudyBuildConfig, studyBuildConfig, modelConfig, setModelConfig, setTimeSeries, currentModelId]);
 
   // Add a neighbouring admin unit (hovered/clicked on the map) to the study area.
   // The panel's unitsKey effect then reloads the boundary + grid for the union.
