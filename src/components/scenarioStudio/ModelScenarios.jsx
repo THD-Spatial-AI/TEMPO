@@ -10,13 +10,10 @@
 
 import React, { useState } from 'react';
 import { FiPlus, FiChevronDown, FiChevronRight, FiTrash2, FiArrowUp, FiArrowDown, FiCopy } from '../ui/icons';
-import {
-  expandScenario, flattenOverride, setOverrideKey, removeOverrideKey,
-  parseOverrideValue, formatOverrideValue, overrideNameError,
-} from '../../services/modelScenarios.js';
-import { isPortableOverrideKey } from '../../services/scenarioResolver.js';
+import { expandScenario, flattenOverride, overrideNameError } from '../../services/modelScenarios.js';
 import { useData } from '../../context/DataContext';
 import SelectField from '../ui/SelectField';
+import { OverrideSettings } from './OverrideBuilder.jsx';
 
 const inputCls = 'h-7 w-full rounded-md border border-black/15 bg-white px-2 font-mono text-[11px] text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-200';
 const smallBtn = 'grid h-6 w-6 shrink-0 place-items-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30';
@@ -27,66 +24,7 @@ const scenarioList = (model, name) => {
   return Array.isArray(def) ? def.map(String) : String(def || '').split(',').map(s => s.trim()).filter(Boolean);
 };
 
-/** A value input that saves on Enter or when it loses focus. */
-function ValueInput({ value, onCommit }) {
-  const [text, setText] = useState(formatOverrideValue(value));
-  const [prev, setPrev] = useState(value);
-  if (value !== prev) { setPrev(value); setText(formatOverrideValue(value)); }
-  const commit = () => { if (text !== formatOverrideValue(value)) onCommit(parseOverrideValue(text)); };
-  return (
-    <input value={text} onChange={e => setText(e.target.value)} onBlur={commit}
-      onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }} className={inputCls} />
-  );
-}
-
-/** Every setting of one override, editable; plus a row to add a setting. */
-function OverrideEditor({ override, onChange }) {
-  const [newKey, setNewKey] = useState('');
-  const [newValue, setNewValue] = useState('');
-  const entries = Object.entries(flattenOverride(override));
-  const keyError = newKey && !/^[^\s.]+(\.[^\s.]+)+$/.test(newKey.trim())
-    ? 'Use a dotted path, e.g. techs.ccgt.constraints.energy_cap_max' : null;
-  const add = () => {
-    if (!newKey.trim() || keyError) return;
-    onChange(setOverrideKey(override, newKey.trim(), parseOverrideValue(newValue)));
-    setNewKey(''); setNewValue('');
-  };
-  return (
-    <div className="space-y-2 px-2 py-2">
-      {entries.length === 0 && <p className="text-[11px] italic text-slate-400">No settings yet — add one below.</p>}
-      {entries.map(([k, v]) => (
-        <div key={k}>
-          <div className="flex items-center gap-1">
-            <span className="min-w-0 flex-1 break-all font-mono text-[10px] text-slate-500">{k}</span>
-            {!isPortableOverrideKey(k) && (
-              <span className="shrink-0 rounded bg-amber-50 px-1 text-[10px] font-medium text-amber-700" title="Applied by Calliope only; skipped on PyPSA / OSeMOSYS / AdOpT-NET0">Calliope</span>
-            )}
-          </div>
-          <div className="mt-0.5 flex items-center gap-1">
-            <ValueInput value={v} onCommit={val => onChange(setOverrideKey(override, k, val))} />
-            <button onClick={() => onChange(removeOverrideKey(override, k))} className={smallBtn} title="Remove this setting">
-              <FiTrash2 size={12} />
-            </button>
-          </div>
-        </div>
-      ))}
-      <div className="rounded-md border border-dashed border-black/15 p-1.5">
-        <input value={newKey} onChange={e => setNewKey(e.target.value)} placeholder="techs.ccgt.constraints.energy_cap_max" className={inputCls} />
-        <div className="mt-1 flex items-center gap-1">
-          <input value={newValue} onChange={e => setNewValue(e.target.value)} placeholder="value (number, text, true/false, [list])"
-            onKeyDown={e => { if (e.key === 'Enter') add(); }} className={inputCls} />
-          <button onClick={add} disabled={!newKey.trim() || !!keyError} title="Add this setting"
-            className="flex h-7 shrink-0 items-center gap-1 rounded-md border border-black/15 px-2 text-[11px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40">
-            <FiPlus size={11} /> Add
-          </button>
-        </div>
-        {keyError && <p className="mt-1 text-[10px] text-amber-700">{keyError}</p>}
-      </div>
-    </div>
-  );
-}
-
-function OverrideRow({ name, override, onChange, defaultOpen = false, actions = null }) {
+function OverrideRow({ name, override, onChange, model, series, defaultOpen = false, actions = null }) {
   const [open, setOpen] = useState(defaultOpen);
   const n = Object.keys(flattenOverride(override)).length;
   return (
@@ -99,7 +37,9 @@ function OverrideRow({ name, override, onChange, defaultOpen = false, actions = 
         </button>
         {actions}
       </div>
-      {open && override && <div className="border-t border-black/10"><OverrideEditor override={override} onChange={onChange} /></div>}
+      {open && override && (
+        <div className="border-t border-black/10"><OverrideSettings override={override} onChange={onChange} model={model} series={series} /></div>
+      )}
     </div>
   );
 }
@@ -189,7 +129,10 @@ export function ModelScenarioList({ model, onAdd }) {
 }
 
 export function ModelScenarioConfig({ params, setParam, model }) {
-  const { setModelOverrides } = useData();
+  const { setModelOverrides, timeSeries } = useData();
+  // The loaded model's series live in context; any other model carries its own.
+  const loadedSeries = (timeSeries || []).filter(ts => ts.modelId === model?.id);
+  const series = loadedSeries.length ? loadedSeries : (model?.timeSeries || []);
   const [duplicating, setDuplicating] = useState(false);
   const [toAdd, setToAdd] = useState('');
   const scenarios = Object.keys(model?.scenarios || {});
@@ -251,7 +194,8 @@ export function ModelScenarioConfig({ params, setParam, model }) {
 
       {isOverride && (
         <Section title="Settings">
-          <OverrideRow key={name} name={name} override={overrides[name]} onChange={next => saveOverride(name, next)} defaultOpen />
+          <OverrideRow key={name} name={name} override={overrides[name]} onChange={next => saveOverride(name, next)}
+            model={model} series={series} defaultOpen />
         </Section>
       )}
 
@@ -259,6 +203,7 @@ export function ModelScenarioConfig({ params, setParam, model }) {
         <Section title={`Applies ${list.length} override${list.length === 1 ? '' : 's'}, in order`}>
           {list.map((ov, i) => (
             <OverrideRow key={`${ov}-${i}`} name={ov} override={overrides[ov]} onChange={next => saveOverride(ov, next)}
+              model={model} series={series}
               actions={(
                 <>
                   <button onClick={() => move(i, -1)} disabled={i === 0} className={smallBtn} title="Apply earlier"><FiArrowUp size={12} /></button>
