@@ -5,6 +5,7 @@ import Sidebar from "./components/Sidebar";
 import ErrorBoundary from "./components/ErrorBoundary";
 import PrivacyDialog from "./components/PrivacyDialog";
 import { requestFix } from "./services/fixIntent";
+import { ReadinessProvider } from "./context/ReadinessContext";
 // Dashboard is the initial view — load eagerly
 import Dashboard from "./components/Dashboard";
 // All other views are lazy-loaded to reduce initial bundle size (LCP/INP fix)
@@ -131,6 +132,7 @@ function AppContent() {
         Skip to main content
       </a>
 
+      <ReadinessProvider>
       <div className="flex h-screen overflow-hidden relative">
         <Sidebar selected={selected} setSelected={handleNavigation} />
         
@@ -147,6 +149,7 @@ function AppContent() {
           </Suspense>
         </main>
       </div>
+      </ReadinessProvider>
 
       {/* ── Navigation guard — only shown when isDirty=true ─────────── */}
       {pendingNavigation && isDirty && currentModelId && (

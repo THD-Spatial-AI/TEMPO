@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useData } from '../../context/DataContext';
-import useModelReadiness from '../../hooks/useModelReadiness';
+import { useReadiness } from '../../hooks/useReadiness';
 import { useDraftReadiness } from '../../services/draftReadiness';
 import { forDraft, readinessChecklist } from '../../services/modelReadiness';
 import { requestFix } from '../../services/fixIntent';
@@ -40,7 +40,7 @@ function Checklist({ items, draft, onGo }) {
 
 export default function ReadinessIndicator({ open, selected, setSelected }) {
   const { currentModelId, getCurrentModel, setModelReadinessIgnored } = useData();
-  const model = useModelReadiness();
+  const { readiness: model } = useReadiness();
   const draftRaw = useDraftReadiness();
   const [drawer, setDrawer] = useState(false);
 
