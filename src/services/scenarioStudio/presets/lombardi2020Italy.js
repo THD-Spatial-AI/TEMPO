@@ -90,13 +90,14 @@ export const SCORED_TECHS = [
  * 3 per group (EU interconnectors, P2G) + 17 extra for each of the 4 potentially
  * problematic items (bioenergy, offshore wind, batteries, P2G). The repository
  * script ships a smaller test config (10 explore, 3 problematic → 121).
- * Objective weights excl:nos = 10:1 follow the script (the paper's Eq. 4 prints 10 and 0.1).
+ * Objective weights excl:nos = 10:0.1 follow the paper's Eq. 4 (the original script uses nos 1);
+ * all validated ensembles (plan 19) used 0.1.
  */
 export const SPORES_PLAN = {
   algorithm: 'lombardi2020',
   metrics: 'lombardi2020Italy', // result analysis config (services/sporesAnalysis.js); ignored by the runner
   scoredTechs: SCORED_TECHS,
-  weights: { excl: 10, nos: 1 },
+  weights: { excl: 10, nos: 0.1 },
   stages: [
     { type: 'explore', count: 50 },
     { type: 'minimise', label: 'Each technology', targets: SCORED_TECHS.filter(t => !P2G.includes(t)).map(t => [t]), countEach: 3 },
