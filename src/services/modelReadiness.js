@@ -163,7 +163,7 @@ function issue(code, severity, message, items, extra) {
 
 function checkLocations({ locations, links }, add) {
   if (!locations.length) {
-    add('no_locations', 'error', 'The model has no locations. Place at least one on the map.');
+    add('no_locations', 'critical', 'The model has no locations. Place at least one on the map.');
     return;
   }
   const seen = new Set();
@@ -173,7 +173,7 @@ function checkLocations({ locations, links }, add) {
     if (seen.has(name)) dupes.push(name);
     else seen.add(name);
   }
-  if (dupes.length) add('duplicate_location', 'error', 'Two or more locations share a name. Engines key locations by name, so one would overwrite the other.', dupes);
+  if (dupes.length) add('duplicate_location', 'critical', 'Two or more locations share a name. Engines key locations by name, so one would overwrite the other.', dupes);
 
   const noCoords = locations.filter((l) => !isFiniteNumber(l.latitude) || !isFiniteNumber(l.longitude)).map(keyOf);
   if (noCoords.length) add('missing_coordinates', 'warning', 'These locations have no coordinates, so they do not show on the map and link distances cannot be computed.', noCoords);
@@ -190,7 +190,7 @@ function hasUsableCost(costs) {
 
 function checkTechnologies({ locations, links, technologies, techByName, resolveTech }, add) {
   if (!technologies.length) {
-    add('no_technologies', 'error', 'The model has no technologies. Assign at least one supply and one demand technology to a location.');
+    add('no_technologies', 'critical', 'The model has no technologies. Assign at least one supply and one demand technology to a location.');
     return;
   }
   const used = new Set();
@@ -232,7 +232,7 @@ function checkTechnologies({ locations, links, technologies, techByName, resolve
 function checkLinks({ locations, links }, add) {
   const names = new Set(locations.flatMap((l) => [l.name, l.id]).filter(Boolean).map(String));
   const unknown = links.filter((l) => !names.has(String(l.from)) || !names.has(String(l.to))).map((l) => `${l.from} \u2192 ${l.to}`);
-  if (unknown.length) add('link_unknown_location', 'error', 'These links connect to a location that does not exist.', unknown);
+  if (unknown.length) add('link_unknown_location', 'critical', 'These links connect to a location that does not exist.', unknown);
 
   const self = links.filter((l) => String(l.from) === String(l.to)).map((l) => String(l.from));
   if (self.length) add('link_self', 'error', 'These links start and end at the same location.', self);
@@ -385,7 +385,7 @@ function checkTime({ timeSeries, modelConfig }, add) {
   const start = parseUtc(startDate);
   const end = parseUtc(endDate);
   if (Number.isNaN(start) || Number.isNaN(end) || start > end) {
-    add('invalid_time_horizon', 'error', 'The model period is invalid: the start date must be on or before the end date.');
+    add('invalid_time_horizon', 'critical', 'The model period is invalid: the start date must be on or before the end date.');
     return;
   }
   const HOUR = 3600 * 1000;
@@ -426,10 +426,9 @@ export function checkModel(model, options = {}) {
     parameters: model?.parameters || [],
     subsetTime: model?.subsetTime ?? model?.metadata?.subsetTime,
   };
-  const errors = [];
-  const warnings = [];
-  const add = (code, severity, message, items, extra) =>
-    (severity === 'error' ? errors : warnings).push(issue(code, severity, message, items, extra));
+  // Only critical issues block a run; errors ask for confirmation, warnings inform.
+  const lists = { critical: [], error: [], warning: [] };
+  const add = (code, severity, message, items, extra) => lists[severity].push(issue(code, severity, message, items, extra));
 
   checkLocations(ctx, add);
   checkTechnologies(ctx, add);
@@ -439,5 +438,5 @@ export function checkModel(model, options = {}) {
   checkProfiles(ctx, add);
   checkTime(ctx, add);
 
-  return { ok: errors.length === 0, errors, warnings };
+  return { ok: lists.critical.length === 0, critical: lists.critical, errors: lists.error, warnings: lists.warning };
 }

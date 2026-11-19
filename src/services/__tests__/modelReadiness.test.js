@@ -23,6 +23,7 @@ const codes = (list) => list.map((i) => i.code);
 describe('checkModel structure', () => {
   it('passes a complete minimal model', () => {
     const r = checkModel(miniModel());
+    expect(r.critical).toEqual([]);
     expect(r.errors).toEqual([]);
     expect(r.warnings).toEqual([]);
     expect(r.ok).toBe(true);
@@ -30,14 +31,29 @@ describe('checkModel structure', () => {
 
   it('flags everything an empty model is missing', () => {
     const r = checkModel({ locations: [], links: [], technologies: [] });
-    expect(codes(r.errors)).toEqual(expect.arrayContaining(['no_locations', 'no_technologies', 'no_demand', 'no_supply']));
+    expect(codes(r.critical)).toEqual(expect.arrayContaining(['no_locations', 'no_technologies']));
+    expect(codes(r.errors)).toEqual(expect.arrayContaining(['no_demand', 'no_supply']));
     expect(r.ok).toBe(false);
+  });
+
+  it('stays runnable with errors but no critical issue', () => {
+    const m = miniModel();
+    delete m.locations[0].demandProfile;
+    const r = checkModel(m);
+    expect(codes(r.errors)).toContain('demand_no_profile');
+    expect(r.critical).toEqual([]);
+    expect(r.ok).toBe(true);
+  });
+
+  it('gives critical issues the critical severity', () => {
+    const r = checkModel({ locations: [], links: [], technologies: [] });
+    expect(r.critical.every((i) => i.severity === 'critical')).toBe(true);
   });
 
   it('flags duplicate location names', () => {
     const m = miniModel();
     m.locations.push({ ...m.locations[0] });
-    expect(codes(checkModel(m).errors)).toContain('duplicate_location');
+    expect(codes(checkModel(m).critical)).toContain('duplicate_location');
   });
 
   it('warns about locations without coordinates', () => {
@@ -157,7 +173,7 @@ describe('checkModel technologies and links', () => {
     const m = miniModel();
     m.locations[0] = { ...m.locations[0], name: '', id: 'x' };
     m.locations.push({ name: '', id: 'x', latitude: 1, longitude: 1, techs: { gen: null } });
-    expect(checkModel(m).errors.find((i) => i.code === 'duplicate_location').items).toEqual(['x']);
+    expect(checkModel(m).critical.find((i) => i.code === 'duplicate_location').items).toEqual(['x']);
   });
 
   it('counts a cost set only as a location override', () => {
@@ -181,17 +197,17 @@ describe('checkModel technologies and links', () => {
     expect(codes(checkModel(m).warnings)).toContain('no_costs');
   });
 
-  it('flags links to unknown locations and self links', () => {
+  it('flags links to unknown locations (critical) and self links (error)', () => {
     const m = miniModel({ links: [{ from: 'a', to: 'nowhere', tech: 'gen' }, { from: 'a', to: 'a', tech: 'gen' }] });
-    const c = codes(checkModel(m).errors);
-    expect(c).toContain('link_unknown_location');
-    expect(c).toContain('link_self');
+    const r = checkModel(m);
+    expect(codes(r.critical)).toContain('link_unknown_location');
+    expect(codes(r.errors)).toContain('link_self');
   });
 
   it('does not flag a link that references a location by id', () => {
     const m = miniModel({ links: [{ from: 'loc-1', to: 'a', tech: 'gen' }] });
     m.locations[0].id = 'loc-1';
-    expect(codes(checkModel(m).errors)).not.toContain('link_unknown_location');
+    expect(codes(checkModel(m).critical)).not.toContain('link_unknown_location');
   });
 
   it('warns when the network splits into islands', () => {
@@ -365,11 +381,11 @@ describe('checkModel demand and supply', () => {
 describe('checkModel time', () => {
   it('flags a start date after the end date', () => {
     const m = miniModel({ modelConfig: { startDate: '2024-02-01', endDate: '2024-01-01' } });
-    expect(codes(checkModel(m).errors)).toContain('invalid_time_horizon');
+    expect(codes(checkModel(m).critical)).toContain('invalid_time_horizon');
   });
 
   it('skips the horizon check when dates are not set', () => {
-    expect(codes(checkModel(miniModel({ modelConfig: {} })).errors)).not.toContain('invalid_time_horizon');
+    expect(codes(checkModel(miniModel({ modelConfig: {} })).critical)).not.toContain('invalid_time_horizon');
   });
 
   it('warns when a time series does not cover the model period', () => {
@@ -409,8 +425,10 @@ describe('checkModel time', () => {
 describe('shared readiness cases', () => {
   for (const c of shared.cases) {
     it(c.name, () => {
-      const got = checkModel(c.model).errors.map((i) => i.code).filter((code) => shared.shared_codes.includes(code));
-      expect([...new Set(got)].sort()).toEqual([...c.expect].sort());
+      const r = checkModel(c.model);
+      const got = [...r.critical, ...r.errors].filter((i) => shared.shared_codes.includes(i.code));
+      expect([...new Set(got.map((i) => i.code))].sort()).toEqual([...c.expect].sort());
+      for (const i of got) expect(i.severity).toBe(shared.severity[i.code]);
     });
   }
 });

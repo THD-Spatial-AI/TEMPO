@@ -1,6 +1,11 @@
 {
-  "_comment": "Shared by src/services/__tests__/modelReadiness.test.js and python/tests/test_engine_diagnostics.py. Each case lists the blocking codes from the shared set both checkers must report.",
-  "shared_codes": ["no_locations", "no_technologies", "missing_timeseries", "demand_no_profile", "link_unknown_location"],
+  "_comment": "Shared by src/services/__tests__/modelReadiness.test.js and python/tests/test_engine_diagnostics.py. Each case lists the shared codes both checkers must report as critical or error; severity pins each code's level. Only critical blocks a run.",
+  "shared_codes": ["no_locations", "no_technologies", "missing_timeseries", "demand_no_profile", "link_unknown_location", "duplicate_location", "invalid_time_horizon"],
+  "severity": {
+    "no_locations": "critical", "no_technologies": "critical", "link_unknown_location": "critical",
+    "duplicate_location": "critical", "invalid_time_horizon": "critical",
+    "missing_timeseries": "error", "demand_no_profile": "error"
+  },
   "cases": [
     {
       "name": "valid",
@@ -71,6 +76,33 @@
           { "name": "idle_dem", "essentials": { "parent": "demand", "carrier_in": "electricity" }, "constraints": { "resource": "file=gone.csv:a" }, "costs": { "monetary": {} } }
         ],
         "timeSeries": []
+      }
+    },
+    {
+      "name": "duplicate location",
+      "expect": ["duplicate_location"],
+      "model": {
+        "locations": [{ "name": "a", "latitude": 52, "longitude": 10, "techs": { "gen": null, "dem": null }, "demandProfile": { "timeseries": [10, 12] } }, { "name": "a", "latitude": 52, "longitude": 10, "techs": { "gen": null, "dem": null }, "demandProfile": { "timeseries": [10, 12] } }],
+        "links": [],
+        "technologies": [
+          { "name": "gen", "essentials": { "parent": "supply", "carrier_out": "electricity" }, "constraints": { "energy_cap_max": 1000 }, "costs": { "monetary": { "energy_cap": 900 } } },
+          { "name": "dem", "essentials": { "parent": "demand", "carrier_in": "electricity" }, "constraints": {}, "costs": { "monetary": {} } }
+        ],
+        "timeSeries": []
+      }
+    },
+    {
+      "name": "start after end",
+      "expect": ["invalid_time_horizon"],
+      "model": {
+        "locations": [{ "name": "a", "latitude": 52, "longitude": 10, "techs": { "gen": null, "dem": null }, "demandProfile": { "timeseries": [10, 12] } }],
+        "links": [],
+        "technologies": [
+          { "name": "gen", "essentials": { "parent": "supply", "carrier_out": "electricity" }, "constraints": { "energy_cap_max": 1000 }, "costs": { "monetary": { "energy_cap": 900 } } },
+          { "name": "dem", "essentials": { "parent": "demand", "carrier_in": "electricity" }, "constraints": {}, "costs": { "monetary": {} } }
+        ],
+        "timeSeries": [],
+        "modelConfig": { "startDate": "2024-02-01", "endDate": "2024-01-01" }
       }
     }
   ]
