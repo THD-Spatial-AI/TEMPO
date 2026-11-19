@@ -73,7 +73,7 @@ describe('checkModel structure', () => {
     const m = miniModel();
     for (let i = 0; i < 12; i++) m.locations.push({ name: `x${i}`, latitude: 1, longitude: 1, techs: {} });
     const w = checkModel(m).warnings.find((i) => i.code === 'empty_location');
-    expect(w.view).toBe('Creation');
+    expect(w.view).toBe('Map View');
     expect(w.targets).toHaveLength(8);
     expect(w.items).toHaveLength(8);
     expect(w.count).toBe(12);
@@ -450,10 +450,10 @@ describe('issue targets', () => {
     expect(i.targets.map((t) => t.id)).toEqual(['x', 'y']);
   });
 
-  it('flies the Creation map to an empty location', () => {
+  it('flies the Map View to an empty location', () => {
     const m = miniModel();
     m.locations.push({ name: 'x', latitude: 1, longitude: 1, techs: {} });
-    expect(find(checkModel(m), 'empty_location').targets[0]).toEqual({ view: 'Creation', kind: 'location', id: 'x', map: true });
+    expect(find(checkModel(m), 'empty_location').targets[0]).toEqual({ view: 'Map View', kind: 'location', id: 'x', map: true });
   });
 
   it('opens the location field for duplicates and missing coordinates', () => {
@@ -489,13 +489,13 @@ describe('issue targets', () => {
   it('gives each island its member list on the map', () => {
     const t = find(checkModel(twoLocs()), 'disconnected_network').targets;
     expect(t).toHaveLength(2);
-    expect(t[1]).toEqual({ view: 'Creation', kind: 'island', members: ['b'], map: true });
+    expect(t[1]).toEqual({ view: 'Map View', kind: 'island', members: ['b'], map: true });
   });
 
   it('flies to a location whose demand is unserved', () => {
     const m = miniModel();
     m.locations.push({ name: 'b', latitude: 1, longitude: 1, techs: { dem: null }, demandProfile: { timeseries: [5] } });
-    expect(find(checkModel(m), 'demand_unserved').targets[0]).toEqual({ view: 'Creation', kind: 'location', id: 'b', map: true });
+    expect(find(checkModel(m), 'demand_unserved').targets[0]).toEqual({ view: 'Map View', kind: 'location', id: 'b', map: true });
   });
 
   it('points tech issues at the tech, with the profile dialog when one can be calculated', () => {

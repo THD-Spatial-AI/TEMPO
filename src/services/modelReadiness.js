@@ -17,7 +17,7 @@ export const FIX_VIEW = {
   no_locations: 'Creation',
   duplicate_location: 'Locations',
   missing_coordinates: 'Locations',
-  empty_location: 'Creation',
+  empty_location: 'Map View',
   no_technologies: 'Technologies',
   undefined_tech: 'Locations',
   undefined_link_tech: 'Links',
@@ -26,12 +26,12 @@ export const FIX_VIEW = {
   no_demand: 'Technologies',
   no_supply: 'Technologies',
   demand_no_profile: 'Locations',
-  demand_unserved: 'Creation',
+  demand_unserved: 'Map View',
   supply_no_resource: 'Technologies',
   profile_stale: 'Technologies',
   link_unknown_location: 'Links',
   link_self: 'Links',
-  disconnected_network: 'Creation',
+  disconnected_network: 'Map View',
   missing_timeseries: 'TimeSeries',
   timeseries_out_of_range: 'TimeSeries',
   invalid_time_horizon: 'Run',
@@ -153,7 +153,7 @@ function connectedComponents(names, links) {
 }
 
 // An item is a label, or { label, ...target } where the target says which entity (and field) fixes it.
-// Map targets open on the Creation map; the rest on the code's FIX_VIEW page.
+// Map targets open on the Map View of the loaded model; the rest on the code's FIX_VIEW page.
 function issue(code, severity, message, items, extra) {
   const out = { code, severity, message, view: FIX_VIEW[code], ...extra };
   if (items?.length) {
@@ -163,7 +163,7 @@ function issue(code, severity, message, items, extra) {
       out.targets = shown.map((x) => {
         if (typeof x === 'string') return null;
         const { label: _label, ...target } = x;
-        return { view: target.map ? 'Creation' : FIX_VIEW[code], ...target };
+        return { view: target.map ? 'Map View' : FIX_VIEW[code], ...target };
       });
     }
     out.count = items.length;
