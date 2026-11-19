@@ -1,15 +1,19 @@
+import { expandScenario, flattenOverride } from './modelScenarios.js';
+
 /**
  * Resolves a Calliope scenario or override into a concrete TEMPO internal model.
  *
- * Supports the most common dotted-key patterns used in TEMPO overrides:
+ * Overrides may be nested YAML (imported) or dotted keys; both are flattened to
+ * dotted keys. Supported patterns:
  *   model.subset_time                             → modelConfig.startDate / endDate
  *   model.*                                       → modelConfig.*
  *   techs.{t}.constraints.{param}                → technologies[].constraints
  *   techs.{t}.costs.monetary.{param}             → technologies[].costs.monetary
  *   locations.{l}.techs.{t}.constraints.{param}  → location tech override
+ *   techs.{t}.exists / locations.{l}.techs.{t}.exists = false → energy_cap_max 0
  *
- * Unknown keys (e.g. run.*, model.time.*) are silently skipped — they are
- * Calliope-specific and do not apply to non-Calliope runners.
+ * Other keys (e.g. run.*, model.time.*, group_constraints.*) are Calliope-specific;
+ * they are skipped and listed in the report.
  *
  * @param {object} model        - TEMPO internal model (with technologies, locations, links)
  * @param {object} overridesMap - overrides dict from DataContext
@@ -18,13 +22,9 @@
  * @returns {{ model: object, report: string[] }}
  */
 export function resolveScenario(model, overridesMap, scenariosMap, config) {
-  let overrideNames;
-  if (config.type === 'scenario') {
-    overrideNames = scenariosMap[config.name] || [];
-    if (!Array.isArray(overrideNames)) overrideNames = [overrideNames];
-  } else {
-    overrideNames = [config.name];
-  }
+  const overrideNames = config.type === 'scenario'
+    ? expandScenario({ scenarios: scenariosMap }, config.name)
+    : [config.name];
 
   const resolved = JSON.parse(JSON.stringify(model));
   const report = [`Resolved ${config.type} "${config.name}" (${overrideNames.join(', ')})`];
@@ -35,8 +35,8 @@ export function resolveScenario(model, overridesMap, scenariosMap, config) {
       report.push(`Warning: override "${ovName}" not found — skipped`);
       continue;
     }
-    for (const [dotKey, value] of Object.entries(override)) {
-      if (dotKey === '_meta') continue;
+    // Imported overrides are nested YAML; hand-written ones are dotted keys.
+    for (const [dotKey, value] of Object.entries(flattenOverride(override))) {
       _applyDotKey(resolved, dotKey, value, report);
     }
   }
@@ -61,6 +61,12 @@ function _applyDotKey(model, dotKey, value, report) {
   if (parts[0] === 'model' && parts.length === 2) {
     if (!model.modelConfig) model.modelConfig = {};
     model.modelConfig[parts[1]] = value;
+    return;
+  }
+
+  // techs.{tech}.exists: false → no capacity can be built
+  if (parts[0] === 'techs' && parts.length === 3 && parts[2] === 'exists') {
+    if (value === false) _applyDotKey(model, `techs.${parts[1]}.constraints.energy_cap_max`, 0, report);
     return;
   }
 
@@ -101,5 +107,21 @@ function _applyDotKey(model, dotKey, value, report) {
     return;
   }
 
-  // Unknown key (run.*, model.time.*, etc.) — silently skip
+  // locations.{loc}.techs.{tech}.exists: false → no capacity at that location
+  if (parts[0] === 'locations' && parts.length === 5 && parts[2] === 'techs' && parts[4] === 'exists') {
+    if (value === false) _applyDotKey(model, `locations.${parts[1]}.techs.${parts[3]}.constraints.energy_cap_max`, 0, report);
+    return;
+  }
+
+  // Unknown key (run.*, model.time.*, group_constraints.*, …) — Calliope-only
+  report.push(`Override "${dotKey}": not supported outside Calliope — skipped`);
+}
+
+/** Whether resolveScenario can apply a dotted override key (mirrors _applyDotKey). */
+export function isPortableOverrideKey(dotKey) {
+  const p = dotKey.split('.');
+  if (p[0] === 'model') return p[1] === 'subset_time' || p.length === 2;
+  if (p[0] === 'techs') return (p.length === 3 && p[2] === 'exists') || (p.length >= 4 && p[2] === 'constraints') || (p.length >= 5 && p[2] === 'costs');
+  if (p[0] === 'locations' && p[2] === 'techs') return (p.length === 5 && p[4] === 'exists') || (p.length >= 6 && p[4] === 'constraints');
+  return false;
 }
