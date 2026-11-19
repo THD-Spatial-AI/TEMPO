@@ -8,7 +8,7 @@ import { checkEngineRunService, runEngineModel, assessEngineModel } from '../ser
 import { runMemeModel, getMemeServerConfig } from '../services/memeClient';
 import { SETTINGS_EVENT } from '../services/appSettings';
 import { resolveScenario } from '../services/scenarioResolver';
-import { checkModel } from '../services/modelReadiness';
+import { checkRunConfigs } from '../services/scenarioReadiness';
 import { modelPowerUnit, stampPowerUnit } from '../utils/modelUnits';
 import ReadinessPanel from './shared/ReadinessPanel';
 import { confirmAction } from './ui/confirm';
@@ -373,12 +373,14 @@ const Run = ({ onNavigate }) => {
       return;
     }
 
-    // Errors do not block: the run may still be useful, but the user decides.
-    const errorCount = readiness?.errors.length || 0;
-    if (errorCount && !(await confirmAction({
-      title: `Run with ${errorCount} problem${errorCount === 1 ? '' : 's'}?`,
+    // Errors do not block: the run may still be useful, but the user decides, once per batch.
+    // Runs with a critical problem are skipped; the rest go ahead.
+    const skipped = runChecks.filter(c => !c.readiness.ok).map(c => c.name);
+    const errors = runnableChecks.flatMap(c => c.readiness.errors.map(i => ({ ...i, run: c.name })));
+    if (errors.length && !(await confirmAction({
+      title: `Run with ${errors.length} problem${errors.length === 1 ? '' : 's'}?`,
       message: 'The results may not reflect your system. The problems are listed under Model check.',
-      details: <ul className="list-disc space-y-1 pl-4">{readiness.errors.map((i, n) => <li key={n}>{i.message}</li>)}</ul>,
+      details: <ul className="list-disc space-y-1 pl-4">{errors.map((i, n) => <li key={n}>{i.run ? `${i.run}: ` : ''}{i.message}</li>)}</ul>,
       confirmLabel: 'Run anyway',
       cancelLabel: 'Review',
       tone: 'neutral',
@@ -436,13 +438,10 @@ const Run = ({ onNavigate }) => {
       }
     }
 
-    // Determine what to run: selected scenarios/overrides, or fallback to baseline
-    const configs = [];
-    if (hasSelections) {
-      selectedScenarios.forEach(name => configs.push({ type: 'scenario', name }));
-      selectedOverrides.forEach(name => configs.push({ type: 'override', name }));
-    } else {
-      configs.push(null); // baseline run — no scenario/override
+    // What to run: the selected scenarios/overrides that passed the check, or the baseline
+    const configs = runnableChecks.map(c => c.config);
+    if (skipped.length) {
+      showNotification(`Skipped ${skipped.join(', ')}: critical problems, see Model check.`, 'error');
     }
 
     const runFn = computeRemote
@@ -628,10 +627,21 @@ const Run = ({ onNavigate }) => {
   const runOverrides = (isCurrentModel ? overrides : selectedModel?.overrides) || NONE;
   const runScenarios = (isCurrentModel ? scenarios : selectedModel?.scenarios) || NONE;
 
-  const readiness = useMemo(() => (selectedModel
-    ? checkModel({ ...selectedModel, technologies: techsForRun, timeSeries: timeSeriesForRun, modelConfig }, { scenarioSelected: hasSelections })
-    : null), [selectedModel, techsForRun, timeSeriesForRun, modelConfig, hasSelections]);
-  const blockingCount = readiness?.critical.length || 0;
+  // One check per run: the base model, or each selected scenario/override applied to it.
+  const runChecks = useMemo(() => {
+    if (!selectedModel) return [];
+    const configs = hasSelections
+      ? [...selectedScenarios.map(name => ({ type: 'scenario', name })), ...selectedOverrides.map(name => ({ type: 'override', name }))]
+      : [null];
+    return checkRunConfigs(
+      { ...selectedModel, technologies: techsForRun, timeSeries: timeSeriesForRun, modelConfig },
+      configs,
+      { overrides: runOverrides, scenarios: runScenarios, ignored: selectedModel.metadata?.modelConfig?.readinessIgnored },
+    );
+  }, [selectedModel, techsForRun, timeSeriesForRun, modelConfig, hasSelections, selectedScenarios, selectedOverrides, runOverrides, runScenarios]);
+  const runnableChecks = runChecks.filter(c => c.readiness.ok);
+  const blockingCount = runChecks.length && !runnableChecks.length
+    ? runChecks.reduce((n, c) => n + c.readiness.critical.length, 0) : 0;
 
   const [engineCheck, setEngineCheck] = useState(null); // { loading } | { result } | { unreachable }
   const checkSeq = useRef(0);
@@ -1165,11 +1175,20 @@ const Run = ({ onNavigate }) => {
               )}
             </div>
 
-            {readiness && (
+            {runChecks.length > 0 && (
               <div className="rounded-2xl border border-black/15 bg-white p-5">
                 <h2 className="text-sm font-semibold text-slate-900">Model check</h2>
-                <div className="mt-2 max-h-80 overflow-y-auto">
-                  <ReadinessPanel readiness={readiness} onNavigate={isCurrentModel ? onNavigate : undefined} emptyText="No problems in the model." />
+                <div className="mt-2 max-h-80 space-y-3 overflow-y-auto">
+                  {runChecks.map(({ name, readiness }) => (
+                    <div key={name ?? 'base'}>
+                      {name && (
+                        <p className="mb-1 text-xs font-semibold text-slate-700">
+                          {name}{!readiness.ok && <span className="ml-1.5 font-normal text-slate-500">will be skipped</span>}
+                        </p>
+                      )}
+                      <ReadinessPanel readiness={readiness} onNavigate={isCurrentModel ? onNavigate : undefined} emptyText={name ? 'No problems with this scenario.' : 'No problems in the model.'} />
+                    </div>
+                  ))}
                 </div>
                 {!computeRemote && (
                   <div className="mt-4 border-t border-black/10 pt-3">
