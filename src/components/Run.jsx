@@ -508,7 +508,7 @@ const Run = ({ onNavigate }) => {
       };
 
       if (config) {
-        if (isPypsa || isOsemosys) {
+        if (isPypsa || isOsemosys || isAdoptnet0) {
           // Pre-resolve the scenario/override on the frontend — non-Calliope
           // runners receive a concrete model with the override already applied.
           const { model: resolved } = resolveScenario(
