@@ -14,6 +14,7 @@ import { saveAs } from 'file-saver';
 import { dump } from 'js-yaml';
 import { LINK_TYPES } from '../config/linkTypes';
 import { internalTo07Yaml } from '../services/calliope07Format';
+import { modelTimeWindow, timeSeriesRange } from '../utils/modelTimeWindow';
 import { exportModelArchive, checkEngineRunService } from '../services/engineClient';
 import { resolveScenario } from '../services/scenarioResolver';
 import TranslationReport from './TranslationReport';
@@ -610,6 +611,16 @@ const Export = () => {
   const [selectedFormat, setSelectedFormat] = useState('calliope');
   const [exportMode, setExportMode] = useState('model');
 
+  // The loaded model's series are in context; its run window is shared app-wide.
+  const modelSeries = (model) => {
+    const loaded = timeSeries.filter(ts => ts.modelId === model.id);
+    return loaded.length ? loaded : (model.timeSeries || []);
+  };
+  const windowOf = (model) => {
+    const { startDate, endDate } = modelTimeWindow(model, modelSeries(model));
+    return { startDate, endDate };
+  };
+
   useEffect(() => {
     if (!currentModel) return;
     const ver = currentModel.metadata?.modelConfig?.calliopeVersion ?? '';
@@ -617,24 +628,8 @@ const Export = () => {
   }, [currentModel?.id]);
 
   const generateModelYaml = (model) => {
-    // Get date range from timeseries data or use current year
-    let startDate, endDate;
-    const modelTS = timeSeries.filter(ts => ts.modelId === model.id);
-    
-    if (modelTS.length > 0 && modelTS[0].data && modelTS[0].data.length > 0) {
-      const firstRow = modelTS[0].data[0];
-      const lastRow = modelTS[0].data[modelTS[0].data.length - 1];
-      const dateCol = modelTS[0].columns[0]; // Usually first column is datetime
-      
-      if (firstRow[dateCol]) startDate = firstRow[dateCol];
-      if (lastRow[dateCol]) endDate = lastRow[dateCol];
-    }
-    
-    if (!startDate || !endDate) {
-      const year = new Date().getFullYear();
-      startDate = `${year}-01-01`;
-      endDate = `${year}-12-31`;
-    }
+    // The model's run window (saved on the Run page / Scenario Studio, else import or data span).
+    const { startDate, endDate } = modelTimeWindow(model, modelSeries(model));
     
     // Extract model configuration from template metadata or use defaults
     const config = model.templateMetadata?.config || {};
@@ -796,19 +791,10 @@ model:
   const generateOverridesYaml = (modelOverrides) => {
     let yaml = 'overrides:\n';
     
-    // Get date range from model timeseries
-    let startDate = '2024-01-01';
-    let endDate = '2024-12-31';
-    
-    const modelTS = timeSeries.filter(ts => ts.modelId === currentModel.id);
-    if (modelTS.length > 0 && modelTS[0].data && modelTS[0].data.length > 0) {
-      const firstRow = modelTS[0].data[0];
-      const lastRow = modelTS[0].data[modelTS[0].data.length - 1];
-      const dateCol = modelTS[0].columns[0];
-      
-      if (firstRow[dateCol]) startDate = firstRow[dateCol].split(' ')[0];
-      if (lastRow[dateCol]) endDate = lastRow[dateCol].split(' ')[0];
-    }
+    // Short subsets start at the model's run window; full_year spans all of its data.
+    const series = modelSeries(currentModel);
+    const { startDate } = modelTimeWindow(currentModel, series);
+    const endDate = (timeSeriesRange(series) || modelTimeWindow(currentModel, series)).endDate;
     
     // Calculate 1-day and 3-day subsets
     const startDateObj = new Date(startDate);
@@ -1080,7 +1066,7 @@ calliope run model.yaml --scenario=Main
         locations: currentModel.locations || [],
         links: currentModel.links || [],
         metadata: {
-          modelConfig: currentModel.metadata?.modelConfig || {},
+          modelConfig: { ...(currentModel.metadata?.modelConfig || {}), ...windowOf(currentModel) },
           runConfig: currentModel.metadata?.runConfig || {},
           subsetTime: null,
         },
@@ -1131,7 +1117,7 @@ calliope run model.yaml --scenario=Main
         technologies: technologies || [],
         locations: currentModel.locations || [],
         links: currentModel.links || [],
-        modelConfig: currentModel.metadata?.modelConfig || {},
+        modelConfig: { ...(currentModel.metadata?.modelConfig || {}), ...windowOf(currentModel) },
         timeSeries: timeSeries.filter(ts => ts.modelId === currentModel.id),
       };
 

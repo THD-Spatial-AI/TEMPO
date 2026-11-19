@@ -9,6 +9,7 @@ import { fetchTemplate } from '../utils/templateFetch';
 import { useData } from '../context/DataContext';
 import { regenerateDemandSeries } from '../services/demandlibClient';
 import { expectedTimestepCount } from '../services/demandProfiles';
+import { modelTimeWindow } from '../utils/modelTimeWindow';
 import SaveBar from './ui/SaveBar';
 import TimeSeriesGuide from './timeseries/TimeSeriesGuide';
 import { confirmAction } from './ui/confirm';
@@ -637,19 +638,27 @@ const TimeSeries = () => {
   // Generated-demand entries (osm_substation_demand) carry a demandConfig so they
   // can be regenerated when the model dates/resolution change. Flag staleness by
   // comparing the row count to the expected number of timesteps.
+  // The model's run window (shared with the Run page / Scenario Studio) + its resolution.
+  const runCalendar = useMemo(() => {
+    if (!currentModel) return null;
+    const own = timeSeries.filter(ts => ts.modelId === currentModel.id);
+    const { startDate, endDate } = modelTimeWindow(currentModel, own);
+    return { ...(currentModel.metadata?.modelConfig || {}), startDate, endDate };
+  }, [currentModel, timeSeries]);
+
   const demandMeta = useMemo(() => {
     const dc = selectedTimeSeries?.demandConfig;
     if (!dc) return null;
-    const mc = currentModel?.modelConfig || {};
+    const mc = runCalendar || {};
     const expected = expectedTimestepCount({
       start: mc.startDate, end: mc.endDate, resolution: mc.resolution || dc.resolution || '60min',
     });
     const rows = selectedTimeSeries.data?.length || 0;
     return { expected, rows, stale: expected > 0 && rows !== expected, source: dc.source };
-  }, [selectedTimeSeries, currentModel]);
+  }, [selectedTimeSeries, runCalendar]);
 
   const handleRegenerateDemand = async () => {
-    const mc = currentModel?.modelConfig;
+    const mc = runCalendar;
     if (!selectedTimeSeries?.demandConfig || !mc) return;
     setRegeneratingDemand(true);
     try {

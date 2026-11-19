@@ -14,6 +14,7 @@
  */
 
 import mapping from '../../python/calliope07_mapping.json';
+import { modelTimeWindow } from '../utils/modelTimeWindow.js';
 
 const TECH_PARAMS = mapping.tech_params;       // 0.6 → 0.7
 const EQUALS_PARAMS = mapping.equals_params;   // 0.6 X_equals → [min, max]
@@ -1019,7 +1020,8 @@ export function internalTo07Yaml(model, timeSeriesList) {
 
   // ── Config ───────────────────────────────────────────────────────────────
   const mode = modelCfg.mode || runCfg.mode || 'plan';
-  const subset = meta.subsetTime || [modelCfg.startDate || '2005-01-01', modelCfg.endDate || '2005-01-07'];
+  const { startDate, endDate } = modelTimeWindow(model, timeSeriesList); // the model's run window, app-wide
+  const subset = [startDate, endDate];
   const modelDoc = {
     config: {
       init: {

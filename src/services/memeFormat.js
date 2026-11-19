@@ -25,6 +25,8 @@
  * test should be added once that file is vendored here (see the test module).
  */
 
+import { modelTimeWindow } from '../utils/modelTimeWindow.js';
+
 // MEME ?target= value per TEMPO engine. Only these three engines can run
 // remotely; Calliope 0.6.8 and OSeMOSYS have no MEME target and always run
 // locally (the caller must not route them here).
@@ -749,10 +751,11 @@ export function internalToMemeCanonical(model, opts = {}) {
   for (const cid of carriers) carriersBlock[cid] = {};
 
   // ── Time window ───────────────────────────────────────────────────────────
-  // Live run dates (modelConfig) win; fall back to a saved subsetTime, then a default.
+  // Live run dates (modelConfig) win; else the model's run window (utils/modelTimeWindow).
+  const runWindow = modelTimeWindow(model);
   const subset = (modelCfg.startDate && modelCfg.endDate)
     ? [modelCfg.startDate, modelCfg.endDate]
-    : (meta.subsetTime || model.subsetTime || ['2005-01-01', '2005-01-07']);
+    : [runWindow.startDate, runWindow.endDate];
   const start = String(subset[0]).slice(0, 10);
   const end = String(subset[1]).slice(0, 10);
   const time = {
