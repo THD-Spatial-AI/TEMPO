@@ -95,6 +95,14 @@ describe('regenerateDemandSeries', () => {
     expect(updated.data.every(r => r.dem_1 <= 0)).toBe(true);
   });
 
+  it('writes the series in the model unit (kW model = MW × 1000)', async () => {
+    const day = { startDate: '2024-01-01', endDate: '2024-01-01', resolution: '60min' };
+    const mw = await regenerateDemandSeries(entry, day);
+    const kw = await regenerateDemandSeries(entry, { ...day, powerUnit: 'kW' });
+    const total = (u) => u.data.reduce((sum, r) => sum + r.dem_1, 0);
+    expect(total(kw) / total(mw)).toBeCloseTo(1000, 3);
+  });
+
   it('honours a changed resolution', async () => {
     const updated = await regenerateDemandSeries(entry, { startDate: '2024-01-01', endDate: '2024-01-01', resolution: '15min' });
     expect(updated.data).toHaveLength(96);

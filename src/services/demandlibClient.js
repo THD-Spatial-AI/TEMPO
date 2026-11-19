@@ -10,6 +10,7 @@
  *
  * `sectors` is a map of BDEW SLP code → weight (e.g. { h0: 0.6, g0: 0.4 }).
  */
+import { POWER_UNITS } from '../utils/modelUnits';
 import { generateDemandShape, syntheticKeyForSlp } from './demandProfiles';
 
 const bridge = () => (typeof window !== 'undefined' ? window.electronAPI : null);
@@ -107,11 +108,13 @@ export async function getDemandShape({ start, end, resolution, sectors, country,
 export async function regenerateDemandSeries(entry, modelConfig) {
   const dc = entry?.demandConfig || {};
   const resolution = modelConfig?.resolution || dc.resolution || '60min';
+  // Group powers (g.mw) are MW; write the series in the model's unit (kW models get ×1000).
+  const toModel = 1 / (POWER_UNITS[modelConfig?.powerUnit] || 1);
   if (dc.mode === 'estimate') {
     const { shapeWithFallback, seriesColumns } = await import('./substationDemand');
     const groups = dc.groups || [];
     const { datetimes, series, source } = await shapeWithFallback({
-      substations: groups.map(g => ({ id: g.key, avg_mw: g.mw, mix: g.mix })),
+      substations: groups.map(g => ({ id: g.key, avg_mw: g.mw * toModel, mix: g.mix })),
       start: modelConfig.startDate, end: modelConfig.endDate, resolution,
       country: dc.country, family: dc.family, latitude: dc.latitude || 0,
     });
@@ -132,7 +135,7 @@ export async function regenerateDemandSeries(entry, modelConfig) {
   const columns = ['datetime', ...dataColumns];
   const data = datetimes.map((dt, i) => ({
     datetime: dt,
-    ...Object.fromEntries(groups.map(g => [g.col, Number((-(values[i] * g.mw)).toFixed(4))])),
+    ...Object.fromEntries(groups.map(g => [g.col, Number((-(values[i] * g.mw * toModel)).toFixed(4))])),
   }));
   // Keep csvContent in sync so the regenerated series survives a backend reload.
   const csvContent = [columns.join(','), ...data.map(r => columns.map(c => r[c]).join(','))].join('\n');
