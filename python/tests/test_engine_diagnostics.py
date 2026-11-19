@@ -96,24 +96,26 @@ def test_engine_aliases():
     assert D.assess(_model(), 'calliope07')['engine'] == 'calliope-0.7'
 
 
-def test_blocking_errors():
-    assert D.assess({'locations': [], 'technologies': []}, 'pypsa')['errors']
+def test_critical_issues():
+    assert D.assess({'locations': [], 'technologies': []}, 'pypsa')['critical']
     m = _model(scenario='high')
-    assert any(e['code'] == 'scenario_not_resolved' for e in D.assess(m, 'pypsa')['errors'])
-    assert not D.assess(m, 'calliope-0.6.8')['errors']          # Calliope applies scenarios natively
+    assert any(e['code'] == 'scenario_not_resolved' for e in D.assess(m, 'pypsa')['critical'])
+    assert not D.assess(m, 'calliope-0.6.8')['critical']        # Calliope applies scenarios natively
     m = _model(); m['modelConfig']['mode'] = 'operate'
-    assert any(e['code'] == 'operate_mode' for e in D.assess(m, 'osemosys')['errors'])
+    assert any(e['code'] == 'operate_mode' for e in D.assess(m, 'osemosys')['critical'])
     m['modelConfig']['mode'] = 'spores'
     with pytest.raises(D.ModelValidationError) as ei:
         D.raise_if_blocked(m, 'calliope-0.7')
     assert 'SPORES' in str(ei.value) and 'calliope-0.7' in str(ei.value)
 
 
-def test_missing_timeseries_blocks_demand_but_only_warns_for_supply():
+def test_missing_timeseries_errors_for_demand_but_only_warns_for_supply():
     m = _model()
     m['technologies'][1]['constraints']['resource'] = 'file=demand.csv'
     a = D.assess(m, 'pypsa')
     assert [e['code'] for e in a['errors']] == ['missing_timeseries']
+    assert a['ok'] and not a['critical']
+    D.raise_if_blocked(m, 'pypsa')                              # errors do not block
     m = _model()
     m['technologies'][0]['constraints']['resource'] = 'file=wind.csv'
     a = D.assess(m, 'pypsa')
@@ -124,7 +126,8 @@ def test_missing_timeseries_blocks_demand_but_only_warns_for_supply():
 
 def test_reference_model_runs_everywhere(ref):
     for eng in D.ENGINES:
-        assert not D.assess(ref, eng)['errors'], eng
+        a = D.assess(ref, eng)
+        assert not a['critical'] and not a['errors'], eng
 
 
 # ─── failure diagnosis ────────────────────────────────────────────────────────
@@ -190,22 +193,38 @@ READINESS_CASES = Path(__file__).parent.parent.parent / 'scripts' / 'readiness_c
                          ids=lambda c: c['name'])
 def test_shared_readiness_cases(case):
     shared = set(json.loads(READINESS_CASES.read_text(encoding='utf-8'))['shared_codes'])
-    got = {i['code'] for i in D.assess(case['model'], 'pypsa')['errors']} & shared
-    assert got == set(case['expect'])
+    severity = json.loads(READINESS_CASES.read_text(encoding='utf-8'))['severity']
+    a = D.assess(case['model'], 'pypsa')
+    got = [i for i in a['critical'] + a['errors'] if i['code'] in shared]
+    assert {i['code'] for i in got} == set(case['expect'])
+    for i in got:
+        assert i['severity'] == severity[i['code']], i['code']
 
 
-def test_demand_without_profile_blocks():
+def test_demand_without_profile_is_an_error_not_a_block():
     m = _model()
     m['technologies'][1]['constraints'] = {}
     a = D.assess(m, 'pypsa')
     assert [i['code'] for i in a['errors']] == ['demand_no_profile']
     assert a['errors'][0]['items'] == ['a::dem']
+    assert a['ok']
+    D.raise_if_blocked(m, 'pypsa')
 
 
 def test_link_to_unknown_location_blocks():
     m = _model()
     m['links'] = [{'from': 'a', 'to': 'ghost', 'tech': 'gen'}]
-    assert 'link_unknown_location' in {i['code'] for i in D.assess(m, 'calliope')['errors']}
+    assert 'link_unknown_location' in {i['code'] for i in D.assess(m, 'calliope')['critical']}
+    with pytest.raises(D.ModelValidationError):
+        D.raise_if_blocked(m, 'calliope')
+
+
+def test_duplicate_location_and_bad_dates_are_critical():
+    m = _model()
+    m['locations'].append(dict(m['locations'][0]))
+    m['modelConfig']['startDate'], m['modelConfig']['endDate'] = '2015-02-01', '2015-01-01'
+    codes = {i['code'] for i in D.assess(m, 'calliope')['critical']}
+    assert {'duplicate_location', 'invalid_time_horizon'} <= codes
 
 
 def test_demand_no_profile_skipped_with_scenario():
@@ -219,7 +238,7 @@ def test_link_by_location_id_not_flagged():
     m = _model()
     m['locations'][0]['id'] = 'loc-1'
     m['links'] = [{'from': 'loc-1', 'to': 'a', 'tech': 'gen'}]
-    assert 'link_unknown_location' not in {i['code'] for i in D.assess(m, 'calliope')['errors']}
+    assert 'link_unknown_location' not in {i['code'] for i in D.assess(m, 'calliope')['critical']}
 
 
 def _tagg(m):

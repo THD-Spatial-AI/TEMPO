@@ -291,6 +291,28 @@ def _links_to_unknown_locations(model_data: dict) -> List[str]:
             if str(l.get("from")) not in names or str(l.get("to")) not in names]
 
 
+def _duplicate_locations(model_data: dict) -> List[str]:
+    seen, dupes = set(), []
+    for loc in model_data.get("locations") or []:
+        name = str(loc.get("name") or loc.get("id") or "")
+        if name in seen:
+            dupes.append(name)
+        seen.add(name)
+    return dupes
+
+
+def _invalid_time_horizon(model_data: dict) -> bool:
+    """Start after end, or an unparseable date; missing dates are not checked (same as the JS checker)."""
+    from datetime import date
+    cfg = model_data.get("modelConfig") or {}
+    if not cfg.get("startDate") or not cfg.get("endDate"):
+        return False
+    try:
+        return date.fromisoformat(str(cfg["startDate"])[:10]) > date.fromisoformat(str(cfg["endDate"])[:10])
+    except ValueError:
+        return True
+
+
 # ─── issues ─────────────────────────────────────────────────────────────────────
 
 def _issue(code: str, message: str, items: Optional[List[str]] = None, severity: str = "warning") -> dict:
@@ -328,26 +350,28 @@ def _window_days(model_data: dict) -> int:
 def assess(model_data: dict, engine: str) -> dict:
     """Pre-run assessment of `model_data` for `engine`.
 
-    Returns {engine, ok, errors[], warnings[], features{}, fidelity}. `errors` block the run;
-    `warnings` describe what the translation will not carry over (so results can be read
-    with the right caveats). fidelity: 'full' when nothing is lost, else 'reduced'."""
+    Returns {engine, ok, critical[], errors[], warnings[], features{}, fidelity}. Only `critical`
+    blocks the run (ok is False); `errors` run anyway but results are unreliable; `warnings`
+    describe what the translation will not carry over (so results can be read with the right
+    caveats). fidelity: 'full' when nothing is lost, else 'reduced'."""
     eng = canonical_engine(engine)
+    critical: List[dict] = []
     errors: List[dict] = []
     warnings: List[dict] = []
 
     if not (model_data.get("locations") or []):
-        errors.append(_issue("no_locations", "The model has no locations — add at least one location.", severity="error"))
+        critical.append(_issue("no_locations", "The model has no locations — add at least one location.", severity="critical"))
     if not (model_data.get("technologies") or []):
-        errors.append(_issue("no_technologies", "The model has no technologies — define at least a supply and a demand technology.", severity="error"))
+        critical.append(_issue("no_technologies", "The model has no technologies — define at least a supply and a demand technology.", severity="critical"))
     elif not any(_parent(t) == "demand" for t in model_data.get("technologies") or []):
         warnings.append(_issue("no_demand", "No demand technology is defined, so there is nothing to supply — results will be trivial."))
 
     if model_data.get("scenario") or model_data.get("override"):
         if eng in ("pypsa", "osemosys", "adoptnet0"):
-            errors.append(_issue(
+            critical.append(_issue(
                 "scenario_not_resolved",
                 "Scenario/override runs must be resolved to a concrete model before running on this engine "
-                "(use the Run page, which applies them, or run the base model).", severity="error"))
+                "(use the Run page, which applies them, or run the base model).", severity="critical"))
 
     for where, ref, is_demand in _missing_timeseries(model_data):
         msg = (f"{where} refers to {ref} but no such timeseries is in the model — "
@@ -365,8 +389,15 @@ def assess(model_data: dict, engine: str) -> dict:
             "substitute a placeholder or drop the demand, so results would not reflect the system.", no_profile, severity="error"))
     bad_links = _links_to_unknown_locations(model_data)
     if bad_links:
-        errors.append(_issue("link_unknown_location", "These links connect to a location that does not exist.",
-                             bad_links, severity="error"))
+        critical.append(_issue("link_unknown_location", "These links connect to a location that does not exist.",
+                               bad_links, severity="critical"))
+    dupes = _duplicate_locations(model_data)
+    if dupes:
+        critical.append(_issue("duplicate_location", "Two or more locations share a name. Engines key locations "
+                               "by name, so one would overwrite the other.", dupes, severity="critical"))
+    if _invalid_time_horizon(model_data):
+        critical.append(_issue("invalid_time_horizon", "The model period is invalid: the start date must be on "
+                               "or before the end date.", severity="critical"))
 
     features = scan_features(model_data)
     summary: Dict[str, dict] = {}
@@ -376,7 +407,7 @@ def assess(model_data: dict, engine: str) -> dict:
         summary[feat] = {"label": FEATURES[feat][0], "level": level, "count": len(where),
                          "examples": where[:5], "note": note}
         if feat in ("operate_mode", "spores_mode") and level == NONE:
-            errors.append(_issue(feat, f"{FEATURES[feat][0]} is not available on {eng}: {note}.", severity="error"))
+            critical.append(_issue(feat, f"{FEATURES[feat][0]} is not available on {eng}: {note}.", severity="critical"))
             continue
         if level != FULL:
             lost = True
@@ -402,15 +433,15 @@ def assess(model_data: dict, engine: str) -> dict:
                 f"be under-sized. Windows up to {_ts.CHRONOLOGICAL_MAX_HOURS // 24} days are solved "
                 "chronologically (exact); set modelConfig.osemosysScheme = {chronological: true} to force it "
                 f"({days * 24} hourly timeslices — a much larger model)."))
-    return {"engine": eng, "ok": not errors, "errors": errors, "warnings": warnings,
+    return {"engine": eng, "ok": not critical, "critical": critical, "errors": errors, "warnings": warnings,
             "features": summary, "fidelity": "reduced" if lost else "full"}
 
 
 def raise_if_blocked(model_data: dict, engine: str) -> dict:
-    """assess() and raise ModelValidationError on blocking issues; return the assessment."""
+    """assess() and raise ModelValidationError on critical issues; return the assessment."""
     a = assess(model_data, engine)
-    if a["errors"]:
-        raise ModelValidationError(a["engine"], a["errors"])
+    if a["critical"]:
+        raise ModelValidationError(a["engine"], a["critical"])
     return a
 
 
