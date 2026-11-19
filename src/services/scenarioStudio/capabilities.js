@@ -111,6 +111,9 @@ export function getCapabilityWarnings(engine, ops) {
       else
         warns.add(`${label}: added technologies may need engine-specific parameters to solve correctly.`);
     }
+    if (op.op === 'modelOverrides' && !engine.startsWith('calliope')) {
+      warns.add(`${label}: model scenario "${op.source}" is translated — Calliope-only keys (run.*, model.time, group_constraints, …) are skipped.`);
+    }
     if (op.op === 'systemConstraint') {
       const kindCap = caps.systemConstraint?.[op.kind];
       const kindLabel = SYSTEM_CONSTRAINT_LABELS[op.kind] || op.kind;

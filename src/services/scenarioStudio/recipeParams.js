@@ -177,6 +177,7 @@ export function summarizeOps(ops) {
     if (op.op === 'setLinkCap') return `links=${op.value ?? ''}`;
     if (op.op === 'removeTech') return `−${[].concat(op.techMatch || '*').join('/')}`;
     if (op.op === 'swapTimeseries') return `${op.fromFile}→${op.toFile}`;
+    if (op.op === 'modelOverrides') return op.source;
     return op.op;
   });
   return parts.length <= 3

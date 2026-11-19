@@ -19,6 +19,7 @@
 import { expandRecipe } from './recipes/index.js';
 import { buildRecipeParams, DEFAULT_PARAMS as RECIPE_DEFAULT_PARAMS } from './recipeParams.js';
 import { resolveTechGroup } from './utils.js';
+import { expandScenario } from '../modelScenarios.js';
 import {
   BASE_OPS as ITALY_BASE_OPS, SENSITIVITY_VARIANTS as ITALY_VARIANTS, SLACKS as ITALY_SLACKS,
   MODEL_CONFIG as ITALY_MODEL_CONFIG, SPORES_PLAN as ITALY_SPORES_PLAN,
@@ -43,6 +44,8 @@ export const CARD_CATEGORIES = [
   { id: 'renewables', label: 'Renewables', icon: 'FiSun',        color: 'from-emerald-500 to-green-600', lanes: ['global', 'year'] },
   { id: 'location',   label: 'Location',   icon: 'FiMapPin',     color: 'from-rose-500 to-pink-600',     lanes: ['global', 'year'] },
   { id: 'custom',     label: 'Custom ops', icon: 'FiSliders',    color: 'from-slate-500 to-slate-600',   lanes: ['global', 'year'] },
+  // A scenario/override the model itself carries (imported). Calliope applies it natively.
+  { id: 'modelScenario', label: 'Model scenario', icon: 'FiBookOpen', color: 'from-indigo-500 to-indigo-600', lanes: ['global', 'year'] },
   { id: 'timeseries', label: 'Time series', icon: 'FiActivity',   color: 'from-cyan-500 to-sky-600',      lanes: ['global', 'year'] },
   // Global-only multipliers: each sensitivity case / each SPORES cost slack is its own run.
   { id: 'sensitivity', label: 'Sensitivity cases', icon: 'FiLayers',  color: 'from-violet-500 to-purple-600', lanes: ['global'] },
@@ -69,6 +72,7 @@ export function defaultCardParams(category) {
     case 'location':   return { location: '', target: 'single', group: 'nonRenewable', mode: 'disable', techMatch: '', path: 'constraints.energy_cap_max', value: 0, factor: 1 };
     case 'custom':     return { ops: [], variantLabel: 'Custom' };
     case 'timeseries': return { fromFile: '', toFile: '', techMatch: '' };
+    case 'modelScenario': return { name: '' };
     case 'sensitivity': return { variants: [{ id: 'reference', label: 'Reference', ops: [] }] };
     case 'spores':     return {
       slacks: [10],
@@ -159,6 +163,11 @@ export function expandCard(model, card, year) {
 
   if (cat === 'custom') {
     return Array.isArray(p.ops) ? p.ops : [];
+  }
+
+  if (cat === 'modelScenario') {
+    // Not a transform op: applied at run time (natively by Calliope, resolved otherwise).
+    return p.name ? [{ op: 'modelOverrides', source: p.name, names: expandScenario(model, p.name) }] : [];
   }
 
   if (cat?.startsWith('recipe:')) {
