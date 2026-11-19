@@ -11,6 +11,7 @@ import { usePinnedModels, sortPinnedFirst } from "../services/pinnedModels";
 import { useReleases } from "../services/releases";
 import { motion, AnimatePresence } from "framer-motion";
 import tempoLogo from '../assets/Logo_TEMPO.PNG';
+import ReadinessIndicator from './shared/ReadinessIndicator';
 
 const WIDTH_OPEN = 240;
 const WIDTH_CLOSED = 72;
@@ -150,6 +151,7 @@ const Sidebar = ({ selected, setSelected }) => {
 
       </div>
 
+      <ReadinessIndicator open={open} selected={selected} setSelected={setSelected} />
       <RestartTourButton open={open} selected={selected} />
       <VersionButton open={open} />
       <ToggleClose open={open} setOpen={setOpen} />
