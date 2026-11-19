@@ -5,6 +5,8 @@ import TechParameterEditor from './creation/TechParameterEditor';
 import SelectField from './ui/SelectField';
 import { iconBtn, ICON_PX } from './ui/iconButton';
 import { useData } from '../context/DataContext';
+import DemandCard from './shared/DemandCard';
+import { modelPowerUnit } from '../utils/modelUnits';
 
 // Format technology name: capitalize first letter only and replace underscores and hyphens
 const formatTechName = (techName) => {
@@ -45,7 +47,10 @@ const LocationEditDialog = ({
   const [selectedInstances, setSelectedInstances] = useState({});
   // Resource profiles write to the loaded model, so only offer them for its
   // locations (Creation mode edits its own temp locations through this dialog).
-  const { currentModelId, locations: modelLocations } = useData();
+  const { currentModelId, locations: modelLocations, timeSeries, getCurrentModel } = useData();
+  // The demand card reads the loaded model's series (and the Creation draft's, which have no model yet).
+  const modelSeries = (timeSeries || []).filter(ts => !ts.modelId || ts.modelId === currentModelId);
+  const powerUnit = modelPowerUnit(getCurrentModel());
   const inLoadedModel = !!currentModelId && !!location && (modelLocations || []).some(l =>
     (location.id != null ? l.id === location.id : (l.id == null && l.name === location.name)));
 
@@ -316,6 +321,7 @@ const LocationEditDialog = ({
       const customEngineParams = editingEngineParams[techName] || {};
 
       finalLocation.techs[techName] = {
+        ...pendingLocation.techs?.[techName],
         parent: techTemplate?.parent || 'unknown',
         essentials: { ...techTemplate?.essentials, ...customEssentials },
         constraints: { ...techTemplate?.constraints, ...customConstraints },
@@ -460,34 +466,19 @@ const LocationEditDialog = ({
                             </div>
                           </div>
 
-                          {/* Demand Value or CSV Upload - Mandatory for demand technologies */}
                           {techTemplate?.parent === 'demand' && (
-                            <div className="mt-2 p-3 bg-gray-50 border border-black/15 rounded-lg">
-                              <label className="block text-[0.6875rem] font-bold text-black/60 mb-2 uppercase tracking-widest">
-                                Energy Demand * (Required)
-                              </label>
-                              <input
-                                type="text"
-                                value={editingConstraints[techName]?.energy_cap || ''}
-                                onChange={(e) => updateDialogConstraint(techName, 'energy_cap', e.target.value)}
-                                placeholder="Enter demand value (kW) or upload CSV below"
-                                className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-2 focus:ring-gray-500 mb-2"
+                            <div className="mt-2">
+                              <DemandCard
+                                locationName={pendingLocation?.name}
+                                techCfg={{ ...pendingLocation?.techs?.[techName], constraints: customConstraints }}
+                                techDef={techTemplate}
+                                timeSeries={modelSeries}
+                                unit={powerUnit}
+                                onChange={(constraints) => setEditingConstraints(prev => ({ ...prev, [techName]: constraints }))}
                               />
-                              <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
-                                <span>Or upload timeseries CSV:</span>
-                                <input
-                                  type="file"
-                                  accept=".csv"
-                                  onChange={(e) => handleTechCsvUpload(techName, e.target.files[0])}
-                                  className="text-xs"
-                                />
-                              </label>
-                              {csvFile && (
-                                <p className="text-xs text-gray-600 mt-1">✓ {csvFile.name}</p>
-                              )}
                             </div>
                           )}
-                          
+
                           {/* Production/Consumption CSV - Optional for non-demand technologies */}
                           {techTemplate?.parent !== 'demand' && (
                             <div className="mt-2">
