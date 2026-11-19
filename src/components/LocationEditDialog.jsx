@@ -24,6 +24,9 @@ const LocationEditDialog = ({
   techMap,
   onSave,
   takenNames = [],
+  // Whether the dialog edits a location already in the model. Saved models' locations have
+  // no id, so callers that know say so; otherwise an id marks an existing location.
+  isExisting,
 }) => {
   // Dialog-specific state
   const [pendingLocation, setPendingLocation] = useState(null);
@@ -85,7 +88,7 @@ const LocationEditDialog = ({
       setEditingEngineParams(engineParams);
       
       // Store original data for change detection
-      if (location.id) {
+      if (isExisting ?? location.id != null) {
         setOriginalLocationData({
           ...location,
           dialogTechs: techs

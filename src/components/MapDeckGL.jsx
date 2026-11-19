@@ -1232,6 +1232,7 @@ const MapDeckGL = () => {
         isOpen={showEditDialog && !!editingLocation}
         onClose={() => setShowEditDialog(false)}
         location={editingLocation}
+        isExisting={!isNewLocation}
         techMap={techMap}
         takenNames={(locations || []).map(l => l.name)}
         onSave={(updated) => {
