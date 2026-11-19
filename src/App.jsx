@@ -104,7 +104,7 @@ function AppContent() {
       case "Models":         return <Models />;
       case "Map View":       return <MapView />;
       case "Creation":       return <Creation onNavigate={handleNavigation} />;
-      case "Locations":      return <Locations />;
+      case "Locations":      return <Locations onNavigate={handleNavigation} />;
       case "Links":          return <Links />;
       case "Scenarios":      return <ScenarioStudio onNavigate={handleNavigation} />;
       // Legacy routes — kept so old saved state / direct links still work

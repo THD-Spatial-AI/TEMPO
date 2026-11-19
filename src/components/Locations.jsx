@@ -15,6 +15,9 @@ import { fixKey, revealFix } from '../services/fixIntent';
 import IssueMarker from './shared/IssueMarker';
 import { useReadiness } from '../hooks/useReadiness';
 import { entityKey } from '../services/modelReadiness';
+import DemandCard from './shared/DemandCard';
+import { DEMAND_CARD_KEYS } from '../services/locationDemand';
+import { modelPowerUnit } from '../utils/modelUnits';
 
 
 
@@ -22,7 +25,7 @@ import { entityKey } from '../services/modelReadiness';
 
 
 
-const Locations = () => {
+const Locations = ({ onNavigate }) => {
   const { locations, setLocations, getCurrentModel, technologies, links, showNotification, models, setModels, setNavigationWarning, timeSeries, setTimeSeries } = useData();
   const { index: issueIndex } = useReadiness();
   const currentModel = getCurrentModel();
@@ -100,6 +103,11 @@ const Locations = () => {
     }
     return map;
   }, [liveTechTemplates, technologies]);
+  const powerUnit = modelPowerUnit(currentModel);
+  const modelSeries = useMemo(
+    () => (timeSeries || []).filter(ts => !ts.modelId || ts.modelId === currentModel?.id),
+    [timeSeries, currentModel?.id],
+  );
   const [newLocation, setNewLocation] = useState({
     name: '',
     latitude: '',
@@ -299,6 +307,13 @@ const Locations = () => {
     }
     
     updatedLocations[locationIndex].techs[techName].constraints[key] = parsedValue;
+    setLocations(updatedLocations);
+  };
+
+  // The demand card replaces a demand tech's constraints in one go (rescale / replace).
+  const setTechConstraints = (locationIndex, techName, constraints) => {
+    const updatedLocations = [...locations];
+    updatedLocations[locationIndex].techs[techName] = { ...updatedLocations[locationIndex].techs[techName], constraints };
     setLocations(updatedLocations);
   };
 
@@ -723,6 +738,7 @@ const Locations = () => {
                           const sectionKey = `${originalIndex}_${techName}`;
                           // Merge template defaults with model data
                           const mergedTechData = getMergedTechData(techName, techData);
+                          const isDemand = (mergedTechData.essentials?.parent || techMap[techName]?.parent) === 'demand';
                           
                           return (
                             <div key={techIdx} data-fix={fixKey('location-tech', originalIndex, techName)} className="border border-black/15 rounded-lg bg-white">
@@ -752,6 +768,17 @@ const Locations = () => {
 
                               {/* Tech Details */}
                               <div className="p-3 space-y-2">
+                                {isDemand && (
+                                  <DemandCard
+                                    locationName={location.name}
+                                    techCfg={techData}
+                                    techDef={techMap[techName]}
+                                    timeSeries={modelSeries}
+                                    unit={powerUnit}
+                                    onChange={(constraints) => setTechConstraints(originalIndex, techName, constraints)}
+                                    onOpenTimeSeries={onNavigate ? () => onNavigate('TimeSeries') : undefined}
+                                  />
+                                )}
                                 {/* Essentials Section - Collapsible & Editable */}
                                 {mergedTechData.essentials && Object.keys(mergedTechData.essentials).length > 0 && (
                                   <div>
@@ -818,11 +845,11 @@ const Locations = () => {
                                       className="flex items-center gap-2 text-xs font-semibold text-slate-700 mb-2 hover:text-gray-600"
                                     >
                                       {expandedSections[`${sectionKey}_constraints`] ? <LuChevronDown size={14} /> : <LuChevronRight size={14} />}
-                                      <span>Constraints ({mergedTechData.constraints ? Object.keys(mergedTechData.constraints).length : 0})</span>
+                                      <span>Constraints ({mergedTechData.constraints ? Object.keys(mergedTechData.constraints).filter(key => !(isDemand && DEMAND_CARD_KEYS.includes(key))).length : 0})</span>
                                     </button>
                                     {expandedSections[`${sectionKey}_constraints`] && (
                                       <div className="pl-4 space-y-2">
-                                        {mergedTechData.constraints && Object.entries(mergedTechData.constraints).map(([key, value], cIdx) => {
+                                        {mergedTechData.constraints && Object.entries(mergedTechData.constraints).filter(([key]) => !(isDemand && DEMAND_CARD_KEYS.includes(key))).map(([key, value], cIdx) => {
                                           const fileKey = `${originalIndex}_${techName}_${key}`;
                                           const csvFile = constraintCsvFiles[fileKey];
                                           const isResourceConstraint = key === 'resource';
