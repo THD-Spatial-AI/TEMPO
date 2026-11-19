@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { checkModel, FIX_VIEW, readinessChecklist, forDraft } from '../modelReadiness';
+import { checkModel, FIX_VIEW, readinessChecklist, forDraft, issuesByEntity, entityKey } from '../modelReadiness';
 import shared from '../../../scripts/readiness_cases.json';
 import { profileFileName } from '../techProfiles';
 
@@ -74,7 +74,7 @@ describe('checkModel structure', () => {
     for (let i = 0; i < 12; i++) m.locations.push({ name: `x${i}`, latitude: 1, longitude: 1, techs: {} });
     const w = checkModel(m).warnings.find((i) => i.code === 'empty_location');
     expect(w.view).toBe('Map View');
-    expect(w.targets).toHaveLength(8);
+    expect(w.targets).toHaveLength(12);
     expect(w.items).toHaveLength(8);
     expect(w.count).toBe(12);
   });
@@ -660,5 +660,45 @@ describe('forDraft', () => {
     expect(all.find((i) => i.code === 'empty_location').targets[0]).toEqual({ view: 'Creation', kind: 'location', id: 'x', map: true });
     expect(all.find((i) => i.code === 'link_unknown_location').targets[0]).toEqual({ view: 'Creation', kind: 'location', id: 'a', map: true });
     expect(all.find((i) => i.code === 'unused_tech').targets).toEqual([null]);
+  });
+});
+
+describe('issuesByEntity', () => {
+  it('indexes issues by the entity their items point at, worst severity first', () => {
+    const m = miniModel();
+    m.locations.push({ name: 'b', latitude: 1, longitude: 1, techs: {} });
+    m.locations[0].techs.ghost = null;
+    m.links = [{ from: 'a', to: 'nowhere', tech: 'gen' }];
+    m.technologies.push({ name: 'idle', essentials: { parent: 'supply' }, costs: { monetary: { energy_cap: 1 } } });
+    const idx = issuesByEntity(checkModel(m));
+    expect(idx.get(entityKey('location', 'b')).map((i) => i.code)).toEqual(['empty_location']);
+    expect(idx.get(entityKey('location', 'a')).map((i) => i.code)).toEqual(['undefined_tech']);
+    expect(idx.get(entityKey('link', 'a', 'nowhere'))[0]).toMatchObject({ code: 'link_unknown_location', severity: 'critical' });
+    expect(idx.get(entityKey('tech', 'idle'))[0].severity).toBe('warning');
+  });
+
+  it('lists an entity once per issue and puts critical before warnings', () => {
+    const m = miniModel();
+    m.locations.push({ ...m.locations[0] }, { name: 'a2', techs: {} });
+    const list = issuesByEntity(checkModel(m)).get(entityKey('location', 'a2'));
+    expect(list.map((i) => i.code)).toEqual(['missing_coordinates', 'empty_location']);
+    const dup = issuesByEntity(checkModel(m)).get(entityKey('location', 'a'));
+    expect(dup[0].severity).toBe('critical');
+  });
+
+  it('marks both the tech and its location for a per-location tech issue', () => {
+    const m = miniModel();
+    m.technologies[0].name = 'solar_pv';
+    m.locations[0].techs = { solar_pv: null, dem: null };
+    const idx = issuesByEntity(checkModel(m));
+    expect(idx.get(entityKey('tech', 'solar_pv'))[0].code).toBe('supply_no_resource');
+    expect(idx.get(entityKey('location', 'a'))[0].code).toBe('supply_no_resource');
+  });
+
+  it('skips islands, which would mark every location', () => {
+    const m = miniModel();
+    m.locations.push({ name: 'b', latitude: 1, longitude: 1, techs: { gen: null } });
+    const idx = issuesByEntity(checkModel(m));
+    expect(idx.get(entityKey('location', 'b'))).toBeUndefined();
   });
 });

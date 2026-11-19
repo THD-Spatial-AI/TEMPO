@@ -157,10 +157,10 @@ function connectedComponents(names, links) {
 function issue(code, severity, message, items, extra) {
   const out = { code, severity, message, view: FIX_VIEW[code], ...extra };
   if (items?.length) {
-    const shown = items.slice(0, 8);
-    out.items = shown.map((x) => (typeof x === 'string' ? x : x.label));
-    if (shown.some((x) => typeof x !== 'string')) {
-      out.targets = shown.map((x) => {
+    // Items are capped for display; targets cover every item so inline markers reach all of them.
+    out.items = items.slice(0, 8).map((x) => (typeof x === 'string' ? x : x.label));
+    if (items.some((x) => typeof x !== 'string')) {
+      out.targets = items.map((x) => {
         if (typeof x === 'string') return null;
         const { label: _label, ...target } = x;
         return { view: target.map ? 'Map View' : FIX_VIEW[code], ...target };
@@ -495,6 +495,32 @@ export function checkModel(model, options = {}) {
 }
 
 const ignoreKey = (code, item) => `${code}\u0000${item ?? ''}`;
+
+// Key of an entity in issuesByEntity: entityKey('location', name), ('tech', name), ('link', from, to).
+export const entityKey = (kind, ...parts) => [kind, ...parts].join('\u0000');
+
+const SEVERITY_RANK = { critical: 0, error: 1, warning: 2 };
+
+// Issues per entity, for inline markers on rows, cards and map markers; each list is ordered
+// worst first. Islands are left out: they would mark every location in the model.
+export function issuesByEntity(readiness) {
+  const index = new Map();
+  const put = (key, issue) => {
+    const list = index.get(key) || [];
+    if (!list.includes(issue)) list.push(issue);
+    index.set(key, list);
+  };
+  for (const issue of [...readiness.critical, ...readiness.errors, ...readiness.warnings]) {
+    for (const t of issue.targets || []) {
+      if (!t) continue;
+      if (t.kind === 'location' || t.kind === 'tech' || t.kind === 'timeseries') put(entityKey(t.kind, t.id), issue);
+      if (t.kind === 'tech' && t.location) put(entityKey('location', t.location), issue);
+      else if (t.kind === 'link') put(entityKey('link', t.from, t.to), issue);
+    }
+  }
+  for (const list of index.values()) list.sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity]);
+  return index;
+}
 
 // The basics a new model still lacks, as a to-do list; null once it has locations and technologies.
 export function readinessChecklist(readiness) {
