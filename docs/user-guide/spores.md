@@ -69,3 +69,16 @@ A SPORES run adds a **SPORES** tab to the Results screen:
 
 The classification is often the most useful output for policy questions. A must-have is
 needed whatever else happens; a real choice can be avoided at an acceptable extra cost.
+
+### Paper analysis (Lombardi et al. 2020 runs)
+
+Runs made from the Lombardi 2020 preset also show a paper panel and an ensemble comparison.
+How the figures are defined:
+
+- **Wind share** is the largest zone's share of national wind capacity, and includes offshore wind.
+- **Line capacity factor** uses the dominant flow direction of each inter-zonal line. The minimum over lines is reported.
+- **Subset** (Table 1): SPORES whose wind share is at least 20 % below the cost optimum and whose every inter-zonal line has a capacity factor of at least 30 %. Best SPORES are picked from it.
+- **Potentials** for Fig 2 and Table 2 come from the model's per-zone limits. The battery group is therefore 6 × 50 GW = 300 GW; the paper's Table 2 upper ends only fit about 100 GW (not published), so battery percentages read lower than the paper's.
+- **Objective weights**: the preset uses `nos = 0.1`, as the paper's Eq. 4. The original script uses 1.
+
+**Import result** (Results, next to the run selector) loads a result contract JSON, as written by MEME's `calliope_extract_contract.py`, as a completed run. SPORES contracts without a plan get the Lombardi 2020 plan and join one imported batch, so imports of several relaxations appear together in the ensemble comparison. Without a unit stamp, results are read as MW, or kW when the plan is the Lombardi preset.
