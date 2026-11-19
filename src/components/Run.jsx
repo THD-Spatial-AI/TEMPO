@@ -11,6 +11,7 @@ import { resolveScenario } from '../services/scenarioResolver';
 import { checkModel } from '../services/modelReadiness';
 import { modelPowerUnit, stampPowerUnit } from '../utils/modelUnits';
 import ReadinessPanel from './shared/ReadinessPanel';
+import { confirmAction } from './ui/confirm';
 import { FiPlay, FiStopCircle, FiCheckCircle, FiAlertCircle, FiClock, FiCpu, FiZap, FiActivity, FiSettings, FiTerminal, FiTrash2, FiAlertTriangle, FiBox, FiBarChart2, FiDownload, FiEye, FiList, FiCalendar, FiChevronDown, FiChevronRight } from './ui/icons';
 import { MODELING_FRAMEWORKS, SOLVER_OPTIONS } from '../config/modelingFrameworks';
 import CompletedRunsSection from './run/CompletedRunsSection';
@@ -370,6 +371,17 @@ const Run = ({ onNavigate }) => {
       return;
     }
 
+    // Errors do not block: the run may still be useful, but the user decides.
+    const errorCount = readiness?.errors.length || 0;
+    if (errorCount && !(await confirmAction({
+      title: `Run with ${errorCount} problem${errorCount === 1 ? '' : 's'}?`,
+      message: 'The results may not reflect your system. The problems are listed under Model check.',
+      details: <ul className="list-disc space-y-1 pl-4">{readiness.errors.map((i, n) => <li key={n}>{i.message}</li>)}</ul>,
+      confirmLabel: 'Run anyway',
+      cancelLabel: 'Review',
+      tone: 'neutral',
+    }))) return;
+
     // Framework/engine-aware service check
     const isAdoptnet0 = selectedFramework === 'adoptnet0';
     const isPypsa = selectedFramework === 'pypsa';
@@ -611,7 +623,7 @@ const Run = ({ onNavigate }) => {
   const readiness = useMemo(() => (selectedModel
     ? checkModel({ ...selectedModel, technologies: techsForRun, timeSeries: timeSeriesForRun, modelConfig }, { scenarioSelected: hasSelections })
     : null), [selectedModel, techsForRun, timeSeriesForRun, modelConfig, hasSelections]);
-  const blockingCount = readiness?.errors.length || 0;
+  const blockingCount = readiness?.critical.length || 0;
 
   const [engineCheck, setEngineCheck] = useState(null); // { loading } | { result } | { unreachable }
   const checkSeq = useRef(0);
@@ -634,7 +646,7 @@ const Run = ({ onNavigate }) => {
   const runBlocker = !selectedModel ? 'Select a model to run'
     : (!computeRemote && !serviceReady) ? `${activeFrameworkLabel} service is offline`
     : !isDateRangeValid() ? 'Set a valid date range'
-    : blockingCount ? `Fix ${blockingCount} problem${blockingCount === 1 ? '' : 's'} in the model first`
+    : blockingCount ? `Fix ${blockingCount} critical problem${blockingCount === 1 ? '' : 's'} in the model first`
     : null;
 
   return (
