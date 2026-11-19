@@ -89,6 +89,10 @@ async def _capture_event_loop() -> None:
 _jobs: Dict[str, Dict[str, Any]] = {}
 _jobs_lock = threading.Lock()
 _JOB_TTL_SECONDS = 600  # prune completed jobs after 10 minutes
+# One solve at a time: two Calliope/HiGHS solves in parallel threads of this
+# process deadlock (reproduced with highspy 1.15 + pyomo 6.10). Concurrent
+# submissions (e.g. Scenario Studio "Parallel") queue here instead.
+_solve_lock = threading.Lock()
 
 
 def _cleanup_old_jobs() -> None:
@@ -191,7 +195,13 @@ def _run_job_thread(job_id: str, model_data: dict) -> None:
     _stats_thread.start()
 
     try:
-        result = calliope_runner.run_model(model_data, work_dir, log_fn=_log_fn)
+        if not _solve_lock.acquire(blocking=False):
+            _log_fn("Waiting for another run on this service to finish…")
+            _solve_lock.acquire()
+        try:
+            result = calliope_runner.run_model(model_data, work_dir, log_fn=_log_fn)
+        finally:
+            _solve_lock.release()
         with _jobs_lock:
             job.update(status="done", result=result, finished_at=time.time())
         # Only send lightweight summary in the SSE event to avoid crashing
