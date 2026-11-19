@@ -35,6 +35,12 @@ export const FIX_VIEW = {
   missing_timeseries: 'TimeSeries',
   timeseries_out_of_range: 'TimeSeries',
   invalid_time_horizon: 'Run',
+  tech_no_capacity_bound: 'Technologies',
+  capex_no_lifetime: 'Technologies',
+  conversion_no_eff: 'Technologies',
+  storage_no_cap: 'Technologies',
+  tech_no_carrier: 'Technologies',
+  model_unit_unset: 'Run',
 };
 
 export const parentOf = (tech) => String(tech?.essentials?.parent || tech?.parent || 'supply');
@@ -352,6 +358,90 @@ function checkDemandAndSupply({ locations, links, technologies, techByName, reso
   }
 }
 
+const hasBound = (c, keys) => keys.some((k) => isFiniteNumber(c[k]));
+const positive = (v) => isFiniteNumber(v) && Number(v) > 0;
+const STORAGE_RATIOS = ['energy_cap_per_storage_cap_min', 'energy_cap_per_storage_cap_max', 'energy_cap_per_storage_cap_equals'];
+// The 0.6 runner fills in electricity for these when no carrier is set; others fail without one.
+const CARRIER_DEFAULTED = new Set(['storage', 'transmission', 'demand']);
+
+function missingCarrier(tech) {
+  const e = tech.essentials || {};
+  const parent = parentOf(tech);
+  const out = asList(e.carrier_out).length || asList(e.carrier).length;
+  if (parent === 'demand') return !asList(e.carrier_in).length && !out;
+  if (parent.startsWith('conversion')) return !asList(e.carrier_in).length || !asList(e.carrier_out).length;
+  return !out;
+}
+
+// Parameter gaps on the techs placed at locations; a location override counts, and each
+// tech is reported once however many locations it sits at.
+function checkParameters({ locations, resolveTech }, add) {
+  const found = { bound: new Map(), lifetime: new Map(), eff: new Map(), storage: new Map(), carrierError: new Map(), carrierWarn: new Map() };
+  const flag = (kind, tech, field) => {
+    const id = keyOf(tech);
+    if (!found[kind].has(id)) found[kind].set(id, { label: id, kind: 'tech', id, ...(field ? { field } : {}) });
+  };
+  for (const loc of locations) {
+    for (const [ref, cfg] of locationTechs(loc)) {
+      const tech = resolveTech(ref);
+      if (!tech) continue;
+      const parent = parentOf(tech);
+      const c = { ...(tech.constraints || {}), ...(cfg?.constraints || {}) };
+      const costs = { ...(tech.costs?.monetary || {}), ...(cfg?.costs?.monetary || {}) };
+      if (PRODUCER_PARENTS.has(parent) && !hasBound(c, ['energy_cap_max', 'energy_cap_equals'])
+        && Object.entries(costs).some(([k, v]) => !IGNORED_COST_KEYS.has(k) && isFiniteNumber(v) && Number(v) < 0)) {
+        flag('bound', tech, 'energy_cap_max');
+      }
+      if (parent !== 'demand' && positive(costs.energy_cap) && !isFiniteNumber(c.lifetime)) flag('lifetime', tech, 'lifetime');
+      if (parent.startsWith('conversion') && !isFiniteNumber(c.energy_eff)) flag('eff', tech, 'energy_eff');
+      // A power-to-energy ratio sizes storage through energy_cap, which carries its own cost and bounds.
+      if (parent === 'storage' && !hasBound(c, ['storage_cap_max', 'storage_cap_equals', ...STORAGE_RATIOS]) && !positive(costs.storage_cap)) {
+        flag('storage', tech, 'storage_cap_max');
+      }
+      if (missingCarrier(tech)) flag(CARRIER_DEFAULTED.has(parent) ? 'carrierWarn' : 'carrierError', tech);
+    }
+  }
+  const list = (kind) => [...found[kind].values()];
+  if (found.bound.size) add('tech_no_capacity_bound', 'warning', 'These technologies have a negative cost and no maximum capacity, so the optimiser can build them without limit and the run may be unbounded. Set energy_cap_max.', list('bound'));
+  if (found.lifetime.size) add('capex_no_lifetime', 'error', 'These technologies have a capacity cost but no lifetime, so engines charge the whole investment in one year and the cost comparison is wrong. Set lifetime.', list('lifetime'));
+  if (found.eff.size) add('conversion_no_eff', 'warning', 'These conversion technologies have no efficiency, so they convert without losses. Set energy_eff.', list('eff'));
+  if (found.storage.size) add('storage_no_cap', 'warning', 'These storage technologies have no maximum storage capacity and no storage cost, so the optimiser treats storage as free and unlimited. Set storage_cap_max or a storage_cap cost.', list('storage'));
+  if (found.carrierError.size) add('tech_no_carrier', 'error', 'These technologies have no output carrier (or, for conversion, no input carrier), so engines cannot connect them. Set the carriers in Essentials.', list('carrierError'));
+  if (found.carrierWarn.size) add('tech_no_carrier', 'warning', 'These technologies have no carrier, so electricity is assumed. Set the carrier in Essentials if they carry something else.', list('carrierWarn'));
+}
+
+// Templates are in kW and TEMPO models in MW; a demand peak this large with no unit set is
+// most likely kW, which would make every result 1000x too big.
+const KW_SUSPECT_PEAK = 1e5;
+
+function peakDemand({ locations, resolveTech, timeSeries }) {
+  let peak = 0;
+  const bump = (v) => { if (isFiniteNumber(v)) peak = Math.max(peak, Math.abs(Number(v))); };
+  for (const loc of locations) {
+    for (const v of loc?.demandProfile?.timeseries || []) bump(v);
+    for (const [ref, cfg] of locationTechs(loc)) {
+      const tech = resolveTech(ref);
+      if (!tech || parentOf(tech) !== 'demand') continue;
+      const resource = { ...(tech.constraints || {}), ...(cfg?.constraints || {}) }.resource;
+      if (!isFileRef(resource)) {
+        bump(resource);
+        continue;
+      }
+      const [file, column] = resource.slice('file='.length).split(':').map((x) => x.trim());
+      const ts = timeSeries.find((t) => [t.fileName, t.name].some((n) => n && String(n).replace(/\.csv$/, '') === file.replace(/\.csv$/, '')));
+      for (const row of ts?.data || []) bump(row?.[column || keyOf(loc)]);
+    }
+  }
+  return peak;
+}
+
+function checkUnits(ctx, add) {
+  if (ctx.modelConfig.powerUnit) return;
+  if (peakDemand(ctx) > KW_SUSPECT_PEAK) {
+    add('model_unit_unset', 'warning', 'Demand peaks above 100,000 and no model unit is set, so the model is probably in kW while results are read as MW. Set the model unit on the Run page.');
+  }
+}
+
 function checkFileRefs({ locations, technologies, resolveTech, timeSeries }, add) {
   const tsNames = timeSeriesNames(timeSeries);
   // Keyed by label so a file referenced twice is reported once.
@@ -487,6 +577,8 @@ export function checkModel(model, options = {}) {
   checkTechnologies(ctx, add);
   checkLinks(ctx, add);
   checkDemandAndSupply(ctx, add);
+  checkParameters(ctx, add);
+  checkUnits(ctx, add);
   checkFileRefs(ctx, add);
   checkProfiles(ctx, add);
   checkTime(ctx, add);

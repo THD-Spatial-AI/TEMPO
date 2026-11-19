@@ -9,7 +9,7 @@ function miniModel(extra = {}) {
     locations: [{ name: 'a', latitude: 52, longitude: 10, techs: { gen: null, dem: null }, demandProfile: { timeseries: [10, 12] } }],
     links: [],
     technologies: [
-      { name: 'gen', essentials: { parent: 'supply', carrier_out: 'electricity' }, constraints: { energy_cap_max: 1000 }, costs: { monetary: { energy_cap: 900 } } },
+      { name: 'gen', essentials: { parent: 'supply', carrier_out: 'electricity' }, constraints: { energy_cap_max: 1000, lifetime: 25 }, costs: { monetary: { energy_cap: 900 } } },
       { name: 'dem', essentials: { parent: 'demand', carrier_in: 'electricity' }, constraints: {}, costs: { monetary: {} } },
     ],
     timeSeries: [],
@@ -427,9 +427,9 @@ describe('shared readiness cases', () => {
   for (const c of shared.cases) {
     it(c.name, () => {
       const r = checkModel(c.model);
-      const got = [...r.critical, ...r.errors].filter((i) => shared.shared_codes.includes(i.code));
+      const got = [...r.critical, ...r.errors, ...r.warnings].filter((i) => shared.shared_codes.includes(i.code));
       expect([...new Set(got.map((i) => i.code))].sort()).toEqual([...c.expect].sort());
-      for (const i of got) expect(i.severity).toBe(shared.severity[i.code]);
+      for (const i of got) expect([shared.severity[i.code]].flat()).toContain(i.severity);
     });
   }
 });
@@ -700,5 +700,78 @@ describe('issuesByEntity', () => {
     m.locations.push({ name: 'b', latitude: 1, longitude: 1, techs: { gen: null } });
     const idx = issuesByEntity(checkModel(m));
     expect(idx.get(entityKey('location', 'b'))).toBeUndefined();
+  });
+});
+
+describe('parameter checks', () => {
+  const find = (r, code) => [...r.critical, ...r.errors, ...r.warnings].find((i) => i.code === code);
+  const withTech = (tech, cfg = null) => {
+    const m = miniModel();
+    m.technologies.push(tech);
+    m.locations[0].techs[tech.name] = cfg;
+    return m;
+  };
+
+  it('flags capex without a lifetime as an error on the tech', () => {
+    const m = miniModel();
+    delete m.technologies[0].constraints.lifetime;
+    const r = checkModel(m);
+    const i = find(r, 'capex_no_lifetime');
+    expect(i.severity).toBe('error');
+    expect(i.items).toEqual(['gen']);
+    expect(i.targets[0]).toEqual({ view: 'Technologies', kind: 'tech', id: 'gen', field: 'lifetime' });
+    expect(find(checkModel(miniModel()), 'capex_no_lifetime')).toBeUndefined();
+  });
+
+  it('reads a lifetime set as a location override', () => {
+    const m = miniModel();
+    delete m.technologies[0].constraints.lifetime;
+    m.locations[0].techs.gen = { constraints: { lifetime: 20 } };
+    expect(find(checkModel(m), 'capex_no_lifetime')).toBeUndefined();
+  });
+
+  it('warns about a producer with a negative cost and no capacity bound', () => {
+    const m = withTech({ name: 'export', essentials: { parent: 'supply', carrier_out: 'electricity' }, constraints: { lifetime: 1 }, costs: { monetary: { om_prod: -5 } } });
+    expect(find(checkModel(m), 'tech_no_capacity_bound').items).toEqual(['export']);
+    m.technologies.at(-1).constraints.energy_cap_max = 10;
+    expect(find(checkModel(m), 'tech_no_capacity_bound')).toBeUndefined();
+  });
+
+  it('treats an inf capacity as no bound', () => {
+    const m = withTech({ name: 'export', essentials: { parent: 'supply', carrier_out: 'electricity' }, constraints: { energy_cap_max: 'inf' }, costs: { monetary: { om_prod: -5 } } });
+    expect(find(checkModel(m), 'tech_no_capacity_bound')).toBeDefined();
+  });
+
+  it('warns about a conversion without efficiency', () => {
+    const m = withTech({ name: 'ccgt', essentials: { parent: 'conversion', carrier_in: 'gas', carrier_out: 'electricity' }, constraints: {}, costs: { monetary: {} } });
+    expect(find(checkModel(m), 'conversion_no_eff').targets[0]).toEqual({ view: 'Technologies', kind: 'tech', id: 'ccgt', field: 'energy_eff' });
+  });
+
+  it('warns about free unlimited storage, not about bounded or priced storage', () => {
+    const free = withTech({ name: 'batt', essentials: { parent: 'storage', carrier: 'electricity' }, constraints: {}, costs: { monetary: {} } });
+    expect(find(checkModel(free), 'storage_no_cap').items).toEqual(['batt']);
+    const priced = withTech({ name: 'batt', essentials: { parent: 'storage', carrier: 'electricity' }, constraints: {}, costs: { monetary: { storage_cap: 100 } } });
+    expect(find(checkModel(priced), 'storage_no_cap')).toBeUndefined();
+    // Storage tied to its power capacity is sized (and paid for) through energy_cap.
+    const tied = withTech({ name: 'phs', essentials: { parent: 'storage', carrier: 'electricity' }, constraints: { energy_cap_per_storage_cap_equals: 0.01 }, costs: { monetary: {} } });
+    expect(find(checkModel(tied), 'storage_no_cap')).toBeUndefined();
+  });
+
+  it('errs on a supply with no output carrier and warns where electricity is assumed', () => {
+    const supply = withTech({ name: 'mystery', essentials: { parent: 'supply' }, constraints: { energy_cap_max: 1 }, costs: { monetary: {} } });
+    const e = find(checkModel(supply), 'tech_no_carrier');
+    expect(e.severity).toBe('error');
+    expect(e.items).toEqual(['mystery']);
+    const store = withTech({ name: 'batt', essentials: { parent: 'storage' }, constraints: { storage_cap_max: 1 }, costs: { monetary: {} } });
+    expect(checkModel(store).warnings.find((i) => i.code === 'tech_no_carrier').items).toEqual(['batt']);
+  });
+
+  it('suspects kW when no unit is set and demand peaks above 1e5', () => {
+    const m = miniModel();
+    m.locations[0].demandProfile = { timeseries: [-2e5, -3e5] };
+    expect(find(checkModel(m), 'model_unit_unset')).toMatchObject({ severity: 'warning', view: 'Run' });
+    m.modelConfig.powerUnit = 'kW';
+    expect(find(checkModel(m), 'model_unit_unset')).toBeUndefined();
+    expect(find(checkModel(miniModel()), 'model_unit_unset')).toBeUndefined();
   });
 });
