@@ -403,7 +403,7 @@ function checkParameters({ locations, resolveTech }, add) {
   }
   const list = (kind) => [...found[kind].values()];
   if (found.bound.size) add('tech_no_capacity_bound', 'warning', 'These technologies have a negative cost and no maximum capacity, so the optimiser can build them without limit and the run may be unbounded. Set energy_cap_max.', list('bound'));
-  if (found.lifetime.size) add('capex_no_lifetime', 'error', 'These technologies have a capacity cost but no lifetime, so engines charge the whole investment in one year and the cost comparison is wrong. Set lifetime.', list('lifetime'));
+  if (found.lifetime.size) add('capex_no_lifetime', 'error', 'These technologies have a capacity cost but no lifetime. Calliope 0.6.8 refuses to run; the other engines charge the whole investment in one year. Set lifetime.', list('lifetime'));
   if (found.eff.size) add('conversion_no_eff', 'warning', 'These conversion technologies have no efficiency, so they convert without losses. Set energy_eff.', list('eff'));
   if (found.storage.size) add('storage_no_cap', 'warning', 'These storage technologies have no maximum storage capacity and no storage cost, so the optimiser treats storage as free and unlimited. Set storage_cap_max or a storage_cap cost.', list('storage'));
   if (found.carrierError.size) add('tech_no_carrier', 'error', 'These technologies have no output carrier (or, for conversion, no input carrier), so engines cannot connect them. Set the carriers in Essentials.', list('carrierError'));
