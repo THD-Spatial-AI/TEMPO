@@ -82,3 +82,48 @@ describe('Model scenario card', () => {
     expect(expandCard(model, { category: 'modelScenario', params: { name: '' } }, 2050)).toEqual([]);
   });
 });
+
+describe('editing overrides', () => {
+  it('unflattens dotted keys to nested YAML', async () => {
+    const { unflattenOverride } = await import('../modelScenarios.js');
+    expect(unflattenOverride({ 'techs.ccgt.exists': false, 'model.subset_time': ['a', 'b'] }))
+      .toEqual({ techs: { ccgt: { exists: false } }, model: { subset_time: ['a', 'b'] } });
+  });
+
+  it('sets and removes a key, keeping nested shape and pruning empty parents', async () => {
+    const { setOverrideKey, removeOverrideKey } = await import('../modelScenarios.js');
+    const ov = model.overrides['2050_eff'];
+    const changed = setOverrideKey(ov, 'locations.NORD.techs.demand_power.constraints.resource', 'file=demand_2050_IEA.csv');
+    expect(changed.locations.NORD.techs.demand_power.constraints.resource).toBe('file=demand_2050_IEA.csv');
+    expect(ov.locations.NORD.techs.demand_power.constraints.resource).toBe('file=demand_2050_eff.csv'); // not mutated
+    const added = setOverrideKey({}, 'techs.ccgt.constraints.energy_cap_max', 5);
+    expect(added).toEqual({ techs: { ccgt: { constraints: { energy_cap_max: 5 } } } });
+    expect(removeOverrideKey(added, 'techs.ccgt.constraints.energy_cap_max')).toEqual({});
+    // a dotted (hand-written) override becomes nested once edited
+    expect(setOverrideKey(model.overrides.dotted, 'techs.ccgt.costs.monetary.energy_cap', 1000))
+      .toEqual({ techs: { ccgt: { costs: { monetary: { energy_cap: 1000 } } } } });
+  });
+
+  it('parses typed input values', async () => {
+    const { parseOverrideValue, formatOverrideValue } = await import('../modelScenarios.js');
+    expect(parseOverrideValue('5000')).toBe(5000);
+    expect(parseOverrideValue('-1.5e3')).toBe(-1500);
+    expect(parseOverrideValue('false')).toBe(false);
+    expect(parseOverrideValue('null')).toBe(null);
+    expect(parseOverrideValue("['2015-01-01', '2015-01-07']")).toEqual(['2015-01-01', '2015-01-07']);
+    expect(parseOverrideValue('file=demand.csv')).toBe('file=demand.csv');
+    expect(parseOverrideValue('  inf ')).toBe('inf');
+    expect(formatOverrideValue(['a', 'b'])).toBe('["a","b"]');
+    expect(formatOverrideValue('file=x.csv')).toBe('file=x.csv');
+    expect(formatOverrideValue(false)).toBe('false');
+  });
+
+  it('checks override / scenario names', async () => {
+    const { overrideNameError } = await import('../modelScenarios.js');
+    expect(overrideNameError('', model)).toMatch(/name/i);
+    expect(overrideNameError('2050_eff', model)).toMatch(/exists/i);
+    expect(overrideNameError('base_2050', model)).toMatch(/exists/i);
+    expect(overrideNameError('my case', model)).toMatch(/letters/i);
+    expect(overrideNameError('my_case-2', model)).toBe(null);
+  });
+});
