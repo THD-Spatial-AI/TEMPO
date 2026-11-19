@@ -1,6 +1,7 @@
 // Lists readiness issues from checkModel or an engine /assess, with a jump to the
-// page that fixes each one.
+// page (or, per item, the exact entity) that fixes each one.
 import { requestProfileDialog } from '../../services/profileIntent';
+import { requestFix } from '../../services/fixIntent';
 import { FiAlertCircle, FiAlertTriangle, FiArrowRight, FiCheckCircle } from '../ui/icons';
 
 function IssueRow({ issue, onNavigate }) {
@@ -8,6 +9,12 @@ function IssueRow({ issue, onNavigate }) {
   const isError = isCritical || issue.severity === 'error';
   const Icon = isError ? FiAlertCircle : FiAlertTriangle;
   const more = (issue.count || 0) - (issue.items?.length || 0);
+  const itemLinks = Boolean(issue.targets && onNavigate);
+  const go = (target) => {
+    if (target.profile) requestProfileDialog(target.id);
+    requestFix(target);
+    onNavigate(target.view);
+  };
   return (
     <li className="flex gap-3 py-2.5">
       <Icon size={15} className={`mt-0.5 shrink-0 ${isCritical ? 'text-black' : isError ? 'text-slate-600' : 'text-slate-400'}`} />
@@ -16,13 +23,28 @@ function IssueRow({ issue, onNavigate }) {
           {isCritical && <span className="mr-1.5 text-[11px] font-semibold uppercase tracking-wide text-black">Blocks run</span>}
           {issue.message}
         </p>
-        {issue.items?.length > 0 && (
+        {issue.items?.length > 0 && !itemLinks && (
           <p className="mt-0.5 truncate text-xs text-slate-500" title={issue.items.join(', ')}>
             {issue.items.join(', ')}{more > 0 ? ` and ${more} more` : ''}
           </p>
         )}
+        {issue.items?.length > 0 && itemLinks && (
+          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs">
+            {issue.items.map((item, n) => (issue.targets[n] ? (
+              <button
+                key={n}
+                onClick={() => go(issue.targets[n])}
+                className="flex max-w-full items-center gap-1 font-medium text-slate-700 hover:text-black hover:underline"
+                title={`Go to ${item}`}
+              >
+                <span className="truncate">{item}</span> <FiArrowRight size={11} className="shrink-0" />
+              </button>
+            ) : <span key={n} className="text-slate-500">{item}</span>))}
+            {more > 0 && <span className="text-slate-500">and {more} more</span>}
+          </div>
+        )}
       </div>
-      {issue.view && onNavigate && (
+      {issue.view && onNavigate && !itemLinks && (
         <button
           onClick={() => {
             if (issue.profileTech) requestProfileDialog(issue.profileTech);
