@@ -4,7 +4,7 @@ import { useData } from "../context/DataContext";
 import { TECH_TEMPLATES, useLiveTechTemplates } from "./TechnologiesData";
 import DeckGL from '@deck.gl/react';
 import { ScatterplotLayer, LineLayer, IconLayer, GeoJsonLayer, PathLayer } from '@deck.gl/layers';
-import { FlyToInterpolator } from '@deck.gl/core';
+import { FlyToInterpolator, WebMercatorViewport } from '@deck.gl/core';
 import { Map as MapGL } from 'react-map-gl/maplibre';
 import { canCreateWebGLContext, webglUnavailableMessage } from '../utils/webglSupport';
 import 'leaflet/dist/leaflet.css';
@@ -57,6 +57,9 @@ import { makeDemandCellsLayer, demandCellHover } from './map/demandCellsLayer';
 import { useDemandCellsView } from './map/useDemandCellsView';
 import DemandCellsLegend from './map/DemandCellsLegend';
 import ModelLegend from './map/ModelLegend';
+import useFixTarget from '../hooks/useFixTarget';
+import { publishDraftReadiness } from '../services/draftReadiness';
+import { uniqueNames } from '../utils/uniqueLocationNames';
 
 // Colour of each Study Area wizard preview element, keyed by metadata.kind.
 // The transmission mesh is amber (matches the OSM lines); each wiring type gets a
@@ -497,13 +500,46 @@ const Creation = ({ onNavigate }) => {
     }
   });
 
-  const draftReadiness = useMemo(() => (showSaveDialog ? checkModel({
-    ...buildDraftModel(
-      { tempLocations: locationManager.tempLocations, tempLinks: locationManager.tempLinks },
-      techMap, { timeSeries, currentModelId },
-    ),
-    modelConfig,
-  }) : null), [showSaveDialog, locationManager.tempLocations, locationManager.tempLinks, techMap, timeSeries, currentModelId, modelConfig]);
+  // Live check of the unsaved draft, 500 ms after the last edit. The Save dialog shows it and
+  // the sidebar's readiness indicator reads it through the draftReadiness store.
+  const [draftReadiness, setDraftReadiness] = useState(null);
+  useEffect(() => {
+    const timer = setTimeout(() => setDraftReadiness(checkModel({
+      ...buildDraftModel(
+        { tempLocations: locationManager.tempLocations, tempLinks: locationManager.tempLinks },
+        techMap, { timeSeries, currentModelId },
+      ),
+      modelConfig,
+    })), 500);
+    return () => clearTimeout(timer);
+  }, [locationManager.tempLocations, locationManager.tempLinks, techMap, timeSeries, currentModelId, modelConfig]);
+  useEffect(() => { publishDraftReadiness(draftReadiness); }, [draftReadiness]);
+  useEffect(() => () => publishDraftReadiness(null), []);
+
+  // A draft Fix link: fly to the location(s) and ring them until the next click. Issues name
+  // locations as the draft model does (uniqueNames), so names map back to markers by index.
+  const [fixFocus, setFixFocus] = useState(null);
+  useFixTarget('Creation', (t) => {
+    if (!t.map) return;
+    const temp = locationManager.tempLocations;
+    const names = uniqueNames(temp.map(l => l.name));
+    const wanted = t.kind === 'island' ? (t.members || []) : [t.id];
+    const focus = temp.filter((l, i) => wanted.includes(names[i]) && Number.isFinite(l.latitude) && Number.isFinite(l.longitude));
+    if (!focus.length) return;
+    let view = { longitude: focus[0].longitude, latitude: focus[0].latitude, zoom: Math.max(viewState.zoom, 10) };
+    if (focus.length > 1) {
+      const lngs = focus.map(l => l.longitude);
+      const lats = focus.map(l => l.latitude);
+      try {
+        view = new WebMercatorViewport({ width: window.innerWidth || 1200, height: window.innerHeight || 800 })
+          .fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], { padding: 80 });
+      } catch { /* keep the first location */ }
+    }
+    setViewState(v => ({ ...v, longitude: view.longitude, latitude: view.latitude, zoom: Math.min(view.zoom, 15),
+      transitionDuration: 900, transitionInterpolator: new FlyToInterpolator() }));
+    setFixFocus(focus);
+    document.addEventListener('pointerdown', () => setFixFocus(null), { once: true, capture: true });
+  });
 
   // Helper function to check if a point is inside a polygon using ray casting algorithm
   const isPointInPolygon = (point, polygon) => {
@@ -2533,6 +2569,20 @@ const Creation = ({ onNavigate }) => {
                     }
                   }
                 })
+              ] : []),
+
+              // Readiness Fix focus: white halo under a black ring, drawn over the locations.
+              ...(fixFocus ? [
+                new ScatterplotLayer({
+                  id: 'fix-focus-halo', data: fixFocus, getPosition: d => [d.longitude, d.latitude],
+                  radiusUnits: 'pixels', getRadius: 17, stroked: true, filled: false,
+                  lineWidthUnits: 'pixels', getLineWidth: 6, getLineColor: [255, 255, 255, 230],
+                }),
+                new ScatterplotLayer({
+                  id: 'fix-focus-ring', data: fixFocus, getPosition: d => [d.longitude, d.latitude],
+                  radiusUnits: 'pixels', getRadius: 17, stroked: true, filled: false,
+                  lineWidthUnits: 'pixels', getLineWidth: 3, getLineColor: [0, 0, 0, 255],
+                }),
               ] : [])
             ]}
           >
