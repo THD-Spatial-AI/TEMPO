@@ -175,10 +175,6 @@ export function ModelScenarioConfig({ params, setParam, model }) {
             </optgroup>
           )}
         </SelectField>
-        <p className="mt-0.5 text-xs text-slate-400">
-          Edits are saved to the model (the Run page and Export use them too). Calliope applies it natively,
-          after the other cards; PyPSA / OSeMOSYS / AdOpT-NET0 skip settings tagged Calliope.
-        </p>
       </div>
 
       {(isScenario || isOverride) && (

@@ -61,7 +61,7 @@ const LayerSelector = ({ currentLayer, onLayerChange, overlays = [] }) => {
           style={{ background: STYLE_PREVIEWS[currentLayer] }}
         >
           <span className="absolute inset-0 bg-slate-900/50 transition-colors group-hover:bg-slate-900/60" />
-          <FiLayers size={15} strokeWidth={2.25} className="relative text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]" />
+          <FiLayers size={20} strokeWidth={2.25} className="relative text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]" />
         </span>
       </button>
 
