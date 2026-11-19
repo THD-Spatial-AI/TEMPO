@@ -1,21 +1,21 @@
 // Constraint definitions with categories
 export const CONSTRAINT_DEFINITIONS = {
   // Capacity Constraints
-  energy_cap_max: { group: 'Capacity', desc: 'Maximum energy capacity (kW). Upper limit on installed capacity.' },
-  energy_cap_min: { group: 'Capacity', desc: 'Minimum energy capacity (kW). Lower limit on installed capacity.' },
-  energy_cap_equals: { group: 'Capacity', desc: 'Fixed energy capacity (kW). Capacity must equal this value.' },
+  energy_cap_max: { group: 'Capacity', desc: 'Maximum energy capacity (model power unit, e.g. kW or MW). Upper limit on installed capacity.' },
+  energy_cap_min: { group: 'Capacity', desc: 'Minimum energy capacity (model power unit, e.g. kW or MW). Lower limit on installed capacity.' },
+  energy_cap_equals: { group: 'Capacity', desc: 'Fixed energy capacity (model power unit, e.g. kW or MW). Capacity must equal this value.' },
   energy_cap_equals_systemwide: { group: 'Capacity', desc: 'System-wide fixed energy capacity across all locations.' },
   energy_cap_max_systemwide: { group: 'Capacity', desc: 'System-wide maximum energy capacity across all locations.' },
   energy_cap_min_use: { group: 'Capacity', desc: 'Minimum capacity utilization (fraction 0-1).' },
-  energy_cap_per_unit: { group: 'Capacity', desc: 'Energy capacity per discrete unit (kW/unit).' },
+  energy_cap_per_unit: { group: 'Capacity', desc: 'Energy capacity per discrete unit (power per unit, in the model unit).' },
   energy_cap_scale: { group: 'Capacity', desc: 'Scaling factor for energy capacity.' },
   energy_cap_per_storage_cap_min: { group: 'Capacity', desc: 'Minimum ratio of energy capacity to storage capacity.' },
   energy_cap_per_storage_cap_max: { group: 'Capacity', desc: 'Maximum ratio of energy capacity to storage capacity.' },
   energy_cap_per_storage_cap_equals: { group: 'Capacity', desc: 'Fixed ratio of energy capacity to storage capacity.' },
-  storage_cap_max: { group: 'Capacity', desc: 'Maximum storage capacity (kWh). Upper limit on energy storage.' },
-  storage_cap_min: { group: 'Capacity', desc: 'Minimum storage capacity (kWh).' },
-  storage_cap_equals: { group: 'Capacity', desc: 'Fixed storage capacity (kWh).' },
-  storage_cap_per_unit: { group: 'Capacity', desc: 'Storage capacity per discrete unit (kWh/unit).' },
+  storage_cap_max: { group: 'Capacity', desc: 'Maximum storage capacity (model energy unit, e.g. kWh or MWh). Upper limit on energy storage.' },
+  storage_cap_min: { group: 'Capacity', desc: 'Minimum storage capacity (model energy unit, e.g. kWh or MWh).' },
+  storage_cap_equals: { group: 'Capacity', desc: 'Fixed storage capacity (model energy unit, e.g. kWh or MWh).' },
+  storage_cap_per_unit: { group: 'Capacity', desc: 'Storage capacity per discrete unit (energy per unit, in the model unit).' },
   
   // Efficiency Constraints
   energy_eff: { group: 'Efficiency', desc: 'Energy conversion efficiency (0-1). Ratio of output to input energy.' },
@@ -24,14 +24,14 @@ export const CONSTRAINT_DEFINITIONS = {
   parasitic_eff: { group: 'Efficiency', desc: 'Parasitic efficiency loss (0-1). Internal energy consumption.' },
   
   // Resource Constraints
-  resource: { group: 'Resource', desc: 'Resource availability (kWh or file:// path). Energy source input.' },
+  resource: { group: 'Resource', desc: 'Resource availability (model unit, or file= path). Energy source input.' },
   resource_min_use: { group: 'Resource', desc: 'Minimum resource utilization fraction (0-1).' },
   resource_scale: { group: 'Resource', desc: 'Resource scaling factor.' },
   resource_unit: { group: 'Resource', desc: 'Unit of resource measure (energy, power, energy_per_cap, etc.).' },
   resource_area_max: { group: 'Resource', desc: 'Maximum resource collection area (m²).' },
   resource_area_min: { group: 'Resource', desc: 'Minimum resource collection area (m²).' },
   resource_area_equals: { group: 'Resource', desc: 'Fixed resource collection area (m²).' },
-  resource_area_per_energy_cap: { group: 'Resource', desc: 'Resource area required per unit energy capacity (m²/kW).' },
+  resource_area_per_energy_cap: { group: 'Resource', desc: 'Resource area required per unit energy capacity (m² per unit of capacity).' },
   resource_cap_max: { group: 'Resource', desc: 'Maximum resource capacity for supply_plus technologies.' },
   resource_cap_min: { group: 'Resource', desc: 'Minimum resource capacity for supply_plus technologies.' },
   resource_cap_equals: { group: 'Resource', desc: 'Fixed resource capacity for supply_plus technologies.' },
@@ -50,11 +50,11 @@ export const CONSTRAINT_DEFINITIONS = {
   force_asynchronous_prod_con: { group: 'Operation', desc: 'Force production and consumption to not occur simultaneously.' },
   
   // Production/Consumption
-  energy_prod: { group: 'Energy Flow', desc: 'Energy production (kWh). Output energy per timestep.' },
-  energy_con: { group: 'Energy Flow', desc: 'Energy consumption (kWh). Input energy per timestep.' },
+  energy_prod: { group: 'Energy Flow', desc: 'Energy production (model energy unit, e.g. kWh or MWh). Output energy per timestep.' },
+  energy_con: { group: 'Energy Flow', desc: 'Energy consumption (model energy unit, e.g. kWh or MWh). Input energy per timestep.' },
   carrier_ratios: { group: 'Energy Flow', desc: 'Carrier input/output ratios for conversion_plus technologies (dict).' },
   export_carrier: { group: 'Energy Flow', desc: 'Carrier that can be exported from system.' },
-  export_cap: { group: 'Energy Flow', desc: 'Maximum export capacity (kW).' },
+  export_cap: { group: 'Energy Flow', desc: 'Maximum export capacity (model power unit, e.g. kW or MW).' },
   
   // Units
   units_max: { group: 'Units', desc: 'Maximum number of integer units that can be purchased.' },
@@ -66,23 +66,23 @@ export const CONSTRAINT_DEFINITIONS = {
 
 // Cost definitions
 export const COST_DEFINITIONS = {
-  energy_cap: { group: 'Investment', desc: 'Capital cost per unit energy capacity ($/kW). One-time installation cost.' },
-  storage_cap: { group: 'Investment', desc: 'Capital cost per unit storage capacity ($/kWh).' },
+  energy_cap: { group: 'Investment', desc: 'Capital cost per unit energy capacity (per unit of capacity, e.g. $/kW or $/MW as the model). One-time installation cost.' },
+  storage_cap: { group: 'Investment', desc: 'Capital cost per unit storage capacity (per unit of energy, e.g. $/kWh or $/MWh as the model).' },
   resource_cap: { group: 'Investment', desc: 'Capital cost per unit resource capacity ($/unit).' },
   resource_area: { group: 'Investment', desc: 'Capital cost per unit resource collection area ($/m²).' },
   purchase: { group: 'Investment', desc: 'Purchase cost per unit of technology ($).' },
-  energy_cap_per_distance: { group: 'Investment', desc: 'Capital cost per unit capacity per unit distance ($/kW/km) for transmission.' },
+  energy_cap_per_distance: { group: 'Investment', desc: 'Capital cost per unit capacity per unit distance (per unit of capacity per km) for transmission.' },
   purchase_per_distance: { group: 'Investment', desc: 'Purchase cost per unit distance ($/km) for transmission.' },
   
   om_annual: { group: 'O&M', desc: 'Annual operations & maintenance cost ($/year). Fixed yearly cost.' },
   om_annual_investment_fraction: { group: 'O&M', desc: 'Annual O&M as fraction of investment cost (fraction).' },
-  om_prod: { group: 'O&M', desc: 'Variable O&M cost per unit energy produced ($/kWh).' },
-  om_con: { group: 'O&M', desc: 'Variable O&M cost per unit energy consumed ($/kWh).' },
+  om_prod: { group: 'O&M', desc: 'Variable O&M cost per unit energy produced (per unit of energy, e.g. $/kWh or $/MWh as the model).' },
+  om_con: { group: 'O&M', desc: 'Variable O&M cost per unit energy consumed (per unit of energy, e.g. $/kWh or $/MWh as the model).' },
   
   interest_rate: { group: 'Financial', desc: 'Interest rate for investment (fraction, e.g., 0.10 = 10%).' },
   depreciation_rate: { group: 'Financial', desc: 'Depreciation rate (fraction/year). Asset value reduction rate.' },
   
-  export: { group: 'Other', desc: 'Revenue from exporting energy ($/kWh). Negative cost = revenue.' }
+  export: { group: 'Other', desc: 'Revenue from exporting energy (per unit of energy, e.g. $/kWh or $/MWh as the model). Negative cost = revenue.' }
 };
 
 // Essential field definitions

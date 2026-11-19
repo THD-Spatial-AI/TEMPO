@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { LuPencil, LuTrash2, LuCheck, LuX, LuPlus, LuSearch, LuLink, LuArrowRight, LuRuler, LuZap } from './ui/icons';
 import { useData } from "../context/DataContext";
+import { modelPowerUnit } from "../utils/modelUnits";
 import SaveBar from './ui/SaveBar';
 import { KpiCard } from './dashboard/DashboardWidgets';
 import SortHeader from './ui/SortHeader';
@@ -55,7 +56,8 @@ function LinkTypeSelect({ value, onChange, className = '' }) {
 }
 
 const Links = () => {
-  const { links, setLinks, locations } = useData();
+  const { links, setLinks, locations, getCurrentModel } = useData();
+  const unit = modelPowerUnit(getCurrentModel()); // link capacities are in the model's unit
 
   const [editingIndex, setEditingIndex] = useState(null);
   const [editData, setEditData]         = useState({});
@@ -300,7 +302,7 @@ const Links = () => {
                           <td className="px-5 py-3 text-right">
                             <input type="number" value={editData.capacity ?? ''}
                               onChange={e => setEditData({ ...editData, capacity: e.target.value })}
-                              className="h-8 w-full rounded-lg border border-black/15 bg-white px-2 text-xs focus:outline-none focus:ring-2 focus:ring-slate-200 ml-auto w-24 text-right font-mono" placeholder="kW" />
+                              className="h-8 w-full rounded-lg border border-black/15 bg-white px-2 text-xs focus:outline-none focus:ring-2 focus:ring-slate-200 ml-auto w-24 text-right font-mono" placeholder={unit} />
                           </td>
                           <td className="px-5 py-3 text-right">
                             <input type="number" value={editData.distance ?? ''}
@@ -420,7 +422,7 @@ const Links = () => {
               {/* Capacity / Distance */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium text-slate-700">Capacity (kW)</label>
+                  <label className="mb-1.5 block text-xs font-medium text-slate-700">Capacity ({unit})</label>
                   <input type="number" value={newLink.capacity} onChange={e => setNewLink({ ...newLink, capacity: e.target.value })}
                     className="h-10 w-full rounded-lg border border-black/15 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-black/15 focus:outline-none focus:ring-2 focus:ring-slate-200 font-mono" placeholder="optional" />
                 </div>

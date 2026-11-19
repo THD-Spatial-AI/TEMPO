@@ -32,7 +32,8 @@ import { translateCalliopeModel, readText, parseFilesMap, getFilesFromDataTransf
 // ─── component ────────────────────────────────────────────────────────────────
 
 export default function CalliopeYAMLImporter({ onImport, onClose, initialTemplate = null }) {
-  const templatePowerUnit = useRef(undefined);
+  // Unit the model's numbers are in (kW is usual for Calliope; templates set their own). See utils/modelUnits.js.
+  const [powerUnit, setPowerUnit] = useState('kW');
   const [uploadMode, setUploadMode] = useState('server');
   const [dragOver,   setDragOver]   = useState(false);
   const [status,     setStatus]     = useState('idle');
@@ -82,7 +83,7 @@ export default function CalliopeYAMLImporter({ onImport, onClose, initialTemplat
 
   const reset = () => {
     setStatus('idle'); setErrorMsg(''); setParseLog([]);
-    setPreview(null);  setShowLog(false); setModelName(''); setLoadingTpl(null); templatePowerUnit.current = undefined;
+    setPreview(null);  setShowLog(false); setModelName(''); setLoadingTpl(null); setPowerUnit('kW');
     setRootCandidates([]); setPendingFilesMap(null);
     extraCsvRef.current = [];
   };
@@ -182,7 +183,7 @@ export default function CalliopeYAMLImporter({ onImport, onClose, initialTemplat
 
   // ── server template mode ──────────────────────────────────────────────────
   const loadServerTemplate = useCallback(async (tpl) => {
-    templatePowerUnit.current = tpl.powerUnit;
+    setPowerUnit(tpl.powerUnit || 'kW');
     setLoadingTpl(tpl.id);
     setTplProgress(null);
     setTplStatus(`Loading ${tpl.name}…`);
@@ -338,10 +339,10 @@ export default function CalliopeYAMLImporter({ onImport, onClose, initialTemplat
         subsetTime: preview.subsetTime,
         description: 'Imported: ' + name,
         // 0.7 archives run on the 0.7 engine; absent for 0.6 imports
-        ...(preview.calliopeVersion || templatePowerUnit.current ? { modelConfig: {
+        modelConfig: {
           ...(preview.calliopeVersion ? { calliopeVersion: preview.calliopeVersion } : {}),
-          ...(templatePowerUnit.current ? { powerUnit: templatePowerUnit.current } : {}),
-        } } : {}),
+          powerUnit,
+        },
         // 0.7-specific carry-through: named math modules, top-level parameters,
         // and a flag telling the runner the overrides are already in 0.7 vocabulary.
         ...(preview.mathModules?.length ? { mathModules: preview.mathModules } : {}),
@@ -609,6 +610,15 @@ export default function CalliopeYAMLImporter({ onImport, onClose, initialTemplat
             <div className="bg-slate-50 rounded-lg p-3 text-xs flex flex-wrap gap-2">
               <span className="bg-white border border-black/15 rounded px-2 py-1">Solver: <strong>{preview.runConfig.solver}</strong></span>
               <span className="bg-white border border-black/15 rounded px-2 py-1">Mode: <strong>{preview.runConfig.mode}</strong></span>
+              <label className="flex items-center gap-1.5 bg-white border border-black/15 rounded px-2 py-1"
+                title="The unit this model's power numbers are in. Results are always shown in MW.">
+                Model unit:
+                <select value={powerUnit} onChange={e => setPowerUnit(e.target.value)} className="bg-transparent font-semibold focus:outline-none">
+                  <option value="kW">kW</option>
+                  <option value="MW">MW</option>
+                  <option value="GW">GW</option>
+                </select>
+              </label>
               {preview.subsetTime && (
                 <span className="bg-white border border-black/15 rounded px-2 py-1">
                   Subset: <strong>{Array.isArray(preview.subsetTime) ? preview.subsetTime.join(' → ') : preview.subsetTime}</strong>
