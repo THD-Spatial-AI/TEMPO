@@ -38,6 +38,7 @@ import LogsTab from './results/tabs/LogsTab';
 import SporesTab from './results/tabs/SporesTab';
 import ShadowTab from './results/tabs/ShadowTab';
 import AIAnalysisTab from './results/tabs/AIAnalysisTab';
+import JobLogLines from './shared/JobLogLines';
 
 // ── Main component ───────────────────────────────────────────────────────────
 const Results = ({ onNavigate }) => {
@@ -738,7 +739,7 @@ const Results = ({ onNavigate }) => {
             </div>
             {selectedJob.logs?.length > 0 && (
               <div className="bg-black text-green-400 rounded-2xl p-4 text-xs font-mono h-72 overflow-y-auto">
-                {selectedJob.logs.map((l, i) => <div key={i}>{l}</div>)}
+                <JobLogLines job={selectedJob} onNavigate={onNavigate} />
               </div>
             )}
           </div>

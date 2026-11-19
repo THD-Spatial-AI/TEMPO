@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { FiActivity, FiAlertTriangle, FiBarChart2, FiCheckCircle, FiClock, FiCpu, FiDownload, FiList, FiSearch, FiTerminal, FiTrash2, FiX, FiZap } from '../ui/icons';
 import { confirmAction } from '../ui/confirm';
 import SelectField from '../ui/SelectField';
+import JobLogLines from '../shared/JobLogLines';
 import { iconBtn, ICON_PX } from '../ui/iconButton';
 
 export default function CompletedRunsSection({
@@ -260,7 +261,7 @@ export default function CompletedRunsSection({
                       <div className="mt-3 bg-slate-900 text-green-400 rounded-xl p-4 text-xs font-mono max-h-64 overflow-y-auto">
                         {(job.logs || []).length === 0
                           ? <span className="text-slate-500">No logs available</span>
-                          : (job.logs || []).map((l, i) => <div key={i} className="leading-relaxed">{l}</div>)
+                          : <JobLogLines job={job} onNavigate={onNavigate} className="leading-relaxed" />
                         }
                       </div>
                     )}

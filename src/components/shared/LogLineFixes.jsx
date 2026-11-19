@@ -21,7 +21,9 @@ export default function LogLineFixes({ line, model, matcher, onNavigate, dark = 
   if (code && loaded && readiness) {
     const issue = [...readiness.critical, ...readiness.errors, ...readiness.warnings].find((i) => i.code === code);
     links = (issue?.targets || []).map((t, n) => (t ? { label: issue.items[n] ?? t.id, target: t } : null)).filter(Boolean);
-    if (!links.length && issue) links = [{ label: 'Fix', target: { view: issue.view } }];
+    // A problem a scenario brings in is not in the loaded model's check: link its page.
+    const view = issue?.view || FIX_VIEW[code];
+    if (!links.length && view) links = [{ label: 'Fix', target: { view } }];
   } else if (!code && isProblemLine(line)) {
     links = matcher(line);
   }
