@@ -8,7 +8,8 @@ import { runMemeModel, getMemeServerConfig } from '../services/memeClient';
 import { engineSupportedByMeme } from '../services/memeFormat';
 import { modelPowerUnit, stampPowerUnit } from '../utils/modelUnits';
 import { applyOps } from '../services/scenarioStudio/transform.js';
-import { buildCalliope06GroupConstraintsOverride, resolveTechGroup } from '../services/scenarioStudio/utils.js';
+import { resolveScenario } from '../services/scenarioResolver';
+import { buildCalliope06SystemOverride, resolveTechGroup } from '../services/scenarioStudio/utils.js';
 import { getCapabilityWarnings, engineKeyFromModel, ENGINE_LABELS, ENGINE_FRAMEWORK } from '../services/scenarioStudio/capabilities.js';
 import { buildScenarioVariants, scenarioFromGraph, canConnect, defaultCardParams, previousYear, SCENARIO_TEMPLATES, YEAR_SIZE } from '../services/scenarioStudio/scenario.js';
 import ScenarioBoard from './scenarioStudio/ScenarioBoard.jsx';
@@ -195,9 +196,9 @@ export default function ScenarioStudio({ onNavigate }) {
     setSelectedNodeId(id);
   }, [setNodes]);
 
-  const addConfig = useCallback((category, position) => {
+  const addConfig = useCallback((category, position, params) => {
     const id = genId('cfg');
-    setNodes(nds => orderNodes([...nds, { id, type: 'config', position: position || { x: 360, y: 120 }, data: { category, params: defaultCardParams(category) } }]));
+    setNodes(nds => orderNodes([...nds, { id, type: 'config', position: position || { x: 360, y: 120 }, data: { category, params: params || defaultCardParams(category) } }]));
     setSelectedNodeId(id);
   }, [setNodes]);
 
@@ -372,10 +373,18 @@ export default function ScenarioStudio({ onNavigate }) {
   // ── Dispatch ────────────────────────────────────────────────────────────────
 
   const buildConcrete = (m, variant, techsForRun, tsForRun) => {
-    const baseModelData = {
+    const isCalliope = selectedEngine === 'calliope06' || selectedEngine === 'calliope07';
+    // Model scenario cards: Calliope applies the overrides natively; other engines get them resolved.
+    const modelOverrides = [...new Set(variant.ops.filter(o => o.op === 'modelOverrides').flatMap(o => o.names))];
+    let baseModelData = {
       ...m, solver: 'highs', modelConfig: m.modelConfig || {},
       technologies: techsForRun, timeSeries: tsForRun,
     };
+    if (!isCalliope) {
+      for (const name of modelOverrides) {
+        baseModelData = resolveScenario(baseModelData, m.overrides || {}, m.scenarios || {}, { type: 'override', name }).model;
+      }
+    }
     const concreteModel = applyOps(baseModelData, variant.ops);
     // SPORES card: per-slack plan + run settings (solver, feasibility) for this run.
     if (variant.sporesPlan || variant.modelConfig) {
@@ -384,13 +393,15 @@ export default function ScenarioStudio({ onNavigate }) {
         ...(variant.sporesPlan ? { sporesPlan: variant.sporesPlan } : {}),
       };
     }
-    if (selectedEngine === 'calliope06' || selectedEngine === 'calliope07') {
+    if (isCalliope) {
       const gc = concreteModel.modelConfig?.groupConstraints;
-      const nativeGC = gc ? buildCalliope06GroupConstraintsOverride(gc) : null;
+      const nativeGC = gc ? buildCalliope06SystemOverride(gc) : null;
       if (nativeGC) {
-        concreteModel.overrides = { ...(concreteModel.overrides || {}), _studio_sys: { group_constraints: nativeGC } };
-        concreteModel.override = '_studio_sys';
+        concreteModel.overrides = { ...(concreteModel.overrides || {}), _studio_sys: nativeGC };
       }
+      // Calliope takes comma-joined override names as an ad-hoc scenario.
+      const active = [...modelOverrides, ...(nativeGC ? ['_studio_sys'] : [])];
+      if (active.length) concreteModel.scenario = active.join(',');
       if (selectedEngine === 'calliope07') {
         concreteModel.modelConfig = { ...(concreteModel.modelConfig || {}), calliopeVersion: '0.7.0' };
       }
@@ -631,6 +642,7 @@ export default function ScenarioStudio({ onNavigate }) {
             capabilityWarnings={capabilityWarnings}
             onSetParam={(k, v) => setConfigParam(selectedNodeId, k, v)}
             onClose={() => setSelectedNodeId(null)}
+            onAddModelScenario={name => addConfig('modelScenario', undefined, { name })}
           />
         )}
       </div>

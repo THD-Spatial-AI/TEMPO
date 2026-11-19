@@ -3,7 +3,7 @@ import { expand as expandRenewable } from '../scenarioStudio/recipes/renewableTr
 import { expand as expandCarbonCap } from '../scenarioStudio/recipes/carbonCap.js';
 import { expand as expandCostSens, stepValues } from '../scenarioStudio/recipes/costSensitivity.js';
 import { applyOps } from '../scenarioStudio/transform.js';
-import { buildCalliope06GroupConstraintsOverride } from '../scenarioStudio/utils.js';
+import { buildCalliope06SystemOverride } from '../scenarioStudio/utils.js';
 
 function makeModel() {
   return {
@@ -233,33 +233,38 @@ describe('costSensitivity.expand', () => {
   });
 });
 
-// ─── buildCalliope06GroupConstraintsOverride ────────────────────────────────
+// ─── buildCalliope06SystemOverride ────────────────────────────────
 
-describe('buildCalliope06GroupConstraintsOverride', () => {
+describe('buildCalliope06SystemOverride', () => {
   it('returns null for empty/null input', () => {
-    expect(buildCalliope06GroupConstraintsOverride(null)).toBeNull();
-    expect(buildCalliope06GroupConstraintsOverride({})).toBeNull();
+    expect(buildCalliope06SystemOverride(null)).toBeNull();
+    expect(buildCalliope06SystemOverride({})).toBeNull();
   });
 
   it('converts co2_cap to Calliope group_constraint', () => {
-    const gc = buildCalliope06GroupConstraintsOverride({ co2_cap: 50 });
+    const gc = buildCalliope06SystemOverride({ co2_cap: 50 }).group_constraints;
     expect(gc.studio_co2_cap.cost_max.co2).toBe(50);
   });
 
   it('converts renewable_min with techs and carrier', () => {
-    const gc = buildCalliope06GroupConstraintsOverride({
+    const gc = buildCalliope06SystemOverride({
       renewable_min: { share: 0.8, techs: ['solar_pv', 'wind_onshore'], carrier: 'electricity' },
-    });
-    expect(gc.studio_renewable_min.carrier_prod_min_systemwide.electricity).toBe(0.8);
+    }).group_constraints;
+    expect(gc.studio_renewable_min.carrier_prod_share_min.electricity).toBe(0.8);
     expect(gc.studio_renewable_min.techs).toEqual(['solar_pv', 'wind_onshore']);
   });
 
   it('handles both co2_cap and renewable_min together', () => {
-    const gc = buildCalliope06GroupConstraintsOverride({
+    const gc = buildCalliope06SystemOverride({
       co2_cap: 0,
       renewable_min: { share: 1.0, techs: [], carrier: 'electricity' },
-    });
+    }).group_constraints;
     expect(gc.studio_co2_cap).toBeTruthy();
     expect(gc.studio_renewable_min).toBeTruthy();
+  });
+
+  it('puts reserve_margin on the model, not in group_constraints (10 or 0.1 = 10 %)', () => {
+    expect(buildCalliope06SystemOverride({ reserve_margin: 10 })).toEqual({ model: { reserve_margin: { electricity: 0.1 } } });
+    expect(buildCalliope06SystemOverride({ reserve_margin: 0.15 }).model.reserve_margin.electricity).toBe(0.15);
   });
 });

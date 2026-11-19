@@ -93,14 +93,16 @@ export function progress(baseYear, targetYear, year) {
 }
 
 /**
- * Build Calliope-native group_constraints override block from a
- * modelConfig.groupConstraints map, for injection into the runner.
+ * Build a Calliope 0.6.8 override from a modelConfig.groupConstraints map, for
+ * injection into the runner: CO₂ cap and renewable share become group_constraints,
+ * reserve margin is the model-level `model.reserve_margin` (not a group constraint).
  *
  * Returns null if there are no system constraints to apply.
  */
-export function buildCalliope06GroupConstraintsOverride(groupConstraints) {
+export function buildCalliope06SystemOverride(groupConstraints) {
   if (!groupConstraints || Object.keys(groupConstraints).length === 0) return null;
   const gc = {};
+  const override = {};
 
   if (groupConstraints.co2_cap !== undefined) {
     gc.studio_co2_cap = { cost_max: { co2: groupConstraints.co2_cap } };
@@ -108,13 +110,16 @@ export function buildCalliope06GroupConstraintsOverride(groupConstraints) {
   if (groupConstraints.renewable_min !== undefined) {
     const { share, techs, carrier = 'electricity' } = groupConstraints.renewable_min;
     gc.studio_renewable_min = {
-      carrier_prod_min_systemwide: { [carrier]: share },
+      carrier_prod_share_min: { [carrier]: share },
       ...(techs && techs.length ? { techs } : {}),
     };
   }
   if (groupConstraints.reserve_margin !== undefined) {
-    gc.studio_reserve_margin = { demand_share_per_loc_per_timestep_min: groupConstraints.reserve_margin };
+    // Accept 10 or 0.1 for a 10 % margin.
+    const margin = Number(groupConstraints.reserve_margin) || 0;
+    override.model = { reserve_margin: { electricity: margin > 1 ? margin / 100 : margin } };
   }
 
-  return Object.keys(gc).length ? gc : null;
+  if (Object.keys(gc).length) override.group_constraints = gc;
+  return Object.keys(override).length ? override : null;
 }

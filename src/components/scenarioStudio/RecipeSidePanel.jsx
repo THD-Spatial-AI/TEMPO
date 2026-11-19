@@ -11,6 +11,7 @@ import { CardConfig, VariantBadge } from './recipeConfig.jsx';
 import { CATEGORY_BY_ID } from '../../services/scenarioStudio/scenario.js';
 import { resolveTechGroup } from '../../services/scenarioStudio/utils.js';
 import CategoryTile from './categoryIcon.jsx';
+import { ModelScenarioList } from './ModelScenarios.jsx';
 
 function ModelSummary({ model }) {
   if (!model) return <p className="text-xs text-slate-400 mt-1">Select a model above to begin.</p>;
@@ -37,15 +38,16 @@ function ModelSummary({ model }) {
 }
 
 export default function RecipeSidePanel({
-  card, scopeLabel, model, timeSeries, variants, warnings, capabilityWarnings, onSetParam, onClose,
+  card, scopeLabel, model, timeSeries, variants, warnings, capabilityWarnings, onSetParam, onClose, onAddModelScenario,
 }) {
   if (!card) {
     return (
-      <div className="flex w-[340px] shrink-0 flex-col items-center justify-center border-l border-black/15 bg-white px-6 text-center">
+      <div className="flex w-[340px] shrink-0 flex-col items-center overflow-y-auto border-l border-black/15 bg-white px-6 py-8 text-center">
         <div className="mb-3 grid h-11 w-11 place-items-center rounded-full bg-slate-100 text-slate-500"><FiInfo size={18} /></div>
         <p className="text-sm font-semibold text-slate-800">No card selected</p>
         <p className="mt-1 text-xs leading-relaxed text-slate-500">Click a config card to configure it. Nest it in a Year to scope it to that year, or leave it on the canvas for all years.</p>
         <ModelSummary model={model} />
+        <ModelScenarioList model={model} onAdd={onAddModelScenario} />
       </div>
     );
   }
