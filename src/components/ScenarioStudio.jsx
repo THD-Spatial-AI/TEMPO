@@ -9,6 +9,9 @@ import { engineSupportedByMeme } from '../services/memeFormat';
 import { modelPowerUnit, stampPowerUnit } from '../utils/modelUnits';
 import { applyOps } from '../services/scenarioStudio/transform.js';
 import { resolveScenario } from '../services/scenarioResolver';
+import { checkModel } from '../services/modelReadiness';
+import { issueLogLines, markSetBy } from '../services/scenarioReadiness';
+import { confirmAction } from './ui/confirm';
 import { buildCalliope06SystemOverride, resolveTechGroup } from '../services/scenarioStudio/utils.js';
 import { getCapabilityWarnings, engineKeyFromModel, ENGINE_LABELS, ENGINE_FRAMEWORK } from '../services/scenarioStudio/capabilities.js';
 import { buildScenarioVariants, scenarioFromGraph, canConnect, defaultCardParams, previousYear, SCENARIO_TEMPLATES, YEAR_SIZE } from '../services/scenarioStudio/scenario.js';
@@ -383,8 +386,10 @@ export default function ScenarioStudio({ onNavigate }) {
 
   // ── Dispatch ────────────────────────────────────────────────────────────────
 
-  const buildConcrete = (m, variant, techsForRun, tsForRun) => {
-    const isCalliope = selectedEngine === 'calliope06' || selectedEngine === 'calliope07';
+  // forCheck: the model as the readiness check sees it, with the model's own overrides resolved
+  // here even when Calliope would apply them natively.
+  const buildConcrete = (m, variant, techsForRun, tsForRun, forCheck = false) => {
+    const isCalliope = !forCheck && (selectedEngine === 'calliope06' || selectedEngine === 'calliope07');
     // Model scenario cards: Calliope applies the overrides natively; other engines get them resolved.
     const modelOverrides = [...new Set(variant.ops.filter(o => o.op === 'modelOverrides').flatMap(o => o.names))];
     // Each model runs over its own saved window (shared with the Run page and Export).
@@ -464,25 +469,68 @@ export default function ScenarioStudio({ onNavigate }) {
     const batchId = `batch_${Date.now()}`;
     const modelsToRun = extraModels.length > 0 ? [model, ...extraModels] : [model];
 
-    showNotification(
-      `Starting ${totalRuns} run${totalRuns > 1 ? 's' : ''}${modelsToRun.length > 1 ? ` (${modelsToRun.length} models × ${variants.length} years)` : ''} on ${engineLabel}${runSequential ? ' — sequential' : ''}…`,
-      'info'
-    );
-    onNavigate?.('Run');
-
-    for (const m of modelsToRun) {
+    // Check every model × year first: a critical problem skips only that run, and errors
+    // are confirmed once for the whole batch.
+    const plans = modelsToRun.map((m) => {
       const isCurrentModel = m.id === getCurrentModel()?.id;
       const techsForRun = isCurrentModel && technologies?.length ? technologies : (m.technologies || technologies || []);
       const tsForRun = seriesOf(m);
+      const ignored = (models.find(x => x.id === m.id) || m).metadata?.modelConfig?.readinessIgnored;
+      const base = checkModel(buildConcrete(m, { ops: [] }, techsForRun, tsForRun, true), { ignored });
+      const checks = variants.map(variant => ({
+        variant,
+        readiness: markSetBy(checkModel(buildConcrete(m, variant, techsForRun, tsForRun, true), { ignored }), base, variant.label),
+      }));
+      return { m, techsForRun, tsForRun, checks };
+    });
+    const runnable = plans.flatMap(p => p.checks.filter(c => c.readiness.ok).map(c => ({ ...c, m: p.m })));
+    const errors = runnable.flatMap(c => c.readiness.errors.map(i => `${c.m.name} — ${c.variant.label}: ${i.message}`));
+    if (errors.length && !(await confirmAction({
+      title: `Run with ${errors.length} problem${errors.length === 1 ? '' : 's'}?`,
+      message: 'The results may not reflect your system. Model check in the sidebar links each problem to its fix.',
+      details: <ul className="list-disc space-y-1 pl-4">{errors.map((e, n) => <li key={n}>{e}</li>)}</ul>,
+      confirmLabel: 'Run anyway',
+      cancelLabel: 'Review',
+      tone: 'neutral',
+    }))) return;
 
+    // Skipped runs are recorded as failed, with the problems as [issue:] lines that link to the fix.
+    let skipped = 0;
+    for (const { m, checks } of plans) {
+      for (const { variant, readiness } of checks.filter(c => !c.readiness.ok)) {
+        skipped += 1;
+        addCompletedJob({
+          id: `job_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, modelId: m.id,
+          modelName: `${m.name} — ${variant.label}`, framework: ENGINE_FRAMEWORK[selectedEngine] || 'calliope',
+          solver: 'highs', mode: 'plan', status: 'failed', completedAt: new Date().toISOString(),
+          duration: 'N/A', objective: null, terminationCondition: 'skipped',
+          result: { success: false, error: 'Skipped: the model has critical problems' },
+          logs: ['[TEMPO] Skipped: the model check found critical problems', ...issueLogLines(readiness)],
+          batchId, variantLabel: variant.label, modelLabel: m.name,
+        });
+      }
+    }
+    if (!runnable.length) {
+      showNotification('Nothing to run: every run has critical problems. They are listed under Completed runs on the Run page, with Fix links.', 'error');
+      return;
+    }
+
+    showNotification(
+      `Starting ${runnable.length} run${runnable.length > 1 ? 's' : ''}${modelsToRun.length > 1 ? ` (${modelsToRun.length} models × ${variants.length} years)` : ''} on ${engineLabel}${runSequential ? ' — sequential' : ''}${skipped ? `, skipping ${skipped} with critical problems` : ''}…`,
+      skipped ? 'warning' : 'info'
+    );
+    onNavigate?.('Run');
+
+    for (const { m, techsForRun, tsForRun, checks } of plans) {
+      const toRun = checks.filter(c => c.readiness.ok).map(c => c.variant);
       if (runSequential) {
         // Years run one at a time, in ascending order (awaits each to settle).
-        for (const variant of variants) {
+        for (const variant of toRun) {
           await runOneVariant(m, variant, techsForRun, tsForRun, batchId, engineLabel);
         }
       } else {
         // Parallel: fire all years at once (do not await completion).
-        for (const variant of variants) {
+        for (const variant of toRun) {
           runOneVariant(m, variant, techsForRun, tsForRun, batchId, engineLabel);
         }
       }
