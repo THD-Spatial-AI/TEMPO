@@ -18,14 +18,22 @@ describe('contractToCompletedJob', () => {
     expect(contractToCompletedJob({ capacities: {} }, { now }).result.model_power_unit).toBeUndefined();
   });
 
-  it('adds the SPORES plan when missing, keeps an existing one', () => {
-    const c = { spores_data: [{}], spores_meta: { slack: 0.1, planned: 120 } };
+  it('adds the Italy SPORES plan to a Calliope-Italy contract, keeps an existing one', () => {
+    const caps = Object.fromEntries(['NORD', 'CNOR', 'CSUD', 'SUD', 'SARD', 'SICI'].map(z => [`${z}::battery`, 1]));
+    const c = { spores_data: [{ capacities: caps }], spores_meta: { slack: 0.1, planned: 120 } };
     const j = contractToCompletedJob(c, { now });
     expect(j.result.spores_meta.plan.metrics).toBe('lombardi2020Italy');
     expect(j.result.spores_meta.plan.slack).toBe(0.1);
     expect(powerUnitOfJob(j, [])).toBe('kW');       // from the preset
     const own = { algorithm: 'lombardi2020', slack: 0.2 };
     expect(contractToCompletedJob({ ...c, spores_meta: { plan: own } }, { now }).result.spores_meta.plan).toBe(own);
+  });
+
+  it('gives other models a bare plan (no Italy preset, no kW assumption)', () => {
+    const c = { spores_data: [{ capacities: { 'arica::pv': 5 } }], spores_meta: { slack: 0.1, algorithm: 'calliope07_native' } };
+    const j = contractToCompletedJob(c, { now });
+    expect(j.result.spores_meta.plan).toEqual({ algorithm: 'calliope07_native', slack: 0.1 });
+    expect(powerUnitOfJob(j, [])).toBe('MW');
   });
 
   it('takes the slack from the SPOREs when spores_meta has none (MEME extractor)', () => {
