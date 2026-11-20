@@ -6,16 +6,31 @@ import { useMemo, useState } from 'react';
 import { FiActivity, FiBarChart2, FiDollarSign, FiFilter, FiGitMerge, FiGrid, FiLayers, FiMap, FiShare2 } from '../../ui/icons';
 import ReactECharts from 'echarts-for-react';
 import { GroupedCorrMatrixSVG, ResultsMap } from '../ResultMaps';
-import { autoScale, axisNameStyle, fmtCost, fmtPower, makeIsGenTech, techColor } from '../../../utils/resultFormat';
+import { autoScale, axisNameStyle, fmtCost, makeIsGenTech, techColor } from '../../../utils/resultFormat';
 import SporesPaperPanel from '../SporesPaperPanel';
+import SporesEnsembleComparison from '../SporesEnsembleComparison';
+import SporesPaperFigures from '../spores/SporesPaperFigures';
+import { hasPaperFigures } from '../../../services/sporesFigures';
 import SelectField from '../../ui/SelectField';
+import { classifyTechs, groupUtilisation } from '../../../services/sporesAnalysis';
+import { figureMetrics } from '../../../services/sporesAutoMetrics';
+
+const CLASS_CHIP = {
+  'must-have': 'bg-gray-200 text-gray-700',
+  'costly to replace': 'bg-gray-100 text-gray-600',
+  'real choice': 'bg-gray-50 text-gray-500',
+};
 
 export default function SporesTab({
   result,
   modelLocations,
+  completedJobs = [],
+  batchId = null,
 }) {
               const isGenTech = useMemo(() => makeIsGenTech(result), [result]);
               const [selectedSpore, setSelectedSpore] = useState(0);
+              const [costOpen, setCostOpen] = useState(false);
+              const [moreOpen, setMoreOpen] = useState(false);
               const [sporeScatterA, setSporeScatterA] = useState(null);
               const [sporeScatterB, setSporeScatterB] = useState(null);
               const [corrLocFilter, setCorrLocFilter] = useState(() => new Set());
@@ -60,7 +75,7 @@ export default function SporesTab({
 
               const sporeLabels = sporesData.map(s => s.spore_id === 0 ? 'Optimal' : `S${s.spore_id}`);
 
-              // ── Fig 1: Stacked bar + cost line (Lombardi Fig 1) ──
+              // ── Stacked bar + cost line (generic results) ──
               const allTotals = sporesData.map((_, i) =>
                 activeTechs.reduce((sum, t) => sum + sporeCapByTech[i][t], 0)
               );
@@ -101,7 +116,7 @@ export default function SporesTab({
                 ],
               };
 
-              // ── Fig 2: Variability strip/dot chart (Lombardi Fig 2) ──
+              // ── Variability strip/dot chart (generic results) ──
               // Each tech = one horizontal row; each SPORE = one dot at its capacity value.
               const allStripVals = activeTechs.flatMap(t => techTotals[t]);
               const { div: stripDiv, unit: stripUnit } = autoScale(Math.max(...allStripVals, 1), 'MW');
@@ -137,7 +152,7 @@ export default function SporesTab({
                 }],
               };
 
-              // ── Fig 3: Pairwise trade-off scatter (Lombardi Fig 3) ──
+              // ── Pairwise trade-off scatter (generic results) ──
               const scatterTechA = (sporeScatterA && activeTechs.includes(sporeScatterA)) ? sporeScatterA : activeTechs[0];
               const scatterTechB = (sporeScatterB && activeTechs.includes(sporeScatterB) && sporeScatterB !== scatterTechA)
                 ? sporeScatterB
@@ -170,7 +185,7 @@ export default function SporesTab({
                 }],
               };
 
-              // ── Fig 4: Parallel coordinates (Lombardi Fig 4) ──
+              // ── Parallel coordinates (generic results) ──
               // Each axis = one technology, each line = one SPORE.
               // Limit to ≤12 techs (most active by max capacity) for readability.
               const parallelTechs = [...activeTechs]
@@ -212,26 +227,16 @@ export default function SporesTab({
                 }],
               };
 
-              // ── Classification table ──
-              const techRows = activeTechs.map(tech => {
-                const vals = techTotals[tech];
-                const sorted = [...vals].sort((a, b) => a - b);
-                const min = sorted[0];
-                const max = sorted[sorted.length - 1];
-                const nonZero = vals.filter(v => v > 0.1).length;
-                const role = min > 0.1 ? 'Must-have'
-                  : nonZero >= Math.ceil(vals.length * 0.7) ? 'Preferred'
-                  : 'Real choice';
-                return { tech, min, max, role, nonZero, total: vals.length };
-              }).sort((a, b) => b.max - a.max);
+              // ── Classification (paper rule, on the utilisation groups) ──
+              const meta = result.spores_meta;
+              const paper = hasPaperFigures(result);
+              const classMetrics = paper ? figureMetrics(result, { locations: modelLocations }) : null;
+              const classUtil = classMetrics ? sporesData.map(s => groupUtilisation(s, meta || {}, classMetrics)) : [];
+              const classRows = classMetrics ? classifyTechs([{ slack: meta?.plan?.slack ?? 0, utilisation: classUtil.slice(1) }]) : [];
+              // Per-technology views of earlier versions: kept, behind a toggle, for models other than the Italy preset
+              const moreViews = !paper || (classMetrics?.auto && moreOpen);
 
-              const roleChip = role => ({
-                'Must-have':  'bg-gray-200 text-gray-700',
-                'Preferred':  'bg-gray-100 text-gray-600',
-                'Real choice':'bg-gray-50 text-gray-500',
-              }[role] || 'bg-slate-100 text-slate-600');
-
-              // ── Fig 5: Per-SPORE map data ──
+              // ── Per-SPORE map data ──
               const safeSpore = Math.min(selectedSpore, sporesData.length - 1);
               const sporeForMap = sporesData[safeSpore] || sporesData[0];
               // Build capacitiesByLoc and dominantTechByLoc from selected SPORE
@@ -302,7 +307,8 @@ export default function SporesTab({
 
               // Compute Spearman ρ for all atom pairs (upper triangle → mirrored)
               const ltCorrMap = {};
-              for (let i = 0; i < ltAtoms.length; i++) {
+              // Paper results show Figure 3 instead; this matrix is only drawn for generic results
+              for (let i = 0; moreViews && i < ltAtoms.length; i++) {
                 for (let j = i + 1; j < ltAtoms.length; j++) {
                   const rho = spearman(ltAtoms[i].series, ltAtoms[j].series);
                   if (!isNaN(rho)) {
@@ -316,6 +322,20 @@ export default function SporesTab({
               const visLtGroups = corrLocFilter.size > 0
                 ? ltGroups.filter(g => corrLocFilter.has(g.loc))
                 : [];
+
+              // ── Cost summary chart: % above the cost optimum per SPORE, coloured by stage ──
+              const STAGE_COLOR = { explore: '#64748b', minimise: '#0d9488' };
+              const costAbove = sporesData.slice(1).map(s => (optimalCost ? (s.cost - optimalCost) / Math.abs(optimalCost) * 100 : 0));
+              const costOption = {
+                backgroundColor: 'transparent', animation: false,
+                tooltip: { trigger: 'item', formatter: p => `SPORE ${p.name}${p.data.stage ? ` · ${p.data.stage}` : ''}<br/>${fmtCost(p.data.cost)} · +${p.value.toFixed(2)}%` },
+                grid: { top: 10, right: 10, bottom: 24, left: 44 },
+                xAxis: { type: 'category', data: sporesData.slice(1).map(s => s.spore_id), axisLabel: { fontSize: 9, interval: 'auto' }, axisTick: { show: false } },
+                yAxis: { type: 'value', axisLabel: { fontSize: 9, formatter: v => `${v}%` }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
+                series: [{ type: 'bar', barCategoryGap: '20%', data: sporesData.slice(1).map((s, i) => ({
+                  value: +costAbove[i].toFixed(3), cost: s.cost, stage: s.stage, itemStyle: { color: STAGE_COLOR[s.stage] || '#94a3b8' },
+                })) }],
+              };
 
               return (
                 <div className="space-y-4">
@@ -331,49 +351,66 @@ export default function SporesTab({
                     </div>
                   </div>
 
-                  {/* Cost summary table */}
+                  {/* Cost summary: headline numbers + one bar per SPORE; the full table on demand */}
                   <div className="bg-white rounded-2xl border border-black/15 shadow-sm p-5">
-                    <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
-                      <FiDollarSign size={14} /> Cost Summary
-                    </h3>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="border-b border-black/10">
-                            <th className="text-left py-2 pr-4 text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">Solution</th>
-                            <th className="text-right py-2 pr-4 text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">Total cost</th>
-                            <th className="text-right py-2 text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">% above optimal</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                          {sporesData.map(s => {
-                            const pct = optimalCost && s.spore_id > 0
-                              ? ((s.cost - optimalCost) / Math.abs(optimalCost) * 100).toFixed(1)
-                              : null;
-                            return (
-                              <tr key={s.spore_id} className={s.spore_id === 0 ? 'bg-electric-50/60' : 'hover:bg-slate-50/60'}>
-                                <td className="py-2 pr-4 font-mono text-slate-700">
-                                  <span className={`inline-block w-2 h-2 rounded-full mr-2 align-middle ${s.spore_id === 0 ? 'bg-electric-500' : 'bg-slate-300'}`} />
-                                  {s.spore_id === 0 ? '0 — cost-optimal' : `SPORE ${s.spore_id}`}
-                                </td>
-                                <td className="py-2 pr-4 text-right tabular-nums">{fmtCost(s.cost)}</td>
-                                <td className="py-2 text-right tabular-nums">
-                                  {pct != null
-                                    ? <span className="text-gray-600">+{pct}%</span>
-                                    : <span className="text-slate-400">—</span>}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
+                    <div className="flex items-center gap-3 flex-wrap mb-2">
+                      <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                        <FiDollarSign size={14} /> Cost Summary
+                      </h3>
+                      <span className="text-xs text-slate-500">
+                        Cost optimum {fmtCost(optimalCost)} · {sporesData.length - 1} SPORES
+                        {costAbove.length > 0 && <> · +{Math.min(...costAbove).toFixed(1)}% to +{Math.max(...costAbove).toFixed(1)}% above it</>}
+                      </span>
+                      <button onClick={() => setCostOpen(o => !o)} className="ml-auto text-xs text-electric-600 hover:underline">
+                        {costOpen ? 'Hide table' : `Show all ${sporesData.length} solutions`}
+                      </button>
                     </div>
+                    <ReactECharts option={costOption} style={{ height: 150 }} notMerge />
+                    {costOpen && (
+                      <div className="overflow-auto max-h-72 mt-2 border border-black/10">
+                        <table className="w-full text-sm">
+                          <thead className="sticky top-0 bg-white">
+                            <tr className="border-b border-black/10">
+                              <th className="text-left py-2 px-3 text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">Solution</th>
+                              <th className="text-left py-2 px-3 text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">Stage</th>
+                              <th className="text-right py-2 px-3 text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">Total cost</th>
+                              <th className="text-right py-2 px-3 text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">% above optimal</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-50">
+                            {sporesData.map(s => {
+                              const pct = optimalCost && s.spore_id > 0
+                                ? ((s.cost - optimalCost) / Math.abs(optimalCost) * 100).toFixed(1)
+                                : null;
+                              return (
+                                <tr key={s.spore_id} className={s.spore_id === 0 ? 'bg-electric-50/60' : 'hover:bg-slate-50/60'}>
+                                  <td className="py-1.5 px-3 font-mono text-slate-700">{s.spore_id === 0 ? '0 — cost-optimal' : `SPORE ${s.spore_id}`}</td>
+                                  <td className="py-1.5 px-3 text-xs text-slate-500">{s.stage ? `${s.stage}${s.target ? `: ${[].concat(s.target).join(', ')}` : ''}` : '—'}</td>
+                                  <td className="py-1.5 px-3 text-right tabular-nums">{fmtCost(s.cost)}</td>
+                                  <td className="py-1.5 px-3 text-right tabular-nums">{pct != null ? <span className="text-gray-600">+{pct}%</span> : <span className="text-slate-400">—</span>}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
 
-                  {/* Fig 1 — Technology mix + cost line */}
+                  {paper && <SporesPaperFigures result={result} modelLocations={modelLocations} />}
+                  {paper && <SporesEnsembleComparison completedJobs={completedJobs} initialBatchId={batchId} />}
+
+                  {/* Per-technology views (not the paper's figures) */}
+                  {paper && classMetrics?.auto && (
+                    <button onClick={() => setMoreOpen(o => !o)} className="text-xs text-electric-600 hover:underline">
+                      {moreOpen ? 'Hide per-technology views' : 'More views: capacity per technology, pairwise trade-offs, parallel coordinates, correlation per location'}
+                    </button>
+                  )}
+                  {moreViews && (<>
+                  {/* Technology mix + cost line */}
                   <div className="bg-white rounded-2xl border border-black/15 shadow-sm p-5">
                     <h3 className="text-sm font-semibold text-slate-700 mb-1 flex items-center gap-2">
-                      <FiBarChart2 size={14} /> Fig 1 — Technology Mix &amp; System Cost per Solution
+                      <FiBarChart2 size={14} /> Technology Mix &amp; System Cost per Solution
                     </h3>
                     <p className="text-xs text-slate-400 mb-3">
                       Stacked bars: total installed capacity by technology. Amber line: system cost (right axis). All solutions lie within the cost slack of the optimum.
@@ -381,10 +418,10 @@ export default function SporesTab({
                     <ReactECharts option={stackedBarOption} style={{ height: 380 }} />
                   </div>
 
-                  {/* Fig 2 — Technology variability strip chart */}
+                  {/* Technology variability strip chart */}
                   <div className="bg-white rounded-2xl border border-black/15 shadow-sm p-5">
                     <h3 className="text-sm font-semibold text-slate-700 mb-1 flex items-center gap-2">
-                      <FiActivity size={14} /> Fig 2 — Technology Deployment Variability
+                      <FiActivity size={14} /> Technology Deployment Variability
                     </h3>
                     <p className="text-xs text-slate-400 mb-3">
                       Each dot is one solution. Technologies clustered far from zero are <span className="font-medium text-gray-700">must-haves</span>; those scattered down to zero are <span className="font-medium text-gray-500">real choices</span>.
@@ -392,10 +429,10 @@ export default function SporesTab({
                     <ReactECharts option={stripOption} style={{ height: Math.max(260, activeTechs.length * 30 + 60) }} />
                   </div>
 
-                  {/* Fig 3 — Pairwise trade-off scatter */}
+                  {/* Pairwise trade-off scatter */}
                   <div className="bg-white rounded-2xl border border-black/15 shadow-sm p-5">
                     <h3 className="text-sm font-semibold text-slate-700 mb-1 flex items-center gap-2">
-                      <FiShare2 size={14} /> Fig 3 — Pairwise Technology Trade-off
+                      <FiShare2 size={14} /> Pairwise Technology Trade-off
                     </h3>
                     <p className="text-xs text-slate-400 mb-2">
                       Each dot = one solution. <span className="font-medium text-gray-700">Negative slope</span> = substitutes. <span className="font-medium text-gray-500">Positive slope</span> = complements.
@@ -425,11 +462,11 @@ export default function SporesTab({
                     <ReactECharts option={pairScatterOption} style={{ height: 320 }} />
                   </div>
 
-                  {/* Fig 4 — Parallel coordinates */}
+                  {/* Parallel coordinates */}
                   {activeTechs.length >= 2 && (
                     <div className="bg-white rounded-2xl border border-black/15 shadow-sm p-5">
                       <h3 className="text-sm font-semibold text-slate-700 mb-1 flex items-center gap-2">
-                        <FiFilter size={14} /> Fig 4 — Near-Optimal Space (Parallel Coordinates)
+                        <FiFilter size={14} /> Near-Optimal Space (Parallel Coordinates)
                       </h3>
                       <p className="text-xs text-slate-400 mb-3">
                         Each line = one solution. <span className="font-medium text-gray-700">Bold</span> = cost-optimal (SPORE 0). Gray lines = near-optimal alternatives.
@@ -439,11 +476,13 @@ export default function SporesTab({
                     </div>
                   )}
 
-                  {/* Fig 5 — Per-SPORE geographic map */}
+                  </>)}
+
+                  {/* Per-SPORE geographic map */}
                   {modelLocations && modelLocations.length > 0 && (
                     <div className="bg-white rounded-2xl border border-black/15 shadow-sm p-5">
                       <h3 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
-                        <FiMap size={14} /> Fig 5 — Geographic Capacity Distribution per Solution
+                        <FiMap size={14} /> Geographic Capacity Distribution per Solution
                       </h3>
                       <div className="flex items-center gap-3 mb-3">
                         <label className="text-xs text-slate-500 shrink-0">Solution:</label>
@@ -474,7 +513,7 @@ export default function SporesTab({
                   )}
 
                   {/* Technology Deployment Correlation — grouped location×tech matrix */}
-                  {ltAtoms.length >= 3 && sporesData.length >= 3 && (
+                  {moreViews && ltAtoms.length >= 3 && sporesData.length >= 3 && (
                     <div className="bg-white rounded-2xl border border-black/15 shadow-sm p-5">
                       <h3 className="text-sm font-semibold text-slate-700 mb-1 flex items-center gap-2">
                         <FiGrid size={14} /> Technology Deployment Correlation
@@ -538,48 +577,50 @@ export default function SporesTab({
                     </div>
                   )}
 
-                  {/* Classification table */}
+                  {/* Classification table (paper rule on utilisation of the expansion potential) */}
+                  {classRows.length > 0 && (
                   <div className="bg-white rounded-2xl border border-black/15 shadow-sm p-5">
                     <h3 className="text-sm font-semibold text-slate-700 mb-1 flex items-center gap-2">
                       <FiLayers size={14} /> Technology Classification
                     </h3>
                     <p className="text-xs text-slate-400 mb-3">
-                      <span className="font-medium text-gray-800">Must-have</span> = present in every solution.{' '}
-                      <span className="font-medium text-gray-600">Preferred</span> = present in ≥70% of solutions.{' '}
-                      <span className="font-medium text-gray-400">Real choice</span> = absent in at least one solution.
+                      Utilisation of the capacity expansion potential across the {sporesData.length - 1} SPORES of this ensemble.{' '}
+                      <span className="font-medium text-gray-800">Must-have</span> = never fully avoided.{' '}
+                      <span className="font-medium text-gray-400">Real choice</span> = fully avoided in at least one SPORE.{' '}
+                      Costly to replace (avoidable only at higher relaxations) needs several relaxations of one batch.
                     </p>
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="border-b border-black/10">
                             <th className="text-left py-2 pr-4 text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">Technology</th>
-                            <th className="text-right py-2 pr-4 text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">Min</th>
-                            <th className="text-right py-2 pr-4 text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">Max</th>
-                            <th className="text-right py-2 pr-4 text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">Present in</th>
+                            <th className="text-right py-2 pr-4 text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">Cost-optimal</th>
+                            <th className="text-right py-2 pr-4 text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">Median</th>
+                            <th className="text-right py-2 pr-4 text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">Avoided in</th>
                             <th className="text-left py-2 text-[0.6875rem] font-bold text-black/60 uppercase tracking-widest">Role</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
-                          {techRows.map(({ tech, min, max, role, nonZero, total }) => (
-                            <tr key={tech} className="hover:bg-slate-50/60">
-                              <td className="py-2 pr-4">
-                                <div className="flex items-center gap-2">
-                                  <span className="inline-block w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: techColor(tech) }} />
-                                  <span className="text-slate-700">{tech.replace(/_/g, ' ')}</span>
-                                </div>
-                              </td>
-                              <td className="py-2 pr-4 text-right tabular-nums text-slate-500">{fmtPower(min)}</td>
-                              <td className="py-2 pr-4 text-right tabular-nums text-slate-500">{fmtPower(max)}</td>
-                              <td className="py-2 pr-4 text-right tabular-nums text-slate-400 text-xs">{nonZero}/{total}</td>
-                              <td className="py-2">
-                                <span className={`px-2 py-0.5 rounded text-xs font-medium ${roleChip(role)}`}>{role}</span>
-                              </td>
-                            </tr>
-                          ))}
+                          {classRows.map(c => {
+                            const sl = Object.keys(c.zeroShare)[0];
+                            const pct = (v) => (v == null ? '–' : `${(v * 100).toFixed(0)}%`);
+                            return (
+                              <tr key={c.tech} className="hover:bg-slate-50/60">
+                                <td className="py-2 pr-4 text-slate-700">{c.tech.replace(/_/g, ' ')}</td>
+                                <td className="py-2 pr-4 text-right tabular-nums text-slate-500">{pct(classUtil[0]?.[c.tech])}</td>
+                                <td className="py-2 pr-4 text-right tabular-nums text-slate-500">{pct(c.median[sl])}</td>
+                                <td className="py-2 pr-4 text-right tabular-nums text-slate-400 text-xs">{pct(c.zeroShare[sl])}</td>
+                                <td className="py-2">
+                                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${CLASS_CHIP[c.class]}`}>{c.class}</span>
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
                   </div>
+                  )}
 
                   <SporesPaperPanel result={result} />
 

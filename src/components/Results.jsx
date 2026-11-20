@@ -1002,7 +1002,7 @@ const Results = ({ onNavigate }) => {
               </div>
             )}
             {activeTab === 'spores' && hasSpores && (
-              <SporesTab key={selectedJobId} result={result} modelLocations={modelLocations} />
+              <SporesTab key={selectedJobId} result={result} modelLocations={modelLocations} completedJobs={completedJobs} batchId={selectedJob?.batchId || null} />
             )}
 
             {/* ════════════════ AI ANALYSIS TAB ════════════════ */}
