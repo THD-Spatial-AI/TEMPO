@@ -5,6 +5,14 @@ All notable changes to TEMPO are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.2.1] - 2026-11-20
+
+Engine installs no longer fail on machines whose default Python is too new.
+
+### Fixed
+
+- Installing Calliope 0.7, PyPSA, OSeMOSYS or AdOpT-NET0 failed with "Microsoft Visual C++ 14.0 or greater is required" or "Could not find vswhere.exe" when the system Python was 3.14 or newer, or 32-bit. pip then built pandas and shapely from source. TEMPO now only uses a 64-bit Python 3.10 to 3.13 (3.12 or 3.13 for AdOpT-NET0). On Windows it downloads Python 3.12 when none fits. Reinstall an engine from Settings if its venv was built with another Python.
+
 ## [4.2.0] - 2026-11-20
 
 TEMPO 4.2 shows the problems in a model next to the thing that needs fixing, lets you edit a model's own scenarios in Scenario Studio, and draws the SPORES figures of Lombardi et al. (2020) for any run. It also fixes Calliope 0.6.8 scenario runs, which solved the baseline model.
@@ -417,6 +425,7 @@ Initial public release.
 - Timeseries editor, override/scenario engine, and SPORES mode.
 - H₂ and CCS plant simulation services.
 
+[4.2.1]: https://github.com/THD-Spatial-AI/TEMPO/releases/tag/Release_V4.2.1
 [4.2.0]: https://github.com/THD-Spatial-AI/TEMPO/releases/tag/Release_V4.2.0
 [4.1.1]: https://github.com/THD-Spatial-AI/TEMPO/releases/tag/Release_V4.1.1
 [4.1.0]: https://github.com/THD-Spatial-AI/TEMPO/releases/tag/Release_V4.1.0

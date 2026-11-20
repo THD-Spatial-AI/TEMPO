@@ -16,6 +16,7 @@ const fs = require('fs');
 const { spawn, execFile, execFileSync } = require('child_process');
 const { ensureServiceLayer, createRepairGate, SERVICE_LAYER_CHECK } = require('./serviceLayer.cjs');
 const { removeVenvDir } = require('./removeVenv.cjs');
+const { isUsable, probePython } = require('./pythonPick.cjs');
 
 const IS_WIN = process.platform === 'win32';
 const MAX_RESTARTS = 5;
@@ -26,66 +27,57 @@ const runQuiet = (cmd, args) => new Promise((resolve, reject) =>
 // ─── System Python discovery ────────────────────────────────────────────────
 
 /**
- * Find a Python 3.10+ interpreter (calliope 0.7 requires >=3.10).
- * A 3.10/3.11 interpreter can serve both engines' venvs.
+ * Resolve an interpreter via the Windows `py` launcher; null when that version is not installed.
  */
-function findSystemPython310Plus() {
+function pyLauncherExe(ver) {
+  try {
+    return execFileSync('py', [`-${ver}`, '-c', 'import sys; print(sys.executable)'],
+      { timeout: 5000, stdio: ['ignore', 'pipe', 'pipe'] }).toString().trim() || null;
+  } catch { return null; }
+}
+
+/**
+ * First interpreter that can host an engine venv: 64-bit CPython from `minMinor`
+ * up to 3.13 (see pythonPick.cjs for why newer ones are skipped).
+ */
+function findUsablePython(launcherVersions, candidates, minMinor) {
   if (IS_WIN) {
-    for (const ver of ['3.11', '3.12', '3.10', '3.13']) {
-      try {
-        const out = execFileSync('py', [`-${ver}`, '--version'],
-          { timeout: 5000, stdio: ['ignore', 'pipe', 'pipe'] }).toString();
-        if (new RegExp(`Python ${ver.replace('.', '\\.')}`, 'i').test(out)) {
-          return execFileSync('py', [`-${ver}`, '-c', 'import sys; print(sys.executable)'],
-            { timeout: 5000, stdio: ['ignore', 'pipe', 'pipe'] }).toString().trim();
-        }
-      } catch { /* version not installed via py launcher */ }
+    for (const ver of launcherVersions) {
+      const exe = pyLauncherExe(ver);
+      if (exe && isUsable(probePython(exe, execFileSync), minMinor)) return exe;
     }
   }
-
-  const candidates = IS_WIN
-    ? ['python3.11', 'python3.12', 'python3.10', 'python3.13', 'python', 'python3']
-    : ['python3.11', 'python3.12', 'python3.10', 'python3.13', 'python3', 'python'];
   for (const cmd of candidates) {
-    try {
-      const out = execFileSync(cmd, ['--version'],
-        { timeout: 5000, stdio: ['ignore', 'pipe', 'pipe'] }).toString();
-      if (/python 3\.1[0-9](?:\D|$)|python 3\.[2-9]\d(?:\D|$)/i.test(out)) return cmd;
-    } catch { /* continue */ }
+    if (isUsable(probePython(cmd, execFileSync), minMinor)) return cmd;
   }
   return null;
 }
 
 /**
- * Find a Python 3.12+ interpreter on the system PATH.
+ * Find a Python 3.10-3.13 interpreter (calliope 0.7 requires >=3.10).
+ * A 3.10/3.11 interpreter can serve both engines' venvs.
+ */
+function findSystemPython310Plus() {
+  return findUsablePython(
+    ['3.11', '3.12', '3.10', '3.13'],
+    IS_WIN
+      ? ['python3.11', 'python3.12', 'python3.10', 'python3.13', 'python', 'python3']
+      : ['python3.11', 'python3.12', 'python3.10', 'python3.13', 'python3', 'python'],
+    10,
+  );
+}
+
+/**
+ * Find a Python 3.12 or 3.13 interpreter on the system PATH.
  * Returns the command/path string, or null if none found.
  */
 function findSystemPython312Plus() {
-  // Windows py launcher — try specific versions first
-  if (IS_WIN) {
-    for (const ver of ['3.13', '3.12']) {
-      try {
-        const out = execFileSync('py', [`-${ver}`, '--version'],
-          { timeout: 5000, stdio: ['ignore', 'pipe', 'pipe'] }).toString();
-        if (new RegExp(`Python ${ver.replace('.', '\\.')}`, 'i').test(out)) {
-          return execFileSync('py', [`-${ver}`, '-c', 'import sys; print(sys.executable)'],
-            { timeout: 5000, stdio: ['ignore', 'pipe', 'pipe'] }).toString().trim();
-        }
-      } catch { /* version not installed via py launcher */ }
-    }
-  }
-
-  // Generic PATH search
-  const candidates = IS_WIN ? ['python3.12', 'python3.13', 'python', 'python3']
-                             : ['python3.12', 'python3.13', 'python3', 'python'];
-  for (const cmd of candidates) {
-    try {
-      const out = execFileSync(cmd, ['--version'],
-        { timeout: 5000, stdio: ['ignore', 'pipe', 'pipe'] }).toString();
-      if (/python 3\.1[2-9](?:\D|$)|python 3\.[2-9]\d(?:\D|$)/i.test(out)) return cmd;
-    } catch { /* continue */ }
-  }
-  return null;
+  return findUsablePython(
+    ['3.13', '3.12'],
+    IS_WIN ? ['python3.12', 'python3.13', 'python', 'python3']
+           : ['python3.12', 'python3.13', 'python3', 'python'],
+    12,
+  );
 }
 
 /**

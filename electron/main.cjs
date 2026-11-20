@@ -1742,10 +1742,10 @@ const engines = {
     serviceApp: 'calliope_service:app',
     getPort: () => CALLIOPE07_PORT,
     python: {
-      versionLabel: '3.10+',
+      versionLabel: '3.10 to 3.13',
       find: findSystemPython310Plus,
       notFoundError:
-        'Python 3.10+ not found (required by Calliope 0.7).\n' +
+        'Python 3.10 to 3.13 (64-bit) not found (required by Calliope 0.7).\n' +
         'Install it, then relaunch TEMPO:\n' +
         '  Ubuntu/Debian: sudo apt-get install python3.11 python3.11-venv\n' +
         '  macOS:         brew install python@3.11\n' +
@@ -1794,10 +1794,10 @@ const engines = {
     serviceApp: 'adoptnet0_service:app',
     getPort: () => ADOPTNET0_PORT,
     python: {
-      versionLabel: '3.12+',
+      versionLabel: '3.12 or 3.13',
       find: findSystemPython312Plus,
       notFoundError:
-        'Python 3.12+ not found.\n' +
+        'Python 3.12 or 3.13 (64-bit) not found.\n' +
         'Install it, then relaunch TEMPO:\n' +
         '  Ubuntu/Debian: sudo apt-get install python3.12 python3.12-venv\n' +
         '  macOS:         brew install python@3.12\n' +
@@ -1822,10 +1822,10 @@ const engines = {
     serviceApp: 'pypsa_service:app',
     getPort: () => PYPSA_PORT,
     python: {
-      versionLabel: '3.10+',
+      versionLabel: '3.10 to 3.13',
       find: findSystemPython310Plus,
       notFoundError:
-        'Python 3.10+ not found (required by PyPSA).\n' +
+        'Python 3.10 to 3.13 (64-bit) not found (required by PyPSA).\n' +
         'Install it, then relaunch TEMPO:\n' +
         '  Ubuntu/Debian: sudo apt-get install python3.11 python3.11-venv\n' +
         '  macOS:         brew install python@3.11\n' +
@@ -1852,10 +1852,10 @@ const engines = {
     serviceApp: 'osemosys_service:app',
     getPort: () => OSEMOSYS_PORT,
     python: {
-      versionLabel: '3.10+',
+      versionLabel: '3.10 to 3.13',
       find: findSystemPython310Plus,
       notFoundError:
-        'Python 3.10+ not found (required by the OSeMOSYS toolchain).\n' +
+        'Python 3.10 to 3.13 (64-bit) not found (required by the OSeMOSYS toolchain).\n' +
         'Install it, then relaunch TEMPO:\n' +
         '  Ubuntu/Debian: sudo apt-get install python3.11 python3.11-venv\n' +
         '  macOS:         brew install python@3.11\n' +
@@ -1900,10 +1900,10 @@ const engines = {
     serviceApp: 'demand_service:app',
     getPort: () => DEMAND_PORT,
     python: {
-      versionLabel: '3.10+',
+      versionLabel: '3.10 to 3.13',
       find: findSystemPython310Plus,
       notFoundError:
-        'Python 3.10+ not found (required by demand estimation).\n' +
+        'Python 3.10 to 3.13 (64-bit) not found (required by demand estimation).\n' +
         'Install it, then relaunch TEMPO:\n' +
         '  Ubuntu/Debian: sudo apt-get install python3.11 python3.11-venv\n' +
         '  macOS:         brew install python@3.11\n' +
@@ -1929,10 +1929,10 @@ const engines = {
     serviceApp: 'renewables_service:app',
     getPort: () => RENEWABLES_PORT,
     python: {
-      versionLabel: '3.10+',
+      versionLabel: '3.10 to 3.13',
       find: findSystemPython310Plus,
       notFoundError:
-        'Python 3.10+ not found (required by renewables profiles).\n' +
+        'Python 3.10 to 3.13 (64-bit) not found (required by renewables profiles).\n' +
         'Install it, then relaunch TEMPO:\n' +
         '  Ubuntu/Debian: sudo apt-get install python3.11 python3.11-venv\n' +
         '  macOS:         brew install python@3.11\n' +
