@@ -3,11 +3,11 @@
 // (Table 1) and per-SPORE metrics, with CSV export for the paper's tables.
 // Shown for Lombardi-2020 SPORES results (result.spores_meta).
 import { useMemo } from 'react';
-import ReactECharts from 'echarts-for-react';
 import { FiDownload, FiAward } from '../ui/icons';
 import {
-  resolveMetrics, groupUtilisation, sporeMetrics, bestRanking, toCsv, plannedCount,
+  groupUtilisation, sporeMetrics, bestRanking, toCsv, plannedCount,
 } from '../../services/sporesAnalysis';
+import { figureMetrics } from '../../services/sporesAutoMetrics';
 
 const ZERO = 1e-3;
 
@@ -30,7 +30,7 @@ const pct = (v) => (v == null ? '–' : `${(v * 100).toFixed(1)}%`);
 export default function SporesPaperPanel({ result }) {
   const meta = result?.spores_meta;
   const sd = result?.spores_data;
-  const metrics = useMemo(() => (meta ? resolveMetrics(meta) : null), [meta]);
+  const metrics = useMemo(() => (meta ? figureMetrics(result) : null), [meta, result]);
   const util = useMemo(() => (metrics ? sd.map(s => groupUtilisation(s, meta, metrics)) : []), [sd, meta, metrics]);
   const rows = useMemo(() => (metrics?.zones ? sd.map(s => sporeMetrics(s, meta, metrics, sd[0])) : []), [sd, meta, metrics]);
   const ranking = useMemo(() => (rows.length ? bestRanking(rows) : null), [rows]);
@@ -39,20 +39,6 @@ export default function SporesPaperPanel({ result }) {
   const labels = (metrics.groups || []).map(g => g.label);
   const unit = metrics.units || { power: 1, powerLabel: 'model units', energy: 1, energyLabel: 'model units' };
   const alternatives = util.slice(1);
-
-  const boxOption = {
-    backgroundColor: 'transparent',
-    tooltip: { trigger: 'item' },
-    grid: { top: 10, right: 20, bottom: 30, left: 170 },
-    xAxis: { type: 'value', min: 0, max: 1, axisLabel: { formatter: v => `${v * 100}%` } },
-    yAxis: { type: 'category', data: labels, axisLabel: { fontSize: 11 } },
-    series: [
-      { name: 'SPORES', type: 'boxplot', data: labels.map(l => quantiles(alternatives.map(u => u[l])) || [0, 0, 0, 0, 0]),
-        itemStyle: { color: '#99f6e4', borderColor: '#0f766e' } },
-      { name: 'Cost-optimal', type: 'scatter', symbol: 'diamond', symbolSize: 10,
-        data: labels.map((l, i) => [util[0][l] ?? 0, i]), itemStyle: { color: '#f59e0b' } },
-    ],
-  };
 
   const utilCsv = () => download('spores_utilisation.csv', toCsv(
     sd.map((s, i) => ({ spore_id: s.spore_id, stage: s.stage, target: s.target, cost: s.cost, ...util[i] })),
@@ -79,10 +65,9 @@ export default function SporesPaperPanel({ result }) {
 
       <div>
         <div className="flex items-center justify-between">
-          <p className="text-xs font-semibold text-slate-600">Utilisation of capacity expansion potential (Fig 2)</p>
+          <p className="text-xs font-semibold text-slate-600">Utilisation of capacity expansion potential (Fig 2 across relaxations: SPORES ensembles below)</p>
           <button onClick={utilCsv} className="flex items-center gap-1 text-xs text-electric-600 hover:underline"><FiDownload size={12} /> CSV</button>
         </div>
-        <ReactECharts option={boxOption} style={{ height: 40 + labels.length * 34 }} />
         <table className="w-full text-xs mt-1">
           <thead><tr className="text-slate-500 text-left"><th className="py-1 font-bold uppercase tracking-widest">Group</th><th>Cost-optimal</th><th>Median</th><th>SPORES avoiding it</th></tr></thead>
           <tbody>
