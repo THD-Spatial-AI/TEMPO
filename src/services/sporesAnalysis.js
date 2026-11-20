@@ -27,10 +27,23 @@ export function parseLocTech(key) {
   return { loc: lc(loc), tech, remote: remote && lc(remote) };
 }
 
+// The figures evaluate groups for every SPORE many times: parse each map's keys and build the
+// zone sets once (maps and metrics are never mutated after a run is loaded).
+const parsedKeys = new WeakMap();
+export function parsedEntries(map) {
+  let e = parsedKeys.get(map);
+  if (!e) { e = Object.keys(map).map(k => [k, parseLocTech(k)]); parsedKeys.set(map, e); }
+  return e;
+}
+const endSets = new WeakMap();
 function endsMatch(pt, ends, metrics) {
   if (!ends) return true;
-  const foreign = new Set((metrics?.foreign || []).map(lc));
-  const zones = new Set((metrics?.zones || []).map(lc));
+  let sets = metrics && endSets.get(metrics);
+  if (!sets) {
+    sets = { foreign: new Set((metrics?.foreign || []).map(lc)), zones: new Set((metrics?.zones || []).map(lc)) };
+    if (metrics) endSets.set(metrics, sets);
+  }
+  const { foreign, zones } = sets;
   if (ends === 'international') return foreign.has(pt.loc) || foreign.has(pt.remote);
   if (ends === 'zonal') return zones.has(pt.loc) && zones.has(pt.remote);
   return true;
@@ -65,9 +78,7 @@ function groupTotals(spore, meta, metrics) {
     const caps = (g.storage ? spore.storage_capacities : spore.capacities) || {};
     let used = 0, max = 0;
     // A system-wide potential doesn't need per-node ones, which MEME results may not list
-    const keys = g.potential > 0 ? Object.keys(caps) : Object.keys(pot);
-    for (const lt of keys) {
-      const pt = parseLocTech(lt);
+    for (const [lt, pt] of parsedEntries(g.potential > 0 ? caps : pot)) {
       if (!techs.has(pt.tech) || !endsMatch(pt, g.ends, metrics)) continue;
       if (!(g.potential > 0) && !(pot[lt] > 0)) continue;
       max += pot[lt] || 0;
@@ -127,6 +138,7 @@ export function sporeMetrics(spore, meta, metrics, optimal = null) {
   const lineTechs = new Set(metrics.lineTechs || []);
   const expTechs = new Set(metrics.expansionLineTechs || []);
   const overTechs = new Set(metrics.overcapTechs || []);
+  const curtailTechs = new Set([metrics.curtailmentTech].filter(Boolean));
   const zones = new Set((metrics.zones || []).map(lc));
 
   // Regional concentration of national wind (techs from metrics.windTechs)
@@ -177,7 +189,7 @@ export function sporeMetrics(spore, meta, metrics, optimal = null) {
     .reduce((acc, [lt, c]) => acc + (overTechs.has(parseLocTech(lt).tech) ? c : 0), 0);
 
   const curtailment = Object.entries(spore.consumption || {})
-    .reduce((acc, [ltc, v]) => acc + (parseLocTech(ltc).tech === metrics.curtailmentTech ? Math.abs(v) : 0), 0);
+    .reduce((acc, [ltc, v]) => acc + (curtailTechs.has(parseLocTech(ltc).tech) ? Math.abs(v) : 0), 0);
 
   return {
     spore_id: spore.spore_id, stage: spore.stage, target: spore.target, cost: spore.cost,
