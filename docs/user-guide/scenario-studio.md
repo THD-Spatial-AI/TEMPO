@@ -50,6 +50,7 @@ Each model has its own board. The board is saved automatically on this computer.
 | **Renewables** | Raises the buildable capacity of every renewable technology by a percentage |
 | **Location** | Like Technology, but only at one location |
 | **Time series** | Swaps one CSV file for another wherever the model uses it, for example a different weather year |
+| **Model scenario** | Applies one of the model's own scenarios or overrides, for example from an imported Calliope model. You can edit it here; see [Model scenarios](#model-scenarios) |
 | **Custom ops** | Lets you write the changes by hand, or import a scenario saved in the older Scenarios view |
 | **Sensitivity cases** | Global only. Defines several cases; every year runs once per case |
 | **SPORES alternatives** | Global only. Runs SPORES at one or more cost slacks; every slack is a separate run. See [SPORES](spores.md) |
@@ -68,6 +69,27 @@ the board marks it and the bottom bar counts it as "hit 0 techs".
 When several cards change the same parameter in the same year, TEMPO combines them:
 scaling factors multiply, and for set values and constraints the last card wins. Conflicts
 show up as notes in the bottom bar.
+
+---
+
+## Model scenarios
+
+A model that came with its own scenarios and overrides, such as an imported Calliope model, shows them in the side panel when no card is selected. Click **Add** to put one on the board as a **Model scenario** card.
+
+A Model scenario card is editable. Change a value, add or remove a setting, change the order and membership of an override inside a scenario, create a **New override**, or **Duplicate as…** to work on a copy. Edits are saved to the model, whichever model is selected. They are written back as nested YAML, so they still export to Calliope.
+
+Settings are edited with a guided builder. **Add a change** asks what you want to change, which technology or location, which parameter, and the value. Values use the model's unit. The builder checks as you go that:
+
+- the parameter is valid for that technology type,
+- the technology is placed at the location,
+- the file and column exist in the model's time series,
+- the run window falls inside the data,
+- a minimum does not exceed its maximum,
+- fractions are between 0 and 1.
+
+Calliope engines receive the scenario names and apply them natively. The other engines get the scenario resolved against the model first.
+
+The top bar has the model's **time window**. It is the same window as on the Run page and is saved with the model. Before each run, every year is checked. A year with critical problems is skipped and recorded with its problems, and the rest of the batch runs.
 
 ---
 

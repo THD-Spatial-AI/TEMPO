@@ -5,6 +5,80 @@ All notable changes to TEMPO are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.2.0] - 2026-11-20
+
+TEMPO 4.2 shows the problems in a model next to the thing that needs fixing, lets you edit a model's own scenarios in Scenario Studio, and draws the SPORES figures of Lombardi et al. (2020) for any run. It also fixes Calliope 0.6.8 scenario runs, which solved the baseline model.
+
+### Added
+
+- **Model check overhaul** — issues are now critical, error or warning.
+  - Only critical problems block a run: no locations, no technologies, an invalid date
+    range, duplicate location names, or links to missing locations. Errors ask you to
+    confirm with **Run anyway**. Warnings never block.
+  - A **Model check** indicator in the sidebar opens a drawer with every issue for the
+    loaded model.
+  - Each item has a **Fix** link to the exact row, field or technology. Problems with a
+    place on the map open the Map View, fly to the location and ring it.
+  - Locations, links and technologies with issues carry a marker, and the Map View
+    badges locations. Creation checks the draft as you work and shows a checklist for an
+    empty model.
+  - You can ignore a warning for one model and restore it later.
+  - Scenarios are checked with their overrides applied. Run and Scenario Studio skip only
+    the scenarios with critical problems and record why.
+  - Run logs link entity names and issue codes to the item, in finished and failed runs
+    too. All five engines return their issues with the run.
+  - New checks cover lifetimes, capacity bounds, efficiencies, storage, carriers, the
+    model unit, Calliope 0.6.8 capacity costs without a lifetime, and reservoirs with no
+    inflow.
+- **Model scenarios in Scenario Studio** — the scenarios and overrides that come with a
+  model are listed in the side panel, and a **Model scenario** card applies one. You can
+  edit values, add or remove settings, reorder an override, create a **New override** or
+  **Duplicate as…**, and the edits are saved to the model. A guided builder asks what to
+  change, which technology or location, which parameter and which value, and checks the
+  choice as you go. Calliope engines apply the scenarios natively, and the other engines
+  get them resolved first. Imported engine archives keep their overrides and scenarios.
+- **One time window per model** — the start and end date are saved with the model and
+  shared by the Run page, Scenario Studio, Export, MEME, resource profiles and the model
+  check. Scenario Studio gets a time window field in its top bar.
+- **Electricity demand card** — Locations and the location dialog show where a
+  location's demand comes from, its yearly GWh, average and peak, and a sketch of the
+  first week. **Rescale…** keeps the shape and sets a new average, and **Replace…**
+  switches the source to a constant or another series.
+- **SPORES paper figures** — Figures 1 to 6 and Tables 1, S1 and 2 of Lombardi et al.
+  (2020), computed with the paper's definitions. They appear in the SPORES tab for every
+  run, with the settings read from the result for models other than Italy. The SPORES
+  map has hoverable bars and arrows and an in-map legend, and a multi-panel figure
+  exports as PNG, SVG and CSV.
+- **Import result** — loads a result contract JSON, such as one written by MEME, as a run.
+
+### Changed
+
+- The SPORES tab shows the paper figures first with a short cost summary. The
+  per-technology views are behind a toggle.
+- The Italy SPORES preset uses the paper's `nos` weight of 0.1.
+- Demand regenerated in a model and technologies taken from the catalog are converted to
+  the model unit, and a Calliope import sets the model unit.
+- The Calliope service runs one solve at a time.
+- The Go version is updated.
+
+### Fixed
+
+- **Calliope 0.6.8 scenario and override runs solved the baseline.** The runner wrote
+  them into a place Calliope 0.6.8 ignores. This affected the Run page and the CO₂ cap of
+  Scenario Studio. If you compare old scenario results, run them again. The renewable
+  minimum and reserve margin settings also used the wrong keys.
+- Two solves at once in one Calliope service could deadlock.
+- Scenario Studio dropped results, sent no time series for a model that was not the
+  loaded one, and ran the full year because it had no time window.
+- Saved CSV time series whose index header was blank lost their date column.
+- Override location and technology ids were not normalised, and override-only CSV files
+  were not copied from the templates.
+- Substations with an undefined technology in drafts and older models now get it filled
+  in.
+- The SPORES ensemble comparison no longer shows empty per-slack cells, and an imported
+  result reads the slack from the SPORES when the metadata has none.
+- Map View says **Update Location** when you edit an existing location.
+
 ## [4.1.1] - 2026-11-11
 
 Fixes for placing and linking locations on the map, and one set of colours and one legend for both map views.
@@ -343,6 +417,7 @@ Initial public release.
 - Timeseries editor, override/scenario engine, and SPORES mode.
 - H₂ and CCS plant simulation services.
 
+[4.2.0]: https://github.com/THD-Spatial-AI/TEMPO/releases/tag/Release_V4.2.0
 [4.1.1]: https://github.com/THD-Spatial-AI/TEMPO/releases/tag/Release_V4.1.1
 [4.1.0]: https://github.com/THD-Spatial-AI/TEMPO/releases/tag/Release_V4.1.0
 [4.0.1]: https://github.com/THD-Spatial-AI/TEMPO/releases/tag/Release_V4.0.1

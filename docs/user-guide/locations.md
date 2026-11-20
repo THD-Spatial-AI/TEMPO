@@ -30,6 +30,15 @@ Click the location name in the list, or click its marker on the map. The locatio
 
 ---
 
+## Demand
+
+A location that has a demand technology shows an **Electricity demand** card, in the Locations list and in the location edit dialog. It shows where the demand comes from (a constant or a time series), the yearly total in GWh, the average and the peak, and a sketch of the first week.
+
+- **Rescale…** sets a new average and keeps the shape of the profile. A series shared with other locations is not changed for them.
+- **Replace…** switches the source to a constant or to another time series in the model.
+
+---
+
 ## Picking coordinates from the map
 
 In the location edit dialog, click **Pick on map**. The cursor changes to a crosshair. Click anywhere on the map to fill in the latitude and longitude automatically.

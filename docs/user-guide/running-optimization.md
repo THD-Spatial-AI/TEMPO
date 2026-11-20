@@ -22,7 +22,7 @@ All non-Calliope engines must be installed before use. Ports are chosen dynamica
 
 - [ ] At least one location is defined.
 - [ ] At least one technology is assigned to a location.
-- [ ] The time horizon (Start date / End date) is set on the Run screen (or in the model parameters).
+- [ ] The time horizon (Start date / End date) is set on the Run screen. It is saved with the model, so Scenario Studio, Export and Remote Runs use the same window.
 - [ ] Time series files cover the full time horizon if any technology references a time series.
 - [ ] The target engine service is running (shown by a green indicator on the Run screen; install from Settings if absent).
 
@@ -36,7 +36,12 @@ All non-Calliope engines must be installed before use. Ports are chosen dynamica
 4. Set the date range and any advanced solver options.
 5. Click **Run**.
 
+If the *Model check* card shows critical problems, Run is disabled. If it shows errors, TEMPO asks you to confirm with **Run anyway**. See [Model checks](creating-a-model.md#model-checks).
+
 For **Calliope** runs, scenario and override names are passed to the runner and applied natively from the model's YAML overrides.
+
+!!! warning "Scenario results from before 4.2.0"
+    Calliope 0.6.8 runs in earlier versions ignored the scenario or override and solved the baseline model. If you compare old scenario results, run them again.
 
 For **PyPSA and OSeMOSYS** runs with a scenario selected, the override is resolved on the frontend before sending — the runner receives a fully concrete model with the override already applied.
 
@@ -53,6 +58,8 @@ The log window streams output from the solver process in real time. Key messages
 | `termination_condition: optimal` | Solver found a feasible optimum |
 | `termination_condition: infeasible` | No feasible solution exists |
 | `ERROR:` | A translation or solver error — read the message |
+
+Entity names and issue codes in the log, in finished and failed runs too, are links. Click one to open the model check item or the row it names. Every engine returns the list of issues it found with the run.
 
 Resource usage (CPU %, RAM) is shown alongside the log at 10-second intervals when `psutil` is available in the engine venv.
 
@@ -72,7 +79,7 @@ Click **View Results** to open the Results screen for the completed job. Each ru
 
 ## Scenarios and batch runs
 
-Select multiple scenarios or overrides from the dropdown to launch them as parallel jobs in a single click. Each job gets its own log panel. For non-Calliope engines, each scenario is pre-resolved into a concrete model before submission.
+Select multiple scenarios or overrides from the dropdown to launch them as parallel jobs in a single click. Each job gets its own log panel. Every selected scenario is checked with its overrides applied, and only the ones with critical problems are skipped; the log says which and why. A Calliope service runs one solve at a time, so parallel jobs on the same engine queue. For non-Calliope engines, each scenario is pre-resolved into a concrete model before submission.
 
 !!! note "SPORES mode"
     SPORES runs locally on **Calliope 0.6.8**. On Calliope 0.7 it only runs on a remote MEME server; the Run screen disables it for local 0.7 runs. See [SPORES](spores.md) and [Remote Runs](remote-runs.md).

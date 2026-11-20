@@ -55,7 +55,7 @@ export default function Features() {
               </p>
               <div className="flex flex-col border-l border-outline-variant/30 pl-8 space-y-2">
                 <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-outline">
-                  v4.1.1 Stable
+                  v4.2.0 Stable
                 </span>
                 <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-outline">
                   Architecture: x64 / ARM64
@@ -68,61 +68,61 @@ export default function Features() {
           </div>
         </section>
 
-        {/* What's New in v4.1.0 */}
+        {/* What's New in v4.2.0 */}
         <section className="py-32 px-8 bg-black text-white">
           <div className="max-w-7xl mx-auto">
             <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-8">
               <div>
                 <span className="text-[0.6875rem] font-bold uppercase tracking-[0.3em] text-white/40 mb-4 block">
-                  Release 4.1.0
+                  Release 4.2.0
                 </span>
                 <h2 className="text-[2.75rem] md:text-[3.5rem] font-bold tracking-tighter leading-none">
-                  WHAT&rsquo;S NEW IN V4.1.0
+                  WHAT&rsquo;S NEW IN V4.2.0
                 </h2>
               </div>
               <p className="max-w-md text-white/60 font-medium">
-                Version 4.1.0 fills in the inputs that are hard to find: how much each substation
-                uses, and how much a PV or wind plant produces hour by hour.
+                Version 4.2.0 shows each problem in a model next to the thing to fix, lets you
+                edit a model's own scenarios, and draws the SPORES figures for any run.
               </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {[
                 {
+                  icon: 'fact_check',
+                  tag: 'Model Check',
+                  title: 'Problems point to the fix',
+                  desc: 'Issues are critical, error or warning, and only critical ones stop a run. Every item has a Fix link that opens the exact row, field or technology, or flies to the location on the map. Locations and links with issues carry a marker, and you can ignore a warning for one model.',
+                },
+                {
+                  icon: 'science',
+                  tag: 'Scenarios',
+                  title: 'Edit a model’s own scenarios',
+                  desc: 'The scenarios and overrides that come with an imported model show up in Scenario Studio as cards. Change a value, add a setting or duplicate an override, using a builder that checks the technology, location, parameter and value as you go.',
+                },
+                {
+                  icon: 'insights',
+                  tag: 'SPORES',
+                  title: 'The SPORES paper figures',
+                  desc: 'Figures 1 to 6 and Tables 1, S1 and 2 of Lombardi et al. (2020), computed with the paper’s definitions for any SPORES run. A multi-panel figure exports as PNG, SVG and CSV, and Import result loads a result file as a run.',
+                },
+                {
                   icon: 'bolt',
                   tag: 'Demand',
-                  title: 'Demand estimated for each substation',
-                  desc: 'The Study Area tool splits national demand over substations anywhere in the world, using a 1 km consumption map, mine sites and OpenStreetMap land use. Each substation gets a load shape, shifted by six months in the southern hemisphere. You can edit every value before import.',
+                  title: 'A demand card on every location',
+                  desc: 'See where a location’s demand comes from, its yearly GWh, average and peak, and the first week. Rescale it to a new average and keep the shape, or replace the source with a constant or another series.',
                 },
                 {
-                  icon: 'wb_sunny',
-                  tag: 'Resources',
-                  title: 'PV and wind profiles',
-                  desc: 'Pick a technology and TEMPO calculates an hourly capacity factor from Open-Meteo ERA5 weather. A map, charts and a per-point table show the result, and PV tilt and azimuth can be optimised. The profile is saved in the model as a normal time series.',
-                },
-                {
-                  icon: 'air',
-                  tag: 'Map',
-                  title: 'Sunshine and wind overlays',
-                  desc: 'Show solar irradiance as a raster and wind as moving streamlines on the map to see where the resource is. Demand cells can be shown the same way, coloured by density or total.',
-                },
-                {
-                  icon: 'extension',
-                  tag: 'Setup',
-                  title: 'Install only what you use',
-                  desc: 'Settings now has a Components page. Install or remove engines, solvers, services and tools one at a time. Removing an engine deletes its Python environment.',
-                },
-                {
-                  icon: 'travel_explore',
-                  tag: 'Study Area',
-                  title: 'Start from a place name',
-                  desc: 'Type a city, province or country. TEMPO finds the boundary, pulls substations and lines from OpenStreetMap and builds a zonal model.',
+                  icon: 'date_range',
+                  tag: 'Run',
+                  title: 'One time window per model',
+                  desc: 'The start and end date are saved with the model. The Run page, Scenario Studio, Export, MEME and the model check all use the same window, so a batch no longer runs a full year by accident.',
                 },
                 {
                   icon: 'sync_alt',
                   tag: 'Engines',
-                  title: 'Five engines, one answer',
-                  desc: 'Calliope 0.6.8 and 0.7, PyPSA, OSeMOSYS and AdOpT-NET0 share the same cost, capacity and storage conventions. OSeMOSYS now runs windows of up to 31 days day by day, so storage and profiles stay exact.',
+                  title: 'Calliope scenarios fixed',
+                  desc: 'Calliope 0.6.8 runs used to ignore the scenario or override and solve the baseline. They now apply it, and the five engines return their issues with every run. If you compare old scenario results, run them again.',
                   link: { to: '/interoperability', label: 'How the translation works' },
                 },
               ].map((item) => (

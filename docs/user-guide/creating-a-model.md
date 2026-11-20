@@ -16,13 +16,26 @@ A **model** in TEMPO is the top-level container for all the components of an ene
 
 ## Model checks
 
-TEMPO checks the model for missing or broken pieces before an engine sees it:
+TEMPO checks the model for missing or broken pieces before an engine sees it. Each issue has one of three levels:
 
-- **Save dialog** (Creation): while it is open, it lists open problems. It never blocks saving, so you can save and finish later.
-- **Dashboard > Readiness**: every issue, each with a *Fix* link to the page that resolves it.
-- **Run**: the *Model check* card lists problems; problems disable the Run button, warnings never block. *Check what <engine> supports* asks the selected engine which features its translation approximates or drops. That engine check also blocks a demand without a profile and links to missing locations (the demand check is skipped when a scenario or override is set).
+| Level | What it means | Effect on a run |
+|---|---|---|
+| **Critical** | The model cannot run: no locations, no technologies, an invalid date range, two locations with the same name, or links to missing locations | Blocks the run |
+| **Error** | The engine will probably run, but the results may not reflect your system | Run asks you to confirm with **Run anyway** |
+| **Warning** | Worth a look, nothing is wrong yet | Never blocks |
 
-Problems that block a run: no locations or technologies, no demand technology assigned to any location and no location demand profile, nothing producing the demanded carrier, a demand with no profile, no `file=` resource and no numeric resource (0 counts; on a scenario or override run this is only a warning), a demand time series that is not in the model, links to missing locations or to themselves, duplicate location names, an invalid date range.
+Where you see the checks:
+
+- **Model check** in the sidebar shows a count for the loaded model. Click it to open a drawer with every issue.
+- Every item has a **Fix** link. It opens the page for that entity and highlights the row, field or technology. Problems with a place on the map open the Map View, fly to the location and ring it.
+- Locations, links and technologies with issues carry a marker in their lists, and the Map View badges locations.
+- **Creation** checks the draft as you work. An empty new model shows a short checklist of what to add first. The Save dialog lists open problems and never blocks saving, so you can save and finish later.
+- **Ignore** hides a warning for this model. Ignored warnings stay in the list under a separate heading, where you can restore them.
+- **Run**: the *Model check* card lists the issues for the selected model, and for each selected scenario with its overrides applied. *Check what <engine> supports* asks the selected engine which features its translation approximates or drops.
+
+Besides the lists below, TEMPO checks lifetimes, capacity bounds, efficiencies, storage, carriers and the model unit. Calliope 0.6.8 refuses capacity costs without a lifetime, and the check says so. A reservoir with no inflow is flagged unless something else, such as weather-driven supply, feeds it.
+
+Errors (these ask for confirmation, except the critical ones above): no locations or technologies, no demand technology assigned to any location and no location demand profile, nothing producing the demanded carrier, a demand with no profile, no `file=` resource and no numeric resource (0 counts; on a scenario or override run this is only a warning), a demand time series that is not in the model, links to missing locations or to themselves, duplicate location names, an invalid date range.
 
 Warnings: technologies listed on a location but not defined (engines skip them; hub labels such as substation are ignored), locations without coordinates or without anything on them, technologies assigned nowhere, links whose transmission technology is missing or undefined (Calliope 0.6 creates a default line; the other engines skip the link), no costs at all, solar/wind/hydro without a resource series, a location whose demand nothing local or linked can serve, a network split into islands, a non-demand time series missing (technologies assigned nowhere are checked too), time series not covering the model period.
 
