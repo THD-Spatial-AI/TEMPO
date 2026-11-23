@@ -49,8 +49,15 @@ describe('resolveScenario with nested overrides', () => {
     const { model: r, report } = resolveScenario(model, model.overrides, model.scenarios, { type: 'scenario', name: 'coarse' });
     expect(r.locations[0].techs.demand_power.constraints.resource).toBe('file=demand_2050_eff.csv');
     expect(r.technologies[0].constraints.energy_cap_max).toBe(0);
-    expect(report.some(l => l.includes('model.time.function') && l.includes('skipped'))).toBe(true);
+    expect(r.modelConfig.timeResolution).toBe('3H');
+    expect(report.some(l => l.includes('model.time') && l.includes('skipped'))).toBe(false);
     expect(model.technologies[0].constraints.energy_cap_max).toBe(500); // input untouched
+  });
+  it('skips a non-resample time function', () => {
+    const ov = { cluster: { model: { time: { function: 'apply_clustering' } } } };
+    const { model: r, report } = resolveScenario(model, ov, {}, { type: 'override', name: 'cluster' });
+    expect(r.modelConfig?.timeResolution).toBeUndefined();
+    expect(report.some(l => l.includes('model.time.function') && l.includes('skipped'))).toBe(true);
   });
   it('still applies dotted overrides', () => {
     const { model: r } = resolveScenario(model, model.overrides, model.scenarios, { type: 'override', name: 'dotted' });
@@ -64,6 +71,7 @@ describe('isPortableOverrideKey', () => {
     expect(isPortableOverrideKey('locations.NORD.techs.demand_power.constraints.resource')).toBe(true);
     expect(isPortableOverrideKey('model.subset_time')).toBe(true);
     expect(isPortableOverrideKey('model.time.function')).toBe(false);
+    expect(isPortableOverrideKey('model.time.function_options.resolution')).toBe(true);
     expect(isPortableOverrideKey('group_constraints.g.cost_max.co2')).toBe(false);
   });
 });

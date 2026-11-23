@@ -6,13 +6,14 @@ import { expandScenario, flattenOverride } from './modelScenarios.js';
  * Overrides may be nested YAML (imported) or dotted keys; both are flattened to
  * dotted keys. Supported patterns:
  *   model.subset_time                             → modelConfig.startDate / endDate
+ *   model.time (function: resample)               → modelConfig.timeResolution
  *   model.*                                       → modelConfig.*
  *   techs.{t}.constraints.{param}                → technologies[].constraints
  *   techs.{t}.costs.monetary.{param}             → technologies[].costs.monetary
  *   locations.{l}.techs.{t}.constraints.{param}  → location tech override
  *   techs.{t}.exists / locations.{l}.techs.{t}.exists = false → energy_cap_max 0
  *
- * Other keys (e.g. run.*, model.time.*, group_constraints.*) are Calliope-specific;
+ * Other keys (e.g. run.*, other model.time.* functions, group_constraints.*) are Calliope-specific;
  * they are skipped and listed in the report.
  *
  * @param {object} model        - TEMPO internal model (with technologies, locations, links)
@@ -56,6 +57,14 @@ function _applyDotKey(model, dotKey, value, report) {
     }
     return;
   }
+
+  // model.time resample → modelConfig.timeResolution (each runner resamples natively)
+  if (dotKey === 'model.time.function_options.resolution') {
+    if (!model.modelConfig) model.modelConfig = {};
+    model.modelConfig.timeResolution = String(value);
+    return;
+  }
+  if (dotKey === 'model.time.function' && value === 'resample') return; // set together with the resolution
 
   // model.* → modelConfig.*  (two-segment keys only; model.time.* etc. are skipped below)
   if (parts[0] === 'model' && parts.length === 2) {
@@ -120,7 +129,8 @@ function _applyDotKey(model, dotKey, value, report) {
 /** Whether resolveScenario can apply a dotted override key (mirrors _applyDotKey). */
 export function isPortableOverrideKey(dotKey) {
   const p = dotKey.split('.');
-  if (p[0] === 'model') return p[1] === 'subset_time' || p.length === 2;
+  if (p[0] === 'model') return p[1] === 'subset_time' || p.length === 2
+    || dotKey === 'model.time.function_options.resolution';
   if (p[0] === 'techs') return (p.length === 3 && p[2] === 'exists') || (p.length >= 4 && p[2] === 'constraints') || (p.length >= 5 && p[2] === 'costs');
   if (p[0] === 'locations' && p[2] === 'techs') return (p.length === 5 && p[4] === 'exists') || (p.length >= 6 && p[4] === 'constraints');
   return false;
