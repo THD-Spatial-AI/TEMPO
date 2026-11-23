@@ -2299,7 +2299,6 @@ def _run_model_impl(model_data, work_dir):
             'function': 'resample',
             'function_options': {'resolution': str(model_config_payload['timeResolution'])},
         }
-        log(f"  Time resolution: resample to {model_config_payload['timeResolution']}")
     if _imported_extras.get('group_constraints'):
         model_yaml['group_constraints'] = dict(_imported_extras['group_constraints'])
     _slack_group = None
@@ -2341,6 +2340,10 @@ def _run_model_impl(model_data, work_dir):
         if active:
             log(f"  Applying scenario/overrides: {active}")
         model = calliope.Model(str(model_yaml_path), **({'scenario': active} if active else {}))
+        _time_fn = model._model_run.get_key('model.time', None) or {}
+        if _time_fn.get('function') == 'resample':
+            log(f"  Time resolution: resample to {_time_fn['function_options']['resolution']} "
+                f"({model._model_data.timesteps.size} timesteps)")
     except Exception as _load_exc:
         import traceback as _tb2
         log(f"Calliope load FAILED [{type(_load_exc).__name__}]: {_load_exc}")
