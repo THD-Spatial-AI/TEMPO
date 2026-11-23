@@ -1093,6 +1093,7 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
         ensure_feasibility=(model_config_payload.get('ensureFeasibility')
                             if model_config_payload.get('ensureFeasibility') is not None
                             else True),
+        time_resolution=model_config_payload.get('timeResolution'),
     )
 
     model_doc = {
@@ -1239,6 +1240,9 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
         active = scenario_to_run or override_to_run
         model = calliope.read_yaml(str(model_yaml_path),
                                    **({'scenario': active} if active else {}))
+        _res = (model.config.init.resample.root or {}).get('timesteps')
+        if _res:
+            log(f"  Time resolution: resample to {_res} ({model.inputs.timesteps.size} timesteps)")
         log("Building optimisation problem …")
         model.build()
         log(f"Solving with {solver} …")

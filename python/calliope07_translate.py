@@ -699,6 +699,15 @@ def translate_override_07(override: dict, parent_by_tid: dict, warnings: list,
         if isinstance(st, (list, tuple)) and len(st) == 2:
             out.setdefault('config', {}).setdefault('init', {})['subset'] = {
                 'timesteps': [f'{str(st[0])[:10]} 00:00:00', f'{str(st[1])[:10]} 23:00:00']}
+    time_fn = model_cfg.get('time') or {}
+    if time_fn:
+        res = (time_fn.get('function_options') or {}).get('resolution')
+        if time_fn.get('function') == 'resample' and res:
+            out.setdefault('config', {}).setdefault('init', {})['resample'] = {
+                'timesteps': resample_freq_07(res)}
+        else:
+            warnings.append(f"{label}: model.time function '{time_fn.get('function')}' "
+                            f"has no 0.7 equivalent in TEMPO — dropped")
 
     for k in src:
         if k not in ('techs', 'locations', 'run', 'model'):
@@ -706,9 +715,14 @@ def translate_override_07(override: dict, parent_by_tid: dict, warnings: list,
     return out
 
 
+def resample_freq_07(resolution) -> str:
+    """0.6 resample resolution ('3H') → 0.7 config.init.resample frequency ('3h')."""
+    return str(resolution).strip().replace('H', 'h')
+
+
 def build_config_07(model_name: str, mode: str, time_start: str, time_end: str,
                     solver: str, solver_options: dict | None,
-                    ensure_feasibility: bool = True) -> dict:
+                    ensure_feasibility: bool = True, time_resolution: str | None = None) -> dict:
     """TEMPO run settings → 0.7 config.init/build/solve."""
     return {
         'init': {
@@ -720,6 +734,8 @@ def build_config_07(model_name: str, mode: str, time_start: str, time_end: str,
                     f'{str(time_end)[:10]} 23:00:00',
                 ],
             },
+            **({'resample': {'timesteps': resample_freq_07(time_resolution)}}
+               if time_resolution else {}),
         },
         'build': {
             'backend': 'gurobi' if solver == 'gurobi_direct' else 'pyomo',
