@@ -52,6 +52,7 @@ def _network():
     loads = pd.DataFrame(index=[f'{SE}::total_demand'])
     return SimpleNamespace(
         snapshots=SNAPS, objective=1700.0 + 302 * tr.UNMET_DEMAND_COST,
+        snapshot_weightings=pd.DataFrame({'generators': 1.0}, index=SNAPS),
         generators=gens, generators_t=SimpleNamespace(p=gens_p, marginal_cost=pd.DataFrame(index=SNAPS)),
         buses=buses, stores=pd.DataFrame(columns=['capital_cost', 'e_nom_opt']),
         links=links, links_t=SimpleNamespace(p0=p0, p1=-p0),

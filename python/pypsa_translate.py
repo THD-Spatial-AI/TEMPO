@@ -16,7 +16,9 @@ Two layers:
 Used by pypsa_runner.py (run), and by pypsa_service.py /export and /import.
 
 Conventions (mirroring the Calliope runners so results are comparable):
-  - hourly snapshots from modelConfig.startDate to endDate INCLUSIVE
+  - hourly snapshots from modelConfig.startDate to endDate INCLUSIVE; with
+    modelConfig.timeResolution (e.g. '3H') build_network resamples them like
+    Calliope's resample (series averaged, snapshot_weightings = hours per step)
   - demand per location: demandProfile.timeseries cycled over the period
     (abs values), else the demand tech's scalar |resource|, else flat 100.0
   - ids sanitised with safe_id().lower(); component names are "loc::tech"
@@ -139,6 +141,7 @@ def translate_model(model_data: dict) -> tuple[dict, list]:
             'name': model_data.get('name') or 'tempo_model',
             'solver': model_data.get('solver') or model_config.get('solver') or 'highs',
             'n_hours': n,
+            'time_resolution': model_config.get('timeResolution') or None,
         },
     }
 
@@ -476,7 +479,24 @@ def build_network(spec: dict):
     import pypsa
 
     n = pypsa.Network(name=spec['meta']['name'])
-    n.set_snapshots(pd.to_datetime(spec['snapshots']))
+    hourly = pd.to_datetime(spec['snapshots'])
+    res = spec['meta'].get('time_resolution')
+    if res:
+        freq = str(res).strip().replace('H', 'h')
+        hours = pd.Series(1.0, index=hourly).resample(freq).sum()
+        hours = hours[hours > 0]
+        n.set_snapshots(hours.index)
+        # objective, generators and stores (storage carry-over, standing loss) all
+        # weight a step by its length in hours
+        n.snapshot_weightings.loc[:, :] = hours.values[:, None]
+
+        def _ts(values):
+            return pd.Series(values, index=hourly, dtype=float).resample(freq).mean().loc[hours.index]
+    else:
+        n.set_snapshots(hourly)
+
+        def _ts(values):
+            return pd.Series(values, index=n.snapshots)
 
     for carrier in spec['carriers']:
         n.add('Carrier', carrier)
@@ -495,7 +515,7 @@ def build_network(spec: dict):
             'carrier': gen['carrier'],
             'efficiency': gen['efficiency'],
             'capital_cost': gen['capital_cost'],
-            'marginal_cost': (pd.Series(gen['marginal_cost'], index=n.snapshots)
+            'marginal_cost': (_ts(gen['marginal_cost'])
                               if isinstance(gen['marginal_cost'], list) else gen['marginal_cost']),
         }
         if gen.get('p_nom_extendable', True):
@@ -507,15 +527,15 @@ def build_network(spec: dict):
         else:
             kwargs['p_nom'] = gen.get('p_nom', 0.0)
         if gen.get('p_max_pu') is not None:
-            kwargs['p_max_pu'] = pd.Series(gen['p_max_pu'], index=n.snapshots)
+            kwargs['p_max_pu'] = _ts(gen['p_max_pu'])
         if gen.get('p_min_pu') is not None:
-            kwargs['p_min_pu'] = pd.Series(gen['p_min_pu'], index=n.snapshots)
+            kwargs['p_min_pu'] = _ts(gen['p_min_pu'])
         kwargs.update(gen.get('_engine_params') or {})  # engine-specific overrides
         n.add('Generator', gen['name'], **kwargs)
 
     for load in spec['loads']:
         n.add('Load', load['name'], bus=load['bus'],
-              p_set=pd.Series(load['p_set'], index=n.snapshots))
+              p_set=_ts(load['p_set']))
 
     for store in spec['stores']:
         kwargs = {

@@ -122,6 +122,12 @@ def _extract_results(n, spec, technologies, model_name, solver, termination, loc
     timestamps = [str(t) for t in n.snapshots]
     results['timestamps'] = timestamps
 
+    # Power → energy per timestep (Calliope reports flows per timestep); weight 1 when hourly
+    weights = n.snapshot_weightings.generators
+
+    def _E(series):
+        return series * weights
+
     capacities = {}
     generation = {}
     dispatch = {}
@@ -146,7 +152,7 @@ def _extract_results(n, spec, technologies, model_name, solver, termination, loc
     unmet_by_loc = {}    # contract loc id -> unmet series
     for name in n.generators.index:
         row = n.generators.loc[name]
-        p = n.generators_t.p[name] if name in n.generators_t.p.columns else None
+        p = _E(n.generators_t.p[name]) if name in n.generators_t.p.columns else None
         if str(row.get('carrier', '')) in ('unmet_demand', 'unused_supply'):
             if p is not None:
                 p = p.fillna(0.0).astype(float)
@@ -198,12 +204,12 @@ def _extract_results(n, spec, technologies, model_name, solver, termination, loc
             capacities[f"{loc}::{tid}"] = p_nom * float(lrow.get('efficiency', 1.0))
             cost += float(lrow.get('capital_cost', 0.0)) * p_nom
             if discharge_name in n.links_t.p1.columns:
-                out = -n.links_t.p1[discharge_name]  # p1 < 0 = injection into main bus
+                out = -_E(n.links_t.p1[discharge_name])  # p1 < 0 = injection into main bus
                 generation[f"{loc}::{tid}::{_bus_carrier(lrow['bus1'])}"] = \
                     round(float(out.fillna(0.0).sum()), 3)
                 _add_dispatch(tid, out)
                 cost += float(lrow.get('marginal_cost', 0.0)) * \
-                    float(n.links_t.p0[discharge_name].fillna(0.0).sum())
+                    float(_E(n.links_t.p0[discharge_name]).fillna(0.0).sum())
         _add_cost(loc, tid, cost)
 
     # ── Remaining links: transmission (loc::tech:remote) + conversion ───────
@@ -222,14 +228,14 @@ def _extract_results(n, spec, technologies, model_name, solver, termination, loc
         cost = float(row.get('capital_cost', 0.0)) * p_nom
         if name in n.links_t.p0.columns:
             cost += float(row.get('marginal_cost', 0.0)) * \
-                float(n.links_t.p0[name].fillna(0.0).sum())
+                float(_E(n.links_t.p0[name]).fillna(0.0).sum())
 
         if ':' in tid_full:  # transmission 'tech:remote'
             tid, remote = tid_full.split(':', 1)
             capacities[f"{loc}::{tid_full}"] = p_nom
             _add_cost(loc, tid, cost)
             if name in n.links_t.p1.columns:
-                delivered = (-n.links_t.p1[name]).fillna(0.0)
+                delivered = (-_E(n.links_t.p1[name])).fillna(0.0)
                 tx_delivered[(loc, remote, tid)] = delivered
                 generation[f"{remote}::{tid}:{loc}::{_bus_carrier(row['bus1'])}"] = \
                     round(float(delivered.sum()), 3)
@@ -239,7 +245,7 @@ def _extract_results(n, spec, technologies, model_name, solver, termination, loc
             capacities[f"{loc}::{tid}"] = p_nom * eff  # output-side cap
             _add_cost(loc, tid, cost)
             if name in n.links_t.p1.columns:
-                out = (-n.links_t.p1[name]).fillna(0.0)
+                out = (-_E(n.links_t.p1[name])).fillna(0.0)
                 generation[f"{loc}::{tid}::{_bus_carrier(row['bus1'])}"] = \
                     round(float(out.sum()), 3)
                 _add_dispatch(tid, out)
@@ -249,7 +255,7 @@ def _extract_results(n, spec, technologies, model_name, solver, termination, loc
                 if not bus_k:
                     break
                 try:
-                    out_k = (-n.links_t[f'p{k}'][name]).fillna(0.0)
+                    out_k = (-_E(n.links_t[f'p{k}'][name])).fillna(0.0)
                 except KeyError:
                     continue
                 if float(row.get(f'efficiency{k}', 0.0)) > 0:
@@ -273,7 +279,7 @@ def _extract_results(n, spec, technologies, model_name, solver, termination, loc
     # ── Demand timeseries: total load served ─────────────────────────────────
     if len(n.loads.index) > 0:
         p = n.loads_t.p if not n.loads_t.p.empty else n.loads_t.p_set
-        results['demand_timeseries'] = _r3(p.abs().sum(axis=1))
+        results['demand_timeseries'] = _r3(_E(p.abs().sum(axis=1)))
 
     # ── Objective + unmet demand, as the Calliope runner reports them ───────
     # Contract objective = system cost; the unmet x bigM penalty is reported apart.
@@ -354,6 +360,8 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
         f"{len(spec['links'])} links, {len(spec['snapshots'])} snapshots")
 
     n = translate.build_network(spec)
+    if spec['meta'].get('time_resolution'):
+        log(f"  Time resolution: resample to {spec['meta']['time_resolution']} ({len(n.snapshots)} timesteps)")
 
     handler = _LogFnHandler()
     loggers = [logging.getLogger(name) for name in ('pypsa', 'linopy')]
