@@ -5,6 +5,15 @@ All notable changes to TEMPO are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.2.2] - 2026-11-23
+
+A coarser time resolution (e.g. 3-hourly) now runs on Calliope 0.6.8, Calliope 0.7 and PyPSA, and Calliope 0.7 applies the reserve margin.
+
+### Fixed
+
+- A `model.time` resample override (e.g. `res_3H`) only took effect on Calliope 0.6.8. Calliope 0.7 dropped it and solved hourly; PyPSA skipped it as "not supported outside Calliope". The override, or `modelConfig.timeResolution`, now resamples on all three engines. Calliope 0.7 uses `config.init.resample`. PyPSA averages the capacity factors and demand over each step and weights each step by its length in hours, including storage carry-over. Each run logs `Time resolution: resample to 3H (N timesteps)`.
+- Calliope 0.7 ignored the reserve margin (`run.reserve_margin`, or `model.reserve_margin` in an override). It is now added as custom math, matching Calliope 0.6.8: supply and conversion capacity of the carrier must cover (1 + margin) times demand at the peak-demand timestep.
+
 ## [4.2.1] - 2026-11-20
 
 Engine installs no longer fail on machines whose default Python is too new.
@@ -425,6 +434,7 @@ Initial public release.
 - Timeseries editor, override/scenario engine, and SPORES mode.
 - H₂ and CCS plant simulation services.
 
+[4.2.2]: https://github.com/THD-Spatial-AI/TEMPO/releases/tag/Release_V4.2.2
 [4.2.1]: https://github.com/THD-Spatial-AI/TEMPO/releases/tag/Release_V4.2.1
 [4.2.0]: https://github.com/THD-Spatial-AI/TEMPO/releases/tag/Release_V4.2.0
 [4.1.1]: https://github.com/THD-Spatial-AI/TEMPO/releases/tag/Release_V4.1.1
