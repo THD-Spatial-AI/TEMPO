@@ -63,8 +63,8 @@ _SUPPORT: Dict[str, Dict[str, tuple]] = {
         "adoptnet0": (_N, "run as a pure LP — unit counts and purchase costs are relaxed/ignored"),
     },
     "reserve_margin": {
-        "calliope-0.6.8": (FULL, ""),
-        "calliope-0.7": (_N, "not translated"), "pypsa": (_N, "not translated"),
+        "calliope-0.6.8": (FULL, ""), "calliope-0.7": (FULL, ""),
+        "pypsa": (_N, "not translated"),
         "osemosys": (_N, "not translated"), "adoptnet0": (_N, "not translated"),
     },
     "group_constraints": {

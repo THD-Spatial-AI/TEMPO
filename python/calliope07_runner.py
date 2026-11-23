@@ -960,6 +960,107 @@ def _extract_results(model, techs_07, technologies, model_name, solver, location
 # Main entry point (same contract as calliope_runner.run_model)
 # ---------------------------------------------------------------------------
 
+def _expand_scenario(name, scenarios: dict, seen: frozenset = frozenset()) -> list:
+    """Override names a scenario (or comma-joined override names) applies, in order."""
+    out = []
+    for part in (p.strip() for p in str(name or '').split(',')):
+        sc = scenarios.get(part)
+        if not part:
+            continue
+        if sc is None or part in seen:
+            out.append(part)
+            continue
+        for item in (sc if isinstance(sc, list) else str(sc).split(',')):
+            item = str(item).strip()
+            out += [item] if item == part else _expand_scenario(item, scenarios, seen | {part})
+    return list(dict.fromkeys(out))
+
+
+def _reserve_margins(raw) -> dict:
+    """metadata.runConfig.reserve_margin ({carrier: margin}) with numeric margins only."""
+    out = {}
+    for carrier, margin in (raw or {}).items():
+        try:
+            out[str(carrier)] = float(margin)
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
+def _reserve_margin_math(margins: dict) -> dict:
+    """Calliope 0.6.8's reserve_margin_constraint_rule as 0.7 math, per carrier c:
+      sum(flow_cap of supply/conversion techs producing c)
+        >= (1 + margin) * sum(flow_in of demand techs of c at the peak-demand timestep)
+                          / timestep_resolution
+    The selector parameters (tempo_rm_cap_<c>, tempo_rm_peak_<c>) are injected into the
+    model inputs after loading (_inject_reserve_margin_inputs), so the peak is read from
+    the subset/resampled data exactly as 0.6.8 does. Same names as the MEME client."""
+    math = {'parameters': {}, 'global_expressions': {}, 'constraints': {}}
+    for carrier, m in margins.items():
+        c = translate.safe_id(carrier)
+        cap, pk = f'tempo_rm_cap_{c}', f'tempo_rm_peak_{c}'
+        for k in (cap, pk):
+            math['parameters'][k] = {'default': 0}
+        math['global_expressions'][f'tempo_rm_supply_{c}'] = {
+            'foreach': ['nodes', 'techs', 'carriers'],
+            'where': f'carrier_out AND {cap}',
+            'equations': [{'expression': 'flow_cap'}],
+        }
+        math['global_expressions'][f'tempo_rm_demand_{c}'] = {
+            'foreach': ['nodes', 'techs', 'carriers', 'timesteps'],
+            'where': f'carrier_in AND {pk}',
+            'equations': [{'expression': 'flow_in / timestep_resolution'}],
+        }
+        math['constraints'][f'tempo_reserve_margin_{c}'] = {
+            'description': f'Calliope 0.6 reserve margin ({m}) on {carrier}',
+            'equations': [{'expression':
+                f'sum(tempo_rm_supply_{c}, over=[nodes, techs, carriers]) >= {1 + m!r} * '
+                f'sum(tempo_rm_demand_{c}, over=[nodes, techs, carriers, timesteps])'}],
+        }
+    return math
+
+
+def _inject_reserve_margin_inputs(model, margins: dict) -> None:
+    """Add the reserve margin selectors to model.inputs (NaN = not selected).
+
+    Capacity side: supply and conversion techs with carrier_out c (0.7 folds supply_plus /
+    conversion_plus into these). Demand side: demand techs with carrier_in c at 0.6.8's
+    max-demand timestep, the timestep with the largest summed demand (sink_use_equals)."""
+    import numpy as np
+    import xarray as xr
+    inputs = model.inputs
+    base = inputs['base_tech']
+    demand = inputs.get('sink_use_equals')
+    for carrier, m in margins.items():
+        c = translate.safe_id(carrier)
+        if c not in inputs.carriers.values:
+            log(f"  WARNING: reserve margin for '{carrier}': carrier not in model — not applied")
+            continue
+        produces = inputs['carrier_out'].sel(carriers=c).fillna(False).astype(bool).any('nodes')
+        consumes = inputs['carrier_in'].sel(carriers=c).fillna(False).astype(bool).any('nodes')
+        cap_techs = produces & base.isin(['supply', 'conversion'])
+        dem_techs = consumes & (base == 'demand')
+        if demand is None or not bool(dem_techs.any()) or not bool(cap_techs.any()):
+            log(f"  WARNING: reserve margin for '{carrier}': no demand series / capacity found — not applied")
+            continue
+        total = demand.where(dem_techs).fillna(0).sum([d for d in demand.dims if d != 'timesteps'])
+        peak = total.timesteps.values[int(np.argmax(total.values))]
+        carriers, steps = inputs.carriers.values, inputs.timesteps.values
+        sel_c = xr.DataArray(np.where(carriers == c, 1.0, np.nan),
+                             coords={'carriers': carriers}, dims='carriers')
+        cap = (cap_techs.where(cap_techs) * sel_c)
+        pk_t = xr.DataArray(np.where(steps == peak, 1.0, np.nan),
+                            coords={'timesteps': steps}, dims='timesteps')
+        pk = dem_techs.where(dem_techs) * sel_c * pk_t
+        for name, arr in ((f'tempo_rm_cap_{c}', cap), (f'tempo_rm_peak_{c}', pk)):
+            arr = arr.astype(float)
+            arr.attrs = {'obj_type': 'parameters'}
+            inputs[name] = arr
+        log(f"  Reserve margin {m:g} on '{carrier}': {int(cap_techs.sum())} capacity tech(s), "
+            f"peak demand {float(total.max() / inputs.timestep_resolution.sel(timesteps=peak)):.6g} "
+            f"at {str(peak)[:19]}")
+
+
 def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
     _thread_local.log_fn = log_fn
 
@@ -1191,6 +1292,22 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
             _init['extra_math'].append('tempo_conversion_plus')
         log("  Multi-carrier conversion math injected (model_config/conversion_plus_math.yaml)")
 
+    # Model-level reserve margin, then any set by the active overrides (model.reserve_margin,
+    # e.g. the Scenario Studio / override template), as 0.6.8 merges them.
+    reserve_raw = dict(meta_run.get('reserve_margin') or {})
+    for name in _expand_scenario(scenario_to_run or override_to_run, scenarios):
+        ov = overrides.get(name)
+        if isinstance(ov, dict):
+            reserve_raw.update((translate._expand_dots(ov).get('model') or {}).get('reserve_margin') or {})
+    reserve_margins = _reserve_margins(reserve_raw)
+    if reserve_margins:
+        _dump_yaml(_reserve_margin_math(reserve_margins), config_dir / 'reserve_margin_math.yaml')
+        _init = model_doc['config']['init']
+        _init.setdefault('math_paths', {})['tempo_reserve_margin'] = 'model_config/reserve_margin_math.yaml'
+        if 'tempo_reserve_margin' not in _init.setdefault('extra_math', []):
+            _init['extra_math'].append('tempo_reserve_margin')
+        log("  Reserve margin math injected (model_config/reserve_margin_math.yaml)")
+
     custom_math_yaml = model_data.get('customMath') or ''
     if custom_math_yaml.strip():
         custom_math_path = config_dir / 'custom_math.yaml'
@@ -1243,6 +1360,8 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
         _res = (model.config.init.resample.root or {}).get('timesteps')
         if _res:
             log(f"  Time resolution: resample to {_res} ({model.inputs.timesteps.size} timesteps)")
+        if reserve_margins:
+            _inject_reserve_margin_inputs(model, reserve_margins)
         log("Building optimisation problem …")
         model.build()
         log(f"Solving with {solver} …")

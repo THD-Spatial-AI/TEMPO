@@ -24,7 +24,7 @@ export const ENGINE_CAPABILITIES = {
     disableTech:      true,
     addTech:          true,
     linkCap:          true,
-    systemConstraint: { co2_cap: true, renewable_min: true, reserve_margin: 'warn' },
+    systemConstraint: { co2_cap: true, renewable_min: true, reserve_margin: true },
   },
   pypsa: {
     scaleParam:       true,
