@@ -63,23 +63,28 @@ def _looks_like_07_overrides(overrides: dict) -> bool:
     0.7 overrides address `nodes:` / `config:` / `data_tables:` and put flat
     parameters directly on techs; 0.6 (TEMPO-authored) overrides use
     `locations:` / `run:` / `model:` and nest tech params under
-    essentials/constraints/costs. Used as a fallback when the
-    metadata.overridesFormat flag is absent (e.g. models imported before it
-    existed)."""
+    essentials/constraints/costs. Any 0.6 marker wins: a model mixes e.g.
+    {techs: {ccgt: {exists: false}}} with model.time, and passing that through
+    verbatim fails 0.7 validation. Used when metadata.overridesFormat is absent
+    (e.g. models imported before it existed)."""
+    found_07 = False
     for ov in (overrides or {}).values():
         if not isinstance(ov, dict):
             continue
+        ov = translate._expand_dots(ov)
+        if any(k in ov for k in ('locations', 'model', 'run')):
+            return False
         if any(k in ov for k in ('nodes', 'config', 'data_tables')):
-            return True
+            found_07 = True
         techs = ov.get('techs')
         if isinstance(techs, dict):
             for tdef in techs.values():
-                # A flat tech override (no 0.6 essentials/constraints/costs
-                # wrapper) is 0.7-shaped.
-                if isinstance(tdef, dict) and not any(
-                        k in tdef for k in ('essentials', 'constraints', 'costs')):
-                    return True
-    return False
+                if not isinstance(tdef, dict):
+                    continue
+                if any(k in tdef for k in ('essentials', 'constraints', 'costs')) or set(tdef) == {'exists'}:
+                    return False
+                found_07 = True   # flat tech params (no 0.6 wrapper)
+    return found_07
 
 
 def log(msg):
@@ -1229,14 +1234,15 @@ def run_model(model_data: dict, work_dir: str, log_fn=None) -> dict:
         # (nodes.*, active, direct 0.7 params). Apply them verbatim; only
         # TEMPO-authored (0.6-vocabulary) overrides need translation.
         #
-        # The importer sets metadata.overridesFormat='0.7', but models imported
-        # before that flag existed lack it — so we ALSO auto-detect 0.7 vocabulary
+        # The importers set metadata.overridesFormat ('0.7' / '0.6'); models imported
+        # before that flag existed lack it — then the vocabulary is detected
         # structurally. Without this, 0.7 overrides go through the 0.6 translator,
         # which drops the `nodes.*` blocks and makes every scenario collapse to
         # the baseline (identical results).
         overrides_format = str(meta.get('overridesFormat')
                                or model_config_payload.get('overridesFormat') or '')
-        native07 = overrides_format.startswith('0.7') or _looks_like_07_overrides(overrides)
+        native07 = (overrides_format.startswith('0.7') if overrides_format
+                    else _looks_like_07_overrides(overrides))
         if native07:
             model_doc['overrides'] = {
                 name: ov for name, ov in overrides.items() if isinstance(ov, dict)

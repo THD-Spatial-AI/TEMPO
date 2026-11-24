@@ -125,3 +125,19 @@ def test_unmet_demand_reported_like_calliope06():
     assert res['total_unmet_demand_mwh'] == 302.0
     assert res['unmet_demand_by_location'] == {'s_e_arica': 302.0}
     assert res['unmet_demand_timeseries'] == [0.0, 119.0, 183.0]
+
+
+def test_exists_only_tech_override_is_06():
+    # Calliope-Italy: no_old_techs disables techs, res_3H resamples — both 0.6 vocabulary
+    ovs = {
+        'no_old_techs': {'techs': {'ccgt': {'exists': False}, 'coal': {'exists': False}}},
+        'res_3H': {'model': {'time': {'function': 'resample', 'function_options': {'resolution': '3H'}}}},
+    }
+    assert r._looks_like_07_overrides(ovs) is False
+    assert r._looks_like_07_overrides({'no_old_techs': ovs['no_old_techs']}) is False
+
+
+def test_any_06_marker_wins_over_flat_tech_params():
+    ovs = {'a': {'techs': {'pv': {'flow_cap_max': 5}}}, 'b': {'model': {'subset_time': ['2015-01-01', '2015-01-02']}}}
+    assert r._looks_like_07_overrides(ovs) is False
+    assert r._looks_like_07_overrides({'d': {'techs.ccgt.exists': False}}) is False
