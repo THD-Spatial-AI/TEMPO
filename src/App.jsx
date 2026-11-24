@@ -228,12 +228,11 @@ function App() {
         window.electronAPI.getServiceURLs().catch(() => null),
         window.electronAPI.getSetupVersion?.().catch(() => null),
       ]).then(([dockerResult, serviceURLs, setupInfo]) => {
-        // Force setup whenever the app version has changed (fresh install / upgrade),
-        // even if the old environment is still running on this machine.
+        // Force setup when there is no setup marker: first run, or a full install
+        // (the Windows installer deletes the marker). An in-app update keeps the
+        // marker, so it goes through the normal service checks below instead.
         const setupVersion    = setupInfo?.setupVersion ?? null;
-        const currentVersion  = setupInfo?.currentVersion ?? null;
-        const isNewVersion    = !setupVersion || (currentVersion && setupVersion !== currentVersion);
-        if (isNewVersion) {
+        if (!setupVersion) {
           setFreshInstall(true);
           setAppState('setup');
           return;

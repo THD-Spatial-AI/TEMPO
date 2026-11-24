@@ -146,8 +146,10 @@ async function installUpdate() {
     return { ok: true, devtest: true };
   }
 
+  // Silent in-place update: no wizard pages, same install folder, user data and
+  // Python envs kept (--updated), and the installer starts TEMPO again (--force-run).
   if (kind === 'nsis') {
-    spawn(file, [], { detached: true, stdio: 'ignore' }).unref();
+    spawn(file, ['/S', '--updated', '--force-run'], { detached: true, stdio: 'ignore' }).unref();
     setTimeout(() => app.quit(), 500);
     return { ok: true };
   }
