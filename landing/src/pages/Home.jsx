@@ -19,15 +19,15 @@ const RELEASES = 'https://github.com/THD-Spatial-AI/TEMPO/releases'
 const DOWNLOADS = [
   {
     label: 'Download for Windows',
-    sub: 'v4.2.2 · .exe · 160 MB',
+    sub: 'v4.2.3 · .exe · 160 MB',
     icon: 'desktop_windows',
-    href: `${RELEASES}/download/Release_V4.2.2/TEMPO.Setup.4.2.2.exe`,
+    href: `${RELEASES}/download/Release_V4.2.3/TEMPO.Setup.4.2.3.exe`,
   },
   {
     label: 'Download for Linux',
-    sub: 'v4.2.2 · .AppImage · 175 MB',
+    sub: 'v4.2.3 · .AppImage · 176 MB',
     icon: 'terminal',
-    href: `${RELEASES}/download/Release_V4.2.2/TEMPO-4.2.2.AppImage`,
+    href: `${RELEASES}/download/Release_V4.2.3/TEMPO-4.2.3.AppImage`,
   },
 ]
 
@@ -811,7 +811,7 @@ curl "$BASE/adapt/pypsa/ccgt?instance_index=0&discount_rate=0.07"`}
                 >
                   <span className="material-symbols-outlined text-2xl mb-1">desktop_windows</span>
                   <span className="font-black uppercase text-[11px] tracking-widest">Windows</span>
-                  <span className="text-[9px] text-neutral-500 mt-0.5 uppercase">v4.2.2 .exe</span>
+                  <span className="text-[9px] text-neutral-500 mt-0.5 uppercase">v4.2.3 .exe</span>
                 </a>
                 <div className="w-px bg-black/10 hidden sm:block self-stretch"></div>
                 <a
@@ -820,7 +820,7 @@ curl "$BASE/adapt/pypsa/ccgt?instance_index=0&discount_rate=0.07"`}
                 >
                   <span className="material-symbols-outlined text-2xl mb-1">terminal</span>
                   <span className="font-black uppercase text-[11px] tracking-widest">Linux</span>
-                  <span className="text-[9px] text-neutral-500 mt-0.5 uppercase">v4.2.2 .AppImage</span>
+                  <span className="text-[9px] text-neutral-500 mt-0.5 uppercase">v4.2.3 .AppImage</span>
                 </a>
               </div>
               <p className="text-[10px] uppercase tracking-widest text-neutral-400">

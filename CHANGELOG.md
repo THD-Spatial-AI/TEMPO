@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [4.2.3] - 2026-11-23
 
-Calliope 0.7 runs models whose overrides mix tech switches with a time resolution, and PyPSA installs a dependency stack that gives the right objective.
+Calliope 0.7 runs models whose overrides mix tech switches with a time resolution, PyPSA installs a dependency stack that gives the right objective, and updating from inside TEMPO no longer repeats the setup.
+
+### Changed
+
+- Updating from inside TEMPO on Windows is silent: the installer keeps the install folder, your data and the Python environments, and starts TEMPO again. The setup wizard only runs on a first install or a full reinstall, not after an update.
 
 ### Fixed
 
