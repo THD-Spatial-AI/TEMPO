@@ -5,6 +5,15 @@ All notable changes to TEMPO are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.2.3] - 2026-11-23
+
+Calliope 0.7 runs models whose overrides mix tech switches with a time resolution, and PyPSA installs a dependency stack that gives the right objective.
+
+### Fixed
+
+- Calliope 0.7 passed 0.6 overrides through untranslated when one of them only switched techs off (`techs.X.exists: false`, as in Calliope-Italy's `no_old_techs`). `res_3H` then reached Calliope as `model.time` and failed with "definition.model Extra inputs are not permitted"; the Run page's "3-Hour Resolution" template failed the same way. Any 0.6 marker now means 0.6, the Calliope YAML importer records the format, and `exists: false` becomes `active: false`.
+- PyPSA: a fresh install resolved pandas 3.1, with which PyPSA 0.35 builds the capital-cost part of the objective from all costs times all capacities. The optimum was wrong (a 30 cost network solved at 1530). The install now pins pypsa 0.35.2, pandas 2.3.1, xarray 2025.6.1 and linopy 0.5.5. An existing PyPSA environment with other versions is corrected when the service starts.
+
 ## [4.2.2] - 2026-11-23
 
 A coarser time resolution (e.g. 3-hourly) now runs on Calliope 0.6.8, Calliope 0.7 and PyPSA, and Calliope 0.7 applies the reserve margin.
@@ -434,6 +443,7 @@ Initial public release.
 - Timeseries editor, override/scenario engine, and SPORES mode.
 - H₂ and CCS plant simulation services.
 
+[4.2.3]: https://github.com/THD-Spatial-AI/TEMPO/releases/tag/Release_V4.2.3
 [4.2.2]: https://github.com/THD-Spatial-AI/TEMPO/releases/tag/Release_V4.2.2
 [4.2.1]: https://github.com/THD-Spatial-AI/TEMPO/releases/tag/Release_V4.2.1
 [4.2.0]: https://github.com/THD-Spatial-AI/TEMPO/releases/tag/Release_V4.2.0
