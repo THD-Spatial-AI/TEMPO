@@ -681,5 +681,6 @@ export function translateCalliopeModel(mergedDoc, filesMap, { extraCsvFiles = []
     }
   }
 
-  return { modelName, locations, links, technologies, timeSeries, missingTimeSeries, runConfig, subsetTime, overrides, scenarios, log };
+  // Tells the 0.7 runner these overrides are 0.6 vocabulary (to be translated, not applied verbatim)
+  return { modelName, locations, links, technologies, timeSeries, missingTimeSeries, runConfig, subsetTime, overrides, scenarios, overridesFormat: '0.6', log };
 }
