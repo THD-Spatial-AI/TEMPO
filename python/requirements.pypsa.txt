@@ -3,9 +3,17 @@
 # Requires Python 3.10+ (venv: pypsa-venv, service: pypsa_service.py, port 5003)
 #
 # Pin range chosen 2026-07; re-validate against the reference model
-# (scripts/verify_engines.py) before loosening.
+# (scripts/verify_engines.py) and python/tests/test_pypsa_objective.py before loosening.
 
-pypsa>=0.34,<0.36
+pypsa==0.35.2
+
+# Exact stack from PyPSA 0.35.2's release (2025-08). With pandas 3.1 PyPSA 0.35 builds
+# the capital-cost objective as an outer product (all costs x all capacities), so the
+# optimum is wrong. xarray 2025.6.1 is the last release that still supports Python 3.10.
+pandas==2.3.1
+xarray==2025.6.1
+linopy==0.5.5
+polars>=1.0,<1.33
 
 # LP/MILP solver used by the runner (linopy backend)
 highspy>=1.7
@@ -14,7 +22,6 @@ highspy>=1.7
 netCDF4>=1.6
 
 # Core runtime deps (pypsa installs these; floor for reproducibility)
-numpy>=1.24
-pandas>=2.1
+numpy>=1.24,<2.3
 networkx>=2.8
 scipy>=1.11
