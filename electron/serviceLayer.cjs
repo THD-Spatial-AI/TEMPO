@@ -22,6 +22,44 @@ async function ensureServiceLayer({ python, requirementsPath, run, log }) {
   }
 }
 
+// Exact pins (`name==version`) in an engine requirements file. A venv built by an
+// older TEMPO keeps whatever pip resolved then (e.g. pandas 3.1 under PyPSA, which
+// gives a wrong objective), so the pins are re-installed when the venv drifts.
+function exactPins(text) {
+  const pins = {};
+  for (const raw of String(text).split(/\r?\n/)) {
+    const line = raw.replace(/#.*/, '').trim();
+    const m = /^([A-Za-z0-9_.-]+)==([^\s;]+)$/.exec(line);
+    if (m) pins[m[1]] = m[2];
+  }
+  return pins;
+}
+
+// Prints {name: installed version} for every pin the venv does not match.
+const pinCheckCode = (pins) => [
+  'import json, importlib.metadata as m',
+  `p = json.loads(${JSON.stringify(JSON.stringify(pins))})`,
+  'def v(n):',
+  '    try: return m.version(n)',
+  '    except Exception: return None',
+  'print(json.dumps({n: v(n) for n, w in p.items() if v(n) != w}))',
+].join('\n');
+
+async function ensurePinnedPackages({ python, requirementsPath, readFile, run, log }) {
+  const pins = exactPins(readFile(requirementsPath));
+  if (!Object.keys(pins).length) return { ok: true, repaired: false };
+  try {
+    const drift = JSON.parse(String(await run(python, ['-c', pinCheckCode(pins)])).trim() || '{}');
+    if (!Object.keys(drift).length) return { ok: true, repaired: false };
+    log(`Pinned packages differ (${Object.entries(drift).map(([n, have]) => `${n} ${have} → ${pins[n]}`).join(', ')}) — reinstalling ${requirementsPath}…`);
+    await run(python, ['-m', 'pip', 'install', '--prefer-binary', '--no-warn-script-location', '-r', requirementsPath]);
+    log('Pinned packages reinstalled.');
+    return { ok: true, repaired: true };
+  } catch (err) {
+    return { ok: false, repaired: false, error: err.message || String(err) };
+  }
+}
+
 // In-memory (per app session) memory of a failed repair, so an offline machine
 // does not re-run a failing pip install on every automatic start. A forced
 // attempt (user clicked Repair / Install) always goes through.
@@ -35,4 +73,4 @@ function createRepairGate() {
   };
 }
 
-module.exports = { SERVICE_LAYER_CHECK, ensureServiceLayer, createRepairGate };
+module.exports = { SERVICE_LAYER_CHECK, ensureServiceLayer, ensurePinnedPackages, exactPins, createRepairGate };

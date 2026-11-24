@@ -14,7 +14,7 @@ const { app, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn, execFile, execFileSync } = require('child_process');
-const { ensureServiceLayer, createRepairGate, SERVICE_LAYER_CHECK } = require('./serviceLayer.cjs');
+const { ensureServiceLayer, ensurePinnedPackages, createRepairGate, SERVICE_LAYER_CHECK } = require('./serviceLayer.cjs');
 const { removeVenvDir } = require('./removeVenv.cjs');
 const { isUsable, probePython } = require('./pythonPick.cjs');
 
@@ -271,6 +271,7 @@ function createEngineService(spec) {
   let busy = null;
   let installing = false;
   const repairGate = createRepairGate();
+  let pinsChecked = false;
 
   function start({ force = false, isRestart = false } = {}) {
     if (installing) {
@@ -321,6 +322,15 @@ function createEngineService(spec) {
       return;
     }
     repairGate.clear();
+    if (installSpec.requirements && !pinsChecked) {
+      pinsChecked = true;  // once per session; a failed reinstall is not retried on every start
+      const pinned = await ensurePinnedPackages({
+        python, requirementsPath: path.join(pythonDir, installSpec.requirements),
+        readFile: (f) => fs.readFileSync(f, 'utf8'),
+        run: runQuiet, log: (l) => console.log(`[${logTag}] ${l}`),
+      });
+      if (!pinned.ok) console.warn(`[${logTag}] Could not reinstall pinned packages: ${pinned.error}`);
+    }
     if (installing) return;
     const childEnv = buildEnv ? buildEnv() : undefined;
 
