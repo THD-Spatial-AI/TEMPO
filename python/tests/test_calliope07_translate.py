@@ -645,3 +645,10 @@ def test_cost_with_non_string_index_not_reindexed():
     multi = {'data': [1, 2], 'index': ['monetary', 'co2'], 'dims': 'costs'}
     out = t.translate_costs({'__raw07__': {'cost_om_annual': multi}}, [], 'x', 'conversion', 'electricity')
     assert out == {'cost_om_annual': multi}
+
+
+def test_tech_exists_maps_to_active():
+    warnings = []
+    out = t.translate_override_07({'techs': {'ccgt': {'exists': False}}}, {'ccgt': 'supply'}, warnings)
+    assert out['techs']['ccgt'] == {'active': False}
+    assert not warnings

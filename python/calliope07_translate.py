@@ -645,8 +645,10 @@ def translate_override_07(override: dict, parent_by_tid: dict, warnings: list,
                                          f"{label}:{tid}", oc))
         tgt.pop('__energy_cap_scale__', None)
         tgt.update(translate_costs(tdef.get('costs'), warnings, f"{label}:{tid}", parent, oc))
+        if 'exists' in tdef:
+            tgt['active'] = bool(tdef['exists'])
         for k in tdef:
-            if k not in ('essentials', 'constraints', 'costs'):
+            if k not in ('essentials', 'constraints', 'costs', 'exists'):
                 warnings.append(f"{label}: techs.{tid}.{k} dropped")
         if tgt:
             out.setdefault('techs', {})[tid] = tgt
