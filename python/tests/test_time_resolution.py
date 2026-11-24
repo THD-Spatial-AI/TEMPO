@@ -110,6 +110,21 @@ def test_calliope07_res_3h_override(tmp_path):
 
 
 @pytest.mark.skipif(_calliope_major() != '0.7', reason='Calliope 0.7 not installed')
+def test_calliope07_exists_override_with_res_3h(tmp_path):
+    # Calliope-Italy shape: an exists-only tech override next to res_3H must be translated
+    # (not passed verbatim, which fails 0.7 validation on definition.model)
+    import calliope07_runner
+    m = _model_2015()
+    m['overrides'] = {'no_old_techs': {'techs': {'battery': {'exists': False}}}, 'res_3H': RES_3H}
+    m['scenarios'] = {'italy_like': ['no_old_techs', 'res_3H']}
+    m['scenario'] = 'italy_like'
+    res, lines = _run(calliope07_runner, m, tmp_path)
+    _assert_3h(res, lines)
+    assert not any('verbatim' in l for l in lines)
+    assert not any(k.endswith('::battery') and v > 1e-6 for k, v in res['capacities'].items())
+
+
+@pytest.mark.skipif(_calliope_major() != '0.7', reason='Calliope 0.7 not installed')
 def test_calliope07_reserve_margin_builds_and_binds(tmp_path):
     import calliope07_runner
     m = _model_2015(timeResolution='3H')
