@@ -3,11 +3,21 @@ import { HeroSection } from '../components/ui/HeroSection'
 import { ImageComparison } from '../components/ui/ImageComparison'
 import { ShadowOverlay } from '../components/ui/ShadowOverlay'
 import { DottedSurface } from '../components/ui/DottedSurface'
+import AppScreens from '../components/AppScreens'
 import Footer from '../components/Footer'
 import logo from '../public/img/Logo_TEMPO.PNG'
-import Hero from '../public/img/Hero.png'
+import Hero from '../public/img/app/hero-grid.webp'
 import BeforeImg from '../public/img/Old.png'
-import AfterImg from '../public/img/New.png'
+import AfterImg from '../public/img/app/map-view.webp'
+import ShotStudy from '../public/img/app/study-area.webp'
+import ShotMap from '../public/img/app/map-view.webp'
+import ShotDashboard from '../public/img/app/dashboard.webp'
+import ShotStudio from '../public/img/app/scenario-studio.webp'
+import ShotRun from '../public/img/app/run.webp'
+import ShotResults from '../public/img/app/results.webp'
+import ShotDispatch from '../public/img/app/dispatch.webp'
+import ShotTech from '../public/img/app/tech-database.webp'
+import ShotTimeseries from '../public/img/app/timeseries.webp'
 import LogoH2IN from '../public/img/H2IN.jpg'
 import LogoREDRES from '../public/img/REDRES.png'
 import LogoH2V from '../public/img/H2V.png'
@@ -65,6 +75,72 @@ const CONTRIBUTE_STEPS = [
   },
 ]
 
+const SCREENS = [
+  {
+    id: 'study',
+    label: 'Study area',
+    img: ShotStudy,
+    alt: 'Creation view with Lower Bavaria selected: power lines, substations and plants from OpenStreetMap drawn on the map, and a panel counting 1117 lines, 3717 substations and 3763 plants.',
+    caption: 'Searching "Niederbayern" loads Lower Bavaria: 1,117 power lines, 3,717 substations and 3,763 plants from OpenStreetMap. The next steps turn them into model nodes and links.',
+  },
+  {
+    id: 'map',
+    label: 'Map view',
+    img: ShotMap,
+    alt: 'Map View of an Italy model with 29 locations joined by links, a list of locations on the left and a technology legend on the right.',
+    caption: 'An imported Calliope model of Italy with 29 locations and 64 links. Click a location to edit it, or draw new ones.',
+  },
+  {
+    id: 'dashboard',
+    label: 'Dashboard',
+    img: ShotDashboard,
+    alt: 'Model dashboard with counts of locations, links and technologies, estimated CAPEX and OPEX, a location map and a technology breakdown.',
+    caption: 'The inputs of the loaded model before you run it: counts, estimated CAPEX and OPEX, and which technology sits where.',
+  },
+  {
+    id: 'studio',
+    label: 'Scenario Studio',
+    img: ShotStudio,
+    alt: 'Scenario Studio board with a 2050 year card holding time series and technology cards, plus sensitivity and SPORES cards, and the SPORES settings panel open.',
+    caption: 'The SPORES study of Lombardi et al. (2020) as a template: a 2050 year, 9 sensitivity cases and 178 SPORES per cost slack, 27 runs in one batch.',
+  },
+  {
+    id: 'run',
+    label: 'Run',
+    img: ShotRun,
+    alt: 'Run page with time horizon and solver options on the left and an active Calliope run with CPU, memory and a live solver log on the right.',
+    caption: 'Pick the engine and time window, then follow the solver log, CPU and memory while the model runs.',
+  },
+  {
+    id: 'results',
+    label: 'Results',
+    img: ShotResults,
+    alt: 'Results dashboard for a one-week Calliope run of the Italy model: a map with installed capacity per location and a bar chart of capacity by technology.',
+    caption: 'A one-week Calliope 0.6.8 run of the Italy model. The map sizes each location by installed capacity; the tabs hold flows, dispatch, costs and Model Advisor.',
+  },
+  {
+    id: 'dispatch',
+    label: 'Dispatch',
+    img: ShotDispatch,
+    alt: 'Hourly generation dispatch stack for the first week of January with demand drawn as a dashed red line, and totals per technology below.',
+    caption: 'Hourly dispatch for the same week, stacked by technology, with demand as a dashed line and totals per technology below.',
+  },
+  {
+    id: 'tech',
+    label: 'Tech database',
+    img: ShotTech,
+    alt: 'Technology Library listing 89 technologies from OpenTech-DB in cards with CAPEX and lifetime, grouped by category.',
+    caption: '89 technologies from OpenTech-DB, with CAPEX, lifetime and efficiency. The ones your model uses are listed under My Technologies.',
+  },
+  {
+    id: 'timeseries',
+    label: 'Time series',
+    img: ShotTimeseries,
+    alt: 'Time Series editor showing two weeks of hourly regional demand for five Italian zones, with range, resolution and column controls.',
+    caption: 'Hourly demand for the Italian zones. Zoom to a season or month, switch to daily or weekly, and drag points to reshape a curve.',
+  },
+]
+
 export default function Home() {
   const workflowSteps = [
     { icon: 'database', step: '01. Bring data in', desc: 'Search a region by name and pull its grid from OpenStreetMap, or open an existing Calliope, PyPSA or OSeMOSYS model.' },
@@ -75,74 +151,65 @@ export default function Home() {
 
   const whatsNew = [
     {
+      icon: 'fact_check',
+      version: '4.2',
+      title: 'Model check with Fix links',
+      desc: 'Problems are critical, error or warning, and only critical ones stop a run. Each one links to the row, field or map location to fix.',
+    },
+    {
       icon: 'science',
-      title: 'Scenario Studio',
-      desc: 'Lay out a scenario year by year on a board, with cards for demand, CO₂ caps, technology changes, sensitivity cases and SPORES. Start from a template (demand growth, carbon cap, renewable transition) or a blank timeline, and run every year as one batch.',
+      version: '4.2',
+      title: 'Edit a model’s own scenarios',
+      desc: 'Scenarios and overrides that come with an imported model show up in Scenario Studio as cards you can change, duplicate and run.',
     },
     {
-      icon: 'schema',
-      title: 'Five engines, one results view',
-      desc: 'Calliope 0.6.8, Calliope 0.7, PyPSA, OSeMOSYS and AdOpT-NET0, each in its own Python environment. They all hand back results in the same shape, so you read a PyPSA run the same way you read a Calliope one.',
+      icon: 'insights',
+      version: '4.2',
+      title: 'SPORES paper figures',
+      desc: 'Figures 1 to 6 of Lombardi et al. (2020) for any SPORES run, exported as PNG, SVG and CSV.',
     },
     {
-      icon: 'tune',
-      title: 'Enter parameters once',
-      desc: 'Capacity, efficiency, lifetime and CAPEX are entered once and translated for each engine. Engine-specific fields are still there when you need them.',
-    },
-    {
-      icon: 'travel_explore',
-      title: 'Study area from a place name',
-      desc: 'Type a city, province or country. TEMPO finds its boundary, pulls substations and power lines from OpenStreetMap and turns them into a zonal model you can edit.',
+      icon: 'timer',
+      version: '4.2.2',
+      title: '3-hour steps on three engines',
+      desc: 'A coarser time resolution now works on Calliope 0.6.8, Calliope 0.7 and PyPSA. Calliope 0.7 also applies the reserve margin.',
     },
     {
       icon: 'electric_meter',
-      title: 'Demand for every substation',
-      desc: 'Spread a regional demand figure across substations, evenly or weighted by voltage, and give each one an hourly load shape. Install demandlib and you also get the BDEW standard load profiles.',
+      version: '4.1',
+      title: 'Demand for each substation',
+      desc: 'The Study Area tool estimates what each substation supplies, anywhere in the world, from a 1 km consumption map and national statistics.',
     },
     {
-      icon: 'chat',
-      title: 'Ask questions about a run',
-      desc: 'The Model Advisor tab writes a report on a finished run and answers follow-up questions. You bring your own key (Anthropic, Gemini, OpenAI, Groq) or point it at a local Ollama model.',
+      icon: 'wb_sunny',
+      version: '4.1',
+      title: 'PV and wind profiles',
+      desc: 'Hourly profiles from Open-Meteo ERA5 weather for your technologies, with sunshine and wind overlays on the map.',
     },
     {
-      icon: 'cloud_upload',
-      title: 'Remote runs',
-      desc: 'When a model is too big for your laptop, send a PyPSA, Calliope 0.7 or AdOpT-NET0 run to a MEME server. The results come back in the same format as a local run.',
+      icon: 'extension',
+      version: '4.1',
+      title: 'Install engines from Settings',
+      desc: 'Add or remove each engine, solver and service on its own in the Components panel.',
     },
     {
-      icon: 'difference',
-      title: 'SPORES',
-      desc: 'Ask for a set of near-optimal alternatives inside a cost margin you set, and see how differently the same system could be built. Local on Calliope 0.6.8, remote on 0.7.',
-    },
-    {
-      icon: 'swap_horiz',
-      title: 'Open models from other tools',
-      desc: 'Drop in a Calliope 0.6 or 0.7 YAML model, a PyPSA netCDF or CSV folder, or an OSeMOSYS otoole dataset. TEMPO reads the archive and works out which one it is.',
-    },
-    {
-      icon: 'map',
-      title: 'Figures for your paper',
-      desc: 'Export node and transmission maps, capacity and generation maps and demand choropleths as SVG, with the data behind them as CSV or JSON.',
-    },
-    {
-      icon: 'grid_view',
-      title: 'Compare many runs',
-      desc: 'Put runs side by side as KPI tables, maps, parallel coordinates or a scatter plot. A batch across several models gets a matrix shaded by the KPI you pick.',
-    },
-    {
-      icon: 'laptop_mac',
-      title: 'Your models stay on your machine',
-      desc: 'TEMPO is a desktop app with a local database. No account, no upload. Model Advisor and remote runs are the only features that send data out, and both are off until you set them up.',
+      icon: 'system_update',
+      version: '4.2.3',
+      title: 'Updates from inside TEMPO',
+      desc: 'TEMPO checks GitHub for new releases. On Windows the update installs silently and keeps your models and Python environments.',
     },
   ]
 
   const features = [
-    { icon: 'account_tree', title: 'Map-based builder', desc: 'Click to place locations, draw links between them and attach technologies. The model is written out as Calliope YAML with nothing lost on the way.' },
-    { icon: 'library_books', title: 'Technology catalog', desc: 'Generation, storage, conversion and transmission technologies with costs and efficiencies from OpenTech-DB, aligned with the Open Energy Ontology.' },
-    { icon: 'ssid_chart', title: 'Timeseries editor', desc: 'Edit demand and resource profiles column by column. Drag points on the chart, or zoom to a season, a month or a custom window.' },
-    { icon: 'layers', title: 'Overrides', desc: 'Group changes to costs, capacities or CO₂ limits under a name and switch them on per run.' },
-    { icon: 'data_exploration', title: 'Results dashboard', desc: 'Capacities, hourly dispatch, costs by technology and location, transmission flows, shadow prices and LCOE, each on its own tab.' },
-    { icon: 'sensors', title: 'Live solver log', desc: 'Watch the solver log while the model runs, so you know whether it is building, solving or stuck.' },
+    { icon: 'account_tree', title: 'Map-based builder', desc: 'Place locations, draw links and attach technologies on the map.' },
+    { icon: 'travel_explore', title: 'Study area from a place name', desc: 'Type a region and TEMPO pulls its substations and power lines from OpenStreetMap.' },
+    { icon: 'schema', title: 'Five engines, one results view', desc: 'Calliope 0.6.8 and 0.7, PyPSA, OSeMOSYS and AdOpT-NET0 return results in the same shape.' },
+    { icon: 'view_timeline', title: 'Scenario Studio', desc: 'Lay out a study year by year with cards for demand, CO₂ caps, technology changes and SPORES, then run it as one batch.' },
+    { icon: 'data_exploration', title: 'Results and comparison', desc: 'Capacities, dispatch, costs, flows, shadow prices and LCOE for every run. Put runs side by side.' },
+    { icon: 'swap_horiz', title: 'Open models from other tools', desc: 'Calliope 0.6 or 0.7 YAML, PyPSA netCDF or CSV, or an OSeMOSYS otoole dataset.' },
+    { icon: 'chat', title: 'Model Advisor', desc: 'A written report on a finished run. Bring your own key (Anthropic, Gemini, OpenAI, Groq) or use a local Ollama model.' },
+    { icon: 'cloud_upload', title: 'Remote runs', desc: 'Send a PyPSA, Calliope 0.7 or AdOpT-NET0 run to a MEME server when it is too big for your laptop.' },
+    { icon: 'laptop_mac', title: 'Models stay on your machine', desc: 'A local database, no account. Model Advisor and remote runs are the only features that send data out, and both are off until you set them up.' },
   ]
 
   const techStack = [
@@ -194,28 +261,55 @@ export default function Home() {
           </div>
         </section>
 
+        {/* Screens */}
+        <section className="py-24 px-4 sm:px-8 bg-white" id="screens">
+          <div className="max-w-7xl mx-auto">
+            <div className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-8">
+              <div>
+                <span className="font-bold text-[10px] tracking-[0.4em] uppercase text-neutral-500 mb-2 block">
+                  TEMPO 4.2.3
+                </span>
+                <h2 className="text-4xl font-black tracking-tighter uppercase leading-none">
+                  What it looks like
+                </h2>
+              </div>
+              <p className="text-sm text-neutral-600 max-w-md">
+                Screenshots from the current release, taken with a real model of Italy and a
+                study area in Lower Bavaria.
+              </p>
+            </div>
+            <AppScreens screens={SCREENS} />
+          </div>
+        </section>
+
         {/* What's New */}
         <section className="py-24 px-8 bg-neutral-50 border-y border-neutral-200" id="changelog">
           <div className="max-w-7xl mx-auto">
             <div className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-8">
               <div>
-                <span className="font-bold text-[10px] tracking-[0.4em] uppercase text-neutral-400 mb-2 block">
-                  TEMPO 3
+                <span className="font-bold text-[10px] tracking-[0.4em] uppercase text-neutral-500 mb-2 block">
+                  TEMPO 4.0 to 4.2.3
                 </span>
                 <h2 className="text-4xl font-black tracking-tighter uppercase leading-none">
                   What's New
                 </h2>
               </div>
-              <p className="text-sm text-neutral-500 max-w-md">
-                Version 3 is mostly about what happens after the first model works: running
-                many scenarios, comparing them, and getting figures out for a report.
+              <p className="text-sm text-neutral-600 max-w-md">
+                Since 4.0, TEMPO checks a model before it runs, estimates demand and weather
+                profiles for any region, and updates itself.{' '}
+                <a href={`${GITHUB}/blob/main/CHANGELOG.md`} target="_blank" rel="noopener noreferrer" className="text-black underline underline-offset-2 hover:opacity-70">
+                  Full changelog
+                </a>
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-px bg-neutral-200 border border-neutral-200">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-px bg-neutral-200 border border-neutral-200">
               {whatsNew.map((item) => (
                 <div key={item.title} className="bg-white p-8 flex flex-col gap-4">
-                  <span className="material-symbols-outlined text-xl text-black">{item.icon}</span>
+                  <div className="flex items-center justify-between">
+                    <span className="material-symbols-outlined text-xl text-black" aria-hidden="true">{item.icon}</span>
+                    <span className="text-[10px] font-bold tracking-widest uppercase text-neutral-500">v{item.version}</span>
+                  </div>
                   <div>
                     <h4 className="font-black text-[0.875rem] uppercase tracking-tight mb-2">{item.title}</h4>
                     <p className="text-[13px] text-neutral-500 leading-relaxed">{item.desc}</p>
@@ -233,45 +327,45 @@ export default function Home() {
           <div className="max-w-7xl mx-auto">
             <div className="mb-16 flex flex-col md:flex-row md:items-end justify-between gap-8">
               <div>
-                <span className="font-bold text-[10px] tracking-[0.4em] uppercase text-neutral-400">
+                <span className="font-bold text-[10px] tracking-[0.4em] uppercase text-neutral-500">
                   Before vs After
                 </span>
                 <h2 className="text-4xl font-black mt-4 tracking-tighter uppercase leading-none">
-                  From Raw Data<br />to Optimized Model.
+                  From YAML files<br />to a model on a map.
                 </h2>
               </div>
-              <p className="text-sm text-neutral-500 max-w-sm">
-                Drag the slider. On the left, raw OpenStreetMap power infrastructure as you would
-                download it. On the right, the same region as a TEMPO model ready to solve.
+              <p className="text-sm text-neutral-600 max-w-sm">
+                Drag the slider. On the left, a Calliope model written by hand. On the right, a
+                model of the same kind in TEMPO.
               </p>
             </div>
 
             <ImageComparison
               beforeImage={BeforeImg}
               afterImage={AfterImg}
-              altBefore="Raw OSM Infrastructure"
-              altAfter="TEMPO Model Dashboard"
+              altBefore="Calliope YAML"
+              altAfter="TEMPO Map View"
             />
 
             {/* Caption row */}
             <div className="mt-0 grid grid-cols-2 border-l border-r border-b border-neutral-200">
               <div className="px-8 py-5 border-r border-neutral-200 flex items-center gap-4 bg-white">
-                <span className="material-symbols-outlined text-lg text-neutral-400">layers</span>
+                <span className="material-symbols-outlined text-lg text-neutral-500" aria-hidden="true">code</span>
                 <div>
                   <p className="font-black text-[10px] uppercase tracking-widest">Before</p>
-                  <p className="text-[11px] text-neutral-500 mt-0.5">
-                    Thousands of OSM power lines, plants and substations, plus cost and constraint
-                    data kept somewhere else, all to be sorted by hand.
+                  <p className="text-[11px] text-neutral-600 mt-0.5">
+                    One YAML block per technology and location, with costs and constraints typed
+                    in by hand.
                   </p>
                 </div>
               </div>
               <div className="px-8 py-5 flex items-center gap-4 bg-white">
-                <span className="material-symbols-outlined text-lg text-black">bolt</span>
+                <span className="material-symbols-outlined text-lg text-black" aria-hidden="true">map</span>
                 <div>
                   <p className="font-black text-[10px] uppercase tracking-widest">After</p>
-                  <p className="text-[11px] text-neutral-500 mt-0.5">
-                    A TEMPO model with its topology, technologies and CAPEX/OPEX estimates in
-                    one place, ready to run.
+                  <p className="text-[11px] text-neutral-600 mt-0.5">
+                    Locations, links and technologies placed on the map. TEMPO writes the files for
+                    each engine when you run or export.
                   </p>
                 </div>
               </div>
@@ -534,16 +628,15 @@ export default function Home() {
                 <h2 className="text-5xl font-black mt-4 tracking-tighter text-black">The parts you use every day.</h2>
               </div>
               <p className="text-sm text-black max-w-sm">
-                Everything in TEMPO 3 sits on top of these. They are where most of the
-                modelling time goes.
+                The new features in 4.x build on these.
               </p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-px bg-neutral-200 border border-neutral-200">
               {features.map((f, i) => (
-                <div key={i} className="p-12 bg-white hover:bg-neutral-50 transition-colors">
-                  <span className="material-symbols-outlined text-2xl mb-8 text-black block">{f.icon}</span>
-                  <h4 className="text-sm font-bold mb-4 uppercase tracking-widest">{f.title}</h4>
-                  <p className="text-[13px] text-neutral-500 leading-relaxed">{f.desc}</p>
+                <div key={i} className="p-10 bg-white hover:bg-neutral-50 transition-colors">
+                  <span className="material-symbols-outlined text-2xl mb-6 text-black block" aria-hidden="true">{f.icon}</span>
+                  <h3 className="text-sm font-bold mb-3 uppercase tracking-widest">{f.title}</h3>
+                  <p className="text-[13px] text-neutral-600 leading-relaxed">{f.desc}</p>
                 </div>
               ))}
             </div>

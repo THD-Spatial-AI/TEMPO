@@ -1,9 +1,10 @@
 import { Link } from 'react-router-dom'
 import Footer from '../components/Footer'
-import model from '../public/img/Model.png'
-import InteractiveQGIS from '../public/img/InteractiveQGIS.png'
-import Results from '../public/img/Results.png'
-import ScreenTimeseries from '../public/img/timeseries.png'
+import model from '../public/img/app/map-view.webp'
+import InteractiveQGIS from '../public/img/app/study-area.webp'
+import Results from '../public/img/app/results.webp'
+import ScreenTimeseries from '../public/img/app/timeseries.webp'
+import ScreenRun from '../public/img/app/run.webp'
 
 export default function Features() {
   const workflowSteps = [
@@ -58,7 +59,7 @@ export default function Features() {
                   v4.2.3 Stable
                 </span>
                 <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-outline">
-                  Architecture: x64 / ARM64
+                  Architecture: x64
                 </span>
                 <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-outline">
                   Engines: Calliope 0.6.8 / 0.7 · PyPSA · OSeMOSYS · AdOpT-NET0 · MEME (remote)
@@ -68,21 +69,21 @@ export default function Features() {
           </div>
         </section>
 
-        {/* What's New in v4.2.0 */}
+        {/* What's New in 4.2 */}
         <section className="py-32 px-8 bg-black text-white">
           <div className="max-w-7xl mx-auto">
             <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-8">
               <div>
-                <span className="text-[0.6875rem] font-bold uppercase tracking-[0.3em] text-white/40 mb-4 block">
-                  Release 4.2.0
+                <span className="text-[0.6875rem] font-bold uppercase tracking-[0.3em] text-white/60 mb-4 block">
+                  Releases 4.2.0 to 4.2.3
                 </span>
                 <h2 className="text-[2.75rem] md:text-[3.5rem] font-bold tracking-tighter leading-none">
-                  WHAT&rsquo;S NEW IN V4.2.0
+                  WHAT&rsquo;S NEW IN 4.2
                 </h2>
               </div>
-              <p className="max-w-md text-white/60 font-medium">
-                Version 4.2.0 shows each problem in a model next to the thing to fix, lets you
-                edit a model's own scenarios, and draws the SPORES figures for any run.
+              <p className="max-w-md text-white/70 font-medium">
+                Each problem in a model now sits next to the thing to fix. You can edit a model's
+                own scenarios, draw the SPORES figures for any run, and solve at 3-hour steps.
               </p>
             </div>
 
@@ -125,11 +126,23 @@ export default function Features() {
                   desc: 'Calliope 0.6.8 runs used to ignore the scenario or override and solve the baseline. They now apply it, and the five engines return their issues with every run. If you compare old scenario results, run them again.',
                   link: { to: '/interoperability', label: 'How the translation works' },
                 },
+                {
+                  icon: 'timer',
+                  tag: 'Time',
+                  title: '3-hour steps on three engines',
+                  desc: 'A coarser time resolution, such as the res_3H override, now runs on Calliope 0.6.8, Calliope 0.7 and PyPSA. Calliope 0.7 also applies the reserve margin.',
+                },
+                {
+                  icon: 'system_update',
+                  tag: 'Updates',
+                  title: 'Silent updates on Windows',
+                  desc: 'Updating from inside TEMPO keeps your data and Python environments, restarts the app and skips the setup wizard.',
+                },
               ].map((item) => (
                 <div key={item.title} className="bg-white/5 border border-white/10 p-10 flex flex-col justify-between min-h-[260px]">
                   <div className="flex items-center justify-between">
                     <span className="material-symbols-outlined text-3xl">{item.icon}</span>
-                    <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-white/40">{item.tag}</span>
+                    <span className="text-[0.6875rem] font-bold uppercase tracking-widest text-white/60">{item.tag}</span>
                   </div>
                   <div>
                     <h3 className="text-xl font-bold uppercase mt-8 mb-3">{item.title}</h3>
@@ -163,7 +176,7 @@ export default function Features() {
                   transmission links and assign technologies. Each node becomes a Calliope <code className="text-xs bg-black/5 px-1">locations.yaml</code> entry.
                 </p>
                 <ul className="space-y-4">
-                  {['Click-to-place node & link authoring', 'Calliope YAML export without data loss', 'Real-time CAPEX / OPEX estimation', 'Template models: Germany, Italy & more'].map(
+                  {['Click-to-place node & link authoring', 'Drag a location to move it', 'Calliope YAML export without data loss', 'Templates: Italy, UK & Cambridge'].map(
                     (item) => (
                       <li
                         key={item}
@@ -180,12 +193,13 @@ export default function Features() {
 
             {/* Right: node UI mockup */}
             <div className="lg:col-span-8">
-              <div className="bg-surface ghost-border min-h-[500px] relative overflow-hidden">
-
+              <div className="bg-surface ghost-border overflow-hidden">
                 <img
-                    className="absolute"
-                    alt=""
-                    src={model}
+                  className="block w-full h-auto"
+                  width="1600"
+                  height="1000"
+                  alt="Map View of an Italy model with 29 locations joined by links, the location list on the left and a technology legend on the right."
+                  src={model}
                 />
               </div>
             </div>
@@ -208,12 +222,15 @@ export default function Features() {
               </p>
             </div>
 
-            <div className="h-[600px] w-auto">
-                <img
-                  className="w-auto h-[600px]"
-                  alt=""
-                  src={InteractiveQGIS}
-                />
+            <div className="ghost-border overflow-hidden">
+              <img
+                className="block w-full h-auto"
+                width="1600"
+                height="1000"
+                loading="lazy"
+                alt="Study area of Lower Bavaria: OpenStreetMap power lines, substations and plants on the map, with 1117 lines, 3717 substations and 3763 plants counted in the side panel."
+                src={InteractiveQGIS}
+              />
             </div>
             <p className="mt-4 text-[0.6875rem] text-outline">
               Map data ©{' '}
@@ -262,10 +279,10 @@ export default function Features() {
           <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-16 items-start">
             {/* Left: full-width screenshot */}
             <div className="lg:col-span-8">
-              <div className="bg-surface ghost-border min-h-[520px] relative overflow-hidden">
+              <div className="bg-surface ghost-border overflow-hidden">
                 <img
                   className="w-full h-auto"
-                  alt="TEMPO model dashboard showing dispatch charts and location map"
+                  alt="Results dashboard for a one-week Calliope run of the Italy model: a map with installed capacity per location and a bar chart of capacity by technology."
                   src={Results}
                 />
               </div>
@@ -286,7 +303,7 @@ export default function Features() {
                   LCOE. All five engines fill the same tabs.
                 </p>
                 <ul className="space-y-4">
-                  {['Energy dispatch by technology', 'Installed capacity breakdown', 'Carbon intensity timeline', 'Levelized cost of electricity (LCOE)', 'Filterable by tech group & time window', 'SPORES alternative plans grid', 'Multi-scenario comparison dashboard', 'Transmission links on the results map', 'Shadow prices', 'AI-written run report'].map(
+                  {['Energy dispatch by technology', 'Installed capacity breakdown', 'Levelized cost of electricity (LCOE)', 'Filterable by tech group & time window', 'SPORES alternative plans grid', 'Multi-scenario comparison dashboard', 'Transmission links on the results map', 'Shadow prices', 'AI-written run report'].map(
                     (item) => (
                       <li
                         key={item}
@@ -317,10 +334,13 @@ export default function Features() {
                 month or a window you pick.
               </p>
             </div>
-            <div className="h-[600px] w-full bg-surface-container relative overflow-hidden">
+            <div className="ghost-border overflow-hidden">
               <img
-                className="w-full h-full object-cover object-top"
-                alt="TEMPO Timeseries Editor"
+                className="block w-full h-auto"
+                width="1600"
+                height="1000"
+                loading="lazy"
+                alt="Time Series editor showing two weeks of hourly regional demand for five Italian zones, with range, resolution and column controls."
                 src={ScreenTimeseries}
               />
             </div>
@@ -449,7 +469,7 @@ export default function Features() {
 
               {/* Solver visual */}
               <div className="relative bg-white/5 p-12 border border-white/10 aspect-square flex flex-col justify-center items-center">
-                <div className="w-full h-full border border-white/20 absolute inset-0 m-12"></div>
+                <div className="border border-white/20 absolute inset-0 m-12"></div>
                 <span
                   className="material-symbols-outlined text-white/20"
                   style={{ fontSize: '8rem' }}
@@ -486,53 +506,15 @@ export default function Features() {
               log, refreshed every couple of seconds.
             </p>
 
-            {/* Terminal mockup */}
-            <div className="w-full max-w-5xl bg-black p-4 shadow-2xl overflow-hidden">
-              <div className="flex items-center gap-2 mb-4 px-2">
-                <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                <span className="ml-4 text-[0.625rem] font-mono text-white/40">
-                  calliope_service.py · 0.0.0.0:5000 · 0.7 engine · 0.0.0.0:5002
-                </span>
-              </div>
-              <div className="font-mono text-[0.75rem] text-green-400 p-4 space-y-1">
-                <div>[CALLIOPE] <span className="text-white">CBC solver found on PATH ✓</span></div>
-                <div>[CALLIOPE] <span className="text-white">Building model 'Imported Calliope Model'</span></div>
-                <div>[CALLIOPE] <span className="text-white">Locations: 44 Technologies: 16 Links: 44</span></div>
-                <div>[CALLIOPE] [OEO] <span className="text-white">Tech Database API unreachable – running with local technology data.</span></div>
-                <div>[CALLIOPE] <span className="text-white">Using subset_time from model metadata: 2015-01-01 → 2015-12-31</span></div>
-                <div>[CALLIOPE] <span className="text-white">subset_time: 2015-01-01 → 2015-01-06</span></div>
-                <div>[CALLIOPE] [CSV] <span className="text-white">Payload timeSeries entries: 4</span></div>
-                <div>[CALLIOPE] <span className="text-white">Written 4 imported CSV file(s) to model_config: export_price.csv, solar_resource.csv, demand_electricity_mean.csv, demand_heat_mean.csv</span></div>
-                <div>[CALLIOPE] <span className="text-white">Generated timeseries CSV for 'ground_heat': ground_heat_resource.csv (144 hours, injected into 1 location(s))</span></div>
-                <div>[CALLIOPE] <span className="text-white">Wrote techs.yaml</span></div>
-                <div>[CALLIOPE] <span className="text-white">Wrote locations.yaml</span></div>
-                <div>[CALLIOPE] <span className="text-white">Wrote model.yaml</span></div>
-
-                <div>[CALLIOPE] <span className="text-white">Loading Calliope model …</span></div>
-                <div>[CALLIOPE] <span className="text-white">Running optimisation with solver=cbc …</span></div>
-                <div>[CALLIOPE] <span className="text-white">Optimisation finished. Extracting results …</span></div>
-                <div>[CALLIOPE] <span className="text-white">Extracted transmission flow for 43 pair(s)</span></div>
-                <div>[CALLIOPE] <span className="text-white">Objective value: 240068.55598877</span></div>
-
-
-                <div className="animate-pulse">
-                  [CALLIOPE] <span className="text-yellow-400">Loading Calliope model … #1092...</span>                                               
-                </div>
-                <div className="animate-pulse">
-                  [CALLIOPE] <span className="text-yellow-400">Running optimisation with solver=cbc … #1092...</span>
-                </div>  
-                <div className="animate-pulse">
-                  [CALLIOPE] <span className="text-yellow-400">Optimisation finished. Extracting results … #1092...</span>
-                </div> 
-                <div className="animate-pulse">
-                  [CALLIOPE] <span className="text-yellow-400">Extracted transmission flow for 43 pair(s) #1092...</span>
-                </div> 
-                <div className="animate-pulse">
-                  [CALLIOPE] <span className="text-yellow-400">Objective value: 240068.55598877 #1092...</span>
-                </div> 
-              </div>
+            <div className="w-full max-w-5xl ghost-border overflow-hidden">
+              <img
+                className="block w-full h-auto"
+                width="1600"
+                height="1000"
+                loading="lazy"
+                alt="Run page during a Calliope run of the Italy model: time horizon and solver options on the left, and on the right the active run with elapsed time, CPU, memory and the solver log."
+                src={ScreenRun}
+              />
             </div>
           </div>
         </section>
